@@ -8,7 +8,7 @@ import { assertDefined, checkHash, checkRawToken, getErrorMessage, requireDefine
 import { getServerSession, Session } from "next-auth";
 import { nextAuthConfig } from "./nextauth.config";
 import { inferTokenTypeFromId, SessionUser } from "./schema";
-import { db } from "./server/db";
+import { db, getDatabaseErrorCode, isDatabaseConnectivityError } from "./server/db";
 import { isMaintenanceActive } from "./server/maintenance";
 import { prepareZodObjectForDeserialization, safeParseWithDate } from "./zod";
 import { ApiError } from "./shared/errors";
@@ -423,8 +423,23 @@ export function nextJsApiHandler(api: Api): NextApiHandler {
           // Fail closed: the limiter store is unavailable, so we reject rather than
           // silently letting everyone through. A future per-route failOpen flag can
           // carve exceptions when we need them.
-          log.atWarn().withCause(e).log(`rate limiter unavailable for ${req.method} ${req.url}`);
           res.setHeader("Retry-After", "5");
+          if (isDatabaseConnectivityError(e)) {
+            // The Postgres-backed limiter runs an INSERT on every request, so a DB
+            // outage surfaces here first. Report the real cause instead of blaming
+            // the rate limiter, which points developers at the wrong subsystem.
+            const code = getDatabaseErrorCode(e);
+            log
+              .atError()
+              .withCause(e)
+              .log(`database is unreachable${code ? ` (${code})` : ""} for ${req.method} ${req.url}; request rejected`);
+            res.status(503).json({
+              error: "database_unavailable",
+              message: "Database is unavailable; request rejected.",
+            });
+            return;
+          }
+          log.atWarn().withCause(e).log(`rate limiter unavailable for ${req.method} ${req.url}`);
           res.status(503).json({
             error: "rate_limit_unavailable",
             message: "Rate limiter store is unavailable; request rejected.",

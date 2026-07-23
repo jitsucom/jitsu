@@ -1,4 +1,4 @@
-import { PrismaClient } from "@prisma/client";
+import { Prisma, PrismaClient } from "@prisma/client";
 import { Pool, PoolClient } from "pg";
 import Cursor from "pg-cursor";
 import { getSingleton, namedParameters, newError, requireDefined, stopwatch, hideSensitiveInfo } from "juava";
@@ -70,6 +70,36 @@ const pgHelper: PgHelper = {
     return { rows: totalRows };
   },
 };
+
+// Prisma error codes that indicate the database itself is unreachable or the
+// connection dropped, as opposed to a query/logic error.
+// P1001: can't reach database server, P1002: connection timed out,
+// P1008: operation timed out, P1017: server closed the connection.
+const DB_CONNECTIVITY_CODES = new Set(["P1001", "P1002", "P1008", "P1017"]);
+
+/**
+ * Returns true when the error signals that the database is down/unreachable
+ * (connection could not be established or was lost) rather than a query error.
+ */
+export function isDatabaseConnectivityError(e: unknown): boolean {
+  if (e instanceof Prisma.PrismaClientInitializationError) {
+    return true;
+  }
+  if (e instanceof Prisma.PrismaClientKnownRequestError) {
+    return DB_CONNECTIVITY_CODES.has(e.code);
+  }
+  return false;
+}
+
+export function getDatabaseErrorCode(e: unknown): string | undefined {
+  if (e instanceof Prisma.PrismaClientInitializationError) {
+    return e.errorCode;
+  }
+  if (e instanceof Prisma.PrismaClientKnownRequestError) {
+    return e.code;
+  }
+  return undefined;
+}
 
 export const db = {
   prisma: getSingleton<PrismaClient>("prisma", createPrisma),
