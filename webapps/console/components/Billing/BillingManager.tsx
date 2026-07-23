@@ -13,7 +13,6 @@ import styles from "./BillingManager.module.css";
 import { useQuery } from "@tanstack/react-query";
 import { ErrorCard } from "../GlobalError/GlobalError";
 import { useEventsUsage } from "./use-events-usage";
-import { upgradeRequired } from "./copy";
 import { JitsuButton } from "../JitsuButton/JitsuButton";
 import dayjs from "dayjs";
 
@@ -77,11 +76,6 @@ const EventsUsageSection: React.FC<{}> = () => {
 
   assertDefined(usage, "Data should be defined");
 
-  const usageExceeded = usage.usagePercentage > 1 && billing.settings.planId === "free";
-  const usageIsAboutToExceed =
-    usage?.projectionByTheEndOfPeriod &&
-    usage?.projectionByTheEndOfPeriod > usage?.maxAllowedDestinatonEvents &&
-    billing.settings.planId == "free";
   return (
     <div>
       <Progress
@@ -139,48 +133,6 @@ const EventsUsageSection: React.FC<{}> = () => {
           />
         </div>
       )}
-      {usageExceeded && (
-        <div className="mt-8">
-          <Alert
-            message={<h4 className="text-xl">Upgrade your plan to keep using Jitsu</h4>}
-            description={<div className="text-lg">{upgradeRequired}</div>}
-            type="error"
-            showIcon
-          />
-        </div>
-      )}
-      {throttle && (
-        <div className="mt-8">
-          <Alert
-            message={<h4 className="font-bold">Throttling warning</h4>}
-            description={
-              <div>
-                You have repeatedly exceeded your monthly events destination limit, so you're incoming events are
-                throttled at rate of <b>{throttle}%</b> events per second. It means that only <b>{100 - throttle}%</b>{" "}
-                of incoming events are processed. Please upgrade your plan to restore the full processing capacity.
-              </div>
-            }
-            type="error"
-            showIcon
-          />
-        </div>
-      )}
-      {usageIsAboutToExceed && !usageExceeded && !throttle ? (
-        <div className="mt-8">
-          <Alert
-            message={<h4 className="font-bold">Account quota warning!</h4>}
-            showIcon
-            type={"warning"}
-            description={
-              <>
-                You are projected to exceed your monthly events destination limit by{" "}
-                <b>{formatNumber((usage?.projectionByTheEndOfPeriod || 0) - usage?.maxAllowedDestinatonEvents)}</b>{" "}
-                events. Please upgrade your plan to avoid service disruption.
-              </>
-            }
-          />
-        </div>
-      ) : undefined}
       {usage.usagePercentage > 1 && billing.settings.planId !== "free" && !throttle && (
         <div className="mt-8">
           <Alert
