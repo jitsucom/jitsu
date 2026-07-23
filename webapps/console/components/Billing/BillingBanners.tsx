@@ -3,8 +3,7 @@ import { Modal } from "antd";
 import DOMPurify from "dompurify";
 import { AlertTriangle, X } from "lucide-react";
 import { useRouter } from "next/router";
-import { useBilling, UseBillingResult } from "./BillingProvider";
-import { useEventsUsage, UseUsageRes } from "./use-events-usage";
+import { useBilling } from "./BillingProvider";
 import { useWorkspace } from "../../lib/context";
 import { useApi } from "../../lib/useApi";
 import { WJitsuButton } from "../JitsuButton/JitsuButton";
@@ -20,17 +19,10 @@ import { BillingBanner } from "../../lib/schema";
  * or misbehaving billing response must not run script — and action locations
  * are restricted to workspace-relative console paths.
  *
- * Two banners are still computed client-side (they replaced the old floating
- * workspace alerts) and share the same template, with explicit rules:
- *   - active throttle (`throttle=N` in featuresEnabled): a standalone banner
- *     when there are no server banners; with server banners present, a partial
- *     throttle (N < 100) appends its one important fact to the first banner's
- *     body instead of adding a second banner (N = 100 needs nothing — that's
- *     the blocked banner's own story);
- *   - usage projected to exceed the free plan: shown only when there is nothing
- *     else to show.
- * TODO(JITSU-123): move both to the billing server (getWorkspaceBanners) and
- * delete useEventsUsage from here.
+ * The full banner list — including the active-throttle and projection banners
+ * that used to be computed client-side — comes from the server
+ * (composeWorkspaceBanners in the billing repo, JITSU-123 item d); this
+ * component only renders and dismisses.
  *
  * Dismissals are client-side, keyed by workspace + the banner's stable `id` —
  * the id changes (e.g. new severity level or billing period) to re-show a
@@ -112,20 +104,6 @@ const sanitizeInline = (html: string) => {
 const Html: React.FC<{ html: string; className?: string; inline?: boolean }> = ({ html, className, inline }) => (
   <span className={className} dangerouslySetInnerHTML={{ __html: inline ? sanitizeInline(html) : sanitize(html) }} />
 );
-
-function usageIsAboutToExceed(billing: UseBillingResult, usage: UseUsageRes): boolean {
-  return !!(
-    billing.enabled &&
-    billing.settings &&
-    !usage.isLoading &&
-    !usage.error &&
-    usage.usage?.usagePercentage &&
-    usage.usage?.usagePercentage < 1 &&
-    billing.settings.planId === "free" &&
-    usage.usage?.projectionByTheEndOfPeriod &&
-    usage.usage?.projectionByTheEndOfPeriod > usage.usage.maxAllowedDestinatonEvents
-  );
-}
 
 const themes: Record<BillingBanner["severity"], { card: string; iconBox: string; badge: string }> = {
   info: {
@@ -278,7 +256,6 @@ const BillingBannersInner: React.FC = () => {
   const billing = useBilling();
   const workspace = useWorkspace();
   const router = useRouter();
-  const usage = useEventsUsage({ skipSubscribed: true });
   const { data: userProps } = useApi(`/api/user/properties`);
   const [, forceRerender] = useReducer(x => x + 1, 0);
 
@@ -290,52 +267,7 @@ const BillingBannersInner: React.FC = () => {
   // everywhere.
   const onBillingPage = router.pathname.endsWith("/settings/billing");
 
-  let banners: BillingBanner[];
-  if (usage.throttle && serverBanners.length === 0 && !onBillingPage) {
-    // A throttle with no server banner to attach to gets its own banner.
-    banners = [
-      {
-        id: "client-throttle",
-        severity: "error",
-        title: "Workspace throttled",
-        badge: `${usage.throttle}% THROTTLED`,
-        body: `Part of your events are not being delivered — your workspace is throttled at <b>${usage.throttle}%</b> due to exceeding the free plan quota.`,
-        action: { text: "See details", location: "/settings/billing", onBillingPage: false },
-        closeable: false,
-        onBillingPage: false,
-      },
-    ];
-  } else if (serverBanners.length > 0) {
-    // A partial throttle alongside server banners doesn't warrant a second
-    // banner — its one important fact is appended to the first banner's body.
-    // (throttle=100 needs no line: that's the blocked banner's own story.)
-    const partialThrottle = usage.throttle && usage.throttle < 100 ? usage.throttle : 0;
-    banners = partialThrottle
-      ? serverBanners.map((banner, i) =>
-          i === 0
-            ? {
-                ...banner,
-                body: `${banner.body}<br/>Part of your events are not being delivered — your workspace is throttled at <b>${partialThrottle}%</b>.`,
-              }
-            : banner
-        )
-      : serverBanners;
-  } else if (usageIsAboutToExceed(billing, usage) && !onBillingPage) {
-    banners = [
-      {
-        id: `client-projection:${usage.usage?.periodEnd?.toISOString() ?? "period"}`,
-        severity: "warning",
-        title: "Projected to exceed your quota",
-        badge: "PROJECTION",
-        body: "At the current pace you'll exceed your monthly events quota before the period ends. Upgrade your plan to avoid service disruption.",
-        action: { text: "Upgrade", location: "/settings/billing", onBillingPage: false },
-        closeable: true,
-        onBillingPage: false,
-      },
-    ];
-  } else {
-    banners = [];
-  }
+  let banners: BillingBanner[] = serverBanners;
 
   // Server-controlled visibility on the billing settings page: banners and
   // actions carry an `onBillingPage` flag (missing = show). Warnings hide
