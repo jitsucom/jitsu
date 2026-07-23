@@ -262,9 +262,8 @@ const BillingBannersInner: React.FC = () => {
   const serverAll = (billing.enabled && billing.settings?.banners) || [];
   const serverModals = serverAll.filter(banner => banner.kind === "modal");
   const serverBanners = serverAll.filter(banner => banner.kind !== "modal");
-  // The billing page shows its own detailed alerts (BillingManager) — the
-  // client-computed banners would duplicate them there. Server banners render
-  // everywhere.
+  // The billing page nests non-modal banners under its Events Usage section
+  // (BillingManager) — the top strip honors the payloads' onBillingPage flags.
   const onBillingPage = router.pathname.endsWith("/settings/billing");
 
   let banners: BillingBanner[] = serverBanners;
@@ -318,7 +317,7 @@ const BillingBannersInner: React.FC = () => {
 
 export const BillingBanners: React.FC = () => {
   const billing = useBilling();
-  // Inner component gate: useEventsUsage asserts billing is enabled + loaded.
+  // Banners exist only for enabled, loaded billing.
   if (!billing.enabled || billing.loading) {
     return null;
   }
