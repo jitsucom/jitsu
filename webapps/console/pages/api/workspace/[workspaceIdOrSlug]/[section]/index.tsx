@@ -1,4 +1,4 @@
-import { createRoute, verifyAccess } from "../../../../../lib/api";
+import { createRoute, verifyAccess, verifyAccessWithRole } from "../../../../../lib/api";
 import { z } from "zod";
 import { db } from "../../../../../lib/server/db";
 import { requireDefined } from "juava";
@@ -46,7 +46,7 @@ export default createRoute()
         .workspace.findFirst({ where: { OR: [{ id: workspaceIdOrSlug }, { slug: workspaceIdOrSlug }] } }),
       `Workspace ${workspaceIdOrSlug} not found`
     );
-    await verifyAccess(user, workspace.id);
+    await verifyAccessWithRole(user, workspace.id, "editEntities");
     if (section == "data-retention") {
       (body as any).pendingUpdate = true;
     }
