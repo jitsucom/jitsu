@@ -1,5 +1,6 @@
 import { createRoute, verifyAccessWithRole } from "../../../lib/api";
 import { z } from "zod";
+import { Prisma } from "@prisma/client";
 import { db } from "../../../lib/server/db";
 import { requireDefined } from "juava";
 import { withProductAnalytics } from "../../../lib/server/telemetry";
@@ -56,15 +57,11 @@ export const route = createRoute()
       `User ${user.internalId} does not exist`
     );
 
-    const searchCondition = search
-      ? {
-          OR: [
-            { id: { contains: search, mode: "insensitive" as const } },
-            { name: { contains: search, mode: "insensitive" as const } },
-            { slug: { contains: search, mode: "insensitive" as const } },
-          ],
-        }
-      : {};
+    // Search matches workspace id / name / slug, case-insensitively. Kept as a raw fragment so it
+    // can be composed into the ordering query below (see comment there for why raw SQL).
+    const searchClause = search
+      ? Prisma.sql`AND (w.id ILIKE ${`%${search}%`} OR w.name ILIKE ${`%${search}%`} OR w.slug ILIKE ${`%${search}%`})`
+      : Prisma.empty;
 
     const totalCount = userModel.admin
       ? await db.prisma().workspace.count({
@@ -77,45 +74,44 @@ export const route = createRoute()
           },
         });
 
-    const baseList = userModel.admin
-      ? await db.prisma().workspace.findMany({
-          where: { deleted: false, ...searchCondition },
-          include: {
-            workspaceUserProperties: { where: { userId: userModel.id } },
-            _count: {
-              select: { configurationObject: { where: { deleted: false } } },
-            },
-          },
-          orderBy: { createdAt: "asc" },
-          skip: offset,
-          take: limit,
-        })
-      : (
-          await db.prisma().workspaceAccess.findMany({
-            where: {
-              userId: user.internalId,
-              workspace: { deleted: false, ...searchCondition },
-            },
-            include: { workspace: { include: { workspaceUserProperties: true } } },
-            orderBy: { createdAt: "asc" },
-            skip: offset,
-            take: limit,
-          })
-        ).map(({ workspace }) => workspace);
+    // Order by the current user's last-access time (most-recently-used first, never-opened last).
+    // `lastUsed` lives on WorkspaceUserProperties — a per-user, to-many relation on Workspace — so
+    // Prisma's `orderBy` can't express it (it only orders to-many relations by `_count`). Raw SQL
+    // with a LEFT JOIN drives the pagination window by `lastUsed` while keeping never-opened
+    // workspaces (they sort last via NULLS LAST). Non-admins are scoped by WorkspaceAccess; admins
+    // see every workspace plus its configuration-object count.
+    const order = Prisma.sql`ORDER BY wup."lastUsed" DESC NULLS LAST, w."createdAt" ASC LIMIT ${limit} OFFSET ${offset}`;
+    const rows: any[] = userModel.admin
+      ? await db.prisma().$queryRaw`
+          SELECT w.*, wup."lastUsed",
+            (SELECT count(*) FROM newjitsu."ConfigurationObject" co
+               WHERE co."workspaceId" = w.id AND co.deleted = false) AS entities
+          FROM newjitsu."Workspace" w
+          LEFT JOIN newjitsu."WorkspaceUserProperties" wup
+            ON wup."workspaceId" = w.id AND wup."userId" = ${user.internalId}
+          WHERE w.deleted = false ${searchClause}
+          ${order}`
+      : await db.prisma().$queryRaw`
+          SELECT w.*, wup."lastUsed"
+          FROM newjitsu."Workspace" w
+          JOIN newjitsu."WorkspaceAccess" wa
+            ON wa."workspaceId" = w.id AND wa."userId" = ${user.internalId}
+          LEFT JOIN newjitsu."WorkspaceUserProperties" wup
+            ON wup."workspaceId" = w.id AND wup."userId" = ${user.internalId}
+          WHERE w.deleted = false ${searchClause}
+          ${order}`;
 
-    const workspaces = baseList
-      .map(({ workspaceUserProperties, ...workspace }) =>
-        omitDeleted({
-          ...workspace,
-          lastUsed: workspaceUserProperties?.[0]?.lastUsed || undefined,
-          entities: userModel.admin ? workspace["_count"]?.configurationObject : undefined,
-        })
-      )
-      .sort((a, b) => (b.lastUsed?.getTime() || 0) - (a.lastUsed?.getTime() || 0))
-      // Result is validated against ListResultSchema *before* JSON serialization, where
-      // `lastUsed` is `z.string().datetime()`. Convert the Date to ISO here so validation
-      // passes on responses where lastUsed is populated.
-      .map(w => ({ ...w, lastUsed: w.lastUsed ? w.lastUsed.toISOString() : undefined }));
+    const workspaces = rows.map(row =>
+      omitDeleted({
+        ...row,
+        // Result is validated against ListResultSchema *before* JSON serialization, where
+        // `lastUsed` is `z.string().datetime()`. Convert the Date to ISO so validation passes.
+        lastUsed: row.lastUsed ? new Date(row.lastUsed).toISOString() : undefined,
+        // Postgres `count(*)` comes back as BigInt via $queryRaw, which fails `z.number()` and
+        // JSON serialization — coerce to a plain number.
+        entities: userModel.admin && row.entities != null ? Number(row.entities) : undefined,
+      })
+    );
 
     if (typeof page !== "undefined") {
       return {

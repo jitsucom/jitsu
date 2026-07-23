@@ -1,4 +1,4 @@
-import React, { PropsWithChildren, ReactNode, useEffect, useState } from "react";
+import React, { PropsWithChildren, ReactNode, useEffect, useRef, useState } from "react";
 import { branding } from "../../lib/branding";
 import { HiSelector } from "react-icons/hi";
 import { FaDocker, FaSignOutAlt, FaUserCircle } from "react-icons/fa";
@@ -9,6 +9,8 @@ import styles from "./WorkspacePageLayout.module.css";
 import {
   Activity,
   BellIcon,
+  Building2,
+  Check,
   ChevronDown,
   ChevronUp,
   CreditCard,
@@ -40,6 +42,7 @@ import { NextRouter, useRouter } from "next/router";
 import Link from "next/link";
 import { getDomains, useAppConfig, useUser, useUserSessionControls, useWorkspace } from "../../lib/context";
 import { useApi } from "../../lib/useApi";
+import { useQueryClient } from "@tanstack/react-query";
 
 import { Overlay } from "../Overlay/Overlay";
 import { WorkspaceNameAndSlugEditor } from "../WorkspaceNameAndSlugEditor/WorkspaceNameAndSlugEditor";
@@ -67,10 +70,75 @@ export type WorkspaceSelectorProps = {
   currentTitle: ReactNode;
 };
 
-function WorkspacesMenu(props: { jitsuClassicAvailable: boolean }) {
+type WorkspacesListResponse = {
+  workspaces: { id: string; name: string; slug?: string | null }[];
+  pagination: { totalCount: number; hasMore: boolean };
+};
+
+// The recent-workspaces query URL, shared between the fetch and the post-switch invalidation so the
+// two never drift out of sync.
+const WORKSPACES_LIST_URL = "/api/workspace?page=0&limit=10";
+
+function WorkspacesMenu(props: {
+  jitsuClassicAvailable: boolean;
+  workspacesData?: WorkspacesListResponse;
+  workspacesLoading: boolean;
+}) {
   const router = useRouter();
   const appConfig = useAppConfig();
+  const currentWorkspace = useWorkspace();
   const { data, error } = useApi(`/api/user/properties`);
+
+  // Inline workspace switcher. The server selects WHICH workspaces to show by last-used (the top 10),
+  // so the list is your most-relevant workspaces — but we render them ALPHABETICALLY, so the on-screen
+  // order is stable and never reshuffles when recency changes. "More" links to the full `/workspaces`
+  // page. Data is preloaded by WorkspaceSelector and passed in here, so the dropdown paints instantly.
+  const { workspacesData, workspacesLoading } = props;
+  const recentWorkspaces = [...(workspacesData?.workspaces ?? [])].sort((a, b) =>
+    a.name.localeCompare(b.name, undefined, { sensitivity: "base" })
+  );
+  const hasMore = !!workspacesData?.pagination?.hasMore;
+  const moreCount = workspacesData ? Math.max(workspacesData.pagination.totalCount - recentWorkspaces.length, 0) : 0;
+
+  const workspaceItems: MenuProps["items"] = [];
+  if (workspacesLoading) {
+    workspaceItems.push({
+      key: "workspaces-loading",
+      disabled: true,
+      label: <span className="text-textDisabled text-sm">Loading workspaces…</span>,
+    });
+  } else {
+    for (const w of recentWorkspaces) {
+      const isCurrent = w.id === currentWorkspace.id;
+      workspaceItems.push({
+        key: `ws-${w.id}`,
+        label: (
+          <Link href={`/${w.slug || w.id}`} className="flex items-center justify-between gap-6">
+            <ButtonLabel iconSize="small" icon={<Building2 className="h-full w-full" />}>
+              {w.name}
+            </ButtonLabel>
+            {isCurrent && <Check className="h-4 w-4 text-primary shrink-0" />}
+          </Link>
+        ),
+      });
+    }
+    if (hasMore) {
+      workspaceItems.push({
+        key: "more-workspaces",
+        label: (
+          <Link href="/workspaces" className="flex items-center">
+            <ButtonLabel iconSize="small" icon={<Folders className="h-full w-full" />}>
+              More ({moreCount})
+            </ButtonLabel>
+          </Link>
+        ),
+      });
+    }
+  }
+  if (workspaceItems.length > 0) {
+    workspaceItems.push({ type: "divider", key: "workspaces-divider" });
+  }
+
   let additionalMenuItems: MenuItemType[] = [];
   if (error) {
     log.atWarn().log("Failed to load user properties", error);
@@ -103,6 +171,7 @@ function WorkspacesMenu(props: { jitsuClassicAvailable: boolean }) {
   return (
     <Menu
       items={[
+        ...workspaceItems,
         {
           key: "all-workspaces",
           label: (
@@ -134,11 +203,38 @@ function WorkspacesMenu(props: { jitsuClassicAvailable: boolean }) {
 
 export const WorkspaceSelector: React.FC<WorkspaceSelectorProps> = props => {
   const [open, setOpen] = useState(false);
+  const queryClient = useQueryClient();
+  const currentWorkspace = useWorkspace();
+  const firstWorkspaceEffect = useRef(true);
   //const classicProject = useClassicProject();
+
+  // Preload the recent-workspaces list on mount so the switcher paints instantly. Never revalidated
+  // while the dropdown is open (the effect below only fires on a workspace change, when the dropdown
+  // is closed), so the list never moves under the user.
+  const workspaces = useApi<WorkspacesListResponse>(WORKSPACES_LIST_URL);
+
+  // Switching workspaces bumps that workspace's `lastUsed` server-side, which can change WHICH
+  // workspaces fall in the "most recent" set the list is built from. Invalidate on workspace change
+  // so react-query refetches in the background — the dropdown is closed at switch time, so nothing
+  // moves on screen; the fresh set is ready for the next open. Skip the initial mount (the preload
+  // already fetched). Only set membership can change here; display order stays alphabetical.
+  useEffect(() => {
+    if (firstWorkspaceEffect.current) {
+      firstWorkspaceEffect.current = false;
+      return;
+    }
+    queryClient.invalidateQueries({ queryKey: ["GET", WORKSPACES_LIST_URL] });
+  }, [currentWorkspace.id, queryClient]);
 
   return (
     <Dropdown
-      dropdownRender={() => <WorkspacesMenu jitsuClassicAvailable={false} />}
+      dropdownRender={() => (
+        <WorkspacesMenu
+          jitsuClassicAvailable={false}
+          workspacesData={workspaces.data}
+          workspacesLoading={workspaces.isLoading}
+        />
+      )}
       trigger={["click"]}
       open={open}
       onOpenChange={open => setOpen(open)}
