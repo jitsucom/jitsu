@@ -7,7 +7,7 @@ import { assertDefined, assertFalse, assertTrue, requireDefined, rpc } from "jua
 import { BillingSettings } from "../../lib/schema";
 import { Alert, Button, Progress, Skeleton, Tooltip } from "antd";
 import Link from "next/link";
-import { Check, ChevronRight, Edit2, ExternalLink, Info, XCircle } from "lucide-react";
+import { Check, ChevronRight, Edit2, Info, XCircle } from "lucide-react";
 
 import styles from "./BillingManager.module.css";
 import { useQuery } from "@tanstack/react-query";
@@ -62,7 +62,6 @@ const ComparisonSection: React.FC<{
 const EventsUsageSection: React.FC<{}> = () => {
   const billing = useBilling();
   const workspace = useWorkspace();
-  const eeRedirect = useEeRedirect();
   assertTrue(billing.enabled);
   assertFalse(billing.loading, "Billing must be loaded before using UsageSection component");
 
@@ -107,32 +106,6 @@ const EventsUsageSection: React.FC<{}> = () => {
         </Link>
       </div>
 
-      {billing.settings?.pastDue && (
-        <div className="mt-8">
-          <Alert
-            message={<h4>You have unpaid invoices!</h4>}
-            description={
-              <div>
-                Please{" "}
-                <a
-                  className="cursor-pointer"
-                  onClick={() =>
-                    eeRedirect("billing/manage", { workspaceId: workspace.id, returnUrl: window.location.href })
-                  }
-                >
-                  <span className="inline-flex items-center space-x-1">
-                    <span>update your payment method and pay outstanding invoices</span>
-                    <ExternalLink className="w-5 h-5" />
-                  </span>
-                </a>{" "}
-                to avoid service interruption
-              </div>
-            }
-            type="error"
-            showIcon
-          />
-        </div>
-      )}
       {usage.usagePercentage > 1 && billing.settings.planId !== "free" && !throttle && (
         <div className="mt-8">
           <Alert
@@ -300,16 +273,15 @@ const CurrentSubscription: React.FC<{}> = () => {
       </div>
       <h3 className="text-lg text-textLight mt-6 mb-2">Events Usage</h3>
       <EventsUsageSection />
-      {/* Usage banners from billing/settings, nested compact: no extra widget
+      {/* Billing banners from billing/settings, nested compact: no extra widget
           zone (the section's own chart covers usage) and no action (it would
           navigate to this very page). Only banners the server moved off the
           top strip (onBillingPage: false) — default-visible ones already show
-          there. Past-due surfaces are excluded: the dedicated unpaid-invoices
-          alert below carries the payment link. */}
+          there. Modal payloads (e.g. past-due escalated) render as compact
+          cards too: this page suppresses blocking modals but must still
+          inform. */}
       {(billing.settings?.banners ?? [])
-        .filter(
-          banner => banner.kind !== "modal" && banner.onBillingPage === false && !banner.id.startsWith("past-due")
-        )
+        .filter(banner => banner.onBillingPage === false)
         .map(banner => (
           <div key={banner.id} className="mt-3">
             <BannerCard banner={banner} compact />
