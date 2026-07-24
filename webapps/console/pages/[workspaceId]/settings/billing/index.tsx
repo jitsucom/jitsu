@@ -8,7 +8,7 @@ import { WJitsuButton } from "../../../../components/JitsuButton/JitsuButton";
 
 const BillingPage: React.FC<{}> = () => {
   return (
-    <WorkspacePageLayout>
+    <WorkspacePageLayout doNotBlockWithBillingModals={true}>
       <div>
         <div className="flex justify-between items-center mb-6">
           <h1 className="text-4xl">Plan & Billing</h1>
