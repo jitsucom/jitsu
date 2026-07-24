@@ -63,6 +63,12 @@ export type PageLayoutProps = {
   onClose?: () => void;
   contentClassName?: string;
   className?: string;
+  /**
+   * Suppress billing blocking modals (e.g. the unpaid-invoices one) on this
+   * page. Set by the pages the user needs to fix billing — workspace settings
+   * and the billing pages — so they always stay reachable.
+   */
+  doNotBlockWithBillingModals?: boolean;
 };
 
 export type WorkspaceSelectorProps = {
@@ -609,6 +615,7 @@ export const WorkspacePageLayout: React.FC<PropsWithChildren<PageLayoutProps>> =
   contentClassName,
   onClose,
   children,
+  doNotBlockWithBillingModals,
 }) => {
   const [showDrawer, setShowDrawer] = useState(false);
   const workspace = useWorkspace();
@@ -696,11 +703,11 @@ export const WorkspacePageLayout: React.FC<PropsWithChildren<PageLayoutProps>> =
         {!fullscreen && (
           <VerticalSection>
             <WidthControl className={"px-8"}>
-              <BillingBanners />
+              <BillingBanners suppressModals={doNotBlockWithBillingModals} />
             </WidthControl>
           </VerticalSection>
         )}
-        {fullscreen && <BillingBanners modalsOnly />}
+        {fullscreen && <BillingBanners modalsOnly suppressModals={doNotBlockWithBillingModals} />}
         <VerticalSection className={`flex-auto overflow-auto ${fullscreen ? "py-2" : "py-12"} ${contentClassName}`}>
           {fullscreen && (
             <button

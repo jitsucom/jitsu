@@ -683,7 +683,7 @@ const WorkspaceSettingsComponent: React.FC<any> = () => {
 
 const WorkspaceSettings: React.FC<any> = () => {
   return (
-    <WorkspacePageLayout>
+    <WorkspacePageLayout doNotBlockWithBillingModals={true}>
       <WorkspaceSettingsComponent />
     </WorkspacePageLayout>
   );

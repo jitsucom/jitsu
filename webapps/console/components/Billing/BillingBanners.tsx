@@ -250,13 +250,18 @@ const BannerModal: React.FC<{ banner: BillingBanner; adminCanClose: boolean }> =
   );
 };
 
-/**
- * Pages a blocking modal must never cover: everything the user needs to fix
- * billing (workspace settings + the billing pages).
- */
-const MODAL_EXEMPT_PAGES = ["/settings", "/settings/billing", "/settings/billing/details"];
+type BillingBannersProps = {
+  /** Render only blocking modals (fullscreen pages mount a second instance). */
+  modalsOnly?: boolean;
+  /**
+   * Suppress blocking modals — set via WorkspacePageLayout's
+   * doNotBlockWithBillingModals by pages the user needs to fix billing
+   * (workspace settings, billing pages).
+   */
+  suppressModals?: boolean;
+};
 
-const BillingBannersInner: React.FC<{ modalsOnly?: boolean }> = ({ modalsOnly }) => {
+const BillingBannersInner: React.FC<BillingBannersProps> = ({ modalsOnly, suppressModals }) => {
   const billing = useBilling();
   const workspace = useWorkspace();
   const router = useRouter();
@@ -289,9 +294,9 @@ const BillingBannersInner: React.FC<{ modalsOnly?: boolean }> = ({ modalsOnly })
   const visibleBanners = modalsOnly ? [] : banners.filter(banner => !isDismissed(banner));
 
   // Blocking modals render independently of the card-priority chain, but never
-  // on the pages the user needs to fix billing.
-  const onModalExemptPage = MODAL_EXEMPT_PAGES.some(page => router.pathname.endsWith(page));
-  const visibleModals = onModalExemptPage ? [] : serverModals;
+  // on the pages the user needs to fix billing (declared per-page via the
+  // layout's doNotBlockWithBillingModals).
+  const visibleModals = suppressModals ? [] : serverModals;
 
   if (visibleBanners.length === 0 && visibleModals.length === 0) {
     return null;
@@ -321,11 +326,11 @@ const BillingBannersInner: React.FC<{ modalsOnly?: boolean }> = ({ modalsOnly })
   );
 };
 
-export const BillingBanners: React.FC<{ modalsOnly?: boolean }> = ({ modalsOnly }) => {
+export const BillingBanners: React.FC<BillingBannersProps> = props => {
   const billing = useBilling();
   // Banners exist only for enabled, loaded billing.
   if (!billing.enabled || billing.loading) {
     return null;
   }
-  return <BillingBannersInner modalsOnly={modalsOnly} />;
+  return <BillingBannersInner {...props} />;
 };
