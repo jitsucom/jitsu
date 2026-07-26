@@ -3,6 +3,8 @@ import { tagPlugin } from "./tag";
 import { logrocketPlugin } from "./logrocket";
 import { gtmPlugin } from "./gtm";
 import { ga4Plugin } from "./ga4";
+import { clarityPlugin } from "./clarity";
+import { hotjarPlugin } from "./hotjar";
 
 export type InternalPlugin<T> = {
   id: string;
@@ -58,4 +60,6 @@ export const internalDestinationPlugins: Record<string, InternalPlugin<any>> = {
   [gtmPlugin.id]: gtmPlugin,
   [ga4Plugin.id]: ga4Plugin,
   [logrocketPlugin.id]: logrocketPlugin,
+  [clarityPlugin.id]: clarityPlugin,
+  [hotjarPlugin.id]: hotjarPlugin,
 };

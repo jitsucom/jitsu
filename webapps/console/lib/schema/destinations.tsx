@@ -29,6 +29,8 @@ import s3Icon from "./icons/s3";
 import tagIcon from "./icons/tag";
 import snowflakeIcon from "./icons/snowflake";
 import logRocketIcon from "./icons/logrocket";
+import clarityIcon from "./icons/clarity";
+import hotjarIcon from "./icons/hotjar";
 import intercomIcon from "./icons/intercom";
 import webhookIcon from "./icons/webhook";
 import { branding } from "../branding";
@@ -319,6 +321,74 @@ const logRocketDestination = {
   connectionOptions: DeviceDestinationsConnectionOptions,
 };
 
+const clarityDestination = {
+  id: "clarity",
+  isSynchronous: true,
+  icon: clarityIcon,
+  title: "Microsoft Clarity",
+  tags: "Device Destinations",
+  description:
+    "Microsoft Clarity is a free heatmap and session-recording tool. Jitsu attaches user identity, tags and custom events to Clarity sessions with a client-side snippet.",
+  credentials: z.object({
+    projectId: z
+      .string()
+      .describe(
+        "Project ID::Your Clarity Project ID. Open your Clarity project » Settings » Overview to find it. It also serves as the API key."
+      ),
+    cookieConsent: z
+      .boolean()
+      .default(false)
+      .describe(
+        "Cookie consent::Call <code>clarity('consent')</code> after the tag loads. Enable this if you rely on Clarity's cookie consent gate."
+      ),
+    trackProperties: z
+      .enum(["tags", "ignore"])
+      .default("tags")
+      .describe(
+        "Track event properties::Clarity custom events carry only a name. Choose <code>tags</code> to also forward <code>track</code> properties as filterable Clarity custom tags, or <code>ignore</code> to send the event name only."
+      ),
+  }),
+  deviceOptions: {
+    type: "internal-plugin",
+    name: "clarity",
+  } as DeviceOptions,
+  connectionOptions: DeviceDestinationsConnectionOptions,
+};
+
+const hotjarDestination = {
+  id: "hotjar",
+  isSynchronous: true,
+  icon: hotjarIcon,
+  title: "Hotjar",
+  tags: "Device Destinations",
+  description:
+    "Hotjar is a heatmap, session-recording and survey tool. Jitsu attaches user attributes and custom events to Hotjar with a client-side snippet.",
+  credentials: z.object({
+    siteId: z
+      .string()
+      .describe(
+        "Site ID::Your Hotjar Site ID (the numeric <code>hjid</code>). Find it in Hotjar » Settings » Sites & Organizations, or in your tracking-code snippet."
+      ),
+    spaPageViews: z
+      .boolean()
+      .default(false)
+      .describe(
+        "SPA page views::Emit a Hotjar virtual page view (<code>hj('stateChange', path)</code>) on every Jitsu <code>page</code> event. Enable this for single-page apps. Leave off to rely on Hotjar's built-in page detection and avoid double-counting."
+      ),
+    trackProperties: z
+      .enum(["ignore", "attributes"])
+      .default("ignore")
+      .describe(
+        "Track event properties::Hotjar events carry only a name and have no per-event property API. Choose <code>attributes</code> to merge <code>track</code> properties into the identified user's record (requires a known user), or <code>ignore</code> to send the event name only."
+      ),
+  }),
+  deviceOptions: {
+    type: "internal-plugin",
+    name: "hotjar",
+  } as DeviceOptions,
+  connectionOptions: DeviceDestinationsConnectionOptions,
+};
+
 const tagDestination = {
   id: "tag",
   isSynchronous: true,
@@ -411,6 +481,8 @@ export const coreDestinations: DestinationType<any>[] = [
   gaDeviceDestination,
   gtmDeviceDestination,
   logRocketDestination,
+  clarityDestination,
+  hotjarDestination,
   {
     id: "clickhouse",
     usesBulker: true,
