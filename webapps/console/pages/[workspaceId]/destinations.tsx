@@ -55,6 +55,7 @@ import { CustomWidgetProps } from "../../components/ConfigObjectEditor/Editors";
 import { Htmlizer } from "../../components/Htmlizer/Htmlizer";
 import omit from "lodash/omit";
 import { EditorToolbar } from "../../components/EditorToolbar/EditorToolbar";
+import { PosthogHostEditor } from "../../components/ConfigObjectEditor/PosthogHostEditor";
 
 const log = getLog("destinations");
 const Loader: React.FC<{}> = () => {
@@ -221,6 +222,8 @@ function getEditorComponent(editor: string, editorProps?: any) {
     return props => {
       return <MultiSelectWithCustomOptions {...props} {...editorProps} />;
     };
+  } else if (editor === "PosthogHostEditor") {
+    return PosthogHostEditor;
   } else {
     throw new Error(`Unknown editor ${editor}`);
   }
