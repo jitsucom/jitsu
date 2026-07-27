@@ -6,6 +6,10 @@ describe("PostHog host editor conversion", () => {
     expect(posthogHostToDomain("https://app.posthog.com")).toBe("app.posthog.com");
   });
 
+  test("shows only the editable domain when the persisted HTTPS scheme uses uppercase letters", () => {
+    expect(posthogHostToDomain("HTTPS://APP.POSTHOG.COM")).toBe("APP.POSTHOG.COM");
+  });
+
   test("preserves an unrecognized legacy value so the user can correct it", () => {
     expect(posthogHostToDomain("posthog.internal")).toBe("posthog.internal");
   });
