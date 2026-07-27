@@ -66,6 +66,7 @@ import { CustomWidgetProps, PasswordEditor } from "./Editors";
 import { WorkspacePermissionsType } from "../../lib/workspace-roles";
 import { oauthDecorators } from "../../lib/server/oauth/destinations";
 import Nango from "@nangohq/frontend";
+import { transformConfigErrors, ValidationMessages } from "../../lib/schema/config-editor-errors";
 
 const log = getLog("ConfigEditor");
 
@@ -178,6 +179,7 @@ export type FieldDisplay = {
   textarea?: boolean;
   password?: boolean;
   placeholder?: string;
+  validationMessages?: ValidationMessages;
 };
 
 export type EditorComponentFactory = (props: EditorComponentProps) => React.FC<EditorComponentProps> | undefined;
@@ -520,6 +522,7 @@ const EditorComponent: React.FC<EditorComponentProps> = props => {
           schema={schema as any}
           liveValidate={true}
           validator={validator}
+          transformErrors={errors => transformConfigErrors(errors, fields)}
           onSubmit={async ({ formData }) => {
             if (
               onTest &&

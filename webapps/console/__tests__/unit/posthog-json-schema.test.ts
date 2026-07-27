@@ -1,8 +1,8 @@
-import Ajv from "ajv";
 import { PosthogDestinationConfig } from "@jitsu/destination-functions/src/meta";
-import { coreDestinationsMap } from "../../lib/schema/destinations";
+import Ajv from "ajv";
 import { describe, expect, test } from "vitest";
 import zodToJsonSchema from "zod-to-json-schema";
+import { coreDestinationsMap } from "../../lib/schema/destinations";
 
 const validate = new Ajv().compile(zodToJsonSchema(PosthogDestinationConfig));
 const config = (host: string) => ({ key: "phc_test", host });
@@ -15,9 +15,14 @@ describe("PostHog host JSON Schema", () => {
     }
   );
 
-  test("enables only the PostHog host editor metadata", () => {
+  test("enables only the PostHog schema host field metadata", () => {
     expect(coreDestinationsMap.posthog.credentialsUi).toEqual({
-      host: { editor: "PosthogHostEditor" },
+      host: {
+        editor: "SchemaHostField",
+        validationMessages: {
+          pattern: "must be a valid domain, for example: app.posthog.com",
+        },
+      },
     });
   });
 });
