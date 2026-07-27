@@ -334,6 +334,8 @@ export const SegmentCredentials = z.object({
 export type SegmentCredentials = z.infer<typeof SegmentCredentials>;
 
 export const POSTHOG_DEFAULT_HOST = "https://app.posthog.com";
+export const POSTHOG_HOST_PATTERN =
+  /^https:\/\/(?=.{1,253}$)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z](?:[a-z0-9-]{0,61}[a-z0-9])?$/i;
 
 export const PosthogDestinationConfig = z.object({
   key: z
@@ -341,7 +343,12 @@ export const PosthogDestinationConfig = z.object({
     .describe(
       "Project API Key::Posthog Project API Key. Can be found in <a target='_blank' rel='noopener noreferrer' href='https://app.posthog.com/project/settings'>Project Settings</a>"
     ),
-  host: z.string().optional().default(POSTHOG_DEFAULT_HOST).describe("Posthog host"),
+  host: z
+    .string()
+    .regex(POSTHOG_HOST_PATTERN, "Host must contain only a valid domain after https://")
+    .optional()
+    .default(POSTHOG_DEFAULT_HOST)
+    .describe("Posthog host"),
   enableGroupAnalytics: z
     .boolean()
     .optional()
@@ -371,8 +378,11 @@ export const PosthogDestinationConfig = z.object({
 });
 
 export const PosthogDestinationConfigUi: Partial<
-  Record<keyof PosthogDestinationConfig, { correction?: any; hidden?: any }>
+  Record<keyof PosthogDestinationConfig, { correction?: any; hidden?: any; editor?: string }>
 > = {
+  host: {
+    editor: "PosthogHostEditor",
+  },
   sendAnonymousEvents: {
     // assumes value of this freshly added property from the value of the `enableAnonymousUserProfiles` property
     correction: obj =>
