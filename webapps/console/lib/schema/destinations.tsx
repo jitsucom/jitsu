@@ -1026,7 +1026,11 @@ export const coreDestinations: DestinationType<any>[] = [
     tags: "Product Analytics",
     connectionOptions: CloudDestinationsConnectionOptions,
     credentials: meta.PosthogDestinationConfig,
-    credentialsUi: meta.PosthogDestinationConfigUi,
+    credentialsUi: {
+      host: {
+        editor: "PosthogHostEditor",
+      },
+    },
     description:
       "Posthog is an open-source product analytics tool. Jitsu supports both self-hosted Posthog and Posthog Cloud.",
   },
