@@ -113,33 +113,8 @@ loop, without a human in the middle.
 claude mcp add --transport http jitsu https://use.jitsu.com/mcp
 ```
 
-**Claude Desktop** — Settings → Connectors → *Add custom connector*, name it `Jitsu`, URL
-`https://use.jitsu.com/mcp`, then hit *Connect*.
-
-**Cursor** (`~/.cursor/mcp.json`, or `.cursor/mcp.json` in a project)
-
-```json
-{
-  "mcpServers": {
-    "jitsu": {
-      "url": "https://use.jitsu.com/mcp"
-    }
-  }
-}
-```
-
-**VS Code** (`.vscode/mcp.json`)
-
-```json
-{
-  "servers": {
-    "jitsu": {
-      "type": "http",
-      "url": "https://use.jitsu.com/mcp"
-    }
-  }
-}
-```
+Other clients (Claude Desktop, Cursor, VS Code) take the same URL — see
+[jitsu.com/docs/mcp](https://jitsu.com/docs/mcp) for their setup.
 
 ### Authentication
 
@@ -147,29 +122,21 @@ Interactive clients use **OAuth 2.1** — no API key to manage. The first tool c
 tab asking you to approve the connection; tokens are scoped, listed, and revocable from your account
 settings page.
 
-For headless environments (CI, cron, servers), generate a personal API key on the user settings page
-and pass it as a header:
+Headless environments (CI, cron, servers) use a personal API key instead — generate one on the user
+settings page and pass it as `Authorization: Bearer <keyId>:<keySecret>`:
 
 ```bash
 claude mcp add --transport http jitsu https://use.jitsu.com/mcp \
   --header "Authorization: Bearer $JITSU_API_KEY"
 ```
 
-where `JITSU_API_KEY` is `<keyId>:<keySecret>`.
-
 ### What the agent can do
 
-25 tools, grouped roughly like this:
-
-| Area                     | Tools                                                                                                            |
-| ------------------------ | ---------------------------------------------------------------------------------------------------------------- |
-| Workspaces & config      | `list_workspaces`, `list_resources`, `get_resource`, `get_resource_schema`, `create_resource`, `update_resource`, `delete_resource` |
-| Events & debugging       | `list_event_sources`, `query_events`, `run_function`, `test_connection`                                            |
-| Connector syncs          | `run_sync`, `cancel_sync`, `list_sync_tasks`, `get_sync_logs`, `get_sync_state`, `reset_sync_state`                |
-| Source setup             | `get_connector_spec`, `discover_streams`, `check_source_credentials`, `get_source_check_result`                    |
-| Profiles & stats         | `run_profile_builder`, `get_event_stat`, `get_sync_stat`, `get_profile_builder_stats`                              |
-
-Full reference: **[jitsu.com/docs/mcp](https://jitsu.com/docs/mcp)**.
+25 tools, covering everything the console does: read and write workspace configuration
+(destinations, streams, connections, functions), query Live Events and function logs, run and cancel
+connector syncs, discover source streams and inspect sync state, execute functions and profile
+builders against test data, and pull event and sync statistics. Full reference:
+[jitsu.com/docs/mcp](https://jitsu.com/docs/mcp).
 
 ## Architecture
 
