@@ -39,3 +39,4 @@ libs/jsondiffpatch/lib/
 /services/functions-server/data/
 /services/functions-server/dist/
 /helm-deps/values-custom.yaml
+/docs/
