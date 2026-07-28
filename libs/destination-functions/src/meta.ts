@@ -336,8 +336,14 @@ export const BrazeCredentials = z.object({
 });
 export type BrazeCredentials = z.infer<typeof BrazeCredentials>;
 
+const SEGMENT_API_BASES = [
+  "https://api.segmentapis.com/v1",
+  "https://eu1.api.segmentapis.com/v1",
+  "https://api.segment.io/v1",
+] as const;
+
 export const SegmentCredentials = z.object({
-  apiBase: z.string().default("https://api.segment.io/v1").describe("API Base::Segment API Base"),
+  apiBase: z.enum(SEGMENT_API_BASES).default(SEGMENT_API_BASES[0]).describe("API Base::Segment API Base"),
   writeKey: z
     .string()
     .describe(
