@@ -12,6 +12,10 @@ export type HotjarDestinationCredentials = {
   // to attach arbitrary data is hj('identify', userId, attributes). "attributes" merges the
   // properties into the identified user's record (requires a userId); "ignore" (default) drops them.
   trackProperties?: "ignore" | "attributes";
+  // When false, Jitsu does not inject the Hotjar tag - the page is expected to load it itself
+  // (e.g. via its own snippet or a tag manager). Jitsu still forwards events to the existing
+  // window.hj. The siteId is only used when Jitsu loads the tag. Default true.
+  loadHotjar?: boolean;
 } & CommonDestinationCredentials;
 
 // Hotjar protocol version. The tag URL and _hjSettings must agree on this.
@@ -88,20 +92,30 @@ function initHotjarIfNeeded(config: HotjarDestinationCredentials) {
   }
   setHotjarState("loading");
 
-  // Install the self-queuing stub (mirrors Hotjar's official snippet).
+  // Install the self-queuing stub (mirrors Hotjar's official snippet). Even when Jitsu does not
+  // load the tag, this ensures events fired before the page's own Hotjar script runs are queued
+  // and drained by it once it loads.
   window["hj"] =
     window["hj"] ||
     function () {
       (window["hj"].q = window["hj"].q || []).push(arguments);
     };
-  window["_hjSettings"] = { hjid: config.siteId, hjsv: HOTJAR_VERSION };
 
-  loadScript(`static.hotjar.com/c/hotjar-${config.siteId}.js`, { query: `sv=${HOTJAR_VERSION}` })
-    .then(() => {
-      setHotjarState("loaded");
-    })
-    .catch(e => {
-      console.warn(`Hotjar (siteId=${config.siteId}) init failed: ${e.message}`, e);
-      setHotjarState("failed");
-    });
+  if (config.loadHotjar !== false) {
+    // Only set _hjSettings when we load the tag ourselves, so we never repoint a Hotjar tag the
+    // page already configured.
+    window["_hjSettings"] = { hjid: config.siteId, hjsv: HOTJAR_VERSION };
+
+    loadScript(`static.hotjar.com/c/hotjar-${config.siteId}.js`, { query: `sv=${HOTJAR_VERSION}` })
+      .then(() => {
+        setHotjarState("loaded");
+      })
+      .catch(e => {
+        console.warn(`Hotjar (siteId=${config.siteId}) init failed: ${e.message}`, e);
+        setHotjarState("failed");
+      });
+  } else {
+    // The page loads the Hotjar tag itself; we only forward events to it.
+    setHotjarState("loaded");
+  }
 }

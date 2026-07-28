@@ -333,7 +333,13 @@ const clarityDestination = {
     projectId: z
       .string()
       .describe(
-        "Project ID::Your Clarity Project ID. Open your Clarity project » Settings » Overview to find it. It also serves as the API key."
+        "Project ID::Your Clarity Project ID. Open your Clarity project » Settings » Overview to find it. It also serves as the API key. Only used when Jitsu loads the Clarity tag."
+      ),
+    loadClarity: z
+      .boolean()
+      .default(true)
+      .describe(
+        "Load Clarity::Whether Jitsu should load the Microsoft Clarity tag. Disable this if you already load Clarity yourself (e.g. via your own snippet or a tag manager) — Jitsu will only forward events to the existing Clarity instance and the Project ID is ignored."
       ),
     cookieConsent: z
       .boolean()
@@ -367,7 +373,13 @@ const hotjarDestination = {
     siteId: z
       .string()
       .describe(
-        "Site ID::Your Hotjar Site ID (the numeric <code>hjid</code>). Find it in Hotjar » Settings » Sites & Organizations, or in your tracking-code snippet."
+        "Site ID::Your Hotjar Site ID (the numeric <code>hjid</code>). Find it in Hotjar » Settings » Sites & Organizations, or in your tracking-code snippet. Only used when Jitsu loads the Hotjar tag."
+      ),
+    loadHotjar: z
+      .boolean()
+      .default(true)
+      .describe(
+        "Load Hotjar::Whether Jitsu should load the Hotjar tag. Disable this if you already load Hotjar yourself (e.g. via your own snippet or a tag manager) — Jitsu will only forward events to the existing Hotjar instance and the Site ID is ignored."
       ),
     spaPageViews: z
       .boolean()

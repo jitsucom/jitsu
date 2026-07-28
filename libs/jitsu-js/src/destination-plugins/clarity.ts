@@ -7,6 +7,10 @@ export type ClarityDestinationCredentials = {
   projectId: string;
   // When true, Jitsu calls clarity('consent') right after the tag loads.
   cookieConsent?: boolean;
+  // When false, Jitsu does not inject the Clarity tag - the page is expected to load it itself
+  // (e.g. via its own snippet or a tag manager). Jitsu still forwards events to the existing
+  // window.clarity. The projectId is only used when Jitsu loads the tag. Default true.
+  loadClarity?: boolean;
   // What to do with `track` event properties. Clarity events carry only a name, so the only
   // way to attach properties is as custom tags via clarity('set', ...). "tags" (default) does
   // that, "ignore" drops them.
@@ -107,21 +111,28 @@ function initClarityIfNeeded(config: ClarityDestinationCredentials) {
   }
   setClarityState("loading");
 
-  // Install the self-queuing stub (mirrors Clarity's official snippet).
+  // Install the self-queuing stub (mirrors Clarity's official snippet). Even when Jitsu does not
+  // load the tag, this ensures events fired before the page's own Clarity script runs are queued
+  // and drained by it once it loads.
   window["clarity"] =
     window["clarity"] ||
     function () {
       (window["clarity"].q = window["clarity"].q || []).push(arguments);
     };
 
-  loadScript(`clarity.ms/tag/${config.projectId}`, { www: true })
-    .then(() => {
-      setClarityState("loaded");
-    })
-    .catch(e => {
-      console.warn(`Clarity (projectId=${config.projectId}) init failed: ${e.message}`, e);
-      setClarityState("failed");
-    });
+  if (config.loadClarity !== false) {
+    loadScript(`clarity.ms/tag/${config.projectId}`, { www: true })
+      .then(() => {
+        setClarityState("loaded");
+      })
+      .catch(e => {
+        console.warn(`Clarity (projectId=${config.projectId}) init failed: ${e.message}`, e);
+        setClarityState("failed");
+      });
+  } else {
+    // The page loads the Clarity tag itself; we only forward events to it.
+    setClarityState("loaded");
+  }
 
   if (config.cookieConsent) {
     window["clarity"]("consent");
