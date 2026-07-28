@@ -51,8 +51,7 @@ git clone --depth 1 https://github.com/jitsucom/jitsu
 cd jitsu/docker
 # Optionally, edit .env.local file and set env variables, see README.md in `docker` folder
 touch .env.local
-#
-
+docker compose up --force-recreate
 ```
 
 ### Deploy at scale
