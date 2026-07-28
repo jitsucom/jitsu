@@ -25,6 +25,12 @@ const HOTJAR_VERSION = 6;
 // SDK has been loaded by us yet; a later load-enabled destination may still transition to "loading".
 type HotjarState = "fresh" | "passive" | "loading" | "loaded" | "failed";
 
+// Upper bound on the offline stub queue. The real Hotjar script drains window.hj.q within seconds,
+// so this is only ever hit when the tag never loads (e.g. loadHotjar===false with a missing/blocked
+// snippet); the cap keeps window.hj.q from growing unbounded over a long session. Generous enough
+// that a normal slow load never drops events.
+const STUB_QUEUE_CAP = 1000;
+
 function getHotjarState(): HotjarState {
   return window["__jitsuHotjarState"] || "fresh";
 }
@@ -127,7 +133,10 @@ function initHotjarIfNeeded(config: HotjarDestinationCredentials) {
   window["hj"] =
     window["hj"] ||
     function () {
-      (window["hj"].q = window["hj"].q || []).push(arguments);
+      const q = (window["hj"].q = window["hj"].q || []);
+      if (q.length < STUB_QUEUE_CAP) {
+        q.push(arguments);
+      }
     };
 
   if (config.loadHotjar !== false) {

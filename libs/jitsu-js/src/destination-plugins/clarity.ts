@@ -21,6 +21,12 @@ export type ClarityDestinationCredentials = {
 // SDK has been loaded by us yet; a later load-enabled destination may still transition to "loading".
 type ClarityState = "fresh" | "passive" | "loading" | "loaded" | "failed";
 
+// Upper bound on the offline stub queue. The real Clarity script drains window.clarity.q within
+// seconds, so this is only ever hit when the tag never loads (e.g. loadClarity===false with a
+// missing/blocked snippet); the cap keeps window.clarity.q from growing unbounded over a long
+// session. Generous enough that a normal slow load never drops events.
+const STUB_QUEUE_CAP = 1000;
+
 function getClarityState(): ClarityState {
   return window["__jitsuClarityState"] || "fresh";
 }
@@ -147,7 +153,10 @@ function initClarityIfNeeded(config: ClarityDestinationCredentials) {
   window["clarity"] =
     window["clarity"] ||
     function () {
-      (window["clarity"].q = window["clarity"].q || []).push(arguments);
+      const q = (window["clarity"].q = window["clarity"].q || []);
+      if (q.length < STUB_QUEUE_CAP) {
+        q.push(arguments);
+      }
     };
 
   if (config.loadClarity !== false) {
