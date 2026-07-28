@@ -21,6 +21,7 @@ import {
   Globe,
   Hammer,
   HelpCircle,
+  Import,
   LayoutDashboard,
   LineChart,
   PackageOpen,
@@ -462,6 +463,11 @@ function PageHeader() {
     },
     { title: "Functions", path: "/functions", icon: <FunctionSquare className="w-full h-full" /> },
     { title: "Destinations", path: "/destinations", icon: <Server className="w-full h-full" /> },
+    appConfig.ee?.available && {
+      title: "Import",
+      path: "/import",
+      icon: <Import className="w-full h-full" />,
+    },
     {
       title: "Data",
       icon: <SearchCode className={"w-full h-full"} />,
