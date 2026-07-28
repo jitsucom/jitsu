@@ -9,7 +9,7 @@ import { confirmOp, feedbackError, feedbackSuccess } from "../../../lib/ui";
 import React, { useState } from "react";
 import Link from "next/link";
 import { FaExternalLinkAlt, FaPlus, FaTrash } from "react-icons/fa";
-import { index } from "juava";
+import { index, trimMiddle } from "juava";
 import { getCoreDestinationType } from "../../../lib/schema/destinations";
 import { useRouter } from "next/router";
 import { jsonSerializationBase64, useQueryStringState } from "../../../lib/useQueryStringState";
@@ -55,20 +55,31 @@ function EmptyLinks() {
   );
 }
 
+/**
+ * How to fit a connection title into a narrow space. `"none"` (default) renders the full names and
+ * lets the container clip them - which cuts the destination off at an arbitrary spot. A number
+ * trims *each* side to that many characters, in the middle, so both sides stay recognizable
+ */
+export type TruncationPolicy = "none" | number;
+
+const truncateTitle = (name: string, policy: TruncationPolicy) => (policy === "none" ? name : trimMiddle(name, policy));
+
 export const ConnectionTitle: React.FC<{
   connectionId: string;
   stream?: StreamConfig;
   service?: ServiceConfig;
   destination: DestinationConfig;
   showLink?: boolean;
-}> = ({ connectionId, stream, service, destination, showLink = false }) => {
+  truncationPolicy?: TruncationPolicy;
+}> = ({ connectionId, stream, service, destination, showLink = false, truncationPolicy = "none" }) => {
+  const title = (o: { name: string }) => truncateTitle(o.name, truncationPolicy);
   return (
     <div className={"flex flex-row whitespace-nowrap gap-1.5"}>
-      {service && <ServiceTitle size={"small"} service={service} />}
-      {stream && <StreamTitle size={"small"} stream={stream} />}
+      {service && <ServiceTitle size={"small"} service={service} title={title} />}
+      {stream && <StreamTitle size={"small"} stream={stream} title={title} />}
       {!stream && !service && "DELETED "}
       {"➞"}
-      <DestinationTitle size={"small"} destination={destination} />
+      <DestinationTitle size={"small"} destination={destination} title={title} />
       {showLink && (
         <WJitsuButton
           href={`/connections/edit?id=${connectionId}`}
@@ -86,19 +97,24 @@ export const ProfileBuilderTitle: React.FC<{
   profileBuilder: any;
   destination?: DestinationConfig;
   showLink?: boolean;
-}> = ({ profileBuilder, destination, showLink = false }) => {
+  truncationPolicy?: TruncationPolicy;
+}> = ({ profileBuilder, destination, showLink = false, truncationPolicy = "none" }) => {
   return (
     <div className={"flex flex-row whitespace-nowrap gap-1.5"}>
       <ObjectTitle
         icon={<UserRoundPen color={"black"} className={"w-4 h-4"} />}
         size={"small"}
         // href={stream && link ? `/${stream.workspaceId}/streams?id=${stream?.id}` : undefined}
-        title={profileBuilder ? profileBuilder.name : "Unknown stream"}
+        title={profileBuilder ? truncateTitle(profileBuilder.name, truncationPolicy) : "Unknown stream"}
       />
       {destination && (
         <>
           {"→"}
-          <DestinationTitle size={"small"} destination={destination} />
+          <DestinationTitle
+            size={"small"}
+            destination={destination}
+            title={d => truncateTitle(d.name, truncationPolicy)}
+          />
         </>
       )}
       {/*{showLink && (*/}

@@ -23,10 +23,11 @@ export type ConfigApi<T = any> = {
 };
 
 export type EventsLogApi = {
+  /** `actorId` omitted → events of all the actors of the workspace, each record carries `actorId` */
   get(
     eventType: string,
     levels: ("warn" | "info" | "error" | "debug")[] | "all",
-    actorId: string,
+    actorId: string | undefined,
     filter: EventsLogFilter,
     limit: number,
     search?: string
@@ -43,13 +44,13 @@ export function getEventsLogApi(workspaceId: string): EventsLogApi {
     get(
       eventType: string,
       levels: ("warn" | "info" | "error" | "debug")[] | "all",
-      actorId: string,
+      actorId: string | undefined,
       filter: EventsLogFilter,
       limit: number,
       search?: string
     ): Promise<EventsLogRecord[]> {
       return rpc(
-        `/api/${workspaceId}/log/${eventType}/${actorId}?limit=${limit}${
+        `/api/${workspaceId}/log/${eventType}${actorId ? `/${actorId}` : ""}?limit=${limit}${
           filter.start ? "&start=" + filter.start.toISOString() : ""
         }${filter.end ? "&end=" + filter.end.toISOString() : ""}${
           levels !== "all" ? `&levels=${levels.join(",")}` : ""

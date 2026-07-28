@@ -7,5 +7,7 @@ export type EventsLogFilter = {
 export type EventsLogRecord = {
   id: string;
   date: Date;
+  /** Set when the log is queried across all the workspace's actors */
+  actorId?: string;
   content: any;
 };

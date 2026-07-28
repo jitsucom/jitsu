@@ -72,6 +72,13 @@ type EventsBrowserState = {
   error?: string;
 };
 
+const ALL_ACTORS = "all";
+/**
+ * Pseudo-entity for the "no connection selected" case: events of every connection of the workspace.
+ * `mode` is the default for the bulker view where the mode selector is bound to the selected entity
+ */
+const allConnectionsEntity = { id: ALL_ACTORS, name: "All Connections", type: "all", mode: "batch" };
+
 const defaultState: EventsBrowserState = {
   bulkerMode: undefined,
   eventsLoading: false,
@@ -213,6 +220,7 @@ const EventsBrowser0 = ({
       ? streams
       : streamType == "function"
       ? [
+          allConnectionsEntity,
           ...mappedConnections,
           ...profileBuilders
             .filter(p => p.version > 0)
@@ -225,7 +233,7 @@ const EventsBrowser0 = ({
         ]
       : streamType == "dead-letter"
       ? [
-          { id: "all", name: "All Connections", type: "all" },
+          allConnectionsEntity,
           ...mappedConnections,
           ...profileBuilders
             .filter(p => p.version > 0)
@@ -237,6 +245,7 @@ const EventsBrowser0 = ({
             }),
         ]
       : [
+          allConnectionsEntity,
           ...mappedConnections.filter(link => link.usesBulker || link.hybrid),
           ...(hasActiveProfileBuilder
             ? destinations
@@ -420,7 +429,8 @@ const EventsBrowser0 = ({
               const data = await eventsLogApi.get(
                 `${eventsLogStream}`,
                 level === "all" ? "all" : [level],
-                actorId,
+                //no actor selected - events of all the connections of the workspace
+                actorId === ALL_ACTORS ? undefined : actorId,
                 {
                   start: dates && dates[0] ? new Date(dates[0]) : undefined,
                   end: beforeDate || (dates && dates[1] ? new Date(dates[1]) : undefined),
@@ -735,6 +745,7 @@ const EventsBrowser0 = ({
           entityType={entityType}
           actorId={actorId}
           mappedConnections={mappedConnectionsMap}
+          actorsMap={entitiesMap}
           events={shownEvents}
           loadEvents={() =>
             dispatch({
@@ -762,10 +773,59 @@ type TableProps = {
   entityType: string;
   actorId: string;
   mappedConnections: Record<string, any>;
+  /** All entities that can be selected in the connection selector, including profile builders */
+  actorsMap?: Record<string, any>;
   loadEvents: () => void;
 };
 
-const FunctionsLogTable = ({ loadEvents, loading, streamType, entityType, actorId, events }: TableProps) => {
+/** Both sides of a connection must fit into a narrow column - see TruncationPolicy */
+const actorTruncation = 13;
+
+/**
+ * Renders a link to the connection (or profile builder) an event belongs to. Used for the extra
+ * column that is shown when events of all connections are displayed at once
+ */
+const ActorLink: React.FC<{ actorId?: string; actorsMap?: Record<string, any> }> = ({ actorId, actorsMap }) => {
+  if (!actorId) {
+    return null;
+  }
+  const actor = actorsMap?.[actorId];
+  if (!actor || actor.type === "all") {
+    return <span className="font-mono text-xs">{trimMiddle(actorId, 16)}</span>;
+  }
+  const title =
+    actor.type === "profile-builder" ? (
+      <ProfileBuilderTitle profileBuilder={actor} destination={actor.destination} truncationPolicy={actorTruncation} />
+    ) : (
+      <ConnectionTitle
+        connectionId={actorId}
+        stream={actor.stream}
+        service={actor.service}
+        destination={actor.destination}
+        truncationPolicy={actorTruncation}
+      />
+    );
+  const href = actor.type === "profile-builder" ? `/profile-builder` : `/connections/edit?id=${actorId}`;
+  return (
+    <Tooltip title={actor.name} overlayClassName="min-w-fit">
+      {/* stopPropagation - otherwise a click opens the event drawer along with the navigation */}
+      <span onClick={e => e.stopPropagation()}>
+        <WLink href={href}>{title}</WLink>
+      </span>
+    </Tooltip>
+  );
+};
+
+/** Column shown instead of the connection selector when events of all connections are displayed */
+const actorColumn = (actorsMap?: Record<string, any>) => ({
+  title: "Connection",
+  width: "20em",
+  dataIndex: "actorId",
+  key: "actorId",
+  render: (actorId: string) => <ActorLink actorId={actorId} actorsMap={actorsMap} />,
+});
+
+const FunctionsLogTable = ({ loadEvents, loading, streamType, entityType, actorId, events, actorsMap }: TableProps) => {
   const workspace = useWorkspace();
   const [funcsMap, setFuncsMap] = useState<Record<string, FunctionConfig>>({});
 
@@ -812,6 +872,7 @@ const FunctionsLogTable = ({ loadEvents, loading, streamType, entityType, actorI
       width: "13em",
       render: d => <UTCDate date={d} />,
     },
+    ...(actorId === ALL_ACTORS ? [actorColumn(actorsMap) as any] : []),
     {
       title: "Function",
       width: "14em",
@@ -916,7 +977,7 @@ const FunctionsLogTable = ({ loadEvents, loading, streamType, entityType, actorI
   );
 };
 
-const StreamEventsTable = ({ loadEvents, loading, streamType, entityType, actorId, events }: TableProps) => {
+const StreamEventsTable = ({ loadEvents, loading, streamType, entityType, actorId, events, actorsMap }: TableProps) => {
   const streamEvents = events
     ? events.map((e, i) => {
         e = {
@@ -939,6 +1000,7 @@ const StreamEventsTable = ({ loadEvents, loading, streamType, entityType, actorI
       width: "13em",
       render: d => <UTCDate date={d} />,
     },
+    ...(actorId === ALL_ACTORS ? [actorColumn(actorsMap) as any] : []),
     {
       title: "Queue size",
       width: "7em",
@@ -1012,7 +1074,36 @@ const StreamEventsTable = ({ loadEvents, loading, streamType, entityType, actorI
   );
 };
 
-const BatchTable = ({ loadEvents, loading, streamType, entityType, actorId, events }: TableProps) => {
+const estimatedCostNote =
+  "Estimation of how much the data warehouse charges for this load. The exact amount may be different due to " +
+  "discounts, committed use pricing, free tiers, etc.";
+
+const EstimatedCostHeader: React.FC<{}> = () => (
+  <Tooltip overlayClassName="max-w-96" title={estimatedCostNote}>
+    <span className="whitespace-nowrap">
+      Est. cost <QuestionCircleOutlined />
+    </span>
+  </Tooltip>
+);
+
+const formatCost = (cost: number) =>
+  cost < 0.0001
+    ? "< $0.0001"
+    : "$" + cost.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 4 });
+
+const EstimatedCost: React.FC<{ cost?: number }> = ({ cost }) => {
+  //nothing charged (or nothing reported) - an empty cell is less noisy than a row of $0
+  if (typeof cost !== "number" || isNaN(cost) || cost === 0) {
+    return null;
+  }
+  return (
+    <Tooltip overlayClassName="max-w-96" title={`${estimatedCostNote} Exact value: ${cost}`}>
+      <span className="whitespace-nowrap">{formatCost(cost)}</span>
+    </Tooltip>
+  );
+};
+
+const BatchTable = ({ loadEvents, loading, streamType, entityType, actorId, events, actorsMap }: TableProps) => {
   const batchEvents = (events || ([] as EventsLogRecord[])).map((e, i) => ({
     ...e,
     id: e.date + "_" + i,
@@ -1025,6 +1116,7 @@ const BatchTable = ({ loadEvents, loading, streamType, entityType, actorId, even
       width: "13em",
       render: d => <UTCDate date={d} />,
     },
+    ...(actorId === ALL_ACTORS ? [actorColumn(actorsMap) as any] : []),
     {
       title: "Batch size",
       width: "7em",
@@ -1036,6 +1128,13 @@ const BatchTable = ({ loadEvents, loading, streamType, entityType, actorId, even
       width: "7em",
       dataIndex: ["content", "queueSize"],
       key: "queue",
+    },
+    {
+      title: <EstimatedCostHeader />,
+      width: "9em",
+      dataIndex: ["content", "statistics", "estimatedCost"],
+      key: "cost",
+      render: (cost: number | undefined) => <EstimatedCost cost={cost} />,
     },
     {
       title: "Status",
