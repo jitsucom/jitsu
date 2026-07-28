@@ -12,6 +12,7 @@ import { z } from "zod";
 import { ConfigurationObjectLinkDbModel } from "../../prisma/schema";
 import { QuestionCircleOutlined } from "@ant-design/icons";
 import { ProvisionDatabaseButton } from "../../components/ProvisionDatabaseButton/ProvisionDatabaseButton";
+import { MigrationTeaserCard } from "../../components/ImportWizard/MigrationTeaserCard";
 import { ConnectionsDiagram } from "../../components/ConnectionsDiagram/ConnectionsDiagram";
 import { getLog } from "juava";
 import { Activity, Chrome, Edit3, MoreVertical, Share2, Wrench, Zap } from "lucide-react";
@@ -360,6 +361,11 @@ function WorkspaceOverview(props: {
       {appConfig.ee?.available && (
         <div className="flex justify-center">
           <ProvisionDatabaseButton />
+        </div>
+      )}
+      {appConfig.ee?.available && (
+        <div className="flex justify-center">
+          <MigrationTeaserCard />
         </div>
       )}
     </div>
