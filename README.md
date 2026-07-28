@@ -39,8 +39,9 @@ or on [Jitsu Cloud](https://use.jitsu.com), same software, hosted.
 
 Data lands in minutes, not hours: Segment loads warehouses once or twice a day (hourly at best),
 while Jitsu delivers per destination in batches as frequent as a minute, or row-by-row where that
-suits the destination. And billing is per event rather than per Monthly Tracked User, so it tracks
-data volume instead of audience size.
+suits the destination. And where Segment bills by Monthly Tracked User, Jitsu Cloud bills by event
+volume, so the bill tracks data rather than audience size — while self-hosting has no usage billing
+at all.
 
 A typical Jitsu setup gives you:
 
