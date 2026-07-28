@@ -1,9 +1,34 @@
-import { DeleteOutlined } from "@ant-design/icons";
-import { useQuery } from "@tanstack/react-query";
+import { WorkspacePageLayout } from "../../components/PageLayout/WorkspacePageLayout";
 import { Button, Modal, Popover, Skeleton, Table, Tabs, Tooltip } from "antd";
-import TextArea from "antd/lib/input/TextArea";
+import { ConfigEditor, ConfigEditorProps, FieldDisplay } from "../../components/ConfigObjectEditor/ConfigEditor";
+import { DestinationConfig } from "../../lib/schema";
+import { confirmOp, copyTextToClipboard, feedbackError, feedbackSuccess, serialization } from "../../lib/ui";
+import {
+  coreDestinations,
+  coreDestinationsMap,
+  DestinationType,
+  getCoreDestinationType,
+  PropertyUI,
+} from "../../lib/schema/destinations";
+import {
+  DestinationCatalog,
+  DestinationCatalogHandle,
+  getDestinationIcon,
+} from "../../components/DestinationsCatalog/DestinationsCatalog";
+import { useAppConfig, useWorkspace } from "../../lib/context";
+import { useRouter } from "next/router";
 import { assertDefined, getLog, requireDefined, rpc } from "juava";
-import omit from "lodash/omit";
+import React, { PropsWithChildren, useRef, useState } from "react";
+import TextArea from "antd/lib/input/TextArea";
+import { get, getConfigApi, useApi } from "../../lib/useApi";
+import { EmbeddedErrorMessage, ErrorCard } from "../../components/GlobalError/GlobalError";
+import { branding } from "../../lib/branding";
+import styles from "../../components/ConfigObjectEditor/ConfigEditor.module.css";
+import { DeleteOutlined } from "@ant-design/icons";
+import { SnippedEditor } from "../../components/CodeEditor/SnippedEditor";
+import { MultiSelectWithCustomOptions } from "../../components/MultiSelectWithCustomOptions/MultiSelectWithCustomOptions";
+import { LoadingAnimation } from "../../components/GlobalLoader/GlobalLoader";
+import { useQuery } from "@tanstack/react-query";
 import {
   AlertTriangle,
   Check,
@@ -17,45 +42,19 @@ import {
   XCircle,
   Zap,
 } from "lucide-react";
-import Link from "next/link";
-import { useRouter } from "next/router";
-import React, { PropsWithChildren, useRef, useState } from "react";
+import { ClickhouseConnectionCredentials } from "../../lib/schema/clickhouse-connection-credentials";
+import { CodeBlock } from "../../components/CodeBlock/CodeBlock";
 import { useBilling } from "../../components/Billing/BillingProvider";
 import { UpgradeDialog } from "../../components/Billing/UpgradeDialog";
-import { CodeBlock } from "../../components/CodeBlock/CodeBlock";
-import { CodeEditor } from "../../components/CodeEditor/CodeEditor";
-import { SnippedEditor } from "../../components/CodeEditor/SnippedEditor";
-import { ConfigEditor, ConfigEditorProps, FieldDisplay } from "../../components/ConfigObjectEditor/ConfigEditor";
-import styles from "../../components/ConfigObjectEditor/ConfigEditor.module.css";
-import { CustomWidgetProps } from "../../components/ConfigObjectEditor/Editors";
-import { SchemaHostField } from "../../components/ConfigObjectEditor/SchemaHostField";
-import {
-  DestinationCatalog,
-  DestinationCatalogHandle,
-  getDestinationIcon,
-} from "../../components/DestinationsCatalog/DestinationsCatalog";
-import { EditorToolbar } from "../../components/EditorToolbar/EditorToolbar";
-import { EmbeddedErrorMessage, ErrorCard } from "../../components/GlobalError/GlobalError";
-import { LoadingAnimation } from "../../components/GlobalLoader/GlobalLoader";
-import { Htmlizer } from "../../components/Htmlizer/Htmlizer";
-import { MultiSelectWithCustomOptions } from "../../components/MultiSelectWithCustomOptions/MultiSelectWithCustomOptions";
-import { ObjectTitle } from "../../components/ObjectTitle/ObjectTitle";
-import { WorkspacePageLayout } from "../../components/PageLayout/WorkspacePageLayout";
 import { ProvisionDatabaseButton } from "../../components/ProvisionDatabaseButton/ProvisionDatabaseButton";
-import { branding } from "../../lib/branding";
-import { useAppConfig, useWorkspace } from "../../lib/context";
-import { DestinationConfig } from "../../lib/schema";
-import { ClickhouseConnectionCredentials } from "../../lib/schema/clickhouse-connection-credentials";
-import {
-  coreDestinations,
-  coreDestinationsMap,
-  DestinationType,
-  getCoreDestinationType,
-  PropertyUI,
-} from "../../lib/schema/destinations";
-import { confirmOp, copyTextToClipboard, feedbackError, feedbackSuccess, serialization } from "../../lib/ui";
-import { get, getConfigApi, useApi } from "../../lib/useApi";
+import Link from "next/link";
+import { CodeEditor } from "../../components/CodeEditor/CodeEditor";
+import { ObjectTitle } from "../../components/ObjectTitle/ObjectTitle";
 import { useQueryStringState } from "../../lib/useQueryStringState";
+import { CustomWidgetProps } from "../../components/ConfigObjectEditor/Editors";
+import { Htmlizer } from "../../components/Htmlizer/Htmlizer";
+import omit from "lodash/omit";
+import { EditorToolbar } from "../../components/EditorToolbar/EditorToolbar";
 
 const log = getLog("destinations");
 const Loader: React.FC<{}> = () => {
@@ -222,8 +221,6 @@ function getEditorComponent(editor: string, editorProps?: any) {
     return props => {
       return <MultiSelectWithCustomOptions {...props} {...editorProps} />;
     };
-  } else if (editor === "SchemaHostField") {
-    return SchemaHostField;
   } else {
     throw new Error(`Unknown editor ${editor}`);
   }

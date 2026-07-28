@@ -21,6 +21,8 @@ import * as meta from "@jitsu/destination-functions/src/meta";
 import { HubspotCredentials } from "@jitsu/destination-functions/src/meta";
 import { branding } from "../branding";
 import { ValidationMessages } from "./config-editor-errors";
+import { ClientFieldValidator } from "./config-editor-validation";
+import { validatePosthogHost } from "./posthog-host-validation";
 import ga4Icon from "./icons/ga4";
 import gtmIcon from "./icons/gtm";
 import intercomIcon from "./icons/intercom";
@@ -113,6 +115,10 @@ export type PropertyUI = {
    * User-facing replacements for validation errors, keyed by the AJV keyword.
    */
   validationMessages?: ValidationMessages;
+  /**
+   * Client-side validation that returns a user-facing error message.
+   */
+  clientValidator?: ClientFieldValidator;
 };
 
 export type SchemaUI = Record<string, PropertyUI>;
@@ -1033,10 +1039,7 @@ export const coreDestinations: DestinationType<any>[] = [
     credentials: meta.PosthogDestinationConfig,
     credentialsUi: {
       host: {
-        editor: "SchemaHostField",
-        validationMessages: {
-          pattern: "must be a valid domain, for example: app.posthog.com",
-        },
+        clientValidator: validatePosthogHost,
       },
     },
     description:

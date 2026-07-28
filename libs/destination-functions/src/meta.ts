@@ -334,8 +334,6 @@ export const SegmentCredentials = z.object({
 export type SegmentCredentials = z.infer<typeof SegmentCredentials>;
 
 export const POSTHOG_DEFAULT_HOST = "https://app.posthog.com";
-export const POSTHOG_HOST_PATTERN =
-  /^[hH][tT][tT][pP][sS]:\/\/(?=.{1,253}$)(?:[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?$/;
 
 export const PosthogDestinationConfig = z.object({
   key: z
@@ -343,12 +341,7 @@ export const PosthogDestinationConfig = z.object({
     .describe(
       "Project API Key::Posthog Project API Key. Can be found in <a target='_blank' rel='noopener noreferrer' href='https://app.posthog.com/project/settings'>Project Settings</a>"
     ),
-  host: z
-    .string()
-    .regex(POSTHOG_HOST_PATTERN, "Host must contain only a valid domain after https://")
-    .optional()
-    .default(POSTHOG_DEFAULT_HOST)
-    .describe("Posthog host"),
+  host: z.string().optional().default(POSTHOG_DEFAULT_HOST).describe("Posthog host"),
   enableGroupAnalytics: z
     .boolean()
     .optional()
