@@ -17,7 +17,9 @@ export type ClarityDestinationCredentials = {
   trackProperties?: "tags" | "ignore";
 } & CommonDestinationCredentials;
 
-type ClarityState = "fresh" | "loading" | "loaded" | "failed";
+// "passive" = a loadClarity===false destination installed the stub and forwards events, but no real
+// SDK has been loaded by us yet; a later load-enabled destination may still transition to "loading".
+type ClarityState = "fresh" | "passive" | "loading" | "loaded" | "failed";
 
 function getClarityState(): ClarityState {
   return window["__jitsuClarityState"] || "fresh";
@@ -122,10 +124,12 @@ export const clarityPlugin: InternalPlugin<ClarityDestinationCredentials> = {
 };
 
 function initClarityIfNeeded(config: ClarityDestinationCredentials) {
-  if (getClarityState() !== "fresh") {
-    // window.clarity is a singleton owned by the vendor script; a second destination pointing at a
-    // different projectId can't get its own instance. Warn rather than silently routing events to
-    // the wrong project - the first destination that loads the tag wins.
+  const state = getClarityState();
+
+  // Once a load-enabled destination has taken ownership of the tag, no other destination can change
+  // that - window.clarity is a singleton. Warn on a projectId mismatch so the misconfiguration is
+  // visible; the destination that loaded the tag wins.
+  if (state === "loading" || state === "loaded" || state === "failed") {
     const activeProjectId = getClarityProjectId();
     if (config.loadClarity !== false && activeProjectId && activeProjectId !== config.projectId) {
       console.warn(
@@ -135,11 +139,11 @@ function initClarityIfNeeded(config: ClarityDestinationCredentials) {
     }
     return;
   }
-  setClarityState("loading");
 
-  // Install the self-queuing stub (mirrors Clarity's official snippet). Even when Jitsu does not
-  // load the tag, this ensures events fired before the page's own Clarity script runs are queued
-  // and drained by it once it loads.
+  // state is "fresh" or "passive". Install the self-queuing stub (mirrors Clarity's official
+  // snippet) once - idempotent via `|| function(){}`. Even when Jitsu does not load the tag, this
+  // ensures events fired before the page's own Clarity script runs are queued and drained once it
+  // loads.
   window["clarity"] =
     window["clarity"] ||
     function () {
@@ -147,6 +151,9 @@ function initClarityIfNeeded(config: ClarityDestinationCredentials) {
     };
 
   if (config.loadClarity !== false) {
+    // This destination loads the tag - take ownership even if a passive destination ran first, so a
+    // "load it yourself" destination processed earlier never strands us with only the stub.
+    setClarityState("loading");
     setClarityProjectId(config.projectId);
     loadScript(`clarity.ms/tag/${config.projectId}`, { www: true })
       .then(() => {
@@ -159,12 +166,17 @@ function initClarityIfNeeded(config: ClarityDestinationCredentials) {
         // the rest of the page lifetime don't accumulate in window.clarity.q.
         window["clarity"] = function () {};
       });
-  } else {
-    // The page loads the Clarity tag itself; we only forward events to it.
-    setClarityState("loaded");
-  }
-
-  if (config.cookieConsent) {
-    window["clarity"]("consent");
+    if (config.cookieConsent) {
+      window["clarity"]("consent");
+    }
+  } else if (state === "fresh") {
+    // The page loads the Clarity tag itself; we only forward events to it. Stay in a transitional
+    // "passive" state (not "loaded") so a later load-enabled destination can still load the real
+    // SDK instead of being stranded at the guard above. Guard on "fresh" so we don't re-run the
+    // one-time consent call on every event.
+    setClarityState("passive");
+    if (config.cookieConsent) {
+      window["clarity"]("consent");
+    }
   }
 }

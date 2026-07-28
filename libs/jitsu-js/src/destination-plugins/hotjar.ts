@@ -21,7 +21,9 @@ export type HotjarDestinationCredentials = {
 // Hotjar protocol version. The tag URL and _hjSettings must agree on this.
 const HOTJAR_VERSION = 6;
 
-type HotjarState = "fresh" | "loading" | "loaded" | "failed";
+// "passive" = a loadHotjar===false destination installed the stub and forwards events, but no real
+// SDK has been loaded by us yet; a later load-enabled destination may still transition to "loading".
+type HotjarState = "fresh" | "passive" | "loading" | "loaded" | "failed";
 
 function getHotjarState(): HotjarState {
   return window["__jitsuHotjarState"] || "fresh";
@@ -103,10 +105,12 @@ export const hotjarPlugin: InternalPlugin<HotjarDestinationCredentials> = {
 };
 
 function initHotjarIfNeeded(config: HotjarDestinationCredentials) {
-  if (getHotjarState() !== "fresh") {
-    // window.hj is a singleton owned by the vendor script; a second destination pointing at a
-    // different siteId can't get its own instance. Warn rather than silently routing events to the
-    // wrong site - the first destination that loads the tag wins.
+  const state = getHotjarState();
+
+  // Once a load-enabled destination has taken ownership of the tag, no other destination can change
+  // that - window.hj is a singleton. Warn on a siteId mismatch so the misconfiguration is visible;
+  // the destination that loaded the tag wins.
+  if (state === "loading" || state === "loaded" || state === "failed") {
     const activeSiteId = getHotjarSiteId();
     if (config.loadHotjar !== false && activeSiteId && activeSiteId !== config.siteId) {
       console.warn(
@@ -116,11 +120,10 @@ function initHotjarIfNeeded(config: HotjarDestinationCredentials) {
     }
     return;
   }
-  setHotjarState("loading");
 
-  // Install the self-queuing stub (mirrors Hotjar's official snippet). Even when Jitsu does not
-  // load the tag, this ensures events fired before the page's own Hotjar script runs are queued
-  // and drained by it once it loads.
+  // state is "fresh" or "passive". Install the self-queuing stub (mirrors Hotjar's official snippet)
+  // once - idempotent via `|| function(){}`. Even when Jitsu does not load the tag, this ensures
+  // events fired before the page's own Hotjar script runs are queued and drained once it loads.
   window["hj"] =
     window["hj"] ||
     function () {
@@ -128,6 +131,9 @@ function initHotjarIfNeeded(config: HotjarDestinationCredentials) {
     };
 
   if (config.loadHotjar !== false) {
+    // This destination loads the tag - take ownership even if a passive destination ran first, so a
+    // "load it yourself" destination processed earlier never strands us with only the stub.
+    setHotjarState("loading");
     setHotjarSiteId(config.siteId);
     // Only set _hjSettings when we load the tag ourselves, so we never repoint a Hotjar tag the
     // page already configured.
@@ -144,8 +150,10 @@ function initHotjarIfNeeded(config: HotjarDestinationCredentials) {
         // the rest of the page lifetime don't accumulate in window.hj.q.
         window["hj"] = function () {};
       });
-  } else {
-    // The page loads the Hotjar tag itself; we only forward events to it.
-    setHotjarState("loaded");
+  } else if (state === "fresh") {
+    // The page loads the Hotjar tag itself; we only forward events to it. Stay in a transitional
+    // "passive" state (not "loaded") so a later load-enabled destination can still load the real
+    // SDK instead of being stranded at the guard above.
+    setHotjarState("passive");
   }
 }
