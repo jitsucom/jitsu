@@ -46,6 +46,10 @@ A typical Jitsu setup gives you:
   [destination catalog](https://jitsu.com/docs/destinations/catalog).
 - **[Functions](https://jitsu.com/docs/functions)** — JavaScript that runs on every event to filter,
   transform, and enrich it before delivery.
+  - Write them in the browser, or build and deploy them from your own repo with the
+    [Jitsu CLI](https://jitsu.com/docs/jitsu-cli) — `jitsu-cli init` scaffolds a TypeScript project
+    with tests, and `jitsu-cli deploy` ships it to your workspace. Use whatever tooling you like:
+    TypeScript, npm libraries, your own test suite, and your normal CI.
 - **Connector syncs** — pull data *into* your warehouse from third-party sources (Airbyte-compatible
   connectors).
 - **A user identity graph and profile builder**, built automatically from the event stream.
