@@ -162,6 +162,13 @@ export class OAuthHandlers {
       res.status(201).json({
         client_id: c.clientId,
         client_secret: c.clientSecret,
+        // RFC 7591 §3.2.1: client_secret_expires_at is REQUIRED whenever a
+        // client_secret is issued, and 0 means "never expires" (ours don't).
+        // Omitting it makes strict clients (openid-client, used by Smithery)
+        // reject the whole registration with
+        // `"client_secret_expires_at" property must be a number`.
+        client_id_issued_at: Math.floor(c.createdAt.getTime() / 1000),
+        client_secret_expires_at: 0,
         client_name: c.name,
         redirect_uris: c.redirectUris,
         token_endpoint_auth_method: "client_secret_post",
