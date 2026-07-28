@@ -1,21 +1,64 @@
+# Repository Layout
+
+This is a monorepo spanning Go and TypeScript.
+
+```
+bulker/            Go services
+  bulkerapp/         Bulker — warehouse ingestion service
+  ingest/            HTTP ingest endpoint
+  sync-controller/   Connector sync orchestration
+  bulkerlib/         Core ingestion library
+  connectors/        Warehouse connectors (ClickHouse, BigQuery, Redshift, Snowflake, S3, GCS, …)
+
+services/
+  rotor/             Event routing, transformation, function execution
+
+webapps/
+  console/           Admin UI (Next.js), Management API, MCP server
+
+libs/
+  jitsu-js/          Browser + Node.js SDK (@jitsu/js)
+  jitsu-react/       React bindings (@jitsu/jitsu-react)
+  functions/         Functions runtime (@jitsu/functions-lib)
+  juava/             Shared TypeScript utilities
+
+cli/jitsu-cli/     Developer CLI (jitsu-cli on npm)
+types/protocols/   Shared TypeScript protocols (@jitsu/protocols)
+helm/              Helm chart
+docker/            Docker Compose setup (deprecated)
+```
+
 # Prerequisites
 
 - `node: >=22`
 - `npx`
 - `pnpm: >= 10`
 - `docker: >= 19.03.0`
+- `go: 1.26` — for the Go services; the repo uses Go workspaces via `go.work`
 
 # Commands
 
 - `pnpm install` - Install dependencies
+- `pnpm codegen` - Generate the Prisma client + zod schemas. Required once after a fresh checkout
+  (or a new worktree) before anything else will build
 - `pnpm build` - Build the project
+  - `pnpm build:turbo` - Same, orchestrated by Turbo
 - `pnpm format` - Apply prettier to the project, only to changed files
   - `pnpm format:check` - Check if prettier needs to be applied, check only changed files
   - `pnpm format:check:all` - Check if prettier needs to be applied. Check all files
   - `pnpm format:all` - Same as `pnpm format`, but check all files, regardless of changes
 - `pnpm typecheck` - Run typecheck
+  - `pnpm typecheck:turbo` - Same, orchestrated by Turbo
 - `pnpm lint` - Run linter
 - `pnpm test` - Run tests
+- `pnpm console:dev` - Run just the console
+
+For the Go services, inside `bulker/`:
+
+```bash
+go build ./...
+go test ./...
+```
 
 # Local Dev Env
 

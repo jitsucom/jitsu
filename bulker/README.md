@@ -1,109 +1,153 @@
 # 🚚 Bulker
 
-Bulker is a tool for streaming and batching large amount of semi-structured data into data warehouses. It uses Kafka internally
+Bulker streams and batches large amounts of semi-structured data into data warehouses. Send it JSON,
+and it takes care of getting that JSON into a table — creating the table, adding columns, picking
+types, retrying on failure, and choosing the write strategy the destination is happiest with.
 
-## How it works?
+Bulker is the ingestion engine behind [Jitsu](../README.md), and lives in the same repository. You
+can use it three ways:
+
+- **As part of Jitsu** — it's what writes your events to the warehouse. Nothing to set up.
+- **As a standalone HTTP service** — `POST` JSON to an endpoint, it lands in your warehouse. See
+  [Server Configuration](./.docs/server-config.md) and [HTTP API](./.docs/http-api.md).
+- **As a Go library** — embed it in your own application, no server involved.
+
+## How it works
 
 <p align="center">
 <img src="./.docs/assets/bulker-summary.excalidraw.png" width="600" />
 </p>
 
-Send and JSON object to Bulker HTTP endpoint, and it will make sure it will be saved to data warehouse:
- 
- * **JSON flattening**. Your object will be flattened - `{a: {b: 1}}` becomes `{a_b: 1}`
- * **Schema managenent** for **semi-structured** data. For each field, bulker will make sure that a corresponding column exist in destination table. If not, Bulker
-will create it. Type will be best-guessed by value, or it could be explicitely set via type hint as in `{"a": "test", "__sql_type_a": "varchar(4)"}`
- * **Reliability**. Bulker will put the object to Kafka Queue immediately, so if datawarehouse is down, data won't be lost
- * **Streaming** or **Batching**. Bulker will send data to datawarehouse either as soon it become available  in Kafka (streaming) or after some time (batching). Most
-data warehouses won't tolerate large number of inserts, that's why we implemented batching
+Send a JSON object to Bulker, and it will make sure the object is saved to the data warehouse:
 
-
-Bulker is a 💜 of [Jitsu](https://github.com/jitsucom/jitsu), an open-source data integration platform.
-
-See full list of features below
-
-
-Bulker is also available as a go library if you want to embed it into your application as opposed to use a HTTP-server
+- **JSON flattening.** Your object is flattened — `{a: {b: 1}}` becomes `{a_b: 1}`.
+- **Schema management for semi-structured data.** For each field, Bulker makes sure a corresponding
+  column exists in the destination table, and creates it if not. The type is best-guessed from the
+  value, or set explicitly with a type hint: `{"a": "test", "__sql_type_a": "varchar(4)"}`.
+- **Reliability.** The object goes to a Kafka queue immediately, so if the warehouse is down, data
+  isn't lost.
+- **Streaming or batching.** Data goes to the warehouse either as soon as it's available in Kafka
+  (streaming) or after an interval (batching). Most warehouses won't tolerate a large number of
+  individual inserts, which is why batching exists.
 
 ## Features
 
-* 🛢️ **Batching** - Bulker sends data in batches in most efficient way for particular database. For example, for Postgres it uses 
-COPY command, for BigQuery it uses batch-files
-* 🚿 **Streaming** - alternatively, Bulker can stream data to database. It is useful when number of records is low. Up to 10 records
-per second for most databases
-* 🐫 **Deduplication** - if configured, Bulker will deduplicate records by primary key 
-* 📋 **Schema management** - Bulker creates tables and columns on the fly. It also flattens nested JSON-objects. Example if you send `{"a": {"b": 1}}` to 
-bulker, it will make sure that there is a column `a_b` in the table (and will create it)
-* 🦾 **Implicit typing** - Bulker infers types of columns from JSON-data.
-* 📌 **Explicit typing** - Explicit types can be by type hints that are placed in JSON. Example: for event `{"a": "test", "__sql_type_a": "varchar(4)"}`
-Bulker will make sure that there is a column `a`, and it's type is `varchar(4)`.
-* 📈 **Horizontal Scaling**. Bulker scales horizontally. Too much data? No problem, just add Bulker instances!
-* 📦 **Dockerized** - Bulker is dockerized and can be deployed to any cloud provider and k8s. 
-* ☁️ **Cloud Native** - each Bulker instance is stateless and is configured by only few environment variables. 
+- 🛢️ **Batching** — Bulker sends data in the most efficient way for the particular database. For
+  Postgres it uses `COPY`, for BigQuery batch files, and so on.
+- 🚿 **Streaming** — alternatively, Bulker streams data row by row. Useful when volume is low: up to
+  roughly 10 records per second for most databases.
+- 🐫 **Deduplication** — if configured, Bulker deduplicates records by primary key.
+- 📋 **Schema management** — tables and columns are created on the fly, and nested JSON is
+  flattened. Send `{"a": {"b": 1}}` and Bulker ensures a column `a_b` exists.
+- 🦾 **Implicit typing** — column types are inferred from the JSON data.
+- 📌 **Explicit typing** — override inference with type hints placed in the JSON. For
+  `{"a": "test", "__sql_type_a": "varchar(4)"}` Bulker ensures column `a` is `varchar(4)`.
+- 📈 **Horizontal scaling** — instances are stateless; add more of them.
+- 📦 **Dockerized** — deployable to any cloud provider or Kubernetes.
+- ☁️ **Cloud native** — each instance is configured by a handful of environment variables.
 
-## Supported databases
+## Supported destinations
 
-Bulker supports the following databases:
+| Destination                | Type            |
+| -------------------------- | --------------- |
+| PostgreSQL                 | SQL             |
+| ClickHouse                 | SQL             |
+| Snowflake                  | SQL             |
+| BigQuery                   | SQL             |
+| Redshift                   | SQL             |
+| MySQL                      | SQL             |
+| DuckDB                     | SQL             |
+| S3                         | File storage    |
+| Google Cloud Storage       | File storage    |
+| Webhook                    | API             |
+| Mixpanel                   | API             |
 
- * ✅ PostgresSQL <br/>
- * ✅ Redshit <br/>
- * ✅ Snowflake <br/>
- * ✅ Clickhouse <br/>
- * ✅ BigQuery <br/>
- * ✅ MySQL <br/>
- * ✅ S3 <br/>
- * ✅ GCS <br/>
+See the [compatibility matrix](.docs/db-feature-matrix.md) for which Bulker features each
+destination supports.
 
-Please see  [Compatibility Matrix](.docs/db-feature-matrix.md) to learn what Bulker features are supported by each database.
+## What's in this directory
 
+Bulker is a set of Go modules tied together by a Go workspace. The services:
 
-## Documentation Links
+| Module                                             | Docker image        | What it does                                                                    |
+| -------------------------------------------------- | ------------------- | ------------------------------------------------------------------------------- |
+| [`bulkerapp/`](./bulkerapp)                        | `jitsucom/bulker`   | The Bulker server — consumes Kafka topics and writes batches to destinations     |
+| [`ingest/`](./ingest)                              | `jitsucom/ingest`   | Jitsu's public ingestion API — accepts events over HTTP and writes them to Kafka |
+| [`sync-controller/`](./sync-controller/README.md)  | `jitsucom/syncctl`  | Runs connector sync tasks as Kubernetes pods and tracks their status             |
+| [`sync-sidecar/`](./sync-sidecar/README.md)        | `jitsucom/sidecar`  | Sidecar to an Airbyte-protocol connector — captures rows, logs and state         |
+| [`ingress-manager/`](./ingress-manager)            | —                   | Manages Kubernetes ingress and TLS certificates for customer custom domains      |
+| [`admin/`](./admin)                                | —                   | Admin service — orchestrates failover and dead-letter reprocessing jobs          |
+| [`reprocessing-worker/`](./reprocessing-worker/README.md) | —            | Worker that runs in K8s Job pods to reprocess failover files in parallel         |
+| [`config-keeper/`](./config-keeper)                | —                   | Caches configuration repositories and serves them to the other services          |
+| [`operator/`](./operator)                          | —                   | Kubernetes operator that provisions functions-server deployments per workspace   |
 
-> **Note**
-> We highly recommend to read [Core Concepts](#core-concepts) below before diving into details
+And the libraries:
 
-* [How to use Bulker as HTTP Service](./.docs/server-config.md)
-  * [Server Configuration](./.docs/server-config.md)  
-  * [HTTP API](./.docs/http-api.md)
-* How to use bulker as Go-lib *(coming soon)*
+| Module                                | What it is                                                                       |
+| ------------------------------------- | -------------------------------------------------------------------------------- |
+| [`bulkerlib/`](./bulkerlib)           | The core library — bulk modes, schema management, and every destination adapter   |
+| [`jitsubase/`](./jitsubase)           | Shared utilities: app bootstrap, logging, types, safe-go helpers                  |
+| [`kafkabase/`](./kafkabase)           | Kafka producer/consumer plumbing shared by the services                           |
+| [`eventslog/`](./eventslog)           | Event log writers (ClickHouse, Redis) behind Jitsu's Live Events                  |
+| [`connectors/`](./connectors)         | Connector SDKs — Airbyte CDK bindings and the native Firebase connector           |
 
-## Core Concepts
+## Documentation
+
+> **Note:** we recommend reading [Core Concepts](#core-concepts) below before diving into details.
+
+- [Server configuration](./.docs/server-config.md) — every environment variable Bulker server reads
+- [HTTP API](./.docs/http-api.md) — endpoints, auth, request format
+- [Database feature matrix](./.docs/db-feature-matrix.md) — per-destination feature support
+- [Jitsu documentation](https://jitsu.com/docs) — the platform Bulker powers
+
+## Core concepts
 
 ### Destinations
 
-Bulker operates with destinations. Destination is database or
-storage service (e.g. S3, GCS). Each destination has an ID and configuration
-which is represented by JSON object.
-
-Bulker exposes HTTP API to load data into destinations, where those
-destinations are referenced by their IDs.
-
-If destination is a database, you'll need to provide a destination table name.
+Bulker operates with destinations. A destination is a database or storage service (e.g. S3, GCS).
+Each destination has an ID and a configuration represented by a JSON object. The HTTP API loads data
+into destinations by referencing those IDs. If the destination is a database, you also provide a
+table name.
 
 ### Event
 
-The main unit of data in Bulker is an *event*. Event is a represented JSON-object 
+The main unit of data in Bulker is an *event* — a JSON object.
 
-### Batching and Streaming (aka Destination Mode)
+### Batching and streaming (aka destination mode)
 
-Bulker can send data to database in two ways:
- * **Streaming**. Bulker sends evens to destinaion one by one. It is useful when number of events is low (less than 10 events per second for most DBs).
- * **Batching**. Bulker accumulates events in batches and sends them periodically once batch is full or timeout is reached. Batching is more efficient for large amounts of events. Especially for cloud data-warehouses 
-(e.g. Postgres, Clickhouse, BigQuery).
+Bulker can send data to a database in two ways:
+
+- **Streaming** — events go to the destination one by one. Useful when volume is low (under ~10
+  events per second for most databases).
+- **Batching** — events accumulate and are sent periodically, once the batch is full or a timeout is
+  reached. More efficient for large volumes, especially for cloud data warehouses.
 
 <p align="center">
 <img src="./.docs/assets/stream-batch.excalidraw.png" width="600" />
 </p>
 
-### Primary Keys and Deduplication
+### Primary keys and deduplication
 
-Optionally, Bulker can deduplicate events by primary key. It is useful when you same event can be sent to Bulker multiple times.
-If available, Bulker uses primary keys, but for some data warehouses alternative strategies are used.
+Optionally, Bulker deduplicates events by primary key — useful when the same event can be sent more
+than once. Where primary keys are available Bulker uses them; for some warehouses alternative
+strategies apply.
 
->[Read more about deduplication »](./.docs/db-feature-matrix.md)
+> [Read more about deduplication »](./.docs/db-feature-matrix.md)
 
+## Development
 
+Requires Go 1.26. The modules are wired together by a Go workspace (`go.work`, see
+[GOWORK.md](./GOWORK.md) if you need to recreate it):
 
+```bash
+go build ./...
+go test ./...
+```
 
+Destination tests spin up real databases via testcontainers, so Docker needs to be running. Release
+and packaging details are in [CONTRIBUTING.md](./CONTRIBUTING.md); repository-wide conventions are in
+the [root CONTRIBUTING.md](../CONTRIBUTING.md).
 
+## License
 
+MIT — see [LICENSE](./LICENSE).
