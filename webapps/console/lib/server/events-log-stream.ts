@@ -9,7 +9,7 @@ import { clickhouse } from "./clickhouse";
 import { getServerLog } from "./log";
 import { ApiError } from "../shared/errors";
 import { SessionUser } from "../schema";
-import { verifyAccess } from "../api";
+import { getWorkspace, verifyAccess } from "../api";
 
 dayjs.extend(utc);
 
@@ -58,27 +58,65 @@ async function assertActorBelongsToWorkspace(workspaceId: string, actorId: strin
 }
 
 /**
+ * Which kinds of actor emit each log type, i.e. what an actorId of that type can be:
+ *   - `incoming`   → the site the event was sent to (`ingest`, ActorId = stream id)
+ *   - `function`   → the connection the function chain ran for, or the profile builder
+ *                    (`rotor`, connectionId = link id / `builder.ts` = profile builder id)
+ *   - `bulker_*`   → bulker's destinationId: the link id for a regular connection, the destination
+ *                    id when the profile builder writes its result
+ * An unknown type gets every kind - narrower would silently hide rows
+ */
+function actorKinds(type: string): {
+  streams: boolean;
+  links: boolean;
+  destinations: boolean;
+  profileBuilders: boolean;
+} {
+  switch (type) {
+    case "incoming":
+      return { streams: true, links: false, destinations: false, profileBuilders: false };
+    case "function":
+      return { streams: false, links: true, destinations: false, profileBuilders: true };
+    case "bulker_batch":
+    case "bulker_stream":
+      return { streams: false, links: true, destinations: true, profileBuilders: false };
+    default:
+      return { streams: true, links: true, destinations: true, profileBuilders: true };
+  }
+}
+
+/**
  * `events_log` has no workspaceId column — it is scoped by actorId only. To serve the "all actors"
  * view we resolve the actor ids the workspace owns and filter by them, otherwise rows of other
- * workspaces would leak. Scoping to the actor kinds that actually emit the requested type also
- * keeps unrelated ids (and id collisions across tables) from widening the result set
+ * workspaces would leak. Only the kinds that actually emit the requested type are included, so
+ * unrelated ids (and id collisions across tables) can't widen the result set
  */
 async function workspaceActorIds(workspaceId: string, type: string): Promise<string[]> {
-  if (type === "incoming") {
-    const streams = await db
-      .prisma()
-      .configurationObject.findMany({ where: { workspaceId, type: "stream", deleted: false }, select: { id: true } });
-    return [...new Set(streams.map(s => s.id))];
-  }
-  const [links, destinations, pbs] = await Promise.all([
-    db.prisma().configurationObjectLink.findMany({ where: { workspaceId, deleted: false }, select: { id: true } }),
-    db.prisma().configurationObject.findMany({
-      where: { workspaceId, type: "destination", deleted: false },
-      select: { id: true },
-    }),
-    db.prisma().profileBuilder.findMany({ where: { workspaceId }, select: { id: true } }),
+  const kinds = actorKinds(type);
+  const configObjects = async (type: "stream" | "destination") =>
+    (
+      await db
+        .prisma()
+        .configurationObject.findMany({ where: { workspaceId, type, deleted: false }, select: { id: true } })
+    ).map(o => o.id);
+
+  const [streams, links, destinations, pbs] = await Promise.all([
+    kinds.streams ? configObjects("stream") : [],
+    kinds.links
+      ? db
+          .prisma()
+          .configurationObjectLink.findMany({ where: { workspaceId, deleted: false }, select: { id: true } })
+          .then(ls => ls.map(l => l.id))
+      : [],
+    kinds.destinations ? configObjects("destination") : [],
+    kinds.profileBuilders
+      ? db
+          .prisma()
+          .profileBuilder.findMany({ where: { workspaceId }, select: { id: true } })
+          .then(ps => ps.map(p => p.id))
+      : [],
   ]);
-  return [...new Set([...links.map(l => l.id), ...destinations.map(d => d.id), ...pbs.map(p => p.id)])];
+  return [...new Set([...streams, ...links, ...destinations, ...pbs])];
 }
 
 /**
@@ -98,12 +136,15 @@ export async function streamEventsLog({
 }) {
   log.atDebug().log("GET", JSON.stringify({ ...query, actorId }, null, 2));
   await verifyAccess(user, query.workspaceId);
+  //the route accepts a slug as well as an id (verifyAccess resolves one internally), but every
+  //lookup below matches on workspaceId - a slug would find no actors and return a false empty
+  const workspaceId = (await getWorkspace(query.workspaceId)).id;
 
   let actorIds: string[] = [];
   if (actorId) {
-    await assertActorBelongsToWorkspace(query.workspaceId, actorId, query.type);
+    await assertActorBelongsToWorkspace(workspaceId, actorId, query.type);
   } else {
-    actorIds = await workspaceActorIds(query.workspaceId, query.type);
+    actorIds = await workspaceActorIds(workspaceId, query.type);
   }
 
   res.writeHead(200, {

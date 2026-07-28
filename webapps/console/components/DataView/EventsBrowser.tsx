@@ -367,7 +367,10 @@ const EventsBrowser0 = ({
           setConnection(connection);
           setDebugEnabled(new Date(connection.data.debugTill) > new Date());
         } else {
+          //"All Connections" or a profile builder - debug belongs to a single connection, and the
+          //banner would otherwise keep announcing it for a connection that is no longer selected
           setConnection(undefined);
+          setDebugEnabled(false);
         }
       })();
     }
