@@ -163,7 +163,7 @@ Jitsu is a handful of independently scalable services:
 Backed by Postgres (configuration), Kafka/Redpanda (event bus), ClickHouse (live events and
 metrics), and MongoDB (profiles).
 
-[Bulker](https://github.com/jitsucom/bulker) is also usable standalone if you just want a warehouse
+[Bulker](./bulker) is also usable standalone if you just want a warehouse
 ingestion engine and are comfortable with low-level APIs.
 
 ## Self-hosting
