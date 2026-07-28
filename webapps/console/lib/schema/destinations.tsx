@@ -22,6 +22,7 @@ import { HubspotCredentials } from "@jitsu/destination-functions/src/meta";
 import { branding } from "../branding";
 import { ValidationMessages } from "./config-editor-errors";
 import { ClientFieldValidator } from "./config-editor-validation";
+import { validateHttpUrl } from "./http-url-validation";
 import { validatePosthogHost } from "./posthog-host-validation";
 import ga4Icon from "./icons/ga4";
 import gtmIcon from "./icons/gtm";
@@ -1140,6 +1141,9 @@ export const coreDestinations: DestinationType<any>[] = [
     ),
     credentials: meta.WebhookDestinationConfig,
     credentialsUi: {
+      url: {
+        clientValidator: validateHttpUrl,
+      },
       headers: {
         editor: "StringArrayEditor",
       },
