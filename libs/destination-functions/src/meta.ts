@@ -29,8 +29,17 @@ export const FacebookConversionApiCredentialsUi = {
 
 export type FacebookConversionApiCredentials = z.infer<typeof FacebookConversionApiCredentials>;
 
+function isHttpUrl(value: string): boolean {
+  try {
+    const protocol = new URL(value).protocol;
+    return protocol === "http:" || protocol === "https:";
+  } catch {
+    return false;
+  }
+}
+
 export const WebhookDestinationConfig = z.object({
-  url: z.string().url().describe("Webhook URL"),
+  url: z.string().url().refine(isHttpUrl, "Webhook URL must use HTTP or HTTPS").describe("Webhook URL"),
   method: z
     .enum(["GET", "POST", "PUT", "DELETE"])
     .default("POST")
