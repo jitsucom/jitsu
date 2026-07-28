@@ -31,6 +31,16 @@ function setHotjarState(s: HotjarState) {
   window["__jitsuHotjarState"] = s;
 }
 
+// The siteId of the destination that actually loaded the tag. window.hj is a vendor-owned singleton,
+// so only one site can be active per page; we track it to warn on misconfiguration.
+function getHotjarSiteId(): string | undefined {
+  return window["__jitsuHotjarSiteId"];
+}
+
+function setHotjarSiteId(id: string) {
+  window["__jitsuHotjarSiteId"] = id;
+}
+
 // Hotjar event names must be <=250 chars and use no spaces.
 // https://help.hotjar.com/hc/en-us/articles/4405109971095
 function sanitizeEventName(event: string): string {
@@ -44,6 +54,12 @@ export const hotjarPlugin: InternalPlugin<HotjarDestinationCredentials> = {
       return;
     }
     initHotjarIfNeeded(config);
+
+    // Tag load failed: the stub has been swapped for a no-op and its queue dropped. Short-circuit so
+    // we don't keep handing work to a dead instance.
+    if (getHotjarState() === "failed") {
+      return;
+    }
 
     // The vendor snippet installs a self-queuing stub, so calls made before the script finishes
     // loading are queued by Hotjar itself - no need for our own flush queue.
@@ -88,6 +104,16 @@ export const hotjarPlugin: InternalPlugin<HotjarDestinationCredentials> = {
 
 function initHotjarIfNeeded(config: HotjarDestinationCredentials) {
   if (getHotjarState() !== "fresh") {
+    // window.hj is a singleton owned by the vendor script; a second destination pointing at a
+    // different siteId can't get its own instance. Warn rather than silently routing events to the
+    // wrong site - the first destination that loads the tag wins.
+    const activeSiteId = getHotjarSiteId();
+    if (config.loadHotjar !== false && activeSiteId && activeSiteId !== config.siteId) {
+      console.warn(
+        `Hotjar: a destination for siteId=${activeSiteId} is already active on this page; ` +
+          `ignoring siteId=${config.siteId}. Multiple Hotjar destinations on one page are not supported.`
+      );
+    }
     return;
   }
   setHotjarState("loading");
@@ -102,6 +128,7 @@ function initHotjarIfNeeded(config: HotjarDestinationCredentials) {
     };
 
   if (config.loadHotjar !== false) {
+    setHotjarSiteId(config.siteId);
     // Only set _hjSettings when we load the tag ourselves, so we never repoint a Hotjar tag the
     // page already configured.
     window["_hjSettings"] = { hjid: config.siteId, hjsv: HOTJAR_VERSION };
@@ -113,6 +140,9 @@ function initHotjarIfNeeded(config: HotjarDestinationCredentials) {
       .catch(e => {
         console.warn(`Hotjar (siteId=${config.siteId}) init failed: ${e.message}`, e);
         setHotjarState("failed");
+        // Init failed: replace the queuing stub with a no-op and drop its queue so events fired for
+        // the rest of the page lifetime don't accumulate in window.hj.q.
+        window["hj"] = function () {};
       });
   } else {
     // The page loads the Hotjar tag itself; we only forward events to it.

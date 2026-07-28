@@ -27,6 +27,16 @@ function setClarityState(s: ClarityState) {
   window["__jitsuClarityState"] = s;
 }
 
+// The projectId of the destination that actually loaded the tag. window.clarity is a vendor-owned
+// singleton, so only one project can be active per page; we track it to warn on misconfiguration.
+function getClarityProjectId(): string | undefined {
+  return window["__jitsuClarityProjectId"];
+}
+
+function setClarityProjectId(id: string) {
+  window["__jitsuClarityProjectId"] = id;
+}
+
 // clarity('set', key, value) only accepts a string or an array of strings. Coerce anything else,
 // dropping values that can't be sensibly represented as a tag.
 function coerceTagValue(value: any): string | string[] | undefined {
@@ -65,6 +75,12 @@ export const clarityPlugin: InternalPlugin<ClarityDestinationCredentials> = {
       return;
     }
     initClarityIfNeeded(config);
+
+    // Tag load failed: the stub has been swapped for a no-op and its queue dropped. Short-circuit so
+    // we don't keep handing work to a dead instance.
+    if (getClarityState() === "failed") {
+      return;
+    }
 
     // The vendor snippet installs a self-queuing stub, so calls made before the script finishes
     // loading are queued by Clarity itself - no need for our own flush queue.
@@ -107,6 +123,16 @@ export const clarityPlugin: InternalPlugin<ClarityDestinationCredentials> = {
 
 function initClarityIfNeeded(config: ClarityDestinationCredentials) {
   if (getClarityState() !== "fresh") {
+    // window.clarity is a singleton owned by the vendor script; a second destination pointing at a
+    // different projectId can't get its own instance. Warn rather than silently routing events to
+    // the wrong project - the first destination that loads the tag wins.
+    const activeProjectId = getClarityProjectId();
+    if (config.loadClarity !== false && activeProjectId && activeProjectId !== config.projectId) {
+      console.warn(
+        `Clarity: a destination for projectId=${activeProjectId} is already active on this page; ` +
+          `ignoring projectId=${config.projectId}. Multiple Clarity destinations on one page are not supported.`
+      );
+    }
     return;
   }
   setClarityState("loading");
@@ -121,6 +147,7 @@ function initClarityIfNeeded(config: ClarityDestinationCredentials) {
     };
 
   if (config.loadClarity !== false) {
+    setClarityProjectId(config.projectId);
     loadScript(`clarity.ms/tag/${config.projectId}`, { www: true })
       .then(() => {
         setClarityState("loaded");
@@ -128,6 +155,9 @@ function initClarityIfNeeded(config: ClarityDestinationCredentials) {
       .catch(e => {
         console.warn(`Clarity (projectId=${config.projectId}) init failed: ${e.message}`, e);
         setClarityState("failed");
+        // Init failed: replace the queuing stub with a no-op and drop its queue so events fired for
+        // the rest of the page lifetime don't accumulate in window.clarity.q.
+        window["clarity"] = function () {};
       });
   } else {
     // The page loads the Clarity tag itself; we only forward events to it.
