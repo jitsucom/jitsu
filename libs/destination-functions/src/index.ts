@@ -47,6 +47,8 @@ const builtinDestinations: Record<BuiltinDestinationFunctionName, JitsuFunction>
   "builtin.destination.gtm": () => undefined,
   "builtin.destination.logrocket": () => undefined,
   "builtin.destination.ga4-tag": () => undefined,
+  "builtin.destination.clarity": () => undefined,
+  "builtin.destination.hotjar": () => undefined,
 } as const;
 
 const builtinTransformations: Record<BuiltinTransformationFunctionName, JitsuFunction> = {
