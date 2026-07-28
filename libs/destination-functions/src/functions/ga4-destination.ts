@@ -1,8 +1,8 @@
-import { JitsuFunction } from "@jitsu/protocols/functions";
+import { createFilter, eventTimeSafeMs } from "@jitsu/core-functions-lib";
 import { RetryError } from "@jitsu/functions-lib";
 import type { AnalyticsServerEvent } from "@jitsu/protocols/analytics";
+import { FullContext, JitsuFunction } from "@jitsu/protocols/functions";
 import { Ga4Credentials } from "../meta";
-import { createFilter, eventTimeSafeMs } from "@jitsu/core-functions-lib";
 
 const ReservedUserProperties = [
   "first_open_time",
@@ -27,7 +27,37 @@ type Ga4Request = {
   user_id?: string;
   timestamp_micros: number;
   user_properties?: Record<string, any>;
+  device?: Ga4Device;
+  user_agent?: string;
+  user_location?: Ga4UserLocation;
+  ip_override?: string;
+  consent?: Ga4Consent;
   events: Ga4Event[];
+};
+
+type Ga4ConsentState = "GRANTED" | "DENIED";
+
+type Ga4Consent = {
+  ad_user_data?: Ga4ConsentState;
+  ad_personalization?: Ga4ConsentState;
+};
+
+type Ga4UserLocation = {
+  city?: string;
+  region_id?: string;
+  country_id?: string;
+};
+
+type Ga4Device = {
+  category?: string;
+  language?: string;
+  screen_resolution?: string;
+  operating_system?: string;
+  operating_system_version?: string;
+  model?: string;
+  brand?: string;
+  browser?: string;
+  browser_version?: string;
 };
 
 type Ga4Event = {
@@ -62,20 +92,26 @@ type Ga4Item = {
 };
 
 function getItems(event: AnalyticsServerEvent): Ga4Item[] {
-  if (!event.properties) return [];
+  if (!event.properties) {
+    return [];
+  }
 
   let items: Ga4Item[] = [];
   if (Array.isArray(event.properties.products)) {
     items = event.properties.products.map(getItem).filter(item => item != undefined) as Ga4Item[];
   } else {
     const item = getItem(event.properties);
-    if (item) items.push(item);
+    if (item) {
+      items.push(item);
+    }
   }
   return items;
 }
 
 function getItem(product: any): Ga4Item | undefined {
-  if (!product.product_id || !product.name) return undefined;
+  if (!product.product_id || !product.name) {
+    return undefined;
+  }
   return {
     item_id: product.product_id,
     item_name: product.name,
@@ -104,7 +140,7 @@ function getItem(product: any): Ga4Item | undefined {
 }
 
 function getUserProperties(event: AnalyticsServerEvent): Record<string, any> {
-  let userProperties: Record<string, any> = {};
+  const userProperties: Record<string, any> = {};
   // const ua = parser(event.context?.userAgent);
   // userProperties["platform"] = { value: "web" };
   // userProperties["os"] = { value: ua.os?.name };
@@ -143,6 +179,59 @@ function getFirebaseAppInstanceId(event: AnalyticsServerEvent): string | undefin
 
 function getSessionId(event: AnalyticsServerEvent, measurementId: string): string | undefined {
   return event.context?.clientIds?.ga4?.sessionIds?.[measurementId.replace("G-", "")];
+}
+
+function getDevice(event: AnalyticsServerEvent, ctx: FullContext): Ga4Device | undefined {
+  const screen = event.context?.screen;
+  const device: Ga4Device = {
+    category: event.context?.device?.type || ctx.ua?.device?.type,
+    language: event.context?.locale,
+    screen_resolution: screen?.width != null && screen?.height != null ? `${screen.width}x${screen.height}` : undefined,
+    operating_system: event.context?.os?.name || ctx.ua?.os?.name,
+    operating_system_version: event.context?.os?.version || ctx.ua?.os?.version,
+    model: event.context?.device?.model || ctx.ua?.device?.model,
+    brand: event.context?.device?.manufacturer || ctx.ua?.device?.vendor,
+    browser: ctx.ua?.browser?.name,
+    browser_version: ctx.ua?.browser?.version,
+  };
+  const definedDevice = Object.fromEntries(
+    Object.entries(device).filter(([, value]) => value !== undefined && value !== null && value !== "")
+  );
+  return Object.keys(definedDevice).length > 0 ? definedDevice : undefined;
+}
+
+function getUserLocation(event: AnalyticsServerEvent): Ga4UserLocation | undefined {
+  const geo = event.context?.geo;
+  const countryId = geo?.country?.code;
+  const regionCode = geo?.region?.code;
+  const userLocation: Ga4UserLocation = {
+    city: geo?.city?.name,
+    country_id: countryId,
+    region_id: regionCode && countryId && !regionCode.includes?.("-") ? `${countryId}-${regionCode}` : regionCode,
+  };
+  const definedLocation = Object.fromEntries(
+    Object.entries(userLocation).filter(([, value]) => value !== undefined && value !== null && value !== "")
+  );
+  return Object.keys(definedLocation).length > 0 ? definedLocation : undefined;
+}
+
+function getConsentState(value: any): Ga4ConsentState | undefined {
+  if (value === true) {
+    return "GRANTED";
+  }
+  if (value === false) {
+    return "DENIED";
+  }
+  return value === "GRANTED" || value === "DENIED" ? value : undefined;
+}
+
+function getConsent(event: AnalyticsServerEvent): Ga4Consent | undefined {
+  const preferences = event.context?.consent?.categoryPreferences;
+  const consent: Ga4Consent = {
+    ad_user_data: getConsentState(preferences?.ad_user_data),
+    ad_personalization: getConsentState(preferences?.ad_personalization),
+  };
+  return consent.ad_user_data || consent.ad_personalization ? consent : undefined;
 }
 
 function pageViewEvent(event: AnalyticsServerEvent): Ga4Event {
@@ -320,14 +409,14 @@ const Ga4Destination: JitsuFunction<AnalyticsServerEvent, Ga4Credentials> = asyn
       return;
     }
   }
-  let gaRequest: Ga4Request | undefined = undefined;
+  let gaRequest: Ga4Request | undefined;
   try {
     const clientId = getClientId(event);
     const sessionId = getSessionId(event, ctx.props.measurementId);
     const firebaseAppInstanceId = getFirebaseAppInstanceId(event);
     const measurementId = ctx.props.measurementId || "";
     let query = `api_secret=${ctx.props.apiSecret}`;
-    let idPart = {} as any;
+    const idPart = {} as any;
     if (measurementId.match(/^\d:\d+:\w+:\w+$/)) {
       if (!firebaseAppInstanceId) {
         ctx.log.info(`Ga4: no app instance id found for event ID: ${event.messageId}`);
@@ -374,6 +463,11 @@ const Ga4Destination: JitsuFunction<AnalyticsServerEvent, Ga4Credentials> = asyn
       user_id: event.userId,
       timestamp_micros: eventTimeSafeMs(event) * 1000,
       user_properties: userProperties,
+      device: getDevice(event, ctx),
+      user_agent: event.context?.userAgent,
+      user_location: getUserLocation(event),
+      ip_override: event.context?.ip?.split(",")[0] || undefined,
+      consent: getConsent(event),
       events: sessionId ? events.map(e => ({ ...e, params: { ...e.params, session_id: sessionId } })) : events,
     };
 

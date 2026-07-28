@@ -3,6 +3,7 @@ node_modules
 **/node_modules
 .idea
 .vscode
+.kube
 .env.local
 .turbo
 .pnpm-debug.log
