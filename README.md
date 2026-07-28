@@ -33,22 +33,14 @@
 ## What is Jitsu?
 
 Jitsu collects event data from your websites, apps and servers, and delivers it to your data
-warehouse and to whatever other tools you use. It covers the same ground as Segment, with a few
-differences that tend to matter.
+warehouse and to whatever other tools you use. It covers the same ground as Segment, but it's
+MIT-licensed and self-hostable, so the whole pipeline can run inside your own infrastructure —
+or on [Jitsu Cloud](https://use.jitsu.com), same software, hosted.
 
-It's open source, MIT-licensed, and you can run it yourself. Self-host Jitsu and the entire pipeline
-— collection, processing, delivery — stays inside your own infrastructure, with no third party in
-the path. If you'd rather not run it, [Jitsu Cloud](https://use.jitsu.com) is the same software,
-hosted.
-
-Data lands in the warehouse in minutes rather than hours. Segment loads warehouses on a schedule —
-once or twice a day on most plans, hourly at the very best. Jitsu lets you set the delivery mode per
-destination: batches as frequent as one minute for warehouses that would rather be written to in
-bulk (most of them), or row-by-row streaming where the destination handles it well.
-
-And you pay per event, not per user. Segment bills by Monthly Tracked User, so the bill scales with
-audience size no matter how much data each person actually generates. Jitsu bills by event volume,
-which is easier to predict and usually cheaper.
+Data lands in minutes, not hours: Segment loads warehouses once or twice a day (hourly at best),
+while Jitsu delivers per destination in batches as frequent as a minute, or row-by-row where that
+suits the destination. And billing is per event rather than per Monthly Tracked User, so it tracks
+data volume instead of audience size.
 
 A typical Jitsu setup gives you:
 
