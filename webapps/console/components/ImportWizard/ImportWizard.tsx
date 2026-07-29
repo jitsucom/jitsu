@@ -168,7 +168,9 @@ export const ImportWizard: React.FC = () => {
         items={[{ title: "Provider" }, { title: "Connect" }, { title: "Analysis" }, { title: "Report" }]}
       />
       {step === 0 && (
-        <div className="flex flex-wrap gap-4">
+        // py-3: the hover scale effect grows cards ~5px past their box — keep
+        // that inside preallocated space so the page doesn't grow a scrollbar.
+        <div className="flex flex-wrap gap-4 py-3">
           {PROVIDERS.map(p => (
             <div
               key={p.id}
