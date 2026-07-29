@@ -1,14 +1,21 @@
 import React from "react";
+import classNames from "classnames";
 import { ArrowRight } from "lucide-react";
 import { useWorkspace } from "../../lib/context";
 import { WJitsuButton } from "../JitsuButton/JitsuButton";
 import segmentIcon from "../../lib/schema/icons/segment";
 
-/** Overview-page teaser for the migration analyzer (JITSU-131). */
-export const MigrationTeaserCard: React.FC = () => {
+/** Overview-page teaser for the migration analyzer (JITSU-131). Outer spacing
+ * is the caller's job (className) — the card renders in two overview slots. */
+export const MigrationTeaserCard: React.FC<{ className?: string }> = ({ className }) => {
   useWorkspace(); // asserts workspace context; WJitsuButton builds the workspace-relative href
   return (
-    <div className="mt-8 border-textDisabled rounded-lg bg-backgroundLight px-4 py-5 flex items-center bg-neutral-50 border border-neutral-200">
+    <div
+      className={classNames(
+        "max-w-4xl border-textDisabled rounded-lg bg-backgroundLight px-4 py-5 flex items-center bg-neutral-50 border border-neutral-200",
+        className
+      )}
+    >
       <div className="w-8 h-8 mr-4">{segmentIcon}</div>
       <div>
         <div className="text-xl text pb-2">Migrating from Segment or RudderStack?</div>
