@@ -134,7 +134,9 @@ const UsageEditor: React.FC<{ report: MigrationReport; refresh: () => Promise<vo
       setExtraction(parsed);
       setSource("invoice");
       // Pre-fill the confirmation form — the user reviews before applying.
-      setAmountDollars(parsed.amountCents != null ? Math.round(parsed.amountCents / 100) : undefined);
+      // Savings math is USD: never pre-fill an amount in another currency.
+      const usd = !parsed.currency || parsed.currency.toUpperCase() === "USD";
+      setAmountDollars(usd && parsed.amountCents != null ? Math.round(parsed.amountCents / 100) : undefined);
       setMonthlyEvents(parsed.monthlyEvents ?? undefined);
       setMtus(parsed.mtus ?? undefined);
     } catch (e) {
@@ -197,6 +199,14 @@ const UsageEditor: React.FC<{ report: MigrationReport; refresh: () => Promise<vo
       </Upload.Dragger>
       {extraction && (
         <div className="pt-4">
+          {extraction.currency && extraction.currency.toUpperCase() !== "USD" && (
+            <Alert
+              type="warning"
+              showIcon
+              className="mb-3"
+              message={`This invoice is in ${extraction.currency.toUpperCase()} — the savings estimate works in USD, so the amount was not pre-filled. Enter the approximate USD equivalent manually.`}
+            />
+          )}
           {extraction.warnings.length > 0 && (
             <Alert type="warning" showIcon className="mb-3" message={extraction.warnings.join("; ")} />
           )}
