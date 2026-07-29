@@ -4,7 +4,7 @@ import { CalendarClock, Gauge, Loader2, RefreshCw, UploadCloud, Waypoints } from
 import { branding } from "../../lib/branding";
 import segmentIcon from "../../lib/schema/icons/segment";
 import { rpc } from "juava";
-import { useWorkspace } from "../../lib/context";
+import { useAppConfig, useWorkspace } from "../../lib/context";
 import { feedbackError, feedbackSuccess } from "../../lib/ui";
 import { ErrorCard } from "../GlobalError/GlobalError";
 import { JitsuButton } from "../JitsuButton/JitsuButton";
@@ -17,9 +17,9 @@ import {
   Verdict,
 } from "./types";
 
-// TODO(JITSU-128): replace with the real Calendly link once Priyank confirms
-// the booking mechanics (open question #2 on the issue).
-const BOOK_A_CALL_URL = "https://jitsu.com/contact?utm_source=console&utm_campaign=migration-report";
+// Booking link comes from MIGRATION_CALENDLY_URL (appConfig.migrationCalendlyUrl);
+// jitsu.com/contact is the fallback when the env is unset.
+const BOOK_A_CALL_FALLBACK = "https://jitsu.com/contact?utm_source=console&utm_campaign=migration-report";
 
 const VERDICT_TAG: Record<Verdict, React.ReactNode> = {
   green: <Tag color="green">✅ Auto-importable</Tag>,
@@ -257,6 +257,8 @@ export const MigrationReportView: React.FC<{
   refresh: () => Promise<void>;
   onStartOver: () => void;
 }> = ({ report, refresh, onStartOver }) => {
+  const appConfig = useAppConfig();
+  const bookCallUrl = appConfig.migrationCalendlyUrl || BOOK_A_CALL_FALLBACK;
   if (report.status === "failed") {
     return (
       <div className="max-w-2xl">
@@ -351,7 +353,7 @@ export const MigrationReportView: React.FC<{
           type="primary"
           size="large"
           icon={<CalendarClock className="w-4 h-4" />}
-          onClick={() => window.open(BOOK_A_CALL_URL, "_blank")}
+          onClick={() => window.open(bookCallUrl, "_blank")}
         >
           Book a migration call
         </JitsuButton>
