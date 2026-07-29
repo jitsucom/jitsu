@@ -6,6 +6,7 @@ export type RegisteredClient = {
   clientSecret: string; // plaintext — returned only at registration time
   name: string;
   redirectUris: string[];
+  createdAt: Date;
 };
 
 // Thin CRUD + secret hashing for OAuthClient rows. Used by OAuthHandlers.
@@ -32,7 +33,13 @@ export class OAuthClientsRepo {
         redirectUris,
       },
     });
-    return { clientId: row.id, clientSecret, name: row.name, redirectUris: row.redirectUris };
+    return {
+      clientId: row.id,
+      clientSecret,
+      name: row.name,
+      redirectUris: row.redirectUris,
+      createdAt: row.createdAt,
+    };
   }
 
   async findById(clientId: string) {

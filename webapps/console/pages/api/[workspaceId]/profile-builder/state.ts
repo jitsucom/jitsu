@@ -1,6 +1,6 @@
 import { db } from "../../../../lib/server/db";
 import { z } from "zod";
-import { createRoute, verifyAccess } from "../../../../lib/api";
+import { createRoute, verifyAccess, verifyAccessWithRole } from "../../../../lib/api";
 import { getServerLog } from "../../../../lib/server/log";
 
 const log = getServerLog("profile-builder-state");
@@ -89,7 +89,7 @@ export default createRoute()
   })
   .handler(async ({ user, query }) => {
     const { workspaceId, profileBuilderId } = query;
-    await verifyAccess(user, workspaceId);
+    await verifyAccessWithRole(user, workspaceId, "editEntities");
 
     const pb = await db.prisma().profileBuilder.findFirst({
       where: {

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { createHash } from "juava";
 import { deps, seedWorkspace } from "./support/harness";
 import { AuthChecker } from "../../lib/server/mcp-server/auth";
+import { OAuthHandlers } from "../../lib/server/mcp-server/oauth";
 
 // No origin stub: send401 builds the WWW-Authenticate metadata URL from
 // getPublicOrigin(), which reads JITSU_PUBLIC_URL at call time — the harness
@@ -12,6 +13,10 @@ const noopSchedule = (_fn: () => Promise<any>) => {};
 
 function makeReq(authorization: string) {
   return { headers: { authorization } } as any;
+}
+
+function makePostReq(body: any) {
+  return { method: "POST", headers: {}, socket: {}, body } as any;
 }
 
 function makeRes() {
@@ -91,4 +96,28 @@ describe("AuthChecker: MCP auth via personal API key", () => {
     expect(auth).toBeUndefined();
     expect(res.statusCode).toBe(401);
   });
+});
+
+// Regression: omitting client_secret_expires_at made openid-client (used by
+// Smithery) reject registration outright with
+// `"client_secret_expires_at" property must be a number`. RFC 7591 §3.2.1 makes
+// it REQUIRED whenever a client_secret is issued; 0 == never expires.
+it("register returns an RFC 7591 DCR response", async () => {
+  const deps_ = { prisma: deps().prisma, kv: {}, accessTokenTtlSec: 3600, refreshTokenTtlDays: 30 } as any;
+  const res = makeRes();
+  await new OAuthHandlers(deps_).register(
+    makePostReq({ client_name: "Smithery", redirect_uris: ["https://smithery.ai/callback"] }),
+    res
+  );
+  expect(res.statusCode).toBe(201);
+  expect(res.body).toMatchObject({
+    client_id: expect.any(String),
+    client_secret: expect.any(String),
+    client_secret_expires_at: 0, // number, not undefined — the actual bug
+    client_id_issued_at: expect.any(Number),
+    client_name: "Smithery",
+    redirect_uris: ["https://smithery.ai/callback"],
+  });
+  // seconds, not milliseconds — a ms value would be ~1000x too large
+  expect(res.body.client_id_issued_at).toBeCloseTo(Date.now() / 1000, -2);
 });

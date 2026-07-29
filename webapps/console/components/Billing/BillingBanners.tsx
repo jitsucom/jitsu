@@ -1,10 +1,11 @@
-import React, { useReducer } from "react";
+import React, { useReducer, useState } from "react";
+import { Modal } from "antd";
 import DOMPurify from "dompurify";
-import { X } from "lucide-react";
+import { AlertTriangle, X } from "lucide-react";
 import { useRouter } from "next/router";
-import { useBilling, UseBillingResult } from "./BillingProvider";
-import { useEventsUsage, UseUsageRes } from "./use-events-usage";
+import { useBilling } from "./BillingProvider";
 import { useWorkspace } from "../../lib/context";
+import { useApi } from "../../lib/useApi";
 import { WJitsuButton } from "../JitsuButton/JitsuButton";
 import { BillingBanner } from "../../lib/schema";
 
@@ -18,17 +19,10 @@ import { BillingBanner } from "../../lib/schema";
  * or misbehaving billing response must not run script — and action locations
  * are restricted to workspace-relative console paths.
  *
- * Two banners are still computed client-side (they replaced the old floating
- * workspace alerts) and share the same template, with explicit priority rules:
- *   - active partial throttle (`throttle=N` in featuresEnabled, N < 100): shown
- *     INSTEAD of any server banners — the applied throttle is ground truth,
- *     server state may lag it. At throttle=100 with server banners present, the
- *     server wins: a full block is exactly what the server's blocked banner
- *     describes, with better copy (blocked-count);
- *   - usage projected to exceed the free plan: shown only when there is nothing
- *     else to show.
- * TODO(JITSU-123): move both to the billing server (getWorkspaceBanners) and
- * delete useEventsUsage from here.
+ * The full banner list — including the active-throttle and projection banners
+ * that used to be computed client-side — comes from the server
+ * (composeWorkspaceBanners in the billing repo, JITSU-123 item d); this
+ * component only renders and dismisses.
  *
  * Dismissals are client-side, keyed by workspace + the banner's stable `id` —
  * the id changes (e.g. new severity level or billing period) to re-show a
@@ -111,20 +105,6 @@ const Html: React.FC<{ html: string; className?: string; inline?: boolean }> = (
   <span className={className} dangerouslySetInnerHTML={{ __html: inline ? sanitizeInline(html) : sanitize(html) }} />
 );
 
-function usageIsAboutToExceed(billing: UseBillingResult, usage: UseUsageRes): boolean {
-  return !!(
-    billing.enabled &&
-    billing.settings &&
-    !usage.isLoading &&
-    !usage.error &&
-    usage.usage?.usagePercentage &&
-    usage.usage?.usagePercentage < 1 &&
-    billing.settings.planId === "free" &&
-    usage.usage?.projectionByTheEndOfPeriod &&
-    usage.usage?.projectionByTheEndOfPeriod > usage.usage.maxAllowedDestinatonEvents
-  );
-}
-
 const themes: Record<BillingBanner["severity"], { card: string; iconBox: string; badge: string }> = {
   info: {
     card: "bg-blue-50 border-blue-200 border-l-blue-600",
@@ -143,8 +123,17 @@ const themes: Record<BillingBanner["severity"], { card: string; iconBox: string;
   },
 };
 
-/** The banner card template (design: JITSU-88 mock) filled from a BillingBanner payload. */
-const BannerCard: React.FC<{ banner: BillingBanner; onClose?: () => void }> = ({ banner, onClose }) => {
+/**
+ * The banner card template (design: JITSU-88 mock) filled from a BillingBanner
+ * payload. `compact` omits the extra widget zone, the action column and the ✕ —
+ * used when the banner is nested in a context that already provides them (the
+ * billing page's Event usage section).
+ */
+export const BannerCard: React.FC<{ banner: BillingBanner; onClose?: () => void; compact?: boolean }> = ({
+  banner,
+  onClose,
+  compact,
+}) => {
   const t = themes[banner.severity];
   // Only workspace-relative console paths — a server bug/compromise must not
   // be able to send users off-origin (WJitsuButton prefixes the workspace).
@@ -169,8 +158,9 @@ const BannerCard: React.FC<{ banner: BillingBanner; onClose?: () => void }> = ({
           </span>
         </div>
         <Html className="block mt-1.5 text-sm text-neutral-600 leading-relaxed" html={banner.body} />
+        {!compact && banner.extra && <Html className="block" html={banner.extra} />}
       </div>
-      {action && (
+      {!compact && action && (
         <div className="flex-shrink-0 ml-2 flex flex-col items-end gap-2.5">
           <WJitsuButton href={action.location} type="primary" size="large">
             {action.text}
@@ -178,7 +168,7 @@ const BannerCard: React.FC<{ banner: BillingBanner; onClose?: () => void }> = ({
           {action.subtitle && <Html inline className="text-[12.5px] text-gray-500" html={action.subtitle} />}
         </div>
       )}
-      {banner.closeable && onClose && (
+      {!compact && banner.closeable && onClose && (
         <button
           className="flex-shrink-0 self-start -mt-2 -mr-3 ml-1 p-1 rounded text-neutral-400 hover:text-neutral-600 hover:bg-black/5"
           aria-label="Dismiss"
@@ -191,51 +181,101 @@ const BannerCard: React.FC<{ banner: BillingBanner; onClose?: () => void }> = ({
   );
 };
 
-const BillingBannersInner: React.FC = () => {
+/**
+ * Blocking-modal presentation of a banner payload (kind: "modal") — replaces
+ * the old hardcoded BillingBlockingDialog. The mask is not closable; Jitsu
+ * admins (user-properties `admin` flag) can dismiss regardless of `closeable`.
+ * Dismissal is session-only — the modal returns on the next mount.
+ */
+const modalAccents: Record<BillingBanner["severity"], string> = {
+  info: "bg-blue-600",
+  warning: "bg-amber-600",
+  error: "bg-red-600",
+};
+
+const BannerModal: React.FC<{ banner: BillingBanner; adminCanClose: boolean }> = ({ banner, adminCanClose }) => {
+  const [open, setOpen] = useState(true);
+  const t = themes[banner.severity];
+  // A blocking modal must always offer a way forward: fall back to the billing
+  // page when the payload has no (safe) action.
+  const action =
+    banner.action && isSafeLocation(banner.action.location)
+      ? banner.action
+      : { text: "Go to billing", location: "/settings/billing", subtitle: undefined };
+  const canClose = adminCanClose || banner.closeable;
+  const iconHtml = banner.icon ? sanitize(banner.icon) : "";
+  return (
+    <Modal
+      width={600}
+      open={open}
+      closable={canClose}
+      keyboard={canClose}
+      onCancel={() => setOpen(false)}
+      maskClosable={false}
+      footer={null}
+    >
+      {/* Top accent bar — the modal's counterpart of the card's accent edge;
+          negative margins span it across the modal's built-in padding. */}
+      <div className={`h-1 -mx-6 -mt-5 mb-5 rounded-t-lg ${modalAccents[banner.severity]}`} />
+      <div className="flex items-center gap-3.5">
+        <div className={`flex-shrink-0 w-11 h-11 rounded-lg flex items-center justify-center ${t.iconBox}`}>
+          {iconHtml.trim() ? (
+            <span dangerouslySetInnerHTML={{ __html: iconHtml }} />
+          ) : (
+            <AlertTriangle className="w-6 h-6" />
+          )}
+        </div>
+        <div className="flex-1 flex items-center gap-2.5 flex-wrap">
+          <span className="text-lg font-bold text-neutral-900 leading-6">{banner.title}</span>
+          <span className={`text-xs font-bold tracking-wide rounded-full border px-2.5 py-0.5 ${t.badge}`}>
+            {banner.badge}
+          </span>
+        </div>
+      </div>
+      <div className="pl-[58px]">
+        <Html className="block mt-2 text-sm text-neutral-600 leading-relaxed" html={banner.body} />
+        {banner.extra && <Html className="block" html={banner.extra} />}
+        <div className="mt-5">
+          <WJitsuButton href={action.location} className="w-full" size="large" type="primary">
+            {action.text}
+          </WJitsuButton>
+          {action.subtitle && (
+            <div className="text-center mt-2.5">
+              <Html inline className="text-[12.5px] text-gray-500" html={action.subtitle} />
+            </div>
+          )}
+        </div>
+      </div>
+    </Modal>
+  );
+};
+
+type BillingBannersProps = {
+  /** Render only blocking modals (fullscreen pages mount a second instance). */
+  modalsOnly?: boolean;
+  /**
+   * Suppress blocking modals — set via WorkspacePageLayout's
+   * doNotBlockWithBillingModals by pages the user needs to fix billing
+   * (workspace settings, billing pages).
+   */
+  suppressModals?: boolean;
+};
+
+const BillingBannersInner: React.FC<BillingBannersProps> = ({ modalsOnly, suppressModals }) => {
   const billing = useBilling();
   const workspace = useWorkspace();
   const router = useRouter();
-  const usage = useEventsUsage({ skipSubscribed: true });
+  const { data: userProps } = useApi(`/api/user/properties`);
   const [, forceRerender] = useReducer(x => x + 1, 0);
 
-  const serverBanners = (billing.enabled && billing.settings?.banners) || [];
-  // The billing page shows its own detailed alerts (BillingManager) — the
-  // client-computed banners would duplicate them there. Server banners render
-  // everywhere.
+  const serverAll = (billing.enabled && billing.settings?.banners) || [];
+  const serverModals = serverAll.filter(banner => banner.kind === "modal");
+  const serverBanners = serverAll.filter(banner => banner.kind !== "modal");
+  // The billing page nests non-modal banners under its Events Usage section
+  // (BillingManager) — the top strip honors the payloads' onBillingPage flags.
   const onBillingPage = router.pathname.endsWith("/settings/billing");
 
-  let banners: BillingBanner[];
-  if (usage.throttle && !onBillingPage && !(usage.throttle >= 100 && serverBanners.length > 0)) {
-    banners = [
-      {
-        id: "client-throttle",
-        severity: "error",
-        title: "Workspace throttled",
-        badge: `${usage.throttle}% THROTTLED`,
-        body: `Part of your events are not being delivered — your workspace is throttled at <b>${usage.throttle}%</b> due to exceeding the free plan quota.`,
-        action: { text: "See details", location: "/settings/billing", onBillingPage: false },
-        closeable: false,
-        onBillingPage: false,
-      },
-    ];
-  } else if (serverBanners.length > 0) {
-    banners = serverBanners;
-  } else if (usageIsAboutToExceed(billing, usage) && !onBillingPage) {
-    banners = [
-      {
-        id: `client-projection:${usage.usage?.periodEnd?.toISOString() ?? "period"}`,
-        severity: "warning",
-        title: "Projected to exceed your quota",
-        badge: "PROJECTION",
-        body: "At the current pace you'll exceed your monthly events quota before the period ends. Upgrade your plan to avoid service disruption.",
-        action: { text: "Upgrade", location: "/settings/billing", onBillingPage: false },
-        closeable: true,
-        onBillingPage: false,
-      },
-    ];
-  } else {
-    banners = [];
-  }
+  let banners: BillingBanner[] = serverBanners;
 
   // Server-controlled visibility on the billing settings page: banners and
   // actions carry an `onBillingPage` flag (missing = show). Warnings hide
@@ -249,13 +289,24 @@ const BillingBannersInner: React.FC = () => {
 
   const isDismissed = (banner: BillingBanner) =>
     banner.closeable && !!safeStorageGet(dismissKey(workspace.id, banner.id));
-  const visibleBanners = banners.filter(banner => !isDismissed(banner));
-  if (visibleBanners.length === 0) {
+  // modalsOnly: fullscreen pages mount a second instance that renders only the
+  // blocking modals — cards have no place in fullscreen chrome.
+  const visibleBanners = modalsOnly ? [] : banners.filter(banner => !isDismissed(banner));
+
+  // Blocking modals render independently of the card-priority chain, but never
+  // on the pages the user needs to fix billing (declared per-page via the
+  // layout's doNotBlockWithBillingModals).
+  const visibleModals = suppressModals ? [] : serverModals;
+
+  if (visibleBanners.length === 0 && visibleModals.length === 0) {
     return null;
   }
 
   return (
     <>
+      {visibleModals.map(banner => (
+        <BannerModal key={banner.id} banner={banner} adminCanClose={!!userProps?.admin} />
+      ))}
       {visibleBanners.map(banner => (
         <div key={banner.id} className="mt-4">
           <BannerCard
@@ -275,11 +326,11 @@ const BillingBannersInner: React.FC = () => {
   );
 };
 
-export const BillingBanners: React.FC = () => {
+export const BillingBanners: React.FC<BillingBannersProps> = props => {
   const billing = useBilling();
-  // Inner component gate: useEventsUsage asserts billing is enabled + loaded.
+  // Banners exist only for enabled, loaded billing.
   if (!billing.enabled || billing.loading) {
     return null;
   }
-  return <BillingBannersInner />;
+  return <BillingBannersInner {...props} />;
 };

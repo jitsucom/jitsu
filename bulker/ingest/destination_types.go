@@ -17,4 +17,12 @@ var DeviceOptions = map[string]map[string]any{
 		"type": "internal-plugin",
 		"name": "gtm",
 	},
+	"clarity": {
+		"type": "internal-plugin",
+		"name": "clarity",
+	},
+	"hotjar": {
+		"type": "internal-plugin",
+		"name": "hotjar",
+	},
 }
