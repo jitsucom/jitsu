@@ -12,7 +12,7 @@ export const MigrationTeaserCard: React.FC<{ className?: string }> = ({ classNam
   return (
     <div
       className={classNames(
-        "max-w-4xl border-textDisabled rounded-lg bg-backgroundLight px-4 py-5 flex items-center bg-neutral-50 border border-neutral-200",
+        "w-full border-textDisabled rounded-lg bg-backgroundLight px-4 py-5 flex items-center bg-neutral-50 border border-neutral-200",
         className
       )}
     >
