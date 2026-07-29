@@ -230,8 +230,16 @@ function WorkspaceOverview(props: {
   const { destinations, streams, links, connectors } = props;
   const { editEntities } = useWorkspaceRole();
   useTitle(`${branding.productName} : ${workspace.name}`);
+  // Empty workspace → the migration pitch leads the page; once anything is
+  // configured it moves back below the diagram.
+  const workspaceEmpty = streams.length === 0 && destinations.length === 0 && connectors.length === 0;
   return (
     <div>
+      {appConfig.ee?.available && workspaceEmpty && (
+        <div className="flex justify-center">
+          <MigrationTeaserCard />
+        </div>
+      )}
       {
         <ConnectionsDiagram
           connectorSourcesActions={{
@@ -358,7 +366,7 @@ function WorkspaceOverview(props: {
           }))}
         />
       }
-      {appConfig.ee?.available && (
+      {appConfig.ee?.available && !workspaceEmpty && (
         <div className="flex justify-center">
           <MigrationTeaserCard />
         </div>
