@@ -18,19 +18,24 @@ import {
   Verdict,
 } from "./types";
 
-// Booking link comes from MIGRATION_CALENDLY_URL (appConfig.migrationCalendlyUrl),
-// same env name and default as the marketing teaser (JITSU-129).
-const CALENDLY_FALLBACK = "https://calendly.com/priyank-jitsu/30min";
+// Booking link comes exclusively from MIGRATION_CALENDLY_URL
+// (appConfig.migrationCalendlyUrl) — no personal links in code. Unset → the
+// CTA opens the contact page instead.
+const CONTACT_FALLBACK = "https://jitsu.com/contact?utm_source=console&utm_campaign=migration-report";
 
 /** Calendly popup, identical to the websites teaser; plain navigation fallback
- * if the widget script hasn't loaded. */
-function showCalendly(url: string): void {
+ * if the URL is unset or the widget script hasn't loaded. */
+function showCalendly(url: string | undefined): void {
+  if (!url) {
+    // noopener: don't hand the new tab a handle to the console tab.
+    window.open(CONTACT_FALLBACK, "_blank", "noopener,noreferrer");
+    return;
+  }
   const calendly = (window as any)["Calendly"];
   const fullUrl = `${url}${url.includes("?") ? "&" : "?"}hide_landing_page_details=1&hide_gdpr_banner=1`;
   if (calendly?.initPopupWidget) {
     calendly.initPopupWidget({ url: fullUrl });
   } else {
-    // noopener: don't hand the booking tab a handle to the console tab.
     window.open(fullUrl, "_blank", "noopener,noreferrer");
   }
 }
@@ -272,7 +277,7 @@ export const MigrationReportView: React.FC<{
   onStartOver: () => void;
 }> = ({ report, refresh, onStartOver }) => {
   const appConfig = useAppConfig();
-  const bookCallUrl = appConfig.migrationCalendlyUrl || CALENDLY_FALLBACK;
+  const bookCallUrl = appConfig.migrationCalendlyUrl;
   if (report.status === "failed") {
     return (
       <div className="max-w-2xl">
