@@ -118,6 +118,7 @@ export const ImportWizard: React.FC = () => {
     setStarting(true);
     try {
       const { reportId: newId } = await eeRpc<{ reportId: string }>("migration/analyze", {
+        method: "POST",
         body: {
           workspaceId: workspace.id,
           provider,
