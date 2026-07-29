@@ -30,7 +30,8 @@ function showCalendly(url: string): void {
   if (calendly?.initPopupWidget) {
     calendly.initPopupWidget({ url: fullUrl });
   } else {
-    window.open(url, "_blank");
+    // noopener: don't hand the booking tab a handle to the console tab.
+    window.open(fullUrl, "_blank", "noopener,noreferrer");
   }
 }
 

@@ -75,6 +75,10 @@ const ServerEnvSchema = ClientEnvSchema.extend({
   // Booking link on the migration report's call CTA (JITSU-128)
   MIGRATION_CALENDLY_URL: z.string().optional(),
 
+  // Extra allowed CORS origins for the migration proxy (comma-separated;
+  // jitsu.com and *.localhost are always allowed)
+  MIGRATION_CORS_ORIGINS: z.string().optional(),
+
   // Sync task log retention age in days
   SYNC_TASK_LOG_AGE: z.coerce.number().optional().default(60),
 

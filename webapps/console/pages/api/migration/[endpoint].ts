@@ -39,15 +39,14 @@ const PROXIED: Record<string, { method: "GET" | "POST"; ipLimit: number; windowM
   lead: { method: "POST", ipLimit: 10, windowMs: 60_000 },
 };
 
-// The marketing site's savings teaser (JITSU-129) calls this proxy cross-origin.
-const CORS_ORIGINS = new Set([
-  "https://jitsu.com",
-  "https://www.jitsu.com",
-  ...(process.env.MIGRATION_CORS_ORIGINS ?? "").split(",").filter(Boolean),
-]);
-
 function isAllowedOrigin(origin: string): boolean {
-  if (CORS_ORIGINS.has(origin)) {
+  // The marketing site's savings teaser (JITSU-129) calls this proxy cross-origin.
+  const allowed = new Set([
+    "https://jitsu.com",
+    "https://www.jitsu.com",
+    ...(getServerEnv().MIGRATION_CORS_ORIGINS ?? "").split(",").filter(Boolean),
+  ]);
+  if (allowed.has(origin)) {
     return true;
   }
   // Local dev: the websites repo serves at https://web[-branch].jitsu.localhost
@@ -87,6 +86,11 @@ async function proxy(opts: { req: any; res: any; query?: z.infer<typeof querySch
   const { req, res, body } = opts;
   const query = opts.query!;
   applyCors(req, res);
+  // MIGRATION_WIZARD_ENABLED is the feature kill switch — with it off the
+  // proxy doesn't exist, for browsers and scripts alike.
+  if (!getServerEnv().MIGRATION_WIZARD_ENABLED) {
+    throw new ApiError("Not found", { status: 404 });
+  }
   assertTrue(isEEAvailable(), "EE api is not available");
   const spec = PROXIED[query.endpoint];
   if (!spec || spec.method !== req.method) {
@@ -118,6 +122,14 @@ async function proxy(opts: { req: any; res: any; query?: z.infer<typeof querySch
   } else {
     // Anonymous/teaser mode: console vouches via the service token; ee-api
     // scopes anonymous access by the report accessCode, not a workspace.
+    // Require an allow-listed Origin so this isn't an open service-token
+    // proxy for arbitrary scripts. Origin is spoofable outside browsers —
+    // this is defense-in-depth on top of the per-IP rate limits above, which
+    // remain the real guard on quota/LLM spend.
+    const origin = req.headers.origin;
+    if (!origin || !isAllowedOrigin(origin)) {
+      throw new ApiError("Anonymous access requires workspaceId", { status: 403 });
+    }
     headers = serviceTokenHeaders();
   }
   const url = new URL(`${getEeConnection().host}api/migration/${query.endpoint}`);
