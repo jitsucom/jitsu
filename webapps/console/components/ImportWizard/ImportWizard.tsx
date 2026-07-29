@@ -1,9 +1,9 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
+import { useRouter } from "next/router";
 import { Input, Steps, Upload } from "antd";
 import { ArrowLeft, FileJson, Loader2, PlayCircle, UploadCloud, Waypoints } from "lucide-react";
 import { useAppConfig, useWorkspace } from "../../lib/context";
 import { useEeApi } from "../../lib/eeApi";
-import { useQueryStringState } from "../../lib/useQueryStringState";
 import { feedbackError } from "../../lib/ui";
 import { ErrorCard } from "../GlobalError/GlobalError";
 import { JitsuButton } from "../JitsuButton/JitsuButton";
@@ -63,8 +63,28 @@ export const ImportWizard: React.FC = () => {
   const workspace = useWorkspace();
   const appConfig = useAppConfig();
   const { available, eeRpc } = useEeApi();
-  const [provider, setProvider] = useQueryStringState<string | undefined>("provider", { skipHistory: true });
-  const [reportId, setReportId] = useQueryStringState<string | undefined>("reportId");
+  const router = useRouter();
+  // Wizard position lives in the URL query and is read straight from the
+  // router, so browser back/forward moves between steps (a local-state copy —
+  // e.g. useQueryStringState — would not see popstate navigation).
+  const provider = typeof router.query.provider === "string" ? router.query.provider : undefined;
+  const reportId = typeof router.query.reportId === "string" ? router.query.reportId : undefined;
+  const updateQuery = useCallback(
+    async (patch: Record<string, string | undefined>) => {
+      const query: Record<string, any> = { ...router.query };
+      for (const [k, v] of Object.entries(patch)) {
+        if (v === undefined) {
+          delete query[k];
+        } else {
+          query[k] = v;
+        }
+      }
+      await router.push({ query }, undefined, { shallow: true });
+    },
+    [router]
+  );
+  const setProvider = useCallback((p: string | undefined) => updateQuery({ provider: p }), [updateQuery]);
+  const setReportId = useCallback((id: string | undefined) => updateQuery({ reportId: id }), [updateQuery]);
   const [token, setToken] = useState("");
   const [workspaceConfig, setWorkspaceConfig] = useState<{ name: string; content: string } | undefined>();
   const [starting, setStarting] = useState(false);
@@ -104,6 +124,11 @@ export const ImportWizard: React.FC = () => {
     }
   }, [report]);
 
+  // Statically-optimized pages hydrate with an empty router.query — wait for
+  // the real query so a shared/refreshed report URL doesn't flash step 0.
+  if (!router.isReady) {
+    return null;
+  }
   if (!available || !appConfig.ee?.available) {
     return (
       <ErrorCard
@@ -140,8 +165,7 @@ export const ImportWizard: React.FC = () => {
   const startOver = async () => {
     setReport(undefined);
     setReportError(undefined);
-    await setReportId(undefined);
-    await setProvider(undefined);
+    await updateQuery({ provider: undefined, reportId: undefined });
   };
 
   const step = !reportId ? (provider ? 1 : 0) : !report || report.status === "fetching" ? 2 : 3;
