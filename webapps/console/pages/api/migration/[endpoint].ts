@@ -36,7 +36,26 @@ const PROXIED: Record<string, { method: "GET" | "POST"; ipLimit: number; windowM
   analyze: { method: "POST", ipLimit: 10, windowMs: 60_000 },
   "parse-invoice": { method: "POST", ipLimit: 5, windowMs: 60_000 },
   "report-usage": { method: "POST", ipLimit: 20, windowMs: 60_000 },
+  lead: { method: "POST", ipLimit: 10, windowMs: 60_000 },
 };
+
+// The marketing site's savings teaser (JITSU-129) calls this proxy cross-origin.
+const CORS_ORIGINS = new Set([
+  "https://jitsu.com",
+  "https://www.jitsu.com",
+  ...(process.env.MIGRATION_CORS_ORIGINS ?? "").split(",").filter(Boolean),
+]);
+
+function applyCors(req: any, res: any): void {
+  const origin = req.headers.origin;
+  if (origin && CORS_ORIGINS.has(origin)) {
+    res.setHeader("Access-Control-Allow-Origin", origin);
+    res.setHeader("Vary", "Origin");
+    res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+    res.setHeader("Access-Control-Allow-Headers", "content-type");
+    res.setHeader("Access-Control-Max-Age", "86400");
+  }
+}
 
 const querySchema = z.object({
   endpoint: z.string(),
@@ -48,6 +67,7 @@ const querySchema = z.object({
 async function proxy(opts: { req: any; res: any; query?: z.infer<typeof querySchema>; body?: any }) {
   const { req, res, body } = opts;
   const query = opts.query!;
+  applyCors(req, res);
   assertTrue(isEEAvailable(), "EE api is not available");
   const spec = PROXIED[query.endpoint];
   if (!spec || spec.method !== req.method) {
@@ -117,6 +137,14 @@ export const api: Api = {
     auth: false,
     types: { query: querySchema, body: z.any(), result: z.any() },
     handle: proxy,
+  },
+  OPTIONS: {
+    auth: false,
+    types: { result: z.any() },
+    handle: async ({ req, res }) => {
+      applyCors(req, res);
+      res.status(204).end();
+    },
   },
 };
 
