@@ -66,7 +66,11 @@ export const ImportWizard: React.FC = () => {
   // Wizard position lives in the URL query and is read straight from the
   // router, so browser back/forward moves between steps (a local-state copy —
   // e.g. useQueryStringState — would not see popstate navigation).
-  const provider = typeof router.query.provider === "string" ? router.query.provider : undefined;
+  // Unknown ?provider= values (hand-edited URLs) fall back to the picker step.
+  const provider =
+    typeof router.query.provider === "string" && PROVIDERS.some(p => p.id === router.query.provider)
+      ? router.query.provider
+      : undefined;
   const reportId = typeof router.query.reportId === "string" ? router.query.reportId : undefined;
   const updateQuery = useCallback(
     async (patch: Record<string, string | undefined>) => {
@@ -147,7 +151,8 @@ export const ImportWizard: React.FC = () => {
         query: { workspaceId: workspace.id },
         body: {
           provider,
-          ...(provider === "rudderstack-oss" ? { workspaceConfig: workspaceConfig?.content } : { token }),
+          // trim: pasted tokens routinely carry trailing whitespace/newlines
+          ...(provider === "rudderstack-oss" ? { workspaceConfig: workspaceConfig?.content } : { token: token.trim() }),
         },
       });
       // Token leaves the page state as soon as ee-api has it.
