@@ -360,12 +360,12 @@ function WorkspaceOverview(props: {
       }
       {appConfig.ee?.available && (
         <div className="flex justify-center">
-          <ProvisionDatabaseButton />
+          <MigrationTeaserCard />
         </div>
       )}
       {appConfig.ee?.available && (
         <div className="flex justify-center">
-          <MigrationTeaserCard />
+          <ProvisionDatabaseButton />
         </div>
       )}
     </div>

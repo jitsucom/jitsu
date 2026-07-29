@@ -21,7 +21,6 @@ import {
   Globe,
   Hammer,
   HelpCircle,
-  Import,
   LayoutDashboard,
   LineChart,
   PackageOpen,
@@ -495,13 +494,6 @@ function PageHeader() {
           path: "/settings/audit-log",
           icon: <ShieldAlert className="w-full h-full" />,
         },
-        appConfig.ee?.available
-          ? {
-              title: "Import Workspace",
-              path: "/import",
-              icon: <Import className="w-full h-full" />,
-            }
-          : undefined,
         billing.enabled && billing.settings?.dataRetentionEditorEnabled
           ? {
               title: "Data Retention",
