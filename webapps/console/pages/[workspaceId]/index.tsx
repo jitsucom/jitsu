@@ -237,7 +237,7 @@ function WorkspaceOverview(props: {
     <div>
       {appConfig.ee?.available && workspaceEmpty && (
         <div className="flex justify-center">
-          <MigrationTeaserCard className="mb-6" />
+          <MigrationTeaserCard className="mt-6 mb-6" />
         </div>
       )}
       {
@@ -368,11 +368,12 @@ function WorkspaceOverview(props: {
       }
       {appConfig.ee?.available && !workspaceEmpty && (
         <div className="flex justify-center">
-          <MigrationTeaserCard className="mt-8" />
+          <MigrationTeaserCard className="mt-4" />
         </div>
       )}
+      {/* -mt-4 halves the button's built-in mt-8 (shared component; other pages rely on it) */}
       {appConfig.ee?.available && (
-        <div className="flex justify-center">
+        <div className="flex justify-center -mt-4">
           <ProvisionDatabaseButton />
         </div>
       )}
