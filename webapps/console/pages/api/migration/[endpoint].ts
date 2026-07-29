@@ -44,9 +44,11 @@ function isAllowedOrigin(origin: string): boolean {
   const allowed = new Set([
     "https://jitsu.com",
     "https://www.jitsu.com",
+    // Origins are scheme+host(+port) — normalize away accidental trailing
+    // slashes in configured entries so they match real Origin headers.
     ...(getServerEnv().MIGRATION_CORS_ORIGINS ?? "")
       .split(",")
-      .map(o => o.trim())
+      .map(o => o.trim().replace(/\/+$/, ""))
       .filter(Boolean),
   ]);
   if (allowed.has(origin)) {
