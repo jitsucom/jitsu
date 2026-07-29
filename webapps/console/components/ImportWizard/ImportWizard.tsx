@@ -234,7 +234,9 @@ export const ImportWizard: React.FC = () => {
       )}
       {step === 2 &&
         (reportError && !report ? (
-          <ErrorCard title="Failed to load the report" error={reportError} hideActions={true} />
+          <ErrorCard title="Failed to load the report" error={reportError} hideActions={true}>
+            {String(reportError?.message ?? reportError)}
+          </ErrorCard>
         ) : (
           <AnalysisProgress report={report} />
         ))}
