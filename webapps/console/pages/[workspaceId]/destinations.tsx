@@ -537,7 +537,7 @@ const ProvisionedDestinations = (props: any) => {
   if (provisionedDestinations.length === 0) {
     return (
       <div>
-        <div className="text-3xl">Provisioned Destinations</div>
+        <div className="text-3xl mb-8">Provisioned Destinations</div>
         <ProvisionDatabaseButton loader={loader} />
       </div>
     );

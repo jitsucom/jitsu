@@ -21,6 +21,7 @@ import {
   Globe,
   Hammer,
   HelpCircle,
+  Import,
   LayoutDashboard,
   LineChart,
   PackageOpen,
@@ -198,6 +199,20 @@ function WorkspacesMenu(props: {
             await router.push("/new-workspace");
           },
         },
+        ...(appConfig.migrationWizardEnabled
+          ? [
+              {
+                key: "import-setup",
+                label: (
+                  <Link href={`/${currentWorkspace.slugOrId}/import`} className="flex items-center">
+                    <ButtonLabel iconSize="small" icon={<Import className="h-full w-full" />}>
+                      Import setup
+                    </ButtonLabel>
+                  </Link>
+                ),
+              },
+            ]
+          : []),
         ...additionalMenuItems,
       ]}
     />

@@ -69,6 +69,9 @@ const ServerEnvSchema = ClientEnvSchema.extend({
   // Enable/disable syncs feature globally
   SYNCS_ENABLED: z.string().default("false").transform(isTruish),
 
+  // Segment/RudderStack migration analyzer entry points (JITSU-131)
+  MIGRATION_WIZARD_ENABLED: z.string().default("false").transform(isTruish),
+
   // Sync task log retention age in days
   SYNC_TASK_LOG_AGE: z.coerce.number().optional().default(60),
 
