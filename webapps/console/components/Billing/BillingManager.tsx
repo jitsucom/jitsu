@@ -273,13 +273,19 @@ const CurrentSubscription: React.FC<{}> = () => {
       </div>
       <h3 className="text-lg text-textLight mt-6 mb-2">Events Usage</h3>
       <EventsUsageSection />
-      {/* Billing banners from billing/settings, nested compact: no extra widget
-          zone (the section's own chart covers usage) and no action (it would
-          navigate to this very page). Only banners the server moved off the
-          top strip (onBillingPage: false) — default-visible ones already show
-          there. Modal payloads (e.g. past-due escalated) render as compact
-          cards too: this page suppresses blocking modals but must still
-          inform. */}
+      {billing.settings?.planId !== "free" && (
+        <>
+          <h3 className="text-lg text-textLight mt-6 mb-2">Connectors Usage</h3>
+          <ConnectorUsageSection />
+        </>
+      )}
+      {/* Billing banners from billing/settings, nested compact under the last
+          usage section: no extra widget zone (the sections' own charts cover
+          usage) and no action (it would navigate to this very page). Only
+          banners the server moved off the top strip (onBillingPage: false) —
+          default-visible ones already show there. Modal payloads (e.g.
+          past-due escalated) render as compact cards too: this page
+          suppresses blocking modals but must still inform. */}
       {(billing.settings?.banners ?? [])
         .filter(banner => banner.onBillingPage === false)
         .map(banner => (
@@ -287,12 +293,6 @@ const CurrentSubscription: React.FC<{}> = () => {
             <BannerCard banner={banner} compact />
           </div>
         ))}
-      {billing.settings?.planId !== "free" && (
-        <>
-          <h3 className="text-lg text-textLight mt-6 mb-2">Connectors Usage</h3>
-          <ConnectorUsageSection />
-        </>
-      )}
     </div>
   );
 };
