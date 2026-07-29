@@ -1,6 +1,8 @@
 import React, { useState } from "react";
 import { Alert, InputNumber, Table, Tag, Upload } from "antd";
-import { CalendarClock, Loader2, RefreshCw, UploadCloud } from "lucide-react";
+import { CalendarClock, Gauge, Loader2, RefreshCw, UploadCloud, Waypoints } from "lucide-react";
+import { branding } from "../../lib/branding";
+import segmentIcon from "../../lib/schema/icons/segment";
 import { useWorkspace } from "../../lib/context";
 import { useEeApi } from "../../lib/eeApi";
 import { feedbackError, feedbackSuccess } from "../../lib/ui";
@@ -24,6 +26,29 @@ const VERDICT_TAG: Record<Verdict, React.ReactNode> = {
   yellow: <Tag color="gold">🟡 Small change</Tag>,
   phone: <Tag>📞 Needs a call</Tag>,
 };
+
+/** Bolds dollar amounts and numbers (incl. 100k-style) inside a basis line. */
+function highlightNumbers(text: string): React.ReactNode[] {
+  return text.split(/(\$[\d,]+(?:\.\d+)?|\b\d[\d,]*(?:\.\d+)?[kM]?\b)/g).map((part, i) =>
+    /^(\$[\d,]+(?:\.\d+)?|\d[\d,]*(?:\.\d+)?[kM]?)$/.test(part) ? (
+      <span key={i} className="font-semibold text-text">
+        {part}
+      </span>
+    ) : (
+      <React.Fragment key={i}>{part}</React.Fragment>
+    )
+  );
+}
+
+function basisLineIcon(kind: "usage" | "current" | "jitsu", provider: string): React.ReactNode {
+  if (kind === "jitsu") {
+    return branding.logo;
+  }
+  if (kind === "current") {
+    return provider === "segment" ? segmentIcon : <Waypoints className="w-full h-full text-blue-500" />;
+  }
+  return <Gauge className="w-full h-full" />;
+}
 
 function verdictCounts(items: SnapshotDestination[]): Record<Verdict, number> {
   const counts: Record<Verdict, number> = { green: 0, yellow: 0, phone: 0 };
@@ -264,8 +289,18 @@ export const MigrationReportView: React.FC<{
         <div className="border border-success rounded-lg px-6 py-5 mb-6 bg-backgroundLight">
           <div className="text-textLight">Estimated savings with Jitsu</div>
           <div className="text-5xl font-bold text-success py-2">{formatCents(savings.savingsCents)}/mo</div>
-          {/* basis is one fact per line (current cost math, Jitsu cost math, usage provenance) */}
-          <div className="text-textLight text-sm whitespace-pre-line">{savings.basis}</div>
+          {savings.basisLines ? (
+            <div className="text-textLight text-sm flex flex-col gap-1.5 pt-1">
+              {savings.basisLines.map((line, i) => (
+                <div key={i} className="flex items-center gap-2">
+                  <div className="w-4 h-4 shrink-0">{basisLineIcon(line.kind, report.provider)}</div>
+                  <span>{highlightNumbers(line.text)}</span>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="text-textLight text-sm whitespace-pre-line">{savings.basis}</div>
+          )}
         </div>
       ) : null}
       <div className="flex flex-wrap gap-8 mb-6">
