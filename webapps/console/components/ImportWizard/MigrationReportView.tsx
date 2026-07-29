@@ -126,7 +126,8 @@ const UsageEditor: React.FC<{ report: MigrationReport; refresh: () => Promise<vo
         reader.onerror = () => reject(reader.error);
         reader.readAsDataURL(file);
       });
-      const parsed: InvoiceExtraction = await rpc(`/api/${workspace.id}/ee/migration/parse-invoice`, {
+      const parsed: InvoiceExtraction = await rpc(`/api/migration/parse-invoice`, {
+        query: { workspaceId: workspace.id },
         body: { provider: report.provider, file: base64, mediaType },
       });
       setExtraction(parsed);
@@ -147,7 +148,8 @@ const UsageEditor: React.FC<{ report: MigrationReport; refresh: () => Promise<vo
   const apply = async () => {
     setApplying(true);
     try {
-      await rpc(`/api/${workspace.id}/ee/migration/report-usage`, {
+      await rpc(`/api/migration/report-usage`, {
+        query: { workspaceId: workspace.id },
         body: {
           reportId: report.id,
           source,
