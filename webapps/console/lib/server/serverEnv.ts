@@ -72,6 +72,9 @@ const ServerEnvSchema = ClientEnvSchema.extend({
   // Segment/RudderStack migration analyzer entry points (JITSU-131)
   MIGRATION_WIZARD_ENABLED: z.string().default("false").transform(isTruish),
 
+  // Booking link on the migration report's call CTA (JITSU-128)
+  MIGRATION_CALENDLY_URL: z.string().optional(),
+
   // Sync task log retention age in days
   SYNC_TASK_LOG_AGE: z.coerce.number().optional().default(60),
 
