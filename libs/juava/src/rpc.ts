@@ -69,9 +69,12 @@ export const rpc: RpcFunc = async (url, { body, ...rest } = {}) => {
   let result: Response;
   // `rest` is spread first: it may carry `method: undefined` (callers passing
   // through an optional method), which must not clobber the inferred method.
+  // A JSON body needs an explicit application/json content type — fetch()
+  // defaults string bodies to text/plain, which servers won't JSON-parse.
   const requestParams = {
     ...rest,
     method: method,
+    headers: body ? { "Content-Type": "application/json", ...rest.headers } : rest.headers,
     body: body ? JSON.stringify(body) : undefined,
   };
   const fetchImpl = getFetch();
