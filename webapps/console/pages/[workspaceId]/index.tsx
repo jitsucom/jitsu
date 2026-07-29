@@ -234,10 +234,10 @@ function WorkspaceOverview(props: {
   // one exists it moves back below the diagram.
   const workspaceEmpty = connectors.length === 0;
   return (
-    <div>
-      {appConfig.ee?.available && workspaceEmpty && (
+    <div className={"flex flex-col gap-10"}>
+      {appConfig.migrationWizardEnabled && workspaceEmpty && (
         <div className="flex justify-center">
-          <MigrationTeaserCard className="mt-6 mb-6" />
+          <MigrationTeaserCard />
         </div>
       )}
       {
@@ -366,14 +366,13 @@ function WorkspaceOverview(props: {
           }))}
         />
       }
-      {appConfig.ee?.available && !workspaceEmpty && (
+      {appConfig.migrationWizardEnabled && !workspaceEmpty && (
         <div className="flex justify-center">
-          <MigrationTeaserCard className="mt-4" />
+          <MigrationTeaserCard />
         </div>
       )}
-      {/* -mt-4 halves the button's built-in mt-8 (shared component; other pages rely on it) */}
       {appConfig.ee?.available && (
-        <div className="flex justify-center -mt-4">
+        <div className="flex justify-center">
           <ProvisionDatabaseButton />
         </div>
       )}

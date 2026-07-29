@@ -154,6 +154,9 @@ export const AppConfig = z.object({
     host: z.string().optional(),
   }),
   billingEnabled: z.boolean(),
+  /** Segment/RudderStack migration analyzer entry points (JITSU-131). Gated by
+   * the MIGRATION_WIZARD_ENABLED env var; implies ee.available. */
+  migrationWizardEnabled: z.boolean().optional(),
   publicEndpoints: z.object({
     protocol: z.enum(["http", "https"]),
     host: z.string(),
