@@ -3,8 +3,8 @@ import { Alert, InputNumber, Table, Tag, Upload } from "antd";
 import { CalendarClock, Gauge, Loader2, RefreshCw, UploadCloud, Waypoints } from "lucide-react";
 import { branding } from "../../lib/branding";
 import segmentIcon from "../../lib/schema/icons/segment";
+import { rpc } from "juava";
 import { useWorkspace } from "../../lib/context";
-import { useEeApi } from "../../lib/eeApi";
 import { feedbackError, feedbackSuccess } from "../../lib/ui";
 import { ErrorCard } from "../GlobalError/GlobalError";
 import { JitsuButton } from "../JitsuButton/JitsuButton";
@@ -98,7 +98,6 @@ const destinationColumns = [
  */
 const UsageEditor: React.FC<{ report: MigrationReport; refresh: () => Promise<void> }> = ({ report, refresh }) => {
   const workspace = useWorkspace();
-  const { eeRpc } = useEeApi();
   const [parsing, setParsing] = useState(false);
   const [applying, setApplying] = useState(false);
   const [source, setSource] = useState<"invoice" | "manual">("manual");
@@ -127,9 +126,8 @@ const UsageEditor: React.FC<{ report: MigrationReport; refresh: () => Promise<vo
         reader.onerror = () => reject(reader.error);
         reader.readAsDataURL(file);
       });
-      const parsed = await eeRpc<InvoiceExtraction>("migration/parse-invoice", {
-        method: "POST",
-        body: { workspaceId: workspace.id, provider: report.provider, file: base64, mediaType },
+      const parsed: InvoiceExtraction = await rpc(`/api/${workspace.id}/ee/migration/parse-invoice`, {
+        body: { provider: report.provider, file: base64, mediaType },
       });
       setExtraction(parsed);
       setSource("invoice");
@@ -149,10 +147,8 @@ const UsageEditor: React.FC<{ report: MigrationReport; refresh: () => Promise<vo
   const apply = async () => {
     setApplying(true);
     try {
-      await eeRpc("migration/report-usage", {
-        method: "POST",
+      await rpc(`/api/${workspace.id}/ee/migration/report-usage`, {
         body: {
-          workspaceId: workspace.id,
           reportId: report.id,
           source,
           ...(monthlyEvents ? { monthlyEvents: Math.round(monthlyEvents) } : {}),
