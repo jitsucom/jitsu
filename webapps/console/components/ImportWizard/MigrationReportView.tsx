@@ -172,9 +172,9 @@ const UsageEditor: React.FC<{ report: MigrationReport; refresh: () => Promise<vo
     <div className="border border-neutral-200 rounded-lg bg-backgroundLight px-6 py-5 mt-6">
       <div className="text-lg font-semibold pb-2">Refine the savings estimate</div>
       <div className="text-textLight pb-4">
-        Upload a recent {report.provider === "segment" ? "Segment" : "RudderStack"} invoice (PDF or screenshot) and
-        we&apos;ll read the numbers from it — or enter your monthly spend and volume manually. The file is processed in
-        memory and never stored.
+        {`Upload a recent ${report.provider === "segment" ? "Segment" : "RudderStack"} invoice (PDF or screenshot) ` +
+          "and we'll read the numbers from it — or enter your monthly spend and volume manually. " +
+          "The file is processed in memory and never stored."}
       </div>
       <Upload.Dragger
         accept=".pdf,.png,.jpg,.jpeg,.webp"
