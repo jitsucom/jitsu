@@ -128,12 +128,14 @@ export const ImportWizard: React.FC = () => {
   if (!router.isReady) {
     return null;
   }
-  if (!appConfig.ee?.available) {
+  // Route-level flag enforcement: hidden menu entries are not a gate — direct
+  // navigation to /{workspace}/import must respect the kill switch too.
+  if (!appConfig.ee?.available || !appConfig.migrationWizardEnabled) {
     return (
       <ErrorCard
         title="Not available"
         hideActions={true}
-        error={{ message: "The migration analyzer is available on Jitsu Cloud only" }}
+        error={{ message: "The migration analyzer is not enabled on this deployment" }}
       />
     );
   }
@@ -163,6 +165,11 @@ export const ImportWizard: React.FC = () => {
   const startOver = async () => {
     setReport(undefined);
     setReportError(undefined);
+    // Fully back to step 0: drop the sensitive inputs too, so a token or
+    // uploaded config can't linger in memory and be reused accidentally.
+    setToken("");
+    setWorkspaceConfig(undefined);
+    setStarting(false);
     await updateQuery({ provider: undefined, reportId: undefined });
   };
 
