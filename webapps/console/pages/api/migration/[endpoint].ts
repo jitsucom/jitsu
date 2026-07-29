@@ -46,9 +46,24 @@ const CORS_ORIGINS = new Set([
   ...(process.env.MIGRATION_CORS_ORIGINS ?? "").split(",").filter(Boolean),
 ]);
 
+function isAllowedOrigin(origin: string): boolean {
+  if (CORS_ORIGINS.has(origin)) {
+    return true;
+  }
+  // Local dev: the websites repo serves at https://web[-branch].jitsu.localhost
+  // (portless) or http://localhost:<port>. *.localhost never resolves publicly,
+  // and these endpoints are anonymous/cookie-less, so this is safe to keep on.
+  try {
+    const host = new URL(origin).hostname;
+    return host === "localhost" || host.endsWith(".localhost");
+  } catch {
+    return false;
+  }
+}
+
 function applyCors(req: any, res: any): void {
   const origin = req.headers.origin;
-  if (origin && CORS_ORIGINS.has(origin)) {
+  if (origin && isAllowedOrigin(origin)) {
     res.setHeader("Access-Control-Allow-Origin", origin);
     res.setHeader("Vary", "Origin");
     res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
