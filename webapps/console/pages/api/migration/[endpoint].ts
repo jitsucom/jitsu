@@ -68,6 +68,10 @@ function applyCors(req: any, res: any): void {
     res.setHeader("Vary", "Origin");
     res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
     res.setHeader("Access-Control-Allow-Headers", "content-type");
+    res.setHeader(
+      "Access-Control-Expose-Headers",
+      "Retry-After, X-RateLimit-Limit, X-RateLimit-Remaining, X-RateLimit-Reset"
+    );
     res.setHeader("Access-Control-Max-Age", "86400");
   }
 }
