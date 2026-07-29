@@ -98,7 +98,7 @@ export const ImportWizard: React.FC = () => {
     try {
       // Report requests go through console's proxy (auth + IP rate limits) —
       // the browser never talks to ee-api directly for the migration wizard.
-      const r = await rpc(`/api/${workspace.id}/ee/migration/report`, { query: { id: reportId } });
+      const r = await rpc(`/api/migration/report`, { query: { workspaceId: workspace.id, id: reportId } });
       setReport(r);
       setReportError(undefined);
     } catch (e) {
@@ -141,7 +141,8 @@ export const ImportWizard: React.FC = () => {
   const startAnalysis = async () => {
     setStarting(true);
     try {
-      const { reportId: newId } = await rpc(`/api/${workspace.id}/ee/migration/analyze`, {
+      const { reportId: newId } = await rpc(`/api/migration/analyze`, {
+        query: { workspaceId: workspace.id },
         body: {
           provider,
           ...(provider === "rudderstack-oss" ? { workspaceConfig: workspaceConfig?.content } : { token }),
