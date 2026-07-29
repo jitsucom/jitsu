@@ -1,18 +1,18 @@
 import React, { ReactNode } from "react";
 import { useBilling } from "./BillingProvider";
+import { BannerCard } from "./BillingBanners";
 import { useAppConfig, useUser, useWorkspace } from "../../lib/context";
 import { useEeApi, useEeRedirect } from "../../lib/eeApi";
 import { assertDefined, assertFalse, assertTrue, requireDefined, rpc } from "juava";
 import { BillingSettings } from "../../lib/schema";
 import { Alert, Button, Progress, Skeleton, Tooltip } from "antd";
 import Link from "next/link";
-import { Check, ChevronRight, Edit2, ExternalLink, Info, XCircle } from "lucide-react";
+import { Check, ChevronRight, Edit2, Info, XCircle } from "lucide-react";
 
 import styles from "./BillingManager.module.css";
 import { useQuery } from "@tanstack/react-query";
 import { ErrorCard } from "../GlobalError/GlobalError";
 import { useEventsUsage } from "./use-events-usage";
-import { upgradeRequired } from "./copy";
 import { JitsuButton } from "../JitsuButton/JitsuButton";
 import dayjs from "dayjs";
 
@@ -62,7 +62,6 @@ const ComparisonSection: React.FC<{
 const EventsUsageSection: React.FC<{}> = () => {
   const billing = useBilling();
   const workspace = useWorkspace();
-  const eeRedirect = useEeRedirect();
   assertTrue(billing.enabled);
   assertFalse(billing.loading, "Billing must be loaded before using UsageSection component");
 
@@ -76,11 +75,6 @@ const EventsUsageSection: React.FC<{}> = () => {
 
   assertDefined(usage, "Data should be defined");
 
-  const usageExceeded = usage.usagePercentage > 1 && billing.settings.planId === "free";
-  const usageIsAboutToExceed =
-    usage?.projectionByTheEndOfPeriod &&
-    usage?.projectionByTheEndOfPeriod > usage?.maxAllowedDestinatonEvents &&
-    billing.settings.planId == "free";
   return (
     <div>
       <Progress
@@ -112,74 +106,6 @@ const EventsUsageSection: React.FC<{}> = () => {
         </Link>
       </div>
 
-      {billing.settings?.pastDue && (
-        <div className="mt-8">
-          <Alert
-            message={<h4>You have unpaid invoices!</h4>}
-            description={
-              <div>
-                Please{" "}
-                <a
-                  className="cursor-pointer"
-                  onClick={() =>
-                    eeRedirect("billing/manage", { workspaceId: workspace.id, returnUrl: window.location.href })
-                  }
-                >
-                  <span className="inline-flex items-center space-x-1">
-                    <span>update your payment method and pay outstanding invoices</span>
-                    <ExternalLink className="w-5 h-5" />
-                  </span>
-                </a>{" "}
-                to avoid service interruption
-              </div>
-            }
-            type="error"
-            showIcon
-          />
-        </div>
-      )}
-      {usageExceeded && (
-        <div className="mt-8">
-          <Alert
-            message={<h4 className="text-xl">Upgrade your plan to keep using Jitsu</h4>}
-            description={<div className="text-lg">{upgradeRequired}</div>}
-            type="error"
-            showIcon
-          />
-        </div>
-      )}
-      {throttle && (
-        <div className="mt-8">
-          <Alert
-            message={<h4 className="font-bold">Throttling warning</h4>}
-            description={
-              <div>
-                You have repeatedly exceeded your monthly events destination limit, so you're incoming events are
-                throttled at rate of <b>{throttle}%</b> events per second. It means that only <b>{100 - throttle}%</b>{" "}
-                of incoming events are processed. Please upgrade your plan to restore the full processing capacity.
-              </div>
-            }
-            type="error"
-            showIcon
-          />
-        </div>
-      )}
-      {usageIsAboutToExceed && !usageExceeded && !throttle ? (
-        <div className="mt-8">
-          <Alert
-            message={<h4 className="font-bold">Account quota warning!</h4>}
-            showIcon
-            type={"warning"}
-            description={
-              <>
-                You are projected to exceed your monthly events destination limit by{" "}
-                <b>{formatNumber((usage?.projectionByTheEndOfPeriod || 0) - usage?.maxAllowedDestinatonEvents)}</b>{" "}
-                events. Please upgrade your plan to avoid service disruption.
-              </>
-            }
-          />
-        </div>
-      ) : undefined}
       {usage.usagePercentage > 1 && billing.settings.planId !== "free" && !throttle && (
         <div className="mt-8">
           <Alert
@@ -353,6 +279,20 @@ const CurrentSubscription: React.FC<{}> = () => {
           <ConnectorUsageSection />
         </>
       )}
+      {/* Billing banners from billing/settings, nested compact under the last
+          usage section: no extra widget zone (the sections' own charts cover
+          usage) and no action (it would navigate to this very page). Only
+          banners the server moved off the top strip (onBillingPage: false) —
+          default-visible ones already show there. Modal payloads (e.g.
+          past-due escalated) render as compact cards too: this page
+          suppresses blocking modals but must still inform. */}
+      {(billing.settings?.banners ?? [])
+        .filter(banner => banner.onBillingPage === false)
+        .map(banner => (
+          <div key={banner.id} className="mt-3">
+            <BannerCard banner={banner} compact />
+          </div>
+        ))}
     </div>
   );
 };

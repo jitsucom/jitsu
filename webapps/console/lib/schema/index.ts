@@ -45,8 +45,10 @@ export const BillingBanner = z.object({
   title: z.string(),
   /** Status pill next to the title, e.g. "82% USED". */
   badge: z.string(),
-  /** Body HTML (usage copy + inline progress bar). */
+  /** Body HTML (the message copy). */
   body: z.string(),
+  /** Widget zone HTML under the body (quota progress bar); omitted in compact contexts. */
+  extra: z.string().optional(),
   action: z
     .object({
       text: z.string(),
@@ -61,6 +63,11 @@ export const BillingBanner = z.object({
   closeable: z.boolean(),
   /** Show this banner on the billing settings page. Missing = true. */
   onBillingPage: z.boolean().optional(),
+  /**
+   * Presentation: inline card ("banner", default) or blocking modal ("modal" —
+   * non-closable mask; Jitsu admins can dismiss regardless of closeable).
+   */
+  kind: z.enum(["banner", "modal"]).optional(),
 });
 
 export type BillingBanner = z.infer<typeof BillingBanner>;
