@@ -264,15 +264,8 @@ export const MigrationReportView: React.FC<{
         <div className="border border-success rounded-lg px-6 py-5 mb-6 bg-backgroundLight">
           <div className="text-textLight">Estimated savings with Jitsu</div>
           <div className="text-5xl font-bold text-success py-2">{formatCents(savings.savingsCents)}/mo</div>
-          <div className="text-textLight text-sm">
-            {savings.basis}
-            {savings.currentCostCents != null && savings.jitsuCostCents != null && (
-              <>
-                {" "}
-                ({formatCents(savings.currentCostCents)} now → {formatCents(savings.jitsuCostCents)} on Jitsu)
-              </>
-            )}
-          </div>
+          {/* basis is one fact per line (current cost math, Jitsu cost math, usage provenance) */}
+          <div className="text-textLight text-sm whitespace-pre-line">{savings.basis}</div>
         </div>
       ) : null}
       <div className="flex flex-wrap gap-8 mb-6">
