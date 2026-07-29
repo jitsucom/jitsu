@@ -2,8 +2,8 @@ import React, { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/router";
 import { Input, Steps, Upload } from "antd";
 import { ArrowLeft, FileJson, Loader2, PlayCircle, UploadCloud, Waypoints } from "lucide-react";
+import { rpc } from "juava";
 import { useAppConfig, useWorkspace } from "../../lib/context";
-import { useEeApi } from "../../lib/eeApi";
 import { feedbackError } from "../../lib/ui";
 import { ErrorCard } from "../GlobalError/GlobalError";
 import { JitsuButton } from "../JitsuButton/JitsuButton";
@@ -62,7 +62,6 @@ const TOKEN_HELP: Record<string, React.ReactNode> = {
 export const ImportWizard: React.FC = () => {
   const workspace = useWorkspace();
   const appConfig = useAppConfig();
-  const { available, eeRpc } = useEeApi();
   const router = useRouter();
   // Wizard position lives in the URL query and is read straight from the
   // router, so browser back/forward moves between steps (a local-state copy —
@@ -97,15 +96,15 @@ export const ImportWizard: React.FC = () => {
       return;
     }
     try {
-      const r = await eeRpc<MigrationReport>("migration/report", {
-        query: { workspaceId: workspace.id, id: reportId },
-      });
+      // Report requests go through console's proxy (auth + IP rate limits) —
+      // the browser never talks to ee-api directly for the migration wizard.
+      const r = await rpc(`/api/${workspace.id}/ee/migration/report`, { query: { id: reportId } });
       setReport(r);
       setReportError(undefined);
     } catch (e) {
       setReportError(e);
     }
-  }, [eeRpc, reportId, workspace.id]);
+  }, [reportId, workspace.id]);
 
   // Poll while the analysis is running; stop on any terminal status.
   useEffect(() => {
@@ -129,7 +128,7 @@ export const ImportWizard: React.FC = () => {
   if (!router.isReady) {
     return null;
   }
-  if (!available || !appConfig.ee?.available) {
+  if (!appConfig.ee?.available) {
     return (
       <ErrorCard
         title="Not available"
@@ -142,10 +141,8 @@ export const ImportWizard: React.FC = () => {
   const startAnalysis = async () => {
     setStarting(true);
     try {
-      const { reportId: newId } = await eeRpc<{ reportId: string }>("migration/analyze", {
-        method: "POST",
+      const { reportId: newId } = await rpc(`/api/${workspace.id}/ee/migration/analyze`, {
         body: {
-          workspaceId: workspace.id,
           provider,
           ...(provider === "rudderstack-oss" ? { workspaceConfig: workspaceConfig?.content } : { token }),
         },
