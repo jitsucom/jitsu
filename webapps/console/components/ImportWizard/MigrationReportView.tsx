@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import Head from "next/head";
 import { Alert, InputNumber, Table, Tag, Upload } from "antd";
 import { CalendarClock, Gauge, Loader2, RefreshCw, UploadCloud, Waypoints } from "lucide-react";
 import { branding } from "../../lib/branding";
@@ -17,9 +18,21 @@ import {
   Verdict,
 } from "./types";
 
-// Booking link comes from MIGRATION_CALENDLY_URL (appConfig.migrationCalendlyUrl);
-// jitsu.com/contact is the fallback when the env is unset.
-const BOOK_A_CALL_FALLBACK = "https://jitsu.com/contact?utm_source=console&utm_campaign=migration-report";
+// Booking link comes from MIGRATION_CALENDLY_URL (appConfig.migrationCalendlyUrl),
+// same env name and default as the marketing teaser (JITSU-129).
+const CALENDLY_FALLBACK = "https://calendly.com/priyank-jitsu/30min";
+
+/** Calendly popup, identical to the websites teaser; plain navigation fallback
+ * if the widget script hasn't loaded. */
+function showCalendly(url: string): void {
+  const calendly = (window as any)["Calendly"];
+  const fullUrl = `${url}${url.includes("?") ? "&" : "?"}hide_landing_page_details=1&hide_gdpr_banner=1`;
+  if (calendly?.initPopupWidget) {
+    calendly.initPopupWidget({ url: fullUrl });
+  } else {
+    window.open(url, "_blank");
+  }
+}
 
 const VERDICT_TAG: Record<Verdict, React.ReactNode> = {
   green: <Tag color="green">✅ Auto-importable</Tag>,
@@ -258,7 +271,7 @@ export const MigrationReportView: React.FC<{
   onStartOver: () => void;
 }> = ({ report, refresh, onStartOver }) => {
   const appConfig = useAppConfig();
-  const bookCallUrl = appConfig.migrationCalendlyUrl || BOOK_A_CALL_FALLBACK;
+  const bookCallUrl = appConfig.migrationCalendlyUrl || CALENDLY_FALLBACK;
   if (report.status === "failed") {
     return (
       <div className="max-w-2xl">
@@ -286,6 +299,11 @@ export const MigrationReportView: React.FC<{
   const usage = snapshot.usage;
   return (
     <div>
+      <Head>
+        {/* Calendly popup assets for the book-a-call CTA (same as the marketing teaser) */}
+        <link href="https://assets.calendly.com/assets/external/widget.css" rel="stylesheet" />
+        <script src="https://assets.calendly.com/assets/external/widget.js" type="text/javascript" async />
+      </Head>
       {report.status === "partial" && (
         <Alert
           type="warning"
@@ -353,7 +371,7 @@ export const MigrationReportView: React.FC<{
           type="primary"
           size="large"
           icon={<CalendarClock className="w-4 h-4" />}
-          onClick={() => window.open(bookCallUrl, "_blank")}
+          onClick={() => showCalendly(bookCallUrl)}
         >
           Book a migration call
         </JitsuButton>
