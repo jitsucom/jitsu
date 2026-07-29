@@ -227,7 +227,14 @@ export const MigrationReportView: React.FC<{
   if (report.status === "failed") {
     return (
       <div className="max-w-2xl">
-        <ErrorCard title="Analysis failed" hideActions={true} error={{ message: report.error ?? "Unknown error" }} />
+        {/* The backend writes user-facing fix-it copy into report.error (wrong
+            token scope, invalid workspaceConfig, …) — show it verbatim. */}
+        <Alert
+          type="error"
+          showIcon
+          message="Analysis failed"
+          description={report.error ?? "Unknown error — please try again"}
+        />
         <div className="pt-4">
           <JitsuButton onClick={onStartOver}>Try again</JitsuButton>
         </div>
