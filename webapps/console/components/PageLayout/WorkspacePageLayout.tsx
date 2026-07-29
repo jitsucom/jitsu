@@ -459,11 +459,6 @@ function PageHeader() {
     },
     { title: "Functions", path: "/functions", icon: <FunctionSquare className="w-full h-full" /> },
     { title: "Destinations", path: "/destinations", icon: <Server className="w-full h-full" /> },
-    appConfig.ee?.available && {
-      title: "Import",
-      path: "/import",
-      icon: <Import className="w-full h-full" />,
-    },
     {
       title: "Data",
       icon: <SearchCode className={"w-full h-full"} />,
@@ -500,6 +495,13 @@ function PageHeader() {
           path: "/settings/audit-log",
           icon: <ShieldAlert className="w-full h-full" />,
         },
+        appConfig.ee?.available
+          ? {
+              title: "Import Workspace",
+              path: "/import",
+              icon: <Import className="w-full h-full" />,
+            }
+          : undefined,
         billing.enabled && billing.settings?.dataRetentionEditorEnabled
           ? {
               title: "Data Retention",
