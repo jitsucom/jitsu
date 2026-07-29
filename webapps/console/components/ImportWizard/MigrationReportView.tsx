@@ -103,6 +103,7 @@ const UsageEditor: React.FC<{ report: MigrationReport; refresh: () => Promise<vo
         reader.readAsDataURL(file);
       });
       const parsed = await eeRpc<InvoiceExtraction>("migration/parse-invoice", {
+        method: "POST",
         body: { workspaceId: workspace.id, provider: report.provider, file: base64, mediaType },
       });
       setExtraction(parsed);
@@ -122,6 +123,7 @@ const UsageEditor: React.FC<{ report: MigrationReport; refresh: () => Promise<vo
     setApplying(true);
     try {
       await eeRpc("migration/report-usage", {
+        method: "POST",
         body: {
           workspaceId: workspace.id,
           reportId: report.id,

@@ -67,10 +67,12 @@ export const rpc: RpcFunc = async (url, { body, ...rest } = {}) => {
 
   const method = rest.method || (body ? "POST" : "GET");
   let result: Response;
+  // `rest` is spread first: it may carry `method: undefined` (callers passing
+  // through an optional method), which must not clobber the inferred method.
   const requestParams = {
+    ...rest,
     method: method,
     body: body ? JSON.stringify(body) : undefined,
-    ...rest,
   };
   const fetchImpl = getFetch();
   try {
