@@ -44,7 +44,10 @@ function isAllowedOrigin(origin: string): boolean {
   const allowed = new Set([
     "https://jitsu.com",
     "https://www.jitsu.com",
-    ...(getServerEnv().MIGRATION_CORS_ORIGINS ?? "").split(",").filter(Boolean),
+    ...(getServerEnv().MIGRATION_CORS_ORIGINS ?? "")
+      .split(",")
+      .map(o => o.trim())
+      .filter(Boolean),
   ]);
   if (allowed.has(origin)) {
     return true;
