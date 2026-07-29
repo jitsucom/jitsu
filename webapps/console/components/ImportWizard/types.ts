@@ -37,12 +37,18 @@ export type SnapshotUsage = {
   billedAmountCents?: number;
 };
 
+export type SavingsBasisLine = {
+  kind: "usage" | "current" | "jitsu";
+  text: string;
+};
+
 export type SnapshotSavings = {
   currentCostCents?: number;
   jitsuCostCents?: number;
   savingsCents?: number;
   suppressed: boolean;
   basis?: string;
+  basisLines?: SavingsBasisLine[];
 };
 
 export type MigrationSnapshot = {
