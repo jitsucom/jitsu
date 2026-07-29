@@ -230,14 +230,14 @@ function WorkspaceOverview(props: {
   const { destinations, streams, links, connectors } = props;
   const { editEntities } = useWorkspaceRole();
   useTitle(`${branding.productName} : ${workspace.name}`);
-  // Empty workspace → the migration pitch leads the page; once anything is
-  // configured it moves back below the diagram.
-  const workspaceEmpty = streams.length === 0 && destinations.length === 0 && connectors.length === 0;
+  // Workspace without connectors → the migration pitch leads the page; once
+  // one exists it moves back below the diagram.
+  const workspaceEmpty = connectors.length === 0;
   return (
     <div>
       {appConfig.ee?.available && workspaceEmpty && (
         <div className="flex justify-center">
-          <MigrationTeaserCard />
+          <MigrationTeaserCard className="mb-6" />
         </div>
       )}
       {
@@ -368,7 +368,7 @@ function WorkspaceOverview(props: {
       }
       {appConfig.ee?.available && !workspaceEmpty && (
         <div className="flex justify-center">
-          <MigrationTeaserCard />
+          <MigrationTeaserCard className="mt-8" />
         </div>
       )}
       {appConfig.ee?.available && (
