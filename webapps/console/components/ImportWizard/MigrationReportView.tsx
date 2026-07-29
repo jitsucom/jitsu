@@ -348,9 +348,9 @@ export const MigrationReportView: React.FC<{
           Book a migration call
         </JitsuButton>
       </div>
-      {(!usage || usage.source !== "api" || !savings || savings.suppressed) && (
-        <UsageEditor report={report} refresh={refresh} />
-      )}
+      {/* Always offered: a real invoice beats the public-pricing estimate
+          (custom tiers, discounts) even when API usage produced a number. */}
+      <UsageEditor report={report} refresh={refresh} />
       <h2 className="text-2xl pt-8 pb-3">Destinations</h2>
       <Table
         rowKey="externalId"
