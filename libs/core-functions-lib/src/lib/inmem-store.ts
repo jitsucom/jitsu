@@ -75,12 +75,10 @@ export const createInMemoryStore = <T>(definition: StoreDefinition<T>): InMemory
           status = "ok";
           lastRefresh = new Date();
         } catch (e) {
-          // "System error:" is the unified marker for log-based alerting — keep in sync
-          // with logging.SystemErrorf in bulker/jitsubase
-          log
-            .atError()
-            .withCause(e)
-            .log(`System error: Error refreshing repository ${definition.name}. Using an old value`);
+          // Not a system error (the store keeps serving the old value) — but the message
+          // wording matches the Go-side repository refresh error in bulker/jitsubase so
+          // one log query covers both stacks
+          log.atError().withCause(e).log(`Error refreshing repository ${definition.name}. Using an old value`);
           status = "outdated";
         }
       };
