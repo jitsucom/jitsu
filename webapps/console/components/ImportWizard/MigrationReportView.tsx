@@ -33,7 +33,9 @@ function showCalendly(url: string | undefined): void {
   }
   const calendly = (window as any)["Calendly"];
   const fullUrl = `${url}${url.includes("?") ? "&" : "?"}hide_landing_page_details=1&hide_gdpr_banner=1`;
-  if (calendly?.initPopupWidget) {
+  // The popup widget doesn't fit narrow viewports (forces a scrollbar) —
+  // open the booking page in a tab there; also when the script is blocked.
+  if (calendly?.initPopupWidget && window.innerWidth >= 768) {
     calendly.initPopupWidget({ url: fullUrl });
   } else {
     window.open(fullUrl, "_blank", "noopener,noreferrer");
