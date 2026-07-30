@@ -12,6 +12,7 @@ import { z } from "zod";
 import { ConfigurationObjectLinkDbModel } from "../../prisma/schema";
 import { QuestionCircleOutlined } from "@ant-design/icons";
 import { ProvisionDatabaseButton } from "../../components/ProvisionDatabaseButton/ProvisionDatabaseButton";
+import { MigrationTeaserCard } from "../../components/ImportWizard/MigrationTeaserCard";
 import { ConnectionsDiagram } from "../../components/ConnectionsDiagram/ConnectionsDiagram";
 import { getLog } from "juava";
 import { Activity, Chrome, Edit3, MoreVertical, Share2, Wrench, Zap } from "lucide-react";
@@ -229,8 +230,16 @@ function WorkspaceOverview(props: {
   const { destinations, streams, links, connectors } = props;
   const { editEntities } = useWorkspaceRole();
   useTitle(`${branding.productName} : ${workspace.name}`);
+  // Workspace without connectors → the migration pitch leads the page; once
+  // one exists it moves back below the diagram.
+  const workspaceEmpty = connectors.length === 0;
   return (
-    <div>
+    <div className={"flex flex-col gap-10"}>
+      {appConfig.migrationWizardEnabled && workspaceEmpty && (
+        <div className="flex justify-center">
+          <MigrationTeaserCard />
+        </div>
+      )}
       {
         <ConnectionsDiagram
           connectorSourcesActions={{
@@ -357,6 +366,11 @@ function WorkspaceOverview(props: {
           }))}
         />
       }
+      {appConfig.migrationWizardEnabled && !workspaceEmpty && (
+        <div className="flex justify-center">
+          <MigrationTeaserCard />
+        </div>
+      )}
       {appConfig.ee?.available && (
         <div className="flex justify-center">
           <ProvisionDatabaseButton />

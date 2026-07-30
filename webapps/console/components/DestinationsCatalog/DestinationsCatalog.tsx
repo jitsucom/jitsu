@@ -161,7 +161,7 @@ export const DestinationCatalog = React.forwardRef<
               appConfig.ee.available &&
               provisionedDestinations &&
               provisionedDestinations.length === 0 && (
-                <div className={"px-4 mb-4"}>
+                <div className={"px-4 mb-4 mt-6"}>
                   <ProvisionDatabaseButton
                     loader={loader}
                     createdCallback={() => {

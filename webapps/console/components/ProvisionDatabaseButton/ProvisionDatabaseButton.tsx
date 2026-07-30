@@ -42,7 +42,7 @@ export function ProvisionDatabaseButton(props) {
     return <></>;
   }
   return (
-    <div className="mt-8 border-textDisabled rounded-lg bg-backgroundLight px-4 py-5 flex items-center bg-neutral-50 border border-neutral-200 ">
+    <div className="border-textDisabled rounded-lg bg-backgroundLight px-4 py-5 flex items-center bg-neutral-50 border border-neutral-200 ">
       <div className="w-8 h-8 mr-4">
         <Database />
       </div>

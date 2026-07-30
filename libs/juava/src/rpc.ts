@@ -67,10 +67,25 @@ export const rpc: RpcFunc = async (url, { body, ...rest } = {}) => {
 
   const method = rest.method || (body ? "POST" : "GET");
   let result: Response;
+  // `rest` is spread first: it may carry `method: undefined` (callers passing
+  // through an optional method), which must not clobber the inferred method.
+  // A JSON body needs an explicit application/json content type — fetch()
+  // defaults string bodies to text/plain, which servers won't JSON-parse.
+  // Headers are normalized through the Headers class so callers passing a
+  // Headers instance or a tuple array keep their entries too.
+  let headers = rest.headers;
+  if (body) {
+    const normalized = new Headers(rest.headers ?? {});
+    if (!normalized.has("content-type")) {
+      normalized.set("content-type", "application/json");
+    }
+    headers = normalized;
+  }
   const requestParams = {
-    method: method,
-    body: body ? JSON.stringify(body) : undefined,
     ...rest,
+    method: method,
+    headers,
+    body: body ? JSON.stringify(body) : undefined,
   };
   const fetchImpl = getFetch();
   try {

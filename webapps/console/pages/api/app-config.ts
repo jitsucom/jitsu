@@ -70,6 +70,8 @@ export default createRoute()
       limitPersonalEmails: serverEnv.LIMIT_PERSONAL_EMAILS,
       auth,
       billingEnabled: eeBrowserAvailable,
+      migrationWizardEnabled: eeBrowserAvailable && serverEnv.MIGRATION_WIZARD_ENABLED,
+      migrationCalendlyUrl: serverEnv.MIGRATION_CALENDLY_URL,
       customDomainsEnabled: customDomainCnames && customDomainCnames.length > 0,
       syncs: {
         enabled: serverEnv.SYNCS_ENABLED,
