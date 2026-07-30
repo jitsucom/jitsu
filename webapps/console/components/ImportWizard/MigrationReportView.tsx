@@ -149,7 +149,9 @@ const UsageEditor: React.FC<{ report: MigrationReport; refresh: () => Promise<vo
       });
       const parsed: InvoiceExtraction = await rpc(`/api/migration/parse-invoice`, {
         query: { workspaceId: workspace.id },
-        body: { provider: report.provider, file: base64, mediaType },
+        // reportId attaches the extraction (data only, never the file) to the
+        // report as snapshot.parsedInvoice — lead intel for the sales call.
+        body: { provider: report.provider, file: base64, mediaType, reportId: report.id },
       });
       setExtraction(parsed);
       setSource("invoice");
