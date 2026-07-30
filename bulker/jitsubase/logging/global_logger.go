@@ -121,10 +121,14 @@ func Warn(v ...any) {
 	log.Warnln(v...)
 }
 
+// Fatal-level failures abort the process (typically failure to start), so they
+// carry the "System error:" marker used by log-based alerting.
 func Fatal(v ...any) {
-	log.Fatal(v...)
+	msg := []any{"System error:"}
+	msg = append(msg, v...)
+	log.Fatal(msg...)
 }
 
 func Fatalf(format string, v ...any) {
-	log.Fatalf(format, v...)
+	log.Fatalf("System error: "+format, v...)
 }

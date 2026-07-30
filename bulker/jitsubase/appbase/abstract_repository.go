@@ -118,7 +118,7 @@ func (r *AbstractRepository[T]) refresh(notify bool) {
 	var err error
 	defer func() {
 		if err != nil {
-			r.Errorf("Error refreshing repository: %v", err)
+			r.SystemErrorf("Error refreshing repository: %v", err)
 			if !r.inited.Load() {
 				if r.cacheDir != "" {
 					r.loadCached()
