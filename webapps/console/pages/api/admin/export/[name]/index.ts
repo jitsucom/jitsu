@@ -52,6 +52,17 @@ function dateMax(...dates: (Date | undefined)[]): Date | undefined {
   return dates.reduce((acc, d) => (d && (!acc || d.getTime() > acc.getTime()) ? d : acc), undefined);
 }
 
+// One malformed entity must not poison the whole export: exports are streamed,
+// so an uncaught error mid-stream truncates the payload for every consumer.
+// "System error:" is the unified marker for log-based alerting — keep in sync
+// with logging.SystemErrorf in bulker/jitsubase
+function logExportEntityError(exportName: string, entityId: string, e: unknown) {
+  getLog()
+    .atError()
+    .withCause(e)
+    .log(`System error: Failed to export entity '${entityId}' of '${exportName}': ${getErrorMessage(e)}. Skipping`);
+}
+
 // Extract functionsClasses from workspace featuresEnabled array
 // Looks for feature like "functionsClass=dedicated" or "functionsClass=premium,dedicated"
 function extractFunctionsClasses(featuresEnabled: string[]): string[] {
@@ -161,39 +172,36 @@ async function exportBulkerConnections(writer: Writer) {
     getLog().atDebug().log(`Got batch of ${objects.length} objects for bulker export`);
     lastId = objects[objects.length - 1].id;
     for (const { data: data_, from, id, to, updatedAt, workspace } of objects) {
-      const data = data_ || {};
-      if (data?.disabled) {
-        continue; // skip disabled connections
-      }
-      const destinationType = to.config.destinationType;
-      const coreDestinationType = getCoreDestinationTypeNonStrict(destinationType);
-      if (coreDestinationType?.usesBulker || coreDestinationType?.hybrid) {
-        if (needComma) {
-          writer.write(",");
+      try {
+        const data = data_ || {};
+        if (data?.disabled) {
+          continue; // skip disabled connections
         }
-        const credentials = omit(to.config, "destinationType", "type", "name");
-        if (destinationType === "clickhouse") {
-          if ((data as any).clickhouseSettings) {
-            const extraParams = Object.fromEntries(
-              ((data as any).clickhouseSettings as string)
-                .split("\n")
-                .filter(s => s.includes("="))
-                .map(s => s.split("="))
-                .map(([k, v]) => [k.trim(), v.trim()])
-            );
-            credentials.parameters = { ...(credentials.parameters || {}), ...extraParams };
+        const destinationType = to.config.destinationType;
+        const coreDestinationType = getCoreDestinationTypeNonStrict(destinationType);
+        if (coreDestinationType?.usesBulker || coreDestinationType?.hybrid) {
+          const credentials = omit(to.config, "destinationType", "type", "name");
+          if (destinationType === "clickhouse") {
+            if (typeof (data as any).clickhouseSettings === "string") {
+              const extraParams = Object.fromEntries(
+                ((data as any).clickhouseSettings as string)
+                  .split("\n")
+                  .filter(s => s.includes("="))
+                  .map(s => s.split("="))
+                  .map(([k, v]) => [k.trim(), v.trim()])
+              );
+              credentials.parameters = { ...(credentials.parameters || {}), ...extraParams };
+            }
+            if (!credentials.provisioned) {
+              credentials.loadAsJson = false;
+            }
           }
-          if (!credentials.provisioned) {
-            credentials.loadAsJson = false;
-          }
-        }
-        // if (data.timestampColumn) {
-        //   // use timestampColumn field as discriminator field when doing local deduplication
-        //   // inside batch of two rows having the same messageId(pk) will be chosen the one with the highest timestampColumn value
-        //   data.discriminatorField = [data.timestampColumn];
-        // }
-        writer.write(
-          JSON.stringify({
+          // if (data.timestampColumn) {
+          //   // use timestampColumn field as discriminator field when doing local deduplication
+          //   // inside batch of two rows having the same messageId(pk) will be chosen the one with the highest timestampColumn value
+          //   data.discriminatorField = [data.timestampColumn];
+          // }
+          const payload = JSON.stringify({
             __debug: {
               workspace: { id: workspace.id, name: workspace.slug },
             },
@@ -202,9 +210,15 @@ async function exportBulkerConnections(writer: Writer) {
             options: omit(data as any, "clickhouseSettings"),
             updatedAt: dateMax(updatedAt, to.updatedAt),
             credentials: credentials,
-          })
-        );
-        needComma = true;
+          });
+          if (needComma) {
+            writer.write(",");
+          }
+          writer.write(payload);
+          needComma = true;
+        }
+      } catch (e) {
+        logExportEntityError("bulker-connections", id, e);
       }
     }
     if (objects.length < batchSize) {
@@ -226,14 +240,11 @@ async function exportBulkerConnections(writer: Writer) {
     getLog().atDebug().log(`Got batch of ${objects.length} destinations objects for bulker export`);
     lastId = objects[objects.length - 1].id;
     for (const { id, workspace, config, updatedAt } of objects) {
-      const destinationType = config.destinationType;
-      const coreDestinationType = getCoreDestinationTypeNonStrict(destinationType);
-      if (coreDestinationType?.usesBulker || coreDestinationType?.hybrid) {
-        if (needComma) {
-          writer.write(",");
-        }
-        writer.write(
-          JSON.stringify({
+      try {
+        const destinationType = config.destinationType;
+        const coreDestinationType = getCoreDestinationTypeNonStrict(destinationType);
+        if (coreDestinationType?.usesBulker || coreDestinationType?.hybrid) {
+          const payload = JSON.stringify({
             __debug: {
               workspace: { id: workspace.id, name: workspace.slug },
             },
@@ -246,9 +257,15 @@ async function exportBulkerConnections(writer: Writer) {
             },
             updatedAt: updatedAt,
             credentials: omit(config, "destinationType", "type", "name"),
-          })
-        );
-        needComma = true;
+          });
+          if (needComma) {
+            writer.write(",");
+          }
+          writer.write(payload);
+          needComma = true;
+        }
+      } catch (e) {
+        logExportEntityError("bulker-connections", id, e);
       }
     }
     if (objects.length < batchSize) {
@@ -276,7 +293,10 @@ async function exportBulkerConnections(writer: Writer) {
         needComma = true;
       }
     } catch (e) {
-      console.error("Error getting backup connections", e);
+      getLog()
+        .atError()
+        .withCause(e)
+        .log(`System error: Failed to export backup connections for 'bulker-connections': ${getErrorMessage(e)}`);
     }
   }
 
@@ -327,20 +347,17 @@ async function exportRotorConnections(writer: Writer) {
     getLog().atDebug().log(`Got batch of ${objects.length} objects for bulker export`);
     lastId = objects[objects.length - 1].id;
     for (const { data: data_, from, id, to, updatedAt, workspace } of objects) {
-      const data = data_ || {};
-      if (data?.disabled) {
-        continue; // skip disabled connections
-      }
-      const destinationType = to.config.destinationType;
-      const coreDestinationType = getCoreDestinationTypeNonStrict(destinationType);
-      if (!coreDestinationType) {
-        getLog().atError().log(`Unknown destination type: ${destinationType} for connection ${id}`);
-      }
-      if (needComma) {
-        writer.write(",");
-      }
-      writer.write(
-        JSON.stringify({
+      try {
+        const data = data_ || {};
+        if (data?.disabled) {
+          continue; // skip disabled connections
+        }
+        const destinationType = to.config.destinationType;
+        const coreDestinationType = getCoreDestinationTypeNonStrict(destinationType);
+        if (!coreDestinationType) {
+          getLog().atError().log(`Unknown destination type: ${destinationType} for connection ${id}`);
+        }
+        const payload = JSON.stringify({
           __debug: {
             workspace: { id: workspace.id, name: workspace.slug },
           },
@@ -365,9 +382,15 @@ async function exportRotorConnections(writer: Writer) {
           updatedAt: dateMax(updatedAt, to.updatedAt),
           credentials: omit(to.config, "destinationType", "type", "name"),
           credentialsHash: hash(omit(to.config, "destinationType", "type", "name")),
-        })
-      );
-      needComma = true;
+        });
+        if (needComma) {
+          writer.write(",");
+        }
+        writer.write(payload);
+        needComma = true;
+      } catch (e) {
+        logExportEntityError("rotor-connections", id, e);
+      }
     }
     if (objects.length < batchSize) {
       break;
@@ -388,14 +411,11 @@ async function exportRotorConnections(writer: Writer) {
     getLog().atDebug().log(`Got batch of ${objects.length} destinations objects for bulker export`);
     lastId = objects[objects.length - 1].id;
     for (const { id, workspace, config, updatedAt } of objects) {
-      const destinationType = config?.destinationType;
-      const coreDestinationType = getCoreDestinationTypeNonStrict(destinationType);
-      if (coreDestinationType?.usesBulker || coreDestinationType?.hybrid) {
-        if (needComma) {
-          writer.write(",");
-        }
-        writer.write(
-          JSON.stringify({
+      try {
+        const destinationType = config?.destinationType;
+        const coreDestinationType = getCoreDestinationTypeNonStrict(destinationType);
+        if (coreDestinationType?.usesBulker || coreDestinationType?.hybrid) {
+          const payload = JSON.stringify({
             id: id,
             type: destinationType,
             workspaceId: workspace.id,
@@ -406,9 +426,15 @@ async function exportRotorConnections(writer: Writer) {
             updatedAt: updatedAt,
             credentials: omit(config, "destinationType", "type", "name"),
             credentialsHash: hash(omit(config, "destinationType", "type", "name")),
-          })
-        );
-        needComma = true;
+          });
+          if (needComma) {
+            writer.write(",");
+          }
+          writer.write(payload);
+          needComma = true;
+        }
+      } catch (e) {
+        logExportEntityError("rotor-connections", id, e);
       }
     }
     if (objects.length < batchSize) {
@@ -416,34 +442,31 @@ async function exportRotorConnections(writer: Writer) {
     }
   }
   for (const pb of profileBuilders) {
-    if (needComma) {
-      writer.write(",");
-    }
-    const cred = {
-      ...(pb.intermediateStorageCredentials ?? ({} as any)),
-      profileWindowDays: (pb.connectionOptions ?? ({} as any)).profileWindow,
-      profileBuilderId: pb.id,
-      eventsCollectionName: `profiles-raw-${pb.workspace.id}-${pb.id}`,
-      traitsCollectionName: `profiles-traits-${pb.workspace.id}-${pb.id}`,
-    };
-    const opts = {
-      functionsEnv: (pb.connectionOptions ?? ({} as any)).variables,
-      functions: [
-        {
-          functionId: "builtin.transformation.user-recognition",
-        },
-        ...((pb.connectionOptions ?? ({} as any)).functions || []),
-      ],
-      functionsServer: selectFunctionsServer(
-        functionsServers,
-        pb.workspace.id,
-        pb.id,
-        functionsClassFunc(pb.workspace)
-      ),
-      workspaceUpdatedAt: pb.workspace.updatedAt,
-    };
-    writer.write(
-      JSON.stringify({
+    try {
+      const cred = {
+        ...(pb.intermediateStorageCredentials ?? ({} as any)),
+        profileWindowDays: (pb.connectionOptions ?? ({} as any)).profileWindow,
+        profileBuilderId: pb.id,
+        eventsCollectionName: `profiles-raw-${pb.workspace.id}-${pb.id}`,
+        traitsCollectionName: `profiles-traits-${pb.workspace.id}-${pb.id}`,
+      };
+      const opts = {
+        functionsEnv: (pb.connectionOptions ?? ({} as any)).variables,
+        functions: [
+          {
+            functionId: "builtin.transformation.user-recognition",
+          },
+          ...((pb.connectionOptions ?? ({} as any)).functions || []),
+        ],
+        functionsServer: selectFunctionsServer(
+          functionsServers,
+          pb.workspace.id,
+          pb.id,
+          functionsClassFunc(pb.workspace)
+        ),
+        workspaceUpdatedAt: pb.workspace.updatedAt,
+      };
+      const payload = JSON.stringify({
         __debug: {
           workspace: { id: pb.workspaceId },
         },
@@ -459,9 +482,15 @@ async function exportRotorConnections(writer: Writer) {
         updatedAt: pb.updatedAt,
         credentials: cred,
         credentialsHash: hash(cred),
-      })
-    );
-    needComma = true;
+      });
+      if (needComma) {
+        writer.write(",");
+      }
+      writer.write(payload);
+      needComma = true;
+    } catch (e) {
+      logExportEntityError("rotor-connections", pb.id, e);
+    }
   }
   writer.write("]");
 }
@@ -488,17 +517,20 @@ async function exportFunctions(writer: Writer) {
     getLog().atDebug().log(`Got batch of ${objects.length} objects for bulker export`);
     lastId = objects[objects.length - 1].id;
     for (const row of objects) {
-      if (needComma) {
-        writer.write(",");
-      }
-      writer.write(
-        JSON.stringify({
+      try {
+        const payload = JSON.stringify({
           ...omit(row, "deleted", "config"),
           ...row.config,
           codeHash: hash(row.config?.code || row.config?.draft || ""),
-        })
-      );
-      needComma = true;
+        });
+        if (needComma) {
+          writer.write(",");
+        }
+        writer.write(payload);
+        needComma = true;
+      } catch (e) {
+        logExportEntityError("functions", row.id, e);
+      }
     }
     if (objects.length < batchSize) {
       break;
@@ -584,17 +616,14 @@ async function exportStreamsWithDestinations(writer: Writer) {
     getLog().atDebug().log(`Got batch of ${objects.length} objects for streams-with-destinations export`);
     lastId = objects[objects.length - 1].id;
     for (const obj of objects) {
-      if (needComma) {
-        writer.write(",");
-      }
-      const throttlePercent =
-        workspacesWithClasses.get(obj.workspace.id)?.status !== "active"
-          ? getNumericOption("throttle", obj.workspace)
-          : undefined;
-      const shardNumber = obj.config.shard || getNumericOption("shard", obj.workspace);
-      const classicKeys = classicKeysMap[obj.id] || ({} as ClassicKeys);
-      writer.write(
-        JSON.stringify({
+      try {
+        const throttlePercent =
+          workspacesWithClasses.get(obj.workspace.id)?.status !== "active"
+            ? getNumericOption("throttle", obj.workspace)
+            : undefined;
+        const shardNumber = obj.config.shard || getNumericOption("shard", obj.workspace);
+        const classicKeys = classicKeysMap[obj.id] || ({} as ClassicKeys);
+        const payload = JSON.stringify({
           __debug: {
             workspace: { id: obj.workspace.id, name: obj.workspace.slug },
           },
@@ -652,9 +681,15 @@ async function exportStreamsWithDestinations(writer: Writer) {
               },
             })),
           ],
-        })
-      );
-      needComma = true;
+        });
+        if (needComma) {
+          writer.write(",");
+        }
+        writer.write(payload);
+        needComma = true;
+      } catch (e) {
+        logExportEntityError("streams-with-destinations", obj.id, e);
+      }
     }
     if (objects.length < batchSize) {
       break;
@@ -732,12 +767,17 @@ async function exportWorkspaces(writer: Writer) {
     getLog().atDebug().log(`Got batch of ${objects.length} objects for bulker export`);
     lastId = objects[objects.length - 1].id;
     for (const row of objects) {
-      if (needComma) {
-        writer.write(",");
+      try {
+        row.featuresEnabled = addFunctionsClass(row.featuresEnabled ?? [], functionsClassFunc(row.id));
+        const payload = JSON.stringify(row);
+        if (needComma) {
+          writer.write(",");
+        }
+        writer.write(payload);
+        needComma = true;
+      } catch (e) {
+        logExportEntityError("workspaces", row.id, e);
       }
-      row.featuresEnabled = addFunctionsClass(row.featuresEnabled ?? [], functionsClassFunc(row.id));
-      writer.write(JSON.stringify(row));
-      needComma = true;
     }
     if (objects.length < batchSize) {
       break;
@@ -802,30 +842,35 @@ async function exportWorkspacesWithProfiles(writer: Writer) {
     getLog().atDebug().log(`Got batch of ${objects.length} objects for bulker export`);
     lastId = objects[objects.length - 1].id;
     for (const row of objects) {
-      if (needComma) {
-        writer.write(",");
-      }
-      row.featuresEnabled = addFunctionsClass(row.featuresEnabled ?? [], functionsClassFunc(row.id));
-      row.profileBuilders = row.profileBuilders
-        .filter(pb => pb.version > 0)
-        .map(pb => {
-          pb.functions = pb.functions.map(f => {
-            return {
-              ...omit(f.function, "config"),
-              ...f.function.config,
-            };
+      try {
+        row.featuresEnabled = addFunctionsClass(row.featuresEnabled ?? [], functionsClassFunc(row.id));
+        row.profileBuilders = row.profileBuilders
+          .filter(pb => pb.version > 0)
+          .map(pb => {
+            pb.functions = pb.functions.map(f => {
+              return {
+                ...omit(f.function, "config"),
+                ...f.function.config,
+              };
+            });
+            // Add functionsServer routing info for profile builder
+            (pb as any).functionsServer = selectProfileBuilderFunctionsServer(
+              functionsServers,
+              row.id,
+              pb.id,
+              functionsClassFunc(row.id)
+            );
+            return pb;
           });
-          // Add functionsServer routing info for profile builder
-          (pb as any).functionsServer = selectProfileBuilderFunctionsServer(
-            functionsServers,
-            row.id,
-            pb.id,
-            functionsClassFunc(row.id)
-          );
-          return pb;
-        });
-      writer.write(JSON.stringify(row));
-      needComma = true;
+        const payload = JSON.stringify(row);
+        if (needComma) {
+          writer.write(",");
+        }
+        writer.write(payload);
+        needComma = true;
+      } catch (e) {
+        logExportEntityError("workspaces-with-profiles", row.id, e);
+      }
     }
     if (objects.length < batchSize) {
       break;
@@ -884,89 +929,28 @@ async function exportSyncs(writer: Writer) {
     lastId = objects[objects.length - 1].id;
 
     const enriched = objects.flatMap(({ data, from, id, to, updatedAt, workspace }) => {
-      // Every sync is scheduled by syncctl CronJobs — emit all of them.
-      // (Destination-type filters below still skip syncs whose pod template
-      // can't run them, e.g. non-bulker mixpanel-with-syncs.)
-      let destinationConfig: any = { ...(to.config as any) };
-      const destinationType = destinationConfig.destinationType;
-      const coreDestinationType = getCoreDestinationTypeNonStrict(destinationType);
-      if (!coreDestinationType) {
-        getLog()
-          .atError()
-          .log(`Unknown destination type: ${destinationType} for sync ${id} - skipping export of this sync`);
+      try {
+        // Every sync is scheduled by syncctl CronJobs — emit all of them.
+        // (Destination-type filters below still skip syncs whose pod template
+        // can't run them, e.g. non-bulker mixpanel-with-syncs.)
+        return exportSyncEntity({ data, from, id, to, updatedAt, workspace });
+      } catch (e) {
+        logExportEntityError("syncs", id, e);
         return [];
       }
-      if (!coreDestinationType.usesBulker && coreDestinationType.id !== "webhook") {
-        // Non-bulker destinations (e.g. mixpanel-with-syncs) used to run
-        // synchronously inside the console process via scheduleSync's
-        // runSynchronously branch — they were never scheduled by GCS, and
-        // the autonomous CronJob path doesn't support them either. Skip
-        // them out of the export so syncctl doesn't try to reconcile a
-        // CronJob whose Pod template can't actually run them.
-        getLog()
-          .atError()
-          .log(
-            `Sync ${id} has destination type ${destinationType} which does not use bulker - skipping export of this sync`
-          );
-        return [];
-      }
-      const syncData = (data ?? {}) as Record<string, any>;
-      let serviceConfig: any = { ...(from.config as any) };
-
-      // versionHash MUST be derived from the raw persisted credentials —
-      // matches the formula used by scheduleSync and sources/discover when
-      // they store catalog rows in source_catalog. Hashing post-mutation or
-      // post-OAuth-refresh creds would make sidecar's catalog lookup miss
-      // the rows that scheduleSync wrote.
-      const versionHash = `${workspace.id}_${from.id}_${juavaHash("md5", stableHash(serviceConfig.credentials))}`;
-
-      // scheduleSync applies this default for these packages — apply it to
-      // a separate `credentials` value used only in the runtime source.config
-      // (so it doesn't leak into versionHash above).
-      if (
-        serviceConfig.package === "airbyte/source-postgres" ||
-        serviceConfig.package === "airbyte/source-mssql" ||
-        serviceConfig.package === "airbyte/source-singlestore"
-      ) {
-        serviceConfig = {
-          ...serviceConfig,
-          credentials: { ...serviceConfig.credentials, sync_checkpoint_records: 200000 },
-        };
-      }
-
-      // ClickHouse-without-provisioning override (mirrors scheduleSync).
-      if (destinationType === "clickhouse" && !destinationConfig.provisioned) {
-        destinationConfig = { ...destinationConfig, loadAsJson: false };
-      }
-
-      return [
-        {
-          id,
-          workspaceId: workspace.id,
-          workspaceSlug: workspace.slug,
-          fromId: from.id,
-          toId: to.id,
-          source: serviceConfig,
-          destination: destinationConfig,
-          schedule: syncData.schedule,
-          timezone: syncData.timezone ?? "Etc/UTC",
-          // Everything from sync.data minus the fields already promoted to
-          // top-level (schedule, timezone), plus the computed versionHash.
-          options: {
-            ...omit(syncData, "schedule", "timezone"),
-            versionHash,
-          },
-          updatedAt: dateMax(updatedAt, from.updatedAt, to.updatedAt),
-        },
-      ];
     });
 
     for (const item of enriched) {
-      if (needComma) {
-        writer.write(",");
+      try {
+        const payload = JSON.stringify(item);
+        if (needComma) {
+          writer.write(",");
+        }
+        writer.write(payload);
+        needComma = true;
+      } catch (e) {
+        logExportEntityError("syncs", item.id, e);
       }
-      writer.write(JSON.stringify(item));
-      needComma = true;
     }
 
     if (objects.length < batchSize) {
@@ -974,6 +958,81 @@ async function exportSyncs(writer: Writer) {
     }
   }
   writer.write("]");
+}
+
+function exportSyncEntity({ data, from, id, to, updatedAt, workspace }: any) {
+  let destinationConfig: any = { ...(to.config as any) };
+  const destinationType = destinationConfig.destinationType;
+  const coreDestinationType = getCoreDestinationTypeNonStrict(destinationType);
+  if (!coreDestinationType) {
+    getLog()
+      .atError()
+      .log(`Unknown destination type: ${destinationType} for sync ${id} - skipping export of this sync`);
+    return [];
+  }
+  if (!coreDestinationType.usesBulker && coreDestinationType.id !== "webhook") {
+    // Non-bulker destinations (e.g. mixpanel-with-syncs) used to run
+    // synchronously inside the console process via scheduleSync's
+    // runSynchronously branch — they were never scheduled by GCS, and
+    // the autonomous CronJob path doesn't support them either. Skip
+    // them out of the export so syncctl doesn't try to reconcile a
+    // CronJob whose Pod template can't actually run them.
+    getLog()
+      .atError()
+      .log(
+        `Sync ${id} has destination type ${destinationType} which does not use bulker - skipping export of this sync`
+      );
+    return [];
+  }
+  const syncData = (data ?? {}) as Record<string, any>;
+  let serviceConfig: any = { ...(from.config as any) };
+
+  // versionHash MUST be derived from the raw persisted credentials —
+  // matches the formula used by scheduleSync and sources/discover when
+  // they store catalog rows in source_catalog. Hashing post-mutation or
+  // post-OAuth-refresh creds would make sidecar's catalog lookup miss
+  // the rows that scheduleSync wrote.
+  const versionHash = `${workspace.id}_${from.id}_${juavaHash("md5", stableHash(serviceConfig.credentials))}`;
+
+  // scheduleSync applies this default for these packages — apply it to
+  // a separate `credentials` value used only in the runtime source.config
+  // (so it doesn't leak into versionHash above).
+  if (
+    serviceConfig.package === "airbyte/source-postgres" ||
+    serviceConfig.package === "airbyte/source-mssql" ||
+    serviceConfig.package === "airbyte/source-singlestore"
+  ) {
+    serviceConfig = {
+      ...serviceConfig,
+      credentials: { ...serviceConfig.credentials, sync_checkpoint_records: 200000 },
+    };
+  }
+
+  // ClickHouse-without-provisioning override (mirrors scheduleSync).
+  if (destinationType === "clickhouse" && !destinationConfig.provisioned) {
+    destinationConfig = { ...destinationConfig, loadAsJson: false };
+  }
+
+  return [
+    {
+      id,
+      workspaceId: workspace.id,
+      workspaceSlug: workspace.slug,
+      fromId: from.id,
+      toId: to.id,
+      source: serviceConfig,
+      destination: destinationConfig,
+      schedule: syncData.schedule,
+      timezone: syncData.timezone ?? "Etc/UTC",
+      // Everything from sync.data minus the fields already promoted to
+      // top-level (schedule, timezone), plus the computed versionHash.
+      options: {
+        ...omit(syncData, "schedule", "timezone"),
+        versionHash,
+      },
+      updatedAt: dateMax(updatedAt, from.updatedAt, to.updatedAt),
+    },
+  ];
 }
 
 const exports: Export[] = [
@@ -1158,7 +1217,19 @@ export default createRoute()
     if (query.dateOnly) {
       res.write(JSON.stringify({ lastModified: lastModified.toISOString() }));
     } else {
-      await exp.data(res);
+      try {
+        await exp.data(res);
+      } catch (e) {
+        // Headers are already sent, so this can't become an HTTP 500. Destroy the
+        // socket so consumers see an aborted response instead of a seemingly
+        // complete but truncated JSON document served with status 200.
+        getLog()
+          .atError()
+          .withCause(e)
+          .log(`System error: Export '${query.name}' failed mid-stream: ${getErrorMessage(e)}`);
+        res.destroy(e instanceof Error ? e : new Error(getErrorMessage(e)));
+        return;
+      }
     }
     res.end();
   })
