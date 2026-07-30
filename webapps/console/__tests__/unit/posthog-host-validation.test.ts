@@ -34,7 +34,6 @@ describe("validatePosthogHost", () => {
     "http://app.posthog.com",
     "https://user:pass@app.posthog.com",
     "https://app.posthog.com:8443",
-    "https://app.posthog.com/",
     "https://app.posthog.com/path",
     "https://app.posthog.com?key=value",
     "https://app.posthog.com#fragment",

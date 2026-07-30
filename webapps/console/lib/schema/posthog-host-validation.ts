@@ -21,7 +21,16 @@ export function validatePosthogHost(value: unknown): string | undefined {
   const hostname = url.hostname.toLowerCase().replace(/\.$/, "");
   const isPosthog = hostname === "posthog.com" || hostname.endsWith(".posthog.com");
 
-  if (isPosthog && value.toLowerCase() !== `https://${hostname}`) {
+  if (
+    isPosthog &&
+    (url.protocol !== "https:" ||
+      url.username ||
+      url.password ||
+      url.port ||
+      url.pathname.length > 1 ||
+      url.search ||
+      url.hash)
+  ) {
     return INVALID_POSTHOG_URL_MESSAGE;
   }
 
