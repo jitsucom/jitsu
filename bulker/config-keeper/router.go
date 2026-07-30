@@ -77,7 +77,7 @@ func (r *Router) RepositoryHandler(c *gin.Context) {
 	repository, ok := r.appContext.repositories[repName]
 	if !ok {
 		r.Infof("Repository %s not found, initializing", repName)
-		repository = appbase.NewHTTPRepository[[]byte](repName, r.appContext.config.RepositoryBaseURL+"/"+repName, r.appContext.config.RepositoryAuthToken, appbase.HTTPTagLastModified, &RawRepositoryData{}, 2, r.appContext.config.RepositoryRefreshPeriodSec, r.appContext.config.CacheDir)
+		repository = appbase.NewHTTPRepository[[]byte](repName, r.appContext.config.RepositoryBaseURL+"/"+repName, r.appContext.config.RepositoryAuthToken, appbase.HTTPTagLastModified, &RawRepositoryData{validateJSON: true}, 2, r.appContext.config.RepositoryRefreshPeriodSec, r.appContext.config.CacheDir)
 		initTimeout := time.After(time.Second * 60)
 		ticker := time.NewTicker(time.Second)
 		defer ticker.Stop()

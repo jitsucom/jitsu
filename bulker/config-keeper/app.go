@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"github.com/jitsucom/bulker/jitsubase/appbase"
 	"io"
@@ -19,13 +20,20 @@ type Context struct {
 }
 
 type RawRepositoryData struct {
-	data atomic.Pointer[[]byte]
+	// validateJSON rejects payloads that are not complete, valid JSON. A repository
+	// source that fails mid-stream can produce a truncated body with HTTP 200 —
+	// without this check such payload gets cached and served to every consumer.
+	validateJSON bool
+	data         atomic.Pointer[[]byte]
 }
 
 func (r *RawRepositoryData) Init(reader io.Reader, tag any) error {
 	data, err := io.ReadAll(reader)
 	if err != nil {
 		return err
+	}
+	if r.validateJSON && !json.Valid(data) {
+		return fmt.Errorf("payload is not valid JSON (%d bytes) - keeping previous data", len(data))
 	}
 	r.data.Store(&data)
 	return nil
@@ -59,7 +67,7 @@ func (a *Context) InitContext(settings *appbase.AppSettings) error {
 		"p.js": a.pScript,
 	}
 	for _, rep := range strings.Split(reps, ",") {
-		a.repositories[rep] = appbase.NewHTTPRepository[[]byte](rep, baseUrl+"/"+rep, token, appbase.HTTPTagLastModified, &RawRepositoryData{}, 2, refreshPeriodSec, cacheDir)
+		a.repositories[rep] = appbase.NewHTTPRepository[[]byte](rep, baseUrl+"/"+rep, token, appbase.HTTPTagLastModified, &RawRepositoryData{validateJSON: true}, 2, refreshPeriodSec, cacheDir)
 
 	}
 	router := NewRouter(a)
