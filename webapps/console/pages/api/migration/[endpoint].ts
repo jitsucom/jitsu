@@ -91,11 +91,6 @@ async function proxy(opts: { req: any; res: any; query?: z.infer<typeof querySch
   const { req, res, body } = opts;
   const query = opts.query!;
   applyCors(req, res);
-  // MIGRATION_WIZARD_ENABLED is the feature kill switch — with it off the
-  // proxy doesn't exist, for browsers and scripts alike.
-  if (!getServerEnv().MIGRATION_WIZARD_ENABLED) {
-    throw new ApiError("Not found", { status: 404 });
-  }
   assertTrue(isEEAvailable(), "EE api is not available");
   const spec = PROXIED[query.endpoint];
   if (!spec || spec.method !== req.method) {
