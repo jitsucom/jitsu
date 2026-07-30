@@ -160,7 +160,8 @@ async function exportBulkerConnections(writer: Writer) {
     }
     getLog().atDebug().log(`Got batch of ${objects.length} objects for bulker export`);
     lastId = objects[objects.length - 1].id;
-    for (const { data, from, id, to, updatedAt, workspace } of objects) {
+    for (const { data: data_, from, id, to, updatedAt, workspace } of objects) {
+      const data = data_ || {};
       if (data?.disabled) {
         continue; // skip disabled connections
       }
@@ -325,7 +326,8 @@ async function exportRotorConnections(writer: Writer) {
     }
     getLog().atDebug().log(`Got batch of ${objects.length} objects for bulker export`);
     lastId = objects[objects.length - 1].id;
-    for (const { data, from, id, to, updatedAt, workspace } of objects) {
+    for (const { data: data_, from, id, to, updatedAt, workspace } of objects) {
+      const data = data_ || {};
       if (data?.disabled) {
         continue; // skip disabled connections
       }
