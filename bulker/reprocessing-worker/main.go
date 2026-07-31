@@ -42,6 +42,12 @@ type WorkerConfig struct {
 	RepositoryAuthToken   string
 }
 
+// messageProducer is the slice of kafkabase.Producer the reprocessing path uses,
+// so tests can capture what would be sent
+type messageProducer interface {
+	ProduceAsync(topic string, messageKey string, event []byte, headers map[string]string, partition int32, originalTopic string, retry bool, timeout time.Duration) error
+}
+
 // wildcardStream is the stream_ids map key matching every stream
 const wildcardStream = "*"
 
@@ -451,7 +457,7 @@ func selectWorkerFiles(files []FileItem, workerIndex, totalWorkers int) []FileIt
 	return myFiles
 }
 
-func processFile(fileItem FileItem, jobConfig map[string]interface{}, rules *connectionRules, producer *kafkabase.Producer, s3Client *s3.Client, streams *Streams, config *WorkerConfig, status *WorkerStatus, dbpool *pgxpool.Pool, dryRun bool) error {
+func processFile(fileItem FileItem, jobConfig map[string]interface{}, rules *connectionRules, producer messageProducer, s3Client *s3.Client, streams *Streams, config *WorkerConfig, status *WorkerStatus, dbpool *pgxpool.Pool, dryRun bool) error {
 	status.CurrentFile = fileItem.Path
 
 	// Get file reader
@@ -712,7 +718,7 @@ func routeEvent(rules *connectionRules, streams *Streams, sourceId, slug string)
 	return nil, false, reason
 }
 
-func sendBatch(batch []map[string]interface{}, producer *kafkabase.Producer, topic string, rules *connectionRules, streams *Streams, status *WorkerStatus, dryRun bool) error {
+func sendBatch(batch []map[string]interface{}, producer messageProducer, topic string, rules *connectionRules, streams *Streams, status *WorkerStatus, dryRun bool) error {
 	for i, message := range batch {
 		var sourceId, slug string
 		if origin, _ := message["origin"].(*jsonorder.OrderedMap[string, interface{}]); origin != nil {
