@@ -42,6 +42,11 @@ type WorkerConfig struct {
 	RepositoryAuthToken   string
 }
 
+// producerQueue reports how many messages are still waiting to be delivered
+type producerQueue interface {
+	QueueSize() (int, error)
+}
+
 // messageProducer is the slice of kafkabase.Producer the reprocessing path uses,
 // so tests can capture what would be sent
 type messageProducer interface {
@@ -194,7 +199,7 @@ func main() {
 		updateWorkerError(dbpool, config, "Failed to initialize Kafka producer: "+err.Error())
 		os.Exit(1)
 	}
-	defer producer.Close()
+	// closed explicitly before the final status update — see the end of main
 
 	// Initialize AWS S3 client
 	awsCfg, err := awsconfig.LoadDefaultConfig(context.Background())
@@ -228,6 +233,7 @@ func main() {
 	if len(myFiles) == 0 {
 		fmt.Printf("No files assigned to worker %d\n", config.WorkerIndex)
 		updateWorkerStatus(dbpool, config, &WorkerStatus{}, "completed")
+		_ = producer.Close()
 		return
 	}
 
@@ -314,6 +320,20 @@ func main() {
 		updateWorkerStatus(dbpool, config, status, "running")
 	}
 
+	// Deliver what is still queued before reporting the outcome: these messages
+	// were already counted as sent, so a status update ahead of the flush would
+	// report success for events that never left the worker.
+	if undelivered := drainProducer(producer, deliveryTimeoutMs*time.Millisecond, time.Second); undelivered > 0 {
+		status.SuccessCount -= int64(undelivered)
+		status.ErrorCount += int64(undelivered)
+		status.LastError = fmt.Sprintf("%d message(s) still queued after %ds — not delivered", undelivered, deliveryTimeoutMs/1000)
+		fmt.Fprintf(os.Stderr, "%s\n", status.LastError)
+		updateWorkerStatus(dbpool, config, status, "failed")
+		_ = producer.Close()
+		os.Exit(1)
+	}
+	_ = producer.Close()
+
 	// Mark as completed
 	updateWorkerStatus(dbpool, config, status, "completed")
 	fmt.Printf("Worker %d completed processing %d files\n", config.WorkerIndex, len(myFiles))
@@ -383,6 +403,12 @@ func loadConfig() (*WorkerConfig, error) {
 	}, nil
 }
 
+// deliveryTimeoutMs bounds both delivery and the flush on close. Other services
+// get this from PRODUCER_DELIVERY_TIMEOUT_MS via appbase; the worker builds its
+// config literally, where an unset value would mean Flush(0) — an immediate
+// return that drops whatever is still queued.
+const deliveryTimeoutMs = 300000
+
 func initKafkaProducer(config *WorkerConfig) (*kafkabase.Producer, error) {
 	producerConfig := &kafka.ConfigMap{
 		"bootstrap.servers":            config.KafkaBootstrapServers,
@@ -390,15 +416,36 @@ func initKafkaProducer(config *WorkerConfig) (*kafkabase.Producer, error) {
 		"batch.size":                   1048576,
 		"linger.ms":                    1000,
 		"compression.type":             "zstd",
+		"delivery.timeout.ms":          deliveryTimeoutMs,
 	}
 
-	producer, err := kafkabase.NewProducer(&kafkabase.KafkaConfig{}, producerConfig, true, nil)
+	producer, err := kafkabase.NewProducer(
+		&kafkabase.KafkaConfig{ProducerDeliveryTimeoutMs: deliveryTimeoutMs}, producerConfig, true, nil)
 	if err != nil {
 		return nil, err
 	}
 
 	producer.Start()
 	return producer, nil
+}
+
+// drainProducer waits for the producer's queue to empty. ProduceAsync only
+// enqueues, so at the end of a run the tail of the batch is still in flight;
+// reporting completion before it lands would claim delivery for messages that
+// were never sent. Returns how many were still queued when the wait ran out.
+func drainProducer(producer producerQueue, timeout, poll time.Duration) int {
+	deadline := time.Now().Add(timeout)
+	for {
+		queued, err := producer.QueueSize()
+		if err != nil || queued == 0 {
+			return 0
+		}
+		if time.Now().After(deadline) {
+			return queued
+		}
+		fmt.Printf("Waiting for %d message(s) to be delivered...\n", queued)
+		time.Sleep(poll)
+	}
 }
 
 func gzipDecompress(data []byte) ([]byte, error) {
