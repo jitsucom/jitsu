@@ -137,7 +137,7 @@ func (k *K8sJobClient) CreateReprocessingJob(ctx context.Context, jobID string, 
 
 	// Create the Indexed Job
 	jobName := fmt.Sprintf("reprocess-%s", jobID)
-	job := k.buildIndexedJob(jobName, filesConfigMapName, jobConfigMapName, secretName, jobID, workerCount)
+	job := k.buildIndexedJob(jobName, filesConfigMapName, jobConfigMapName, secretName, jobID, workerCount, jobConfig.ParallelWorkers)
 
 	createdJob, err := k.clientset.BatchV1().Jobs(k.namespace).Create(ctx, job, metav1.CreateOptions{})
 	if err != nil {
@@ -258,9 +258,15 @@ func (k *K8sJobClient) createCredentialsSecret(ctx context.Context, name string)
 }
 
 // buildIndexedJob builds the Kubernetes Job specification
-func (k *K8sJobClient) buildIndexedJob(jobName, filesConfigMapName, jobConfigMapName, secretName, jobID string, completions int) *batchv1.Job {
+func (k *K8sJobClient) buildIndexedJob(jobName, filesConfigMapName, jobConfigMapName, secretName, jobID string, completions, parallelWorkers int) *batchv1.Job {
+	// Per-job setting wins; the K8S_MAX_PARALLEL_WORKERS env cap is the
+	// fallback for jobs that don't specify one.
 	parallelism := completions
-	if k.config.K8sMaxParallelWorkers > 0 && parallelism > k.config.K8sMaxParallelWorkers {
+	if parallelWorkers > 0 {
+		if parallelism > parallelWorkers {
+			parallelism = parallelWorkers
+		}
+	} else if k.config.K8sMaxParallelWorkers > 0 && parallelism > k.config.K8sMaxParallelWorkers {
 		parallelism = k.config.K8sMaxParallelWorkers
 	}
 

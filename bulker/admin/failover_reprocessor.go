@@ -47,6 +47,18 @@ type ReprocessingJobConfig struct {
 	DateFrom      time.Time `json:"date_from,omitempty"`      // Filter messages created after this date
 	DateTo        time.Time `json:"date_to,omitempty"`        // Filter messages created before this date
 	Limit         int64     `json:"limit,omitempty"`          // Maximum number of events to process
+	// ParallelWorkers caps how many worker pods run at once (K8s Job
+	// parallelism). 0 = fall back to the K8S_MAX_PARALLEL_WORKERS env cap.
+	ParallelWorkers int `json:"parallel_workers,omitempty"`
+	// StreamConnections maps a stream id (or slug) to the connection ids to
+	// use for its events. Semantics depend on StreamConnectionsFilter:
+	// override (default) — listed connections replace the repository-mapped
+	// ones; filter — repository-mapped connections are kept only if listed.
+	// Streams absent from the map keep the default behavior.
+	StreamConnections map[string][]string `json:"stream_connections,omitempty"`
+	// StreamConnectionsFilter switches StreamConnections from override mode
+	// to filter mode (exclude mapped connections not mentioned).
+	StreamConnectionsFilter bool `json:"stream_connections_filter,omitempty"`
 }
 
 // ReprocessingJob represents a failover reprocessing job
