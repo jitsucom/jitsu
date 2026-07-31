@@ -890,6 +890,11 @@ func (r *Router) serveAdminHTML(c *gin.Context) {
             // stream_ids is either a list of ids or a map of id -> connection ids
             if (cfg.stream_ids && !Array.isArray(cfg.stream_ids)) {
                 setValue('streamIds', JSON.stringify(cfg.stream_ids, null, 2));
+            } else if (Array.isArray(cfg.stream_ids) && cfg.stream_ids.length === 0) {
+                // Explicit empty selection: keep it as JSON. An empty textarea
+                // would submit as "no selector", broadening the replay from
+                // "no streams" to "every stream".
+                setValue('streamIds', '[]');
             } else {
                 setLines('streamIds', cfg.stream_ids);
             }
