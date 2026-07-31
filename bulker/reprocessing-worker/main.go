@@ -45,11 +45,19 @@ type WorkerConfig struct {
 // wildcardStream is the stream_ids map key matching every stream
 const wildcardStream = "*"
 
+// wildcardConnection, used as a connection id, stands for the stream's
+// repository-mapped connections — in both override and filter mode
+const wildcardConnection = "*"
+
 // connectionRules describes which streams are reprocessed and how their
 // connection ids are resolved, derived from the stream_ids job setting.
 //
 //	["stream1", "stream2"]                        -> ids: filter only, connections from the repository
-//	{"stream1": ["con1"], "*": ["con2"]}          -> perStream: filter + connection rules ("*" = every stream)
+//	{"stream1": ["con1"], "*": ["con2"]}          -> perStream: filter + connection rules ("*" key = every stream)
+//
+// A connection id of "*" stands for the stream's mapped connections, so
+// {"stream1": ["*", "con1"]} means "everything it normally goes to, plus con1"
+// in override mode, and "no connection filtering" in filter mode.
 type connectionRules struct {
 	// selected is true when stream_ids was provided in either form. An
 	// explicitly empty list or map therefore selects no streams, while an
@@ -84,8 +92,12 @@ func parseConnectionRules(jobConfig map[string]interface{}) *connectionRules {
 		rules.perStream = make(map[string][]string, len(streamIds))
 		for streamId, v := range streamIds {
 			conns := []string{}
-			if list, ok := v.([]interface{}); ok {
-				for _, id := range list {
+			switch value := v.(type) {
+			case string:
+				// shorthand for a single connection id
+				conns = append(conns, value)
+			case []interface{}:
+				for _, id := range value {
 					if idStr, ok := id.(string); ok {
 						conns = append(conns, idStr)
 					}
@@ -594,6 +606,70 @@ func shouldProcessMessage(message map[string]interface{}, jobConfig map[string]i
 // sendBatch produces a batch and records the outcome of every message in status
 // (success, error or skip) — exactly once per message, including the ones left
 // unattempted when a produce call fails and aborts the batch.
+// needsMappedConnections reports whether resolving a stream requires its
+// repository-mapped connections
+func needsMappedConnections(rule []string, hasRule, filter bool) bool {
+	if !hasRule || filter {
+		return true
+	}
+	for _, id := range rule {
+		if id == wildcardConnection {
+			return true
+		}
+	}
+	return false
+}
+
+// resolveConnections computes the connection ids an event is routed to.
+// rule is the stream's configured connection ids (may contain "*"); mapped is
+// what the repository maps the stream to.
+func resolveConnections(rule []string, hasRule, filter bool, mapped []string) []string {
+	if !hasRule {
+		return mapped
+	}
+	explicit := make([]string, 0, len(rule))
+	allMapped := false
+	for _, id := range rule {
+		if id == wildcardConnection {
+			allMapped = true
+			continue
+		}
+		explicit = append(explicit, id)
+	}
+
+	if filter {
+		if allMapped {
+			// every mapped connection passes the filter
+			return mapped
+		}
+		allowed := make(map[string]bool, len(explicit))
+		for _, id := range explicit {
+			allowed[id] = true
+		}
+		kept := make([]string, 0, len(mapped))
+		for _, id := range mapped {
+			if allowed[id] {
+				kept = append(kept, id)
+			}
+		}
+		return kept
+	}
+
+	// override mode: the listed connections, with "*" expanding to the mapped ones
+	if !allMapped {
+		return explicit
+	}
+	seen := make(map[string]bool, len(mapped)+len(explicit))
+	out := make([]string, 0, len(mapped)+len(explicit))
+	for _, id := range append(append([]string{}, mapped...), explicit...) {
+		if !seen[id] {
+			seen[id] = true
+			out = append(out, id)
+		}
+	}
+	return out
+}
+
 func sendBatch(batch []map[string]interface{}, producer *kafkabase.Producer, topic string, rules *connectionRules, streams *Streams, status *WorkerStatus, dryRun bool) error {
 	for i, message := range batch {
 		var sourceId, slug string
@@ -607,12 +683,8 @@ func sendBatch(batch []map[string]interface{}, producer *kafkabase.Producer, top
 		// shouldProcessMessage.
 		streamRule, hasStreamRule := rules.lookup(sourceId, slug)
 
-		connectionIds := []string{}
-		if hasStreamRule && !rules.filter {
-			// Override mode: listed connections replace the mapped ones.
-			connectionIds = streamRule
-		} else if streams != nil {
-			// Look up mapped connections from the repository.
+		var mapped []string
+		if needsMappedConnections(streamRule, hasStreamRule, rules.filter) && streams != nil {
 			streamId := sourceId
 			if streamId == "" {
 				streamId = slug
@@ -630,24 +702,12 @@ func sendBatch(batch []map[string]interface{}, producer *kafkabase.Producer, top
 					continue
 				}
 				for _, dest := range stream.AsynchronousDestinations {
-					connectionIds = append(connectionIds, dest.ConnectionId)
-				}
-				if hasStreamRule && rules.filter {
-					// Filter mode: keep only mapped connections that are listed.
-					allowed := make(map[string]bool, len(streamRule))
-					for _, id := range streamRule {
-						allowed[id] = true
-					}
-					filtered := connectionIds[:0]
-					for _, id := range connectionIds {
-						if allowed[id] {
-							filtered = append(filtered, id)
-						}
-					}
-					connectionIds = filtered
+					mapped = append(mapped, dest.ConnectionId)
 				}
 			}
 		}
+
+		connectionIds := resolveConnections(streamRule, hasStreamRule, rules.filter, mapped)
 
 		// A rule that leaves no connections deliberately drops the event.
 		if len(connectionIds) == 0 && hasStreamRule {
