@@ -42,6 +42,48 @@ type WorkerConfig struct {
 	RepositoryAuthToken   string
 }
 
+// connectionRules describes how to resolve connection ids for reprocessed events
+type connectionRules struct {
+	// global connection_ids: when set, used verbatim for every event (legacy behavior)
+	global []string
+	// perStream maps stream id/slug -> connection ids (stream_connections job setting)
+	perStream map[string][]string
+	// filter switches perStream from override mode (listed connections replace
+	// the repository-mapped ones) to filter mode (repository-mapped connections
+	// are kept only if listed)
+	filter bool
+}
+
+// parseConnectionRules extracts connection resolution settings from the job config
+func parseConnectionRules(jobConfig map[string]interface{}) *connectionRules {
+	rules := &connectionRules{}
+	if connIds, ok := jobConfig["connection_ids"].([]interface{}); ok {
+		for _, id := range connIds {
+			if idStr, ok := id.(string); ok {
+				rules.global = append(rules.global, idStr)
+			}
+		}
+	}
+	if streamConns, ok := jobConfig["stream_connections"].(map[string]interface{}); ok && len(streamConns) > 0 {
+		rules.perStream = make(map[string][]string, len(streamConns))
+		for streamId, v := range streamConns {
+			ids := []string{}
+			if list, ok := v.([]interface{}); ok {
+				for _, id := range list {
+					if idStr, ok := id.(string); ok {
+						ids = append(ids, idStr)
+					}
+				}
+			}
+			rules.perStream[streamId] = ids
+		}
+	}
+	if f, ok := jobConfig["stream_connections_filter"].(bool); ok {
+		rules.filter = f
+	}
+	return rules
+}
+
 // WorkerStatus tracks worker progress
 type WorkerStatus struct {
 	ProcessedFiles   int64
@@ -139,6 +181,15 @@ func main() {
 		fmt.Printf("DRY RUN MODE: Messages will be processed but NOT sent to Kafka\n")
 	}
 
+	rules := parseConnectionRules(jobConfig)
+	if len(rules.perStream) > 0 {
+		mode := "override"
+		if rules.filter {
+			mode = "filter"
+		}
+		fmt.Printf("Stream connections map: %d stream(s), mode=%s\n", len(rules.perStream), mode)
+	}
+
 	// Process assigned files
 	status := &WorkerStatus{}
 	for _, fileItem := range myFiles {
@@ -159,7 +210,7 @@ func main() {
 			savedErrorCount := status.ErrorCount
 			savedSkippedCount := status.SkippedCount
 
-			lastErr = processFile(fileItem, jobConfig, producer, s3Client, streams, config, status, dbpool, dryRun)
+			lastErr = processFile(fileItem, jobConfig, rules, producer, s3Client, streams, config, status, dbpool, dryRun)
 			if lastErr == nil {
 				// Success - break retry loop
 				break
@@ -333,7 +384,7 @@ func selectWorkerFiles(files []FileItem, workerIndex, totalWorkers int) []FileIt
 	return myFiles
 }
 
-func processFile(fileItem FileItem, jobConfig map[string]interface{}, producer *kafkabase.Producer, s3Client *s3.Client, streams *Streams, config *WorkerConfig, status *WorkerStatus, dbpool *pgxpool.Pool, dryRun bool) error {
+func processFile(fileItem FileItem, jobConfig map[string]interface{}, rules *connectionRules, producer *kafkabase.Producer, s3Client *s3.Client, streams *Streams, config *WorkerConfig, status *WorkerStatus, dbpool *pgxpool.Pool, dryRun bool) error {
 	status.CurrentFile = fileItem.Path
 
 	// Get file reader
@@ -400,7 +451,7 @@ func processFile(fileItem FileItem, jobConfig map[string]interface{}, producer *
 		batch = append(batch, message)
 
 		if len(batch) >= batchSize {
-			if err := sendBatch(batch, producer, config.KafkaTopicName, jobConfig, streams, status, dryRun); err != nil {
+			if err := sendBatch(batch, producer, config.KafkaTopicName, rules, streams, status, dryRun); err != nil {
 				fmt.Fprintf(os.Stderr, "Failed to send batch: %v\n", err)
 				status.ErrorCount += int64(len(batch))
 			} else {
@@ -417,7 +468,7 @@ func processFile(fileItem FileItem, jobConfig map[string]interface{}, producer *
 
 	// Send remaining batch
 	if len(batch) > 0 {
-		if err := sendBatch(batch, producer, config.KafkaTopicName, jobConfig, streams, status, dryRun); err != nil {
+		if err := sendBatch(batch, producer, config.KafkaTopicName, rules, streams, status, dryRun); err != nil {
 			fmt.Fprintf(os.Stderr, "Failed to send final batch: %v\n", err)
 			status.ErrorCount += int64(len(batch))
 		} else {
@@ -498,46 +549,70 @@ func shouldProcessMessage(message map[string]interface{}, jobConfig map[string]i
 	return true
 }
 
-func sendBatch(batch []map[string]interface{}, producer *kafkabase.Producer, topic string, jobConfig map[string]interface{}, streams *Streams, status *WorkerStatus, dryRun bool) error {
+func sendBatch(batch []map[string]interface{}, producer *kafkabase.Producer, topic string, rules *connectionRules, streams *Streams, status *WorkerStatus, dryRun bool) error {
 	for _, message := range batch {
-		// Get connection IDs from job config or repository
+		var sourceId, slug string
+		if origin, _ := message["origin"].(*jsonorder.OrderedMap[string, interface{}]); origin != nil {
+			sourceId = origin.GetS("sourceId")
+			slug = origin.GetS("slug")
+		}
+
+		// Per-stream rule (stream_connections) takes precedence for the streams
+		// it mentions; matched by stream id or slug.
+		streamRule, hasStreamRule := rules.perStream[sourceId]
+		if !hasStreamRule && slug != "" {
+			streamRule, hasStreamRule = rules.perStream[slug]
+		}
+
 		connectionIds := []string{}
-		if connIds, ok := jobConfig["connection_ids"].([]interface{}); ok {
-			for _, id := range connIds {
-				if idStr, ok := id.(string); ok {
-					connectionIds = append(connectionIds, idStr)
+		if hasStreamRule && !rules.filter {
+			// Override mode: listed connections replace the mapped ones.
+			connectionIds = streamRule
+		} else if !hasStreamRule && len(rules.global) > 0 {
+			// Legacy global override for streams without a per-stream rule.
+			connectionIds = rules.global
+		} else if streams != nil {
+			// Look up mapped connections from the repository.
+			streamId := sourceId
+			if streamId == "" {
+				streamId = slug
+			}
+			if streamId != "" {
+				stream := streams.GetStreamByPlainKeyOrId(streamId)
+				if stream == nil {
+					fmt.Fprintf(os.Stderr, "Stream not found for source id: %s\n", streamId)
+					status.ErrorCount++
+					continue
+				}
+				if len(stream.AsynchronousDestinations) == 0 {
+					fmt.Fprintf(os.Stderr, "No destinations found for stream: %s\n", streamId)
+					status.ErrorCount++
+					continue
+				}
+				for _, dest := range stream.AsynchronousDestinations {
+					connectionIds = append(connectionIds, dest.ConnectionId)
+				}
+				if hasStreamRule && rules.filter {
+					// Filter mode: keep only mapped connections that are listed.
+					allowed := make(map[string]bool, len(streamRule))
+					for _, id := range streamRule {
+						allowed[id] = true
+					}
+					filtered := connectionIds[:0]
+					for _, id := range connectionIds {
+						if allowed[id] {
+							filtered = append(filtered, id)
+						}
+					}
+					connectionIds = filtered
 				}
 			}
 		}
 
-		// If no connection IDs provided, look them up from repository
-		if len(connectionIds) == 0 && streams != nil {
-			origin, _ := message["origin"].(*jsonorder.OrderedMap[string, interface{}])
-			if origin != nil {
-				sourceId := origin.GetS("sourceId")
-				slug := origin.GetS("slug")
-				streamId := sourceId
-				if streamId == "" {
-					streamId = slug
-				}
-
-				if streamId != "" {
-					stream := streams.GetStreamByPlainKeyOrId(streamId)
-					if stream == nil {
-						fmt.Fprintf(os.Stderr, "Stream not found for source id: %s\n", streamId)
-						status.ErrorCount++
-						continue
-					}
-					if len(stream.AsynchronousDestinations) == 0 {
-						fmt.Fprintf(os.Stderr, "No destinations found for stream: %s\n", streamId)
-						status.ErrorCount++
-						continue
-					}
-					for _, dest := range stream.AsynchronousDestinations {
-						connectionIds = append(connectionIds, dest.ConnectionId)
-					}
-				}
-			}
+		// A rule that leaves no connections deliberately drops the event.
+		if len(connectionIds) == 0 && hasStreamRule {
+			status.SkippedCount++
+			continue
 		}
 
 		// Build headers
