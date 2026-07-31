@@ -670,6 +670,48 @@ func resolveConnections(rule []string, hasRule, filter bool, mapped []string) []
 	return out
 }
 
+// routeEvent decides where one event goes. When there are no connections it
+// also reports whether that was deliberate — a rule resolving to nothing — and
+// a reason to log, if any. The repository is consulted only when the rule
+// actually needs the stream's mapped connections.
+func routeEvent(rules *connectionRules, streams *Streams, sourceId, slug string) (ids []string, deliberate bool, reason string) {
+	rule, hasRule := rules.lookup(sourceId, slug)
+
+	var mapped []string
+	if needsMappedConnections(rule, hasRule, rules.filter) && streams != nil {
+		streamId := sourceId
+		if streamId == "" {
+			streamId = slug
+		}
+		if streamId == "" {
+			reason = "message has no source id"
+		} else if stream := streams.GetStreamByPlainKeyOrId(streamId); stream == nil {
+			reason = fmt.Sprintf("Stream not found for source id: %s", streamId)
+		} else if len(stream.AsynchronousDestinations) == 0 {
+			reason = fmt.Sprintf("No destinations found for stream: %s", streamId)
+		} else {
+			for _, dest := range stream.AsynchronousDestinations {
+				mapped = append(mapped, dest.ConnectionId)
+			}
+		}
+	}
+
+	ids = resolveConnections(rule, hasRule, rules.filter, mapped)
+	if len(ids) > 0 {
+		// explicit connections can route even when the mapping is missing, so a
+		// lookup problem is not an error as long as something came out of it
+		return ids, false, ""
+	}
+	if hasRule {
+		// the rule decided this event goes nowhere
+		return nil, true, reason
+	}
+	if reason == "" {
+		reason = "No connections for message"
+	}
+	return nil, false, reason
+}
+
 func sendBatch(batch []map[string]interface{}, producer *kafkabase.Producer, topic string, rules *connectionRules, streams *Streams, status *WorkerStatus, dryRun bool) error {
 	for i, message := range batch {
 		var sourceId, slug string
@@ -678,40 +720,18 @@ func sendBatch(batch []map[string]interface{}, producer *kafkabase.Producer, top
 			slug = origin.GetS("slug")
 		}
 
-		// Connection rule for this stream (exact id/slug, else the "*" entry).
 		// Events of unselected streams were already filtered out by
 		// shouldProcessMessage.
-		streamRule, hasStreamRule := rules.lookup(sourceId, slug)
-
-		var mapped []string
-		if needsMappedConnections(streamRule, hasStreamRule, rules.filter) && streams != nil {
-			streamId := sourceId
-			if streamId == "" {
-				streamId = slug
+		connectionIds, deliberate, reason := routeEvent(rules, streams, sourceId, slug)
+		if len(connectionIds) == 0 {
+			if reason != "" {
+				fmt.Fprintf(os.Stderr, "%s\n", reason)
 			}
-			if streamId != "" {
-				stream := streams.GetStreamByPlainKeyOrId(streamId)
-				if stream == nil {
-					fmt.Fprintf(os.Stderr, "Stream not found for source id: %s\n", streamId)
-					status.ErrorCount++
-					continue
-				}
-				if len(stream.AsynchronousDestinations) == 0 {
-					fmt.Fprintf(os.Stderr, "No destinations found for stream: %s\n", streamId)
-					status.ErrorCount++
-					continue
-				}
-				for _, dest := range stream.AsynchronousDestinations {
-					mapped = append(mapped, dest.ConnectionId)
-				}
+			if deliberate {
+				status.SkippedCount++
+			} else {
+				status.ErrorCount++
 			}
-		}
-
-		connectionIds := resolveConnections(streamRule, hasStreamRule, rules.filter, mapped)
-
-		// A rule that leaves no connections deliberately drops the event.
-		if len(connectionIds) == 0 && hasStreamRule {
-			status.SkippedCount++
 			continue
 		}
 

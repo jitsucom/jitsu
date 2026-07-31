@@ -336,3 +336,129 @@ func TestNeedsMappedConnections(t *testing.T) {
 		})
 	}
 }
+
+// testStreams builds a repository snapshot: stream id -> mapped connection ids
+func testStreams(mapping map[string][]string) *Streams {
+	byKey := map[string]*StreamWithDestinations{}
+	for streamId, connections := range mapping {
+		stream := &StreamWithDestinations{}
+		for _, connectionId := range connections {
+			stream.AsynchronousDestinations = append(stream.AsynchronousDestinations,
+				ShortDestinationConfig{Id: "d-" + connectionId, ConnectionId: connectionId, DestinationType: "clickhouse"})
+		}
+		byKey[streamId] = stream
+	}
+	return &Streams{streamsByPlainKeyOrIds: byKey}
+}
+
+func TestRouteEvent(t *testing.T) {
+	streams := testStreams(map[string][]string{
+		"s1":      {"m1", "m2"},
+		"orphan":  {},
+		"my-slug": {"m3"},
+	})
+
+	tests := []struct {
+		name           string
+		config         string
+		sourceId       string
+		slug           string
+		want           []string
+		wantDeliberate bool
+		wantReason     bool
+	}{
+		{
+			name:     "no selector routes to the mapped connections",
+			config:   `{}`,
+			sourceId: "s1",
+			want:     []string{"m1", "m2"},
+		},
+		{
+			name:       "unknown stream without a rule is an error",
+			config:     `{}`,
+			sourceId:   "nope",
+			wantReason: true,
+		},
+		{
+			name:       "stream with no destinations and no rule is an error",
+			config:     `{}`,
+			sourceId:   "orphan",
+			wantReason: true,
+		},
+		{
+			name:     "override rule routes without consulting the repository",
+			config:   `{"stream_ids": {"s1": "c1"}}`,
+			sourceId: "s1",
+			want:     []string{"c1"},
+		},
+		{
+			// regression: the repository lookup used to error out before the
+			// rule got a chance to route
+			name:     "explicit ids still route when the stream has no destinations",
+			config:   `{"stream_ids": {"orphan": ["*", "c1"]}}`,
+			sourceId: "orphan",
+			want:     []string{"c1"},
+		},
+		{
+			name:     "explicit ids still route when the stream is unknown",
+			config:   `{"stream_ids": {"*": ["*", "c1"]}}`,
+			sourceId: "nope",
+			want:     []string{"c1"},
+		},
+		{
+			name:     "wildcard connection expands to the mapping",
+			config:   `{"stream_ids": {"s1": "*"}}`,
+			sourceId: "s1",
+			want:     []string{"m1", "m2"},
+		},
+		{
+			name:     "filter keeps the listed mapped connection",
+			config:   `{"stream_ids": {"s1": "m2"}, "connections_filter": true}`,
+			sourceId: "s1",
+			want:     []string{"m2"},
+		},
+		{
+			name:           "filter that excludes everything is a deliberate skip",
+			config:         `{"stream_ids": {"s1": "c9"}, "connections_filter": true}`,
+			sourceId:       "s1",
+			wantDeliberate: true,
+		},
+		{
+			name:           "empty rule is a deliberate skip",
+			config:         `{"stream_ids": {"s1": []}}`,
+			sourceId:       "s1",
+			wantDeliberate: true,
+		},
+		{
+			// a rule pointing at a stream the repository no longer knows: the
+			// rule decided the outcome, so it is a skip — but still logged
+			name:           "filter rule on an unknown stream skips with a reason",
+			config:         `{"stream_ids": {"*": "m1"}, "connections_filter": true}`,
+			sourceId:       "nope",
+			wantDeliberate: true,
+			wantReason:     true,
+		},
+		{
+			name:   "slug is used when the source id is missing",
+			config: `{}`,
+			slug:   "my-slug",
+			want:   []string{"m3"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			rules := parseConnectionRules(jobConfig(t, tt.config))
+			ids, deliberate, reason := routeEvent(rules, streams, tt.sourceId, tt.slug)
+			if !sameIds(ids, tt.want) {
+				t.Errorf("connections = %v, want %v", ids, tt.want)
+			}
+			if deliberate != tt.wantDeliberate {
+				t.Errorf("deliberate = %v, want %v", deliberate, tt.wantDeliberate)
+			}
+			if (reason != "") != tt.wantReason {
+				t.Errorf("reason = %q, want set: %v", reason, tt.wantReason)
+			}
+		})
+	}
+}

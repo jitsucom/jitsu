@@ -688,9 +688,8 @@ func (r *Router) serveAdminHTML(c *gin.Context) {
                     showError('Stream IDs: JSON array form must contain stream id strings');
                     return;
                 }
-                if (streamIds.length === 0) {
-                    streamIds = undefined;
-                }
+                // an explicit [] selects no streams — leave it intact, unlike an
+                // empty field, which means "all streams"
             } else if (streamIdsRaw.startsWith('{')) {
                 try {
                     streamIds = JSON.parse(streamIdsRaw);
