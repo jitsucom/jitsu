@@ -324,8 +324,7 @@ func main() {
 	// were already counted as sent, so a status update ahead of the flush would
 	// report success for events that never left the worker.
 	if undelivered := drainProducer(producer, deliveryTimeoutMs*time.Millisecond, time.Second); undelivered > 0 {
-		status.SuccessCount -= int64(undelivered)
-		status.ErrorCount += int64(undelivered)
+		accountUndelivered(status, undelivered)
 		status.LastError = fmt.Sprintf("%d message(s) still queued after %ds — not delivered", undelivered, deliveryTimeoutMs/1000)
 		fmt.Fprintf(os.Stderr, "%s\n", status.LastError)
 		updateWorkerStatus(dbpool, config, status, "failed")
@@ -427,6 +426,20 @@ func initKafkaProducer(config *WorkerConfig) (*kafkabase.Producer, error) {
 
 	producer.Start()
 	return producer, nil
+}
+
+// accountUndelivered moves messages that never left the producer from the
+// success bucket to the error one. It moves at most what was counted as sent:
+// a file attempt that failed mid-way has its counts rolled back before the
+// retry, yet its messages stay in the queue, so the queue can hold more than
+// the counters represent. The full number is reported in LastError.
+func accountUndelivered(status *WorkerStatus, undelivered int) {
+	moved := int64(undelivered)
+	if moved > status.SuccessCount {
+		moved = status.SuccessCount
+	}
+	status.SuccessCount -= moved
+	status.ErrorCount += moved
 }
 
 // drainProducer waits for the producer's queue to empty. ProduceAsync only
