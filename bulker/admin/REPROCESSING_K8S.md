@@ -157,7 +157,19 @@ Authorization: Bearer <token>
 
 ### Selecting streams and connections
 
-`stream_ids` takes either shape:
+In the admin UI the **Stream IDs** field accepts all three of these — plain text
+is split on newlines, a leading `[` or `{` is parsed as JSON:
+
+```
+stream1
+stream2
+```
+```json
+["stream1", "stream2"]
+{"stream1": ["connection1"], "*": ["connection2"]}
+```
+
+Over the API, `stream_ids` takes either shape:
 
 ```json
 "stream_ids": ["stream1", "stream2"]
@@ -184,7 +196,9 @@ default rule; a stream's own entry wins over `*`.
 In both modes only selected streams are reprocessed, and a rule that resolves to
 no connections drops the event (counted as skipped) rather than falling back to
 the mapped connections — so `{"stream1": []}` means "reprocess nothing for
-stream1", not "send everywhere".
+stream1", not "send everywhere". By the same rule an explicitly empty selector
+(`[]` or `{}`) selects no streams at all; omit the field to reprocess every
+stream.
 
 Examples:
 

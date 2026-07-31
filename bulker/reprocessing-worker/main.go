@@ -51,6 +51,12 @@ const wildcardStream = "*"
 //	["stream1", "stream2"]                        -> ids: filter only, connections from the repository
 //	{"stream1": ["con1"], "*": ["con2"]}          -> perStream: filter + connection rules ("*" = every stream)
 type connectionRules struct {
+	// selected is true when stream_ids was provided in either form. An
+	// explicitly empty list or map therefore selects no streams, while an
+	// absent field selects all of them.
+	selected bool
+	// mapForm is true when stream_ids was given as a map
+	mapForm bool
 	// ids is the plain form: streams to reprocess, connections come from the repository
 	ids []string
 	// perStream is the map form: stream id/slug (or "*") -> connection ids
@@ -66,12 +72,15 @@ func parseConnectionRules(jobConfig map[string]interface{}) *connectionRules {
 	rules := &connectionRules{}
 	switch streamIds := jobConfig["stream_ids"].(type) {
 	case []interface{}:
+		rules.selected = true
 		for _, id := range streamIds {
 			if idStr, ok := id.(string); ok {
 				rules.ids = append(rules.ids, idStr)
 			}
 		}
 	case map[string]interface{}:
+		rules.selected = true
+		rules.mapForm = true
 		rules.perStream = make(map[string][]string, len(streamIds))
 		for streamId, v := range streamIds {
 			conns := []string{}
@@ -88,43 +97,15 @@ func parseConnectionRules(jobConfig map[string]interface{}) *connectionRules {
 	if f, ok := jobConfig["connections_filter"].(bool); ok {
 		rules.filter = f
 	}
-	// Legacy: jobs created before stream_ids accepted a map carry a separate
-	// connection_ids list overriding the connections of every selected stream,
-	// which is what a "*" entry means now.
-	if rules.perStream == nil {
-		if connIds, ok := jobConfig["connection_ids"].([]interface{}); ok && len(connIds) > 0 {
-			conns := []string{}
-			for _, id := range connIds {
-				if idStr, ok := id.(string); ok {
-					conns = append(conns, idStr)
-				}
-			}
-			rules.perStream = map[string][]string{}
-			if len(rules.ids) > 0 {
-				// stream_ids limited the run to these streams; each gets the override
-				for _, id := range rules.ids {
-					rules.perStream[id] = conns
-				}
-				rules.ids = nil
-			} else {
-				rules.perStream[wildcardStream] = conns
-			}
-		}
-	}
 	return rules
-}
-
-// selects reports whether any stream selection is configured
-func (r *connectionRules) selects() bool {
-	return len(r.ids) > 0 || len(r.perStream) > 0
 }
 
 // matches reports whether the stream is selected for reprocessing
 func (r *connectionRules) matches(sourceId, slug string) bool {
-	if !r.selects() {
+	if !r.selected {
 		return true
 	}
-	if len(r.perStream) > 0 {
+	if r.mapForm {
 		_, found := r.lookup(sourceId, slug)
 		return found
 	}
@@ -139,7 +120,7 @@ func (r *connectionRules) matches(sourceId, slug string) bool {
 // lookup returns the connection ids configured for a stream, matched by id,
 // then slug, then the "*" wildcard
 func (r *connectionRules) lookup(sourceId, slug string) ([]string, bool) {
-	if len(r.perStream) == 0 {
+	if !r.mapForm {
 		return nil, false
 	}
 	if conns, ok := r.perStream[sourceId]; ok {
@@ -254,7 +235,7 @@ func main() {
 	}
 
 	rules := parseConnectionRules(jobConfig)
-	if len(rules.perStream) > 0 {
+	if rules.mapForm {
 		mode := "override"
 		if rules.filter {
 			mode = "filter"
@@ -525,11 +506,9 @@ func processFile(fileItem FileItem, jobConfig map[string]interface{}, rules *con
 		batch = append(batch, message)
 
 		if len(batch) >= batchSize {
+			// sendBatch records per-message success/error/skip in status
 			if err := sendBatch(batch, producer, config.KafkaTopicName, rules, streams, status, dryRun); err != nil {
 				fmt.Fprintf(os.Stderr, "Failed to send batch: %v\n", err)
-				status.ErrorCount += int64(len(batch))
-			} else {
-				status.SuccessCount += int64(len(batch))
 			}
 			batch = batch[:0]
 		}
@@ -544,9 +523,6 @@ func processFile(fileItem FileItem, jobConfig map[string]interface{}, rules *con
 	if len(batch) > 0 {
 		if err := sendBatch(batch, producer, config.KafkaTopicName, rules, streams, status, dryRun); err != nil {
 			fmt.Fprintf(os.Stderr, "Failed to send final batch: %v\n", err)
-			status.ErrorCount += int64(len(batch))
-		} else {
-			status.SuccessCount += int64(len(batch))
 		}
 	}
 
@@ -577,7 +553,7 @@ func shouldProcessMessage(message map[string]interface{}, jobConfig map[string]i
 	// Only selected streams are reprocessed — in both the plain and the map
 	// form of stream_ids (a map without a "*" entry excludes everything it
 	// doesn't mention).
-	if rules.selects() {
+	if rules.selected {
 		origin, ok := message["origin"].(*jsonorder.OrderedMap[string, interface{}])
 		if !ok {
 			return false
@@ -615,8 +591,11 @@ func shouldProcessMessage(message map[string]interface{}, jobConfig map[string]i
 	return true
 }
 
+// sendBatch produces a batch and records the outcome of every message in status
+// (success, error or skip) — exactly once per message, including the ones left
+// unattempted when a produce call fails and aborts the batch.
 func sendBatch(batch []map[string]interface{}, producer *kafkabase.Producer, topic string, rules *connectionRules, streams *Streams, status *WorkerStatus, dryRun bool) error {
-	for _, message := range batch {
+	for i, message := range batch {
 		var sourceId, slug string
 		if origin, _ := message["origin"].(*jsonorder.OrderedMap[string, interface{}]); origin != nil {
 			sourceId = origin.GetS("sourceId")
@@ -685,6 +664,7 @@ func sendBatch(batch []map[string]interface{}, producer *kafkabase.Producer, top
 		// Send message
 		messageBytes, err := jsonorder.Marshal(message)
 		if err != nil {
+			status.ErrorCount += int64(len(batch) - i) // this one and the unattempted rest
 			return err
 		}
 
@@ -692,13 +672,16 @@ func sendBatch(batch []map[string]interface{}, producer *kafkabase.Producer, top
 		if dryRun {
 			// In dry run mode, just validate that we can marshal the message
 			// but don't actually send to Kafka
+			status.SuccessCount++
 			continue
 		}
 
 		err = producer.ProduceAsync(topic, uuid.New(), messageBytes, headers, kafka.PartitionAny, "", false, 30*time.Second)
 		if err != nil {
+			status.ErrorCount += int64(len(batch) - i) // this one and the unattempted rest
 			return err
 		}
+		status.SuccessCount++
 	}
 
 	return nil

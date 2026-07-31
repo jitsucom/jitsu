@@ -885,20 +885,13 @@ func (r *Router) serveAdminHTML(c *gin.Context) {
 
             setValue('s3Path', cfg.s3_path);
             setValue('localPath', cfg.local_path);
-            // stream_ids is either a list of ids or a map of id -> connection ids.
-            // Jobs created before the map form carry a separate connection_ids
-            // list, which is the equivalent of a "*" entry.
+            // stream_ids is either a list of ids or a map of id -> connection ids
             if (cfg.stream_ids && !Array.isArray(cfg.stream_ids)) {
                 setValue('streamIds', JSON.stringify(cfg.stream_ids, null, 2));
-            } else if (Array.isArray(cfg.connection_ids) && cfg.connection_ids.length > 0) {
-                const legacy = {};
-                (cfg.stream_ids || ['*']).forEach(id => { legacy[id] = cfg.connection_ids; });
-                setValue('streamIds', JSON.stringify(legacy, null, 2));
             } else {
                 setLines('streamIds', cfg.stream_ids);
             }
-            document.getElementById('connectionsMode').value =
-                (cfg.connections_filter || cfg.stream_connections_filter) ? 'filter' : 'override';
+            document.getElementById('connectionsMode').value = cfg.connections_filter ? 'filter' : 'override';
             setLines('files', cfg.files);
             setValue('startFile', cfg.start_file);
             setValue('startLine', cfg.start_line);
