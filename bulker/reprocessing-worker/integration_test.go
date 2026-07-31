@@ -287,3 +287,50 @@ func TestReprocessLocalFilesProduceFailure(t *testing.T) {
 			status.SuccessCount, status.SkippedCount, status.ErrorCount, status.TotalLines)
 	}
 }
+
+// queueStub reports a shrinking producer queue, then an error once "closed"
+type queueStub struct {
+	sizes []int
+	calls int
+	err   error
+}
+
+func (q *queueStub) QueueSize() (int, error) {
+	if q.err != nil {
+		return 0, q.err
+	}
+	if q.calls < len(q.sizes) {
+		size := q.sizes[q.calls]
+		q.calls++
+		return size, nil
+	}
+	return 0, nil
+}
+
+// The tail of a run is still in the producer queue when the last file is done —
+// reporting completion before it drains would claim delivery for messages that
+// never left the worker.
+func TestDrainProducer(t *testing.T) {
+	t.Run("waits for the queue to empty", func(t *testing.T) {
+		stub := &queueStub{sizes: []int{23, 9, 0}}
+		if undelivered := drainProducer(stub, time.Second, time.Millisecond); undelivered != 0 {
+			t.Errorf("undelivered = %d, want 0", undelivered)
+		}
+		if stub.calls != 3 {
+			t.Errorf("polled %d times, want 3", stub.calls)
+		}
+	})
+
+	t.Run("reports what is left when the wait runs out", func(t *testing.T) {
+		stub := &queueStub{sizes: []int{5, 5, 5, 5, 5, 5, 5, 5, 5, 5}}
+		if undelivered := drainProducer(stub, 5*time.Millisecond, time.Millisecond); undelivered != 5 {
+			t.Errorf("undelivered = %d, want 5", undelivered)
+		}
+	})
+
+	t.Run("a closed producer is not an error", func(t *testing.T) {
+		if undelivered := drainProducer(&queueStub{err: os.ErrClosed}, time.Second, time.Millisecond); undelivered != 0 {
+			t.Errorf("undelivered = %d, want 0", undelivered)
+		}
+	})
+}
