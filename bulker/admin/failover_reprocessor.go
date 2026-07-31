@@ -41,7 +41,10 @@ const (
 //
 // In the plain form connections come from the repository, as usual. In the map
 // form the listed connections apply per stream, with "*" standing for every
-// stream. Either way, only the selected streams are reprocessed.
+// stream. Either way, only the selected streams are reprocessed; omitting the
+// field reprocesses all of them, while an explicitly empty list or map selects
+// nothing (nil vs empty is meaningful here and survives the round-trip to the
+// workers' ConfigMap).
 type StreamSelector struct {
 	// Ids is the plain form: stream ids or slugs.
 	Ids []string
@@ -75,10 +78,10 @@ func (s *StreamSelector) UnmarshalJSON(data []byte) error {
 }
 
 func (s StreamSelector) MarshalJSON() ([]byte, error) {
-	if len(s.Connections) > 0 {
+	if s.Connections != nil {
 		return json.Marshal(s.Connections)
 	}
-	if len(s.Ids) > 0 {
+	if s.Ids != nil {
 		return json.Marshal(s.Ids)
 	}
 	return []byte("null"), nil
