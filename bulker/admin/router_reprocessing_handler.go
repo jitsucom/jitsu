@@ -500,7 +500,7 @@ func (r *Router) serveAdminHTML(c *gin.Context) {
                 <div class="form-group">
                     <label for="streamConnections">Stream Connections (JSON):</label>
                     <textarea id="streamConnections" placeholder='{"streamId": ["con1", "con2"], "stream2": ["con3"]}'></textarea>
-                    <div class="date-help">Per-stream connections. Streams not listed keep their mapped connections.</div>
+                    <div class="date-help">Per-stream connections. Acts as a whitelist too — events of streams not listed here are skipped.</div>
                 </div>
                 <div class="form-group">
                     <label for="streamConnectionsMode">Stream Connections Mode:</label>

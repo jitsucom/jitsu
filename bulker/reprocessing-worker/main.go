@@ -46,7 +46,9 @@ type WorkerConfig struct {
 type connectionRules struct {
 	// global connection_ids: when set, used verbatim for every event (legacy behavior)
 	global []string
-	// perStream maps stream id/slug -> connection ids (stream_connections job setting)
+	// perStream maps stream id/slug -> connection ids (stream_connections job
+	// setting). When set, it also acts as a stream whitelist: events of streams
+	// absent from the map are skipped.
 	perStream map[string][]string
 	// filter switches perStream from override mode (listed connections replace
 	// the repository-mapped ones) to filter mode (repository-mapped connections
@@ -82,6 +84,22 @@ func parseConnectionRules(jobConfig map[string]interface{}) *connectionRules {
 		rules.filter = f
 	}
 	return rules
+}
+
+// lookup returns the connection ids configured for a stream, matched by id or slug
+func (r *connectionRules) lookup(sourceId, slug string) ([]string, bool) {
+	if len(r.perStream) == 0 {
+		return nil, false
+	}
+	if ids, ok := r.perStream[sourceId]; ok {
+		return ids, true
+	}
+	if slug != "" {
+		if ids, ok := r.perStream[slug]; ok {
+			return ids, true
+		}
+	}
+	return nil, false
 }
 
 // WorkerStatus tracks worker progress
@@ -443,7 +461,7 @@ func processFile(fileItem FileItem, jobConfig map[string]interface{}, rules *con
 		}
 
 		// Filter message based on job config
-		if !shouldProcessMessage(message, jobConfig) {
+		if !shouldProcessMessage(message, jobConfig, rules) {
 			status.SkippedCount++
 			continue
 		}
@@ -499,7 +517,18 @@ func downloadS3File(s3Client *s3.Client, s3Path string) (io.ReadCloser, error) {
 	return result.Body, nil
 }
 
-func shouldProcessMessage(message map[string]interface{}, jobConfig map[string]interface{}) bool {
+func shouldProcessMessage(message map[string]interface{}, jobConfig map[string]interface{}, rules *connectionRules) bool {
+	// A stream_connections map is also a whitelist: streams it doesn't mention
+	// are not reprocessed at all.
+	if len(rules.perStream) > 0 {
+		origin, ok := message["origin"].(*jsonorder.OrderedMap[string, interface{}])
+		if !ok {
+			return false
+		}
+		if _, found := rules.lookup(origin.GetS("sourceId"), origin.GetS("slug")); !found {
+			return false
+		}
+	}
 	// Apply filters from job config
 	if streamIds, ok := jobConfig["stream_ids"].([]interface{}); ok && len(streamIds) > 0 {
 		origin, ok := message["origin"].(*jsonorder.OrderedMap[string, interface{}])
@@ -558,11 +587,9 @@ func sendBatch(batch []map[string]interface{}, producer *kafkabase.Producer, top
 		}
 
 		// Per-stream rule (stream_connections) takes precedence for the streams
-		// it mentions; matched by stream id or slug.
-		streamRule, hasStreamRule := rules.perStream[sourceId]
-		if !hasStreamRule && slug != "" {
-			streamRule, hasStreamRule = rules.perStream[slug]
-		}
+		// it mentions; matched by stream id or slug. Events of unmentioned
+		// streams were already filtered out by shouldProcessMessage.
+		streamRule, hasStreamRule := rules.lookup(sourceId, slug)
 
 		connectionIds := []string{}
 		if hasStreamRule && !rules.filter {

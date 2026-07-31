@@ -51,7 +51,7 @@ The failover reprocessor uses Kubernetes Indexed Jobs for distributed processing
 8. **Credential Loading**: Workers read all credentials from environment variables (mounted from Secret using envFrom)
 9. **Repository Initialization**: Workers fetch stream metadata from repository once at startup (no periodic refresh needed for short-lived workers)
 10. **Message Processing**: For each message, connection ids are resolved in this order:
-   - If the message's stream is listed in `stream_connections`, apply that rule:
+   - If `stream_connections` is set, it acts as a stream whitelist: events of streams it doesn't mention are skipped. For a listed stream:
      - override mode (default): use the listed connections instead of the mapped ones
      - filter mode (`stream_connections_filter: true`): keep the stream's mapped connections, minus those not listed
      - a rule that resolves to no connections drops the event (counted as skipped)
@@ -165,7 +165,7 @@ Connection routing fields:
 | Field | Scope | Effect |
 | --- | --- | --- |
 | `connection_ids` | all streams | Replaces the mapped connections of every stream |
-| `stream_connections` | listed streams (id or slug) | Override mode: listed connections replace the mapped ones. Filter mode: mapped connections are kept only if listed. Streams absent from the map are unaffected |
+| `stream_connections` | listed streams (id or slug) | Also a stream whitelist — events of streams absent from the map are skipped. For listed streams: override mode replaces the mapped connections with the listed ones; filter mode keeps mapped connections only if listed |
 | `stream_connections_filter` | — | `true` switches `stream_connections` to filter mode |
 
 `parallel_workers` caps how many worker pods run at once for this job. When
