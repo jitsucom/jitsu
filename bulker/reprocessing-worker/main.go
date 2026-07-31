@@ -42,6 +42,124 @@ type WorkerConfig struct {
 	RepositoryAuthToken   string
 }
 
+// producerQueue reports how many messages are still waiting to be delivered
+type producerQueue interface {
+	QueueSize() (int, error)
+}
+
+// messageProducer is the slice of kafkabase.Producer the reprocessing path uses,
+// so tests can capture what would be sent
+type messageProducer interface {
+	ProduceAsync(topic string, messageKey string, event []byte, headers map[string]string, partition int32, originalTopic string, retry bool, timeout time.Duration) error
+}
+
+// wildcardStream is the stream_ids map key matching every stream
+const wildcardStream = "*"
+
+// wildcardConnection, used as a connection id, stands for the stream's
+// repository-mapped connections — in both override and filter mode
+const wildcardConnection = "*"
+
+// connectionRules describes which streams are reprocessed and how their
+// connection ids are resolved, derived from the stream_ids job setting.
+//
+//	["stream1", "stream2"]                        -> ids: filter only, connections from the repository
+//	{"stream1": ["con1"], "*": ["con2"]}          -> perStream: filter + connection rules ("*" key = every stream)
+//
+// A connection id of "*" stands for the stream's mapped connections, so
+// {"stream1": ["*", "con1"]} means "everything it normally goes to, plus con1"
+// in override mode, and "no connection filtering" in filter mode.
+type connectionRules struct {
+	// selected is true when stream_ids was provided in either form. An
+	// explicitly empty list or map therefore selects no streams, while an
+	// absent field selects all of them.
+	selected bool
+	// mapForm is true when stream_ids was given as a map
+	mapForm bool
+	// ids is the plain form: streams to reprocess, connections come from the repository
+	ids []string
+	// perStream is the map form: stream id/slug (or "*") -> connection ids
+	perStream map[string][]string
+	// filter switches perStream from override mode (listed connections replace
+	// the repository-mapped ones) to filter mode (repository-mapped connections
+	// are kept only if listed)
+	filter bool
+}
+
+// parseConnectionRules extracts stream selection and connection rules from the job config
+func parseConnectionRules(jobConfig map[string]interface{}) *connectionRules {
+	rules := &connectionRules{}
+	switch streamIds := jobConfig["stream_ids"].(type) {
+	case []interface{}:
+		rules.selected = true
+		for _, id := range streamIds {
+			if idStr, ok := id.(string); ok {
+				rules.ids = append(rules.ids, idStr)
+			}
+		}
+	case map[string]interface{}:
+		rules.selected = true
+		rules.mapForm = true
+		rules.perStream = make(map[string][]string, len(streamIds))
+		for streamId, v := range streamIds {
+			conns := []string{}
+			switch value := v.(type) {
+			case string:
+				// shorthand for a single connection id
+				conns = append(conns, value)
+			case []interface{}:
+				for _, id := range value {
+					if idStr, ok := id.(string); ok {
+						conns = append(conns, idStr)
+					}
+				}
+			}
+			rules.perStream[streamId] = conns
+		}
+	}
+	if f, ok := jobConfig["connections_filter"].(bool); ok {
+		rules.filter = f
+	}
+	return rules
+}
+
+// matches reports whether the stream is selected for reprocessing
+func (r *connectionRules) matches(sourceId, slug string) bool {
+	if !r.selected {
+		return true
+	}
+	if r.mapForm {
+		_, found := r.lookup(sourceId, slug)
+		return found
+	}
+	for _, id := range r.ids {
+		if id == sourceId || (slug != "" && id == slug) {
+			return true
+		}
+	}
+	return false
+}
+
+// lookup returns the connection ids configured for a stream, matched by id,
+// then slug, then the "*" wildcard
+func (r *connectionRules) lookup(sourceId, slug string) ([]string, bool) {
+	if !r.mapForm {
+		return nil, false
+	}
+	if conns, ok := r.perStream[sourceId]; ok {
+		return conns, true
+	}
+	if slug != "" {
+		if conns, ok := r.perStream[slug]; ok {
+			return conns, true
+		}
+	}
+	if conns, ok := r.perStream[wildcardStream]; ok {
+		return conns, true
+	}
+	return nil, false
+}
+
 // WorkerStatus tracks worker progress
 type WorkerStatus struct {
 	ProcessedFiles   int64
@@ -81,7 +199,7 @@ func main() {
 		updateWorkerError(dbpool, config, "Failed to initialize Kafka producer: "+err.Error())
 		os.Exit(1)
 	}
-	defer producer.Close()
+	// closed explicitly before the final status update — see the end of main
 
 	// Initialize AWS S3 client
 	awsCfg, err := awsconfig.LoadDefaultConfig(context.Background())
@@ -115,6 +233,7 @@ func main() {
 	if len(myFiles) == 0 {
 		fmt.Printf("No files assigned to worker %d\n", config.WorkerIndex)
 		updateWorkerStatus(dbpool, config, &WorkerStatus{}, "completed")
+		_ = producer.Close()
 		return
 	}
 
@@ -139,6 +258,17 @@ func main() {
 		fmt.Printf("DRY RUN MODE: Messages will be processed but NOT sent to Kafka\n")
 	}
 
+	rules := parseConnectionRules(jobConfig)
+	if rules.mapForm {
+		mode := "override"
+		if rules.filter {
+			mode = "filter"
+		}
+		fmt.Printf("Stream connections: %d rule(s), mode=%s\n", len(rules.perStream), mode)
+	} else if len(rules.ids) > 0 {
+		fmt.Printf("Stream filter: %d stream(s), connections from repository\n", len(rules.ids))
+	}
+
 	// Process assigned files
 	status := &WorkerStatus{}
 	for _, fileItem := range myFiles {
@@ -159,7 +289,7 @@ func main() {
 			savedErrorCount := status.ErrorCount
 			savedSkippedCount := status.SkippedCount
 
-			lastErr = processFile(fileItem, jobConfig, producer, s3Client, streams, config, status, dbpool, dryRun)
+			lastErr = processFile(fileItem, jobConfig, rules, producer, s3Client, streams, config, status, dbpool, dryRun)
 			if lastErr == nil {
 				// Success - break retry loop
 				break
@@ -189,6 +319,19 @@ func main() {
 		// Update status periodically
 		updateWorkerStatus(dbpool, config, status, "running")
 	}
+
+	// Deliver what is still queued before reporting the outcome: these messages
+	// were already counted as sent, so a status update ahead of the flush would
+	// report success for events that never left the worker.
+	if undelivered := drainProducer(producer, deliveryTimeoutMs*time.Millisecond, time.Second); undelivered > 0 {
+		accountUndelivered(status, undelivered)
+		status.LastError = fmt.Sprintf("%d message(s) still queued after %ds — not delivered", undelivered, deliveryTimeoutMs/1000)
+		fmt.Fprintf(os.Stderr, "%s\n", status.LastError)
+		updateWorkerStatus(dbpool, config, status, "failed")
+		_ = producer.Close()
+		os.Exit(1)
+	}
+	_ = producer.Close()
 
 	// Mark as completed
 	updateWorkerStatus(dbpool, config, status, "completed")
@@ -259,6 +402,12 @@ func loadConfig() (*WorkerConfig, error) {
 	}, nil
 }
 
+// deliveryTimeoutMs bounds both delivery and the flush on close. Other services
+// get this from PRODUCER_DELIVERY_TIMEOUT_MS via appbase; the worker builds its
+// config literally, where an unset value would mean Flush(0) — an immediate
+// return that drops whatever is still queued.
+const deliveryTimeoutMs = 300000
+
 func initKafkaProducer(config *WorkerConfig) (*kafkabase.Producer, error) {
 	producerConfig := &kafka.ConfigMap{
 		"bootstrap.servers":            config.KafkaBootstrapServers,
@@ -266,15 +415,50 @@ func initKafkaProducer(config *WorkerConfig) (*kafkabase.Producer, error) {
 		"batch.size":                   1048576,
 		"linger.ms":                    1000,
 		"compression.type":             "zstd",
+		"delivery.timeout.ms":          deliveryTimeoutMs,
 	}
 
-	producer, err := kafkabase.NewProducer(&kafkabase.KafkaConfig{}, producerConfig, true, nil)
+	producer, err := kafkabase.NewProducer(
+		&kafkabase.KafkaConfig{ProducerDeliveryTimeoutMs: deliveryTimeoutMs}, producerConfig, true, nil)
 	if err != nil {
 		return nil, err
 	}
 
 	producer.Start()
 	return producer, nil
+}
+
+// accountUndelivered moves messages that never left the producer from the
+// success bucket to the error one. It moves at most what was counted as sent:
+// a file attempt that failed mid-way has its counts rolled back before the
+// retry, yet its messages stay in the queue, so the queue can hold more than
+// the counters represent. The full number is reported in LastError.
+func accountUndelivered(status *WorkerStatus, undelivered int) {
+	moved := int64(undelivered)
+	if moved > status.SuccessCount {
+		moved = status.SuccessCount
+	}
+	status.SuccessCount -= moved
+	status.ErrorCount += moved
+}
+
+// drainProducer waits for the producer's queue to empty. ProduceAsync only
+// enqueues, so at the end of a run the tail of the batch is still in flight;
+// reporting completion before it lands would claim delivery for messages that
+// were never sent. Returns how many were still queued when the wait ran out.
+func drainProducer(producer producerQueue, timeout, poll time.Duration) int {
+	deadline := time.Now().Add(timeout)
+	for {
+		queued, err := producer.QueueSize()
+		if err != nil || queued == 0 {
+			return 0
+		}
+		if time.Now().After(deadline) {
+			return queued
+		}
+		fmt.Printf("Waiting for %d message(s) to be delivered...\n", queued)
+		time.Sleep(poll)
+	}
 }
 
 func gzipDecompress(data []byte) ([]byte, error) {
@@ -333,7 +517,7 @@ func selectWorkerFiles(files []FileItem, workerIndex, totalWorkers int) []FileIt
 	return myFiles
 }
 
-func processFile(fileItem FileItem, jobConfig map[string]interface{}, producer *kafkabase.Producer, s3Client *s3.Client, streams *Streams, config *WorkerConfig, status *WorkerStatus, dbpool *pgxpool.Pool, dryRun bool) error {
+func processFile(fileItem FileItem, jobConfig map[string]interface{}, rules *connectionRules, producer messageProducer, s3Client *s3.Client, streams *Streams, config *WorkerConfig, status *WorkerStatus, dbpool *pgxpool.Pool, dryRun bool) error {
 	status.CurrentFile = fileItem.Path
 
 	// Get file reader
@@ -392,7 +576,7 @@ func processFile(fileItem FileItem, jobConfig map[string]interface{}, producer *
 		}
 
 		// Filter message based on job config
-		if !shouldProcessMessage(message, jobConfig) {
+		if !shouldProcessMessage(message, jobConfig, rules) {
 			status.SkippedCount++
 			continue
 		}
@@ -400,11 +584,9 @@ func processFile(fileItem FileItem, jobConfig map[string]interface{}, producer *
 		batch = append(batch, message)
 
 		if len(batch) >= batchSize {
-			if err := sendBatch(batch, producer, config.KafkaTopicName, jobConfig, streams, status, dryRun); err != nil {
+			// sendBatch records per-message success/error/skip in status
+			if err := sendBatch(batch, producer, config.KafkaTopicName, rules, streams, status, dryRun); err != nil {
 				fmt.Fprintf(os.Stderr, "Failed to send batch: %v\n", err)
-				status.ErrorCount += int64(len(batch))
-			} else {
-				status.SuccessCount += int64(len(batch))
 			}
 			batch = batch[:0]
 		}
@@ -417,11 +599,8 @@ func processFile(fileItem FileItem, jobConfig map[string]interface{}, producer *
 
 	// Send remaining batch
 	if len(batch) > 0 {
-		if err := sendBatch(batch, producer, config.KafkaTopicName, jobConfig, streams, status, dryRun); err != nil {
+		if err := sendBatch(batch, producer, config.KafkaTopicName, rules, streams, status, dryRun); err != nil {
 			fmt.Fprintf(os.Stderr, "Failed to send final batch: %v\n", err)
-			status.ErrorCount += int64(len(batch))
-		} else {
-			status.SuccessCount += int64(len(batch))
 		}
 	}
 
@@ -448,24 +627,16 @@ func downloadS3File(s3Client *s3.Client, s3Path string) (io.ReadCloser, error) {
 	return result.Body, nil
 }
 
-func shouldProcessMessage(message map[string]interface{}, jobConfig map[string]interface{}) bool {
-	// Apply filters from job config
-	if streamIds, ok := jobConfig["stream_ids"].([]interface{}); ok && len(streamIds) > 0 {
+func shouldProcessMessage(message map[string]interface{}, jobConfig map[string]interface{}, rules *connectionRules) bool {
+	// Only selected streams are reprocessed — in both the plain and the map
+	// form of stream_ids (a map without a "*" entry excludes everything it
+	// doesn't mention).
+	if rules.selected {
 		origin, ok := message["origin"].(*jsonorder.OrderedMap[string, interface{}])
 		if !ok {
 			return false
 		}
-
-		sourceId := origin.GetS("sourceId")
-		slug := origin.GetS("slug")
-		found := false
-		for _, sid := range streamIds {
-			if sid == sourceId || sid == slug {
-				found = true
-				break
-			}
-		}
-		if !found {
+		if !rules.matches(origin.GetS("sourceId"), origin.GetS("slug")) {
 			return false
 		}
 	}
@@ -498,46 +669,136 @@ func shouldProcessMessage(message map[string]interface{}, jobConfig map[string]i
 	return true
 }
 
-func sendBatch(batch []map[string]interface{}, producer *kafkabase.Producer, topic string, jobConfig map[string]interface{}, streams *Streams, status *WorkerStatus, dryRun bool) error {
-	for _, message := range batch {
-		// Get connection IDs from job config or repository
-		connectionIds := []string{}
-		if connIds, ok := jobConfig["connection_ids"].([]interface{}); ok {
-			for _, id := range connIds {
-				if idStr, ok := id.(string); ok {
-					connectionIds = append(connectionIds, idStr)
-				}
+// sendBatch produces a batch and records the outcome of every message in status
+// (success, error or skip) — exactly once per message, including the ones left
+// unattempted when a produce call fails and aborts the batch.
+// needsMappedConnections reports whether resolving a stream requires its
+// repository-mapped connections
+func needsMappedConnections(rule []string, hasRule, filter bool) bool {
+	if !hasRule || filter {
+		return true
+	}
+	for _, id := range rule {
+		if id == wildcardConnection {
+			return true
+		}
+	}
+	return false
+}
+
+// resolveConnections computes the connection ids an event is routed to.
+// rule is the stream's configured connection ids (may contain "*"); mapped is
+// what the repository maps the stream to.
+func resolveConnections(rule []string, hasRule, filter bool, mapped []string) []string {
+	if !hasRule {
+		return mapped
+	}
+	explicit := make([]string, 0, len(rule))
+	allMapped := false
+	for _, id := range rule {
+		if id == wildcardConnection {
+			allMapped = true
+			continue
+		}
+		explicit = append(explicit, id)
+	}
+
+	if filter {
+		if allMapped {
+			// every mapped connection passes the filter
+			return mapped
+		}
+		allowed := make(map[string]bool, len(explicit))
+		for _, id := range explicit {
+			allowed[id] = true
+		}
+		kept := make([]string, 0, len(mapped))
+		for _, id := range mapped {
+			if allowed[id] {
+				kept = append(kept, id)
 			}
 		}
+		return kept
+	}
 
-		// If no connection IDs provided, look them up from repository
-		if len(connectionIds) == 0 && streams != nil {
-			origin, _ := message["origin"].(*jsonorder.OrderedMap[string, interface{}])
-			if origin != nil {
-				sourceId := origin.GetS("sourceId")
-				slug := origin.GetS("slug")
-				streamId := sourceId
-				if streamId == "" {
-					streamId = slug
-				}
+	// override mode: the listed connections, with "*" expanding to the mapped ones
+	if !allMapped {
+		return explicit
+	}
+	seen := make(map[string]bool, len(mapped)+len(explicit))
+	out := make([]string, 0, len(mapped)+len(explicit))
+	for _, id := range append(append([]string{}, mapped...), explicit...) {
+		if !seen[id] {
+			seen[id] = true
+			out = append(out, id)
+		}
+	}
+	return out
+}
 
-				if streamId != "" {
-					stream := streams.GetStreamByPlainKeyOrId(streamId)
-					if stream == nil {
-						fmt.Fprintf(os.Stderr, "Stream not found for source id: %s\n", streamId)
-						status.ErrorCount++
-						continue
-					}
-					if len(stream.AsynchronousDestinations) == 0 {
-						fmt.Fprintf(os.Stderr, "No destinations found for stream: %s\n", streamId)
-						status.ErrorCount++
-						continue
-					}
-					for _, dest := range stream.AsynchronousDestinations {
-						connectionIds = append(connectionIds, dest.ConnectionId)
-					}
-				}
+// routeEvent decides where one event goes. When there are no connections it
+// also reports whether that was deliberate — a rule resolving to nothing — and
+// a reason to log, if any. The repository is consulted only when the rule
+// actually needs the stream's mapped connections.
+func routeEvent(rules *connectionRules, streams *Streams, sourceId, slug string) (ids []string, deliberate bool, reason string) {
+	rule, hasRule := rules.lookup(sourceId, slug)
+
+	var mapped []string
+	if needsMappedConnections(rule, hasRule, rules.filter) && streams != nil {
+		streamId := sourceId
+		if streamId == "" {
+			streamId = slug
+		}
+		if streamId == "" {
+			reason = "message has no source id"
+		} else if stream := streams.GetStreamByPlainKeyOrId(streamId); stream == nil {
+			reason = fmt.Sprintf("Stream not found for source id: %s", streamId)
+		} else if len(stream.AsynchronousDestinations) == 0 {
+			reason = fmt.Sprintf("No destinations found for stream: %s", streamId)
+		} else {
+			for _, dest := range stream.AsynchronousDestinations {
+				mapped = append(mapped, dest.ConnectionId)
 			}
+		}
+	}
+
+	ids = resolveConnections(rule, hasRule, rules.filter, mapped)
+	if len(ids) > 0 {
+		// explicit connections can route even when the mapping is missing, so a
+		// lookup problem is not an error as long as something came out of it
+		return ids, false, ""
+	}
+	if hasRule {
+		// the rule decided this event goes nowhere
+		return nil, true, reason
+	}
+	if reason == "" {
+		reason = "No connections for message"
+	}
+	return nil, false, reason
+}
+
+func sendBatch(batch []map[string]interface{}, producer messageProducer, topic string, rules *connectionRules, streams *Streams, status *WorkerStatus, dryRun bool) error {
+	for i, message := range batch {
+		var sourceId, slug string
+		if origin, _ := message["origin"].(*jsonorder.OrderedMap[string, interface{}]); origin != nil {
+			sourceId = origin.GetS("sourceId")
+			slug = origin.GetS("slug")
+		}
+
+		// Events of unselected streams were already filtered out by
+		// shouldProcessMessage.
+		connectionIds, deliberate, reason := routeEvent(rules, streams, sourceId, slug)
+		if len(connectionIds) == 0 {
+			if reason != "" {
+				fmt.Fprintf(os.Stderr, "%s\n", reason)
+			}
+			if deliberate {
+				status.SkippedCount++
+			} else {
+				status.ErrorCount++
+			}
+			continue
 		}
 
 		// Build headers
@@ -549,6 +810,7 @@ func sendBatch(batch []map[string]interface{}, producer *kafkabase.Producer, top
 		// Send message
 		messageBytes, err := jsonorder.Marshal(message)
 		if err != nil {
+			status.ErrorCount += int64(len(batch) - i) // this one and the unattempted rest
 			return err
 		}
 
@@ -556,13 +818,16 @@ func sendBatch(batch []map[string]interface{}, producer *kafkabase.Producer, top
 		if dryRun {
 			// In dry run mode, just validate that we can marshal the message
 			// but don't actually send to Kafka
+			status.SuccessCount++
 			continue
 		}
 
 		err = producer.ProduceAsync(topic, uuid.New(), messageBytes, headers, kafka.PartitionAny, "", false, 30*time.Second)
 		if err != nil {
+			status.ErrorCount += int64(len(batch) - i) // this one and the unattempted rest
 			return err
 		}
+		status.SuccessCount++
 	}
 
 	return nil

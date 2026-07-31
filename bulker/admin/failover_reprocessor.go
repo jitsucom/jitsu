@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -32,21 +33,117 @@ const (
 	JobStatusCancelled ReprocessingJobStatus = "cancelled"
 )
 
+// StreamSelector selects which streams to reprocess and, optionally, which
+// connections their events are routed to. It accepts two JSON shapes:
+//
+//	["stream1", "stream2"]                              // ids only
+//	{"stream1": ["con1", "con2"], "stream2": "con3"}    // ids -> connection ids
+//	{"stream1": ["*", "con1"], "*": "*"}                // wildcards
+//
+// In the plain form connections come from the repository, as usual. In the map
+// form the listed connections apply per stream; a single connection id may be
+// given instead of a list. "*" as a key stands for every stream, and "*" as a
+// connection id stands for the stream's repository-mapped connections — so
+// {"stream1": ["*", "con1"]} means "everything it normally goes to, plus con1"
+// in override mode and "no connection filtering" in filter mode.
+// Either way, only the selected streams are reprocessed; omitting the
+// field reprocesses all of them, while an explicitly empty list or map selects
+// nothing (nil vs empty is meaningful here and survives the round-trip to the
+// workers' ConfigMap).
+type StreamSelector struct {
+	// Ids is the plain form: stream ids or slugs.
+	Ids []string
+	// Connections is the map form: stream id/slug (or "*") -> connection ids.
+	Connections map[string][]string
+}
+
+// WildcardStream is the StreamSelector map key matching every stream; used as a
+// connection id it stands for the stream's repository-mapped connections.
+const WildcardStream = "*"
+
+func (s *StreamSelector) UnmarshalJSON(data []byte) error {
+	trimmed := strings.TrimSpace(string(data))
+	if trimmed == "" || trimmed == "null" {
+		*s = StreamSelector{}
+		return nil
+	}
+	if strings.HasPrefix(trimmed, "{") {
+		raw := map[string]interface{}{}
+		if err := json.Unmarshal(data, &raw); err != nil {
+			return fmt.Errorf("stream_ids: expected a map of stream id to connection ids: %w", err)
+		}
+		connections := make(map[string][]string, len(raw))
+		for streamId, value := range raw {
+			conns, err := parseConnectionList(value)
+			if err != nil {
+				return fmt.Errorf("stream_ids[%q]: %w", streamId, err)
+			}
+			connections[streamId] = conns
+		}
+		*s = StreamSelector{Connections: connections}
+		return nil
+	}
+	var ids []string
+	if err := json.Unmarshal(data, &ids); err != nil {
+		return fmt.Errorf("stream_ids: expected a list of stream ids or a map of stream id to connection ids: %w", err)
+	}
+	*s = StreamSelector{Ids: ids}
+	return nil
+}
+
+// parseConnectionList accepts a single connection id or a list of them, so
+// {"stream1": "con1"} and {"stream1": ["con1"]} are equivalent. Stored
+// normalized as a list.
+func parseConnectionList(value interface{}) ([]string, error) {
+	switch v := value.(type) {
+	case string:
+		return []string{v}, nil
+	case []interface{}:
+		conns := make([]string, 0, len(v))
+		for _, item := range v {
+			id, ok := item.(string)
+			if !ok {
+				return nil, fmt.Errorf("connection ids must be strings, got %T", item)
+			}
+			conns = append(conns, id)
+		}
+		return conns, nil
+	default:
+		return nil, fmt.Errorf("expected a connection id or a list of them, got %T", value)
+	}
+}
+
+func (s StreamSelector) MarshalJSON() ([]byte, error) {
+	if s.Connections != nil {
+		return json.Marshal(s.Connections)
+	}
+	if s.Ids != nil {
+		return json.Marshal(s.Ids)
+	}
+	return []byte("null"), nil
+}
+
 // ReprocessingJobConfig contains configuration for starting a reprocessing job
 type ReprocessingJobConfig struct {
-	S3Path        string    `json:"s3_path,omitempty"`    // S3 path (s3://bucket/prefix)
-	LocalPath     string    `json:"local_path,omitempty"` // Local filesystem path
-	StreamIds     []string  `json:"stream_ids,omitempty"`
-	ConnectionIds []string  `json:"connection_ids,omitempty"`
-	Files         []string  `json:"files,omitempty"` // Optional list of specific files to process
-	DryRun        bool      `json:"dry_run"`
-	StartFile     string    `json:"start_file,omitempty"`
-	StartLine     int64     `json:"start_line,omitempty"`
-	BatchSize     int       `json:"batch_size,omitempty"`
-	RetryAttempts int       `json:"retry_attempts,omitempty"` // Number of retry attempts for file processing (default: 3)
-	DateFrom      time.Time `json:"date_from,omitempty"`      // Filter messages created after this date
-	DateTo        time.Time `json:"date_to,omitempty"`        // Filter messages created before this date
-	Limit         int64     `json:"limit,omitempty"`          // Maximum number of events to process
+	S3Path        string         `json:"s3_path,omitempty"`    // S3 path (s3://bucket/prefix)
+	LocalPath     string         `json:"local_path,omitempty"` // Local filesystem path
+	StreamIds     StreamSelector `json:"stream_ids,omitempty"`
+	Files         []string       `json:"files,omitempty"` // Optional list of specific files to process
+	DryRun        bool           `json:"dry_run"`
+	StartFile     string         `json:"start_file,omitempty"`
+	StartLine     int64          `json:"start_line,omitempty"`
+	BatchSize     int            `json:"batch_size,omitempty"`
+	RetryAttempts int            `json:"retry_attempts,omitempty"` // Number of retry attempts for file processing (default: 3)
+	DateFrom      time.Time      `json:"date_from,omitempty"`      // Filter messages created after this date
+	DateTo        time.Time      `json:"date_to,omitempty"`        // Filter messages created before this date
+	Limit         int64          `json:"limit,omitempty"`          // Maximum number of events to process
+	// ParallelWorkers caps how many worker pods run at once (K8s Job
+	// parallelism). 0 = fall back to the K8S_MAX_PARALLEL_WORKERS env cap.
+	ParallelWorkers int `json:"parallel_workers,omitempty"`
+	// ConnectionsFilter switches the StreamSelector map form from override
+	// mode (listed connections replace the repository-mapped ones) to filter
+	// mode (repository-mapped connections are kept only if listed).
+	ConnectionsFilter bool `json:"connections_filter,omitempty"`
 }
 
 // ReprocessingJob represents a failover reprocessing job

@@ -294,13 +294,26 @@ func (p *Producer) ProduceAsync(topic string, messageKey string, event []byte, h
 	return errs.ErrorOrNil()
 }
 
+// defaultFlushTimeoutMs bounds the flush on Close when no delivery timeout is
+// configured
+const defaultFlushTimeoutMs = 10000
+
 // Close closes producer
 func (p *Producer) Close() error {
 	if p == nil || p.isClosed() {
 		return nil
 	}
 	p.closed.Store(true)
-	notProduced := p.producer.Flush(p.config.ProducerDeliveryTimeoutMs)
+	// A KafkaConfig built literally (not loaded through appbase) has no
+	// mapstructure defaults, so this can be zero — and Flush(0) returns at once,
+	// abandoning whatever is still queued. Fall back to the timeout used before
+	// the value became configurable, so a missing setting cannot silently drop
+	// messages on shutdown.
+	flushTimeoutMs := p.config.ProducerDeliveryTimeoutMs
+	if flushTimeoutMs <= 0 {
+		flushTimeoutMs = defaultFlushTimeoutMs
+	}
+	notProduced := p.producer.Flush(flushTimeoutMs)
 	if notProduced > 0 {
 		p.Errorf("%d message left unsent in producer queue.", notProduced)
 		//TODO: suck p.producer.ProduceChannel() and store to fallback file or some retry queue

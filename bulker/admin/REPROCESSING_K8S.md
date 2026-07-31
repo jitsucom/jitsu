@@ -40,7 +40,7 @@ The failover reprocessor uses Kubernetes Indexed Jobs for distributed processing
 3. **Worker Distribution**: Calculates optimal worker count (1 worker per 10 files, max 50)
 4. **ConfigMap Creation**: Creates two ConfigMaps:
    - File list with sizes
-   - Job configuration (stream_ids, connection_ids, date ranges, etc.)
+   - Job configuration (stream_ids, date ranges, etc.)
 5. **Secret Creation**: Creates Secret with infrastructure credentials:
    - DATABASE_URL
    - KAFKA_BOOTSTRAP_SERVERS, KAFKA_DESTINATIONS_TOPIC
@@ -50,8 +50,13 @@ The failover reprocessor uses Kubernetes Indexed Jobs for distributed processing
 7. **Worker Processing**: Each pod (indexed 0 to N-1) selects its files using modulo distribution
 8. **Credential Loading**: Workers read all credentials from environment variables (mounted from Secret using envFrom)
 9. **Repository Initialization**: Workers fetch stream metadata from repository once at startup (no periodic refresh needed for short-lived workers)
-10. **Message Processing**: For each message:
-   - If `connection_ids` are in job config, use them
+10. **Message Processing**: For each message, connection ids are resolved in this order:
+   - Events of streams not selected by `stream_ids` are skipped (see [Selecting streams and connections](#selecting-streams-and-connections))
+   - If `stream_ids` is a map, the entry for this stream (exact id/slug, else the `*` entry) decides its connections:
+     - override mode (default): use the listed connections instead of the mapped ones
+     - filter mode (`connections_filter: true`): keep the stream's mapped connections, minus those not listed
+     - a connection id of `*` means the mapped connections in either mode
+     - a rule that resolves to no connections drops the event (counted as skipped)
    - Otherwise, look up stream destinations from repository using `origin.source_id` or `origin.slug`
    - Send message to Kafka with appropriate connection_ids header
 11. **Status Updates**: Workers update PostgreSQL with progress every 1000 lines
@@ -70,7 +75,7 @@ DATABASE_URL=postgresql://user:pass@host:5432/dbname
 # Kubernetes configuration (REQUIRED)
 K8S_CONFIG_PATH=local  # or path to kubeconfig file
 K8S_NAMESPACE=default
-K8S_MAX_PARALLEL_WORKERS=10  # Max workers running simultaneously
+K8S_MAX_PARALLEL_WORKERS=10  # Default max workers running simultaneously (per-job `parallel_workers` overrides it)
 KUBERNETES_NODE_SELECTOR='{"disktype": "ssd"}'  # Optional: node selector in JSON format
 REPROCESSING_WORKER_IMAGE=jitsucom/bulker-reprocessing-worker:latest
 
@@ -146,11 +151,89 @@ Authorization: Bearer <token>
   "s3_path": "s3://bucket/failover/",
   "stream_ids": ["stream1", "stream2"],
   "date_from": "2024-01-01T00:00:00Z",
-  "date_to": "2024-01-31T23:59:59Z"
+  "date_to": "2024-01-31T23:59:59Z",
+  "parallel_workers": 20
 }
 ```
 
+### Selecting streams and connections
+
+In the admin UI the **Stream IDs** field accepts all three of these — plain text
+is split on newlines, a leading `[` or `{` is parsed as JSON:
+
+```
+stream1
+stream2
+```
+```json
+["stream1", "stream2"]
+{"stream1": ["connection1"], "stream2": "connection2", "*": "*"}
+```
+
+Over the API, `stream_ids` takes either shape:
+
+```json
+"stream_ids": ["stream1", "stream2"]
+```
+
+Reprocess these streams (matched by stream id or slug) to the connections mapped
+to them in the repository. Omit the field to reprocess every stream.
+
+```json
+"stream_ids": {"stream1": ["connection1", "connection2"], "stream2": "connection3"}
+```
+
+Reprocess these streams, routing each one's events to the listed connections. A
+single connection id may be given instead of a list.
+
+Two wildcards are available:
+
+| Wildcard | Meaning |
+| --- | --- |
+| `*` as a **key** | Applies to every stream — selects them all and gives them a default rule. A stream's own entry wins over it |
+| `*` as a **connection id** | The stream's repository-mapped connections, in either mode |
+
+So `{"stream1": ["*", "connection1"]}` sends stream1 everywhere it normally goes
+*plus* connection1, and `{"*": "*"}` reprocesses every stream to its mapped
+connections — the same as omitting the field.
+
+`connections_filter` picks what the listed connections mean:
+
+| Mode | Effect |
+| --- | --- |
+| override (default) | Send to exactly the listed connections, ignoring what the stream is mapped to |
+| filter (`connections_filter: true`) | Send to the stream's mapped connections, minus those not listed |
+
+`*` as a connection id is not affected by the mode: in override mode it expands
+to the mapped connections (unioned with any explicitly listed ones), and in
+filter mode it lets every mapped connection through.
+
+In both modes only selected streams are reprocessed, and a rule that resolves to
+no connections drops the event (counted as skipped) rather than falling back to
+the mapped connections — so `{"stream1": []}` means "reprocess nothing for
+stream1", not "send everywhere". By the same rule an explicitly empty selector
+(`[]` or `{}`) selects no streams at all; omit the field to reprocess every
+stream.
+
+Examples:
+
+```json
+{"stream_ids": {"*": "connection1"}}                        // every stream, everything to connection1
+{"stream_ids": {"*": "connection1"}, "connections_filter": true}  // every stream, but only its mapping to connection1
+{"stream_ids": {"stream1": "connection1"}}                  // only stream1, routed to connection1
+{"stream_ids": {"stream1": ["*", "connection1"]}}           // only stream1, to its mapped connections plus connection1
+{"stream_ids": {"stream1": "*"}}                            // only stream1, to its mapped connections
+```
+
+`parallel_workers` caps how many worker pods run at once for this job. When
+omitted, the `K8S_MAX_PARALLEL_WORKERS` server setting applies. Either way the
+total worker count still follows the number of files.
+
 Response includes `total_workers` and `k8s_job_name`.
+
+The admin UI's **Use as Template** button on any past job fills the start-job
+form with that job's settings, so a run can be repeated or adjusted without
+re-entering every field.
 
 ### Get Job Status
 ```bash
@@ -323,14 +406,14 @@ Contains the complete list of files to process:
 
 ### Secret: `reprocess-{job-id}-config`
 Contains job configuration and infrastructure credentials:
-- `config.json`: Job configuration (stream_ids, connection_ids, date ranges, etc.)
+- `config.json`: Job configuration (stream_ids, date ranges, etc.)
 - `database_url`: PostgreSQL connection string for status tracking
 - `kafka_bootstrap_servers`: Kafka broker addresses for sending processed messages
 - `kafka_destinations_topic`: Kafka topic name for reprocessed events
 - `repository_url`: Repository service URL for looking up stream metadata
 - `repository_auth_token`: Repository authentication token
 
-**Purpose of Repository**: When `connection_ids` are not provided in the job config, workers look up the stream's asynchronous destinations from the repository based on the message's `origin.source_id` or `origin.slug`. Workers fetch stream metadata once at startup and cache it in memory for the duration of processing (no periodic refresh needed since workers are short-lived).
+**Purpose of Repository**: Unless `stream_ids` supplies connections in override mode, workers look up the stream's asynchronous destinations from the repository based on the message's `origin.source_id` or `origin.slug` (filter mode needs the mapping too, to subtract from it). Workers fetch stream metadata once at startup and cache it in memory for the duration of processing (no periodic refresh needed since workers are short-lived).
 
 **Security**: The secret is automatically deleted when the job is cancelled or cleaned up after 24 hours.
 
@@ -338,7 +421,7 @@ Contains job configuration and infrastructure credentials:
 Kubernetes batch job with:
 - Completion mode: `Indexed`
 - Completions: Number of workers
-- Parallelism: Min(completions, K8S_MAX_PARALLEL_WORKERS)
+- Parallelism: Min(completions, job `parallel_workers` or K8S_MAX_PARALLEL_WORKERS)
 - TTL after finished: 24 hours
 
 ## File Distribution
@@ -463,7 +546,7 @@ Check admin service logs for Job creation errors:
 
 ### Slow Processing
 
-- Increase `K8S_MAX_PARALLEL_WORKERS` for more parallelism
+- Set `parallel_workers` on the job (or increase `K8S_MAX_PARALLEL_WORKERS` for the default) for more parallelism
 - Check if S3 download is bottleneck
 - Check Kafka producer throughput
 - Adjust `batch_size` in job config
