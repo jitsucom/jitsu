@@ -334,3 +334,57 @@ func TestDrainProducer(t *testing.T) {
 		}
 	})
 }
+
+// Messages still queued at the end were already counted as sent — except when a
+// file attempt failed and its counts were rolled back before the retry, leaving
+// its messages in the queue with nothing to subtract them from.
+func TestAccountUndelivered(t *testing.T) {
+	tests := []struct {
+		name        string
+		status      WorkerStatus
+		undelivered int
+		wantSuccess int64
+		wantErrors  int64
+	}{
+		{
+			name:        "moves the undelivered out of success",
+			status:      WorkerStatus{SuccessCount: 100, ErrorCount: 2},
+			undelivered: 23,
+			wantSuccess: 77,
+			wantErrors:  25,
+		},
+		{
+			// The surplus is duplicates from an attempt whose counts were rolled
+			// back and whose lines were re-counted by the retry, so they are not
+			// represented in the counters at all — adding them to errors would
+			// push success+skipped+errors past the line count. LastError still
+			// reports the real queue depth.
+			name:        "never counts more than was reported as sent",
+			status:      WorkerStatus{SuccessCount: 5, ErrorCount: 1},
+			undelivered: 40,
+			wantSuccess: 0,
+			wantErrors:  6,
+		},
+		{
+			name:        "nothing counted as sent leaves the counters alone",
+			status:      WorkerStatus{SuccessCount: 0, ErrorCount: 3},
+			undelivered: 7,
+			wantSuccess: 0,
+			wantErrors:  3,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			status := tt.status
+			accountUndelivered(&status, tt.undelivered)
+			if status.SuccessCount != tt.wantSuccess || status.ErrorCount != tt.wantErrors {
+				t.Errorf("success/errors = %d/%d, want %d/%d",
+					status.SuccessCount, status.ErrorCount, tt.wantSuccess, tt.wantErrors)
+			}
+			if status.SuccessCount < 0 {
+				t.Errorf("SuccessCount went negative: %d", status.SuccessCount)
+			}
+		})
+	}
+}
