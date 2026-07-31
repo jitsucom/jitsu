@@ -42,13 +42,18 @@ type WorkerConfig struct {
 	RepositoryAuthToken   string
 }
 
-// connectionRules describes how to resolve connection ids for reprocessed events
+// wildcardStream is the stream_ids map key matching every stream
+const wildcardStream = "*"
+
+// connectionRules describes which streams are reprocessed and how their
+// connection ids are resolved, derived from the stream_ids job setting.
+//
+//	["stream1", "stream2"]                        -> ids: filter only, connections from the repository
+//	{"stream1": ["con1"], "*": ["con2"]}          -> perStream: filter + connection rules ("*" = every stream)
 type connectionRules struct {
-	// global connection_ids: when set, used verbatim for every event (legacy behavior)
-	global []string
-	// perStream maps stream id/slug -> connection ids (stream_connections job
-	// setting). When set, it also acts as a stream whitelist: events of streams
-	// absent from the map are skipped.
+	// ids is the plain form: streams to reprocess, connections come from the repository
+	ids []string
+	// perStream is the map form: stream id/slug (or "*") -> connection ids
 	perStream map[string][]string
 	// filter switches perStream from override mode (listed connections replace
 	// the repository-mapped ones) to filter mode (repository-mapped connections
@@ -56,48 +61,97 @@ type connectionRules struct {
 	filter bool
 }
 
-// parseConnectionRules extracts connection resolution settings from the job config
+// parseConnectionRules extracts stream selection and connection rules from the job config
 func parseConnectionRules(jobConfig map[string]interface{}) *connectionRules {
 	rules := &connectionRules{}
-	if connIds, ok := jobConfig["connection_ids"].([]interface{}); ok {
-		for _, id := range connIds {
+	switch streamIds := jobConfig["stream_ids"].(type) {
+	case []interface{}:
+		for _, id := range streamIds {
 			if idStr, ok := id.(string); ok {
-				rules.global = append(rules.global, idStr)
+				rules.ids = append(rules.ids, idStr)
 			}
 		}
-	}
-	if streamConns, ok := jobConfig["stream_connections"].(map[string]interface{}); ok && len(streamConns) > 0 {
-		rules.perStream = make(map[string][]string, len(streamConns))
-		for streamId, v := range streamConns {
-			ids := []string{}
+	case map[string]interface{}:
+		rules.perStream = make(map[string][]string, len(streamIds))
+		for streamId, v := range streamIds {
+			conns := []string{}
 			if list, ok := v.([]interface{}); ok {
 				for _, id := range list {
 					if idStr, ok := id.(string); ok {
-						ids = append(ids, idStr)
+						conns = append(conns, idStr)
 					}
 				}
 			}
-			rules.perStream[streamId] = ids
+			rules.perStream[streamId] = conns
 		}
 	}
-	if f, ok := jobConfig["stream_connections_filter"].(bool); ok {
+	if f, ok := jobConfig["connections_filter"].(bool); ok {
 		rules.filter = f
+	}
+	// Legacy: jobs created before stream_ids accepted a map carry a separate
+	// connection_ids list overriding the connections of every selected stream,
+	// which is what a "*" entry means now.
+	if rules.perStream == nil {
+		if connIds, ok := jobConfig["connection_ids"].([]interface{}); ok && len(connIds) > 0 {
+			conns := []string{}
+			for _, id := range connIds {
+				if idStr, ok := id.(string); ok {
+					conns = append(conns, idStr)
+				}
+			}
+			rules.perStream = map[string][]string{}
+			if len(rules.ids) > 0 {
+				// stream_ids limited the run to these streams; each gets the override
+				for _, id := range rules.ids {
+					rules.perStream[id] = conns
+				}
+				rules.ids = nil
+			} else {
+				rules.perStream[wildcardStream] = conns
+			}
+		}
 	}
 	return rules
 }
 
-// lookup returns the connection ids configured for a stream, matched by id or slug
+// selects reports whether any stream selection is configured
+func (r *connectionRules) selects() bool {
+	return len(r.ids) > 0 || len(r.perStream) > 0
+}
+
+// matches reports whether the stream is selected for reprocessing
+func (r *connectionRules) matches(sourceId, slug string) bool {
+	if !r.selects() {
+		return true
+	}
+	if len(r.perStream) > 0 {
+		_, found := r.lookup(sourceId, slug)
+		return found
+	}
+	for _, id := range r.ids {
+		if id == sourceId || (slug != "" && id == slug) {
+			return true
+		}
+	}
+	return false
+}
+
+// lookup returns the connection ids configured for a stream, matched by id,
+// then slug, then the "*" wildcard
 func (r *connectionRules) lookup(sourceId, slug string) ([]string, bool) {
 	if len(r.perStream) == 0 {
 		return nil, false
 	}
-	if ids, ok := r.perStream[sourceId]; ok {
-		return ids, true
+	if conns, ok := r.perStream[sourceId]; ok {
+		return conns, true
 	}
 	if slug != "" {
-		if ids, ok := r.perStream[slug]; ok {
-			return ids, true
+		if conns, ok := r.perStream[slug]; ok {
+			return conns, true
 		}
+	}
+	if conns, ok := r.perStream[wildcardStream]; ok {
+		return conns, true
 	}
 	return nil, false
 }
@@ -205,7 +259,9 @@ func main() {
 		if rules.filter {
 			mode = "filter"
 		}
-		fmt.Printf("Stream connections map: %d stream(s), mode=%s\n", len(rules.perStream), mode)
+		fmt.Printf("Stream connections: %d rule(s), mode=%s\n", len(rules.perStream), mode)
+	} else if len(rules.ids) > 0 {
+		fmt.Printf("Stream filter: %d stream(s), connections from repository\n", len(rules.ids))
 	}
 
 	// Process assigned files
@@ -518,34 +574,15 @@ func downloadS3File(s3Client *s3.Client, s3Path string) (io.ReadCloser, error) {
 }
 
 func shouldProcessMessage(message map[string]interface{}, jobConfig map[string]interface{}, rules *connectionRules) bool {
-	// A stream_connections map is also a whitelist: streams it doesn't mention
-	// are not reprocessed at all.
-	if len(rules.perStream) > 0 {
+	// Only selected streams are reprocessed — in both the plain and the map
+	// form of stream_ids (a map without a "*" entry excludes everything it
+	// doesn't mention).
+	if rules.selects() {
 		origin, ok := message["origin"].(*jsonorder.OrderedMap[string, interface{}])
 		if !ok {
 			return false
 		}
-		if _, found := rules.lookup(origin.GetS("sourceId"), origin.GetS("slug")); !found {
-			return false
-		}
-	}
-	// Apply filters from job config
-	if streamIds, ok := jobConfig["stream_ids"].([]interface{}); ok && len(streamIds) > 0 {
-		origin, ok := message["origin"].(*jsonorder.OrderedMap[string, interface{}])
-		if !ok {
-			return false
-		}
-
-		sourceId := origin.GetS("sourceId")
-		slug := origin.GetS("slug")
-		found := false
-		for _, sid := range streamIds {
-			if sid == sourceId || sid == slug {
-				found = true
-				break
-			}
-		}
-		if !found {
+		if !rules.matches(origin.GetS("sourceId"), origin.GetS("slug")) {
 			return false
 		}
 	}
@@ -586,18 +623,15 @@ func sendBatch(batch []map[string]interface{}, producer *kafkabase.Producer, top
 			slug = origin.GetS("slug")
 		}
 
-		// Per-stream rule (stream_connections) takes precedence for the streams
-		// it mentions; matched by stream id or slug. Events of unmentioned
-		// streams were already filtered out by shouldProcessMessage.
+		// Connection rule for this stream (exact id/slug, else the "*" entry).
+		// Events of unselected streams were already filtered out by
+		// shouldProcessMessage.
 		streamRule, hasStreamRule := rules.lookup(sourceId, slug)
 
 		connectionIds := []string{}
 		if hasStreamRule && !rules.filter {
 			// Override mode: listed connections replace the mapped ones.
 			connectionIds = streamRule
-		} else if !hasStreamRule && len(rules.global) > 0 {
-			// Legacy global override for streams without a per-stream rule.
-			connectionIds = rules.global
 		} else if streams != nil {
 			// Look up mapped connections from the repository.
 			streamId := sourceId

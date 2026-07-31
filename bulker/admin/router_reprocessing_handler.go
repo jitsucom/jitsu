@@ -12,22 +12,20 @@ import (
 
 // ReprocessingStartRequest represents a request to start a reprocessing job
 type ReprocessingStartRequest struct {
-	S3Path                  string              `json:"s3_path,omitempty"`
-	LocalPath               string              `json:"local_path,omitempty"`
-	StreamIds               []string            `json:"stream_ids,omitempty"`
-	ConnectionIds           []string            `json:"connection_ids,omitempty"`
-	Files                   []string            `json:"files,omitempty"`
-	DryRun                  bool                `json:"dry_run"`
-	StartFile               string              `json:"start_file,omitempty"`
-	StartLine               int64               `json:"start_line,omitempty"`
-	BatchSize               int                 `json:"batch_size,omitempty"`
-	RetryAttempts           int                 `json:"retry_attempts,omitempty"`
-	DateFrom                time.Time           `json:"date_from,omitempty"`
-	DateTo                  time.Time           `json:"date_to,omitempty"`
-	Limit                   int64               `json:"limit,omitempty"`
-	ParallelWorkers         int                 `json:"parallel_workers,omitempty"`
-	StreamConnections       map[string][]string `json:"stream_connections,omitempty"`
-	StreamConnectionsFilter bool                `json:"stream_connections_filter,omitempty"`
+	S3Path            string         `json:"s3_path,omitempty"`
+	LocalPath         string         `json:"local_path,omitempty"`
+	StreamIds         StreamSelector `json:"stream_ids,omitempty"`
+	Files             []string       `json:"files,omitempty"`
+	DryRun            bool           `json:"dry_run"`
+	StartFile         string         `json:"start_file,omitempty"`
+	StartLine         int64          `json:"start_line,omitempty"`
+	BatchSize         int            `json:"batch_size,omitempty"`
+	RetryAttempts     int            `json:"retry_attempts,omitempty"`
+	DateFrom          time.Time      `json:"date_from,omitempty"`
+	DateTo            time.Time      `json:"date_to,omitempty"`
+	Limit             int64          `json:"limit,omitempty"`
+	ParallelWorkers   int            `json:"parallel_workers,omitempty"`
+	ConnectionsFilter bool           `json:"connections_filter,omitempty"`
 }
 
 // ReprocessingJobResponse represents a job in API responses
@@ -156,22 +154,20 @@ func (r *Router) startReprocessingJob(c *gin.Context) {
 
 	// Create job config
 	config := ReprocessingJobConfig{
-		S3Path:                  req.S3Path,
-		LocalPath:               req.LocalPath,
-		StreamIds:               req.StreamIds,
-		ConnectionIds:           req.ConnectionIds,
-		Files:                   req.Files,
-		DryRun:                  req.DryRun,
-		StartFile:               req.StartFile,
-		StartLine:               req.StartLine,
-		BatchSize:               req.BatchSize,
-		RetryAttempts:           req.RetryAttempts,
-		DateFrom:                req.DateFrom,
-		DateTo:                  req.DateTo,
-		Limit:                   req.Limit,
-		ParallelWorkers:         req.ParallelWorkers,
-		StreamConnections:       req.StreamConnections,
-		StreamConnectionsFilter: req.StreamConnectionsFilter,
+		S3Path:            req.S3Path,
+		LocalPath:         req.LocalPath,
+		StreamIds:         req.StreamIds,
+		Files:             req.Files,
+		DryRun:            req.DryRun,
+		StartFile:         req.StartFile,
+		StartLine:         req.StartLine,
+		BatchSize:         req.BatchSize,
+		RetryAttempts:     req.RetryAttempts,
+		DateFrom:          req.DateFrom,
+		DateTo:            req.DateTo,
+		Limit:             req.Limit,
+		ParallelWorkers:   req.ParallelWorkers,
+		ConnectionsFilter: req.ConnectionsFilter,
 	}
 
 	// Start job
@@ -491,20 +487,16 @@ func (r *Router) serveAdminHTML(c *gin.Context) {
                 </div>
                 <div class="form-group">
                     <label for="streamIds">Stream IDs:</label>
-                    <textarea id="streamIds" placeholder="One per line"></textarea>
+                    <textarea id="streamIds" placeholder='One per line, or JSON: {"streamId": ["con1", "con2"], "*": ["con3"]}'></textarea>
+                    <div class="date-help">
+                        Plain list — reprocess these streams to their mapped connections.<br>
+                        JSON map — stream id (or "*" for every stream) to connection ids, applied per the mode below.<br>
+                        Either way only the listed streams are reprocessed; empty means all streams.
+                    </div>
                 </div>
                 <div class="form-group">
-                    <label for="connectionIds">Connection IDs:</label>
-                    <textarea id="connectionIds" placeholder="One per line (overrides mapped connections for all streams)"></textarea>
-                </div>
-                <div class="form-group">
-                    <label for="streamConnections">Stream Connections (JSON):</label>
-                    <textarea id="streamConnections" placeholder='{"streamId": ["con1", "con2"], "stream2": ["con3"]}'></textarea>
-                    <div class="date-help">Per-stream connections. Acts as a whitelist too — events of streams not listed here are skipped.</div>
-                </div>
-                <div class="form-group">
-                    <label for="streamConnectionsMode">Stream Connections Mode:</label>
-                    <select id="streamConnectionsMode">
+                    <label for="connectionsMode">Connections Mode (JSON form):</label>
+                    <select id="connectionsMode">
                         <option value="override">Override — use listed connections instead of mapped ones</option>
                         <option value="filter">Filter — keep mapped connections only if listed</option>
                     </select>
@@ -678,30 +670,32 @@ func (r *Router) serveAdminHTML(c *gin.Context) {
         }
 
         async function startJob() {
-            const streamIds = document.getElementById('streamIds').value.split('\n').filter(id => id.trim());
-            const connectionIds = document.getElementById('connectionIds').value.split('\n').filter(id => id.trim());
             const files = document.getElementById('files').value.split('\n').filter(f => f.trim());
 
-            // Parse and validate the per-stream connections map
-            let streamConnections = undefined;
-            const streamConnectionsRaw = document.getElementById('streamConnections').value.trim();
-            if (streamConnectionsRaw) {
+            // Stream IDs accepts either a plain list (one per line) or a JSON map
+            // of stream id -> connection ids
+            let streamIds = undefined;
+            const streamIdsRaw = document.getElementById('streamIds').value.trim();
+            if (streamIdsRaw.startsWith('{')) {
                 try {
-                    streamConnections = JSON.parse(streamConnectionsRaw);
+                    streamIds = JSON.parse(streamIdsRaw);
                 } catch (e) {
-                    showError('Stream Connections must be valid JSON: ' + e.message);
+                    showError('Stream IDs: invalid JSON: ' + e.message);
                     return;
                 }
-                if (typeof streamConnections !== 'object' || Array.isArray(streamConnections)) {
-                    showError('Stream Connections must be a JSON object: {"streamId": ["con1"]}');
+                if (typeof streamIds !== 'object' || Array.isArray(streamIds)) {
+                    showError('Stream IDs: JSON form must be an object: {"streamId": ["con1"]}');
                     return;
                 }
-                for (const [streamId, conns] of Object.entries(streamConnections)) {
+                for (const [streamId, conns] of Object.entries(streamIds)) {
                     if (!Array.isArray(conns) || conns.some(c => typeof c !== 'string')) {
-                        showError('Stream Connections: value for "' + streamId + '" must be an array of connection id strings');
+                        showError('Stream IDs: value for "' + streamId + '" must be an array of connection id strings');
                         return;
                     }
                 }
+            } else {
+                const ids = streamIdsRaw.split('\n').map(id => id.trim()).filter(id => id);
+                streamIds = ids.length > 0 ? ids : undefined;
             }
 
             // Validate date formats
@@ -721,8 +715,7 @@ func (r *Router) serveAdminHTML(c *gin.Context) {
             const jobData = {
                 s3_path: document.getElementById('s3Path').value || undefined,
                 local_path: document.getElementById('localPath').value || undefined,
-                stream_ids: streamIds.length > 0 ? streamIds : undefined,
-                connection_ids: connectionIds.length > 0 ? connectionIds : undefined,
+                stream_ids: streamIds,
                 files: files.length > 0 ? files : undefined,
                 start_file: document.getElementById('startFile').value || undefined,
                 start_line: parseInt(document.getElementById('startLine').value) || 0,
@@ -732,8 +725,7 @@ func (r *Router) serveAdminHTML(c *gin.Context) {
                 date_to: document.getElementById('dateTo').value || undefined,
                 limit: parseInt(document.getElementById('limit').value) || undefined,
                 parallel_workers: parseInt(document.getElementById('parallelWorkers').value) || undefined,
-                stream_connections: streamConnections,
-                stream_connections_filter: document.getElementById('streamConnectionsMode').value === 'filter' || undefined,
+                connections_filter: document.getElementById('connectionsMode').value === 'filter' || undefined,
                 dry_run: document.getElementById('dryRun').checked
             };
 
@@ -747,7 +739,7 @@ func (r *Router) serveAdminHTML(c *gin.Context) {
                 // Clear form
                 document.querySelectorAll('.job-form input[type="text"], .job-form textarea').forEach(el => el.value = '');
                 document.querySelectorAll('.job-form input[type="number"]').forEach(el => el.value = '');
-                document.getElementById('streamConnectionsMode').value = 'override';
+                document.getElementById('connectionsMode').value = 'override';
                 document.getElementById('dryRun').checked = false;
             }
         }
@@ -879,10 +871,20 @@ func (r *Router) serveAdminHTML(c *gin.Context) {
 
             setValue('s3Path', cfg.s3_path);
             setValue('localPath', cfg.local_path);
-            setLines('streamIds', cfg.stream_ids);
-            setLines('connectionIds', cfg.connection_ids);
-            setValue('streamConnections', cfg.stream_connections ? JSON.stringify(cfg.stream_connections, null, 2) : '');
-            document.getElementById('streamConnectionsMode').value = cfg.stream_connections_filter ? 'filter' : 'override';
+            // stream_ids is either a list of ids or a map of id -> connection ids.
+            // Jobs created before the map form carry a separate connection_ids
+            // list, which is the equivalent of a "*" entry.
+            if (cfg.stream_ids && !Array.isArray(cfg.stream_ids)) {
+                setValue('streamIds', JSON.stringify(cfg.stream_ids, null, 2));
+            } else if (Array.isArray(cfg.connection_ids) && cfg.connection_ids.length > 0) {
+                const legacy = {};
+                (cfg.stream_ids || ['*']).forEach(id => { legacy[id] = cfg.connection_ids; });
+                setValue('streamIds', JSON.stringify(legacy, null, 2));
+            } else {
+                setLines('streamIds', cfg.stream_ids);
+            }
+            document.getElementById('connectionsMode').value =
+                (cfg.connections_filter || cfg.stream_connections_filter) ? 'filter' : 'override';
             setLines('files', cfg.files);
             setValue('startFile', cfg.start_file);
             setValue('startLine', cfg.start_line);

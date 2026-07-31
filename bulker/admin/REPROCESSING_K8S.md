@@ -40,7 +40,7 @@ The failover reprocessor uses Kubernetes Indexed Jobs for distributed processing
 3. **Worker Distribution**: Calculates optimal worker count (1 worker per 10 files, max 50)
 4. **ConfigMap Creation**: Creates two ConfigMaps:
    - File list with sizes
-   - Job configuration (stream_ids, connection_ids, date ranges, etc.)
+   - Job configuration (stream_ids, date ranges, etc.)
 5. **Secret Creation**: Creates Secret with infrastructure credentials:
    - DATABASE_URL
    - KAFKA_BOOTSTRAP_SERVERS, KAFKA_DESTINATIONS_TOPIC
@@ -51,11 +51,11 @@ The failover reprocessor uses Kubernetes Indexed Jobs for distributed processing
 8. **Credential Loading**: Workers read all credentials from environment variables (mounted from Secret using envFrom)
 9. **Repository Initialization**: Workers fetch stream metadata from repository once at startup (no periodic refresh needed for short-lived workers)
 10. **Message Processing**: For each message, connection ids are resolved in this order:
-   - If `stream_connections` is set, it acts as a stream whitelist: events of streams it doesn't mention are skipped. For a listed stream:
+   - Events of streams not selected by `stream_ids` are skipped (see [Selecting streams and connections](#selecting-streams-and-connections))
+   - If `stream_ids` is a map, the entry for this stream (exact id/slug, else the `*` entry) decides its connections:
      - override mode (default): use the listed connections instead of the mapped ones
-     - filter mode (`stream_connections_filter: true`): keep the stream's mapped connections, minus those not listed
+     - filter mode (`connections_filter: true`): keep the stream's mapped connections, minus those not listed
      - a rule that resolves to no connections drops the event (counted as skipped)
-   - Else if `connection_ids` are in job config, use them for every stream (global override)
    - Otherwise, look up stream destinations from repository using `origin.source_id` or `origin.slug`
    - Send message to Kafka with appropriate connection_ids header
 11. **Status Updates**: Workers update PostgreSQL with progress every 1000 lines
@@ -151,22 +151,48 @@ Authorization: Bearer <token>
   "stream_ids": ["stream1", "stream2"],
   "date_from": "2024-01-01T00:00:00Z",
   "date_to": "2024-01-31T23:59:59Z",
-  "parallel_workers": 20,
-  "stream_connections": {
-    "stream1": ["connection1", "connection2"],
-    "stream2": ["connection3"]
-  },
-  "stream_connections_filter": false
+  "parallel_workers": 20
 }
 ```
 
-Connection routing fields:
+### Selecting streams and connections
 
-| Field | Scope | Effect |
-| --- | --- | --- |
-| `connection_ids` | all streams | Replaces the mapped connections of every stream |
-| `stream_connections` | listed streams (id or slug) | Also a stream whitelist — events of streams absent from the map are skipped. For listed streams: override mode replaces the mapped connections with the listed ones; filter mode keeps mapped connections only if listed |
-| `stream_connections_filter` | — | `true` switches `stream_connections` to filter mode |
+`stream_ids` takes either shape:
+
+```json
+"stream_ids": ["stream1", "stream2"]
+```
+
+Reprocess these streams (matched by stream id or slug) to the connections mapped
+to them in the repository. Omit the field to reprocess every stream.
+
+```json
+"stream_ids": {"stream1": ["connection1", "connection2"], "*": ["connection3"]}
+```
+
+Reprocess these streams, routing each one's events to the listed connections.
+`*` matches every stream, so it both selects all streams and gives them a
+default rule; a stream's own entry wins over `*`.
+
+`connections_filter` picks what the listed connections mean:
+
+| Mode | Effect |
+| --- | --- |
+| override (default) | Send to exactly the listed connections, ignoring what the stream is mapped to |
+| filter (`connections_filter: true`) | Send to the stream's mapped connections, minus those not listed |
+
+In both modes only selected streams are reprocessed, and a rule that resolves to
+no connections drops the event (counted as skipped) rather than falling back to
+the mapped connections — so `{"stream1": []}` means "reprocess nothing for
+stream1", not "send everywhere".
+
+Examples:
+
+```json
+{"stream_ids": {"*": ["connection1"]}}                      // every stream, everything to connection1
+{"stream_ids": {"*": ["connection1"]}, "connections_filter": true}  // every stream, but only its mapping to connection1
+{"stream_ids": {"stream1": ["connection1"]}}                // only stream1, routed to connection1
+```
 
 `parallel_workers` caps how many worker pods run at once for this job. When
 omitted, the `K8S_MAX_PARALLEL_WORKERS` server setting applies. Either way the
@@ -349,14 +375,14 @@ Contains the complete list of files to process:
 
 ### Secret: `reprocess-{job-id}-config`
 Contains job configuration and infrastructure credentials:
-- `config.json`: Job configuration (stream_ids, connection_ids, stream_connections, date ranges, etc.)
+- `config.json`: Job configuration (stream_ids, date ranges, etc.)
 - `database_url`: PostgreSQL connection string for status tracking
 - `kafka_bootstrap_servers`: Kafka broker addresses for sending processed messages
 - `kafka_destinations_topic`: Kafka topic name for reprocessed events
 - `repository_url`: Repository service URL for looking up stream metadata
 - `repository_auth_token`: Repository authentication token
 
-**Purpose of Repository**: When `connection_ids` are not provided in the job config, workers look up the stream's asynchronous destinations from the repository based on the message's `origin.source_id` or `origin.slug`. Workers fetch stream metadata once at startup and cache it in memory for the duration of processing (no periodic refresh needed since workers are short-lived).
+**Purpose of Repository**: Unless `stream_ids` supplies connections in override mode, workers look up the stream's asynchronous destinations from the repository based on the message's `origin.source_id` or `origin.slug` (filter mode needs the mapping too, to subtract from it). Workers fetch stream metadata once at startup and cache it in memory for the duration of processing (no periodic refresh needed since workers are short-lived).
 
 **Security**: The secret is automatically deleted when the job is cancelled or cleaned up after 24 hours.
 

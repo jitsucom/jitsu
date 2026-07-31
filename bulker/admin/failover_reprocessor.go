@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -32,33 +33,78 @@ const (
 	JobStatusCancelled ReprocessingJobStatus = "cancelled"
 )
 
+// StreamSelector selects which streams to reprocess and, optionally, which
+// connections their events are routed to. It accepts two JSON shapes:
+//
+//	["stream1", "stream2"]                              // ids only
+//	{"stream1": ["con1", "con2"], "*": ["con3"]}        // ids -> connection ids
+//
+// In the plain form connections come from the repository, as usual. In the map
+// form the listed connections apply per stream, with "*" standing for every
+// stream. Either way, only the selected streams are reprocessed.
+type StreamSelector struct {
+	// Ids is the plain form: stream ids or slugs.
+	Ids []string
+	// Connections is the map form: stream id/slug (or "*") -> connection ids.
+	Connections map[string][]string
+}
+
+// WildcardStream is the StreamSelector map key matching every stream.
+const WildcardStream = "*"
+
+func (s *StreamSelector) UnmarshalJSON(data []byte) error {
+	trimmed := strings.TrimSpace(string(data))
+	if trimmed == "" || trimmed == "null" {
+		*s = StreamSelector{}
+		return nil
+	}
+	if strings.HasPrefix(trimmed, "{") {
+		connections := map[string][]string{}
+		if err := json.Unmarshal(data, &connections); err != nil {
+			return fmt.Errorf("stream_ids: expected a map of stream id to connection ids: %w", err)
+		}
+		*s = StreamSelector{Connections: connections}
+		return nil
+	}
+	var ids []string
+	if err := json.Unmarshal(data, &ids); err != nil {
+		return fmt.Errorf("stream_ids: expected a list of stream ids or a map of stream id to connection ids: %w", err)
+	}
+	*s = StreamSelector{Ids: ids}
+	return nil
+}
+
+func (s StreamSelector) MarshalJSON() ([]byte, error) {
+	if len(s.Connections) > 0 {
+		return json.Marshal(s.Connections)
+	}
+	if len(s.Ids) > 0 {
+		return json.Marshal(s.Ids)
+	}
+	return []byte("null"), nil
+}
+
 // ReprocessingJobConfig contains configuration for starting a reprocessing job
 type ReprocessingJobConfig struct {
-	S3Path        string    `json:"s3_path,omitempty"`    // S3 path (s3://bucket/prefix)
-	LocalPath     string    `json:"local_path,omitempty"` // Local filesystem path
-	StreamIds     []string  `json:"stream_ids,omitempty"`
-	ConnectionIds []string  `json:"connection_ids,omitempty"`
-	Files         []string  `json:"files,omitempty"` // Optional list of specific files to process
-	DryRun        bool      `json:"dry_run"`
-	StartFile     string    `json:"start_file,omitempty"`
-	StartLine     int64     `json:"start_line,omitempty"`
-	BatchSize     int       `json:"batch_size,omitempty"`
-	RetryAttempts int       `json:"retry_attempts,omitempty"` // Number of retry attempts for file processing (default: 3)
-	DateFrom      time.Time `json:"date_from,omitempty"`      // Filter messages created after this date
-	DateTo        time.Time `json:"date_to,omitempty"`        // Filter messages created before this date
-	Limit         int64     `json:"limit,omitempty"`          // Maximum number of events to process
+	S3Path        string         `json:"s3_path,omitempty"`    // S3 path (s3://bucket/prefix)
+	LocalPath     string         `json:"local_path,omitempty"` // Local filesystem path
+	StreamIds     StreamSelector `json:"stream_ids,omitempty"`
+	Files         []string       `json:"files,omitempty"` // Optional list of specific files to process
+	DryRun        bool           `json:"dry_run"`
+	StartFile     string         `json:"start_file,omitempty"`
+	StartLine     int64          `json:"start_line,omitempty"`
+	BatchSize     int            `json:"batch_size,omitempty"`
+	RetryAttempts int            `json:"retry_attempts,omitempty"` // Number of retry attempts for file processing (default: 3)
+	DateFrom      time.Time      `json:"date_from,omitempty"`      // Filter messages created after this date
+	DateTo        time.Time      `json:"date_to,omitempty"`        // Filter messages created before this date
+	Limit         int64          `json:"limit,omitempty"`          // Maximum number of events to process
 	// ParallelWorkers caps how many worker pods run at once (K8s Job
 	// parallelism). 0 = fall back to the K8S_MAX_PARALLEL_WORKERS env cap.
 	ParallelWorkers int `json:"parallel_workers,omitempty"`
-	// StreamConnections maps a stream id (or slug) to the connection ids to
-	// use for its events. Semantics depend on StreamConnectionsFilter:
-	// override (default) — listed connections replace the repository-mapped
-	// ones; filter — repository-mapped connections are kept only if listed.
-	// Streams absent from the map keep the default behavior.
-	StreamConnections map[string][]string `json:"stream_connections,omitempty"`
-	// StreamConnectionsFilter switches StreamConnections from override mode
-	// to filter mode (exclude mapped connections not mentioned).
-	StreamConnectionsFilter bool `json:"stream_connections_filter,omitempty"`
+	// ConnectionsFilter switches the StreamSelector map form from override
+	// mode (listed connections replace the repository-mapped ones) to filter
+	// mode (repository-mapped connections are kept only if listed).
+	ConnectionsFilter bool `json:"connections_filter,omitempty"`
 }
 
 // ReprocessingJob represents a failover reprocessing job
