@@ -672,11 +672,25 @@ func (r *Router) serveAdminHTML(c *gin.Context) {
         async function startJob() {
             const files = document.getElementById('files').value.split('\n').filter(f => f.trim());
 
-            // Stream IDs accepts either a plain list (one per line) or a JSON map
-            // of stream id -> connection ids
+            // Stream IDs accepts a plain list (one per line), a JSON array of ids,
+            // or a JSON map of stream id -> connection ids
             let streamIds = undefined;
             const streamIdsRaw = document.getElementById('streamIds').value.trim();
-            if (streamIdsRaw.startsWith('{')) {
+            if (streamIdsRaw.startsWith('[')) {
+                try {
+                    streamIds = JSON.parse(streamIdsRaw);
+                } catch (e) {
+                    showError('Stream IDs: invalid JSON: ' + e.message);
+                    return;
+                }
+                if (streamIds.some(id => typeof id !== 'string')) {
+                    showError('Stream IDs: JSON array form must contain stream id strings');
+                    return;
+                }
+                if (streamIds.length === 0) {
+                    streamIds = undefined;
+                }
+            } else if (streamIdsRaw.startsWith('{')) {
                 try {
                     streamIds = JSON.parse(streamIdsRaw);
                 } catch (e) {
