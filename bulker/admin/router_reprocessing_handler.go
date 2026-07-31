@@ -487,11 +487,12 @@ func (r *Router) serveAdminHTML(c *gin.Context) {
                 </div>
                 <div class="form-group">
                     <label for="streamIds">Stream IDs:</label>
-                    <textarea id="streamIds" placeholder='One per line, or JSON: {"streamId": ["con1", "con2"], "*": ["con3"]}'></textarea>
+                    <textarea id="streamIds" placeholder='One per line, or JSON: {"stream1": ["con1", "con2"], "stream2": "con3", "*": "*"}'></textarea>
                     <div class="date-help">
                         Plain list — reprocess these streams to their mapped connections.<br>
-                        JSON map — stream id (or "*" for every stream) to connection ids, applied per the mode below.<br>
-                        Either way only the listed streams are reprocessed; empty means all streams.
+                        JSON map — stream id (or "*" for every stream) to connection ids, applied per the mode below.
+                        A value may be one id or a list; the id "*" means the stream's mapped connections.<br>
+                        Either way only the listed streams are reprocessed; leave empty for all streams.
                     </div>
                 </div>
                 <div class="form-group">
@@ -702,8 +703,10 @@ func (r *Router) serveAdminHTML(c *gin.Context) {
                     return;
                 }
                 for (const [streamId, conns] of Object.entries(streamIds)) {
-                    if (!Array.isArray(conns) || conns.some(c => typeof c !== 'string')) {
-                        showError('Stream IDs: value for "' + streamId + '" must be an array of connection id strings');
+                    const valid = typeof conns === 'string' ||
+                        (Array.isArray(conns) && conns.every(c => typeof c === 'string'));
+                    if (!valid) {
+                        showError('Stream IDs: value for "' + streamId + '" must be a connection id or a list of them');
                         return;
                     }
                 }

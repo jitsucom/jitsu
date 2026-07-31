@@ -55,6 +55,7 @@ The failover reprocessor uses Kubernetes Indexed Jobs for distributed processing
    - If `stream_ids` is a map, the entry for this stream (exact id/slug, else the `*` entry) decides its connections:
      - override mode (default): use the listed connections instead of the mapped ones
      - filter mode (`connections_filter: true`): keep the stream's mapped connections, minus those not listed
+     - a connection id of `*` means the mapped connections in either mode
      - a rule that resolves to no connections drops the event (counted as skipped)
    - Otherwise, look up stream destinations from repository using `origin.source_id` or `origin.slug`
    - Send message to Kafka with appropriate connection_ids header
@@ -166,7 +167,7 @@ stream2
 ```
 ```json
 ["stream1", "stream2"]
-{"stream1": ["connection1"], "*": ["connection2"]}
+{"stream1": ["connection1"], "stream2": "connection2", "*": "*"}
 ```
 
 Over the API, `stream_ids` takes either shape:
@@ -179,12 +180,22 @@ Reprocess these streams (matched by stream id or slug) to the connections mapped
 to them in the repository. Omit the field to reprocess every stream.
 
 ```json
-"stream_ids": {"stream1": ["connection1", "connection2"], "*": ["connection3"]}
+"stream_ids": {"stream1": ["connection1", "connection2"], "stream2": "connection3"}
 ```
 
-Reprocess these streams, routing each one's events to the listed connections.
-`*` matches every stream, so it both selects all streams and gives them a
-default rule; a stream's own entry wins over `*`.
+Reprocess these streams, routing each one's events to the listed connections. A
+single connection id may be given instead of a list.
+
+Two wildcards are available:
+
+| Wildcard | Meaning |
+| --- | --- |
+| `*` as a **key** | Applies to every stream — selects them all and gives them a default rule. A stream's own entry wins over it |
+| `*` as a **connection id** | The stream's repository-mapped connections, in either mode |
+
+So `{"stream1": ["*", "connection1"]}` sends stream1 everywhere it normally goes
+*plus* connection1, and `{"*": "*"}` reprocesses every stream to its mapped
+connections — the same as omitting the field.
 
 `connections_filter` picks what the listed connections mean:
 
@@ -192,6 +203,10 @@ default rule; a stream's own entry wins over `*`.
 | --- | --- |
 | override (default) | Send to exactly the listed connections, ignoring what the stream is mapped to |
 | filter (`connections_filter: true`) | Send to the stream's mapped connections, minus those not listed |
+
+`*` as a connection id is not affected by the mode: in override mode it expands
+to the mapped connections (unioned with any explicitly listed ones), and in
+filter mode it lets every mapped connection through.
 
 In both modes only selected streams are reprocessed, and a rule that resolves to
 no connections drops the event (counted as skipped) rather than falling back to
@@ -203,9 +218,11 @@ stream.
 Examples:
 
 ```json
-{"stream_ids": {"*": ["connection1"]}}                      // every stream, everything to connection1
-{"stream_ids": {"*": ["connection1"]}, "connections_filter": true}  // every stream, but only its mapping to connection1
-{"stream_ids": {"stream1": ["connection1"]}}                // only stream1, routed to connection1
+{"stream_ids": {"*": "connection1"}}                        // every stream, everything to connection1
+{"stream_ids": {"*": "connection1"}, "connections_filter": true}  // every stream, but only its mapping to connection1
+{"stream_ids": {"stream1": "connection1"}}                  // only stream1, routed to connection1
+{"stream_ids": {"stream1": ["*", "connection1"]}}           // only stream1, to its mapped connections plus connection1
+{"stream_ids": {"stream1": "*"}}                            // only stream1, to its mapped connections
 ```
 
 `parallel_workers` caps how many worker pods run at once for this job. When

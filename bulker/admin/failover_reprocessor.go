@@ -37,11 +37,16 @@ const (
 // connections their events are routed to. It accepts two JSON shapes:
 //
 //	["stream1", "stream2"]                              // ids only
-//	{"stream1": ["con1", "con2"], "*": ["con3"]}        // ids -> connection ids
+//	{"stream1": ["con1", "con2"], "stream2": "con3"}    // ids -> connection ids
+//	{"stream1": ["*", "con1"], "*": "*"}                // wildcards
 //
 // In the plain form connections come from the repository, as usual. In the map
-// form the listed connections apply per stream, with "*" standing for every
-// stream. Either way, only the selected streams are reprocessed; omitting the
+// form the listed connections apply per stream; a single connection id may be
+// given instead of a list. "*" as a key stands for every stream, and "*" as a
+// connection id stands for the stream's repository-mapped connections — so
+// {"stream1": ["*", "con1"]} means "everything it normally goes to, plus con1"
+// in override mode and "no connection filtering" in filter mode.
+// Either way, only the selected streams are reprocessed; omitting the
 // field reprocesses all of them, while an explicitly empty list or map selects
 // nothing (nil vs empty is meaningful here and survives the round-trip to the
 // workers' ConfigMap).
@@ -52,7 +57,8 @@ type StreamSelector struct {
 	Connections map[string][]string
 }
 
-// WildcardStream is the StreamSelector map key matching every stream.
+// WildcardStream is the StreamSelector map key matching every stream; used as a
+// connection id it stands for the stream's repository-mapped connections.
 const WildcardStream = "*"
 
 func (s *StreamSelector) UnmarshalJSON(data []byte) error {
@@ -62,9 +68,17 @@ func (s *StreamSelector) UnmarshalJSON(data []byte) error {
 		return nil
 	}
 	if strings.HasPrefix(trimmed, "{") {
-		connections := map[string][]string{}
-		if err := json.Unmarshal(data, &connections); err != nil {
+		raw := map[string]interface{}{}
+		if err := json.Unmarshal(data, &raw); err != nil {
 			return fmt.Errorf("stream_ids: expected a map of stream id to connection ids: %w", err)
+		}
+		connections := make(map[string][]string, len(raw))
+		for streamId, value := range raw {
+			conns, err := parseConnectionList(value)
+			if err != nil {
+				return fmt.Errorf("stream_ids[%q]: %w", streamId, err)
+			}
+			connections[streamId] = conns
 		}
 		*s = StreamSelector{Connections: connections}
 		return nil
@@ -75,6 +89,28 @@ func (s *StreamSelector) UnmarshalJSON(data []byte) error {
 	}
 	*s = StreamSelector{Ids: ids}
 	return nil
+}
+
+// parseConnectionList accepts a single connection id or a list of them, so
+// {"stream1": "con1"} and {"stream1": ["con1"]} are equivalent. Stored
+// normalized as a list.
+func parseConnectionList(value interface{}) ([]string, error) {
+	switch v := value.(type) {
+	case string:
+		return []string{v}, nil
+	case []interface{}:
+		conns := make([]string, 0, len(v))
+		for _, item := range v {
+			id, ok := item.(string)
+			if !ok {
+				return nil, fmt.Errorf("connection ids must be strings, got %T", item)
+			}
+			conns = append(conns, id)
+		}
+		return conns, nil
+	default:
+		return nil, fmt.Errorf("expected a connection id or a list of them, got %T", value)
+	}
 }
 
 func (s StreamSelector) MarshalJSON() ([]byte, error) {
