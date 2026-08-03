@@ -1,9 +1,7 @@
 import React, { useState } from "react";
 import Head from "next/head";
 import { Alert, InputNumber, Table, Tag, Upload } from "antd";
-import { CalendarClock, Gauge, Loader2, RefreshCw, UploadCloud, Waypoints } from "lucide-react";
-import { branding } from "../../lib/branding";
-import segmentIcon from "../../lib/schema/icons/segment";
+import { CalendarClock, ChevronRight, FileText, Loader2, RefreshCw, UploadCloud } from "lucide-react";
 import { rpc } from "juava";
 import { useAppConfig, useWorkspace } from "../../lib/context";
 import { feedbackError, feedbackSuccess } from "../../lib/ui";
@@ -17,6 +15,14 @@ import {
   SUPPORTED_INVOICE_MEDIA_TYPES,
   Verdict,
 } from "./types";
+
+/**
+ * Migration report (JITSU-131). Savings are headlined per YEAR — the number
+ * that lands in a budget conversation — with the monthly figure alongside.
+ * Volume is expressed in MTUs (what customers read off their invoice, and the
+ * only volume they can override); events are derived as MTUs × 100 server-side,
+ * so this report and jitsu.com/migrate-from-segment always agree.
+ */
 
 // Booking link comes exclusively from MIGRATION_CALENDLY_URL
 // (appConfig.migrationCalendlyUrl) — no personal links in code. Unset → the
@@ -42,10 +48,11 @@ function showCalendly(url: string | undefined): void {
   }
 }
 
+// Text carries the meaning; the colored dot is decorative (a11y checklist).
 const VERDICT_TAG: Record<Verdict, React.ReactNode> = {
-  green: <Tag color="green">✅ Auto-importable</Tag>,
-  yellow: <Tag color="gold">🟡 Small change</Tag>,
-  phone: <Tag>📞 Needs a call</Tag>,
+  green: <Tag color="green">Auto-importable</Tag>,
+  yellow: <Tag color="gold">Small change</Tag>,
+  phone: <Tag>Needs a call</Tag>,
 };
 
 /** Bolds dollar amounts and numbers (incl. 100k-style) inside a basis line. */
@@ -61,15 +68,11 @@ function highlightNumbers(text: string): React.ReactNode[] {
   );
 }
 
-function basisLineIcon(kind: "usage" | "current" | "jitsu", provider: string): React.ReactNode {
-  if (kind === "jitsu") {
-    return branding.logo;
-  }
-  if (kind === "current") {
-    return provider === "segment" ? segmentIcon : <Waypoints className="w-full h-full text-blue-500" />;
-  }
-  return <Gauge className="w-full h-full" />;
-}
+const BASIS_DOT: Record<"usage" | "current" | "jitsu", string> = {
+  usage: "#8c8c8c",
+  current: "#fa8c16",
+  jitsu: "#c026d3",
+};
 
 function verdictCounts(items: SnapshotDestination[]): Record<Verdict, number> {
   const counts: Record<Verdict, number> = { green: 0, yellow: 0, phone: 0 };
@@ -112,10 +115,22 @@ const destinationColumns = [
   },
 ];
 
+const StatItem: React.FC<{ value: React.ReactNode; label: string; className?: string }> = ({
+  value,
+  label,
+  className,
+}) => (
+  <li className="px-6 py-5">
+    <span className={`block text-2xl font-bold ${className ?? ""}`}>{value}</span>
+    <span className="block text-textLight text-sm pt-0.5">{label}</span>
+  </li>
+);
+
 /**
  * Invoice upload → LLM parse → user confirms numbers → report-usage applies
  * them. The raw parse never lands in the report: only what the user confirms
- * here is submitted (JITSU-128 design rule).
+ * here is submitted (JITSU-128 design rule). Volume is MTUs only — events are
+ * derived from them, so a separate events field would just contradict itself.
  */
 const UsageEditor: React.FC<{ report: MigrationReport; refresh: () => Promise<void> }> = ({ report, refresh }) => {
   const workspace = useWorkspace();
@@ -124,9 +139,6 @@ const UsageEditor: React.FC<{ report: MigrationReport; refresh: () => Promise<vo
   const [source, setSource] = useState<"invoice" | "manual">("manual");
   const [extraction, setExtraction] = useState<InvoiceExtraction | undefined>();
   const [amountDollars, setAmountDollars] = useState<number | undefined>();
-  const [monthlyEvents, setMonthlyEvents] = useState<number | undefined>(
-    report.snapshot?.usage?.monthlyEvents ?? undefined
-  );
   const [mtus, setMtus] = useState<number | undefined>(report.snapshot?.usage?.mtus ?? undefined);
 
   const parseFile = async (file: File) => {
@@ -159,8 +171,13 @@ const UsageEditor: React.FC<{ report: MigrationReport; refresh: () => Promise<vo
       // Savings math is USD: never pre-fill an amount in another currency.
       const usd = !parsed.currency || parsed.currency.toUpperCase() === "USD";
       setAmountDollars(usd && parsed.amountCents != null ? Math.round(parsed.amountCents / 100) : undefined);
-      setMonthlyEvents(parsed.monthlyEvents ?? undefined);
-      setMtus(parsed.mtus ?? undefined);
+      if (parsed.mtus) {
+        setMtus(parsed.mtus);
+      } else if (parsed.monthlyEvents) {
+        // No MTU line on the invoice — back-derive so the estimate still
+        // reflects the invoice's volume.
+        setMtus(Math.max(1, Math.round(parsed.monthlyEvents / 100)));
+      }
     } catch (e) {
       feedbackError("Failed to parse the invoice", { error: e });
     } finally {
@@ -176,7 +193,6 @@ const UsageEditor: React.FC<{ report: MigrationReport; refresh: () => Promise<vo
         body: {
           reportId: report.id,
           source,
-          ...(monthlyEvents ? { monthlyEvents: Math.round(monthlyEvents) } : {}),
           ...(mtus ? { mtus: Math.round(mtus) } : {}),
           ...(amountDollars ? { billedAmountCents: Math.round(amountDollars * 100) } : {}),
         },
@@ -192,11 +208,16 @@ const UsageEditor: React.FC<{ report: MigrationReport; refresh: () => Promise<vo
   };
 
   return (
-    <div className="border border-neutral-200 rounded-lg bg-backgroundLight px-6 py-5 mt-6">
-      <div className="text-lg font-semibold pb-2">Refine the savings estimate</div>
+    <section
+      aria-labelledby="refine-heading"
+      className="border border-neutral-200 rounded-lg bg-backgroundLight px-6 py-5 mt-6"
+    >
+      <h2 id="refine-heading" className="text-lg font-semibold pb-2">
+        Refine the savings estimate
+      </h2>
       <div className="text-textLight pb-4">
         {`Upload a recent ${report.provider === "segment" ? "Segment" : "RudderStack"} invoice (PDF or screenshot) ` +
-          "and we'll read the numbers from it — or enter your monthly spend and volume manually. " +
+          "and we'll read the numbers from it — or enter your monthly spend and MTUs manually. " +
           "The file is processed in memory and never stored."}
       </div>
       <Upload.Dragger
@@ -241,37 +262,147 @@ const UsageEditor: React.FC<{ report: MigrationReport; refresh: () => Promise<vo
       )}
       <div className="flex flex-wrap gap-6 items-end pt-4">
         <div>
-          <div className="text-textLight text-sm pb-1">Monthly spend, USD</div>
+          <label htmlFor="refine-spend" className="block text-textLight text-sm pb-1">
+            Monthly spend, USD
+          </label>
           <InputNumber
+            id="refine-spend"
             min={0}
             value={amountDollars}
             onChange={v => setAmountDollars(v ?? undefined)}
+            onPressEnter={() => !applying && apply()}
             style={{ width: 160 }}
           />
         </div>
         <div>
-          <div className="text-textLight text-sm pb-1">Events / month</div>
+          <label htmlFor="refine-mtus" className="block text-textLight text-sm pb-1">
+            MTUs / month
+          </label>
           <InputNumber
+            id="refine-mtus"
             min={0}
-            value={monthlyEvents}
-            onChange={v => setMonthlyEvents(v ?? undefined)}
+            value={mtus}
+            onChange={v => setMtus(v ?? undefined)}
+            onPressEnter={() => !applying && apply()}
+            aria-describedby="refine-help"
             style={{ width: 160 }}
           />
-        </div>
-        <div>
-          <div className="text-textLight text-sm pb-1">MTUs / month</div>
-          <InputNumber min={0} value={mtus} onChange={v => setMtus(v ?? undefined)} style={{ width: 160 }} />
         </div>
         <JitsuButton
           type="primary"
-          disabled={applying || (!amountDollars && !monthlyEvents && !mtus)}
+          disabled={applying || (!amountDollars && !mtus)}
           icon={applying ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
           onClick={apply}
         >
           Apply
         </JitsuButton>
       </div>
-    </div>
+      <p id="refine-help" className="text-textLight text-xs pt-3 mb-0">
+        Events are estimated as MTUs × 100. Savings are calculated per year.
+      </p>
+    </section>
+  );
+};
+
+/** Collapsed by default: the headline numbers are the point of the report;
+ * the per-destination tables are for the migration call. */
+const DetailedReport: React.FC<{ snapshot: NonNullable<MigrationReport["snapshot"]> }> = ({ snapshot }) => {
+  const [expanded, setExpanded] = useState(false);
+  const chips = [
+    `${snapshot.destinations.length} destination${snapshot.destinations.length === 1 ? "" : "s"}`,
+    snapshot.warehouses.length > 0
+      ? `${snapshot.warehouses.length} warehouse${snapshot.warehouses.length === 1 ? "" : "s"}`
+      : undefined,
+    `${snapshot.sources.length} source${snapshot.sources.length === 1 ? "" : "s"}`,
+  ].filter(Boolean) as string[];
+  return (
+    <section className="border border-neutral-200 rounded-lg mt-6">
+      <h2 className="m-0">
+        <button
+          type="button"
+          onClick={() => setExpanded(!expanded)}
+          aria-expanded={expanded}
+          aria-controls="detailed-report"
+          className="w-full flex items-center justify-between gap-4 px-6 py-5 text-left rounded-lg hover:bg-neutral-50"
+        >
+          <span className="flex items-center gap-2 text-lg font-semibold">
+            <FileText className="w-5 h-5 text-textLight" />
+            Detailed report
+          </span>
+          <span className="flex items-center gap-2 text-textLight text-sm">
+            {chips.map(chip => (
+              <span key={chip} className="hidden md:inline border border-neutral-200 rounded-full px-2 py-0.5">
+                {chip}
+              </span>
+            ))}
+            <ChevronRight
+              className={`w-5 h-5 transition-transform ${expanded ? "rotate-90" : ""}`}
+              aria-hidden="true"
+            />
+          </span>
+        </button>
+      </h2>
+      {expanded && (
+        <div id="detailed-report" className="px-6 pb-6 border-t border-neutral-200">
+          <h3 className="text-xl pt-5 pb-3">Destinations</h3>
+          <Table
+            rowKey="externalId"
+            size="small"
+            pagination={false}
+            columns={destinationColumns}
+            dataSource={snapshot.destinations}
+          />
+          {snapshot.warehouses.length > 0 && (
+            <>
+              <h3 className="text-xl pt-6 pb-3">Warehouses</h3>
+              <Table
+                rowKey="externalId"
+                size="small"
+                pagination={false}
+                columns={destinationColumns}
+                dataSource={snapshot.warehouses}
+              />
+            </>
+          )}
+          <h3 className="text-xl pt-6 pb-3">Sources</h3>
+          <Table
+            rowKey="externalId"
+            size="small"
+            pagination={false}
+            columns={[
+              { title: "Name", dataIndex: "name" },
+              { title: "Type", dataIndex: "type", width: 160 },
+              {
+                title: "Status",
+                width: 120,
+                render: (s: any) => (s.enabled ? <Tag color="green">enabled</Tag> : <Tag>disabled</Tag>),
+              },
+            ]}
+            dataSource={snapshot.sources}
+          />
+          {(snapshot.transformations.length > 0 || snapshot.trackingPlans.length > 0) && (
+            <>
+              <h3 className="text-xl pt-6 pb-3">Also found</h3>
+              <ul className="list-disc pl-6 text-textLight">
+                {snapshot.transformations.length > 0 && (
+                  <li>
+                    {snapshot.transformations.length} transformation{snapshot.transformations.length > 1 ? "s" : ""} /
+                    function{snapshot.transformations.length > 1 ? "s" : ""} — portable to Jitsu Functions (JavaScript);
+                    we&apos;ll review them on the call
+                  </li>
+                )}
+                {snapshot.trackingPlans.length > 0 && (
+                  <li>
+                    {snapshot.trackingPlans.length} tracking plan{snapshot.trackingPlans.length > 1 ? "s" : ""} — event
+                    schemas can be enforced with Jitsu Functions
+                  </li>
+                )}
+              </ul>
+            </>
+          )}
+        </div>
+      )}
+    </section>
   );
 };
 
@@ -307,6 +438,10 @@ export const MigrationReportView: React.FC<{
   const allDestinations = [...snapshot.destinations, ...snapshot.warehouses];
   const counts = verdictCounts(allDestinations);
   const usage = snapshot.usage;
+  // Savings are stored per month (billing's unit for every cost field);
+  // the headline annualizes and never shows a negative.
+  const monthlyCents = savings?.savingsCents ?? undefined;
+  const annualCents = monthlyCents === undefined ? undefined : Math.max(0, monthlyCents) * 12;
   return (
     <div>
       <Head>
@@ -323,52 +458,47 @@ export const MigrationReportView: React.FC<{
           description={snapshot.gaps.map(g => `${g.area}: ${g.reason}`).join(" · ")}
         />
       )}
-      {savings && !savings.suppressed && savings.savingsCents != null ? (
-        <div className="border border-success rounded-lg px-6 py-5 mb-6 bg-backgroundLight">
-          <div className="text-textLight">Estimated savings with Jitsu</div>
-          <div className="text-5xl font-bold text-success py-2">{formatCents(savings.savingsCents)}/mo</div>
-          {savings.basisLines ? (
-            <div className="text-textLight text-sm flex flex-col gap-1.5 pt-1">
+      {annualCents !== undefined && (
+        <section
+          aria-labelledby="savings-heading"
+          className="border border-success rounded-lg px-6 py-5 mb-6 bg-success/5"
+        >
+          <h2 id="savings-heading" className="text-textLight text-sm font-semibold uppercase tracking-wider m-0">
+            Estimated annual savings with Jitsu
+          </h2>
+          <p className="flex items-baseline gap-3 flex-wrap py-2 mb-0">
+            <span className="text-5xl font-bold text-success">{formatCents(annualCents)}/yr</span>
+            <span className="text-textLight">≈ {formatCents(Math.max(0, monthlyCents ?? 0))} per month</span>
+          </p>
+          {savings?.basisLines ? (
+            <ul className="text-sm flex flex-col gap-2 pt-2 list-none pl-0 mb-0">
               {savings.basisLines.map((line, i) => (
-                <div key={i} className="flex items-center gap-2">
-                  <div className="w-4 h-4 shrink-0">{basisLineIcon(line.kind, report.provider)}</div>
+                <li key={i} className="flex items-start gap-2.5">
+                  <span
+                    aria-hidden="true"
+                    className="inline-block w-2 h-2 rounded-full shrink-0 mt-1.5"
+                    style={{ backgroundColor: BASIS_DOT[line.kind] }}
+                  />
                   <span>{highlightNumbers(line.text)}</span>
-                </div>
+                </li>
               ))}
-            </div>
+            </ul>
           ) : (
-            <div className="text-textLight text-sm whitespace-pre-line">{savings.basis}</div>
+            <div className="text-textLight text-sm whitespace-pre-line">{savings?.basis}</div>
           )}
-        </div>
-      ) : null}
-      <div className="flex flex-wrap gap-8 mb-6">
-        <div>
-          <div className="text-3xl font-bold">{snapshot.sources.length}</div>
-          <div className="text-textLight">sources</div>
-        </div>
-        <div>
-          <div className="text-3xl font-bold">{allDestinations.length}</div>
-          <div className="text-textLight">destinations</div>
-        </div>
-        <div>
-          <div className="text-3xl font-bold text-success">{counts.green}</div>
-          <div className="text-textLight">✅ auto-importable</div>
-        </div>
-        <div>
-          <div className="text-3xl font-bold text-warning">{counts.yellow}</div>
-          <div className="text-textLight">🟡 small change</div>
-        </div>
-        <div>
-          <div className="text-3xl font-bold">{counts.phone}</div>
-          <div className="text-textLight">📞 needs a call</div>
-        </div>
-        {usage?.monthlyEvents ? (
-          <div>
-            <div className="text-3xl font-bold">{usage.monthlyEvents.toLocaleString("en-US")}</div>
-            <div className="text-textLight">events / month{usage.source !== "api" ? ` (${usage.source})` : ""}</div>
-          </div>
-        ) : null}
-      </div>
+        </section>
+      )}
+      <ul
+        aria-label="Workspace summary"
+        className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 border border-neutral-200 rounded-lg overflow-hidden list-none pl-0 mb-6"
+      >
+        <StatItem value={snapshot.sources.length} label="sources" />
+        <StatItem value={allDestinations.length} label="destinations" />
+        <StatItem value={counts.green} label="auto-importable" className="text-success" />
+        <StatItem value={counts.yellow} label="small change" className="text-warning" />
+        <StatItem value={counts.phone} label="needs a call" />
+        {usage?.mtus ? <StatItem value={usage.mtus.toLocaleString("en-US")} label="MTUs / month" /> : null}
+      </ul>
       <div className="border border-neutral-200 rounded-lg px-6 py-5 mb-6 bg-backgroundLight flex items-center justify-between flex-wrap gap-4">
         <div>
           <div className="text-lg font-semibold">Ready to migrate?</div>
@@ -389,62 +519,7 @@ export const MigrationReportView: React.FC<{
       {/* Always offered: a real invoice beats the public-pricing estimate
           (custom tiers, discounts) even when API usage produced a number. */}
       <UsageEditor report={report} refresh={refresh} />
-      <h2 className="text-2xl pt-8 pb-3">Destinations</h2>
-      <Table
-        rowKey="externalId"
-        size="small"
-        pagination={false}
-        columns={destinationColumns}
-        dataSource={snapshot.destinations}
-      />
-      {snapshot.warehouses.length > 0 && (
-        <>
-          <h2 className="text-2xl pt-8 pb-3">Warehouses</h2>
-          <Table
-            rowKey="externalId"
-            size="small"
-            pagination={false}
-            columns={destinationColumns}
-            dataSource={snapshot.warehouses}
-          />
-        </>
-      )}
-      <h2 className="text-2xl pt-8 pb-3">Sources</h2>
-      <Table
-        rowKey="externalId"
-        size="small"
-        pagination={false}
-        columns={[
-          { title: "Name", dataIndex: "name" },
-          { title: "Type", dataIndex: "type", width: 160 },
-          {
-            title: "Status",
-            width: 120,
-            render: (s: any) => (s.enabled ? <Tag color="green">enabled</Tag> : <Tag>disabled</Tag>),
-          },
-        ]}
-        dataSource={snapshot.sources}
-      />
-      {(snapshot.transformations.length > 0 || snapshot.trackingPlans.length > 0) && (
-        <div className="pt-8">
-          <h2 className="text-2xl pb-3">Also found</h2>
-          <ul className="list-disc pl-6 text-textLight">
-            {snapshot.transformations.length > 0 && (
-              <li>
-                {snapshot.transformations.length} transformation{snapshot.transformations.length > 1 ? "s" : ""} /
-                function{snapshot.transformations.length > 1 ? "s" : ""} — portable to Jitsu Functions (JavaScript);
-                we&apos;ll review them on the call
-              </li>
-            )}
-            {snapshot.trackingPlans.length > 0 && (
-              <li>
-                {snapshot.trackingPlans.length} tracking plan{snapshot.trackingPlans.length > 1 ? "s" : ""} — event
-                schemas can be enforced with Jitsu Functions
-              </li>
-            )}
-          </ul>
-        </div>
-      )}
+      <DetailedReport snapshot={snapshot} />
     </div>
   );
 };

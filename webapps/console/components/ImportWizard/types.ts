@@ -31,6 +31,8 @@ export type SnapshotDestination = {
 
 export type SnapshotUsage = {
   source: "api" | "invoice" | "manual";
+  /** Where the volume (MTUs) came from, when it differs from `source`. */
+  volumeSource?: "api" | "invoice" | "manual";
   monthlyEvents?: number;
   mtus?: number;
   period?: string;
