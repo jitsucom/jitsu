@@ -60,6 +60,14 @@ process.env.DATABASE_URL = `${pgUrlBase}/${pgDb}?schema=newjitsu`;
 process.env.CLICKHOUSE_URL = chUrl;
 process.env.CLICKHOUSE_DATABASE = chDb;
 process.env.CLICKHOUSE_METRICS_SCHEMA = chDb; // getClickhouseConfig prefers this over CLICKHOUSE_DATABASE
+// The container runs an unauthenticated `default` user. A developer's root
+// .env.local carries real CLICKHOUSE_HOST/USER/PASSWORD, and getClickhouseConfig
+// would happily send those credentials to the container — every ClickHouse-backed
+// test then fails locally with "Authentication failed" while CI (no such env)
+// passes. Drop them so the harness is the only source of connection settings.
+delete process.env.CLICKHOUSE_HOST;
+delete process.env.CLICKHOUSE_USER;
+delete process.env.CLICKHOUSE_PASSWORD;
 process.env.JWT_SECRET = "test-jwt-secret";
 process.env.NEXTAUTH_SECRET = "test-nextauth-secret";
 // audit-log.ts snapshots this at import time
