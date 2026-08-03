@@ -484,7 +484,7 @@ export const MigrationReportView: React.FC<{
             <span className="text-textLight">≈ {formatCents(Math.max(0, monthlyCents ?? 0))} per month</span>
           </p>
           {savings?.basisLines ? (
-            <ul className="text-sm text-textLight flex flex-col gap-2 pt-2 list-none pl-0 mb-0">
+            <ul className="text-sm text-text flex flex-col gap-2 pt-2 list-none pl-0 mb-0">
               {savings.basisLines.map((line, i) => (
                 <li key={i} className="flex items-start gap-2.5">
                   <span
