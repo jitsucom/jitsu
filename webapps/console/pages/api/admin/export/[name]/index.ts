@@ -172,6 +172,7 @@ async function exportBulkerConnections(writer: Writer) {
     getLog().atDebug().log(`Got batch of ${objects.length} objects for bulker export`);
     lastId = objects[objects.length - 1].id;
     for (const { data: data_, from, id, to, updatedAt, workspace } of objects) {
+      let payload: string | undefined;
       try {
         const data = data_ || {};
         if (data?.disabled) {
@@ -201,7 +202,7 @@ async function exportBulkerConnections(writer: Writer) {
           //   // inside batch of two rows having the same messageId(pk) will be chosen the one with the highest timestampColumn value
           //   data.discriminatorField = [data.timestampColumn];
           // }
-          const payload = JSON.stringify({
+          payload = JSON.stringify({
             __debug: {
               workspace: { id: workspace.id, name: workspace.slug },
             },
@@ -211,15 +212,22 @@ async function exportBulkerConnections(writer: Writer) {
             updatedAt: dateMax(updatedAt, to.updatedAt),
             credentials: credentials,
           });
-          if (needComma) {
-            writer.write(",");
-          }
-          writer.write(payload);
-          needComma = true;
         }
       } catch (e) {
+        // Only entity materialization/serialization is guarded: one malformed row
+        // must not take down the whole export. Writes happen OUTSIDE the try so a
+        // failing stream aborts the export instead of silently scanning on.
         logExportEntityError("bulker-connections", id, e);
+        continue;
       }
+      if (payload === undefined) {
+        continue;
+      }
+      if (needComma) {
+        writer.write(",");
+      }
+      writer.write(payload);
+      needComma = true;
     }
     if (objects.length < batchSize) {
       break;
@@ -240,11 +248,12 @@ async function exportBulkerConnections(writer: Writer) {
     getLog().atDebug().log(`Got batch of ${objects.length} destinations objects for bulker export`);
     lastId = objects[objects.length - 1].id;
     for (const { id, workspace, config, updatedAt } of objects) {
+      let payload: string | undefined;
       try {
         const destinationType = config.destinationType;
         const coreDestinationType = getCoreDestinationTypeNonStrict(destinationType);
         if (coreDestinationType?.usesBulker || coreDestinationType?.hybrid) {
-          const payload = JSON.stringify({
+          payload = JSON.stringify({
             __debug: {
               workspace: { id: workspace.id, name: workspace.slug },
             },
@@ -258,15 +267,22 @@ async function exportBulkerConnections(writer: Writer) {
             updatedAt: updatedAt,
             credentials: omit(config, "destinationType", "type", "name"),
           });
-          if (needComma) {
-            writer.write(",");
-          }
-          writer.write(payload);
-          needComma = true;
         }
       } catch (e) {
+        // Only entity materialization/serialization is guarded: one malformed row
+        // must not take down the whole export. Writes happen OUTSIDE the try so a
+        // failing stream aborts the export instead of silently scanning on.
         logExportEntityError("bulker-connections", id, e);
+        continue;
       }
+      if (payload === undefined) {
+        continue;
+      }
+      if (needComma) {
+        writer.write(",");
+      }
+      writer.write(payload);
+      needComma = true;
     }
     if (objects.length < batchSize) {
       break;
@@ -347,6 +363,7 @@ async function exportRotorConnections(writer: Writer) {
     getLog().atDebug().log(`Got batch of ${objects.length} objects for bulker export`);
     lastId = objects[objects.length - 1].id;
     for (const { data: data_, from, id, to, updatedAt, workspace } of objects) {
+      let payload: string | undefined;
       try {
         const data = data_ || {};
         if (data?.disabled) {
@@ -357,7 +374,7 @@ async function exportRotorConnections(writer: Writer) {
         if (!coreDestinationType) {
           getLog().atError().log(`Unknown destination type: ${destinationType} for connection ${id}`);
         }
-        const payload = JSON.stringify({
+        payload = JSON.stringify({
           __debug: {
             workspace: { id: workspace.id, name: workspace.slug },
           },
@@ -383,14 +400,21 @@ async function exportRotorConnections(writer: Writer) {
           credentials: omit(to.config, "destinationType", "type", "name"),
           credentialsHash: hash(omit(to.config, "destinationType", "type", "name")),
         });
-        if (needComma) {
-          writer.write(",");
-        }
-        writer.write(payload);
-        needComma = true;
       } catch (e) {
+        // Only entity materialization/serialization is guarded: one malformed row
+        // must not take down the whole export. Writes happen OUTSIDE the try so a
+        // failing stream aborts the export instead of silently scanning on.
         logExportEntityError("rotor-connections", id, e);
+        continue;
       }
+      if (payload === undefined) {
+        continue;
+      }
+      if (needComma) {
+        writer.write(",");
+      }
+      writer.write(payload);
+      needComma = true;
     }
     if (objects.length < batchSize) {
       break;
@@ -411,11 +435,12 @@ async function exportRotorConnections(writer: Writer) {
     getLog().atDebug().log(`Got batch of ${objects.length} destinations objects for bulker export`);
     lastId = objects[objects.length - 1].id;
     for (const { id, workspace, config, updatedAt } of objects) {
+      let payload: string | undefined;
       try {
         const destinationType = config?.destinationType;
         const coreDestinationType = getCoreDestinationTypeNonStrict(destinationType);
         if (coreDestinationType?.usesBulker || coreDestinationType?.hybrid) {
-          const payload = JSON.stringify({
+          payload = JSON.stringify({
             id: id,
             type: destinationType,
             workspaceId: workspace.id,
@@ -427,21 +452,29 @@ async function exportRotorConnections(writer: Writer) {
             credentials: omit(config, "destinationType", "type", "name"),
             credentialsHash: hash(omit(config, "destinationType", "type", "name")),
           });
-          if (needComma) {
-            writer.write(",");
-          }
-          writer.write(payload);
-          needComma = true;
         }
       } catch (e) {
+        // Only entity materialization/serialization is guarded: one malformed row
+        // must not take down the whole export. Writes happen OUTSIDE the try so a
+        // failing stream aborts the export instead of silently scanning on.
         logExportEntityError("rotor-connections", id, e);
+        continue;
       }
+      if (payload === undefined) {
+        continue;
+      }
+      if (needComma) {
+        writer.write(",");
+      }
+      writer.write(payload);
+      needComma = true;
     }
     if (objects.length < batchSize) {
       break;
     }
   }
   for (const pb of profileBuilders) {
+    let payload: string | undefined;
     try {
       const cred = {
         ...(pb.intermediateStorageCredentials ?? ({} as any)),
@@ -466,7 +499,7 @@ async function exportRotorConnections(writer: Writer) {
         ),
         workspaceUpdatedAt: pb.workspace.updatedAt,
       };
-      const payload = JSON.stringify({
+      payload = JSON.stringify({
         __debug: {
           workspace: { id: pb.workspaceId },
         },
@@ -483,14 +516,21 @@ async function exportRotorConnections(writer: Writer) {
         credentials: cred,
         credentialsHash: hash(cred),
       });
-      if (needComma) {
-        writer.write(",");
-      }
-      writer.write(payload);
-      needComma = true;
     } catch (e) {
+      // Only entity materialization/serialization is guarded: one malformed row
+      // must not take down the whole export. Writes happen OUTSIDE the try so a
+      // failing stream aborts the export instead of silently scanning on.
       logExportEntityError("rotor-connections", pb.id, e);
+      continue;
     }
+    if (payload === undefined) {
+      continue;
+    }
+    if (needComma) {
+      writer.write(",");
+    }
+    writer.write(payload);
+    needComma = true;
   }
   writer.write("]");
 }
@@ -517,20 +557,28 @@ async function exportFunctions(writer: Writer) {
     getLog().atDebug().log(`Got batch of ${objects.length} objects for bulker export`);
     lastId = objects[objects.length - 1].id;
     for (const row of objects) {
+      let payload: string | undefined;
       try {
-        const payload = JSON.stringify({
+        payload = JSON.stringify({
           ...omit(row, "deleted", "config"),
           ...row.config,
           codeHash: hash(row.config?.code || row.config?.draft || ""),
         });
-        if (needComma) {
-          writer.write(",");
-        }
-        writer.write(payload);
-        needComma = true;
       } catch (e) {
+        // Only entity materialization/serialization is guarded: one malformed row
+        // must not take down the whole export. Writes happen OUTSIDE the try so a
+        // failing stream aborts the export instead of silently scanning on.
         logExportEntityError("functions", row.id, e);
+        continue;
       }
+      if (payload === undefined) {
+        continue;
+      }
+      if (needComma) {
+        writer.write(",");
+      }
+      writer.write(payload);
+      needComma = true;
     }
     if (objects.length < batchSize) {
       break;
@@ -616,6 +664,7 @@ async function exportStreamsWithDestinations(writer: Writer) {
     getLog().atDebug().log(`Got batch of ${objects.length} objects for streams-with-destinations export`);
     lastId = objects[objects.length - 1].id;
     for (const obj of objects) {
+      let payload: string | undefined;
       try {
         const throttlePercent =
           workspacesWithClasses.get(obj.workspace.id)?.status !== "active"
@@ -623,7 +672,7 @@ async function exportStreamsWithDestinations(writer: Writer) {
             : undefined;
         const shardNumber = obj.config.shard || getNumericOption("shard", obj.workspace);
         const classicKeys = classicKeysMap[obj.id] || ({} as ClassicKeys);
-        const payload = JSON.stringify({
+        payload = JSON.stringify({
           __debug: {
             workspace: { id: obj.workspace.id, name: obj.workspace.slug },
           },
@@ -682,14 +731,21 @@ async function exportStreamsWithDestinations(writer: Writer) {
             })),
           ],
         });
-        if (needComma) {
-          writer.write(",");
-        }
-        writer.write(payload);
-        needComma = true;
       } catch (e) {
+        // Only entity materialization/serialization is guarded: one malformed row
+        // must not take down the whole export. Writes happen OUTSIDE the try so a
+        // failing stream aborts the export instead of silently scanning on.
         logExportEntityError("streams-with-destinations", obj.id, e);
+        continue;
       }
+      if (payload === undefined) {
+        continue;
+      }
+      if (needComma) {
+        writer.write(",");
+      }
+      writer.write(payload);
+      needComma = true;
     }
     if (objects.length < batchSize) {
       break;
@@ -767,17 +823,25 @@ async function exportWorkspaces(writer: Writer) {
     getLog().atDebug().log(`Got batch of ${objects.length} objects for bulker export`);
     lastId = objects[objects.length - 1].id;
     for (const row of objects) {
+      let payload: string | undefined;
       try {
         row.featuresEnabled = addFunctionsClass(row.featuresEnabled ?? [], functionsClassFunc(row.id));
-        const payload = JSON.stringify(row);
-        if (needComma) {
-          writer.write(",");
-        }
-        writer.write(payload);
-        needComma = true;
+        payload = JSON.stringify(row);
       } catch (e) {
+        // Only entity materialization/serialization is guarded: one malformed row
+        // must not take down the whole export. Writes happen OUTSIDE the try so a
+        // failing stream aborts the export instead of silently scanning on.
         logExportEntityError("workspaces", row.id, e);
+        continue;
       }
+      if (payload === undefined) {
+        continue;
+      }
+      if (needComma) {
+        writer.write(",");
+      }
+      writer.write(payload);
+      needComma = true;
     }
     if (objects.length < batchSize) {
       break;
@@ -842,6 +906,7 @@ async function exportWorkspacesWithProfiles(writer: Writer) {
     getLog().atDebug().log(`Got batch of ${objects.length} objects for bulker export`);
     lastId = objects[objects.length - 1].id;
     for (const row of objects) {
+      let payload: string | undefined;
       try {
         row.featuresEnabled = addFunctionsClass(row.featuresEnabled ?? [], functionsClassFunc(row.id));
         row.profileBuilders = row.profileBuilders
@@ -862,15 +927,22 @@ async function exportWorkspacesWithProfiles(writer: Writer) {
             );
             return pb;
           });
-        const payload = JSON.stringify(row);
-        if (needComma) {
-          writer.write(",");
-        }
-        writer.write(payload);
-        needComma = true;
+        payload = JSON.stringify(row);
       } catch (e) {
+        // Only entity materialization/serialization is guarded: one malformed row
+        // must not take down the whole export. Writes happen OUTSIDE the try so a
+        // failing stream aborts the export instead of silently scanning on.
         logExportEntityError("workspaces-with-profiles", row.id, e);
+        continue;
       }
+      if (payload === undefined) {
+        continue;
+      }
+      if (needComma) {
+        writer.write(",");
+      }
+      writer.write(payload);
+      needComma = true;
     }
     if (objects.length < batchSize) {
       break;
@@ -935,22 +1007,26 @@ async function exportSyncs(writer: Writer) {
         // can't run them, e.g. non-bulker mixpanel-with-syncs.)
         return exportSyncEntity({ data, from, id, to, updatedAt, workspace });
       } catch (e) {
+        // Do NOT skip-and-continue here: syncctl reconciles desired state from
+        // this export and deletes CronJobs that are absent from it, so omitting
+        // a sync because its row failed to materialize would tear down a healthy
+        // sync. Fail the whole export instead — consumers keep their last known
+        // good snapshot (stale is safe, wrong is not).
         logExportEntityError("syncs", id, e);
-        return [];
+        throw e;
       }
     });
 
     for (const item of enriched) {
-      try {
-        const payload = JSON.stringify(item);
-        if (needComma) {
-          writer.write(",");
-        }
-        writer.write(payload);
-        needComma = true;
-      } catch (e) {
-        logExportEntityError("syncs", item.id, e);
+      // No per-entity skip anywhere in syncs: omission reads as deletion to
+      // syncctl (see catch above), so a serialization failure also fails the
+      // whole export rather than dropping the entity.
+      const payload = JSON.stringify(item);
+      if (needComma) {
+        writer.write(",");
       }
+      writer.write(payload);
+      needComma = true;
     }
 
     if (objects.length < batchSize) {
