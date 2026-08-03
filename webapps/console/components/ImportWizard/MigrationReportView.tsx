@@ -481,7 +481,9 @@ export const MigrationReportView: React.FC<{
           description={snapshot.gaps.map(g => `${g.area}: ${g.reason}`).join(" · ")}
         />
       )}
-      {(annualCents !== undefined || savings?.basisLines) && (
+      {/* `basis` alone still renders: a suppressed estimate ("No usage data —
+          upload an invoice…") is exactly when the explanation matters most. */}
+      {(annualCents !== undefined || savings?.basisLines || savings?.basis) && (
         <section
           aria-labelledby="savings-heading"
           className={`border rounded-lg px-6 py-5 mb-6 ${
