@@ -51,7 +51,7 @@ function showCalendly(url: string | undefined): void {
 // Text carries the meaning; the colored dot is decorative (a11y checklist).
 const VERDICT_TAG: Record<Verdict, React.ReactNode> = {
   green: <Tag color="green">Auto-importable</Tag>,
-  yellow: <Tag color="gold">Small change</Tag>,
+  yellow: <Tag color="orange">Small change</Tag>,
   phone: <Tag>Needs a call</Tag>,
 };
 
@@ -59,7 +59,8 @@ const VERDICT_TAG: Record<Verdict, React.ReactNode> = {
 function highlightNumbers(text: string): React.ReactNode[] {
   return text.split(/(\$[\d,]+(?:\.\d+)?|\b\d[\d,]*(?:\.\d+)?[kM]?\b)/g).map((part, i) =>
     /^(\$[\d,]+(?:\.\d+)?|\d[\d,]*(?:\.\d+)?[kM]?)$/.test(part) ? (
-      <span key={i} className="font-semibold text-text">
+      // theme token `text` is neutral-600 (gray); `textDark` is the strong one
+      <span key={i} className="font-semibold text-textDark">
         {part}
       </span>
     ) : (
@@ -483,7 +484,7 @@ export const MigrationReportView: React.FC<{
             <span className="text-textLight">≈ {formatCents(Math.max(0, monthlyCents ?? 0))} per month</span>
           </p>
           {savings?.basisLines ? (
-            <ul className="text-sm flex flex-col gap-2 pt-2 list-none pl-0 mb-0">
+            <ul className="text-sm text-textLight flex flex-col gap-2 pt-2 list-none pl-0 mb-0">
               {savings.basisLines.map((line, i) => (
                 <li key={i} className="flex items-start gap-2.5">
                   <span
