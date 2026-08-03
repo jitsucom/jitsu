@@ -19,9 +19,9 @@ import {
 /**
  * Migration report (JITSU-131). Savings are headlined per YEAR — the number
  * that lands in a budget conversation — with the monthly figure alongside.
- * Volume is expressed in MTUs (what customers read off their invoice, and the
- * only volume they can override); events are derived as MTUs × 100 server-side,
- * so this report and jitsu.com/migrate-from-segment always agree.
+ * Volume can be refined as events or MTUs; with MTUs alone the backend
+ * estimates events as MTUs × 100 — the same rule as
+ * jitsu.com/migrate-from-segment, so both surfaces agree on MTU-only data.
  */
 
 // Booking link comes exclusively from MIGRATION_CALENDLY_URL
@@ -129,8 +129,8 @@ const StatItem: React.FC<{ value: React.ReactNode; label: string; className?: st
 /**
  * Invoice upload → LLM parse → user confirms numbers → report-usage applies
  * them. The raw parse never lands in the report: only what the user confirms
- * here is submitted (JITSU-128 design rule). Volume is MTUs only — events are
- * derived from them, so a separate events field would just contradict itself.
+ * here is submitted (JITSU-128 design rule). Volume can be given as events or
+ * MTUs; when only MTUs are known the backend estimates events as MTUs × 100.
  */
 const UsageEditor: React.FC<{ report: MigrationReport; refresh: () => Promise<void> }> = ({ report, refresh }) => {
   const workspace = useWorkspace();
@@ -139,6 +139,9 @@ const UsageEditor: React.FC<{ report: MigrationReport; refresh: () => Promise<vo
   const [source, setSource] = useState<"invoice" | "manual">("manual");
   const [extraction, setExtraction] = useState<InvoiceExtraction | undefined>();
   const [amountDollars, setAmountDollars] = useState<number | undefined>();
+  const [monthlyEvents, setMonthlyEvents] = useState<number | undefined>(
+    report.snapshot?.usage?.monthlyEvents ?? undefined
+  );
   const [mtus, setMtus] = useState<number | undefined>(report.snapshot?.usage?.mtus ?? undefined);
 
   const parseFile = async (file: File) => {
@@ -171,13 +174,8 @@ const UsageEditor: React.FC<{ report: MigrationReport; refresh: () => Promise<vo
       // Savings math is USD: never pre-fill an amount in another currency.
       const usd = !parsed.currency || parsed.currency.toUpperCase() === "USD";
       setAmountDollars(usd && parsed.amountCents != null ? Math.round(parsed.amountCents / 100) : undefined);
-      if (parsed.mtus) {
-        setMtus(parsed.mtus);
-      } else if (parsed.monthlyEvents) {
-        // No MTU line on the invoice — back-derive so the estimate still
-        // reflects the invoice's volume.
-        setMtus(Math.max(1, Math.round(parsed.monthlyEvents / 100)));
-      }
+      setMonthlyEvents(parsed.monthlyEvents ?? undefined);
+      setMtus(parsed.mtus ?? undefined);
     } catch (e) {
       feedbackError("Failed to parse the invoice", { error: e });
     } finally {
@@ -193,6 +191,7 @@ const UsageEditor: React.FC<{ report: MigrationReport; refresh: () => Promise<vo
         body: {
           reportId: report.id,
           source,
+          ...(monthlyEvents ? { monthlyEvents: Math.round(monthlyEvents) } : {}),
           ...(mtus ? { mtus: Math.round(mtus) } : {}),
           ...(amountDollars ? { billedAmountCents: Math.round(amountDollars * 100) } : {}),
         },
@@ -217,7 +216,7 @@ const UsageEditor: React.FC<{ report: MigrationReport; refresh: () => Promise<vo
       </h2>
       <div className="text-textLight pb-4">
         {`Upload a recent ${report.provider === "segment" ? "Segment" : "RudderStack"} invoice (PDF or screenshot) ` +
-          "and we'll read the numbers from it — or enter your monthly spend and MTUs manually. " +
+          "and we'll read the numbers from it — or enter your monthly spend and volume manually. " +
           "The file is processed in memory and never stored."}
       </div>
       <Upload.Dragger
@@ -275,6 +274,19 @@ const UsageEditor: React.FC<{ report: MigrationReport; refresh: () => Promise<vo
           />
         </div>
         <div>
+          <label htmlFor="refine-events" className="block text-textLight text-sm pb-1">
+            Events / month
+          </label>
+          <InputNumber
+            id="refine-events"
+            min={0}
+            value={monthlyEvents}
+            onChange={v => setMonthlyEvents(v ?? undefined)}
+            onPressEnter={() => !applying && apply()}
+            style={{ width: 160 }}
+          />
+        </div>
+        <div>
           <label htmlFor="refine-mtus" className="block text-textLight text-sm pb-1">
             MTUs / month
           </label>
@@ -290,7 +302,7 @@ const UsageEditor: React.FC<{ report: MigrationReport; refresh: () => Promise<vo
         </div>
         <JitsuButton
           type="primary"
-          disabled={applying || (!amountDollars && !mtus)}
+          disabled={applying || (!amountDollars && !monthlyEvents && !mtus)}
           icon={applying ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
           onClick={apply}
         >
@@ -298,7 +310,7 @@ const UsageEditor: React.FC<{ report: MigrationReport; refresh: () => Promise<vo
         </JitsuButton>
       </div>
       <p id="refine-help" className="text-textLight text-xs pt-3 mb-0">
-        Events are estimated as MTUs × 100. Savings are calculated per year.
+        Leave events empty and we estimate them as MTUs × 100. Savings are calculated per year.
       </p>
     </section>
   );
@@ -497,7 +509,11 @@ export const MigrationReportView: React.FC<{
         <StatItem value={counts.green} label="auto-importable" className="text-success" />
         <StatItem value={counts.yellow} label="small change" className="text-warning" />
         <StatItem value={counts.phone} label="needs a call" />
-        {usage?.mtus ? <StatItem value={usage.mtus.toLocaleString("en-US")} label="MTUs / month" /> : null}
+        {usage?.monthlyEvents ? (
+          <StatItem value={usage.monthlyEvents.toLocaleString("en-US")} label="events / month" />
+        ) : usage?.mtus ? (
+          <StatItem value={usage.mtus.toLocaleString("en-US")} label="MTUs / month" />
+        ) : null}
       </ul>
       <div className="border border-neutral-200 rounded-lg px-6 py-5 mb-6 bg-backgroundLight flex items-center justify-between flex-wrap gap-4">
         <div>
