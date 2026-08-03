@@ -184,7 +184,14 @@ const UsageEditor: React.FC<{ report: MigrationReport; refresh: () => Promise<vo
     }
   };
 
+  // Enter and the button share one guard: a keyboard submit must not bypass
+  // the disabled state and post an empty usage update.
+  const canApply = !applying && !parsing && (!!amountDollars || !!monthlyEvents || !!mtus);
+
   const apply = async () => {
+    if (!canApply) {
+      return;
+    }
     setApplying(true);
     try {
       await rpc(`/api/migration/report-usage`, {
@@ -270,7 +277,7 @@ const UsageEditor: React.FC<{ report: MigrationReport; refresh: () => Promise<vo
             min={0}
             value={amountDollars}
             onChange={v => setAmountDollars(v ?? undefined)}
-            onPressEnter={() => !applying && apply()}
+            onPressEnter={() => apply()}
             style={{ width: 160 }}
           />
         </div>
@@ -283,7 +290,7 @@ const UsageEditor: React.FC<{ report: MigrationReport; refresh: () => Promise<vo
             min={0}
             value={monthlyEvents}
             onChange={v => setMonthlyEvents(v ?? undefined)}
-            onPressEnter={() => !applying && apply()}
+            onPressEnter={() => apply()}
             style={{ width: 160 }}
           />
         </div>
@@ -296,14 +303,14 @@ const UsageEditor: React.FC<{ report: MigrationReport; refresh: () => Promise<vo
             min={0}
             value={mtus}
             onChange={v => setMtus(v ?? undefined)}
-            onPressEnter={() => !applying && apply()}
+            onPressEnter={() => apply()}
             aria-describedby="refine-help"
             style={{ width: 160 }}
           />
         </div>
         <JitsuButton
           type="primary"
-          disabled={applying || (!amountDollars && !monthlyEvents && !mtus)}
+          disabled={!canApply}
           icon={applying ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
           onClick={apply}
         >
@@ -455,6 +462,9 @@ export const MigrationReportView: React.FC<{
   // the headline annualizes and never shows a negative.
   const monthlyCents = savings?.savingsCents ?? undefined;
   const annualCents = monthlyCents === undefined ? undefined : Math.max(0, monthlyCents) * 12;
+  // The backend suppresses when savings are ≤ 0 or the inputs don't support an
+  // estimate — respect it rather than headlining a number it disowned.
+  const suppressed = savings?.suppressed !== false || annualCents === undefined;
   return (
     <div>
       <Head>
@@ -471,18 +481,28 @@ export const MigrationReportView: React.FC<{
           description={snapshot.gaps.map(g => `${g.area}: ${g.reason}`).join(" · ")}
         />
       )}
-      {annualCents !== undefined && (
+      {(annualCents !== undefined || savings?.basisLines) && (
         <section
           aria-labelledby="savings-heading"
-          className="border border-success rounded-lg px-6 py-5 mb-6 bg-success/5"
+          className={`border rounded-lg px-6 py-5 mb-6 ${
+            suppressed ? "border-neutral-200 bg-backgroundLight" : "border-success bg-success/5"
+          }`}
         >
           <h2 id="savings-heading" className="text-textLight text-sm font-semibold uppercase tracking-wider m-0">
-            Estimated annual savings with Jitsu
+            {suppressed ? "Your migration estimate" : "Estimated annual savings with Jitsu"}
           </h2>
-          <p className="flex items-baseline gap-3 flex-wrap py-2 mb-0">
-            <span className="text-5xl font-bold text-success">{formatCents(annualCents)}/yr</span>
-            <span className="text-textLight">≈ {formatCents(Math.max(0, monthlyCents ?? 0))} per month</span>
-          </p>
+          {suppressed ? (
+            // Savings ≤ 0 (or not computable): a "$0/yr" hero would be noise —
+            // show the math and an honest next step instead (PRD corner case).
+            <p className="py-2 mb-0">
+              At this volume the plans are close — let&apos;s find you the right price on the call.
+            </p>
+          ) : (
+            <p className="flex items-baseline gap-3 flex-wrap py-2 mb-0">
+              <span className="text-5xl font-bold text-success">{formatCents(annualCents!)}/yr</span>
+              <span className="text-textLight">≈ {formatCents(Math.max(0, monthlyCents ?? 0))} per month</span>
+            </p>
+          )}
           {savings?.basisLines ? (
             <ul className="text-sm text-text flex flex-col gap-2 pt-2 list-none pl-0 mb-0">
               {savings.basisLines.map((line, i) => (
