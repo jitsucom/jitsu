@@ -60,6 +60,23 @@ process.env.DATABASE_URL = `${pgUrlBase}/${pgDb}?schema=newjitsu`;
 process.env.CLICKHOUSE_URL = chUrl;
 process.env.CLICKHOUSE_DATABASE = chDb;
 process.env.CLICKHOUSE_METRICS_SCHEMA = chDb; // getClickhouseConfig prefers this over CLICKHOUSE_DATABASE
+// The container runs an unauthenticated `default` user over plain HTTP. A
+// developer's root .env.local carries real ClickHouse settings, and
+// getClickhouseConfig (libs/juava/src/clickhouse.ts) would send those to the
+// container — every ClickHouse-backed test then fails locally with
+// "Authentication failed" while CI (no such env) passes. Drop everything the
+// harness doesn't set itself, so it is the only source of connection settings.
+// Note the reader uses CLICKHOUSE_USERNAME; CLICKHOUSE_USER is a legacy spelling
+// that appears in local envs and is cleared for good measure.
+for (const v of [
+  "CLICKHOUSE_HOST",
+  "CLICKHOUSE_USER",
+  "CLICKHOUSE_USERNAME",
+  "CLICKHOUSE_PASSWORD",
+  "CLICKHOUSE_SSL",
+]) {
+  delete process.env[v];
+}
 process.env.JWT_SECRET = "test-jwt-secret";
 process.env.NEXTAUTH_SECRET = "test-nextauth-secret";
 // audit-log.ts snapshots this at import time

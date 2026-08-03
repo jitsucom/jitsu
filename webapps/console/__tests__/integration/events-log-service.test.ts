@@ -15,6 +15,19 @@ const seedStream = (workspaceId: string, name: string) =>
 const chInsert = (table: "events_log" | "dead_letter", values: any[]) =>
   deps().clickhouse.insert({ table, values, format: "JSONEachRow", clickhouse_settings: { wait_end_of_query: 1 } });
 
+// Fixtures are anchored to NOW, never to calendar dates: the tables carry
+// TTLs (dead_letter 1 month, events_log 3 months — see clickhouse-init.ts), so
+// hardcoded timestamps quietly age out and every assertion starts seeing an
+// empty result set. `ts(n)` / `iso(n)` are minute offsets from a base a couple
+// of hours in the past — recent enough for any TTL, past enough that no row is
+// dated in the future.
+const BASE_MS = Date.now() - 2 * 60 * 60 * 1000;
+const at = (minutes: number) => new Date(BASE_MS + minutes * 60_000);
+/** ClickHouse DateTime64(3) literal, e.g. "2026-08-03 10:00:00.000". */
+const ts = (minutes: number) => at(minutes).toISOString().replace("T", " ").replace("Z", "");
+/** ISO string for the service's start/end filters. */
+const iso = (minutes: number) => at(minutes).toISOString();
+
 describe("EventsLogService", () => {
   it("rejects an unknown events-log type", async () => {
     const { user, workspace } = await seedWorkspace();
@@ -38,14 +51,14 @@ describe("EventsLogService", () => {
 
     await chInsert("events_log", [
       {
-        timestamp: "2026-07-01 10:00:00.000",
+        timestamp: ts(0),
         actorId: stream.id,
         type: "incoming",
         level: "info",
         message: JSON.stringify({ event: "page_view" }),
       },
       {
-        timestamp: "2026-07-01 11:00:00.000",
+        timestamp: ts(60),
         actorId: stream.id,
         type: "incoming",
         level: "error",
@@ -53,7 +66,7 @@ describe("EventsLogService", () => {
       },
       // a different log type for the same actor must not appear
       {
-        timestamp: "2026-07-01 10:30:00.000",
+        timestamp: ts(30),
         actorId: stream.id,
         type: "function",
         level: "info",
@@ -61,7 +74,7 @@ describe("EventsLogService", () => {
       },
       // another workspace's stream must not leak in
       {
-        timestamp: "2026-07-01 10:30:00.000",
+        timestamp: ts(30),
         actorId: foreignStream.id,
         type: "incoming",
         level: "info",
@@ -89,10 +102,10 @@ describe("EventsLogService", () => {
     expect(searched).toHaveLength(1);
     expect(searched[0].content).toEqual({ event: "page_view" });
 
-    // time window: only the 10:00 row falls in [10:00, 10:30)
+    // time window: only the base row falls in [base, base+30m)
     const windowed = await svc().queryEventsLog(user, workspace.id, "incoming", {
-      start: "2026-07-01T10:00:00.000Z",
-      end: "2026-07-01T10:30:00.000Z",
+      start: iso(0),
+      end: iso(30),
     });
     expect(windowed).toHaveLength(1);
     expect(windowed[0].content).toEqual({ event: "page_view" });
@@ -113,11 +126,11 @@ describe("EventsLogService", () => {
     });
 
     await chInsert("events_log", [
-      { timestamp: "2026-07-01 10:00:00.000", actorId: link.id, type: "function", level: "info", message: "{}" },
-      { timestamp: "2026-07-01 10:01:00.000", actorId: dest.id, type: "function", level: "info", message: "{}" },
-      { timestamp: "2026-07-01 10:02:00.000", actorId: pb.id, type: "function", level: "info", message: "{}" },
+      { timestamp: ts(0), actorId: link.id, type: "function", level: "info", message: "{}" },
+      { timestamp: ts(1), actorId: dest.id, type: "function", level: "info", message: "{}" },
+      { timestamp: ts(2), actorId: pb.id, type: "function", level: "info", message: "{}" },
       // events attributed to the stream id must NOT show up for type=function
-      { timestamp: "2026-07-01 10:03:00.000", actorId: stream.id, type: "function", level: "info", message: "{}" },
+      { timestamp: ts(3), actorId: stream.id, type: "function", level: "info", message: "{}" },
     ]);
 
     const rows = await svc().queryEventsLog(user, workspace.id, "function");
@@ -140,7 +153,7 @@ describe("EventsLogService", () => {
 
     await chInsert("dead_letter", [
       {
-        timestamp: "2026-07-01 10:00:00.000",
+        timestamp: ts(0),
         workspaceId: workspace.id,
         actorId: "conn-1",
         type: "function",
@@ -148,7 +161,7 @@ describe("EventsLogService", () => {
         error: JSON.stringify({ e: "boom" }),
       },
       {
-        timestamp: "2026-07-01 10:01:00.000",
+        timestamp: ts(1),
         workspaceId: workspace.id,
         actorId: "conn-1",
         type: "function",
@@ -157,7 +170,7 @@ describe("EventsLogService", () => {
         error: "not json",
       },
       {
-        timestamp: "2026-07-01 10:02:00.000",
+        timestamp: ts(2),
         workspaceId: foreign.id,
         actorId: "conn-2",
         type: "function",
@@ -179,7 +192,7 @@ describe("EventsLogService", () => {
     const stream = await seedStream(workspace.id, "site");
     await chInsert("dead_letter", [
       {
-        timestamp: "2026-07-01 10:00:00.000",
+        timestamp: ts(0),
         workspaceId: workspace.id,
         actorId: stream.id,
         type: "incoming",
@@ -187,7 +200,7 @@ describe("EventsLogService", () => {
         error: "{}",
       },
       {
-        timestamp: "2026-07-01 10:01:00.000",
+        timestamp: ts(1),
         workspaceId: workspace.id,
         actorId: "other-actor",
         type: "incoming",
