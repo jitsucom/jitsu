@@ -29,8 +29,21 @@ export const FacebookConversionApiCredentialsUi = {
 
 export type FacebookConversionApiCredentials = z.infer<typeof FacebookConversionApiCredentials>;
 
+function isSupportedWebhookUrl(value: string): boolean {
+  try {
+    const url = new URL(value);
+    return (url.protocol === "http:" || url.protocol === "https:") && url.username === "" && url.password === "";
+  } catch {
+    return false;
+  }
+}
+
 export const WebhookDestinationConfig = z.object({
-  url: z.string().url().describe("Webhook URL"),
+  url: z
+    .string()
+    .url()
+    .refine(isSupportedWebhookUrl, "Webhook URL must use HTTP or HTTPS without embedded credentials")
+    .describe("Webhook URL"),
   method: z
     .enum(["GET", "POST", "PUT", "DELETE"])
     .default("POST")
@@ -323,8 +336,14 @@ export const BrazeCredentials = z.object({
 });
 export type BrazeCredentials = z.infer<typeof BrazeCredentials>;
 
+const SEGMENT_API_BASES = [
+  "https://api.segmentapis.com/v1",
+  "https://eu1.api.segmentapis.com/v1",
+  "https://api.segment.io/v1",
+] as const;
+
 export const SegmentCredentials = z.object({
-  apiBase: z.string().default("https://api.segment.io/v1").describe("API Base::Segment API Base"),
+  apiBase: z.enum(SEGMENT_API_BASES).default(SEGMENT_API_BASES[0]).describe("API Base::Segment API Base"),
   writeKey: z
     .string()
     .describe(
@@ -475,13 +494,6 @@ export const Ga4Credentials = z.object({
       "The measurement ID associated with a stream.<br/><b>For Web:</b> found in the Google Analytics UI under: " +
         "<b>Admin > Data Streams > choose your stream > Measurement ID</b><br/><b>For Apps</b>: the Firebase App ID, found in the Firebase console under: <b>Project Settings > General > Your Apps > App ID</b>"
     ),
-  url: z
-    .string()
-    .url()
-    .describe(
-      "Measurement Protocol URL.<br/>Default: <code>https://www.google-analytics.com/mp/collect</code><br/>Default debug url: <code>https://www.google-analytics.com/debug/mp/collect</code>"
-    )
-    .default("https://www.google-analytics.com/mp/collect"),
   events: z.string().optional().default("").describe(eventsParamDescription),
 });
 export type Ga4Credentials = z.infer<typeof Ga4Credentials>;

@@ -1,41 +1,45 @@
+import { ReactNode } from "react";
 import { SomeZodObject, z } from "zod";
-import React, { ReactNode } from "react";
 
 import amplitudeIcon from "./icons/amplitude";
 import bigqueryIcon from "./icons/bigquery";
+import blazeIcon from "./icons/blaze";
 import ClickhouseIcon from "./icons/clickhouse";
 import devnullIcon from "./icons/devnull";
+import facebookIcon from "./icons/facebook";
 import gcsIcon from "./icons/gcs";
 import hubspotIcon from "./icons/hubspot";
-import mixpanelIcon from "./icons/mixpanel";
-import facebookIcon from "./icons/facebook";
 import juneIcon from "./icons/june";
-import resendIcon from "./icons/resend";
-import sendgridIcon from "./icons/sendgrid";
-import blazeIcon from "./icons/blaze";
-import salesforceIcon from "./icons/salesforce";
+import mixpanelIcon from "./icons/mixpanel";
 import mongodbIcon from "./icons/mongodb";
+import resendIcon from "./icons/resend";
+import salesforceIcon from "./icons/salesforce";
+import sendgridIcon from "./icons/sendgrid";
 import statsigIcon from "./icons/statsig";
 
-import ga4Icon from "./icons/ga4";
-import gtmIcon from "./icons/gtm";
-import postgresIcon from "./icons/postgres";
-import mysqlIcon from "./icons/mysql";
-import motherduckIcon from "./icons/motherduck";
-import redshiftIcon from "./icons/redshift";
-import posthogIcon from "./icons/posthog";
-import segmentIcon from "./icons/segment";
-import s3Icon from "./icons/s3";
-import tagIcon from "./icons/tag";
-import snowflakeIcon from "./icons/snowflake";
-import logRocketIcon from "./icons/logrocket";
-import clarityIcon from "./icons/clarity";
-import hotjarIcon from "./icons/hotjar";
-import intercomIcon from "./icons/intercom";
-import webhookIcon from "./icons/webhook";
-import { branding } from "../branding";
 import * as meta from "@jitsu/destination-functions/src/meta";
 import { HubspotCredentials } from "@jitsu/destination-functions/src/meta";
+import { branding } from "../branding";
+import { ValidationMessages } from "./config-editor-errors";
+import { ClientFieldValidator } from "./config-editor-validation";
+import clarityIcon from "./icons/clarity";
+import ga4Icon from "./icons/ga4";
+import gtmIcon from "./icons/gtm";
+import hotjarIcon from "./icons/hotjar";
+import intercomIcon from "./icons/intercom";
+import logRocketIcon from "./icons/logrocket";
+import motherduckIcon from "./icons/motherduck";
+import mysqlIcon from "./icons/mysql";
+import postgresIcon from "./icons/postgres";
+import posthogIcon from "./icons/posthog";
+import redshiftIcon from "./icons/redshift";
+import s3Icon from "./icons/s3";
+import segmentIcon from "./icons/segment";
+import snowflakeIcon from "./icons/snowflake";
+import tagIcon from "./icons/tag";
+import webhookIcon from "./icons/webhook";
+import { validatePosthogHost } from "./posthog-host-validation";
+import { validateWebhookUrl } from "./webhook-url-validation";
 
 const s3Regions = [
   "us-west-1",
@@ -110,6 +114,14 @@ export type PropertyUI = {
    * Properties of an editor component (not implemented yet, reserved for the future)
    */
   editorProps?: any;
+  /**
+   * User-facing replacements for validation errors, keyed by the AJV keyword.
+   */
+  validationMessages?: ValidationMessages;
+  /**
+   * Client-side validation that returns a user-facing error message.
+   */
+  clientValidator?: ClientFieldValidator;
 };
 
 export type SchemaUI = Record<string, PropertyUI>;
@@ -1112,6 +1124,11 @@ export const coreDestinations: DestinationType<any>[] = [
     tags: "Product Analytics",
     connectionOptions: CloudDestinationsConnectionOptions,
     credentials: meta.PosthogDestinationConfig,
+    credentialsUi: {
+      host: {
+        clientValidator: validatePosthogHost,
+      },
+    },
     description:
       "Posthog is an open-source product analytics tool. Jitsu supports both self-hosted Posthog and Posthog Cloud.",
   },
@@ -1210,6 +1227,9 @@ export const coreDestinations: DestinationType<any>[] = [
     ),
     credentials: meta.WebhookDestinationConfig,
     credentialsUi: {
+      url: {
+        clientValidator: validateWebhookUrl,
+      },
       headers: {
         editor: "StringArrayEditor",
       },

@@ -22,7 +22,7 @@ function getAuth(props: SegmentCredentials) {
 const SegmentDestination: JitsuFunction<AnalyticsServerEvent, SegmentCredentials> = async (event, ctx) => {
   ctx.log.debug(`Segment destination (props=${JSON.stringify(ctx.props)}) received event ${JSON.stringify(event)}`);
   //trim slash from apiBase
-  let apiBase = ctx.props.apiBase;
+  let apiBase: string = ctx.props.apiBase;
   if (apiBase.charAt(apiBase.length - 1) === "/") {
     apiBase = apiBase.substring(0, apiBase.length - 1);
   }

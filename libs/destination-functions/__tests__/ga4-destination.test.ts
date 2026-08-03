@@ -4,7 +4,16 @@ import type { Ga4Credentials } from "../src/meta";
 import Ga4Destination from "../src/functions/ga4-destination";
 import { testJitsuFunction, type TestOptions } from "./lib/testing-lib";
 
-async function sendEvent(context: AnalyticsServerEvent["context"], ua?: Record<string, any>) {
+type SendEventOptions = {
+  legacyUrl?: string;
+  onRequest?: (url: string) => void;
+};
+
+async function sendEvent(
+  context: AnalyticsServerEvent["context"],
+  ua?: Record<string, any>,
+  options: SendEventOptions = {}
+) {
   let request: Record<string, any> | undefined;
   const event: AnalyticsServerEvent = {
     type: "track",
@@ -19,11 +28,12 @@ async function sendEvent(context: AnalyticsServerEvent["context"], ua?: Record<s
     props: {
       apiSecret: "secret",
       measurementId: "G-TEST123",
-      url: "https://www.google-analytics.com/mp/collect",
       events: "",
+      ...(options.legacyUrl ? { url: options.legacyUrl } : {}),
     },
     ua,
-    fetch: async (_url: string, opts?: { body?: string | Uint8Array }) => {
+    fetch: async (url: string, opts?: { body?: string | Uint8Array }) => {
+      options.onRequest?.(url);
       request = JSON.parse(opts?.body as string);
       return new Response(null, { status: 204 });
     },
@@ -37,6 +47,19 @@ async function sendEvent(context: AnalyticsServerEvent["context"], ua?: Record<s
 
   return request;
 }
+
+test("ignores a legacy custom URL", async () => {
+  let requestUrl: string | undefined;
+
+  await sendEvent({}, undefined, {
+    legacyUrl: "https://attacker.example.com/collect",
+    onRequest: url => {
+      requestUrl = url;
+    },
+  });
+
+  expect(requestUrl).toBe("https://www.google-analytics.com/mp/collect?api_secret=secret&measurement_id=G-TEST123");
+});
 
 describe("GA4 request context", () => {
   test("sends explicit device context and the raw user agent", async () => {
