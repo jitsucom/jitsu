@@ -465,6 +465,18 @@ export const MigrationReportView: React.FC<{
   // The backend suppresses when savings are ≤ 0 or the inputs don't support an
   // estimate — respect it rather than headlining a number it disowned.
   const suppressed = savings?.suppressed !== false || annualCents === undefined;
+  // Three distinct situations hide behind "suppressed"; claiming "the plans are
+  // close" when Jitsu is materially pricier (or when nothing was computed at
+  // all) would misrepresent the math shown in the basis lines right below.
+  const currentCents = savings?.currentCostCents;
+  const nearTie =
+    monthlyCents !== undefined && (monthlyCents >= 0 || !currentCents || Math.abs(monthlyCents) <= currentCents * 0.1);
+  const suppressedCopy =
+    monthlyCents === undefined
+      ? "Not enough data to estimate savings yet — add your monthly spend and volume below, or upload an invoice."
+      : nearTie
+      ? "At this volume the plans are close — let's find you the right price on the call."
+      : "At this volume list pricing favors your current plan — let's talk custom pricing on the call.";
   return (
     <div>
       <Head>
@@ -497,11 +509,7 @@ export const MigrationReportView: React.FC<{
             // A "$0/yr" hero would be noise here. Two different situations, so
             // two different sentences: we computed a near-tie, or we couldn't
             // compute at all (no usage yet) — the basis text below adds detail.
-            <p className="py-2 mb-0">
-              {monthlyCents !== undefined
-                ? "At this volume the plans are close — let's find you the right price on the call."
-                : "Not enough data to estimate savings yet — add your monthly spend and volume below, or upload an invoice."}
-            </p>
+            <p className="py-2 mb-0">{suppressedCopy}</p>
           ) : (
             <p className="flex items-baseline gap-3 flex-wrap py-2 mb-0">
               <span className="text-5xl font-bold text-success">{formatCents(annualCents!)}/yr</span>
