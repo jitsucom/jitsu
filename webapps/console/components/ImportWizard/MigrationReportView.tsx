@@ -494,10 +494,13 @@ export const MigrationReportView: React.FC<{
             {suppressed ? "Your migration estimate" : "Estimated annual savings with Jitsu"}
           </h2>
           {suppressed ? (
-            // Savings ≤ 0 (or not computable): a "$0/yr" hero would be noise —
-            // show the math and an honest next step instead (PRD corner case).
+            // A "$0/yr" hero would be noise here. Two different situations, so
+            // two different sentences: we computed a near-tie, or we couldn't
+            // compute at all (no usage yet) — the basis text below adds detail.
             <p className="py-2 mb-0">
-              At this volume the plans are close — let&apos;s find you the right price on the call.
+              {monthlyCents !== undefined
+                ? "At this volume the plans are close — let's find you the right price on the call."
+                : "Not enough data to estimate savings yet — add your monthly spend and volume below, or upload an invoice."}
             </p>
           ) : (
             <p className="flex items-baseline gap-3 flex-wrap py-2 mb-0">
