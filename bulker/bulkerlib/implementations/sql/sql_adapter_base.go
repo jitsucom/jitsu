@@ -619,6 +619,10 @@ func (b *SQLAdapterBase[T]) createTableOnly(ctx context.Context, schemaToCreate 
 
 // PatchTableSchema alter table with columns (if not empty)
 // recreate primary key (if not empty) or delete primary key if Table.DeletePrimaryKeyNamed is true
+//
+// Every statement here runs isolated: patching is done against a possibly stale view
+// of the table, so it is expected to lose races against other bulker instances writing
+// to the same table, and the caller recovers by re-reading the schema and patching again.
 func (b *SQLAdapterBase[T]) PatchTableSchema(ctx context.Context, patchTable *Table) (*Table, error) {
 	quotedTableName := b.quotedTableName(patchTable.Name)
 	quotedSchema := b.namespacePrefix(patchTable.Namespace)
@@ -628,7 +632,7 @@ func (b *SQLAdapterBase[T]) PatchTableSchema(ctx context.Context, patchTable *Ta
 		columnDDL := b.columnDDL(columnName, patchTable, column)
 		query := fmt.Sprintf(addColumnTemplate, quotedSchema, quotedTableName, columnDDL)
 
-		if _, err := b.txOrDb(ctx).ExecContext(ctx, query); err != nil {
+		if err := execIsolated(ctx, b.txOrDb(ctx), query); err != nil {
 			return errorj.PatchTableError.Wrap(err, "failed to patch table").
 				WithProperty(errorj.DBInfo, &types2.ErrorPayload{
 					Table:       quotedTableName,
@@ -685,7 +689,7 @@ func (b *SQLAdapterBase[T]) createPrimaryKey(ctx context.Context, table *Table) 
 	statement := fmt.Sprintf(alterPrimaryKeyTemplate, quotedSchema,
 		quotedTableName, b.quotedTableName(table.PrimaryKeyName), strings.Join(columnNames, ","))
 
-	if _, err := b.txOrDb(ctx).ExecContext(ctx, statement); err != nil {
+	if err := execIsolated(ctx, b.txOrDb(ctx), statement); err != nil {
 		return errorj.CreatePrimaryKeysError.Wrap(err, "failed to set primary key").
 			WithProperty(errorj.DBInfo, &types2.ErrorPayload{
 				Table:       quotedTableName,
@@ -711,7 +715,7 @@ func (b *SQLAdapterBase[T]) deletePrimaryKey(ctx context.Context, table *Table) 
 
 	query := fmt.Sprintf(dropPrimaryKeyTemplate, quotedSchema, quotedTableName, b.quotedTableName(table.DeletePrimaryKeyNamed))
 
-	if _, err := b.txOrDb(ctx).ExecContext(ctx, query); err != nil {
+	if err := execIsolated(ctx, b.txOrDb(ctx), query); err != nil {
 		return errorj.DeletePrimaryKeysError.Wrap(err, "failed to delete primary key").
 			WithProperty(errorj.DBInfo, &types2.ErrorPayload{
 				Table:       quotedTableName,

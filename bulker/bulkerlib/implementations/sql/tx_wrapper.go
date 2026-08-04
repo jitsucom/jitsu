@@ -50,6 +50,57 @@ func NewCustomWrapper(dbType string, custom io.Closer, err error) *TxWrapper {
 	return &TxWrapper{dbType: dbType, custom: custom, error: err, closeDb: true}
 }
 
+// savepointName is the savepoint taken before a statement that is allowed to fail.
+// A single name is enough: the savepoint is always released or rolled back before
+// the next one is taken, and repeating SAVEPOINT with the same name is legal.
+const savepointName = "bulker_stmt"
+
+// abortedTransactionSQLState is returned by every statement that follows a failed one
+// in the same Postgres transaction: "current transaction is aborted, commands ignored
+// until end of transaction block".
+const abortedTransactionSQLState = "25P02"
+
+// dialectsSupportingSavepoints lists database types where a failed statement aborts the
+// enclosing transaction (see abortedTransactionSQLState). There a savepoint is the only
+// way to keep the transaction usable after a statement that is expected to sometimes fail.
+// Databases that don't abort the transaction (MySQL, Snowflake) or don't run bulker's
+// statements in a transaction at all (Redshift, ClickHouse, BigQuery, DuckDB) don't
+// need it - and mostly don't support savepoints either.
+var dialectsSupportingSavepoints = map[string]bool{PostgresBulkerTypeId: true}
+
+func (t *TxWrapper) supportsSavepoints() bool {
+	return t.tx != nil && dialectsSupportingSavepoints[t.dbType]
+}
+
+// execIsolated executes a statement whose failure must not poison the enclosing
+// transaction, so that the caller can recover on the same connection - e.g. re-read
+// the table schema and patch again after losing an ALTER TABLE race.
+//
+// Where the database needs it, the statement runs inside a savepoint that is rolled
+// back on failure. Everywhere else this is a plain ExecContext.
+func execIsolated(ctx context.Context, txOrDb TxOrDB, query string, args ...any) error {
+	tx, ok := txOrDb.(*TxWrapper)
+	if !ok || !tx.supportsSavepoints() {
+		_, err := txOrDb.ExecContext(ctx, query, args...)
+		return err
+	}
+	if _, err := tx.ExecContext(ctx, "SAVEPOINT "+savepointName); err != nil {
+		return err
+	}
+	if _, err := tx.ExecContext(ctx, query, args...); err != nil {
+		if _, rollbackErr := tx.ExecContext(ctx, "ROLLBACK TO SAVEPOINT "+savepointName); rollbackErr != nil {
+			// the transaction stays aborted - nothing left to do but report the original error
+			logging.Errorf("failed to rollback to savepoint: %v", rollbackErr)
+		}
+		return err
+	}
+	if _, err := tx.ExecContext(ctx, "RELEASE SAVEPOINT "+savepointName); err != nil {
+		// the statement itself landed, a leaked savepoint only costs some memory
+		logging.Errorf("failed to release savepoint: %v", err)
+	}
+	return nil
+}
+
 func wrap[R any](ctx context.Context,
 	t *TxWrapper, queryFunction func(tx TxOrDB, query string, args ...any) (R, error),
 	query string, args ...any,
