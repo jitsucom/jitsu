@@ -92,7 +92,10 @@ func NewRedshiftIAM(bulkerConfig bulker.Config) (bulker.Bulker, error) {
 
 	dbConnectFunction := func(ctx context.Context, cfg *driver.RedshiftConfig) (*sql.DB, error) {
 		connectionString := cfg.String()
-		logging.Infof("[%s] connecting: %s", bulkerConfig.Id, connectionString)
+		//log only what identifies the destination: the dsn carries credentials - sessionToken
+		//always, accessKeyId/secretAccessKey whenever Sanitize didn't clear them
+		logging.Infof("[%s] connecting: %s db=%s schema=%s region=%s", bulkerConfig.Id,
+			utils.DefaultString(cfg.ClusterIdentifier, cfg.WorkgroupName), cfg.Db, cfg.Schema, cfg.Region)
 
 		dataSource, err := sql.Open("redshift-data", connectionString)
 		if err != nil {
