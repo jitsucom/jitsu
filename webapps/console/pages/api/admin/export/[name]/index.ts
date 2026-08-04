@@ -8,9 +8,9 @@ import omit from "lodash/omit";
 import { NextApiRequest } from "next";
 import hash from "object-hash";
 import { default as stableHash } from "stable-hash";
-import { WorkspaceDbModel, FunctionsServerDbModel } from "../../../../../prisma/schema";
-import { ProfileBuilder } from "@jitsu/destination-functions";
+import { FunctionsServerDbModel } from "../../../../../prisma/schema";
 import { getServerEnv } from "../../../../../lib/server/serverEnv";
+import { Prisma } from "@prisma/client";
 
 const serverEnv = getServerEnv();
 const defaultFunctionsClass = serverEnv.DEFAULT_FUNCTIONS_CLASS;
@@ -47,6 +47,76 @@ type ClassicKeys = {
 const batchSize = 1000;
 
 const safeLastModified = new Date(2024, 0, 1, 0, 0, 0, 0);
+
+// Explicit result types for the paginated findMany loops. Without them the
+// cursor back-edge (`cursor:` <- `lastId` <- `objects[last].id`) makes
+// inference self-referential and the checker silently collapses the whole
+// result to `any` - the blind spot that let the 2026-07-30 blank-options bug
+// compile (JITSU-158).
+type LinkRow = Prisma.ConfigurationObjectLinkGetPayload<{ include: { from: true; to: true; workspace: true } }>;
+type ObjectRow = Prisma.ConfigurationObjectGetPayload<{}>;
+type ObjectRowWithWorkspace = Prisma.ConfigurationObjectGetPayload<{ include: { workspace: true } }>;
+type StreamRow = Prisma.ConfigurationObjectGetPayload<{
+  include: { toLinks: { include: { to: true } }; workspace: true };
+}>;
+type WorkspaceRow = Prisma.WorkspaceGetPayload<{}>;
+type WorkspaceWithProfilesRow = Prisma.WorkspaceGetPayload<{
+  include: { profileBuilders: { include: { functions: { include: { function: true } } } } };
+}>;
+
+// object-hash ships no type declarations (its type is inferred from JS via
+// allowJs) and stable-hash's `exports` map has no `types` condition - the
+// inferred import type differs between tsc and the type-aware lint program.
+// Pin one explicit signature so every call site type-checks identically.
+const hashValue = hash as (value: unknown) => string;
+const stableHashValue = stableHash as unknown as (value: unknown) => string;
+
+// Prisma `Json` columns surface as `JsonValue` - reads must go through an
+// explicit parse instead of implicit `any`. Parsers are tolerant on purpose:
+// a junk field must not fail the export (see logExportEntityError), so
+// field-level `catch` drops only the offending field and object-level `catch`
+// normalizes a non-object root to {}.
+const JsonRecord = z.record(z.unknown());
+function asRecord(v: unknown): Record<string, unknown> {
+  const parsed = JsonRecord.safeParse(v);
+  return parsed.success ? parsed.data : {};
+}
+// Connection options (ConfigurationObjectLink.data).
+const LinkData = z
+  .object({
+    disabled: z.unknown().optional(),
+    clickhouseSettings: z.unknown().optional(),
+    functionsEnv: z.record(z.unknown()).optional().catch(undefined),
+  })
+  .passthrough()
+  .catch({});
+// ConfigurationObject.config - the fields the exports read by name.
+const ObjectConfig = z
+  .object({
+    destinationType: z.string().optional().catch(undefined),
+    name: z.string().optional().catch(undefined),
+  })
+  .passthrough()
+  .catch({});
+// ProfileBuilder.connectionOptions.
+const PbConnectionOptions = z
+  .object({
+    profileWindow: z.unknown().optional(),
+    variables: z.unknown().optional(),
+    functions: z.array(z.unknown()).optional().catch(undefined),
+  })
+  .passthrough()
+  .catch({});
+// ConfigurationObject.config for streams.
+const StreamConfig = z
+  .object({
+    shard: z.unknown().optional(),
+    publicKeys: z.array(z.unknown()).optional().catch(undefined),
+    privateKeys: z.array(z.unknown()).optional().catch(undefined),
+    domains: z.array(z.string()).optional().catch(undefined),
+  })
+  .passthrough()
+  .catch({});
 
 function dateMax(...dates: (Date | undefined)[]): Date | undefined {
   return dates.reduce((acc, d) => (d && (!acc || d.getTime() > acc.getTime()) ? d : acc), undefined);
@@ -134,8 +204,7 @@ function selectFunctionsServer(
 }
 
 async function getLastUpdated(): Promise<Date | undefined> {
-  return (
-    (await db.prisma().$queryRaw`
+  const rows = await db.prisma().$queryRaw<{ last_updated: Date | null }[]>`
         select
             greatest(
                     (select max("updatedAt") from newjitsu."ConfigurationObjectLink"),
@@ -143,8 +212,8 @@ async function getLastUpdated(): Promise<Date | undefined> {
                     (select max("updatedAt") from newjitsu."ConfigurationObject"),
                     (select max("updatedAt") from newjitsu."FunctionsServer"),
                     (select max("updatedAt") from newjitsu."Workspace")
-            ) as "last_updated"`) as any
-  )[0]["last_updated"];
+            ) as "last_updated"`;
+  return rows[0]?.last_updated ?? undefined;
 }
 
 async function exportBulkerConnections(writer: Writer) {
@@ -153,7 +222,7 @@ async function exportBulkerConnections(writer: Writer) {
   let lastId: string | undefined = undefined;
   let needComma = false;
   while (true) {
-    const objects = await db.prisma().configurationObjectLink.findMany({
+    const objects: LinkRow[] = await db.prisma().configurationObjectLink.findMany({
       where: {
         deleted: false,
         OR: [{ type: "push" }, { type: null }],
@@ -174,24 +243,25 @@ async function exportBulkerConnections(writer: Writer) {
     for (const { data: data_, from, id, to, updatedAt, workspace } of objects) {
       let payload: string | undefined;
       try {
-        const data = data_ || {};
-        if (data?.disabled) {
+        const data = LinkData.parse(data_);
+        if (data.disabled) {
           continue; // skip disabled connections
         }
-        const destinationType = to.config.destinationType;
+        const toConfig = ObjectConfig.parse(to.config);
+        const destinationType = toConfig.destinationType;
         const coreDestinationType = getCoreDestinationTypeNonStrict(destinationType);
         if (coreDestinationType?.usesBulker || coreDestinationType?.hybrid) {
-          const credentials = omit(to.config, "destinationType", "type", "name");
+          const credentials: Record<string, unknown> = omit(toConfig, "destinationType", "type", "name");
           if (destinationType === "clickhouse") {
-            if (typeof (data as any).clickhouseSettings === "string") {
+            if (typeof data.clickhouseSettings === "string") {
               const extraParams = Object.fromEntries(
-                ((data as any).clickhouseSettings as string)
+                data.clickhouseSettings
                   .split("\n")
                   .filter(s => s.includes("="))
                   .map(s => s.split("="))
                   .map(([k, v]) => [k.trim(), v.trim()])
               );
-              credentials.parameters = { ...(credentials.parameters || {}), ...extraParams };
+              credentials.parameters = { ...asRecord(credentials.parameters), ...extraParams };
             }
             if (!credentials.provisioned) {
               credentials.loadAsJson = false;
@@ -208,7 +278,7 @@ async function exportBulkerConnections(writer: Writer) {
             },
             id: id,
             type: destinationType,
-            options: omit(data as any, "clickhouseSettings"),
+            options: omit(data, "clickhouseSettings"),
             updatedAt: dateMax(updatedAt, to.updatedAt),
             credentials: credentials,
           });
@@ -235,7 +305,7 @@ async function exportBulkerConnections(writer: Writer) {
   }
   lastId = undefined;
   while (true) {
-    const objects = await db.prisma().configurationObject.findMany({
+    const objects: ObjectRowWithWorkspace[] = await db.prisma().configurationObject.findMany({
       where: { deleted: false, type: "destination", workspace: { deleted: false } },
       include: { workspace: true },
       take: batchSize,
@@ -250,7 +320,8 @@ async function exportBulkerConnections(writer: Writer) {
     for (const { id, workspace, config, updatedAt } of objects) {
       let payload: string | undefined;
       try {
-        const destinationType = config.destinationType;
+        const parsedConfig = ObjectConfig.parse(config);
+        const destinationType = parsedConfig.destinationType;
         const coreDestinationType = getCoreDestinationTypeNonStrict(destinationType);
         if (coreDestinationType?.usesBulker || coreDestinationType?.hybrid) {
           payload = JSON.stringify({
@@ -265,7 +336,7 @@ async function exportBulkerConnections(writer: Writer) {
               deduplicate: true,
             },
             updatedAt: updatedAt,
-            credentials: omit(config, "destinationType", "type", "name"),
+            credentials: omit(parsedConfig, "destinationType", "type", "name"),
           });
         }
       } catch (e) {
@@ -294,13 +365,16 @@ async function exportBulkerConnections(writer: Writer) {
     //the static service token.
     const url = `${getEeConnection().host}api/s3-connections`;
     try {
-      const backupConnections = await rpc(url, {
+      const backupConnections: unknown = await rpc(url, {
         method: "GET",
         headers: {
           "Content-Type": "application/json",
           ...serviceTokenHeaders(),
         },
       });
+      if (!Array.isArray(backupConnections)) {
+        throw new Error(`Expected an array of backup connections, got: ${typeof backupConnections}`);
+      }
       for (const conn of backupConnections) {
         if (needComma) {
           writer.write(",");
@@ -321,7 +395,7 @@ async function exportBulkerConnections(writer: Writer) {
 
 async function exportRotorConnections(writer: Writer) {
   const workspacesWithClasses = await functionsClassByWorkspace();
-  const functionsClassFunc = (workspace: any) =>
+  const functionsClassFunc = (workspace: { id: string; featuresEnabled?: string[] | null }) =>
     extractFunctionsClasses(workspace.featuresEnabled ?? [])[0] ||
     workspacesWithClasses.get(workspace.id)?.class ||
     defaultFunctionsClass;
@@ -344,7 +418,7 @@ async function exportRotorConnections(writer: Writer) {
     orderBy: { id: "asc" },
   });
   while (true) {
-    const objects = await db.prisma().configurationObjectLink.findMany({
+    const objects: LinkRow[] = await db.prisma().configurationObjectLink.findMany({
       where: {
         deleted: false,
         NOT: { type: "sync" },
@@ -365,15 +439,16 @@ async function exportRotorConnections(writer: Writer) {
     for (const { data: data_, from, id, to, updatedAt, workspace } of objects) {
       let payload: string | undefined;
       try {
-        const data = data_ || {};
-        if (data?.disabled) {
+        const data = LinkData.parse(data_);
+        if (data.disabled) {
           continue; // skip disabled connections
         }
-        const destinationType = to.config.destinationType;
+        const destinationType = ObjectConfig.parse(to.config).destinationType;
         const coreDestinationType = getCoreDestinationTypeNonStrict(destinationType);
         if (!coreDestinationType) {
           getLog().atError().log(`Unknown destination type: ${destinationType} for connection ${id}`);
         }
+        const credentials = omit(asRecord(to.config), "destinationType", "type", "name");
         payload = JSON.stringify({
           __debug: {
             workspace: { id: workspace.id, name: workspace.slug },
@@ -382,23 +457,23 @@ async function exportRotorConnections(writer: Writer) {
           type: destinationType,
           workspaceId: workspace.id,
           streamId: from.id,
-          streamName: from.config?.name,
+          streamName: ObjectConfig.parse(from.config).name,
           destinationId: to.id,
           usesBulker: !!coreDestinationType?.usesBulker,
           options: {
             ...data,
             ...((workspace.featuresEnabled ?? []).includes("nofetchlogs") &&
-            data?.functionsEnv?.FETCH_LOGS_ENABLED !== "true"
+            data.functionsEnv?.FETCH_LOGS_ENABLED !== "true"
               ? { fetchLogLevel: "debug" }
               : {}),
             ...((workspace.featuresEnabled ?? []).includes("fastFunctions") ? { fastFunctions: true } : {}),
             functionsServer: selectFunctionsServer(functionsServers, workspace.id, id, functionsClassFunc(workspace)),
             workspaceUpdatedAt: workspace.updatedAt,
           },
-          optionsHash: hash(data),
+          optionsHash: hashValue(data),
           updatedAt: dateMax(updatedAt, to.updatedAt),
-          credentials: omit(to.config, "destinationType", "type", "name"),
-          credentialsHash: hash(omit(to.config, "destinationType", "type", "name")),
+          credentials: credentials,
+          credentialsHash: hashValue(credentials),
         });
       } catch (e) {
         // Only entity materialization/serialization is guarded: one malformed row
@@ -422,7 +497,7 @@ async function exportRotorConnections(writer: Writer) {
   }
   lastId = undefined;
   while (true) {
-    const objects = await db.prisma().configurationObject.findMany({
+    const objects: ObjectRowWithWorkspace[] = await db.prisma().configurationObject.findMany({
       where: { deleted: false, type: "destination", workspace: { deleted: false } },
       include: { workspace: true },
       take: batchSize,
@@ -437,20 +512,22 @@ async function exportRotorConnections(writer: Writer) {
     for (const { id, workspace, config, updatedAt } of objects) {
       let payload: string | undefined;
       try {
-        const destinationType = config?.destinationType;
+        const parsedConfig = ObjectConfig.parse(config);
+        const destinationType = parsedConfig.destinationType;
         const coreDestinationType = getCoreDestinationTypeNonStrict(destinationType);
         if (coreDestinationType?.usesBulker || coreDestinationType?.hybrid) {
+          const credentials = omit(parsedConfig, "destinationType", "type", "name");
           payload = JSON.stringify({
             id: id,
             type: destinationType,
             workspaceId: workspace.id,
             streamId: id,
-            streamName: config?.name,
+            streamName: parsedConfig.name,
             destinationId: id,
             usesBulker: !!coreDestinationType?.usesBulker,
             updatedAt: updatedAt,
-            credentials: omit(config, "destinationType", "type", "name"),
-            credentialsHash: hash(omit(config, "destinationType", "type", "name")),
+            credentials: credentials,
+            credentialsHash: hashValue(credentials),
           });
         }
       } catch (e) {
@@ -476,20 +553,21 @@ async function exportRotorConnections(writer: Writer) {
   for (const pb of profileBuilders) {
     let payload: string | undefined;
     try {
+      const connectionOptions = PbConnectionOptions.parse(pb.connectionOptions);
       const cred = {
-        ...(pb.intermediateStorageCredentials ?? ({} as any)),
-        profileWindowDays: (pb.connectionOptions ?? ({} as any)).profileWindow,
+        ...asRecord(pb.intermediateStorageCredentials),
+        profileWindowDays: connectionOptions.profileWindow,
         profileBuilderId: pb.id,
         eventsCollectionName: `profiles-raw-${pb.workspace.id}-${pb.id}`,
         traitsCollectionName: `profiles-traits-${pb.workspace.id}-${pb.id}`,
       };
       const opts = {
-        functionsEnv: (pb.connectionOptions ?? ({} as any)).variables,
+        functionsEnv: connectionOptions.variables,
         functions: [
           {
             functionId: "builtin.transformation.user-recognition",
           },
-          ...((pb.connectionOptions ?? ({} as any)).functions || []),
+          ...(connectionOptions.functions ?? []),
         ],
         functionsServer: selectFunctionsServer(
           functionsServers,
@@ -511,10 +589,10 @@ async function exportRotorConnections(writer: Writer) {
         destinationId: pb.destinationId,
         usesBulker: false,
         options: opts,
-        optionsHash: hash(opts),
+        optionsHash: hashValue(opts),
         updatedAt: pb.updatedAt,
         credentials: cred,
-        credentialsHash: hash(cred),
+        credentialsHash: hashValue(cred),
       });
     } catch (e) {
       // Only entity materialization/serialization is guarded: one malformed row
@@ -541,7 +619,7 @@ async function exportFunctions(writer: Writer) {
   let lastId: string | undefined = undefined;
   let needComma = false;
   while (true) {
-    const objects = await db.prisma().configurationObject.findMany({
+    const objects: ObjectRow[] = await db.prisma().configurationObject.findMany({
       where: {
         deleted: false,
         type: "function",
@@ -559,10 +637,11 @@ async function exportFunctions(writer: Writer) {
     for (const row of objects) {
       let payload: string | undefined;
       try {
+        const config = asRecord(row.config);
         payload = JSON.stringify({
           ...omit(row, "deleted", "config"),
-          ...row.config,
-          codeHash: hash(row.config?.code || row.config?.draft || ""),
+          ...config,
+          codeHash: hashValue(config.code || config.draft || ""),
         });
       } catch (e) {
         // Only entity materialization/serialization is guarded: one malformed row
@@ -589,7 +668,7 @@ async function exportFunctions(writer: Writer) {
 
 async function exportStreamsWithDestinations(writer: Writer) {
   const workspacesWithClasses = await functionsClassByWorkspace();
-  const functionsClassFunc = (workspace: any) =>
+  const functionsClassFunc = (workspace: { id: string; featuresEnabled?: string[] | null }) =>
     extractFunctionsClasses(workspace.featuresEnabled ?? [])[0] ||
     workspacesWithClasses.get(workspace.id)?.class ||
     defaultFunctionsClass;
@@ -603,10 +682,10 @@ async function exportStreamsWithDestinations(writer: Writer) {
   });
   const domainsMap = new Map<string, string[]>();
   for (const domain of domains) {
-    const name = (domain.config as any).name;
-    if (!name.includes("*")) {
+    const name = ObjectConfig.parse(domain.config).name;
+    if (name && !name.includes("*")) {
       const d = domainsMap.get(domain.workspaceId) || [];
-      domainsMap.set(domain.workspaceId, [...d, (domain.config as any).name]);
+      domainsMap.set(domain.workspaceId, [...d, name]);
     }
   }
   const classicMappings = await db.prisma().configurationObject.findMany({
@@ -619,8 +698,9 @@ async function exportStreamsWithDestinations(writer: Writer) {
   });
   const classicKeysMap: Record<string, ClassicKeys> = {};
   classicMappings
-    .filter(c => c.config && c.config["value"])
-    .flatMap(c => c.config!["value"].split("\n"))
+    .map(c => asRecord(c.config).value)
+    .filter((value): value is string => typeof value === "string" && value !== "")
+    .flatMap(value => value.split("\n"))
     .forEach(line => {
       const [source, apikey] = line.split(/=(.*)/s).map((s: string) => s.trim());
       if (source && apikey) {
@@ -641,17 +721,17 @@ async function exportStreamsWithDestinations(writer: Writer) {
     },
     orderBy: { id: "asc" },
   });
-  const pbMap = new Map<string, ProfileBuilder[]>();
+  const pbMap = new Map<string, typeof profileBuilders>();
   for (const pb of profileBuilders) {
     const pbs = pbMap.get(pb.workspaceId) || [];
-    pbMap.set(pb.workspaceId, [...pbs, pb as unknown as ProfileBuilder]);
+    pbMap.set(pb.workspaceId, [...pbs, pb]);
   }
 
   writer.write("[");
   let lastId: string | undefined = undefined;
   let needComma = false;
   while (true) {
-    const objects = await db.prisma().configurationObject.findMany({
+    const objects: StreamRow[] = await db.prisma().configurationObject.findMany({
       where: { deleted: false, type: "stream", workspace: { deleted: false } },
       include: { toLinks: { include: { to: true } }, workspace: true },
       take: batchSize,
@@ -666,11 +746,12 @@ async function exportStreamsWithDestinations(writer: Writer) {
     for (const obj of objects) {
       let payload: string | undefined;
       try {
+        const streamConfig = StreamConfig.parse(obj.config);
         const throttlePercent =
           workspacesWithClasses.get(obj.workspace.id)?.status !== "active"
             ? getNumericOption("throttle", obj.workspace)
             : undefined;
-        const shardNumber = obj.config.shard || getNumericOption("shard", obj.workspace);
+        const shardNumber = streamConfig.shard || getNumericOption("shard", obj.workspace);
         const classicKeys = classicKeysMap[obj.id] || ({} as ClassicKeys);
         payload = JSON.stringify({
           __debug: {
@@ -680,10 +761,10 @@ async function exportStreamsWithDestinations(writer: Writer) {
           stream: {
             ...omit(obj, "type", "workspaceId", "config", "toLinks", "deleted", "createdAt", "updatedAt", "workspace"),
             ...{
-              ...omit(obj.config, "shard"),
-              publicKeys: [classicKeys.publicKeys ?? [], obj.config.publicKeys ?? []].flat(),
-              privateKeys: [classicKeys.privateKeys ?? [], obj.config.privateKeys ?? []].flat(),
-              domains: [...new Set([...(domainsMap.get(obj.workspace.id) ?? []), ...(obj.config.domains ?? [])])],
+              ...omit(streamConfig, "shard"),
+              publicKeys: [classicKeys.publicKeys ?? [], streamConfig.publicKeys ?? []].flat(),
+              privateKeys: [classicKeys.privateKeys ?? [], streamConfig.privateKeys ?? []].flat(),
+              domains: [...new Set([...(domainsMap.get(obj.workspace.id) ?? []), ...(streamConfig.domains ?? [])])],
             },
             workspaceId: obj.workspace.id,
           },
@@ -695,40 +776,46 @@ async function exportStreamsWithDestinations(writer: Writer) {
           captureHeaders: (obj.workspace.featuresEnabled || []).includes("captureHeaders"),
           destinations: [
             ...obj.toLinks
-              .filter(l => !l.deleted && l.type === "push" && !l.data?.disabled && !l.to.deleted)
-              .map(l => ({
-                id: l.to.id,
-                connectionId: l.id,
-                destinationType: (l.to.config ?? {}).destinationType,
-                name: (l.to.config ?? {}).name,
-                credentials: omit(l.to.config, "destinationType", "type", "name"),
-                options: {
-                  ...(l.data ?? {}),
-                  functionsServer: selectFunctionsServer(
-                    functionsServers,
-                    obj.workspace.id,
-                    l.id,
-                    functionsClassFunc(obj.workspace)
-                  ),
+              .filter(l => !l.deleted && l.type === "push" && !LinkData.parse(l.data).disabled && !l.to.deleted)
+              .map(l => {
+                const toConfig = ObjectConfig.parse(l.to.config);
+                return {
+                  id: l.to.id,
+                  connectionId: l.id,
+                  destinationType: toConfig.destinationType,
+                  name: toConfig.name,
+                  credentials: omit(toConfig, "destinationType", "type", "name"),
+                  options: {
+                    ...LinkData.parse(l.data),
+                    functionsServer: selectFunctionsServer(
+                      functionsServers,
+                      obj.workspace.id,
+                      l.id,
+                      functionsClassFunc(obj.workspace)
+                    ),
+                  },
+                };
+              }),
+            ...(pbMap.get(obj.workspace.id) ?? []).map(pb => {
+              const connectionOptions = PbConnectionOptions.parse(pb.connectionOptions);
+              return {
+                id: pb.id,
+                connectionId: pb.id,
+                destinationType: "profiles",
+                name: "profiles",
+                credentials: {
+                  ...asRecord(pb.intermediateStorageCredentials),
+                  profileWindowDays: connectionOptions.profileWindow,
+                  profileBuilderId: pb.id,
+                  eventsCollectionName: `profiles-raw-${obj.workspace.id}-${pb.id}`,
+                  traitsCollectionName: `profiles-traits-${obj.workspace.id}-${pb.id}`,
                 },
-              })),
-            ...(pbMap.get(obj.workspace.id) ?? []).map(pb => ({
-              id: pb.id,
-              connectionId: pb.id,
-              destinationType: "profiles",
-              name: "profiles",
-              credentials: {
-                ...pb.intermediateStorageCredentials,
-                profileWindowDays: pb.connectionOptions.profileWindow,
-                profileBuilderId: pb.id,
-                eventsCollectionName: `profiles-raw-${obj.workspace.id}-${pb.id}`,
-                traitsCollectionName: `profiles-traits-${obj.workspace.id}-${pb.id}`,
-              },
-              options: {
-                functionsEnv: pb.connectionOptions?.variables,
-                functions: pb.connectionOptions?.functions,
-              },
-            })),
+                options: {
+                  functionsEnv: connectionOptions.variables,
+                  functions: connectionOptions.functions,
+                },
+              };
+            }),
           ],
         });
       } catch (e) {
@@ -755,12 +842,13 @@ async function exportStreamsWithDestinations(writer: Writer) {
 }
 
 async function exportWorkspacesLastModified(): Promise<Date | undefined> {
-  const lastUpdated = (
-    (await db.prisma().$queryRaw`select max("updatedAt") as "last_updated" from newjitsu."Workspace"`) as any
-  )[0]["last_updated"] as Date;
+  const rows = await db.prisma().$queryRaw<
+    { last_updated: Date | null }[]
+  >`select max("updatedAt") as "last_updated" from newjitsu."Workspace"`;
+  const lastUpdated = rows[0]?.last_updated ?? undefined;
   // force refresh every 5 minute to actualize possible subscription status changes or expirations
   const forceRefreshEveryMs = 5 * 60 * 1000;
-  if (lastUpdated.getTime() < Date.now() - forceRefreshEveryMs) {
+  if (!lastUpdated || lastUpdated.getTime() < Date.now() - forceRefreshEveryMs) {
     return new Date(Math.floor(Date.now() / forceRefreshEveryMs) * forceRefreshEveryMs);
   }
   return lastUpdated;
@@ -772,7 +860,11 @@ async function functionsClassByWorkspace(): Promise<Map<string, { class: string;
   }
   const now = Date.now();
   const workspacesWithClasses = new Map<string, { class: string; status: string }>();
-  const rows = await db.pgPool().query(`with customers as (select obj -> 'customer' ->> 'id'         as customer_id,
+  const rows = await db.pgPool().query<{
+    id: string;
+    status: string;
+    period_end: Date | null;
+  }>(`with customers as (select obj -> 'customer' ->> 'id'         as customer_id,
                                         obj -> 'subscription' ->> 'status' as status,
                                         (obj -> 'subscription' -> 'current_period_end')::int  as period_end
                                  from newjitsuee.kvstore
@@ -792,7 +884,7 @@ async function functionsClassByWorkspace(): Promise<Map<string, { class: string;
     if (status === "active" || status === "trialing" || status === "past_due" || status === "unpaid") {
       workspacesWithClasses.set(row.id, { class: "dedicated", status: "active" });
     } else if (status === "canceled") {
-      if (row.period_end.getTime() > now) {
+      if (row.period_end && row.period_end.getTime() > now) {
         workspacesWithClasses.set(row.id, { class: "dedicated", status: "active" });
       }
     }
@@ -809,7 +901,7 @@ async function exportWorkspaces(writer: Writer) {
   let lastId: string | undefined = undefined;
   let needComma = false;
   while (true) {
-    const objects = await db.prisma().workspace.findMany({
+    const objects: WorkspaceRow[] = await db.prisma().workspace.findMany({
       where: {
         deleted: false,
       },
@@ -851,19 +943,18 @@ async function exportWorkspaces(writer: Writer) {
 }
 
 async function exportWorkspacesWithProfilesLastModified(): Promise<Date | undefined> {
-  const lastUpdated = (
-    (await db.prisma().$queryRaw`
+  const rows = await db.prisma().$queryRaw<{ last_updated: Date | null }[]>`
             select
               greatest(
                   (select max("updatedAt") from newjitsu."ConfigurationObject" where type='function'),
                   (select max("updatedAt") from newjitsu."ProfileBuilder"),
                   (select max("updatedAt") from newjitsu."ProfileBuilderFunction"),
                   (select max("updatedAt") from newjitsu."Workspace")
-              ) as "last_updated"`) as any
-  )[0]["last_updated"];
+              ) as "last_updated"`;
+  const lastUpdated = rows[0]?.last_updated ?? undefined;
   // force refresh every 5 minute to actualize possible subscription status changes or expirations
   const forceRefreshEveryMs = 5 * 60 * 1000;
-  if (lastUpdated?.getTime() < Date.now() - forceRefreshEveryMs) {
+  if (!lastUpdated || lastUpdated.getTime() < Date.now() - forceRefreshEveryMs) {
     return new Date(Math.floor(Date.now() / forceRefreshEveryMs) * forceRefreshEveryMs);
   }
   return lastUpdated;
@@ -891,7 +982,7 @@ async function exportWorkspacesWithProfiles(writer: Writer) {
   let lastId: string | undefined = undefined;
   let needComma = false;
   while (true) {
-    const objects = await db.prisma().workspace.findMany({
+    const objects: WorkspaceWithProfilesRow[] = await db.prisma().workspace.findMany({
       where: {
         deleted: false,
       },
@@ -908,26 +999,27 @@ async function exportWorkspacesWithProfiles(writer: Writer) {
     for (const row of objects) {
       let payload: string | undefined;
       try {
-        row.featuresEnabled = addFunctionsClass(row.featuresEnabled ?? [], functionsClassFunc(row.id));
-        row.profileBuilders = row.profileBuilders
-          .filter(pb => pb.version > 0)
-          .map(pb => {
-            pb.functions = pb.functions.map(f => {
-              return {
+        const workspacePayload = {
+          ...row,
+          featuresEnabled: addFunctionsClass(row.featuresEnabled ?? [], functionsClassFunc(row.id)),
+          profileBuilders: row.profileBuilders
+            .filter(pb => pb.version > 0)
+            .map(pb => ({
+              ...pb,
+              functions: pb.functions.map(f => ({
                 ...omit(f.function, "config"),
-                ...f.function.config,
-              };
-            });
-            // Add functionsServer routing info for profile builder
-            (pb as any).functionsServer = selectProfileBuilderFunctionsServer(
-              functionsServers,
-              row.id,
-              pb.id,
-              functionsClassFunc(row.id)
-            );
-            return pb;
-          });
-        payload = JSON.stringify(row);
+                ...asRecord(f.function.config),
+              })),
+              // functionsServer routing info for profile builder
+              functionsServer: selectProfileBuilderFunctionsServer(
+                functionsServers,
+                row.id,
+                pb.id,
+                functionsClassFunc(row.id)
+              ),
+            })),
+        };
+        payload = JSON.stringify(workspacePayload);
       } catch (e) {
         // Only entity materialization/serialization is guarded: one malformed row
         // must not take down the whole export. Writes happen OUTSIDE the try so a
@@ -981,7 +1073,7 @@ async function exportSyncs(writer: Writer) {
   let lastId: string | undefined = undefined;
   let needComma = false;
   while (true) {
-    const objects = await db.prisma().configurationObjectLink.findMany({
+    const objects: LinkRow[] = await db.prisma().configurationObjectLink.findMany({
       where: {
         deleted: false,
         type: "sync",
@@ -1036,9 +1128,16 @@ async function exportSyncs(writer: Writer) {
   writer.write("]");
 }
 
-function exportSyncEntity({ data, from, id, to, updatedAt, workspace }: any) {
-  let destinationConfig: any = { ...(to.config as any) };
-  const destinationType = destinationConfig.destinationType;
+function exportSyncEntity({
+  data,
+  from,
+  id,
+  to,
+  updatedAt,
+  workspace,
+}: Pick<LinkRow, "data" | "from" | "id" | "to" | "updatedAt" | "workspace">) {
+  let destinationConfig: Record<string, unknown> = { ...asRecord(to.config) };
+  const destinationType = ObjectConfig.parse(to.config).destinationType;
   const coreDestinationType = getCoreDestinationTypeNonStrict(destinationType);
   if (!coreDestinationType) {
     getLog()
@@ -1060,15 +1159,15 @@ function exportSyncEntity({ data, from, id, to, updatedAt, workspace }: any) {
       );
     return [];
   }
-  const syncData = (data ?? {}) as Record<string, any>;
-  let serviceConfig: any = { ...(from.config as any) };
+  const syncData = asRecord(data);
+  let serviceConfig: Record<string, unknown> = { ...asRecord(from.config) };
 
   // versionHash MUST be derived from the raw persisted credentials —
   // matches the formula used by scheduleSync and sources/discover when
   // they store catalog rows in source_catalog. Hashing post-mutation or
   // post-OAuth-refresh creds would make sidecar's catalog lookup miss
   // the rows that scheduleSync wrote.
-  const versionHash = `${workspace.id}_${from.id}_${juavaHash("md5", stableHash(serviceConfig.credentials))}`;
+  const versionHash = `${workspace.id}_${from.id}_${juavaHash("md5", stableHashValue(serviceConfig.credentials))}`;
 
   // scheduleSync applies this default for these packages — apply it to
   // a separate `credentials` value used only in the runtime source.config
@@ -1080,7 +1179,7 @@ function exportSyncEntity({ data, from, id, to, updatedAt, workspace }: any) {
   ) {
     serviceConfig = {
       ...serviceConfig,
-      credentials: { ...serviceConfig.credentials, sync_checkpoint_records: 200000 },
+      credentials: { ...asRecord(serviceConfig.credentials), sync_checkpoint_records: 200000 },
     };
   }
 
@@ -1195,7 +1294,7 @@ const exports: Export[] = [
   },
 ];
 
-const exportsMap = exports.reduce((acc, e) => ({ ...acc, [e.name]: e }), {});
+const exportsMap: Record<string, Export> = exports.reduce((acc, e) => ({ ...acc, [e.name]: e }), {});
 
 export function getExport(name: string): Export {
   return requireDefined(exportsMap[name], `Export ${name} not found`);
@@ -1232,7 +1331,7 @@ export function notModified(ifModifiedSince: Date | undefined, lastModified: Dat
   return ifModifiedSince.getTime() >= lastModifiedCopy.getTime();
 }
 
-function getNumericOption(name: string, workspace: z.infer<typeof WorkspaceDbModel>, defaultValue?: number) {
+function getNumericOption(name: string, workspace: { featuresEnabled?: string[] | null }, defaultValue?: number) {
   const opt = (workspace.featuresEnabled ?? []).find(f => f.startsWith(name));
   if (opt) {
     //remove all non-numeric
