@@ -81,7 +81,8 @@ function asRecord(v: unknown): Record<string, unknown> {
   const parsed = JsonRecord.safeParse(v);
   return parsed.success ? parsed.data : {};
 }
-// Connection options (ConfigurationObjectLink.data).
+// Connection options (ConfigurationObjectLink.data) - the generic fallback
+// shape when the destination-type schema can't be applied.
 const LinkData = z
   .object({
     disabled: z.unknown().optional(),
@@ -90,6 +91,37 @@ const LinkData = z
   })
   .passthrough()
   .catch({});
+type LinkDataParsed = z.infer<typeof LinkData>;
+
+// Parses connection options with the destination type's own connectionOptions
+// schema (lib/schema/destinations.tsx), so absent fields materialize to the
+// console defaults (deduplicate: true, mode: batch, ...) instead of being
+// omitted and re-defaulted - differently and unsafely - by bulker/rotor
+// (JITSU-136 / JITSU-158). `.passthrough()` is essential: the schemas strip
+// unknown keys by default, and a field consumers understand but the console
+// schema doesn't list yet must still flow through. Falls back to the generic
+// tolerant parse when the type is unknown or the stored data doesn't conform.
+const linkDataSchemaCache = new Map<string, z.ZodTypeAny>();
+function parseLinkData(destinationType: string | undefined, data: unknown): LinkDataParsed {
+  const coreType = getCoreDestinationTypeNonStrict(destinationType);
+  if (coreType) {
+    let schema = linkDataSchemaCache.get(coreType.id);
+    if (!schema) {
+      schema = coreType.connectionOptions.passthrough();
+      linkDataSchemaCache.set(coreType.id, schema);
+    }
+    const parsed = schema.safeParse(data ?? {});
+    if (parsed.success) {
+      return parsed.data as LinkDataParsed;
+    }
+    getLog()
+      .atWarn()
+      .log(
+        `Connection options do not conform to the '${destinationType}' schema, exporting stored fields as-is: ${parsed.error.message}`
+      );
+  }
+  return LinkData.parse(data);
+}
 // ConfigurationObject.config - the fields the exports read by name.
 const ObjectConfig = z
   .object({
@@ -243,12 +275,12 @@ async function exportBulkerConnections(writer: Writer) {
     for (const { data: data_, from, id, to, updatedAt, workspace } of objects) {
       let payload: string | undefined;
       try {
-        const data = LinkData.parse(data_);
+        const toConfig = ObjectConfig.parse(to.config);
+        const destinationType = toConfig.destinationType;
+        const data = parseLinkData(destinationType, data_);
         if (data.disabled) {
           continue; // skip disabled connections
         }
-        const toConfig = ObjectConfig.parse(to.config);
-        const destinationType = toConfig.destinationType;
         const coreDestinationType = getCoreDestinationTypeNonStrict(destinationType);
         if (coreDestinationType?.usesBulker || coreDestinationType?.hybrid) {
           const credentials: Record<string, unknown> = omit(toConfig, "destinationType", "type", "name");
@@ -439,11 +471,11 @@ async function exportRotorConnections(writer: Writer) {
     for (const { data: data_, from, id, to, updatedAt, workspace } of objects) {
       let payload: string | undefined;
       try {
-        const data = LinkData.parse(data_);
+        const destinationType = ObjectConfig.parse(to.config).destinationType;
+        const data = parseLinkData(destinationType, data_);
         if (data.disabled) {
           continue; // skip disabled connections
         }
-        const destinationType = ObjectConfig.parse(to.config).destinationType;
         const coreDestinationType = getCoreDestinationTypeNonStrict(destinationType);
         if (!coreDestinationType) {
           getLog().atError().log(`Unknown destination type: ${destinationType} for connection ${id}`);
@@ -776,26 +808,28 @@ async function exportStreamsWithDestinations(writer: Writer) {
           captureHeaders: (obj.workspace.featuresEnabled || []).includes("captureHeaders"),
           destinations: [
             ...obj.toLinks
-              .filter(l => !l.deleted && l.type === "push" && !LinkData.parse(l.data).disabled && !l.to.deleted)
+              .filter(l => !l.deleted && l.type === "push" && !l.to.deleted)
               .map(l => {
                 const toConfig = ObjectConfig.parse(l.to.config);
-                return {
-                  id: l.to.id,
-                  connectionId: l.id,
-                  destinationType: toConfig.destinationType,
-                  name: toConfig.name,
-                  credentials: omit(toConfig, "destinationType", "type", "name"),
-                  options: {
-                    ...LinkData.parse(l.data),
-                    functionsServer: selectFunctionsServer(
-                      functionsServers,
-                      obj.workspace.id,
-                      l.id,
-                      functionsClassFunc(obj.workspace)
-                    ),
-                  },
-                };
-              }),
+                return { l, toConfig, data: parseLinkData(toConfig.destinationType, l.data) };
+              })
+              .filter(({ data }) => !data.disabled)
+              .map(({ l, toConfig, data }) => ({
+                id: l.to.id,
+                connectionId: l.id,
+                destinationType: toConfig.destinationType,
+                name: toConfig.name,
+                credentials: omit(toConfig, "destinationType", "type", "name"),
+                options: {
+                  ...data,
+                  functionsServer: selectFunctionsServer(
+                    functionsServers,
+                    obj.workspace.id,
+                    l.id,
+                    functionsClassFunc(obj.workspace)
+                  ),
+                },
+              })),
             ...(pbMap.get(obj.workspace.id) ?? []).map(pb => {
               const connectionOptions = PbConnectionOptions.parse(pb.connectionOptions);
               return {
