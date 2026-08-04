@@ -157,17 +157,26 @@ func (th *TableHelper) ensureTable(ctx context.Context, sqlAdapter SQLAdapter, d
 		return nil, err
 	}
 
-	if actualSchema.Cached {
-		actualSchema, err = th.patchTableIfNeeded(ctx, sqlAdapter, destinationID, actualSchema, desiredSchema, true)
-		if err == nil {
-			return
-		}
-		// if patching of cached table failed - that may mean table was changed outside of bulker
-		// get fresh table schema from db and try again
-		actualSchema, err = th.getOrCreateWithLock(ctx, sqlAdapter, destinationID, desiredSchema)
-		if err != nil {
-			return nil, err
-		}
+	patchedSchema, patchErr := th.patchTableIfNeeded(ctx, sqlAdapter, destinationID, actualSchema, desiredSchema, cacheTable)
+	if patchErr == nil {
+		return patchedSchema, nil
+	}
+	// Patching failed - that may mean the table was changed outside of bulker, or that
+	// another bulker instance writing to the same table won the race to add the same
+	// column (SQLSTATE 42701 on Postgres). Either way our view of the table is stale:
+	// get a fresh schema from the db and patch again with whatever is really missing.
+	//
+	// This log line is the only place the original error is visible: the retry below
+	// reports its own error, and until the patch statements were isolated in savepoints
+	// it always was "current transaction is aborted" (25P02) - the aftermath rather than
+	// the cause.
+	logging.Warnf("[%s] failed to patch table %s: %v. Getting fresh table schema from db and trying again", destinationID, desiredSchema.Name, patchErr)
+
+	actualSchema, err = th.getOrCreateWithLock(ctx, sqlAdapter, destinationID, desiredSchema)
+	if err != nil {
+		return nil, err
+	}
+	if cacheTable {
 		th.UpdateCached(actualSchema)
 	}
 
