@@ -173,6 +173,21 @@ func TestRunIsolated(t *testing.T) {
 		require.ErrorContains(t, err, "3B001")
 	})
 
+	t.Run("a failed release is reported, not swallowed", func(t *testing.T) {
+		// releasing can only fail if the transaction is gone, which the caller has to
+		// hear about: it is about to run statements that depend on it. Forced here by
+		// pulling the savepoint out from under the release.
+		tx, err := sqlAdapter.OpenTx(ctx)
+		require.NoError(t, err)
+		defer func() { _ = tx.Rollback() }()
+
+		err = runIsolated(ctx, tx.tx, func() error {
+			_, err := tx.tx.ExecContext(ctx, "RELEASE SAVEPOINT "+savepointName)
+			return err
+		})
+		require.ErrorContains(t, err, "3B001")
+	})
+
 	t.Run("without isolation the transaction is aborted", func(t *testing.T) {
 		// documents why the savepoint is needed: this is what every statement after a
 		// failed one looked like in production - 25P02, hiding the actual error

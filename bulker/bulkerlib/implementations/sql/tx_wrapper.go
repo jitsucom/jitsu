@@ -100,8 +100,11 @@ func runIsolated(ctx context.Context, txOrDb TxOrDB, fn func() error) error {
 		return err
 	}
 	if _, err := tx.ExecContext(ctx, "RELEASE SAVEPOINT "+savepointName); err != nil {
-		// the statements themselves landed, a leaked savepoint only costs some memory
-		logging.Errorf("failed to release savepoint: %v", err)
+		// fn succeeded, so the savepoint was there a statement ago: releasing it can only
+		// fail if the transaction itself is gone (connection dropped, context cancelled).
+		// Report that here rather than let the caller run on and fail further away from
+		// the cause.
+		return err
 	}
 	return nil
 }
