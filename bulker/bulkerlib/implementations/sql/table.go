@@ -235,6 +235,22 @@ func (t *Table) Diff(another *Table) *Table {
 	return diff
 }
 
+// samePatch reports whether two diffs describe the same change - the same columns to
+// add and the same primary key work. Used to tell a stale view of the table (worth
+// re-reading and patching again) from a patch the database rejects on its merits.
+func (t *Table) samePatch(another *Table) bool {
+	if t.ColumnsCount() != another.ColumnsCount() {
+		return false
+	}
+	for el := t.Columns.Front(); el != nil; el = el.Next() {
+		column, ok := another.Columns.Get(el.Key)
+		if !ok || column.Type != el.Value.Type {
+			return false
+		}
+	}
+	return t.DeletePrimaryKeyNamed == another.DeletePrimaryKeyNamed && t.PKFields.Equals(another.PKFields)
+}
+
 func (t *Table) ToSimpleMap() *jsonorder.OrderedMap[string, any] {
 	simple := jsonorder.NewOrderedMap[string, any](t.ColumnsCount())
 	for el := t.Columns.Front(); el != nil; el = el.Next() {
