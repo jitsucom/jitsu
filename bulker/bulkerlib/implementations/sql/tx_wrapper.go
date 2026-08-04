@@ -95,6 +95,10 @@ func runIsolated(ctx context.Context, txOrDb TxOrDB, fn func() error) error {
 		// rolling back to a savepoint keeps it established, so it has to be released here
 		// too - otherwise every failure leaves one behind for the rest of the transaction
 		if _, releaseErr := tx.ExecContext(ctx, "RELEASE SAVEPOINT "+savepointName); releaseErr != nil {
+			// logged rather than returned, unlike the success path below: the caller
+			// retries on any error from here, so returning this one instead would not
+			// spare it a doomed retry - it would only drop the error that says why the
+			// patch failed, which is the one worth having in the logs
 			logging.Errorf("failed to release savepoint after rollback: %v", releaseErr)
 		}
 		return err
