@@ -171,7 +171,7 @@ func (p *RedshiftIAM) openTx(ctx context.Context, sqlAdapter SQLAdapter) (*TxSQL
 			if err != nil {
 				return nil, errorj.BeginTransactionError.Wrap(err, "failed to begin transaction")
 			}
-			return &TxSQLAdapter{sqlAdapter: sqlAdapter, tx: NewTxWrapper(p.Type(), tx, p.queryLogger, p.checkErrFunc)}, nil
+			return &TxSQLAdapter{sqlAdapter: sqlAdapter, tx: NewTxWrapper(p.Type(), tx, p.queryLogger, p.checkErrFunc, p.supportsSavepoints)}, nil
 		}
 	}
 	return p.SQLAdapterBase.openTx(ctx, sqlAdapter)

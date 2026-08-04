@@ -87,6 +87,12 @@ type SQLAdapterBase[T any] struct {
 	tmpTableUsePK        bool
 	doLocalDeduplication bool
 	renameToSchemaless   bool
+	// supportsSavepoints whether transactions opened by this adapter can isolate a failing
+	// statement with SAVEPOINT / ROLLBACK TO SAVEPOINT, see execIsolated. Only needed where
+	// a failed statement aborts the whole transaction, which of the supported databases is
+	// Postgres alone. Note it can't be derived from typeId: Redshift is built on top of the
+	// Postgres adapter and keeps its typeId, but has no savepoints.
+	supportsSavepoints bool
 	// stringifyObjects objects types like JSON, array will be stringified before sent to warehouse (warehouse will parse them back)
 	stringifyObjects bool
 
@@ -203,7 +209,7 @@ func (b *SQLAdapterBase[T]) openTx(ctx context.Context, sqlAdapter SQLAdapter) (
 		return nil, errorj.BeginTransactionError.Wrap(err, "failed to begin transaction")
 	}
 
-	return &TxSQLAdapter{sqlAdapter: sqlAdapter, tx: NewTxWrapper(b.Type(), tx, b.queryLogger, b.checkErrFunc)}, nil
+	return &TxSQLAdapter{sqlAdapter: sqlAdapter, tx: NewTxWrapper(b.Type(), tx, b.queryLogger, b.checkErrFunc, b.supportsSavepoints)}, nil
 }
 
 func (b *SQLAdapterBase[T]) txOrDb(ctx context.Context) TxOrDB {

@@ -20,6 +20,8 @@ type TxWrapper struct {
 	errorAdapter ErrorAdapter
 	closeDb      bool
 	error        error
+	// savepoints whether the transaction can isolate a failing statement, see execIsolated
+	savepoints bool
 }
 
 type TxOrDB interface {
@@ -34,8 +36,8 @@ type DB interface {
 	io.Closer
 }
 
-func NewTxWrapper(dbType string, tx *sql.Tx, queryLogger *logging.QueryLogger, errorAdapter ErrorAdapter) *TxWrapper {
-	return &TxWrapper{dbType: dbType, tx: tx, queryLogger: queryLogger, errorAdapter: errorAdapter}
+func NewTxWrapper(dbType string, tx *sql.Tx, queryLogger *logging.QueryLogger, errorAdapter ErrorAdapter, savepoints bool) *TxWrapper {
+	return &TxWrapper{dbType: dbType, tx: tx, queryLogger: queryLogger, errorAdapter: errorAdapter, savepoints: savepoints}
 }
 
 func NewDbWrapper(dbType string, db DB, queryLogger *logging.QueryLogger, errorAdapter ErrorAdapter, closeDb bool) *TxWrapper {
@@ -60,16 +62,8 @@ const savepointName = "bulker_stmt"
 // until end of transaction block".
 const abortedTransactionSQLState = "25P02"
 
-// dialectsSupportingSavepoints lists database types where a failed statement aborts the
-// enclosing transaction (see abortedTransactionSQLState). There a savepoint is the only
-// way to keep the transaction usable after a statement that is expected to sometimes fail.
-// Databases that don't abort the transaction (MySQL, Snowflake) or don't run bulker's
-// statements in a transaction at all (Redshift, ClickHouse, BigQuery, DuckDB) don't
-// need it - and mostly don't support savepoints either.
-var dialectsSupportingSavepoints = map[string]bool{PostgresBulkerTypeId: true}
-
 func (t *TxWrapper) supportsSavepoints() bool {
-	return t.tx != nil && dialectsSupportingSavepoints[t.dbType]
+	return t.tx != nil && t.savepoints
 }
 
 // execIsolated executes a statement whose failure must not poison the enclosing
