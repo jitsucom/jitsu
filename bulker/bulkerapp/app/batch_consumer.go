@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/confluentinc/confluent-kafka-go/v2/kafka"
@@ -37,6 +38,24 @@ func NewBatchConsumer(repository *Repository, destinationId string, batchPeriodS
 	bc.batchSizeFunc = bc.batchSizes
 	bc.batchFunc = bc.processBatchImpl
 	return &bc, nil
+}
+
+// abortedTransactionSQLState is the Postgres error raised by every statement that
+// follows a failed one in the same transaction: "current transaction is aborted,
+// commands ignored until end of transaction block".
+const abortedTransactionSQLState = "25P02"
+
+// isAbortedTransactionError reports whether the batch died on an aborted transaction.
+// Such a failure is sticky: whatever broke the transaction is a property of the
+// destination, not of the messages, so every following batch is going to fail exactly
+// the same way. Grinding through the backlog only republishes the whole topic to the
+// retry topic - one batch per run is enough, the next run will retry.
+//
+// The check is on the message and not on the error type because the SQLSTATE is only
+// carried as text by the time the error gets here: errorx wraps opaquely, so the
+// driver error is no longer reachable with errors.As.
+func isAbortedTransactionError(err error) bool {
+	return err != nil && strings.Contains(err.Error(), abortedTransactionSQLState)
 }
 
 func (bc *BatchConsumerImpl) batchSizes(streamOptions *bulker.StreamOptions) (maxBatchSize, maxBatchSizeBytes, retryBatchSize int) {
@@ -89,7 +108,7 @@ func (bc *BatchConsumerImpl) processBatchImpl(destination *Destination, batchNum
 					bc.errorMetric("PROCESS_FAILED_ERROR")
 					bc.SystemErrorf(err2.Error())
 					bc.restartConsumer(nil)
-				} else if counters.failed > 1 && int64(latestMessage.TopicPartition.Offset) < highOffset-1 {
+				} else if counters.failed > 1 && int64(latestMessage.TopicPartition.Offset) < highOffset-1 && !isAbortedTransactionError(err) {
 					// if we fail right on the first message - that probably means connection problems. No need to move further.
 					// otherwise we can try to consume next batch
 					nextBatch = true
