@@ -191,13 +191,18 @@ func NewPostgres(bulkerConfig bulker.Config) (bulker.Bulker, error) {
 			dataSource.SetMaxIdleConns(10)
 			return dataSource, nil
 		} else {
-			connectionString := fmt.Sprintf("host=%s port=%d dbname=%s user=%s password=%s search_path=%s",
-				config.Host, config.Port, config.Db, config.Username, config.Password, config.Schema)
-			//concat provided connection parameters
-			for k, v := range config.Parameters {
-				connectionString += " " + k + "=" + v + " "
+			buildConnectionString := func(password string) string {
+				connectionString := fmt.Sprintf("host=%s port=%d dbname=%s user=%s password=%s search_path=%s",
+					config.Host, config.Port, config.Db, config.Username, password, config.Schema)
+				//concat provided connection parameters
+				for k, v := range config.Parameters {
+					connectionString += " " + k + "=" + v + " "
+				}
+				return connectionString
 			}
-			logging.Infof("[%s] connecting: %s", bulkerConfig.Id, connectionString)
+			connectionString := buildConnectionString(config.Password)
+			//the destination password is a customer secret - it must never reach the logs
+			logging.Infof("[%s] connecting: %s", bulkerConfig.Id, buildConnectionString("***"))
 			dataSource, err := sql.Open("pgx", connectionString)
 			if err != nil {
 				return nil, err
