@@ -125,9 +125,9 @@ func TestSavepointsAreOptedIn(t *testing.T) {
 	require.False(t, redshiftTx.tx.supportsSavepoints())
 }
 
-// TestExecIsolated pins the property the recovery above relies on: a statement that
-// fails inside a transaction must leave that transaction usable.
-func TestExecIsolated(t *testing.T) {
+// TestRunIsolated pins the property the recovery above relies on: statements that
+// fail inside a transaction must leave that transaction usable.
+func TestRunIsolated(t *testing.T) {
 	t.Parallel()
 	testConfig, ok := configRegistry[PostgresBulkerTypeId]
 	if !ok {
@@ -149,8 +149,12 @@ func TestExecIsolated(t *testing.T) {
 		defer func() { _ = tx.Rollback() }()
 		require.True(t, tx.tx.supportsSavepoints(), "postgres transactions must support savepoints")
 
-		require.Error(t, execIsolated(ctx, tx.tx, failing))
-		require.NoError(t, execIsolated(ctx, tx.tx, "SELECT 1"), "transaction must still be usable after an isolated failure")
+		require.Error(t, runIsolated(ctx, tx.tx, func() error {
+			_, err := tx.tx.ExecContext(ctx, failing)
+			return err
+		}))
+		_, err = tx.tx.ExecContext(ctx, "SELECT 1")
+		require.NoError(t, err, "transaction must still be usable after an isolated failure")
 	})
 
 	t.Run("a failed statement leaves no savepoint behind", func(t *testing.T) {
@@ -160,7 +164,10 @@ func TestExecIsolated(t *testing.T) {
 		require.NoError(t, err)
 		defer func() { _ = tx.Rollback() }()
 
-		require.Error(t, execIsolated(ctx, tx.tx, failing))
+		require.Error(t, runIsolated(ctx, tx.tx, func() error {
+			_, err := tx.tx.ExecContext(ctx, failing)
+			return err
+		}))
 		_, err = tx.tx.ExecContext(ctx, "ROLLBACK TO SAVEPOINT "+savepointName)
 		// 3B001 invalid_savepoint_specification - there is nothing left to roll back to
 		require.ErrorContains(t, err, "3B001")

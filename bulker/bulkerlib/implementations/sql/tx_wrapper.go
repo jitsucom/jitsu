@@ -20,7 +20,7 @@ type TxWrapper struct {
 	errorAdapter ErrorAdapter
 	closeDb      bool
 	error        error
-	// savepoints whether the transaction can isolate a failing statement, see execIsolated
+	// savepoints whether the transaction can isolate failing statements, see runIsolated
 	savepoints bool
 }
 
@@ -66,37 +66,41 @@ func (t *TxWrapper) supportsSavepoints() bool {
 	return t.tx != nil && t.savepoints
 }
 
-// execIsolated executes a statement whose failure must not poison the enclosing
-// transaction, so that the caller can recover on the same connection - e.g. re-read
-// the table schema and patch again after losing an ALTER TABLE race.
+// runIsolated runs statements whose failure must not poison the enclosing transaction,
+// so that the caller can recover on the same connection - e.g. re-read the table schema
+// and patch again after losing an ALTER TABLE race.
 //
-// Where the database needs it, the statement runs inside a savepoint that is rolled
-// back on failure. Everywhere else this is a plain ExecContext.
-func execIsolated(ctx context.Context, txOrDb TxOrDB, query string, args ...any) error {
+// Where the database needs it, fn runs inside a savepoint that is rolled back if fn
+// fails. Everywhere else fn just runs. Anything already applied by a failed fn is undone,
+// which is what the caller wants anyway: it is about to re-read the real schema and redo
+// the work from there.
+//
+// The whole block and not statement by statement, deliberately: each savepoint is a
+// subtransaction on the destination, and Postgres degrades cluster-wide once a
+// transaction holds more than 64 of them.
+func runIsolated(ctx context.Context, txOrDb TxOrDB, fn func() error) error {
 	tx, ok := txOrDb.(*TxWrapper)
 	if !ok || !tx.supportsSavepoints() {
-		_, err := txOrDb.ExecContext(ctx, query, args...)
-		return err
+		return fn()
 	}
 	if _, err := tx.ExecContext(ctx, "SAVEPOINT "+savepointName); err != nil {
 		return err
 	}
-	if _, err := tx.ExecContext(ctx, query, args...); err != nil {
+	if err := fn(); err != nil {
 		if _, rollbackErr := tx.ExecContext(ctx, "ROLLBACK TO SAVEPOINT "+savepointName); rollbackErr != nil {
 			// the transaction stays aborted - nothing left to do but report the original error
 			logging.Errorf("failed to rollback to savepoint: %v", rollbackErr)
 			return err
 		}
 		// rolling back to a savepoint keeps it established, so it has to be released here
-		// too - otherwise every failed statement leaves one behind for the rest of the
-		// transaction, and each one costs a subtransaction on the destination
+		// too - otherwise every failure leaves one behind for the rest of the transaction
 		if _, releaseErr := tx.ExecContext(ctx, "RELEASE SAVEPOINT "+savepointName); releaseErr != nil {
 			logging.Errorf("failed to release savepoint after rollback: %v", releaseErr)
 		}
 		return err
 	}
 	if _, err := tx.ExecContext(ctx, "RELEASE SAVEPOINT "+savepointName); err != nil {
-		// the statement itself landed, a leaked savepoint only costs some memory
+		// the statements themselves landed, a leaked savepoint only costs some memory
 		logging.Errorf("failed to release savepoint: %v", err)
 	}
 	return nil
