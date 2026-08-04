@@ -218,6 +218,9 @@ func NewPostgres(bulkerConfig bulker.Config) (bulker.Bulker, error) {
 	}
 	sqlAdapterBase, err := newSQLAdapterBase(bulkerConfig.Id, PostgresBulkerTypeId, config, config.Schema, dbConnectFunction, postgresDataTypes, queryLogger, typecastFunc, IndexParameterPlaceholder, pgColumnDDL, valueMappingFunc, checkErr, true)
 	p := &Postgres{sqlAdapterBase, tmpDir}
+	// a failed statement aborts the whole transaction on Postgres, so statements that may
+	// legitimately fail have to be isolated in a savepoint
+	p.supportsSavepoints = true
 	// some clients have no permission to create tmp tables
 	p.temporaryTables = false
 	p.tableHelper = NewTableHelper(PostgresBulkerTypeId, 63, '"')

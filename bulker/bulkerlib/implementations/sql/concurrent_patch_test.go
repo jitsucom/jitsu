@@ -88,6 +88,43 @@ func TestConcurrentAddColumn(t *testing.T) {
 	reqr.Equal("new", rows[1]["b"])
 }
 
+// TestSavepointsAreOptedIn pins which adapters isolate statements with savepoints.
+// It deliberately can't be derived from the type id: Redshift is built on top of the
+// Postgres adapter and keeps its typeId, but Redshift has no SAVEPOINT - a Redshift
+// destination taking one would fail every schema patch.
+func TestSavepointsAreOptedIn(t *testing.T) {
+	t.Parallel()
+	testConfig, ok := configRegistry[PostgresBulkerTypeId]
+	if !ok {
+		t.Skipf("%s config is not available", PostgresBulkerTypeId)
+	}
+	pgConfig := testConfig.Config.(PostgresConfig)
+	ctx := context.Background()
+
+	postgres, err := bulker.CreateBulker(bulker.Config{Id: PostgresBulkerTypeId, BulkerType: PostgresBulkerTypeId, DestinationConfig: pgConfig})
+	require.NoError(t, err)
+	defer func() { _ = postgres.Close() }()
+	tx, err := postgres.(SQLAdapter).OpenTx(ctx)
+	require.NoError(t, err)
+	defer func() { _ = tx.Rollback() }()
+	require.True(t, tx.tx.supportsSavepoints(), "postgres transactions must isolate failing statements")
+
+	// the redshift wire protocol is postgres, so the container is enough to build one
+	redshift, err := NewRedshiftClassic(bulker.Config{Id: RedshiftBulkerTypeId, BulkerType: RedshiftBulkerTypeId, DestinationConfig: map[string]any{
+		"host": pgConfig.Host, "port": pgConfig.Port, "database": pgConfig.Db, "defaultSchema": pgConfig.Schema,
+		"username": pgConfig.Username, "password": pgConfig.Password, "parameters": pgConfig.Parameters,
+		"bucket": "test", "region": "us-east-1", "accessKeyId": "test", "secretAccessKey": "test",
+	}})
+	require.NoError(t, err)
+	defer func() { _ = redshift.Close() }()
+	require.False(t, redshift.(*Redshift).supportsSavepoints,
+		"Redshift inherits the Postgres adapter but has no SAVEPOINT - it must never take one")
+	redshiftTx, err := redshift.(SQLAdapter).OpenTx(ctx)
+	require.NoError(t, err)
+	defer func() { _ = redshiftTx.Rollback() }()
+	require.False(t, redshiftTx.tx.supportsSavepoints())
+}
+
 // TestExecIsolated pins the property the recovery above relies on: a statement that
 // fails inside a transaction must leave that transaction usable.
 func TestExecIsolated(t *testing.T) {
