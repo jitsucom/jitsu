@@ -101,13 +101,39 @@ type LinkDataParsed = z.infer<typeof LinkData>;
 // unknown keys by default, and a field consumers understand but the console
 // schema doesn't list yet must still flow through. Falls back to the generic
 // tolerant parse when the type is unknown or the stored data doesn't conform.
+// `.passthrough()` only affects the object it is applied to - unknown keys
+// inside nested declared objects (e.g. an `enabled` flag on a functions[]
+// entry) would still be stripped. Rebuild the schema with passthrough at
+// every object level so stored fields are never silently dropped.
+function deepPassthrough(schema: z.ZodTypeAny): z.ZodTypeAny {
+  if (schema instanceof z.ZodObject) {
+    const shape = Object.fromEntries(
+      Object.entries(schema.shape as z.ZodRawShape).map(([k, v]) => [k, deepPassthrough(v)])
+    );
+    return z.object(shape).passthrough();
+  }
+  if (schema instanceof z.ZodArray) {
+    return new z.ZodArray({ ...schema._def, type: deepPassthrough(schema._def.type as z.ZodTypeAny) });
+  }
+  if (schema instanceof z.ZodOptional) {
+    return new z.ZodOptional({ ...schema._def, innerType: deepPassthrough(schema._def.innerType as z.ZodTypeAny) });
+  }
+  if (schema instanceof z.ZodNullable) {
+    return new z.ZodNullable({ ...schema._def, innerType: deepPassthrough(schema._def.innerType as z.ZodTypeAny) });
+  }
+  if (schema instanceof z.ZodDefault) {
+    return new z.ZodDefault({ ...schema._def, innerType: deepPassthrough(schema._def.innerType as z.ZodTypeAny) });
+  }
+  return schema;
+}
+
 const linkDataSchemaCache = new Map<string, z.ZodTypeAny>();
 function parseLinkData(destinationType: string | undefined, data: unknown): LinkDataParsed {
   const coreType = getCoreDestinationTypeNonStrict(destinationType);
   if (coreType) {
     let schema = linkDataSchemaCache.get(coreType.id);
     if (!schema) {
-      schema = coreType.connectionOptions.passthrough();
+      schema = deepPassthrough(coreType.connectionOptions);
       linkDataSchemaCache.set(coreType.id, schema);
     }
     const parsed = schema.safeParse(data ?? {});
