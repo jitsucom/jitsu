@@ -112,7 +112,15 @@ function parseLinkData(destinationType: string | undefined, data: unknown): Link
     }
     const parsed = schema.safeParse(data ?? {});
     if (parsed.success) {
-      return parsed.data as LinkDataParsed;
+      const result = parsed.data as LinkDataParsed;
+      // Back-compat: frequency's console default (60m) differs from bulker's
+      // absent-option default, so materializing it would change the batch
+      // cadence of every connection that never persisted it. Keep it absent
+      // unless actually stored.
+      if (!(data != null && typeof data === "object" && "frequency" in data)) {
+        delete result.frequency;
+      }
+      return result;
     }
     getLog()
       .atWarn()
