@@ -49,6 +49,25 @@ const eslintConfig = defineConfig([
       "no-restricted-properties": "off",
     },
   },
+  // Type-aware unsafe-`any` rules on the admin API surface. The config export
+  // endpoints feed bulker/rotor/syncctl directly; an implicit `any` here is how
+  // the 2026-07-30 blank-options incident compiled (JITSU-158) — a
+  // destructuring typo on a Prisma result the checker had silently collapsed
+  // to `any`. These rules make any such collapse a lint failure instead.
+  {
+    files: ["pages/api/admin/**/*.ts"],
+    languageOptions: {
+      parserOptions: {
+        project: "./tsconfig.json",
+        tsconfigRootDir: import.meta.dirname,
+      },
+    },
+    rules: {
+      "@typescript-eslint/no-unsafe-assignment": "error",
+      "@typescript-eslint/no-unsafe-member-access": "error",
+      "@typescript-eslint/no-unsafe-argument": "error",
+    },
+  },
 ]);
 
 export default eslintConfig;

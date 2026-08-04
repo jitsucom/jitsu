@@ -1,3 +1,7 @@
+/* eslint-disable @typescript-eslint/no-unsafe-member-access --
+ * Pre-existing implicit-`any` debt, exempted when the unsafe-any gate was
+ * introduced for pages/api/admin (JITSU-158 action item 3). Fix the `any`
+ * flows in this file, then remove this header - do not add new ones. */
 import { createRoute, getUser, verifyAdmin } from "../../../lib/api";
 import { stopwatch, getClickhouseConfig } from "juava";
 import { clickhouse } from "../../../lib/server/clickhouse";
