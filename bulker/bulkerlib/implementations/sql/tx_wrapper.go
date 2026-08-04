@@ -53,8 +53,8 @@ func NewCustomWrapper(dbType string, custom io.Closer, err error) *TxWrapper {
 }
 
 // savepointName is the savepoint taken before a statement that is allowed to fail.
-// A single name is enough: the savepoint is always released or rolled back before
-// the next one is taken, and repeating SAVEPOINT with the same name is legal.
+// A single name is enough because the savepoint is always released before the next
+// one is taken - on both paths, since rolling back to a savepoint does not destroy it.
 const savepointName = "bulker_stmt"
 
 // abortedTransactionSQLState is returned by every statement that follows a failed one
@@ -85,6 +85,13 @@ func execIsolated(ctx context.Context, txOrDb TxOrDB, query string, args ...any)
 		if _, rollbackErr := tx.ExecContext(ctx, "ROLLBACK TO SAVEPOINT "+savepointName); rollbackErr != nil {
 			// the transaction stays aborted - nothing left to do but report the original error
 			logging.Errorf("failed to rollback to savepoint: %v", rollbackErr)
+			return err
+		}
+		// rolling back to a savepoint keeps it established, so it has to be released here
+		// too - otherwise every failed statement leaves one behind for the rest of the
+		// transaction, and each one costs a subtransaction on the destination
+		if _, releaseErr := tx.ExecContext(ctx, "RELEASE SAVEPOINT "+savepointName); releaseErr != nil {
+			logging.Errorf("failed to release savepoint after rollback: %v", releaseErr)
 		}
 		return err
 	}

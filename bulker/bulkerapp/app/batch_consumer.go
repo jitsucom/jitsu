@@ -40,10 +40,12 @@ func NewBatchConsumer(repository *Repository, destinationId string, batchPeriodS
 	return &bc, nil
 }
 
-// abortedTransactionSQLState is the Postgres error raised by every statement that
-// follows a failed one in the same transaction: "current transaction is aborted,
-// commands ignored until end of transaction block".
-const abortedTransactionSQLState = "25P02"
+// abortedTransactionMarker is the Postgres error raised by every statement that follows
+// a failed one in the same transaction: "current transaction is aborted, commands ignored
+// until end of transaction block". Matched as the driver renders it - the bare code could
+// show up in an error for other reasons, e.g. inside an event payload or a table name.
+// The code and not the message, because Postgres localizes messages but never SQLSTATEs.
+const abortedTransactionMarker = "SQLSTATE 25P02"
 
 // isAbortedTransactionError reports whether the batch died on an aborted transaction.
 // Such a failure is sticky: whatever broke the transaction is a property of the
@@ -55,7 +57,7 @@ const abortedTransactionSQLState = "25P02"
 // carried as text by the time the error gets here: errorx wraps opaquely, so the
 // driver error is no longer reachable with errors.As.
 func isAbortedTransactionError(err error) bool {
-	return err != nil && strings.Contains(err.Error(), abortedTransactionSQLState)
+	return err != nil && strings.Contains(err.Error(), abortedTransactionMarker)
 }
 
 func (bc *BatchConsumerImpl) batchSizes(streamOptions *bulker.StreamOptions) (maxBatchSize, maxBatchSizeBytes, retryBatchSize int) {

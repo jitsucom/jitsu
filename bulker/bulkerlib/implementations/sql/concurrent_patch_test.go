@@ -153,6 +153,19 @@ func TestExecIsolated(t *testing.T) {
 		require.NoError(t, execIsolated(ctx, tx.tx, "SELECT 1"), "transaction must still be usable after an isolated failure")
 	})
 
+	t.Run("a failed statement leaves no savepoint behind", func(t *testing.T) {
+		// rolling back to a savepoint keeps it established, so failures would otherwise
+		// stack one savepoint per attempt for the rest of the transaction
+		tx, err := sqlAdapter.OpenTx(ctx)
+		require.NoError(t, err)
+		defer func() { _ = tx.Rollback() }()
+
+		require.Error(t, execIsolated(ctx, tx.tx, failing))
+		_, err = tx.tx.ExecContext(ctx, "ROLLBACK TO SAVEPOINT "+savepointName)
+		// 3B001 invalid_savepoint_specification - there is nothing left to roll back to
+		require.ErrorContains(t, err, "3B001")
+	})
+
 	t.Run("without isolation the transaction is aborted", func(t *testing.T) {
 		// documents why the savepoint is needed: this is what every statement after a
 		// failed one looked like in production - 25P02, hiding the actual error

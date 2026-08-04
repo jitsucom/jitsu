@@ -31,6 +31,13 @@ func TestIsAbortedTransactionError(t *testing.T) {
 			expected: false,
 		},
 		{
+			// the bare code can show up for reasons that have nothing to do with a
+			// transaction - error messages quote table names and event payloads
+			desc:     "the bare code somewhere in the payload is not an aborted transaction",
+			err:      fmt.Errorf(`report.sql.execute_insert: failed to execute insert, cause: ERROR: invalid input syntax for type bigint: "25P02" (SQLSTATE 22P02)`),
+			expected: false,
+		},
+		{
 			desc:     "no error",
 			err:      nil,
 			expected: false,
