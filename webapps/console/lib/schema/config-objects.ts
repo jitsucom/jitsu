@@ -19,6 +19,7 @@ import { ZodType, ZodTypeDef } from "zod";
 import { getServerLog } from "../server/log";
 import { getWildcardDomains } from "../../pages/api/[workspaceId]/domain-check";
 import { getDestinationSecretPaths, getServiceSecretPaths, maskSecrets, removeMaskedValues } from "./secrets";
+import { getDestinationFreeFormPaths, getServiceFreeFormPaths, replaceFreeFormMaps } from "./free-form-maps";
 import { db } from "../server/db";
 import { ConfigApiDeleteOptions } from "../useApi";
 import pick from "lodash/pick";
@@ -161,7 +162,10 @@ const configObjectTypes: Record<string, ConfigObjectType> = {
       // Remove masked values before merge
       const secretPaths = getDestinationSecretPaths(original.destinationType);
       const cleanedPatch = removeMaskedValues(patch, secretPaths);
-      return deepMerge(original, cleanedPatch);
+      const merged = deepMerge(original, cleanedPatch);
+      // deepMerge can't remove keys, so free-form maps (`parameters`) are replaced
+      // wholesale when the patch supplies them — otherwise they can only grow.
+      return replaceFreeFormMaps(merged, cleanedPatch, getDestinationFreeFormPaths(original.destinationType));
     },
 
     inputFilter: async (obj: DestinationConfig, context) => {
@@ -328,7 +332,11 @@ const configObjectTypes: Record<string, ConfigObjectType> = {
       // Remove masked values before merge
       const secretPaths = await getServiceSecretPaths(original.package, original.version);
       const cleanedPatch = removeMaskedValues(patch, secretPaths);
-      return deepMerge(original, cleanedPatch);
+      const merged = deepMerge(original, cleanedPatch);
+      // Same as destinations, but the open key sets come from the connector's
+      // declarative spec (`additionalProperties`) rather than a zod catchall.
+      const freeFormPaths = await getServiceFreeFormPaths(original.package, original.version);
+      return replaceFreeFormMaps(merged, cleanedPatch, freeFormPaths);
     },
     inputFilter: async (obj: ServiceConfig) => {
       // Remove masked values
