@@ -151,7 +151,9 @@ jobs:
 
           - Node.js/pnpm workspace rooted at repo root (libs/, services/, webapps/, cli/, types/).
           - Go workspace rooted at bulker/ (bulker/go.work). All Go modules are members of this workspace — do NOT treat them as independent repos. Workspace members are listed in bulker/go.work.
-          - Root package.json has a pnpm.overrides block for pinning transitive versions.
+          - pnpm-workspace.yaml has an `overrides:` block for pinning transitive versions.
+            (It used to live in root package.json under `pnpm.overrides`; pnpm >=10.22
+            no longer reads that field and ignores it silently.)
 
           ## Input
 
@@ -229,8 +231,10 @@ jobs:
 
           - Determine if the package is a direct dependency:
               grep -r '"ACTUAL_PKG_NAME"' package.json */package.json libs/*/package.json webapps/*/package.json cli/*/package.json services/*/package.json types/*/package.json
-          - Transitive-only: add an entry to the pnpm.overrides block in root package.json.
-            Pattern: "ACTUAL_PKG_NAME@<FIXED_VER": "^FIXED_VER"
+          - Transitive-only: add an entry to the `overrides:` block in pnpm-workspace.yaml
+            (NOT package.json - pnpm >=10.22 ignores `pnpm.overrides` there, so an
+            override written to package.json silently does nothing).
+            Pattern (YAML, quote both sides): "ACTUAL_PKG_NAME@<FIXED_VER": "^FIXED_VER"
             The override floor (^FIXED_VER) must never be lower than the version
             already resolved in pnpm-lock.yaml — an override that caps a package
             below its current version is a downgrade; skip it instead.
