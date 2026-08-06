@@ -110,7 +110,7 @@ func (s *SyncsRepositoryData) Store(writer io.Writer) error {
 // NewSyncsRepository wires the syncs export polling repository.
 func NewSyncsRepository(baseURL, token string, refreshPeriodSec int, cacheDir string) appbase.Repository[SyncsData] {
 	url := fmt.Sprintf("%s/syncs", baseURL)
-	return appbase.NewHTTPRepository[SyncsData]("syncs", url, token, appbase.HTTPTagLastModified, &SyncsRepositoryData{}, 1, refreshPeriodSec, cacheDir, appbase.ExitOnNoData)
+	return appbase.NewHTTPRepository[SyncsData]("syncs", url, token, appbase.HTTPTagLastModified, &SyncsRepositoryData{}, 1, refreshPeriodSec, cacheDir, appbase.WaitForData)
 }
 
 // WaitForSyncEntry blocks until the repository contains a SyncEntry for syncID
