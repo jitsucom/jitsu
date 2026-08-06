@@ -195,17 +195,28 @@ jobs:
              still genuinely vulnerable. More than one item may share a ghsa;
              that is expected, so keep looking until all three fields match
              rather than taking the first ghsa hit.
-             When an entry matches, check every resolved version of that package
-             against its `satisfied_by` semver range. SKIP the alert only if ALL
-             of them satisfy the range; list it in the run summary under
-             "Skipped (accepted deviation)" with the recorded reason. If even one
-             resolved version falls outside, the exception does NOT apply — treat
-             the alert normally.
-             The range is bounded on both sides on purpose. A bare lower bound
-             would keep matching after a major migration, so a repo that later
-             moved to a still-vulnerable version on the next major line would
-             have the alert silently suppressed by an exception written for the
-             old one.
+             When an entry matches, judge every resolved copy of that package
+             separately. A copy is settled if EITHER it satisfies the entry's
+             `satisfied_by` semver range (the human vouched for it) OR it already
+             falls outside the alert's vulnerable_range (it is fixed on the
+             advisory's own terms, e.g. at or above fixed_version). SKIP the
+             alert only if EVERY resolved copy is settled under one of those two;
+             list it in the run summary under "Skipped (accepted deviation)" with
+             the recorded reason. If even one copy is settled by neither, the
+             exception does NOT apply — treat the alert normally.
+             Both tests are needed because a pnpm lockfile routinely holds
+             several copies of a package. A tree carrying a backport-fixed 7.x
+             copy alongside an already-fixed 8.x one is fully patched, but
+             `satisfied_by` alone would reject it and re-propose the very major
+             bump the exception exists to prevent.
+             Checking vulnerable_range rather than just widening the range keeps
+             the bound meaningful. `satisfied_by` is bounded on both sides on
+             purpose: a bare lower bound would keep matching after a major
+             migration, so a repo that later moved to a still-vulnerable version
+             on the next major line would have the alert silently suppressed by
+             an exception written for the old one. Versions between the two — on
+             the newer major but below its fix — satisfy neither test and are
+             still reported, which is the point.
              Never edit this file yourself: it records decisions only a human can
              make. An entry does not expire, so an alert can stay open forever
              with the repo deliberately not on the advisory's fixed_version.
