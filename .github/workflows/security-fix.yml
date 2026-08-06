@@ -187,13 +187,23 @@ jobs:
              Skip any alert whose fix is already covered by an open PR.
           2. Filter alerts by MIN_SEVERITY (severity order: critical > high > moderate > low).
           3. Drop alerts already settled by a human. If
-             .github/security-fix-exceptions.yml exists, read it and, for each
-             alert whose `ghsa` appears there, check every resolved version of
-             that package against the entry's `min_version`. If all of them are
-             >= min_version, SKIP the alert and list it in the run summary under
-             "Skipped (accepted deviation)" with the recorded reason. If any
-             resolved version is below min_version, the exception does NOT apply
-             — treat the alert normally.
+             .github/security-fix-exceptions.yml exists, read it and look for an
+             entry matching the alert on ALL THREE of `ghsa`, `package` and
+             `ecosystem`. One advisory can cover several packages, and a
+             deviation accepted for one of them says nothing about the others —
+             an entry that matches on ghsa alone would skip unrelated alerts that
+             are still genuinely vulnerable.
+             When an entry matches, check every resolved version of that package
+             against its `satisfied_by` semver range. SKIP the alert only if ALL
+             of them satisfy the range; list it in the run summary under
+             "Skipped (accepted deviation)" with the recorded reason. If even one
+             resolved version falls outside, the exception does NOT apply — treat
+             the alert normally.
+             The range is bounded on both sides on purpose. A bare lower bound
+             would keep matching after a major migration, so a repo that later
+             moved to a still-vulnerable version on the next major line would
+             have the alert silently suppressed by an exception written for the
+             old one.
              Never edit this file yourself: it records decisions only a human can
              make. An entry does not expire, so an alert can stay open forever
              with the repo deliberately not on the advisory's fixed_version.
@@ -265,19 +275,29 @@ jobs:
           and taking fixed_version literally forces a major bump that was never
           necessary. Do not assume the alert knows about every fix.
 
-          1. List the package's releases with publish dates:
+          The upstream advisory is the authority, not the release dates. Work
+          from it first and use dates only to explain what you find.
+
+          1. Read the upstream advisory's own patched-versions list:
+               gh api /advisories/ACTUAL_GHSA_ID
+             If it names a patched version on the SAME major as the currently
+             resolved version, that is the backport — use it, and stop here.
+          2. If it shows only the merged range, the entry may predate the
+             backport. Widen the search: read the advisory page at
+             https://github.com/OWNER/REPO/security/advisories/ACTUAL_GHSA_ID
+             (its "Patched versions" field is often correct when the API entry is
+             stale), then list candidate releases:
                npm view ACTUAL_PKG_NAME versions --json
                npm view ACTUAL_PKG_NAME time --json
-          2. Look for a release on the SAME major as the currently resolved
-             version, higher than it, published at or after the alert's
-             `published_at`. That is a candidate backport.
-          3. A later publish date is not proof of a fix — confirm it. Fetch the
-             upstream advisory and read its patched-versions list:
-               gh api /advisories/ACTUAL_GHSA_ID
-             and, when that still shows only the merged range, the advisory page
-             at https://github.com/OWNER/REPO/security/advisories/ACTUAL_GHSA_ID
-             or the release notes for the candidate version. Use the candidate
-             only if it is explicitly named as patched.
+             Consider EVERY release on the current major above the resolved
+             version. Do not filter by date: `published_at` is a hint about why
+             the advisory might be stale — a candidate published after it is a
+             likely backport — but under coordinated disclosure a fix can ship
+             before the advisory, so an earlier date does not rule a release out.
+          3. Publication order is never proof of a fix. Use a candidate only if
+             the advisory page, the release notes, or the changelog explicitly
+             names it as containing this fix. If nothing says so, treat it as no
+             backport rather than guessing.
           4. If a confirmed backport exists, use it as FIXED_VER instead of the
              alert's. The alert will NOT close, because the advisory range still
              covers the backport — that is expected, not a failure. Record it in
