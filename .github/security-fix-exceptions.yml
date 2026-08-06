@@ -13,20 +13,31 @@
 # Format — one block per GHSA id:
 #
 #   GHSA-xxxx-xxxx-xxxx:
-#     package: name          # as it appears in the alert
-#     min_version: 1.2.3     # skip only while EVERY resolved copy is >= this
-#     reason: ...            # why this is genuinely fixed
-#     evidence: ...          # link a human can check
+#     package: name              # must match the alert's package
+#     ecosystem: npm             # must match the alert's ecosystem
+#     satisfied_by: ">=1.2.3 <2.0.0"
+#     reason: ...                # why this is genuinely fixed
+#     evidence: ...              # link a human can check
 #     added: YYYY-MM-DD
 #
-# min_version is a floor, not a pin: if a resolved copy ever drops below it the
-# exception stops applying and the alert is handled normally again. Entries do
-# not expire — delete one once the advisory is corrected or the repo moves onto
-# the version the alert actually asks for.
+# An entry applies only when ghsa, package AND ecosystem all match: one advisory
+# can cover several packages, and accepting a deviation for one says nothing
+# about the others.
+#
+# satisfied_by is bounded on BOTH sides. It describes the versions this
+# exception vouches for, not a floor — an open-ended ">=1.2.3" would keep
+# matching after a major migration and could suppress the alert on a next-major
+# version that is still vulnerable. If every resolved copy satisfies the range,
+# the alert is skipped; if even one falls outside, the exception stops applying
+# and the alert is handled normally again.
+#
+# Entries do not expire — delete one once the advisory is corrected or the repo
+# moves onto the version the alert actually asks for.
 
 GHSA-qwww-vcr4-c8h2:
   package: react-router
-  min_version: 7.18.2
+  ecosystem: npm
+  satisfied_by: ">=7.18.2 <8.0.0"
   reason: >-
     Fixed by the 7.18.2 backport. The advisory was published 2026-07-22, the day
     8.3.0 shipped, with the merged range ">= 7.12.0, < 8.3.0", and was never
@@ -34,5 +45,8 @@ GHSA-qwww-vcr4-c8h2:
     still list 8.3.0 as the only fix, so alert #1105 stays open at 7.18.2.
     Taking it literally would force react-router-dom to v8 across the console
     for a fix we already have.
+    The range stops below 8.0.0 because 8.0.0-8.2.x are genuinely vulnerable:
+    this exception vouches for the 7.x backport only. If the console ever moves
+    to v8 the alert must be handled normally again, which needs 8.3.0.
   evidence: https://github.com/remix-run/react-router/security/advisories/GHSA-qwww-vcr4-c8h2
   added: 2026-08-06
