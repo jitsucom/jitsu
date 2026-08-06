@@ -126,7 +126,12 @@ func Warn(v ...any) {
 func Fatal(v ...any) {
 	msg := []any{"System error:"}
 	msg = append(msg, v...)
-	log.Fatal(msg...)
+	// Fatalln, not Fatal: logrus renders Fatal with fmt.Sprint, which only puts
+	// spaces between operands when neither is a string, so the marker would be
+	// glued to a string argument ("System error:cannot start") and stop matching
+	// the alert query. The ln variants join every operand with a single space
+	// (and drop the trailing newline), which is also what Warn above relies on.
+	log.Fatalln(msg...)
 }
 
 func Fatalf(format string, v ...any) {
