@@ -326,7 +326,22 @@ jobs:
             of the pair alone leaves the other demanding a version it will never
             get. Before installing, list every package that pins it, by tracking
             the enclosing snapshot header:
-              awk '/^  [^ ].*:$/{pkg=$0} /^ +ACTUAL_PKG_NAME: [0-9]/{print pkg" -> "$0}' pnpm-lock.yaml
+              awk -v dep="ACTUAL_PKG_NAME" '
+                /^  [^ ].*:$/ { pkg = $0; gsub(/\047/, "", pkg); next }
+                { line = $0; sub(/^ +/, "", line); gsub(/\047/, "", line)
+                  if (index(line, dep ": ") == 1) {
+                    ver = substr(line, length(dep) + 3)
+                    if (ver ~ /^[0-9]/) print pkg " -> " line
+                  } }' pnpm-lock.yaml
+            Pass the name via -v and compare it as a plain string. Interpolating
+            it into an awk regex literal breaks on scoped packages, because the
+            slash in `@scope/pkg` closes the /.../ and awk dies with a syntax
+            error — which would look like "no companion packages" and let a
+            broken lockfile through. The gsub calls strip the single quotes that
+            YAML puts around scoped keys ('@scope/pkg': 1.2.3); \047 is an
+            apostrophe, written as an escape so the program can stay inside
+            single quotes in the shell. The `ver ~ /^[0-9]/` test is what selects
+            exact pins: range specifiers start with ^ or ~.
             Any package depending on ACTUAL_PKG_NAME at an exact version (no ^ or ~)
             needs its own override to a release that depends on FIXED_VER — add it
             in the same commit. If no such release exists, skip the alert rather
