@@ -187,12 +187,14 @@ jobs:
              Skip any alert whose fix is already covered by an open PR.
           2. Filter alerts by MIN_SEVERITY (severity order: critical > high > moderate > low).
           3. Drop alerts already settled by a human. If
-             .github/security-fix-exceptions.yml exists, read it and look for an
-             entry matching the alert on ALL THREE of `ghsa`, `package` and
-             `ecosystem`. One advisory can cover several packages, and a
-             deviation accepted for one of them says nothing about the others —
-             an entry that matches on ghsa alone would skip unrelated alerts that
-             are still genuinely vulnerable.
+             .github/security-fix-exceptions.yml exists, read its `exceptions:`
+             list and look for an item matching the alert on ALL THREE of `ghsa`,
+             `package` and `ecosystem`. One advisory can cover several packages,
+             and a deviation accepted for one of them says nothing about the
+             others — matching on ghsa alone would skip unrelated alerts that are
+             still genuinely vulnerable. More than one item may share a ghsa;
+             that is expected, so keep looking until all three fields match
+             rather than taking the first ghsa hit.
              When an entry matches, check every resolved version of that package
              against its `satisfied_by` semver range. SKIP the alert only if ALL
              of them satisfy the range; list it in the run summary under
