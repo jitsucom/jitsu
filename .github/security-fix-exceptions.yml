@@ -1,0 +1,38 @@
+# Alerts that are resolved in this repo in a way the advisory database does not
+# recognise, and that the weekly security-fix workflow must therefore stop
+# trying to "fix".
+#
+# The usual reason: an advisory is filed the day the first patch ships, on the
+# newest major. A backport to an older line lands days later and the advisory
+# keeps the merged range it was created with, so the alert stays open even
+# though the repo is patched. Without an entry here, every run sees
+# resolved < fixed_version and re-proposes the major bump.
+#
+# Only a human adds entries. The workflow reads this file and never writes it.
+#
+# Format — one block per GHSA id:
+#
+#   GHSA-xxxx-xxxx-xxxx:
+#     package: name          # as it appears in the alert
+#     min_version: 1.2.3     # skip only while EVERY resolved copy is >= this
+#     reason: ...            # why this is genuinely fixed
+#     evidence: ...          # link a human can check
+#     added: YYYY-MM-DD
+#
+# min_version is a floor, not a pin: if a resolved copy ever drops below it the
+# exception stops applying and the alert is handled normally again. Entries do
+# not expire — delete one once the advisory is corrected or the repo moves onto
+# the version the alert actually asks for.
+
+GHSA-qwww-vcr4-c8h2:
+  package: react-router
+  min_version: 7.18.2
+  reason: >-
+    Fixed by the 7.18.2 backport. The advisory was published 2026-07-22, the day
+    8.3.0 shipped, with the merged range ">= 7.12.0, < 8.3.0", and was never
+    amended when 7.18.2 was published on 2026-07-28. GitHub and OSV therefore
+    still list 8.3.0 as the only fix, so alert #1105 stays open at 7.18.2.
+    Taking it literally would force react-router-dom to v8 across the console
+    for a fix we already have.
+  evidence: https://github.com/remix-run/react-router/security/advisories/GHSA-qwww-vcr4-c8h2
+  added: 2026-08-06
