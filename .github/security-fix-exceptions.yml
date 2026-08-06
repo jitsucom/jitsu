@@ -32,9 +32,15 @@
 # satisfied_by is bounded on BOTH sides. It describes the versions this
 # exception vouches for, not a floor — an open-ended ">=1.2.3" would keep
 # matching after a major migration and could suppress the alert on a next-major
-# version that is still vulnerable. If every resolved copy satisfies the range,
-# the alert is skipped; if even one falls outside, the exception stops applying
-# and the alert is handled normally again.
+# version that is still vulnerable.
+#
+# It does not have to cover every resolved copy. A lockfile often holds several
+# copies of a package, and the alert is skipped when each one is either inside
+# satisfied_by or already outside the advisory's vulnerable range — so a tree
+# carrying both a backport-fixed 7.x copy and an already-fixed 8.3.x copy still
+# counts as settled. A copy that is neither, such as a version on the newer
+# major but below its fix, stops the exception applying and the alert is handled
+# normally again.
 #
 # Entries do not expire — delete one once the advisory is corrected or the repo
 # moves onto the version the alert actually asks for.
