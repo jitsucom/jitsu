@@ -97,5 +97,5 @@ func (s *ScriptRepositoryData) Store(writer io.Writer) error {
 }
 
 func NewScriptRepository(scriptOrigin, cacheDir string) *appbase.HTTPRepository[Script] {
-	return appbase.NewHTTPRepository[Script]("p.js", scriptOrigin, "", appbase.HTTPTagETag, &ScriptRepositoryData{}, 5, 120, cacheDir)
+	return appbase.NewHTTPRepository[Script]("p.js", scriptOrigin, "", appbase.HTTPTagETag, &ScriptRepositoryData{}, 5, 120, cacheDir, appbase.ExitOnNoData)
 }

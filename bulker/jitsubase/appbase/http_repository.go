@@ -22,8 +22,8 @@ type HTTPRepository[T any] struct {
 	tagHeader CacheTagHeader
 }
 
-func NewHTTPRepository[T any](id, url, token string, tagHeader CacheTagHeader, emptyData RepositoryData[T], attempts int, refreshPeriodSec int, cacheDir string) *HTTPRepository[T] {
-	a := NewAbstractRepository[T](id, emptyData, nil, attempts, refreshPeriodSec, cacheDir)
+func NewHTTPRepository[T any](id, url, token string, tagHeader CacheTagHeader, emptyData RepositoryData[T], attempts int, refreshPeriodSec int, cacheDir string, noDataPolicy NoDataPolicy) *HTTPRepository[T] {
+	a := NewAbstractRepository[T](id, emptyData, nil, attempts, refreshPeriodSec, cacheDir, noDataPolicy)
 	r := &HTTPRepository[T]{
 		AbstractRepository: a,
 		url:                url,

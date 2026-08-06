@@ -61,13 +61,13 @@ func (a *Context) InitContext(settings *appbase.AppSettings) error {
 	refreshPeriodSec := a.config.RepositoryRefreshPeriodSec
 	cacheDir := a.config.CacheDir
 
-	a.pScript = appbase.NewHTTPRepository[[]byte]("p.js", a.config.ScriptOrigin, "", appbase.HTTPTagETag, &RawRepositoryData{}, 5, 60, cacheDir)
+	a.pScript = appbase.NewHTTPRepository[[]byte]("p.js", a.config.ScriptOrigin, "", appbase.HTTPTagETag, &RawRepositoryData{}, 5, 60, cacheDir, appbase.WaitForData)
 	reps := a.config.Repositories
 	a.repositories = map[string]appbase.Repository[[]byte]{
 		"p.js": a.pScript,
 	}
 	for _, rep := range strings.Split(reps, ",") {
-		a.repositories[rep] = appbase.NewHTTPRepository[[]byte](rep, baseUrl+"/"+rep, token, appbase.HTTPTagLastModified, &RawRepositoryData{validateJSON: true}, 2, refreshPeriodSec, cacheDir)
+		a.repositories[rep] = appbase.NewHTTPRepository[[]byte](rep, baseUrl+"/"+rep, token, appbase.HTTPTagLastModified, &RawRepositoryData{validateJSON: true}, 2, refreshPeriodSec, cacheDir, appbase.WaitForData)
 
 	}
 	router := NewRouter(a)

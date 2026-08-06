@@ -221,17 +221,17 @@ func (w *WorkspacesRepositoryData) Store(writer io.Writer) error {
 // Repository factory functions
 func NewConnectionsRepository(baseURL, token string, refreshPeriodSec int, cacheDir string) appbase.Repository[ConnectionsData] {
 	url := fmt.Sprintf("%s/rotor-connections", baseURL)
-	return appbase.NewHTTPRepository[ConnectionsData]("rotor-connections", url, token, appbase.HTTPTagLastModified, &ConnectionsRepositoryData{}, 1, refreshPeriodSec, cacheDir)
+	return appbase.NewHTTPRepository[ConnectionsData]("rotor-connections", url, token, appbase.HTTPTagLastModified, &ConnectionsRepositoryData{}, 1, refreshPeriodSec, cacheDir, appbase.ExitOnNoData)
 }
 
 func NewFunctionsRepository(baseURL, token string, refreshPeriodSec int, cacheDir string) appbase.Repository[FunctionsData] {
 	url := fmt.Sprintf("%s/functions", baseURL)
-	return appbase.NewHTTPRepository[FunctionsData]("functions", url, token, appbase.HTTPTagLastModified, &FunctionsRepositoryData{}, 1, refreshPeriodSec, cacheDir)
+	return appbase.NewHTTPRepository[FunctionsData]("functions", url, token, appbase.HTTPTagLastModified, &FunctionsRepositoryData{}, 1, refreshPeriodSec, cacheDir, appbase.ExitOnNoData)
 }
 
 func NewWorkspacesRepository(baseURL, token string, refreshPeriodSec int, cacheDir string) appbase.Repository[WorkspacesData] {
 	url := fmt.Sprintf("%s/workspaces-with-profiles", baseURL)
-	return appbase.NewHTTPRepository[WorkspacesData]("workspaces-with-profiles", url, token, appbase.HTTPTagLastModified, &WorkspacesRepositoryData{}, 1, refreshPeriodSec, cacheDir)
+	return appbase.NewHTTPRepository[WorkspacesData]("workspaces-with-profiles", url, token, appbase.HTTPTagLastModified, &WorkspacesRepositoryData{}, 1, refreshPeriodSec, cacheDir, appbase.ExitOnNoData)
 }
 
 // Helper functions for aggregating workspace data
