@@ -162,6 +162,9 @@ async function exportBulkerConnections(writer: Writer) {
         "Content-Type": "application/json",
         ...serviceTokenHeaders(),
       },
+      // A stalled ee-api must fail this export fast (clean 500, bulker keeps
+      // its last good config), not hang the request until infra timeouts.
+      signal: AbortSignal.timeout(15_000),
     });
     if (!Array.isArray(response)) {
       //ee-api returns {error: "..."} when its object storage isn't configured
