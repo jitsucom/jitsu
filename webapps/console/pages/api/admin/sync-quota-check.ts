@@ -4,7 +4,7 @@ import { getServerEnv } from "../../../lib/server/serverEnv";
 import { getServerLog } from "../../../lib/server/log";
 import { checkQuota } from "../../../lib/server/sync";
 import { isEEAvailable } from "../../../lib/server/ee";
-import { isReadOnly } from "../../../lib/server/maintenance";
+import { isMaintenanceActive, isReadOnly } from "../../../lib/server/maintenance";
 
 const log = getServerLog("sync-quota-check");
 const serverEnv = getServerEnv();
@@ -45,11 +45,17 @@ export default createRoute()
     // retries on its next tick, so this naturally turns into a "wait until
     // maintenance ends" loop without any extra coordination.
     if (isReadOnly()) {
+      const maintenance = isMaintenanceActive();
       log.atInfo().log(`Sync ${query.syncId} (workspace ${query.workspaceId}) blocked: read-only mode is active`);
       res.status(200).send({
         ok: false,
-        error: "Jitsu is in maintenance mode; sync is blocked until the maintenance window ends.",
-        errorType: "maintenance",
+        // Time-boxed maintenance keeps its "until the window ends" wording; the
+        // permanent read-only switch (JITSU_CONSOLE_READ_ONLY) has no window, so
+        // don't promise one. The sidecar blocks on ok=false either way.
+        error: maintenance
+          ? "Jitsu is in maintenance mode; sync is blocked until the maintenance window ends."
+          : "Jitsu is running read-only; sync is blocked.",
+        errorType: maintenance ? "maintenance" : "read_only",
       });
       return;
     }
