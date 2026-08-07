@@ -4,7 +4,7 @@ import { getServerEnv } from "../../../lib/server/serverEnv";
 import { getServerLog } from "../../../lib/server/log";
 import { checkQuota } from "../../../lib/server/sync";
 import { isEEAvailable } from "../../../lib/server/ee";
-import { isMaintenanceActive } from "../../../lib/server/maintenance";
+import { isReadOnly } from "../../../lib/server/maintenance";
 
 const log = getServerLog("sync-quota-check");
 const serverEnv = getServerEnv();
@@ -44,8 +44,8 @@ export default createRoute()
     // quota-check init container reads ok=false and exits 1; the k8s CronJob
     // retries on its next tick, so this naturally turns into a "wait until
     // maintenance ends" loop without any extra coordination.
-    if (isMaintenanceActive()) {
-      log.atInfo().log(`Sync ${query.syncId} (workspace ${query.workspaceId}) blocked: maintenance is active`);
+    if (isReadOnly()) {
+      log.atInfo().log(`Sync ${query.syncId} (workspace ${query.workspaceId}) blocked: read-only mode is active`);
       res.status(200).send({
         ok: false,
         error: "Jitsu is in maintenance mode; sync is blocked until the maintenance window ends.",

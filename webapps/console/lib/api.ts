@@ -9,7 +9,7 @@ import { getServerSession, Session } from "next-auth";
 import { nextAuthConfig } from "./nextauth.config";
 import { inferTokenTypeFromId, SessionUser } from "./schema";
 import { db } from "./server/db";
-import { isMaintenanceActive } from "./server/maintenance";
+import { isReadOnly } from "./server/maintenance";
 import { prepareZodObjectForDeserialization, safeParseWithDate } from "./zod";
 import { ApiError } from "./shared/errors";
 import { getServerLog } from "./server/log";
@@ -367,7 +367,7 @@ export function nextJsApiHandler(api: Api): NextApiHandler {
     // descriptor sets `visible: false`).
     const isMutatingMethod = method === "POST" || method === "PUT" || method === "PATCH" || method === "DELETE";
     const isMutating = isMutatingMethod || !!handler.mutates;
-    const maintenanceBlocks = isMutating && !handler.allowDuringMaintenance && isMaintenanceActive();
+    const maintenanceBlocks = isMutating && !handler.allowDuringMaintenance && isReadOnly();
     if (maintenanceBlocks && !handler.auth) {
       res.status(503).json({
         error: "maintenance",

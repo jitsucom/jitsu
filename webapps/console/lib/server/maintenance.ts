@@ -104,9 +104,20 @@ export function getMaintenanceState(): MaintenanceState | undefined {
   return cache.value;
 }
 
-// The master switch for read-only enforcement.
+// True while a maintenance window is active. Drives the maintenance-page /
+// public-state and DB-offline semantics. For plain write-blocking use
+// `isReadOnly()` instead, which also covers the permanent read-only env switch.
 export function isMaintenanceActive(): boolean {
   return getMaintenanceState()?.active === true;
+}
+
+// The shared write-blocking gate. Writes are rejected when EITHER a maintenance
+// window is active OR the deployment is pinned read-only via JITSU_CONSOLE_READ_ONLY
+// (canary / preview deployments — see JITSU-159). Callers that enforce read-only
+// (lib/api.ts, lib/server/db.ts, the MCP tool router) must use this rather than
+// isMaintenanceActive() so the env switch is honoured everywhere.
+export function isReadOnly(): boolean {
+  return isMaintenanceActive() || getServerEnv().JITSU_CONSOLE_READ_ONLY === true;
 }
 
 // True iff maintenance is active AND the descriptor declares the DB is offline.

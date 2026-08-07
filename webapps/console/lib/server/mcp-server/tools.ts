@@ -7,7 +7,7 @@ import { SessionUser } from "../../schema";
 import { getResourceJsonSchema } from "../../schema/json-schema";
 import { ApiError } from "../../shared/errors";
 import { getServerLog } from "../log";
-import { isMaintenanceActive } from "../maintenance";
+import { isReadOnly } from "../maintenance";
 import { type ConfigObjectsService, WORKSPACES_PAGE_MAX } from "../config-objects-service";
 import { type EventsLogService, QUERYABLE_TYPES } from "../events-log-service";
 import { type SyncService } from "../sync-service";
@@ -125,7 +125,7 @@ export function registerTools(sdkServer: SdkMcpServer, deps: ToolDeps) {
   // maintenance before its handler runs.
   const register: SdkMcpServer["registerTool"] = (name, config, cb) =>
     sdkServer.registerTool(name, config, (async (args: any, extra: any) => {
-      if (!config.annotations?.readOnlyHint && isMaintenanceActive()) {
+      if (!config.annotations?.readOnlyHint && isReadOnly()) {
         return {
           content: [
             {
