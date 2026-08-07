@@ -1,6 +1,6 @@
 import type { PrismaClient } from "@prisma/client";
 import type { NextApiRequest } from "next";
-import { deepCopy, randomId, requireDefined } from "juava";
+import { deepCopy, randomId, requireDefined, rpc } from "juava";
 import { SessionUser, SyncOptionsType } from "../schema";
 import { getAllConfigObjectTypeNames, getConfigObjectType, parseObject } from "../schema/config-objects";
 import { containsMaskedSecrets, unmaskSecretsFromOriginal } from "../schema/secrets";
@@ -11,6 +11,7 @@ import { ApiError } from "../shared/errors";
 import { configObjectAuditLog } from "./audit-log";
 import { productTelemetryEnabled, trackTelemetryEvent, withProductAnalytics } from "./telemetry";
 import { scheduleSync, validateSyncSchedule } from "./sync";
+import { getEeConnection, isEEAvailable, serviceTokenHeaders } from "./ee";
 import { omitDeletedList } from "./omit-deleted";
 import { getServerLog } from "./log";
 
@@ -251,6 +252,21 @@ export class ConfigObjectsService {
       { user, workspace, req: opts.req }
     );
     await configObjectAuditLog(user, workspaceId, created.id, type, "create", { newVersion: object }, opts.req);
+
+    if (type === "stream" && isEEAvailable()) {
+      // Provision the workspace's event-archive bucket on first stream. Server-side
+      // so API/MCP/CLI stream creation triggers it too (this replaced a browser-only
+      // eeRpc call in ConfigEditor). Best-effort: the hourly backup-retention-sync
+      // job on ee-api is the backstop, so a failure must not fail stream creation.
+      try {
+        await rpc(`${getEeConnection().host}api/s3-init?workspaceId=${encodeURIComponent(workspaceId)}`, {
+          method: "GET",
+          headers: { "Content-Type": "application/json", ...serviceTokenHeaders() },
+        });
+      } catch (e) {
+        log.atWarn().withCause(e).log(`Failed to provision backup bucket for workspace ${workspaceId}`);
+      }
+    }
     return { id: created.id };
   }
 
