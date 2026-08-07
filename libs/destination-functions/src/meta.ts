@@ -578,7 +578,7 @@ export const GoogleAdsCredentials = z.object({
     .string()
     .optional()
     .describe(
-      "Developer Token::Used by the legacy Google Ads API only. A developer token identifies the application calling the API, not your advertiser account — on Jitsu Cloud one is supplied for you, so leave this empty. Self-hosted installs can either set <code>GOOGLE_ADS_DEVELOPER_TOKEN</code> on the rotor service or paste a token here; request one under <b>API Center</b> in your manager account."
+      "Developer Token::Used by the legacy Google Ads API only, and normally left empty — a developer token identifies the application calling the API rather than your advertiser account, so Jitsu supplies one. Fill this in only if you have your own token and want it used instead. You can request one under <b>API Center</b> in your Google Ads manager account."
     ),
 
   storeClickIds: z
