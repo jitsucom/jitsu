@@ -593,7 +593,9 @@ async function exportStreamsWithDestinations(writer: Writer) {
     (
       await db.prisma().workspaceOptions.findMany({
         where: { namespace: "data-retention" },
-        orderBy: { updatedAt: "asc" },
+        // id as tiebreaker: same-millisecond concurrent writes (the very race
+        // that creates duplicates) can share an updatedAt
+        orderBy: [{ updatedAt: "asc" }, { id: "asc" }],
       })
     ).map(row => [row.workspaceId, row.value])
   );
