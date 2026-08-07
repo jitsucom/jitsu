@@ -14,7 +14,6 @@ import {
   UserContextProvider,
   useUser,
   useUserSafe,
-  useWorkspace,
   WorkspaceContextProvider,
 } from "../lib/context";
 import { AppConfig, ContextApiResponse, SessionUser } from "../lib/schema";
