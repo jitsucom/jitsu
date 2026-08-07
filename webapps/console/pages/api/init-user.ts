@@ -7,7 +7,7 @@ import { ApiError } from "../../lib/shared/errors";
 import { initTelemetry, withProductAnalytics } from "../../lib/server/telemetry";
 import { onUserCreated } from "../../lib/server/ee";
 import { getServerEnv } from "../../lib/server/serverEnv";
-import { isReadOnly } from "../../lib/server/maintenance";
+import { isMaintenanceActive, isReadOnly } from "../../lib/server/maintenance";
 import { shouldRejectPersonalEmailSignup } from "../../lib/server/signup-restrictions";
 import { WORK_EMAIL_REQUIRED_MESSAGE } from "../../lib/shared/email-domains";
 
@@ -36,13 +36,16 @@ export default createRoute()
         log.atInfo().log(`User ${user.internalId} has no profile in db. Creating a new one`);
         // The route's GET is a read for existing users (workspaceAccess found
         // above), so we can't flip it to `mutates: true` globally — that would
-        // 503 every login during maintenance. Gate just the create-profile
-        // branch so brand-new signups get a clean maintenance error instead of
-        // a generic 500 from the Prisma read-only backstop.
+        // 503 every login while writes are disabled. Gate just the create-profile
+        // branch so brand-new signups get a clean error instead of a generic 500
+        // from the Prisma read-only backstop. Distinguish a maintenance window
+        // from the permanent read-only switch so we don't imply a window to wait out.
         if (isReadOnly()) {
           throw new ApiError(
-            "Jitsu is in maintenance mode; account creation is temporarily disabled. Please try again later.",
-            { status: 503, responseObject: { code: "maintenance" } }
+            isMaintenanceActive()
+              ? "Jitsu is in maintenance mode; account creation is temporarily disabled. Please try again later."
+              : "Jitsu is read-only; account creation is disabled.",
+            { status: 503, responseObject: { code: isMaintenanceActive() ? "maintenance" : "read_only" } }
           );
         }
         if (serverEnv.DISABLE_SIGNUP) {

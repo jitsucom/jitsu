@@ -7,7 +7,7 @@ import { SessionUser } from "../../schema";
 import { getResourceJsonSchema } from "../../schema/json-schema";
 import { ApiError } from "../../shared/errors";
 import { getServerLog } from "../log";
-import { isReadOnly } from "../maintenance";
+import { isMaintenanceActive, isReadOnly } from "../maintenance";
 import { type ConfigObjectsService, WORKSPACES_PAGE_MAX } from "../config-objects-service";
 import { type EventsLogService, QUERYABLE_TYPES } from "../events-log-service";
 import { type SyncService } from "../sync-service";
@@ -119,18 +119,22 @@ export function registerTools(sdkServer: SdkMcpServer, deps: ToolDeps) {
   const typeList = types.join(", ");
   const eventTypeList = QUERYABLE_TYPES.join(", ");
 
-  // Mutating HTTP routes are blocked while maintenance mode is active (see createRoute
+  // Mutating HTTP routes are blocked while writes are disabled (see createRoute
   // in lib/api.ts). MCP tools don't go through createRoute, so enforce the same
-  // read-only window here: any tool not annotated read-only is rejected during
-  // maintenance before its handler runs.
+  // gate here: any tool not annotated read-only is rejected before its handler
+  // runs. Distinguish a time-boxed maintenance window from the permanent
+  // read-only switch (JITSU_CONSOLE_READ_ONLY) so the latter isn't mislabeled.
   const register: SdkMcpServer["registerTool"] = (name, config, cb) =>
     sdkServer.registerTool(name, config, (async (args: any, extra: any) => {
       if (!config.annotations?.readOnlyHint && isReadOnly()) {
+        const text = isMaintenanceActive()
+          ? "Error (503): Jitsu is in maintenance mode; modifications are temporarily disabled."
+          : "Error (503): Jitsu is read-only; modifications are disabled.";
         return {
           content: [
             {
               type: "text",
-              text: "Error (503): Jitsu is in maintenance mode; modifications are temporarily disabled.",
+              text,
             },
           ],
           isError: true,
