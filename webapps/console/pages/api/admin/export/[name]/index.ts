@@ -142,6 +142,32 @@ async function getLastUpdated(): Promise<Date | undefined> {
 }
 
 async function exportBulkerConnections(writer: Writer) {
+  //pull event-archive (GCS/S3 backup) connections from ee-api BEFORE writing
+  //anything: an ee-api failure then surfaces as a clean 500 (headers not yet
+  //sent) instead of a truncated 200, and bulker/config-keeper keep their last
+  //good config. This export is consumed by the bulker service — there is no
+  //signed-in user — so it authenticates with the static service token.
+  //
+  //Deliberately NOT wrapped in try/catch: swallowing an ee-api failure here
+  //used to ship a well-formed export with no backup destinations at all,
+  //silently disarming archiving fleet-wide.
+  let backupConnections: any[] = [];
+  if (isEEAvailable()) {
+    const url = `${getEeConnection().host}api/s3-connections`;
+    const response = await rpc(url, {
+      method: "GET",
+      headers: {
+        "Content-Type": "application/json",
+        ...serviceTokenHeaders(),
+      },
+    });
+    if (!Array.isArray(response)) {
+      //ee-api returns {error: "..."} when its object storage isn't configured
+      throw new Error(`Unexpected s3-connections response: ${JSON.stringify(response)}`);
+    }
+    backupConnections = response;
+  }
+
   writer.write("[");
 
   let lastId: string | undefined = undefined;
@@ -260,34 +286,12 @@ async function exportBulkerConnections(writer: Writer) {
       break;
     }
   }
-  if (isEEAvailable()) {
-    //pull event-archive (GCS backup) connections from ee-api. This export is
-    //consumed by the bulker service — there is no signed-in user — so it
-    //authenticates with the static service token.
-    //
-    //Deliberately NOT wrapped in try/catch: swallowing an ee-api failure here
-    //used to ship a well-formed export with no backup destinations at all,
-    //silently disarming archiving fleet-wide. Failing breaks the response
-    //mid-stream instead, and bulker keeps its last good config.
-    const url = `${getEeConnection().host}api/s3-connections`;
-    const backupConnections = await rpc(url, {
-      method: "GET",
-      headers: {
-        "Content-Type": "application/json",
-        ...serviceTokenHeaders(),
-      },
-    });
-    if (!Array.isArray(backupConnections)) {
-      //ee-api returns {error: "GCS backup is not configured"} when unconfigured
-      throw new Error(`Unexpected s3-connections response: ${JSON.stringify(backupConnections)}`);
+  for (const conn of backupConnections) {
+    if (needComma) {
+      writer.write(",");
     }
-    for (const conn of backupConnections) {
-      if (needComma) {
-        writer.write(",");
-      }
-      writer.write(JSON.stringify(conn));
-      needComma = true;
-    }
+    writer.write(JSON.stringify(conn));
+    needComma = true;
   }
 
   writer.write("]");
@@ -576,12 +580,17 @@ async function exportStreamsWithDestinations(writer: Writer) {
     const pbs = pbMap.get(pb.workspaceId) || [];
     pbMap.set(pb.workspaceId, [...pbs, pb as unknown as ProfileBuilder]);
   }
-  // backup retention per workspace — drives backupEnabled below
+  // backup retention per workspace — drives backupEnabled below. Ascending
+  // order + Map overwrite = freshest row wins: (workspaceId, namespace) has no
+  // unique constraint, and the write path's find-then-create race can leave
+  // duplicate rows.
   const dataRetentionMap = new Map<string, unknown>(
-    (await db.prisma().workspaceOptions.findMany({ where: { namespace: "data-retention" } })).map(row => [
-      row.workspaceId,
-      row.value,
-    ])
+    (
+      await db.prisma().workspaceOptions.findMany({
+        where: { namespace: "data-retention" },
+        orderBy: { updatedAt: "asc" },
+      })
+    ).map(row => [row.workspaceId, row.value])
   );
 
   writer.write("[");

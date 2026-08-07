@@ -11,10 +11,12 @@ export const DataRetentionSettings = z.object({
   customMongoDb: z.string().optional(),
   disableS3Archive: z.coerce.boolean().default(false).optional(),
   /**
-   * Event-archive retention in hours; 0 disables archiving entirely (and
-   * drains the existing archive). Absent → the `nobackup` feature flag (a
-   * permanent alias for 0), then the 90-day default. Admin-set for now; see
-   * resolveRetentionHours().
+   * Event-archive retention in hours; setting it migrates the workspace to
+   * the GCS archive with enforced retention, 0 meaning "no archive at all"
+   * (the existing archive drains). Absent = unmigrated: today's S3 behavior,
+   * `nobackup` feature flag as the only off switch, no implicit default.
+   * ADMIN-SET ONLY — the workspace-options POST endpoint strips it from
+   * member requests. See resolveBackupMode().
    */
   backupRetentionHours: z.coerce.number().min(0).optional(),
   pendingUpdate: z.coerce.boolean().default(false).optional(),
@@ -61,13 +63,15 @@ export function resolveBackupMode(
   dataRetentionValue: unknown
 ): BackupMode {
   const raw = (dataRetentionValue as { backupRetentionHours?: unknown } | null | undefined)?.backupRetentionHours;
-  // Only numbers and numeric strings migrate — Number() would coerce booleans
-  // (true -> 1) and arrays, and a malformed row must never flip a workspace.
-  if ((typeof raw === "number" || typeof raw === "string") && raw !== "") {
-    const hours = Number(raw);
-    if (Number.isFinite(hours) && hours >= 0) {
-      return { migrated: true, retentionHours: hours };
-    }
+  // Only plain non-negative numbers and plain-decimal strings migrate.
+  // Number() would coerce booleans (true -> 1), arrays, and whitespace
+  // (" " -> 0 — i.e. "drain everything"); a malformed row must never flip a
+  // workspace, least of all to retention 0.
+  if (typeof raw === "number" && Number.isFinite(raw) && raw >= 0) {
+    return { migrated: true, retentionHours: raw };
+  }
+  if (typeof raw === "string" && /^[0-9]+(\.[0-9]+)?$/.test(raw.trim()) && raw.trim() !== "") {
+    return { migrated: true, retentionHours: Number(raw.trim()) };
   }
   return { migrated: false, legacyBackupEnabled: !(featuresEnabled ?? []).includes("nobackup") };
 }

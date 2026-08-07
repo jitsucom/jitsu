@@ -262,6 +262,9 @@ export class ConfigObjectsService {
         await rpc(`${getEeConnection().host}api/s3-init?workspaceId=${encodeURIComponent(workspaceId)}`, {
           method: "GET",
           headers: { "Content-Type": "application/json", ...serviceTokenHeaders() },
+          // This await sits on the stream-creation response path; a hung
+          // ee-api must degrade to the reconciler backstop, not stall the UI.
+          signal: AbortSignal.timeout(5_000),
         });
       } catch (e) {
         log.atWarn().withCause(e).log(`Failed to provision backup bucket for workspace ${workspaceId}`);
