@@ -1070,9 +1070,8 @@ export const coreDestinations: DestinationType<any>[] = [
         </p>
         <p>
           <b>Remembering click ids.</b> A user usually clicks the ad on one visit and converts on another, so Jitsu
-          watches every event on this connection for a <code>gclid</code> and keeps it against the anonymous user for 90
-          days. This needs a persistent store (<code>MONGODB_URL</code> or <code>REDIS_URL</code>) — without one, only
-          click ids present on the converting event itself are used.
+          watches every event for a <code>gclid</code> and keeps it against that user for 90 days. The conversion is
+          then still attributed to the ad that earned it, even though the click id is long gone from the URL.
         </p>
         <p>
           <b>Personal data</b> — email, phone, and names — is normalized and SHA-256 hashed before it leaves Jitsu, as

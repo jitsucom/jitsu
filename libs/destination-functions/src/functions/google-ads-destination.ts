@@ -600,7 +600,7 @@ async function getAccessToken(ctx: FullContext<GoogleAdsCredentials>): Promise<s
     oauth = await getOauthCreds(props.oauthIntegrationId!, props.oauthConnectionId);
   } catch (e: any) {
     throw new Error(
-      `Google Ads destination could not obtain OAuth credentials. This destination requires Nango (NANGO_APP_HOST) to be configured: ${e?.message}`
+      `Google Ads destination could not obtain credentials for your Google account. Try re-authorizing the destination: ${e?.message}`
     );
   }
   const accessToken = oauth?.credentials?.access_token || oauth?.credentials?.raw?.access_token;
@@ -704,7 +704,7 @@ const GoogleAdsDestination: JitsuFunction<AnalyticsServerEvent, GoogleAdsCredent
   const developerToken = props.developerToken || process.env.GOOGLE_ADS_DEVELOPER_TOKEN;
   if (!useDataManager && !developerToken) {
     throw new Error(
-      `Google Ads API requires a Developer Token. Set GOOGLE_ADS_DEVELOPER_TOKEN on the rotor service, or paste a token into the destination settings.`
+      `Google Ads API requires a developer token. Add one in the destination settings, or switch the API setting to Data Manager, which does not need one.`
     );
   }
 
