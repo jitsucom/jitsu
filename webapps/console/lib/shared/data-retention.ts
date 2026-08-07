@@ -61,7 +61,9 @@ export function resolveBackupMode(
   dataRetentionValue: unknown
 ): BackupMode {
   const raw = (dataRetentionValue as { backupRetentionHours?: unknown } | null | undefined)?.backupRetentionHours;
-  if (raw !== undefined && raw !== null && raw !== "") {
+  // Only numbers and numeric strings migrate — Number() would coerce booleans
+  // (true -> 1) and arrays, and a malformed row must never flip a workspace.
+  if ((typeof raw === "number" || typeof raw === "string") && raw !== "") {
     const hours = Number(raw);
     if (Number.isFinite(hours) && hours >= 0) {
       return { migrated: true, retentionHours: hours };
