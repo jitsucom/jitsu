@@ -18,6 +18,13 @@ export type OauthDecorator = {
 };
 
 export const oauthDecorators: Record<string, OauthDecorator> = {
+  "google-ads": {
+    destinationType: "google-ads",
+    nangoProvider: () => "google",
+    // The integration must request both the `datamanager` and `adwords` scopes, so switching the
+    // API selector on the destination never forces the user to re-authorize.
+    nangoIntegrationId: () => "jitsu-cloud-dst-google-ads",
+  },
   salesforce: {
     destinationType: "salesforce",
     nangoProvider: cred => (cred.isSandbox ? "salesforce-sandbox" : "salesforce"),
