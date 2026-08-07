@@ -7,6 +7,7 @@ import blazeIcon from "./icons/blaze";
 import ClickhouseIcon from "./icons/clickhouse";
 import devnullIcon from "./icons/devnull";
 import facebookIcon from "./icons/facebook";
+import googleAdsIcon from "./icons/google-ads";
 import gcsIcon from "./icons/gcs";
 import hubspotIcon from "./icons/hubspot";
 import juneIcon from "./icons/june";
@@ -1027,6 +1028,58 @@ export const coreDestinations: DestinationType<any>[] = [
     credentials: meta.FacebookConversionApiCredentials,
     credentialsUi: meta.FacebookConversionApiCredentialsUi,
     description: "Facebook Conversion API is a tool for sending events to Facebook Ads Manager.",
+  },
+  {
+    id: "google-ads",
+    icon: googleAdsIcon,
+    title: "Google Ads",
+    tags: "Product Analytics",
+    connectionOptions: CloudDestinationsConnectionOptions,
+    credentials: meta.GoogleAdsCredentials,
+    credentialsUi: meta.GoogleAdsCredentialsUi,
+    description: (
+      <>
+        Jitsu sends conversions to Google Ads through the{" "}
+        <a href="https://developers.google.com/data-manager/api" target="_blank" rel="noreferrer noopener">
+          Data Manager API
+        </a>{" "}
+        (or the legacy Google Ads API, for accounts already allowlisted for it). Events are matched using{" "}
+        <code>gclid</code>/<code>gbraid</code>/<code>wbraid</code> click ids and hashed user data such as email and
+        phone number.
+      </>
+    ),
+    documentation: (
+      <>
+        <p>
+          Jitsu forwards <code>track</code>, <code>page</code> and <code>screen</code> events as Google Ads conversions.
+          Use the <b>Events</b> field to choose which ones, and <b>Per-event Conversion Actions</b> to route different
+          events to different conversion actions.
+        </p>
+        <p>
+          <b>Conversion Type.</b> In <code>conversion</code> mode Jitsu reports new conversions — offline click
+          conversions matched on <code>gclid</code>, and <i>Enhanced Conversions for Leads</i> matched on hashed user
+          data. In <code>enhancement</code> mode it performs <i>Enhanced Conversions for Web</i> instead: rather than
+          creating conversions it attaches hashed user data to conversions your Google tag already recorded, matched by
+          order ID. Enhancement mode needs a <b>Website</b> conversion action, and skips any event that has no order ID
+          or no user data.
+        </p>
+        <p>
+          <b>Matching.</b> Google needs at least one signal to attribute a conversion. Jitsu looks for a click id on the
+          event (from the SDK, or from the page URL), then falls back to one it remembered earlier for the same user,
+          then to hashed user data from traits. Events with none of these are skipped.
+        </p>
+        <p>
+          <b>Remembering click ids.</b> A user usually clicks the ad on one visit and converts on another, so Jitsu
+          watches every event on this connection for a <code>gclid</code> and keeps it against the anonymous user for 90
+          days. This needs a persistent store (<code>MONGODB_URL</code> or <code>REDIS_URL</code>) — without one, only
+          click ids present on the converting event itself are used.
+        </p>
+        <p>
+          <b>Personal data</b> — email, phone, and names — is normalized and SHA-256 hashed before it leaves Jitsu, as
+          Google requires. Country and postal code are sent in the clear, which is also what Google expects.
+        </p>
+      </>
+    ),
   },
   {
     id: "june",

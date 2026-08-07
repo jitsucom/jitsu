@@ -2,27 +2,16 @@ import { JitsuFunction } from "@jitsu/protocols/functions";
 import { AnalyticsServerEvent, ID } from "@jitsu/protocols/analytics";
 import { FacebookConversionApiCredentials } from "../meta";
 
-import crypto from "crypto";
 import omit from "lodash/omit";
 import { RetryError } from "@jitsu/functions-lib";
 import { createFilter, eventTimeSafeMs } from "@jitsu/core-functions-lib";
 import { deepMerge } from "juava";
+import { hashPii, sanitizePhone } from "./lib/pii";
 
-export function facebookHash(input: string | undefined) {
-  if (!input) {
-    return undefined;
-  }
-  return crypto.createHash("sha256").update(input.trim().toLowerCase()).digest("hex");
-}
+export const facebookHash = hashPii;
 
 function reduceArray(strings: ID[]): ID[] | ID {
   return strings.length === 1 ? strings[0] : strings;
-}
-
-function sanitizePhone(ph: string) {
-  let sanitizedPhone = ph.replace(/[^\d]/g, "");
-  sanitizedPhone = sanitizedPhone.replace(/^0+/, "");
-  return sanitizedPhone;
 }
 
 function tryParse(responseText: string) {

@@ -16,6 +16,7 @@ import JuneDestination from "./functions/june-destination";
 import SegmentDestination from "./functions/segment-destination";
 import AmplitudeDestination from "./functions/amplitude-destination";
 import FacebookConversionsApi from "./functions/facebook-conversions";
+import GoogleAdsDestination from "./functions/google-ads-destination";
 import IntercomDestination from "./functions/intercom-destination";
 import HubspotDestination from "./functions/hubspot-destination";
 import BrazeDestination from "./functions/braze-destination";
@@ -37,6 +38,7 @@ const builtinDestinations: Record<BuiltinDestinationFunctionName, JitsuFunction>
   "builtin.destination.mongodb": MongodbDestination as JitsuFunction,
   "builtin.destination.amplitude": AmplitudeDestination as JitsuFunction,
   "builtin.destination.facebook-conversions": FacebookConversionsApi as JitsuFunction,
+  "builtin.destination.google-ads": GoogleAdsDestination as JitsuFunction,
   "builtin.destination.hubspot": HubspotDestination as JitsuFunction,
   "builtin.destination.salesforce": SalesforceDestination as JitsuFunction,
   "builtin.destination.statsig": StatsigDestination as JitsuFunction,
@@ -73,6 +75,7 @@ export * as bulkerDestination from "./functions/bulker-destination";
 export { UserRecognitionParameter } from "./functions/user-recognition";
 export * as mixpanelDestination from "./functions/mixpanel-destination";
 export * as ga4Destination from "./functions/ga4-destination";
+export * as googleAdsDestination from "./functions/google-ads-destination";
 export * as webhookDestination from "./functions/webhook-destination";
 export * as posthogDestination from "./functions/posthog-destination";
 export * as mongodbDestination from "./functions/mongodb-destination";

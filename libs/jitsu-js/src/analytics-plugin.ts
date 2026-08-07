@@ -151,7 +151,49 @@ function getCookie(name: string) {
   return parts.length === 2 ? parts.pop()?.split(";").shift() : undefined;
 }
 
-function getClientIds(runtime: RuntimeFacade, customCookieCapture: Record<string, string>) {
+//Google Ads auto-tagging appends these to the landing page URL. Google's own conversion linker
+//stores gclid in _gcl_aw and dclid in _gcl_dc as `GCL.<timestamp>.<id>`, so we read the cookies too
+//- that keeps the id available on later page views, but only when the customer also runs gtag.
+const googleClickIdCookies = {
+  gclid: "_gcl_aw",
+  dclid: "_gcl_dc",
+};
+
+function parseGclCookie(cookieValue: string | undefined) {
+  if (typeof cookieValue !== "string" || !cookieValue) {
+    return undefined;
+  }
+  //`GCL.1712345678.SomeClickId` - the id is everything after the timestamp, and may itself
+  //contain dots, so only the first two segments are dropped.
+  const parts = cookieValue.split(".");
+  return parts.length >= 3 ? parts.slice(2).join(".") : undefined;
+}
+
+function getGoogleClickIds(runtime: RuntimeFacade, query: Record<string, string>) {
+  const clickIds = {};
+  //URL params win: they're the authoritative value for this click, and they work whether or not
+  //gtag is installed. gbraid/wbraid have no documented cookie, so the URL is the only source.
+  for (const name of ["gclid", "gbraid", "wbraid", "dclid"]) {
+    if (query[name]) {
+      clickIds[name] = query[name];
+    }
+  }
+  for (const [key, cookieName] of Object.entries(googleClickIdCookies)) {
+    if (!clickIds[key]) {
+      const fromCookie = parseGclCookie(runtime.getCookie(cookieName));
+      if (fromCookie) {
+        clickIds[key] = fromCookie;
+      }
+    }
+  }
+  return clickIds;
+}
+
+function getClientIds(
+  runtime: RuntimeFacade,
+  customCookieCapture: Record<string, string>,
+  query: Record<string, string>
+) {
   const cookieCapture = {
     fbc: "_fbc",
     fbp: "_fbp",
@@ -163,6 +205,7 @@ function getClientIds(runtime: RuntimeFacade, customCookieCapture: Record<string
   }, {});
   return {
     ...clientIds,
+    ...getGoogleClickIds(runtime, query),
     ...getGa4Ids(runtime),
   };
 }
@@ -590,7 +633,7 @@ function adjustPayload(
       url: properties.url || url,
       encoding: properties.encoding || runtime.documentEncoding(),
     },
-    clientIds: !config.privacy?.disableUserIds ? getClientIds(runtime, config.cookieCapture || {}) : undefined,
+    clientIds: !config.privacy?.disableUserIds ? getClientIds(runtime, config.cookieCapture || {}, query) : undefined,
     campaign: parseUtms(query),
   };
   const withContext = {
