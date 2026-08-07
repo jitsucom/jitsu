@@ -135,8 +135,10 @@ async function getLastUpdated(): Promise<Date | undefined> {
                     (select max("updatedAt") from newjitsu."Workspace"),
                     -- backup retention lives in WorkspaceOptions(namespace='data-retention');
                     -- a retention change must invalidate streams-with-destinations
-                    -- (backupEnabled) and bulker-connections (backup destinations)
-                    (select max("updatedAt") from newjitsu."WorkspaceOptions")
+                    -- (backupEnabled) and bulker-connections (backup destinations).
+                    -- Scoped to that namespace: getLastUpdated() also gates
+                    -- rotor-connections/functions/syncs, which don't read options.
+                    (select max("updatedAt") from newjitsu."WorkspaceOptions" where namespace = 'data-retention')
             ) as "last_updated"`) as any
   )[0]["last_updated"];
 }

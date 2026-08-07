@@ -70,8 +70,12 @@ export function resolveBackupMode(
   if (typeof raw === "number" && Number.isFinite(raw) && raw >= 0) {
     return { migrated: true, retentionHours: raw };
   }
-  if (typeof raw === "string" && /^[0-9]+(\.[0-9]+)?$/.test(raw.trim()) && raw.trim() !== "") {
-    return { migrated: true, retentionHours: Number(raw.trim()) };
+  if (typeof raw === "string" && /^[0-9]+(\.[0-9]+)?$/.test(raw.trim())) {
+    const hours = Number(raw.trim());
+    // A long digit string coerces to Infinity — still malformed, still unmigrated.
+    if (Number.isFinite(hours)) {
+      return { migrated: true, retentionHours: hours };
+    }
   }
   return { migrated: false, legacyBackupEnabled: !(featuresEnabled ?? []).includes("nobackup") };
 }
