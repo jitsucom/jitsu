@@ -235,6 +235,24 @@ test("skips events with nothing for Google to match on", async () => {
   expect((await send(geoOnly)).url).toBeUndefined();
 });
 
+test("a dclid counts as an identifier only where it can actually be sent", async () => {
+  const dclidOnly = purchaseEvent();
+  dclidOnly.context.clientIds = { dclid: "test-dclid" };
+  dclidOnly.context.traits = {};
+  dclidOnly.context.page = { url: "https://example.com/thank-you" };
+
+  //Data Manager carries dclid on adIdentifiers
+  const dm = await send(dclidOnly, { store: createStore() });
+  expect(dm.body.events[0].adIdentifiers).toEqual({ dclid: "test-dclid" });
+
+  //the legacy ClickConversion has no dclid field, so such a row would arrive with no identifier
+  const legacy = await send(dclidOnly, {
+    store: createStore(),
+    props: { api: "google-ads", developerToken: "dev-token" },
+  });
+  expect(legacy.url).toBeUndefined();
+});
+
 test("an IP is a usable identifier for Data Manager but not for the legacy API", async () => {
   const ipOnly = { ...purchaseEvent(), context: { ip: "10.0.0.1" } } as AnalyticsServerEvent;
 
