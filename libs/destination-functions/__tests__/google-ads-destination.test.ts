@@ -208,6 +208,24 @@ test("still sends when the store is unusable", async () => {
   expect(body.events[0].adIdentifiers).toEqual({ gclid: "test-gclid" });
 });
 
+test("a remembered click id is copied onto the user's other identifiers", async () => {
+  const store = createMemoryStore();
+  //seen while anonymous...
+  await send({ ...purchaseEvent(), userId: undefined, anonymousId: "anon-7" } as AnalyticsServerEvent, { store });
+  //...then an event that ties the anonymous id to a user id
+  const identified = purchaseEvent({ anonymousId: "anon-7", userId: "user-7" });
+  identified.context.clientIds = {};
+  identified.context.page = { url: "https://example.com/thank-you" };
+  await send(identified, { store });
+
+  //a later conversion from another device carries only the user id, and must still find the click id
+  const otherDevice = purchaseEvent({ anonymousId: "anon-99", userId: "user-7" });
+  otherDevice.context.clientIds = {};
+  otherDevice.context.page = { url: "https://example.com/thank-you" };
+  const { body } = await send(otherDevice, { store });
+  expect(body.events[0].adIdentifiers).toEqual({ gclid: "test-gclid" });
+});
+
 test("skips events with nothing for Google to match on", async () => {
   const bare = { ...purchaseEvent(), context: {} } as AnalyticsServerEvent;
   expect((await send(bare)).url).toBeUndefined();
@@ -215,6 +233,19 @@ test("skips events with nothing for Google to match on", async () => {
   //ctx.geo supplies country and postal code, but without a name they can't form an address identifier
   const geoOnly = { ...purchaseEvent(), context: { traits: {} } } as AnalyticsServerEvent;
   expect((await send(geoOnly)).url).toBeUndefined();
+});
+
+test("an IP is a usable identifier for Data Manager but not for the legacy API", async () => {
+  const ipOnly = { ...purchaseEvent(), context: { ip: "10.0.0.1" } } as AnalyticsServerEvent;
+
+  //Data Manager lists eventDeviceInfo.ipAddress among the identifiers it will match on
+  const dm = await send(ipOnly);
+  expect(dm.body.events[0].eventDeviceInfo.ipAddress).toBe("10.0.0.1");
+
+  //the legacy API only takes userIpAddress alongside a click id or user identifiers, so sending an
+  //IP-only row there is a guaranteed rejection
+  const legacy = await send(ipOnly, { props: { api: "google-ads", developerToken: "dev-token" } });
+  expect(legacy.url).toBeUndefined();
 });
 
 test("treats row-level rejections and server errors as failures", async () => {
