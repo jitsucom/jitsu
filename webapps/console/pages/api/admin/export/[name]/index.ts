@@ -11,6 +11,7 @@ import { default as stableHash } from "stable-hash";
 import { WorkspaceDbModel, FunctionsServerDbModel } from "../../../../../prisma/schema";
 import { ProfileBuilder } from "@jitsu/destination-functions";
 import { getServerEnv } from "../../../../../lib/server/serverEnv";
+import { isBackupEnabled } from "../../../../../lib/shared/data-retention";
 
 const serverEnv = getServerEnv();
 const defaultFunctionsClass = serverEnv.DEFAULT_FUNCTIONS_CLASS;
@@ -131,12 +132,47 @@ async function getLastUpdated(): Promise<Date | undefined> {
                     (select max("updatedAt") from newjitsu."ProfileBuilder"),
                     (select max("updatedAt") from newjitsu."ConfigurationObject"),
                     (select max("updatedAt") from newjitsu."FunctionsServer"),
-                    (select max("updatedAt") from newjitsu."Workspace")
+                    (select max("updatedAt") from newjitsu."Workspace"),
+                    -- backup retention lives in WorkspaceOptions(namespace='data-retention');
+                    -- a retention change must invalidate streams-with-destinations
+                    -- (backupEnabled) and bulker-connections (backup destinations).
+                    -- Scoped to that namespace: getLastUpdated() also gates
+                    -- rotor-connections/functions/syncs, which don't read options.
+                    (select max("updatedAt") from newjitsu."WorkspaceOptions" where namespace = 'data-retention')
             ) as "last_updated"`) as any
   )[0]["last_updated"];
 }
 
 async function exportBulkerConnections(writer: Writer) {
+  //pull event-archive (GCS/S3 backup) connections from ee-api BEFORE writing
+  //anything: an ee-api failure then surfaces as a clean 500 (headers not yet
+  //sent) instead of a truncated 200, and bulker/config-keeper keep their last
+  //good config. This export is consumed by the bulker service — there is no
+  //signed-in user — so it authenticates with the static service token.
+  //
+  //Deliberately NOT wrapped in try/catch: swallowing an ee-api failure here
+  //used to ship a well-formed export with no backup destinations at all,
+  //silently disarming archiving fleet-wide.
+  let backupConnections: any[] = [];
+  if (isEEAvailable()) {
+    const url = `${getEeConnection().host}api/s3-connections`;
+    const response = await rpc(url, {
+      method: "GET",
+      headers: {
+        "Content-Type": "application/json",
+        ...serviceTokenHeaders(),
+      },
+      // A stalled ee-api must fail this export fast (clean 500, bulker keeps
+      // its last good config), not hang the request until infra timeouts.
+      signal: AbortSignal.timeout(15_000),
+    });
+    if (!Array.isArray(response)) {
+      //ee-api returns {error: "..."} when its object storage isn't configured
+      throw new Error(`Unexpected s3-connections response: ${JSON.stringify(response)}`);
+    }
+    backupConnections = response;
+  }
+
   writer.write("[");
 
   let lastId: string | undefined = undefined;
@@ -255,29 +291,12 @@ async function exportBulkerConnections(writer: Writer) {
       break;
     }
   }
-  if (isEEAvailable()) {
-    //pull S3 backup connections from ee-api. This export is consumed by the
-    //bulker service — there is no signed-in user — so it authenticates with
-    //the static service token.
-    const url = `${getEeConnection().host}api/s3-connections`;
-    try {
-      const backupConnections = await rpc(url, {
-        method: "GET",
-        headers: {
-          "Content-Type": "application/json",
-          ...serviceTokenHeaders(),
-        },
-      });
-      for (const conn of backupConnections) {
-        if (needComma) {
-          writer.write(",");
-        }
-        writer.write(JSON.stringify(conn));
-        needComma = true;
-      }
-    } catch (e) {
-      console.error("Error getting backup connections", e);
+  for (const conn of backupConnections) {
+    if (needComma) {
+      writer.write(",");
     }
+    writer.write(JSON.stringify(conn));
+    needComma = true;
   }
 
   writer.write("]");
@@ -566,6 +585,20 @@ async function exportStreamsWithDestinations(writer: Writer) {
     const pbs = pbMap.get(pb.workspaceId) || [];
     pbMap.set(pb.workspaceId, [...pbs, pb as unknown as ProfileBuilder]);
   }
+  // backup retention per workspace — drives backupEnabled below. Ascending
+  // order + Map overwrite = freshest row wins: (workspaceId, namespace) has no
+  // unique constraint, and the write path's find-then-create race can leave
+  // duplicate rows.
+  const dataRetentionMap = new Map<string, unknown>(
+    (
+      await db.prisma().workspaceOptions.findMany({
+        where: { namespace: "data-retention" },
+        // id as tiebreaker: same-millisecond concurrent writes (the very race
+        // that creates duplicates) can share an updatedAt
+        orderBy: [{ updatedAt: "asc" }, { id: "asc" }],
+      })
+    ).map(row => [row.workspaceId, row.value])
+  );
 
   writer.write("[");
   let lastId: string | undefined = undefined;
@@ -609,7 +642,8 @@ async function exportStreamsWithDestinations(writer: Writer) {
             },
             workspaceId: obj.workspace.id,
           },
-          backupEnabled: isEEAvailable() && !(obj.workspace.featuresEnabled || []).includes("nobackup"),
+          backupEnabled:
+            isEEAvailable() && isBackupEnabled(obj.workspace.featuresEnabled, dataRetentionMap.get(obj.workspace.id)),
           throttle: throttlePercent,
           shard: shardNumber,
           // opt-in per workspace (Settings → Capture HTTP headers): ingest stores
