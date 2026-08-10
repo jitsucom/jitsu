@@ -37,6 +37,11 @@ type ClickIds = {
 
 const CLICK_ID_NAMES: (keyof ClickIds)[] = ["gclid", "gbraid", "wbraid", "dclid"];
 
+// The legacy ClickConversion has no dclid field — that identifier only exists on Data Manager's
+// AdIdentifiers. A dclid-only event therefore has nothing to match on in legacy mode, even though we
+// happily captured and remembered it.
+const LEGACY_CLICK_ID_NAMES: (keyof ClickIds)[] = ["gclid", "gbraid", "wbraid"];
+
 type ConsentState = "GRANTED" | "DENIED";
 
 // Raw (un-hashed) user data. Hashing happens once in hashUser() so both serializers place identical
@@ -659,10 +664,14 @@ const GoogleAdsDestination: JitsuFunction<AnalyticsServerEvent, GoogleAdsCredent
 
   // Google needs at least one signal to attribute the conversion against. Country and postal code
   // alone don't count — they only ever travel as part of a complete address block.
-  const hasClickId = Object.keys(compact(conversion.clickIds)).length > 0;
-  const hasUserData = userIdentifiersForDataManager(conversion.user).length > 0;
   const isEnhancement = props.conversionType === "enhancement";
   const useDataManager = props.api !== "google-ads";
+  // Only count click ids the chosen API can actually serialize, or we'd wave through a row that
+  // reaches Google carrying no identifier at all.
+  const hasClickId = (useDataManager ? CLICK_ID_NAMES : LEGACY_CLICK_ID_NAMES).some(
+    name => !!conversion.clickIds[name]
+  );
+  const hasUserData = userIdentifiersForDataManager(conversion.user).length > 0;
 
   if (isEnhancement) {
     // Enhanced Conversions for Web enriches a conversion the tag already recorded. Without an order
