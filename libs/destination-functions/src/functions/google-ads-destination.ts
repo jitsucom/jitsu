@@ -290,13 +290,7 @@ async function resolveClickIds(event: AnalyticsServerEvent, ctx: FullContext<Goo
     return onEvent;
   }
   if (Object.keys(onEvent).length > 0) {
-    for (const key of keys) {
-      try {
-        await ctx.store.set(key, onEvent, CLICK_ID_TTL);
-      } catch (e: any) {
-        ctx.log.debug(`Google Ads: could not remember click ids under ${key}: ${e?.message}`);
-      }
-    }
+    await rememberClickIds(ctx, keys, onEvent);
     return onEvent;
   }
   for (const key of keys) {
@@ -310,6 +304,14 @@ async function resolveClickIds(event: AnalyticsServerEvent, ctx: FullContext<Goo
           dclid: stored.dclid,
         }) as ClickIds;
         if (Object.keys(remembered).length > 0) {
+          // Copy it onto the identifiers it isn't stored under yet. A click id first seen while the
+          // user was anonymous is otherwise unreachable once they log in on another device and their
+          // events carry only a userId.
+          await rememberClickIds(
+            ctx,
+            keys.filter(k => k !== key),
+            remembered
+          );
           return remembered;
         }
       }
@@ -318,6 +320,17 @@ async function resolveClickIds(event: AnalyticsServerEvent, ctx: FullContext<Goo
     }
   }
   return onEvent;
+}
+
+/** Best-effort write of a click-id set under every identifier we know for this user. */
+async function rememberClickIds(ctx: FullContext<GoogleAdsCredentials>, keys: string[], clickIds: ClickIds) {
+  for (const key of keys) {
+    try {
+      await ctx.store.set(key, clickIds, CLICK_ID_TTL);
+    } catch (e: any) {
+      ctx.log.debug(`Google Ads: could not remember click ids under ${key}: ${e?.message}`);
+    }
+  }
 }
 
 function collectUser(event: AnalyticsServerEvent, ctx: FullContext<GoogleAdsCredentials>): UserInfo {
@@ -649,6 +662,7 @@ const GoogleAdsDestination: JitsuFunction<AnalyticsServerEvent, GoogleAdsCredent
   const hasClickId = Object.keys(compact(conversion.clickIds)).length > 0;
   const hasUserData = userIdentifiersForDataManager(conversion.user).length > 0;
   const isEnhancement = props.conversionType === "enhancement";
+  const useDataManager = props.api !== "google-ads";
 
   if (isEnhancement) {
     // Enhanced Conversions for Web enriches a conversion the tag already recorded. Without an order
@@ -666,14 +680,14 @@ const GoogleAdsDestination: JitsuFunction<AnalyticsServerEvent, GoogleAdsCredent
       );
       return;
     }
-  } else if (!hasClickId && !hasUserData && !conversion.ip) {
-    ctx.log.debug(
-      `Google Ads: event "${eventName}" has no gclid, user identifiers or IP address to match on, skipping`
-    );
+  } else if (!hasClickId && !hasUserData && !(useDataManager && conversion.ip)) {
+    // Data Manager accepts the device IP as a standalone identifier; the legacy API does not — there
+    // `userIpAddress` only supplements a click id or user identifiers, so an IP-only upload is a
+    // guaranteed rejection rather than a long shot.
+    ctx.log.debug(`Google Ads: event "${eventName}" has no gclid or user identifiers to match on, skipping`);
     return;
   }
 
-  const useDataManager = props.api !== "google-ads";
   const basePayload = useDataManager
     ? toDataManagerPayload(conversion, props)
     : isEnhancement
