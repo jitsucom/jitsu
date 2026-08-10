@@ -128,19 +128,13 @@ func NewBigquery(bulkerConfig bulker.Config) (bulker.Bulker, error) {
 	if err := utils.ParseObject(bulkerConfig.DestinationConfig, config); err != nil {
 		return nil, fmt.Errorf("failed to parse destination config: %v", err)
 	}
-	var err error
-	err = config.Validate()
-	if err != nil {
+	// Validate guarantees an explicit credential (rejects ambient/
+	// workload_identity), so there is no ADC client path.
+	if err := config.Validate(); err != nil {
 		return nil, fmt.Errorf("failed to validate config: %v", err)
 	}
-	var client *bigquery.Client
 	ctx := context.Background()
-	if config.Credentials == nil {
-		client, err = bigquery.NewClient(ctx, config.Project)
-	} else {
-		client, err = bigquery.NewClient(ctx, config.Project, config.Credentials)
-	}
-
+	client, err := bigquery.NewClient(ctx, config.Project, config.Credentials)
 	if err != nil {
 		err = fmt.Errorf("error creating BigQuery client: %v", err)
 	}
