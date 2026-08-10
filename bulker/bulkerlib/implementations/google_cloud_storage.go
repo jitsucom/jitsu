@@ -68,15 +68,21 @@ func (gc *GoogleConfig) Validate() error {
 		if err != nil {
 			return fmt.Errorf("Malformed google keyFile: %v", err)
 		}
-		gc.Credentials = option.WithCredentialsJSON(b)
+		// Pin to a service-account credential type: WithCredentials{JSON,File}
+		// are deprecated because they accept ANY credential config, so a
+		// customer-supplied keyFile could be an external_account /
+		// impersonated_service_account config that fetches tokens from an
+		// attacker-controlled URL. WithAuthCredentials* + ServiceAccount
+		// rejects those.
+		gc.Credentials = option.WithAuthCredentialsJSON(option.ServiceAccount, b)
 	case string:
 		if keyFile == "" || keyFile == "workload_identity" {
 			return errors.New("Google keyFile is required parameter (ambient/workload_identity credentials are not permitted)")
 		}
 		if strings.Contains(keyFile, "{") {
-			gc.Credentials = option.WithCredentialsJSON([]byte(keyFile))
+			gc.Credentials = option.WithAuthCredentialsJSON(option.ServiceAccount, []byte(keyFile))
 		} else {
-			gc.Credentials = option.WithCredentialsFile(keyFile)
+			gc.Credentials = option.WithAuthCredentialsFile(option.ServiceAccount, keyFile)
 		}
 	default:
 		return errors.New("Google key_file must be string or json object")
