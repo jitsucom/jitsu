@@ -112,7 +112,7 @@ func (f FirebaseSource) Check(srcCfgPath string, logTracker airbyte.LogTracker) 
 
 	app, err := firebase.NewApp(ctx,
 		&firebase.Config{ProjectID: srcCfg.ProjectID},
-		option.WithCredentialsJSON([]byte(srcCfg.ServiceAccountKey)))
+		option.WithAuthCredentialsJSON(option.ServiceAccount, []byte(srcCfg.ServiceAccountKey)))
 	if err != nil {
 		return err
 	}
@@ -150,7 +150,7 @@ func (f FirebaseSource) Discover(srcCfgPath string, logTracker airbyte.LogTracke
 
 	app, err := firebase.NewApp(ctx,
 		&firebase.Config{ProjectID: srcCfg.ProjectID},
-		option.WithCredentialsJSON([]byte(srcCfg.ServiceAccountKey)))
+		option.WithAuthCredentialsJSON(option.ServiceAccount, []byte(srcCfg.ServiceAccountKey)))
 	if err != nil {
 		return nil, err
 	}
@@ -323,7 +323,7 @@ func (f FirebaseSource) Read(sourceCfgPath string, prevStatePath string, configu
 
 	app, err := firebase.NewApp(ctx,
 		&firebase.Config{ProjectID: srcCfg.ProjectID},
-		option.WithCredentialsJSON([]byte(srcCfg.ServiceAccountKey)))
+		option.WithAuthCredentialsJSON(option.ServiceAccount, []byte(srcCfg.ServiceAccountKey)))
 	if err != nil {
 		return err
 	}

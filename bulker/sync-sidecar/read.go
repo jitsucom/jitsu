@@ -58,16 +58,16 @@ type ReadSideCar struct {
 	// don't need an equivalent: the dbpool is configured with a 2-minute
 	// statement_timeout, so a stuck UpsertState fails fast with an error.
 	processRecordStart atomic.Int64
-	lastStateMessage  string
-	blk               bulker.Bulker
-	lastStream        *ActiveStream
-	processedStreams  map[string]*ActiveStream
-	catalog           *jsonorder.OrderedMap[string, *Stream]
-	destinationConfig map[string]any
-	initialState      string
-	fullSync          bool
-	eventsCounter     int
-	bytesCounter      int
+	lastStateMessage   string
+	blk                bulker.Bulker
+	lastStream         *ActiveStream
+	processedStreams   map[string]*ActiveStream
+	catalog            *jsonorder.OrderedMap[string, *Stream]
+	destinationConfig  map[string]any
+	initialState       string
+	fullSync           bool
+	eventsCounter      int
+	bytesCounter       int
 }
 
 func (s *ReadSideCar) Run() {
