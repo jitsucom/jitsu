@@ -75,30 +75,60 @@ const fetchLocalWhitelist = process.env.FETCH_LOCAL_WHITELIST
 const publicHostnamesCache = new NodeCache({ stdTTL: 300, checkperiod: 60, useClones: false });
 
 /**
+ * Origin of an events-log record: ids of the workspace and the source event the record was produced for.
+ * Both are optional — not every write site has them in scope
+ */
+export type EventsLogContext = {
+  workspaceId?: string;
+  messageId?: string;
+};
+
+/**
  * Store for incoming events, destination results and function log messages
  */
 export interface EventsStore {
-  log(connectionId: string, level: LogLevel, msg: Record<string, any>): void;
-  deadLetter(workspaceId: string, connectionId: string, type: string, payload: any, error: any): void;
+  log(connectionId: string, level: LogLevel, msg: Record<string, any>, opts?: EventsLogContext): void;
+  deadLetter(
+    workspaceId: string,
+    connectionId: string,
+    type: string,
+    payload: any,
+    error: any,
+    messageId?: string
+  ): void;
   close(): void;
 }
 
 export const DummyEventsStore: EventsStore = {
-  log(connectionId: string, level: LogLevel, msg: Record<string, any>): void {},
-  deadLetter(workspaceId: string, connectionId: string, type: string, payload: any, error: any): void {},
+  log(connectionId: string, level: LogLevel, msg: Record<string, any>, opts?: EventsLogContext): void {},
+  deadLetter(
+    workspaceId: string,
+    connectionId: string,
+    type: string,
+    payload: any,
+    error: any,
+    messageId?: string
+  ): void {},
   close(): void {},
 };
 
 export function MultiEventsStore(stores: EventsStore[]): EventsStore {
   return {
-    log(connectionId: string, level: LogLevel, msg: Record<string, any>): void {
+    log(connectionId: string, level: LogLevel, msg: Record<string, any>, opts?: EventsLogContext): void {
       for (const store of stores) {
-        store.log(connectionId, level, msg);
+        store.log(connectionId, level, msg, opts);
       }
     },
-    deadLetter(workspaceId: string, connectionId: string, type: string, payload: any, error: any): void {
+    deadLetter(
+      workspaceId: string,
+      connectionId: string,
+      type: string,
+      payload: any,
+      error: any,
+      messageId?: string
+    ): void {
       for (const store of stores) {
-        store.deadLetter(workspaceId, connectionId, type, payload, error);
+        store.deadLetter(workspaceId, connectionId, type, payload, error, messageId);
       }
     },
     close(): void {
@@ -204,9 +234,10 @@ export function wrapperFunction<E extends AnyEvent = AnyEvent, P extends AnyProp
         return fetchWithLog(url, opts, { ...extra, event });
       };
     }
+    const messageId = (event as any)?.messageId;
     const fullContext: FullContext<P> = {
       ...ctx,
-      log,
+      log: messageId ? createFunctionLogger(chainCtx, { ...funcCtx, eventMessageId: messageId }) : log,
       fetch: ftch,
       getWarehouse: () => {
         throw newError("Warehouse API is not available in builtin functions");
@@ -242,6 +273,9 @@ export type FunctionContext<P extends AnyProps = AnyProps> = {
     debugTill?: Date;
   };
   props: P;
+  // messageId of the event being processed when the log call happens. Function chains are cached
+  // across events, so per-event ids can't be baked into makeLog — they ride on this context instead
+  eventMessageId?: string;
 };
 
 export type JitsuFunctionWrapper<E extends AnyEvent = AnyEvent> = (
@@ -339,7 +373,12 @@ export function eventTimeSafeMs(event: AnalyticsServerEvent) {
   return Math.min(!isNaN(ts) ? ts : now, !isNaN(receivedAt) ? receivedAt : now, now);
 }
 
-export const makeLog = (connectionId: string, eventsStore: EventsStore, repeatToLog?: boolean) => {
+export const makeLog = (
+  connectionId: string,
+  eventsStore: EventsStore,
+  repeatToLog?: boolean,
+  workspaceId?: string
+) => {
   const logFunc = (lb: () => LogMessageBuilder, callback: (l: LogMessageBuilder) => void) => {
     if (repeatToLog) {
       callback(lb());
@@ -347,46 +386,62 @@ export const makeLog = (connectionId: string, eventsStore: EventsStore, repeatTo
       log.inDebug(callback);
     }
   };
+  const logContext = (ctx: FunctionContext): EventsLogContext => ({ workspaceId, messageId: ctx.eventMessageId });
   return {
     debug: (ctx: FunctionContext, message: any, ...args: any[]) => {
       if (ctx.function.debugTill && ctx.function.debugTill > new Date()) {
         const fid = ctx.function.id;
         logFunc(log.atDebug, l => l.log(`[CON:${connectionId}]: [f:${fid}][DEBUG]: ${message}`, ...args));
-        eventsStore.log(connectionId, "debug", {
-          type: "log-debug",
+        eventsStore.log(
+          connectionId,
+          "debug",
+          {
+            type: "log-debug",
+            functionId: fid,
+            functionType: ctx.function.type,
+            message: {
+              text: message,
+              args,
+            },
+          },
+          logContext(ctx)
+        );
+      }
+    },
+    warn: (ctx: FunctionContext, message: any, ...args: any[]) => {
+      const fid = ctx.function.id;
+      logFunc(log.atWarn, l => l.log(`[CON:${connectionId}]: [f:${fid}][WARN]: ${message}`, ...args));
+      eventsStore.log(
+        connectionId,
+        "warn",
+        {
+          type: "log-warn",
           functionId: fid,
           functionType: ctx.function.type,
           message: {
             text: message,
             args,
           },
-        });
-      }
-    },
-    warn: (ctx: FunctionContext, message: any, ...args: any[]) => {
-      const fid = ctx.function.id;
-      logFunc(log.atWarn, l => l.log(`[CON:${connectionId}]: [f:${fid}][WARN]: ${message}`, ...args));
-      eventsStore.log(connectionId, "warn", {
-        type: "log-warn",
-        functionId: fid,
-        functionType: ctx.function.type,
-        message: {
-          text: message,
-          args,
         },
-      });
+        logContext(ctx)
+      );
     },
     error: (ctx: FunctionContext, message: any, ...args: any[]) => {
       const fid = ctx.function.id;
-      eventsStore.log(connectionId, "error", {
-        type: "log-error",
-        functionId: fid,
-        functionType: ctx.function.type,
-        message: {
-          text: message,
-          args,
+      eventsStore.log(
+        connectionId,
+        "error",
+        {
+          type: "log-error",
+          functionId: fid,
+          functionType: ctx.function.type,
+          message: {
+            text: message,
+            args,
+          },
         },
-      });
+        logContext(ctx)
+      );
       logFunc(log.atError, l => {
         if (args?.length > 0) {
           const last = args[args.length - 1];
@@ -401,15 +456,20 @@ export const makeLog = (connectionId: string, eventsStore: EventsStore, repeatTo
     info: (ctx: FunctionContext, message: any, ...args: any[]) => {
       const fid = ctx.function.id;
       logFunc(log.atInfo, l => l.log(`[CON:${connectionId}]: [f:${fid}][INFO]: ${message}`, ...args));
-      eventsStore.log(connectionId, "info", {
-        type: "log-info",
-        functionId: fid,
-        functionType: ctx.function.type,
-        message: {
-          text: message,
-          args,
+      eventsStore.log(
+        connectionId,
+        "info",
+        {
+          type: "log-info",
+          functionId: fid,
+          functionType: ctx.function.type,
+          message: {
+            text: message,
+            args,
+          },
         },
-      });
+        logContext(ctx)
+      );
     },
   };
 };
@@ -454,7 +514,8 @@ export const makeFetch = (
   connectionId: string,
   eventsStore: EventsStore,
   logLevel: "info" | "debug",
-  fetchTimeoutMs: number = 2000
+  fetchTimeoutMs: number = 2000,
+  workspaceId?: string
 ) => {
   const throttle = connectionId === "clke5lrfm0000ii0gahryc37d-wbyo-5jyq-KIMXwt" ? getThrottle(5000) : noThrottle();
 
@@ -488,6 +549,10 @@ export const makeFetch = (
     const ctx = extra?.ctx?.function;
     const id = ctx?.id || "unknown";
     const type = ctx?.type || "unknown";
+    const logCtx: EventsLogContext = {
+      workspaceId,
+      messageId: (extra?.event as any)?.messageId || extra?.ctx?.eventMessageId,
+    };
     const logEnabled = logLevel === "info" || (ctx?.debugTill && ctx?.debugTill > new Date());
     const logToRedis = typeof extra?.log === "boolean" ? extra.log : true;
     const baseInfo =
@@ -534,7 +599,12 @@ export const makeFetch = (
       if (logEnabled) {
         const elapsedMs = sw.elapsedMs();
         if (logToRedis) {
-          eventsStore.log(connectionId, logLevel, { ...baseInfo, error: getErrorMessage(err), elapsedMs: elapsedMs });
+          eventsStore.log(
+            connectionId,
+            logLevel,
+            { ...baseInfo, error: getErrorMessage(err), elapsedMs: elapsedMs },
+            logCtx
+          );
         }
         log.inDebug(l =>
           l.log(
@@ -555,13 +625,18 @@ export const makeFetch = (
       const elapsedMs = sw.elapsedMs();
       const respText = await trimResponse(buffered);
       if (logToRedis) {
-        eventsStore.log(connectionId, logLevel, {
-          ...baseInfo,
-          status: fetchResult.status,
-          statusText: fetchResult.statusText,
-          elapsedMs: elapsedMs,
-          response: tryJson(respText),
-        });
+        eventsStore.log(
+          connectionId,
+          logLevel,
+          {
+            ...baseInfo,
+            status: fetchResult.status,
+            statusText: fetchResult.statusText,
+            elapsedMs: elapsedMs,
+            response: tryJson(respText),
+          },
+          logCtx
+        );
       }
       if (fetchResult.status >= 300) {
         log.inDebug(l =>

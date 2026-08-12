@@ -449,7 +449,7 @@ func (s *ReadSideCar) postEventsLog(destinationId string, state bulker.State, pr
 	if batchErr != "" {
 		level = eventslog.LevelError
 	}
-	_, err := s.eventsLogService.PostEvent(&eventslog.ActorEvent{Timestamp: time.Now().UTC(), EventType: eventslog.EventTypeBatch, Level: level, ActorId: destinationId, Event: batchState})
+	_, err := s.eventsLogService.PostEvent(&eventslog.ActorEvent{Timestamp: time.Now().UTC(), EventType: eventslog.EventTypeBatch, Level: level, ActorId: destinationId, WorkspaceId: s.workspaceId, Event: batchState})
 	if err != nil {
 		s.errprint("Error posting events log: %v", err)
 	}

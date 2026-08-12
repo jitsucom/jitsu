@@ -257,7 +257,7 @@ func (sc *StreamConsumerImpl) start() {
 				state, processedObject, err = sc.stream.Load().Consume(context.Background(), message)
 				processedPerInterval++
 				queueSize--
-				sc.postEventsLog(message.Value, state.Representation, processedObject, queueSize, speed, err)
+				sc.postEventsLog(message.Value, MessageIdFromMetricsMeta(metricsMeta), state.Representation, processedObject, queueSize, speed, err)
 				if err != nil {
 					metrics.ConsumerErrors(sc.topicId, "stream", sc.destination.Id(), sc.tableName, "bulker_stream_error").Inc()
 					sc.Errorf("Failed to inject event to bulker stream: %v", err)
@@ -344,7 +344,7 @@ func (sc *StreamConsumerImpl) UpdateDestination(destination *Destination) error 
 	return nil
 }
 
-func (sc *StreamConsumerImpl) postEventsLog(message []byte, representation any, processedObject types.Object, queueSize float64, speed float64, processedErr error) {
+func (sc *StreamConsumerImpl) postEventsLog(message []byte, messageId string, representation any, processedObject types.Object, queueSize float64, speed float64, processedErr error) {
 	object := map[string]any{
 		"original":  string(message),
 		"status":    "SUCCESS",
@@ -364,5 +364,5 @@ func (sc *StreamConsumerImpl) postEventsLog(message []byte, representation any, 
 		object["status"] = "FAILED"
 		level = eventslog.LevelError
 	}
-	sc.eventsLogService.PostAsync(&eventslog.ActorEvent{EventType: eventslog.EventTypeProcessed, Level: level, ActorId: sc.destination.Id(), Event: object})
+	sc.eventsLogService.PostAsync(&eventslog.ActorEvent{EventType: eventslog.EventTypeProcessed, Level: level, ActorId: sc.destination.Id(), WorkspaceId: sc.destination.WorkspaceId(), MessageId: messageId, Event: object})
 }

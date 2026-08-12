@@ -209,7 +209,8 @@ export function kafkaRotor(cfg: KafkaRotorConfig): KafkaRotor {
                     {
                       functionId: e.functionId,
                       error: e.toString(),
-                    }
+                    },
+                    ingestMessage.messageId
                   );
                 }
               } catch (e) {

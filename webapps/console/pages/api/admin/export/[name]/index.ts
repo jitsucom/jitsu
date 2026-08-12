@@ -234,6 +234,7 @@ async function exportBulkerConnections(writer: Writer) {
               workspace: { id: workspace.id, name: workspace.slug },
             },
             id: id,
+            workspaceId: workspace.id,
             type: destinationType,
             options: omit(data as any, "clickhouseSettings"),
             updatedAt: dateMax(updatedAt, to.updatedAt),
@@ -274,6 +275,7 @@ async function exportBulkerConnections(writer: Writer) {
               workspace: { id: workspace.id, name: workspace.slug },
             },
             id: id,
+            workspaceId: workspace.id,
             type: destinationType,
             options: {
               mode: "batch",
