@@ -12,6 +12,10 @@ import { WorkspaceDbModel, FunctionsServerDbModel } from "../../../../../prisma/
 import { ProfileBuilder } from "@jitsu/destination-functions";
 import { getServerEnv } from "../../../../../lib/server/serverEnv";
 import { isBackupEnabled } from "../../../../../lib/shared/data-retention";
+import {
+  observabilityExportsNamespace,
+  ObservabilityExportsSettings,
+} from "../../../../../lib/shared/observability-exports";
 
 const serverEnv = getServerEnv();
 const defaultFunctionsClass = serverEnv.DEFAULT_FUNCTIONS_CLASS;
@@ -136,9 +140,11 @@ async function getLastUpdated(): Promise<Date | undefined> {
                     -- backup retention lives in WorkspaceOptions(namespace='data-retention');
                     -- a retention change must invalidate streams-with-destinations
                     -- (backupEnabled) and bulker-connections (backup destinations).
-                    -- Scoped to that namespace: getLastUpdated() also gates
+                    -- observability-exports settings synthesize otlp connections
+                    -- into bulker-connections, so they invalidate too.
+                    -- Scoped to these namespaces: getLastUpdated() also gates
                     -- rotor-connections/functions/syncs, which don't read options.
-                    (select max("updatedAt") from newjitsu."WorkspaceOptions" where namespace = 'data-retention')
+                    (select max("updatedAt") from newjitsu."WorkspaceOptions" where namespace in ('data-retention', 'observability-exports'))
             ) as "last_updated"`) as any
   )[0]["last_updated"];
 }
@@ -293,6 +299,48 @@ async function exportBulkerConnections(writer: Writer) {
       break;
     }
   }
+  // Observability exports (JITSU-138): each workspace with an enabled export gets
+  // one synthesized internal `otlp` connection. Live-events write sites produce
+  // envelope records into its batch topic; bulker's otlp destination posts them
+  // to the configured endpoint. Not a ConfigurationObject — the source of truth
+  // is WorkspaceOptions(namespace='observability-exports'), edited in
+  // /settings/observability-exports.
+  const observabilityExports = await db.prisma().workspaceOptions.findMany({
+    where: { namespace: observabilityExportsNamespace, workspace: { deleted: false } },
+  });
+  for (const row of observabilityExports) {
+    const parsed = ObservabilityExportsSettings.safeParse(row.value);
+    if (!parsed.success || !parsed.data.enabled || !parsed.data.endpoint) {
+      continue;
+    }
+    if (needComma) {
+      writer.write(",");
+    }
+    writer.write(
+      JSON.stringify({
+        __debug: {
+          workspace: { id: row.workspaceId },
+        },
+        id: `${row.workspaceId}_otlp`,
+        workspaceId: row.workspaceId,
+        special: "otlp",
+        type: "otlp",
+        options: {
+          mode: "batch",
+          // fraction of a minute — logs should land in the backend reasonably fresh
+          frequency: 0.5,
+          deduplicate: false,
+        },
+        updatedAt: row.updatedAt,
+        credentials: {
+          endpoint: parsed.data.endpoint,
+          headers: parsed.data.headers,
+        },
+      })
+    );
+    needComma = true;
+  }
+
   for (const conn of backupConnections) {
     if (needComma) {
       writer.write(",");
