@@ -179,6 +179,45 @@ async function exportBulkerConnections(writer: Writer) {
     backupConnections = response;
   }
 
+  // Observability exports (JITSU-138): each workspace with an enabled export gets
+  // one synthesized internal `otlp` connection. Live-events write sites produce
+  // envelope records into its batch topic; bulker's otlp destination posts them
+  // to the configured endpoint. Not a ConfigurationObject — the source of truth
+  // is WorkspaceOptions(namespace='observability-exports'), edited in
+  // /settings/observability-exports. Built fully BEFORE the streaming write for
+  // the same reason as backupConnections above: a failure here must surface as
+  // a clean 500, never a truncated 200.
+  const observabilityExportRows = await db.prisma().workspaceOptions.findMany({
+    where: { namespace: observabilityExportsNamespace, workspace: { deleted: false } },
+  });
+  const otlpConnections: any[] = [];
+  for (const row of observabilityExportRows) {
+    const parsed = ObservabilityExportsSettings.safeParse(row.value);
+    if (!parsed.success || !parsed.data.enabled || !parsed.data.endpoint) {
+      continue;
+    }
+    otlpConnections.push({
+      __debug: {
+        workspace: { id: row.workspaceId },
+      },
+      id: `${row.workspaceId}_otlp`,
+      workspaceId: row.workspaceId,
+      special: "otlp",
+      type: "otlp",
+      options: {
+        mode: "batch",
+        // fraction of a minute — logs should land in the backend reasonably fresh
+        frequency: 0.5,
+        deduplicate: false,
+      },
+      updatedAt: row.updatedAt,
+      credentials: {
+        endpoint: parsed.data.endpoint,
+        headers: parsed.data.headers,
+      },
+    });
+  }
+
   writer.write("[");
 
   let lastId: string | undefined = undefined;
@@ -299,45 +338,11 @@ async function exportBulkerConnections(writer: Writer) {
       break;
     }
   }
-  // Observability exports (JITSU-138): each workspace with an enabled export gets
-  // one synthesized internal `otlp` connection. Live-events write sites produce
-  // envelope records into its batch topic; bulker's otlp destination posts them
-  // to the configured endpoint. Not a ConfigurationObject — the source of truth
-  // is WorkspaceOptions(namespace='observability-exports'), edited in
-  // /settings/observability-exports.
-  const observabilityExports = await db.prisma().workspaceOptions.findMany({
-    where: { namespace: observabilityExportsNamespace, workspace: { deleted: false } },
-  });
-  for (const row of observabilityExports) {
-    const parsed = ObservabilityExportsSettings.safeParse(row.value);
-    if (!parsed.success || !parsed.data.enabled || !parsed.data.endpoint) {
-      continue;
-    }
+  for (const conn of otlpConnections) {
     if (needComma) {
       writer.write(",");
     }
-    writer.write(
-      JSON.stringify({
-        __debug: {
-          workspace: { id: row.workspaceId },
-        },
-        id: `${row.workspaceId}_otlp`,
-        workspaceId: row.workspaceId,
-        special: "otlp",
-        type: "otlp",
-        options: {
-          mode: "batch",
-          // fraction of a minute — logs should land in the backend reasonably fresh
-          frequency: 0.5,
-          deduplicate: false,
-        },
-        updatedAt: row.updatedAt,
-        credentials: {
-          endpoint: parsed.data.endpoint,
-          headers: parsed.data.headers,
-        },
-      })
-    );
+    writer.write(JSON.stringify(conn));
     needComma = true;
   }
 
