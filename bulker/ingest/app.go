@@ -71,6 +71,24 @@ func (a *Context) InitContext(settings *appbase.AppSettings) error {
 	}
 	a.producer.Start()
 
+	// Live Events observability export (JITSU-138): fan exportable records out
+	// to the workspace's otlp destination topic + billing. Fire-and-forget
+	// (no backpressure wait) — export never delays ingestion
+	a.eventsLogService = &eventslog.MultiEventsLogService{Services: []eventslog.EventsLogService{
+		a.eventsLogService,
+		eventslog.NewKafkaEventsLogService(eventslog.KafkaEventsLogConfig{
+			KafkaTopicPrefix:     a.config.KafkaTopicPrefix,
+			MetricsDestinationId: a.config.MetricsDestinationId,
+			OtlpEnabled: func(workspaceId string) bool {
+				data := a.repository.GetData()
+				return data != nil && data.IsOtlpExportEnabled(workspaceId)
+			},
+			Produce: func(topic string, key string, payload []byte) {
+				_ = a.producer.ProduceAsync(topic, key, payload, nil, kafka.PartitionAny, "", false, 0)
+			},
+		}),
+	}}
+
 	a.backupsLogger = NewBackupLogger(a.config)
 	router := NewRouter(a, partitionSelector)
 	a.server = &http.Server{
