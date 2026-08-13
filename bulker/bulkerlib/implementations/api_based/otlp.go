@@ -276,7 +276,7 @@ func (o *OtlpBulker) Upload(reader io.Reader, _ string, _ int, _ map[string]any)
 		switch {
 		case statusCode >= 200 && statusCode < 300:
 			return statusCode, respBody, nil
-		case statusCode == 429 || statusCode == 500 || statusCode == 502 || statusCode == 503:
+		case statusCode == 429 || statusCode == 500 || statusCode == 502 || statusCode == 503 || statusCode == 504:
 			// standard OTLP retryable statuses: retry in-process, and if the
 			// budget runs out the returned error sends the batch through the
 			// batch consumer's retry-topic machinery

@@ -220,17 +220,19 @@ func TestOtlpUploadPermanentErrorNoRetry(t *testing.T) {
 }
 
 func TestOtlpUploadTransientExhaustsRetries(t *testing.T) {
-	var requests atomic.Int32
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		requests.Add(1)
-		w.WriteHeader(429)
-	}))
-	defer server.Close()
+	for _, transientStatus := range []int{429, 504} {
+		var requests atomic.Int32
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			requests.Add(1)
+			w.WriteHeader(transientStatus)
+		}))
 
-	b := newTestOtlpBulker(t, server.URL)
-	_, _, err := b.Upload(strings.NewReader(otlpEnvelopeLine()), "live_events", 1, nil)
-	require.Error(t, err)
-	require.Equal(t, int32(len(retryDelaysMs)), requests.Load())
+		b := newTestOtlpBulker(t, server.URL)
+		_, _, err := b.Upload(strings.NewReader(otlpEnvelopeLine()), "live_events", 1, nil)
+		require.Error(t, err)
+		require.Equal(t, int32(len(retryDelaysMs)), requests.Load())
+		server.Close()
+	}
 }
 
 func TestOtlpUploadEmptyBatch(t *testing.T) {
