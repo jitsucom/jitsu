@@ -11,12 +11,11 @@ export const DataRetentionSettings = z.object({
   customMongoDb: z.string().optional(),
   disableS3Archive: z.coerce.boolean().default(false).optional(),
   /**
-   * Event-archive retention in hours; setting it migrates the workspace to
-   * the GCS archive with enforced retention, 0 meaning "no archive at all"
-   * (the existing archive drains). Absent = unmigrated: today's S3 behavior,
-   * `nobackup` feature flag as the only off switch, no implicit default.
-   * ADMIN-SET ONLY — the workspace-options POST endpoint strips it from
-   * member requests. See resolveBackupMode().
+   * Event-archive retention in hours; 0 means "no archive at all" (the
+   * existing archive drains). Absent falls back to `nobackup` (= 0) and then
+   * to DEFAULT_BACKUP_RETENTION_HOURS, so a row is only needed to override
+   * the default. ADMIN-SET ONLY — the workspace-options POST endpoint strips
+   * it from member requests. See resolveBackupMode().
    */
   backupRetentionHours: z.coerce.number().min(0).optional(),
   pendingUpdate: z.coerce.boolean().default(false).optional(),
@@ -35,26 +34,30 @@ export const defaultDataRetentionSettings: DataRetentionSettings = {
 };
 
 /**
- * Intended default retention (90 days) for the eventual fleet-wide backfill.
- * NOT applied implicitly: a workspace without an explicit setting is
- * "unmigrated" and keeps today's S3 behavior — see {@link resolveBackupMode}.
+ * Fleet default retention (90 days), applied to any workspace without an
+ * explicit `backupRetentionHours` — see {@link resolveBackupMode}.
  */
 export const DEFAULT_BACKUP_RETENTION_HOURS = 90 * 24;
 
 /**
- * Migration gate (per-workspace): an explicit `backupRetentionHours` in the
- * `WorkspaceOptions(namespace='data-retention')` JSON migrates the workspace
- * to the GCS event archive with enforced retention (`0` = no archive at all;
- * the existing archive drains). Without it the workspace is UNMIGRATED and
- * keeps today's behavior: S3 archive, no retention enforcement, `nobackup`
- * feature flag as the only off switch.
+ * Resolves a workspace's event-archive retention. Every workspace archives to
+ * GCS with an enforced retention; there is no unmigrated/legacy-S3 mode left
+ * (the fleet backfill completed 2026-08-13, and the default now covers
+ * anything without an explicit row — including newly created workspaces).
+ *
+ * Order: explicit `backupRetentionHours` -> `nobackup` (permanent alias for
+ * 0) -> DEFAULT_BACKUP_RETENTION_HOURS. `0` = no archive at all; it drains.
  *
  * The ee billing server mirrors this logic (`lib/data-retention.ts` in
  * jitsu-cloud-billing) to emit bulker backup connections and manage bucket
  * lifecycle rules — keep the two in sync. The raw value is parsed loosely
  * (numbers or numeric strings) because rows are written through
  * `z.coerce.number()` and may predate this field; garbage or negative values
- * are treated as unset, i.e. unmigrated.
+ * are treated as unset, i.e. they fall through to `nobackup` then the default.
+ *
+ * The `migrated: false` variant is unreachable now; it is kept only so the
+ * legacy-S3 branches still typecheck until they are deleted along with the
+ * rest of the legacy path.
  */
 export type BackupMode = { migrated: true; retentionHours: number } | { migrated: false; legacyBackupEnabled: boolean };
 
@@ -72,12 +75,16 @@ export function resolveBackupMode(
   }
   if (typeof raw === "string" && /^[0-9]+(\.[0-9]+)?$/.test(raw.trim())) {
     const hours = Number(raw.trim());
-    // A long digit string coerces to Infinity — still malformed, still unmigrated.
+    // A long digit string coerces to Infinity — still malformed, so fall through.
     if (Number.isFinite(hours)) {
       return { migrated: true, retentionHours: hours };
     }
   }
-  return { migrated: false, legacyBackupEnabled: !(featuresEnabled ?? []).includes("nobackup") };
+  // `nobackup` stays a permanent alias for "no archive at all".
+  if ((featuresEnabled ?? []).includes("nobackup")) {
+    return { migrated: true, retentionHours: 0 };
+  }
+  return { migrated: true, retentionHours: DEFAULT_BACKUP_RETENTION_HOURS };
 }
 
 /** Whether ingest should copy this workspace's events to the backup topic. */
