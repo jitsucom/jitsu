@@ -78,11 +78,13 @@ export function unmaskObservabilityExportsSettings(
   settings: ObservabilityExportsSettings,
   stored: ObservabilityExportsSettings | undefined
 ): ObservabilityExportsSettings {
-  const storedByName = new Map((stored?.headers || []).map(h => [h.name, h.value]));
+  // case-insensitive match: header names are case-insensitive in HTTP and in
+  // the schema's duplicate check, so re-casing a name must not drop its secret
+  const storedByName = new Map((stored?.headers || []).map(h => [h.name.toLowerCase(), h.value]));
   return {
     ...settings,
     headers: settings.headers.map(h =>
-      h.value === MASKED_SECRET ? { name: h.name, value: storedByName.get(h.name) ?? "" } : h
+      h.value === MASKED_SECRET ? { name: h.name, value: storedByName.get(h.name.toLowerCase()) ?? "" } : h
     ),
   };
 }

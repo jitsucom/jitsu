@@ -89,6 +89,14 @@ describe("header value masking", () => {
     );
     expect(unmasked.headers[0].value).toBe("");
   });
+
+  it("keeps the stored value when only the header name casing changes", () => {
+    const unmasked = unmaskObservabilityExportsSettings(
+      { ...stored, headers: [{ name: "DD-API-KEY", value: MASKED_SECRET }] },
+      stored
+    );
+    expect(unmasked.headers[0].value).toBe("real-secret");
+  });
 });
 
 // Reference encodings verified against protoc --encode with the OTLP protos:
