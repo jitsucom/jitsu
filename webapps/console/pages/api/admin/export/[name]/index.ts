@@ -158,12 +158,20 @@ async function getEnabledObservabilityExports(): Promise<
 > {
   const rows = await db.prisma().workspaceOptions.findMany({
     where: { namespace: observabilityExportsNamespace, workspace: { deleted: false } },
+    // (workspaceId, namespace) has no unique constraint (see the data-retention
+    // comment above): ascending order + Map overwrite = freshest row wins,
+    // deterministically; id as same-millisecond tiebreaker
+    orderBy: [{ updatedAt: "asc" }, { id: "asc" }],
   });
   const result = new Map<string, { settings: ObservabilityExportsSettings; updatedAt: Date }>();
   for (const row of rows) {
     const parsed = ObservabilityExportsSettings.safeParse(row.value);
     if (parsed.success && parsed.data.enabled && parsed.data.endpoint) {
       result.set(row.workspaceId, { settings: parsed.data, updatedAt: row.updatedAt });
+    } else {
+      // a stale duplicate must not shadow-delete a newer enabled row — only a
+      // newer disabled/invalid row turns the workspace off
+      result.delete(row.workspaceId);
     }
   }
   return result;

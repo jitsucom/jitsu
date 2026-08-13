@@ -83,6 +83,11 @@ export function createKafkaEventsStore(): EventsStore {
       });
   };
 
+  // connect eagerly so the first exportable record after process start isn't
+  // dropped waiting for the lazy connect (fire-and-forget still applies during
+  // reconnect windows — same acceptance class as CH buffer loss on crash)
+  ensureProducer();
+
   const publish = (record: ExportRecord) => {
     // the otlp connection's own records never export (self-export loop guard)
     if (record.actorId.endsWith(OTLP_DESTINATION_SUFFIX)) {
