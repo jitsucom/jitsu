@@ -1,5 +1,5 @@
 import { Button, Input, Skeleton, Switch } from "antd";
-import { useAppConfig, useWorkspace, useWorkspaceRole } from "../../lib/context";
+import { useWorkspace, useWorkspaceRole } from "../../lib/context";
 import { useQuery } from "@tanstack/react-query";
 import { get } from "../../lib/useApi";
 import { ErrorCard } from "../GlobalError/GlobalError";
@@ -16,30 +16,8 @@ import { EditorTitle } from "../ConfigObjectEditor/EditorTitle";
 import { ConfigTestResult } from "../ConfigObjectEditor/ConfigEditor";
 import { useRouter } from "next/router";
 
-const planTiers = { free: 0, business: 1, enterprise: 2 } as const;
-type OtlpExportPlan = keyof typeof planTiers;
-
-// planId is an opaque string (Stripe product ids for self-service plans);
-// tiers: free < business (any paid plan) < enterprise
-function workspacePlanTier(settings: { planId?: string; planKind?: string }): number {
-  if (settings.planId === "$admin") {
-    return planTiers.enterprise;
-  }
-  if (settings.planKind === "enterprise" || settings.planId === "enterprise") {
-    return planTiers.enterprise;
-  }
-  return settings.planId && settings.planId !== "free" ? planTiers.business : planTiers.free;
-}
-
-const upgradePlans: Record<OtlpExportPlan, string[]> = {
-  free: [],
-  business: ["paid", "enterprise"],
-  enterprise: ["enterprise"],
-};
-
 export const ObservabilityExportsEditorLoader: React.FC<{}> = () => {
   const workspace = useWorkspace();
-  const appConfig = useAppConfig();
   const billing = useBilling();
   const router = useRouter();
   const settings = useQuery(
@@ -47,11 +25,10 @@ export const ObservabilityExportsEditorLoader: React.FC<{}> = () => {
     () => get(`/api/workspace/${workspace.id}/observability-exports`),
     { retry: false, cacheTime: 0, refetchOnWindowFocus: false }
   );
-  const requiredPlan: OtlpExportPlan = appConfig.otlpExportBillingPlan || "free";
-  // gate follows the Workspace Domains convention: applies only when billing is
-  // enabled (self-hosted deployments have no plans to compare against)
-  const planTooLow =
-    !billing.loading && billing.enabled && workspacePlanTier(billing.settings) < planTiers[requiredPlan];
+  // gated by the stripe plan's observabilityExportsEnabled feature flag, same
+  // mechanism as dataRetentionEditorEnabled / profileBuilderEnabled; applies
+  // only when billing is enabled (self-hosted deployments have no plans)
+  const planTooLow = !billing.loading && billing.enabled && !billing.settings?.observabilityExportsEnabled;
   return (
     <div className="flex justify-center">
       <div className="max-w-4xl grow">
@@ -59,7 +36,7 @@ export const ObservabilityExportsEditorLoader: React.FC<{}> = () => {
         {billing.loading || settings.isLoading ? (
           <Skeleton active={true} />
         ) : planTooLow ? (
-          <UpgradeDialog featureDescription="Observability exports" availableInPlans={upgradePlans[requiredPlan]} />
+          <UpgradeDialog featureDescription="Observability exports" />
         ) : settings.isError ? (
           <ErrorCard error={settings.error} />
         ) : settings.data ? (

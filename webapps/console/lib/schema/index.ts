@@ -105,6 +105,9 @@ export const BillingSettings = z.object({
   //if subscription starts some time in the future, for enterprise plans only
   futureSubscriptionDate: z.string().optional(),
   profileBuilderEnabled: z.boolean().default(false).optional(),
+  /** Live Events observability export (JITSU-138); comes from stripe plan
+   * metadata via billing/settings, like the other per-feature flags */
+  observabilityExportsEnabled: z.boolean().default(false).optional(),
   isLegacyPlan: z.boolean().default(false).optional(),
   //in-app banners (JITSU-88); attached from the billing/settings response, not part of subscriptionStatus
   banners: z.array(BillingBanner).optional(),
@@ -121,6 +124,7 @@ export const noRestrictions: BillingSettings = {
   dailyActiveSyncsOverage: 100,
   destinationEvensPerMonth: 100_000_000_000,
   profileBuilderEnabled: true,
+  observabilityExportsEnabled: true,
 };
 
 /**
@@ -166,9 +170,6 @@ export const AppConfig = z.object({
   migrationWizardEnabled: z.boolean().optional(),
   /** Booking link for the migration report's call CTA (MIGRATION_CALENDLY_URL env). */
   migrationCalendlyUrl: z.string().optional(),
-  /** Minimum billing plan for the Live Events observability export
-   * (OTLP_EXPORT_BILLING_PLAN env, JITSU-138). */
-  otlpExportBillingPlan: z.enum(["free", "business", "enterprise"]).optional(),
   publicEndpoints: z.object({
     protocol: z.enum(["http", "https"]),
     host: z.string(),

@@ -75,11 +75,6 @@ const ServerEnvSchema = ClientEnvSchema.extend({
   // Booking link on the migration report's call CTA (JITSU-128)
   MIGRATION_CALENDLY_URL: z.string().optional(),
 
-  // Minimum billing plan for the Live Events observability export (JITSU-138):
-  // free = available to everyone (default), business = any paid plan,
-  // enterprise = enterprise plans only
-  OTLP_EXPORT_BILLING_PLAN: z.enum(["free", "business", "enterprise"]).default("free"),
-
   // Extra allowed CORS origins for the migration proxy (comma-separated;
   // jitsu.com and *.localhost are always allowed)
   MIGRATION_CORS_ORIGINS: z.string().optional(),
