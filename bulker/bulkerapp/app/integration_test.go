@@ -17,6 +17,7 @@ import (
 	"os"
 	"path"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 )
@@ -48,21 +49,70 @@ var testConfigSource string
 //go:embed test_data/bulker.env
 var testBulkerEnv string
 
-func initApp(t *testing.T, envVars map[string]string) (app *appbase.App[Config], kafkaContainer *kafka.KafkaContainer, postgresContainer *testcontainers.PostgresContainer) {
-	var err error
-	postgresContainer, err = testcontainers.NewPostgresContainer(context.Background())
-	if err != nil {
-		t.Fatalf("could not start postgres container: %v", err)
-		return
+// Postgres and Kafka are shared by every test in this package rather than
+// started per test. Kafka can't be per-test anyway — its compose stack has a
+// fixed id, fixed container names and a fixed host port, and it tears down any
+// existing stack on the way up — and starting the pair three times was the
+// largest single cost in bulkerapp's runtime.
+//
+// The price is that the tests are no longer isolated from each other: they run
+// serially and must keep using distinct table names, or they will count each
+// other's rows in Postgres and share topics in Kafka, which are derived from
+// the destination and table name. For the same reason the package no longer
+// survives -count=2: a second pass finds the tables already populated.
+var (
+	sharedContainersOnce sync.Once
+	sharedPostgres       *testcontainers.PostgresContainer
+	sharedKafka          *kafka.KafkaContainer
+	sharedContainersErr  error
+)
+
+func sharedContainers(t *testing.T) *testcontainers.PostgresContainer {
+	sharedContainersOnce.Do(func() {
+		sharedPostgres, sharedContainersErr = testcontainers.NewPostgresContainer(context.Background())
+		if sharedContainersErr != nil {
+			sharedContainersErr = fmt.Errorf("could not start postgres container: %v", sharedContainersErr)
+			return
+		}
+		sharedKafka, sharedContainersErr = kafka.NewKafkaContainer(context.Background())
+		if sharedContainersErr != nil {
+			sharedContainersErr = fmt.Errorf("could not start kafka container: %v", sharedContainersErr)
+		}
+	})
+	if sharedContainersErr != nil {
+		t.Fatalf("%v", sharedContainersErr)
 	}
-	kafkaContainer, err = kafka.NewKafkaContainer(context.Background())
-	if err != nil {
-		t.Fatalf("could not start kafka container: %v", err)
-		return
-	}
+	return sharedPostgres
+}
+
+// TestMain tears the shared containers down once everything has run. They start
+// lazily, so a run that only touches this package's unit tests never pays for
+// them.
+func TestMain(m *testing.M) {
+	os.Exit(runTests(m))
+}
+
+// runTests exists so the containers are closed by a defer: os.Exit in TestMain
+// skips defers, and a panic out of m.Run() would otherwise leak a Postgres
+// holding a fixed host port and a Kafka compose stack holding a fixed id —
+// enough to break the next run on a reused runner.
+func runTests(m *testing.M) int {
+	defer func() {
+		if sharedPostgres != nil {
+			_ = sharedPostgres.Close()
+		}
+		if sharedKafka != nil {
+			_ = sharedKafka.Close()
+		}
+	}()
+	return m.Run()
+}
+
+func initApp(t *testing.T, envVars map[string]string) (app *appbase.App[Config], postgresContainer *testcontainers.PostgresContainer) {
+	postgresContainer = sharedContainers(t)
 	dir := t.TempDir()
 	cfg := strings.ReplaceAll(testConfigSource, "[[POSTGRES_PORT]]", fmt.Sprint(postgresContainer.Port))
-	err = os.WriteFile(path.Join(dir, "config.yaml"), []byte(cfg), 0644)
+	err := os.WriteFile(path.Join(dir, "config.yaml"), []byte(cfg), 0644)
 	if err != nil {
 		t.Fatalf("could not write config.yaml to temp file: %v", err)
 	}
@@ -106,18 +156,13 @@ func initApp(t *testing.T, envVars map[string]string) (app *appbase.App[Config],
 
 // Test streams in autocommit and bath mode. Both with good batches and batches with primary key violation error
 func TestGoodAndBadStreams(t *testing.T) {
-	app, kafkaContainer, postgresContainer := initApp(t, map[string]string{"BULKER_MESSAGES_RETRY_COUNT": "0",
+	app, postgresContainer := initApp(t, map[string]string{"BULKER_MESSAGES_RETRY_COUNT": "0",
 		"BULKER_TOPIC_MANAGER_REFRESH_PERIOD_SEC": "1",
 		"BULKER_BATCH_RUNNER_DEFAULT_PERIOD_SEC":  "1"})
 	t.Cleanup(func() {
+		// Only the app is per-test; the containers are shared and torn down in TestMain.
 		app.Exit(appbase.SIG_SHUTDOWN_FOR_TESTS)
 		time.Sleep(5 * time.Second)
-		if postgresContainer != nil {
-			_ = postgresContainer.Close()
-		}
-		if kafkaContainer != nil {
-			_ = kafkaContainer.Close()
-		}
 	})
 
 	tests := []AppTestConfig{
@@ -186,18 +231,13 @@ func TestGoodAndBadStreams(t *testing.T) {
 }
 
 func TestBatchSizeBytes(t *testing.T) {
-	app, kafkaContainer, postgresContainer := initApp(t, map[string]string{"BULKER_MESSAGES_RETRY_COUNT": "0",
+	app, postgresContainer := initApp(t, map[string]string{"BULKER_MESSAGES_RETRY_COUNT": "0",
 		"BULKER_TOPIC_MANAGER_REFRESH_PERIOD_SEC": "1",
 		"BULKER_BATCH_RUNNER_DEFAULT_PERIOD_SEC":  "1"})
 	t.Cleanup(func() {
+		// Only the app is per-test; the containers are shared and torn down in TestMain.
 		app.Exit(appbase.SIG_SHUTDOWN_FOR_TESTS)
 		time.Sleep(5 * time.Second)
-		if postgresContainer != nil {
-			_ = postgresContainer.Close()
-		}
-		if kafkaContainer != nil {
-			_ = kafkaContainer.Close()
-		}
 	})
 
 	tests := []AppTestConfig{
@@ -220,9 +260,13 @@ func TestBatchSizeBytes(t *testing.T) {
 	}
 }
 
-// Test that retry consumer works
+// Test that retry consumer works.
+//
+// The table names here have to differ from every other test's: Postgres and
+// Kafka are shared across the package, so reusing TestGoodAndBadStreams'
+// good_batch/good_stream would count its rows and replay its topics.
 func TestEventsRetry(t *testing.T) {
-	app, kafkaContainer, postgresContainer := initApp(t, map[string]string{"BULKER_MESSAGES_RETRY_COUNT": "20",
+	app, postgresContainer := initApp(t, map[string]string{"BULKER_MESSAGES_RETRY_COUNT": "20",
 		"BULKER_BATCH_RUNNER_DEFAULT_RETRY_PERIOD_SEC":     "5",
 		"BULKER_BATCH_RUNNER_DEFAULT_RETRY_BATCH_FRACTION": "1",
 		"BULKER_RETRY_CONSUMER_BATCH_SIZE":                 "1",
@@ -230,18 +274,21 @@ func TestEventsRetry(t *testing.T) {
 		"BULKER_TOPIC_MANAGER_REFRESH_PERIOD_SEC":          "1",
 		"BULKER_BATCH_RUNNER_DEFAULT_PERIOD_SEC":           "1"})
 	t.Cleanup(func() {
+		// Only the app is per-test; the containers are shared and torn down in TestMain.
 		app.Exit(appbase.SIG_SHUTDOWN_FOR_TESTS)
 		time.Sleep(5 * time.Second)
-		if postgresContainer != nil {
-			_ = postgresContainer.Close()
-		}
-		if kafkaContainer != nil {
-			_ = kafkaContainer.Close()
-		}
+	})
+	t.Cleanup(func() {
+		// This test stops Postgres mid-run and restarts it a few steps later. A
+		// failed assertion in between calls FailNow, so that restart can be
+		// skipped — and the container is shared now, so it would stay down for
+		// every test after this one and bury the original failure under
+		// connection errors.
+		_ = postgresContainer.Start()
 	})
 	tests := []AppTestConfig{
 		{
-			name:                       "good_batch",
+			name:                       "retry_batch",
 			destinationId:              "batch_postgres",
 			eventsFile:                 "test_data/goodbatch.ndjson",
 			token:                      "21a2ae36-32994870a9fbf2f61ea6f6c8",
@@ -261,7 +308,7 @@ func TestEventsRetry(t *testing.T) {
 			mode:              "batch",
 		},
 		{
-			name:                       "good_stream",
+			name:                       "retry_stream",
 			destinationId:              "stream_postgres",
 			eventsFile:                 "test_data/goodbatch.ndjson",
 			token:                      "21a2ae36-32994870a9fbf2f61ea6f6c8",

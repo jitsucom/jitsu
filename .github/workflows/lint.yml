@@ -326,6 +326,43 @@ jobs:
             bulker/test_report.html
             bulker/test_report.json
 
+  bulker-test-result:
+    # The `default-branch-protection` ruleset requires a check called exactly
+    # "🧪 Bulker Test". Sharding renamed that check to "🧪 Bulker Test (app)",
+    # "… (redshift)" and so on, so the required one would never report again and
+    # every PR would sit unmergeable. This job restores it as a single gate over
+    # the whole matrix; the ruleset needs no edit.
+    #
+    # Adding a shard to the matrix therefore does not require touching the
+    # ruleset either — this job keeps covering it.
+    name: 🧪 Bulker Test
+    needs: [bulker-test]
+    # Not the default (which skips when a dependency fails, leaving the required
+    # check pending forever rather than red), and not always() either: with
+    # cancel-in-progress above, every re-push cancels a run, and always() would
+    # publish this required check as failed for it. !cancelled() still fires when
+    # a shard fails, which is the case that has to turn the check red.
+    if: ${{ !cancelled() }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: 🔍 Check shard results
+        env:
+          RESULT: ${{ needs.bulker-test.result }}
+        run: |
+          # A matrix job's result is success only when every shard succeeded.
+          # On a PR that touches no bulker code the paths filter skips every
+          # step, but the job itself still reports success — 'skipped' can only
+          # happen if someone later puts a job-level if: on bulker-test, and it
+          # should pass then too. Anything else — failure, cancelled — must not.
+          if [ "$RESULT" = "success" ] || [ "$RESULT" = "skipped" ]; then
+            echo "All bulker test shards passed (result: $RESULT)."
+          else
+            echo "::error::Bulker test shards did not pass (result: $RESULT). See the per-shard jobs for detail."
+            exit 1
+          fi
+
   notify:
     name: 📢 Notify
     needs: [lint-and-format, bulker-test]
