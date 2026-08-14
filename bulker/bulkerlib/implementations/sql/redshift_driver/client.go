@@ -21,5 +21,6 @@ func newRedshiftDataClient(ctx context.Context, cfg *RedshiftConfig, opts ...fun
 		return nil, err
 	}
 	client := redshiftdata.NewFromConfig(awsCfg, cfg.Opts()...)
-	return client, nil
+	// throttles wrapped in non-retryable errors bypass the SDK retryer — see throttle.go
+	return newThrottleRetryClient(client, throttleRetryMaxAttempts), nil
 }
