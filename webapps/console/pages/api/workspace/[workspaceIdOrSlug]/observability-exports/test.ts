@@ -63,8 +63,10 @@ export default createRoute()
       `Workspace ${workspaceIdOrSlug} not found`
     );
     await verifyAccessWithRole(user, workspace.id, "editEntities");
+    // freshest row wins deterministically — duplicates can exist, see index.ts
     const row = await db.prisma().workspaceOptions.findFirst({
       where: { workspaceId: workspace.id, namespace: observabilityExportsNamespace },
+      orderBy: [{ updatedAt: "desc" }, { id: "desc" }],
     });
     const parsed = row ? ObservabilityExportsSettings.safeParse(row.value) : undefined;
     const stored = parsed?.success ? parsed.data : defaultObservabilityExportsSettings;

@@ -19,11 +19,20 @@ async function getWorkspace(workspaceIdOrSlug: string) {
 }
 
 async function getStoredSettings(workspaceId: string) {
-  const row = await db.prisma().workspaceOptions.findFirst({
+  // (workspaceId, namespace) has no unique constraint, so concurrent creates can
+  // leave duplicate rows (same race as data-retention). Read the freshest row
+  // deterministically; PUT heals by updating it and deleting the rest
+  const rows = await db.prisma().workspaceOptions.findMany({
     where: { workspaceId, namespace: observabilityExportsNamespace },
+    orderBy: [{ updatedAt: "desc" }, { id: "desc" }],
   });
+  const row = rows[0];
   const parsed = row ? ObservabilityExportsSettings.safeParse(row.value) : undefined;
-  return { row, settings: parsed?.success ? parsed.data : defaultObservabilityExportsSettings };
+  return {
+    row,
+    staleRows: rows.slice(1),
+    settings: parsed?.success ? parsed.data : defaultObservabilityExportsSettings,
+  };
 }
 
 export default createRoute()
@@ -47,7 +56,7 @@ export default createRoute()
   .handler(async ({ query: { workspaceIdOrSlug }, user, body, req }) => {
     const workspace = await getWorkspace(workspaceIdOrSlug);
     await verifyAccessWithRole(user, workspace.id, "editEntities");
-    const { row, settings: stored } = await getStoredSettings(workspace.id);
+    const { row, staleRows, settings: stored } = await getStoredSettings(workspace.id);
     const newSettings = unmaskObservabilityExportsSettings(ObservabilityExportsSettings.parse(body), stored);
     if (row) {
       await db.prisma().workspaceOptions.update({ where: { id: row.id }, data: { value: newSettings } });
@@ -55,6 +64,10 @@ export default createRoute()
       await db.prisma().workspaceOptions.create({
         data: { workspaceId: workspace.id, namespace: observabilityExportsNamespace, value: newSettings },
       });
+    }
+    if (staleRows.length > 0) {
+      // self-heal duplicates left by concurrent creates
+      await db.prisma().workspaceOptions.deleteMany({ where: { id: { in: staleRows.map(r => r.id) } } });
     }
     // audit with header values masked — workspaceAuditLog stores `changes` as passed
     await workspaceAuditLog(
