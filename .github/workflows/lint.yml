@@ -212,13 +212,58 @@ jobs:
           fi
 
       - name: Set up Go
+        id: go
         if: steps.changes.outputs.bulker == 'true' && steps.shard.outputs.run == 'true'
         uses: actions/setup-go@v6
         with:
           go-version: '1.26'
-          cache-dependency-path: "bulker/**/*.sum"
           check-latest: true
-#          cache: false
+          # Cached by the step below instead: setup-go derives one key from the
+          # go.sum hash, so all six shards would contend for a single entry —
+          # only the first to finish saves ("another job may be creating this
+          # cache"), and the rest then restore a cache built for someone else's
+          # packages. Compiling was ~46% of the app shard's runtime because of it.
+          cache: false
+
+      # Modules are fully determined by go.sum and identical for every shard, so
+      # they share one entry — the contention that breaks the build cache is
+      # harmless here, since whichever shard wins the save stores exactly what
+      # the others would have. The restore-key keeps a dependency bump from
+      # re-downloading the whole module set on all six shards at once — which is
+      # also why the toolchain version is deliberately absent here, unlike in the
+      # build cache below: downloaded modules don't depend on the compiler, so
+      # pinning them to it would throw the fallback away on every Go release.
+      - name: 💾 Restore Go module cache
+        if: steps.changes.outputs.bulker == 'true' && steps.shard.outputs.run == 'true'
+        uses: actions/cache@v5
+        with:
+          path: ~/go/pkg/mod
+          key: bulker-gomod-${{ hashFiles('bulker/**/*.sum') }}
+          restore-keys: |
+            bulker-gomod-
+
+      # Build output differs per shard, so this one needs its own key, and the
+      # run id keeps it fresh: actions/cache skips the save on an exact hit, so
+      # a key made only of go.sum would be written once and then never updated
+      # again — every later run restoring a cache that covers less and less of
+      # what actually changed. restore-keys supplies the warm start; the run id
+      # only decides what gets written back.
+      #
+      # The toolchain version is in both keys because check-latest floats it,
+      # and build entries from an older compiler are dead weight.
+      #
+      # This does write six entries per bulker run, against a 10GB repo budget
+      # shared with the turbo caches. It's bounded by the paths-filter above —
+      # nothing here runs unless the PR touches bulker — but if turbo starts
+      # missing, this is what to look at first.
+      - name: 💾 Restore Go build cache
+        if: steps.changes.outputs.bulker == 'true' && steps.shard.outputs.run == 'true'
+        uses: actions/cache@v5
+        with:
+          path: ~/.cache/go-build
+          key: bulker-gobuild-${{ matrix.shard }}-${{ steps.go.outputs.go-version }}-${{ hashFiles('bulker/**/*.sum') }}-${{ github.run_id }}
+          restore-keys: |
+            bulker-gobuild-${{ matrix.shard }}-${{ steps.go.outputs.go-version }}-
 
       - name: 🧪 Run Bulker tests
         if: steps.changes.outputs.bulker == 'true' && steps.shard.outputs.run == 'true'
@@ -260,7 +305,10 @@ jobs:
           BULKER_TEST_SNOWFLAKE: ${{ matrix.shard == 'snowflake' && secrets.BULKER_TEST_SNOWFLAKE || '' }}
           BULKER_TEST_REDSHIFT_IAM: ${{ matrix.shard == 'redshift' && secrets.BULKER_TEST_REDSHIFT_IAM || '' }}
           BULKER_TEST_MOTHERDUCK: ${{ matrix.shard == 'motherduck' && secrets.BULKER_TEST_MOTHERDUCK || '' }}
-        run: go test -count=1 -timeout 10m -run TestCleanupTestRun ./bulkerlib/implementations/sql
+        # -v because this step is continue-on-error: without it a pass prints
+        # nothing and a failure is easy to miss, so the log is the only place a
+        # leaked schema would ever show up.
+        run: go test -count=1 -v -timeout 10m -run TestCleanupTestRun ./bulkerlib/implementations/sql
 
       - name: 📊 Generate test report
         if: always() && steps.changes.outputs.bulker == 'true' && steps.shard.outputs.run == 'true'

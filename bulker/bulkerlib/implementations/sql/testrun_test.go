@@ -96,7 +96,15 @@ func withTestSchema(configId string, configJson string, schemaKey string) string
 		return configJson
 	}
 	originalConfigs[configId] = configJson
-	return withSchema(configJson, schemaKey, testRunSchema())
+	schema := testRunSchema()
+	if configId == SnowflakeBulkerTypeId {
+		// Snowflake folds unquoted identifiers to upper case and reports them
+		// back that way. TestNaming's expectedTableCaseChecking cases compare
+		// the default namespace verbatim against what the warehouse returns, so
+		// the config has to carry the case Snowflake will echo.
+		schema = strings.ToUpper(schema)
+	}
+	return withSchema(configJson, schemaKey, schema)
 }
 
 // schemaCreator reuses each adapter's own create-schema helper, which isn't on
