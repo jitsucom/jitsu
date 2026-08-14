@@ -120,11 +120,58 @@ jobs:
         run: docker stop builder && docker rm builder
 
   bulker-test:
-    name: 🧪 Bulker Test
+    # One shard per warehouse. Redshift alone is ~47% of the suite's runtime, so
+    # running the destinations in one job made every change wait on it; split up,
+    # the local-container shard reports back in a couple of minutes and each
+    # cloud warehouse is only as slow as itself.
+    #
+    # `configs` is BULKER_TEST_CONFIGS, which the sql suite applies before it
+    # creates anything — that is what stops a cloud shard from starting (and
+    # waiting ~43s on) the local containers it will never use. A shard that names
+    # a destination it can't configure fails loudly rather than passing green
+    # with zero tests run, so each shard also gets only the secret it needs.
+    name: 🧪 Bulker Test (${{ matrix.shard }})
     timeout-minutes: 60
     runs-on: ubuntu-latest
     permissions:
       contents: read
+    strategy:
+      # A broken warehouse shouldn't hide the results of the others.
+      fail-fast: false
+      matrix:
+        include:
+          - shard: app
+            packages: >-
+              ./jitsubase/... ./ingest/... ./kafkabase/... ./eventslog/... ./bulkerapp/...
+              ./bulkerlib ./bulkerlib/types/... ./bulkerlib/implementations
+              ./bulkerlib/implementations/api_based/... ./bulkerlib/implementations/file_storage/...
+              ./bulkerlib/implementations/sql/redshift_driver/... ./bulkerlib/implementations/sql/testcontainers/...
+          - shard: local
+            packages: ./bulkerlib/implementations/sql
+            configs: postgres,mysql,clickhouse,clickhouse_cluster,clickhouse_cluster_noshards
+          - shard: bigquery
+            packages: ./bulkerlib/implementations/sql
+            configs: bigquery
+            needs_secrets: true
+          - shard: snowflake
+            packages: ./bulkerlib/implementations/sql
+            configs: snowflake
+            needs_secrets: true
+          - shard: redshift
+            packages: ./bulkerlib/implementations/sql
+            configs: redshift_iam
+            needs_secrets: true
+          - shard: motherduck
+            packages: ./bulkerlib/implementations/sql
+            configs: duckdb
+            needs_secrets: true
+    env:
+      # Isolates this run's warehouse objects from every other run's: the suite
+      # puts itself in a schema (dataset, on BigQuery) named after the run, so
+      # two runs in flight at once stop dropping each other's tables.
+      BULKER_TEST_RUN_ID: ${{ github.run_id }}_${{ github.run_attempt }}
+      BULKER_TEST_CONFIGS: ${{ matrix.configs }}
+      TESTCONTAINERS_RYUK_DISABLED: true
     steps:
       - name: 📥 Checkout code
         uses: actions/checkout@v6
@@ -145,8 +192,27 @@ jobs:
               - 'bulker/bulkerlib/**'
               - 'bulker/bulkerapp/**'
 
+      - name: 🔍 Check whether this shard can run
+        id: shard
+        env:
+          SHARD: ${{ matrix.shard }}
+          NEEDS_SECRETS: ${{ matrix.needs_secrets }}
+          EVENT_NAME: ${{ github.event_name }}
+          PR_HEAD_REPO: ${{ github.event.pull_request.head.repo.full_name }}
+          THIS_REPO: ${{ github.repository }}
+        run: |
+          # Pull requests from forks get no repository secrets, so a shard that
+          # needs warehouse credentials can only fail there. Skip it — the local
+          # and app shards still cover the change.
+          if [ "$NEEDS_SECRETS" = "true" ] && [ "$EVENT_NAME" = "pull_request" ] && [ "$PR_HEAD_REPO" != "$THIS_REPO" ]; then
+            echo "run=false" >> $GITHUB_OUTPUT
+            echo "::notice::Skipping the $SHARD shard: warehouse credentials aren't available to pull requests from forks."
+          else
+            echo "run=true" >> $GITHUB_OUTPUT
+          fi
+
       - name: Set up Go
-        if: steps.changes.outputs.bulker == 'true'
+        if: steps.changes.outputs.bulker == 'true' && steps.shard.outputs.run == 'true'
         uses: actions/setup-go@v6
         with:
           go-version: '1.26'
@@ -155,37 +221,59 @@ jobs:
 #          cache: false
 
       - name: 🧪 Run Bulker tests
-        if: steps.changes.outputs.bulker == 'true'
+        if: steps.changes.outputs.bulker == 'true' && steps.shard.outputs.run == 'true'
         working-directory: ./bulker
         env:
+          # The app shard runs the S3/GCS file storage tests; the destination
+          # shards each get only their own warehouse's credentials.
           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           AWS_DEFAULT_REGION: ${{ secrets.AWS_DEFAULT_REGION }}
-          BULKER_TEST_BIGQUERY: ${{ secrets.BULKER_TEST_BIGQUERY }}
-          BULKER_TEST_REDSHIFT_IAM: ${{ secrets.BULKER_TEST_REDSHIFT_IAM }}
-          BULKER_TEST_S3: ${{ secrets.BULKER_TEST_S3 }}
-          BULKER_TEST_MOTHERDUCK: ${{ secrets.BULKER_TEST_MOTHERDUCK }}
-          # BULKER_TEST_REDSHIFT: ${{ secrets.BULKER_TEST_REDSHIFT }}
-          BULKER_TEST_REDSHIFT_SERVERLESS: ${{ secrets.BULKER_TEST_REDSHIFT_SERVERLESS }}
-          BULKER_TEST_SNOWFLAKE: ${{ secrets.BULKER_TEST_SNOWFLAKE }}
-          BULKER_TEST_MILLION_ROWS_BATCHED: postgres
-          TESTCONTAINERS_RYUK_DISABLED: true
+          BULKER_TEST_S3: ${{ matrix.shard == 'app' && secrets.BULKER_TEST_S3 || '' }}
+          BULKER_TEST_BIGQUERY: ${{ matrix.shard == 'bigquery' && secrets.BULKER_TEST_BIGQUERY || '' }}
+          BULKER_TEST_SNOWFLAKE: ${{ matrix.shard == 'snowflake' && secrets.BULKER_TEST_SNOWFLAKE || '' }}
+          BULKER_TEST_REDSHIFT_IAM: ${{ matrix.shard == 'redshift' && secrets.BULKER_TEST_REDSHIFT_IAM || '' }}
+          BULKER_TEST_MOTHERDUCK: ${{ matrix.shard == 'motherduck' && secrets.BULKER_TEST_MOTHERDUCK || '' }}
+          # BULKER_TEST_REDSHIFT / BULKER_TEST_REDSHIFT_SERVERLESS have no value
+          # configured, so those destinations have never actually run here. They
+          # get a shard of their own once the secrets exist.
+          BULKER_TEST_MILLION_ROWS_BATCHED: ${{ matrix.shard == 'local' && 'postgres' || '' }}
+          PACKAGES: ${{ matrix.packages }}
         run: |
-          go test -parallel=10 -timeout 60m -json ./jitsubase/... ./ingest/... ./kafkabase/... ./eventslog/... ./bulkerlib/... ./bulkerapp/... > test_report.json
+          go test -parallel=10 -timeout 60m -json $PACKAGES > test_report.json
 
+      - name: 🧹 Drop this run's warehouse schemas
+        # always(), so it also fires when the job is cancelled — which, with
+        # cancel-in-progress, is what happens on every re-push. The app and local
+        # shards have nothing to drop: their state lives in throwaway containers.
+        if: always() && matrix.needs_secrets && steps.changes.outputs.bulker == 'true' && steps.shard.outputs.run == 'true'
+        # A leaked schema is worth seeing in the log, but it isn't a reason to
+        # call a passing test run failed.
+        continue-on-error: true
+        working-directory: ./bulker
+        env:
+          BULKER_TEST_CLEANUP: "true"
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: ${{ secrets.AWS_DEFAULT_REGION }}
+          BULKER_TEST_BIGQUERY: ${{ matrix.shard == 'bigquery' && secrets.BULKER_TEST_BIGQUERY || '' }}
+          BULKER_TEST_SNOWFLAKE: ${{ matrix.shard == 'snowflake' && secrets.BULKER_TEST_SNOWFLAKE || '' }}
+          BULKER_TEST_REDSHIFT_IAM: ${{ matrix.shard == 'redshift' && secrets.BULKER_TEST_REDSHIFT_IAM || '' }}
+          BULKER_TEST_MOTHERDUCK: ${{ matrix.shard == 'motherduck' && secrets.BULKER_TEST_MOTHERDUCK || '' }}
+        run: go test -count=1 -timeout 10m -run TestCleanupTestRun ./bulkerlib/implementations/sql
 
       - name: 📊 Generate test report
-        if: always() && steps.changes.outputs.bulker == 'true'
+        if: always() && steps.changes.outputs.bulker == 'true' && steps.shard.outputs.run == 'true'
         working-directory: ./bulker
         run: |
           go install github.com/vakenbolt/go-test-report@latest
           cat test_report.json | ~/go/bin/go-test-report
 
       - name: 📤 Upload test artifacts
-        if: always() && steps.changes.outputs.bulker == 'true'
+        if: always() && steps.changes.outputs.bulker == 'true' && steps.shard.outputs.run == 'true'
         uses: actions/upload-artifact@v7
         with:
-          name: bulker-test-report
+          name: bulker-test-report-${{ matrix.shard }}
           path: |
             bulker/test_report.html
             bulker/test_report.json
