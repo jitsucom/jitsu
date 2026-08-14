@@ -327,6 +327,13 @@ func (c *redshiftConnection) wait(ctx context.Context, id *string) (output *reds
 			output = nil
 			consecutiveErrors++
 			if ctx.Err() != nil || consecutiveErrors >= maxConsecutiveDescribeErrors {
+				// the statement's outcome is UNKNOWN here — it was accepted and may
+				// still be running. Callers treat this error as "statement failed"
+				// and may re-execute, so best-effort cancel the in-flight statement
+				// to keep a late completion from landing effects behind their back.
+				// (A statement that already finished is beyond help — that residual
+				// falls under the pipeline's at-least-once semantics.)
+				cancelStatement()
 				err = describeErr
 				return true
 			}
