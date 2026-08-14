@@ -1,18 +1,18 @@
-import { Alert, Button, Input, Skeleton, Switch } from "antd";
+import { Button, Input, Skeleton, Switch } from "antd";
 import { useAppConfig, useWorkspace, useWorkspaceRole } from "../../lib/context";
 import { useQuery } from "@tanstack/react-query";
 import { get } from "../../lib/useApi";
 import { ErrorCard } from "../GlobalError/GlobalError";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { ObservabilityExportsSettings } from "../../lib/shared/observability-exports";
 import { rpc } from "juava";
-import { CheckOutlined, DeleteOutlined, PlusOutlined, SendOutlined } from "@ant-design/icons";
+import { DeleteOutlined, PlusOutlined } from "@ant-design/icons";
 import { feedbackError, feedbackSuccess } from "../../lib/ui";
-import { ConfigSection } from "../DataRentionEditor/DataRentionEditor";
 import { useBilling } from "../Billing/BillingProvider";
 import { UpgradeDialog } from "../Billing/UpgradeDialog";
-
-type TestResult = { ok: boolean; status?: number; response?: string; error?: string };
+import { EditorField } from "../ConfigObjectEditor/EditorField";
+import { EditorButtons } from "../ConfigObjectEditor/EditorButtons";
+import { ConfigTestResult } from "../ConfigObjectEditor/ConfigEditor";
 
 const planTiers = { free: 0, business: 1, enterprise: 2 } as const;
 type OtlpExportPlan = keyof typeof planTiers;
@@ -62,14 +62,36 @@ export const ObservabilityExportsEditorLoader: React.FC<{}> = () => {
   );
 };
 
+// field-level errors mapped from the zod issues, keyed like the ConfigEditor
+function fieldErrors(settings: ObservabilityExportsSettings): Record<string, string> {
+  const parsed = ObservabilityExportsSettings.safeParse(settings);
+  if (parsed.success) {
+    return {};
+  }
+  const errors: Record<string, string> = {};
+  for (const issue of parsed.error.issues) {
+    const field = String(issue.path[0] ?? "");
+    if (!errors[field]) {
+      errors[field] = issue.message;
+    }
+  }
+  return errors;
+}
+
 export const ObservabilityExportsEditor: React.FC<{ obj: ObservabilityExportsSettings }> = ({ obj }) => {
   const workspace = useWorkspace();
   const role = useWorkspaceRole();
   const readonly = !role.editEntities;
+  const [original, setOriginal] = useState<ObservabilityExportsSettings>(obj);
   const [settings, setSettings] = useState<ObservabilityExportsSettings>(obj);
   const [saving, setSaving] = useState(false);
   const [testing, setTesting] = useState(false);
-  const [testResult, setTestResult] = useState<TestResult | undefined>(undefined);
+  const [showErrors, setShowErrors] = useState(false);
+
+  const isTouched = useMemo(() => JSON.stringify(settings) !== JSON.stringify(original), [settings, original]);
+  const errors = useMemo(() => fieldErrors(settings), [settings]);
+  const hasErrors = Object.keys(errors).length > 0;
+  const displayErrors = showErrors ? errors : {};
 
   const setHeader = (index: number, patch: Partial<{ name: string; value: string }>) => {
     setSettings(s => ({
@@ -78,170 +100,163 @@ export const ObservabilityExportsEditor: React.FC<{ obj: ObservabilityExportsSet
     }));
   };
 
+  const onSave = async () => {
+    setShowErrors(true);
+    if (hasErrors) {
+      feedbackError(Object.values(errors)[0]);
+      return;
+    }
+    setSaving(true);
+    try {
+      const saved = await rpc(`/api/workspace/${workspace.id}/observability-exports`, {
+        method: "PUT",
+        body: ObservabilityExportsSettings.parse(settings),
+      });
+      const parsed = ObservabilityExportsSettings.parse(saved);
+      setOriginal(parsed);
+      setSettings(parsed);
+      setShowErrors(false);
+      feedbackSuccess("Observability exports settings saved");
+    } catch (e: any) {
+      feedbackError("Failed to save observability exports settings", { error: e });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const onTest = async (): Promise<ConfigTestResult> => {
+    setShowErrors(true);
+    if (hasErrors) {
+      return { ok: false, error: Object.values(errors)[0] };
+    }
+    if (!settings.endpoint) {
+      return { ok: false, error: "OTLP logs endpoint is not configured" };
+    }
+    setTesting(true);
+    try {
+      const result = await rpc(`/api/workspace/${workspace.id}/observability-exports/test`, {
+        body: ObservabilityExportsSettings.parse(settings),
+      });
+      if (result.ok) {
+        return { ok: true };
+      }
+      return {
+        ok: false,
+        error: result.status
+          ? `Endpoint returned HTTP ${result.status}${result.response ? `: ${result.response}` : ""}`
+          : result.error || "unknown error",
+      };
+    } catch (e: any) {
+      return { ok: false, error: e.message };
+    } finally {
+      setTesting(false);
+    }
+  };
+
   return (
-    <div className="flex flex-col gap-4">
-      {readonly && (
-        <Alert message="You don't have permission to change observability exports settings" type="info" showIcon />
-      )}
-      <ConfigSection
-        title="Enabled"
-        documentation={
-          <>
-            Export Live Events to your observability backend as OpenTelemetry logs. Turning this off stops new exports.
-            Live Events inside Jitsu are unaffected.
-          </>
-        }
-      >
-        <div className="flex items-center gap-2">
+    <div className="flex justify-center">
+      <div className="max-w-4xl grow">
+        <EditorField
+          id="enabled"
+          label="Enabled"
+          help={
+            <>
+              Export Live Events to your observability backend as OpenTelemetry logs. Turning this off stops new
+              exports. Live Events inside Jitsu are unaffected.
+            </>
+          }
+        >
           <Switch
-            id="observabilityExportsEnabled"
+            id="enabled"
             checked={settings.enabled}
             disabled={readonly || saving}
             onChange={enabled => setSettings(s => ({ ...s, enabled }))}
           />
-          <label htmlFor="observabilityExportsEnabled">{settings.enabled ? "Enabled" : "Disabled"}</label>
-        </div>
-      </ConfigSection>
-      <ConfigSection
-        title="OTLP logs endpoint"
-        documentation={
-          <>
-            HTTPS URL of your OTLP/HTTP endpoint, including the logs path — usually <code>/v1/logs</code>. For Datadog,
-            use your site's OTLP intake, for example <code>https://otlp.datadoghq.com/v1/logs</code> for US1.
-          </>
-        }
-      >
-        <Input
-          placeholder="https://otlp.datadoghq.com/v1/logs"
-          value={settings.endpoint}
-          disabled={readonly || saving}
-          onChange={e => setSettings(s => ({ ...s, endpoint: e.target.value }))}
-        />
-      </ConfigSection>
-      <ConfigSection
-        title="Authentication headers"
-        documentation={
-          <>
-            Headers sent with every export request. Use them for your backend's API key — for Datadog,{" "}
-            <code>dd-api-key: &lt;your Datadog API key&gt;</code>. Values are hidden after saving and can only be
-            replaced, not read back.
-          </>
-        }
-      >
-        <div className="flex flex-col gap-2">
-          {settings.headers.map((header, i) => (
-            <div key={i} className="flex gap-2 items-center">
-              <Input
-                className="max-w-[20em]"
-                placeholder="Header name"
-                value={header.name}
-                disabled={readonly || saving}
-                onChange={e => setHeader(i, { name: e.target.value })}
-              />
-              <Input.Password
-                placeholder="Header value"
-                value={header.value}
-                disabled={readonly || saving}
-                onChange={e => setHeader(i, { value: e.target.value })}
-              />
-              <Button
-                type="text"
-                icon={<DeleteOutlined />}
-                disabled={readonly || saving}
-                onClick={() => setSettings(s => ({ ...s, headers: s.headers.filter((_, j) => j !== i) }))}
-              />
-            </div>
-          ))}
-          <div>
-            <Button
-              icon={<PlusOutlined />}
-              disabled={readonly || saving}
-              onClick={() => setSettings(s => ({ ...s, headers: [...s.headers, { name: "", value: "" }] }))}
-            >
-              Add header
-            </Button>
-          </div>
-        </div>
-      </ConfigSection>
-      <ConfigSection
-        title="Send test log"
-        documentation={
-          <>
-            Sends one test log to your endpoint and shows the response, so you can verify the URL and credentials. Test
-            logs are marked as tests and are never billed.
-          </>
-        }
-      >
-        <div className="flex flex-col gap-4">
-          <div>
-            <Button
-              icon={<SendOutlined />}
-              disabled={readonly || saving || testing || !settings.endpoint}
-              loading={testing}
-              onClick={async () => {
-                setTesting(true);
-                setTestResult(undefined);
-                try {
-                  const result = await rpc(`/api/workspace/${workspace.id}/observability-exports/test`, {
-                    body: ObservabilityExportsSettings.parse(settings),
-                  });
-                  setTestResult(result);
-                } catch (e: any) {
-                  setTestResult({ ok: false, error: e.message });
-                } finally {
-                  setTesting(false);
-                }
-              }}
-            >
-              Send test log
-            </Button>
-          </div>
-          {testResult && (
-            <Alert
-              type={testResult.ok ? "success" : "error"}
-              showIcon
-              message={
-                testResult.ok
-                  ? `Test log accepted (HTTP ${testResult.status})`
-                  : testResult.status
-                  ? `Endpoint returned HTTP ${testResult.status}`
-                  : `Test failed: ${testResult.error}`
-              }
-              description={testResult.response ? <code className="break-all">{testResult.response}</code> : undefined}
-            />
-          )}
-        </div>
-      </ConfigSection>
-      <div className="flex justify-end">
-        <Button
-          type="primary"
-          size="large"
-          icon={<CheckOutlined />}
-          disabled={readonly || saving}
-          loading={saving}
-          onClick={async () => {
-            const parsed = ObservabilityExportsSettings.safeParse(settings);
-            if (!parsed.success) {
-              feedbackError(parsed.error.issues[0]?.message || "Invalid settings");
-              return;
-            }
-            setSaving(true);
-            try {
-              const saved = await rpc(`/api/workspace/${workspace.id}/observability-exports`, {
-                method: "PUT",
-                body: parsed.data,
-              });
-              setSettings(ObservabilityExportsSettings.parse(saved));
-              feedbackSuccess("Observability exports settings saved");
-            } catch (e: any) {
-              feedbackError("Failed to save observability exports settings", { error: e });
-            } finally {
-              setSaving(false);
-            }
-          }}
+        </EditorField>
+        <EditorField
+          id="endpoint"
+          label="OTLP logs endpoint"
+          required={settings.enabled}
+          errors={displayErrors["endpoint"]}
+          help={
+            <>
+              HTTPS URL of your OTLP/HTTP endpoint, including the logs path — usually <code>/v1/logs</code>. For
+              Datadog, use your site's OTLP intake, for example <code>https://otlp.datadoghq.com/v1/logs</code> for US1.
+            </>
+          }
         >
-          Save
-        </Button>
+          <Input
+            id="endpoint"
+            placeholder="https://otlp.datadoghq.com/v1/logs"
+            value={settings.endpoint}
+            disabled={readonly || saving}
+            onChange={e => setSettings(s => ({ ...s, endpoint: e.target.value }))}
+          />
+        </EditorField>
+        <EditorField
+          id="headers"
+          label="Authentication headers"
+          errors={displayErrors["headers"]}
+          help={
+            <>
+              Headers sent with every export request. Use them for your backend's API key — for Datadog,{" "}
+              <code>dd-api-key: &lt;your Datadog API key&gt;</code>. Values are hidden after saving and can only be
+              replaced, not read back. The <b>Send test log</b> button below sends one test log to your endpoint and
+              shows the response, so you can verify the URL and credentials. Test logs are marked as tests and are never
+              billed.
+            </>
+          }
+        >
+          <div className="flex flex-col gap-2">
+            {settings.headers.map((header, i) => (
+              <div key={i} className="flex gap-2 items-center">
+                <Input
+                  className="max-w-[20em]"
+                  placeholder="Header name"
+                  value={header.name}
+                  disabled={readonly || saving}
+                  onChange={e => setHeader(i, { name: e.target.value })}
+                />
+                <Input.Password
+                  placeholder="Header value"
+                  value={header.value}
+                  disabled={readonly || saving}
+                  onChange={e => setHeader(i, { value: e.target.value })}
+                />
+                <Button
+                  type="text"
+                  icon={<DeleteOutlined />}
+                  disabled={readonly || saving}
+                  onClick={() => setSettings(s => ({ ...s, headers: s.headers.filter((_, j) => j !== i) }))}
+                />
+              </div>
+            ))}
+            <div>
+              <Button
+                icon={<PlusOutlined />}
+                disabled={readonly || saving}
+                onClick={() => setSettings(s => ({ ...s, headers: [...s.headers, { name: "", value: "" }] }))}
+              >
+                Add header
+              </Button>
+            </div>
+          </div>
+        </EditorField>
+        <EditorButtons
+          isNew={true}
+          loading={saving}
+          testing={testing}
+          onDelete={() => {}}
+          onTest={onTest}
+          testButtonLabel="Send test log"
+          onCancel={() => {
+            setSettings(original);
+            setShowErrors(false);
+          }}
+          onSave={onSave}
+          isTouched={isTouched}
+          hasErrors={showErrors && hasErrors}
+        />
       </div>
     </div>
   );
