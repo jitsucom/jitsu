@@ -178,6 +178,12 @@ func (o *OtlpBulker) buildRequest(reader io.Reader) ([]byte, int, error) {
 			if err := jsoniter.Unmarshal(trimmed, &envelope); err != nil {
 				skipped++
 				o.Errorf("skipping malformed live-events envelope: %v", err)
+			} else if envelope.EventId == "" || envelope.WorkspaceId == "" || envelope.ActorId == "" ||
+				envelope.Type == "" || envelope.Timestamp <= 0 {
+				// valid JSON that violates the envelope contract is as unexportable
+				// as unparseable JSON — skip it rather than emit a junk LogRecord
+				skipped++
+				o.Errorf("skipping invalid live-events envelope: missing required fields")
 			} else {
 				request.logRecords = append(request.logRecords, o.mapLogRecord(&envelope))
 			}

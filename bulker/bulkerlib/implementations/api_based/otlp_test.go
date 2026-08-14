@@ -133,6 +133,9 @@ func TestOtlpBuildRequestWireFormat(t *testing.T) {
 func TestOtlpBuildRequestSkipsMalformedLines(t *testing.T) {
 	b := newTestOtlpBulker(t, "https://example.com/v1/logs")
 	input := "not-json\n" +
+		// valid JSON that violates the envelope contract is skipped too
+		`{"foo":"bar"}` + "\n" +
+		`{"eventId":"ev1","workspaceId":"ws1","type":"function","level":"info","timestamp":0,"actorId":"a","body":{}}` + "\n" +
 		`{"eventId":"ev1","workspaceId":"ws1","type":"function","level":"info","timestamp":1,"actorId":"a","body":{}}` + "\n"
 	_, records, err := b.buildRequest(strings.NewReader(input))
 	require.NoError(t, err)
