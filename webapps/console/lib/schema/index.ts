@@ -166,6 +166,9 @@ export const AppConfig = z.object({
   migrationWizardEnabled: z.boolean().optional(),
   /** Booking link for the migration report's call CTA (MIGRATION_CALENDLY_URL env). */
   migrationCalendlyUrl: z.string().optional(),
+  /** Minimum billing plan for the Live Events observability export
+   * (OTLP_EXPORT_BILLING_PLAN env, JITSU-138). */
+  otlpExportBillingPlan: z.enum(["free", "business", "enterprise"]).optional(),
   publicEndpoints: z.object({
     protocol: z.enum(["http", "https"]),
     host: z.string(),

@@ -1,5 +1,5 @@
 import { Alert, Button, Input, Skeleton, Switch } from "antd";
-import { useWorkspace, useWorkspaceRole } from "../../lib/context";
+import { useAppConfig, useWorkspace, useWorkspaceRole } from "../../lib/context";
 import { useQuery } from "@tanstack/react-query";
 import { get } from "../../lib/useApi";
 import { ErrorCard } from "../GlobalError/GlobalError";
@@ -9,16 +9,50 @@ import { rpc } from "juava";
 import { CheckOutlined, DeleteOutlined, PlusOutlined, SendOutlined } from "@ant-design/icons";
 import { feedbackError, feedbackSuccess } from "../../lib/ui";
 import { ConfigSection } from "../DataRentionEditor/DataRentionEditor";
+import { useBilling } from "../Billing/BillingProvider";
+import { UpgradeDialog } from "../Billing/UpgradeDialog";
 
 type TestResult = { ok: boolean; status?: number; response?: string; error?: string };
 
+const planTiers = { free: 0, business: 1, enterprise: 2 } as const;
+type OtlpExportPlan = keyof typeof planTiers;
+
+// planId is an opaque string (Stripe product ids for self-service plans);
+// tiers: free < business (any paid plan) < enterprise
+function workspacePlanTier(settings: { planId?: string; planKind?: string }): number {
+  if (settings.planId === "$admin") {
+    return planTiers.enterprise;
+  }
+  if (settings.planKind === "enterprise" || settings.planId === "enterprise") {
+    return planTiers.enterprise;
+  }
+  return settings.planId && settings.planId !== "free" ? planTiers.business : planTiers.free;
+}
+
+const upgradePlans: Record<OtlpExportPlan, string[]> = {
+  free: [],
+  business: ["paid", "enterprise"],
+  enterprise: ["enterprise"],
+};
+
 export const ObservabilityExportsEditorLoader: React.FC<{}> = () => {
   const workspace = useWorkspace();
+  const appConfig = useAppConfig();
+  const billing = useBilling();
   const settings = useQuery(
     ["observability-exports", workspace.id],
     () => get(`/api/workspace/${workspace.id}/observability-exports`),
     { retry: false, cacheTime: 0, refetchOnWindowFocus: false }
   );
+  const requiredPlan: OtlpExportPlan = appConfig.otlpExportBillingPlan || "free";
+  if (billing.loading) {
+    return <Skeleton active={true} />;
+  }
+  // gate follows the Workspace Domains convention: applies only when billing is
+  // enabled (self-hosted deployments have no plans to compare against)
+  if (billing.enabled && workspacePlanTier(billing.settings) < planTiers[requiredPlan]) {
+    return <UpgradeDialog featureDescription="Observability exports" availableInPlans={upgradePlans[requiredPlan]} />;
+  }
   return (
     <div>
       {settings.isLoading && <Skeleton active={true} />}
