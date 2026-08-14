@@ -412,18 +412,23 @@ async function processProfile(
 
         if (typeof entry.message === "object" && entry.message.type === "http-request") {
           // HTTP request logs are sent directly to eventsLogger
-          eventsLogger.log(connectionId, entry.level as LogLevel, entry.message);
+          eventsLogger.log(connectionId, entry.level as LogLevel, entry.message, { workspaceId });
         } else {
           // Regular logs: send to eventsLogger in the standard format
-          eventsLogger.log(connectionId, entry.level as LogLevel, {
-            type: `log-${entry.level}`,
-            functionId,
-            functionType,
-            message: {
-              text: entry.message,
-              args: entry.args,
+          eventsLogger.log(
+            connectionId,
+            entry.level as LogLevel,
+            {
+              type: `log-${entry.level}`,
+              functionId,
+              functionType,
+              message: {
+                text: entry.message,
+                args: entry.args,
+              },
             },
-          });
+            { workspaceId }
+          );
         }
       }
     }

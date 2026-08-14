@@ -21,6 +21,7 @@ const defaultEnvDestinationPrefix = "DESTINATION"
 type DestinationConfig struct {
 	UpdatedAt           time.Time `mapstructure:"updatedAt" json:"updatedAt"`
 	UsesBulker          bool      `mapstructure:"usesBulker" json:"usesBulker"`
+	WorkspaceId         string    `mapstructure:"workspaceId" json:"workspaceId"`
 	bulker.Config       `mapstructure:",squash"`
 	bulker.StreamConfig `mapstructure:",squash"`
 	Special             string `mapstructure:"special" json:"special"`

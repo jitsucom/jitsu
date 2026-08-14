@@ -38,10 +38,11 @@ type SideCar interface {
 }
 
 type AbstractSideCar struct {
-	syncId     string
-	taskId     string
-	storageKey string
-	command    string
+	syncId      string
+	taskId      string
+	workspaceId string
+	storageKey  string
+	command     string
 
 	packageName    string
 	packageVersion string
@@ -136,6 +137,7 @@ func main() {
 	abstract := &AbstractSideCar{
 		syncId:           os.Getenv("SYNC_ID"),
 		taskId:           os.Getenv("TASK_ID"),
+		workspaceId:      os.Getenv("WORKSPACE_ID"),
 		command:          os.Getenv("COMMAND"),
 		storageKey:       os.Getenv("STORAGE_KEY"),
 		packageName:      os.Getenv("PACKAGE"),

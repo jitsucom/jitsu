@@ -50,6 +50,20 @@ func (ac *AbstractConsumer) GetInstanceId() string {
 	return fmt.Sprintf("%x-%s", firstByte, ac.config.InstanceId)
 }
 
+// MessageIdFromMetricsMeta extracts messageId from serialized 'metrics_meta' kafka header
+func MessageIdFromMetricsMeta(metricsMeta string) string {
+	if metricsMeta == "" {
+		return ""
+	}
+	meta := struct {
+		MessageId string `json:"messageId"`
+	}{}
+	if err := jsoniter.Unmarshal([]byte(metricsMeta), &meta); err != nil {
+		return ""
+	}
+	return meta.MessageId
+}
+
 func (ac *AbstractConsumer) SendMetrics(metricsMeta string, status string, events int) {
 	if metricsMeta == "" || events <= 0 {
 		return

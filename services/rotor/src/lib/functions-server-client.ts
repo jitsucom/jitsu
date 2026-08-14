@@ -113,6 +113,8 @@ export async function callFunctionsServer(
 
     // Replay function logs from the server using FunctionChainContext
     if (result.logs && result.logs.length > 0 && chainCtx) {
+      const messageId = (event as any)?.messageId;
+      const workspaceId = eventContext.workspace?.id;
       for (const logEntry of result.logs) {
         // Restore FunctionContext from log entry or use the provided one
         const logFuncCtx: FunctionContext = {
@@ -122,9 +124,10 @@ export async function callFunctionsServer(
             debugTill: funcCtx?.function.debugTill,
           },
           props: funcCtx?.props || {},
+          eventMessageId: messageId,
         };
         if (typeof logEntry.message === "object" && logEntry.message.type === "http-request") {
-          eventsLogger.log(connectionId, logEntry.level as LogLevel, logEntry.message);
+          eventsLogger.log(connectionId, logEntry.level as LogLevel, logEntry.message, { workspaceId, messageId });
         } else {
           const logFn =
             logEntry.level === "error"

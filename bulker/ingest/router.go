@@ -742,10 +742,12 @@ func (r *Router) callFunctionsEndpoint(stream *StreamWithDestinations, destinati
 			obj := map[string]any{"error": err.Error()}
 			for _, id := range ids {
 				r.eventsLogService.PostAsync(&eventslog.ActorEvent{
-					EventType: eventslog.EventTypeFunction,
-					Level:     eventslog.LevelError,
-					ActorId:   id,
-					Event:     obj,
+					EventType:   eventslog.EventTypeFunction,
+					Level:       eventslog.LevelError,
+					ActorId:     id,
+					WorkspaceId: stream.Stream.WorkspaceId,
+					MessageId:   messageId,
+					Event:       obj,
 				})
 				DeviceFunctions(id, "error").Inc()
 				DeviceFunctions("total", "error").Inc()
@@ -804,14 +806,14 @@ func (r *Router) callFunctionsEndpoint(stream *StreamWithDestinations, destinati
 	// Process results - extract events and process execLog + logs
 	for connectionId, chainResult := range result {
 		functionsResults[connectionId] = chainResult.Events
-		r.processExecLog(connectionId, chainResult.ExecLog, chainResult.Logs)
+		r.processExecLog(connectionId, stream.Stream.WorkspaceId, messageId, chainResult.ExecLog, chainResult.Logs)
 	}
 	r.emitSyncMetrics(stream, destinations, result, messageId, receivedAt)
 	return result, nil
 }
 
 // processExecLog processes the execution log and function logs from functions server
-func (r *Router) processExecLog(connectionId string, execLog []FunctionExecLogEntry, logs []FunctionLogEntry) {
+func (r *Router) processExecLog(connectionId, workspaceId, messageId string, execLog []FunctionExecLogEntry, logs []FunctionLogEntry) {
 	// Process execution log entries (errors and dropped events)
 	for _, el := range execLog {
 		if el.Error != nil {
@@ -826,10 +828,12 @@ func (r *Router) processExecLog(connectionId string, execLog []FunctionExecLogEn
 				"ms":           el.Ms,
 			}
 			r.eventsLogService.PostAsync(&eventslog.ActorEvent{
-				EventType: eventslog.EventTypeFunction,
-				Level:     eventslog.LevelError,
-				ActorId:   connectionId,
-				Event:     logEvent,
+				EventType:   eventslog.EventTypeFunction,
+				Level:       eventslog.LevelError,
+				ActorId:     connectionId,
+				WorkspaceId: workspaceId,
+				MessageId:   messageId,
+				Event:       logEvent,
 			})
 		}
 		if el.Dropped {
@@ -868,10 +872,12 @@ func (r *Router) processExecLog(connectionId string, execLog []FunctionExecLogEn
 			logEvent["args"] = logEntry.Args
 		}
 		r.eventsLogService.PostAsync(&eventslog.ActorEvent{
-			EventType: eventslog.EventTypeFunction,
-			Level:     level,
-			ActorId:   connectionId,
-			Event:     logEvent,
+			EventType:   eventslog.EventTypeFunction,
+			Level:       level,
+			ActorId:     connectionId,
+			WorkspaceId: workspaceId,
+			MessageId:   messageId,
+			Event:       logEvent,
 		})
 	}
 }

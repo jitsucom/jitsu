@@ -151,8 +151,14 @@ export function buildFunctionChain(
   }
 
   const chainCtx: FunctionChainContext = {
-    fetch: makeFetch(conId, rotorContext.eventsLogger, connectionData.fetchLogLevel || "info", fetchTimeoutMs),
-    log: makeLog(conId, rotorContext.eventsLogger),
+    fetch: makeFetch(
+      conId,
+      rotorContext.eventsLogger,
+      connectionData.fetchLogLevel || "info",
+      fetchTimeoutMs,
+      conWorkspaceId
+    ),
+    log: makeLog(conId, rotorContext.eventsLogger, undefined, conWorkspaceId),
     store,
     query: async (conId: string, query: string, params: any) => {
       return warehouseQuery(conWorkspaceId, connStore, conId, query, params, rotorContext.metrics);

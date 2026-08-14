@@ -460,7 +460,11 @@ func (bc *BatchConsumerImpl) postEventsLog(state bulker.State, processedObjectSa
 	if batchErr != nil {
 		level = eventslog.LevelError
 	}
-	bc.eventsLogService.PostAsync(&eventslog.ActorEvent{EventType: eventslog.EventTypeBatch, Level: level, ActorId: bc.destinationId, Event: batchState})
+	workspaceId := ""
+	if destination := bc.repository.GetDestination(bc.destinationId); destination != nil {
+		workspaceId = destination.WorkspaceId()
+	}
+	bc.eventsLogService.PostAsync(&eventslog.ActorEvent{EventType: eventslog.EventTypeBatch, Level: level, ActorId: bc.destinationId, WorkspaceId: workspaceId, Event: batchState})
 }
 
 type BatchState struct {
