@@ -160,6 +160,21 @@ func TestKafkaEventsLogBatchAndStreamTypes(t *testing.T) {
 	require.Equal(t, "msg1", streamEnvelope.MessageId)
 }
 
+func TestKafkaEventsLogBillingDisabled(t *testing.T) {
+	produced := &[]producedMessage{}
+	service := NewKafkaEventsLogService(KafkaEventsLogConfig{
+		MetricsDestinationId: "",
+		OtlpEnabled:          func(string) bool { return true },
+		Produce: func(topic string, key string, payload []byte) {
+			*produced = append(*produced, producedMessage{topic, key, payload})
+		},
+	})
+	service.PostAsync(testActorEvent())
+	// export still publishes; only the billing record is skipped
+	require.Len(t, *produced, 1)
+	require.Equal(t, "in.id.ws1_otlp.m.batch.t.live_events", (*produced)[0].topic)
+}
+
 func TestKafkaEventsLogInMultiService(t *testing.T) {
 	service, produced := newTestKafkaService("", map[string]bool{"ws1": true})
 	multi := &MultiEventsLogService{Services: []EventsLogService{&DummyEventsLogService{}, service}}

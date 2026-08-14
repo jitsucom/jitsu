@@ -53,7 +53,9 @@ type ExportRecord = {
 
 export function createKafkaEventsStore(): EventsStore {
   const prefix = serverEnv.KAFKA_TOPIC_PREFIX || "";
-  const metricsDestinationId = serverEnv.METRICS_DESTINATION_ID || "metrics";
+  // unset = billing/metrics emission disabled for this deployment, matching
+  // metrics.ts — the export envelope still publishes, only billing is skipped
+  const metricsDestinationId = serverEnv.METRICS_DESTINATION_ID;
   let producer: KafkaJS.Producer | undefined;
   let connecting = false;
   let closed = false;
@@ -132,6 +134,9 @@ export function createKafkaEventsStore(): EventsStore {
 
     // billing: key {eventId}_0_{secondsWithinHour}, hour-truncated timestamp —
     // ClickHouse uniqState(messageId) dedups retries downstream
+    if (!metricsDestinationId) {
+      return;
+    }
     const hourMs = Math.floor(timestampMs / 3600000) * 3600000;
     const secondsWithinHour = Math.floor((timestampMs - hourMs) / 1000);
     const billingKey = `${eventId}_0_${secondsWithinHour}`;

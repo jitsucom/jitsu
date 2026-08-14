@@ -154,6 +154,11 @@ func (k *KafkaEventsLogService) PostAsync(event *ActorEvent) {
 // uniqState(messageId) in ClickHouse, so retries and regenerated records
 // cannot double-count
 func (k *KafkaEventsLogService) produceBillingRecord(envelope *ExportEnvelope, timestamp time.Time) {
+	// empty MetricsDestinationId means billing/metrics emission is disabled for
+	// this deployment (same convention as ingest) — export still happens
+	if k.config.MetricsDestinationId == "" {
+		return
+	}
 	hourTrunc := timestamp.UTC().Truncate(time.Hour)
 	secondsWithinHour := timestamp.Unix() - hourTrunc.Unix()
 	key := fmt.Sprintf("%s_%d_%d", envelope.EventId, 0, secondsWithinHour)
