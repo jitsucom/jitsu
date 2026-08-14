@@ -89,6 +89,16 @@ export function createKafkaEventsStore(): EventsStore {
   ensureProducer();
 
   const publish = (record: ExportRecord) => {
+    try {
+      publishUnsafe(record);
+    } catch (e) {
+      // fire-and-forget is a hard guarantee: a serialization failure (BigInt or
+      // circular values in log args) must never propagate into event processing
+      log.atDebug().withCause(e).log(`Failed to build live-events export for ${record.workspaceId}`);
+    }
+  };
+
+  const publishUnsafe = (record: ExportRecord) => {
     // the otlp connection's own records never export (self-export loop guard)
     if (record.actorId.endsWith(OTLP_DESTINATION_SUFFIX)) {
       return;
