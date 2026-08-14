@@ -65,8 +65,9 @@ func (c *throttleRetryClient) withThrottleRetry(ctx context.Context, call func()
 		if ctx.Err() != nil {
 			return fmt.Errorf("%w (last throttle error: %v)", ctx.Err(), err)
 		}
-		// full jitter: sleep a random fraction of the current backoff ceiling
-		sleep := time.Duration(rand.Int63n(int64(delay)) + int64(delay)/2)
+		// equal jitter in [delay/2, delay]: randomized to decorrelate concurrent
+		// clients, but never exceeding the current backoff ceiling
+		sleep := delay/2 + time.Duration(rand.Int63n(int64(delay/2)+1))
 		select {
 		case <-ctx.Done():
 			return fmt.Errorf("%w (last throttle error: %v)", ctx.Err(), err)
