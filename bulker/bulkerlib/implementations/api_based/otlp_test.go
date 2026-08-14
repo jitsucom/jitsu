@@ -250,6 +250,30 @@ func TestOtlpUploadEmptyBatch(t *testing.T) {
 	require.Equal(t, 200, status)
 }
 
+func TestOtlpParsePartialSuccess(t *testing.T) {
+	// hand-encode ExportLogsServiceResponse{partial_success: {rejected_log_records: 3, error_message: "boom"}}
+	partial := &protoWriter{}
+	partial.varintField(1, 3)
+	partial.stringField(2, "boom")
+	response := &protoWriter{}
+	response.messageField(1, partial)
+
+	rejected, message := parseOtlpPartialSuccess(response.buf)
+	require.Equal(t, int64(3), rejected)
+	require.Equal(t, "boom", message)
+
+	// empty body = full success; garbage is treated as absent
+	rejected, message = parseOtlpPartialSuccess(nil)
+	require.Equal(t, int64(0), rejected)
+	require.Empty(t, message)
+	rejected, message = parseOtlpPartialSuccess([]byte("not-protobuf"))
+	require.Empty(t, message)
+
+	// hostile length prefix > MaxInt64 must not panic (int() would wrap negative)
+	overflow := append([]byte{0x0a}, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0x01)
+	require.NotPanics(t, func() { parseOtlpPartialSuccess(overflow) })
+}
+
 func TestOtlpStreamModesRejected(t *testing.T) {
 	b := newTestOtlpBulker(t, "https://example.com/v1/logs")
 	for _, mode := range []bulker.BulkMode{bulker.Stream, bulker.ReplaceTable, bulker.ReplacePartition} {

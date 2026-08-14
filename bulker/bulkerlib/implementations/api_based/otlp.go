@@ -281,6 +281,12 @@ func (o *OtlpBulker) Upload(reader io.Reader, _ string, _ int, _ map[string]any)
 		}
 		switch {
 		case statusCode >= 200 && statusCode < 300:
+			// per the OTLP spec a 2xx may carry partial_success; such a response
+			// must NOT be retried (accepted records would duplicate), so surface
+			// it in the server log only
+			if rejected, message := parseOtlpPartialSuccess(bodyBytes); rejected > 0 || message != "" {
+				o.Errorf("OTLP endpoint accepted the batch with partial success: %d records rejected: %s", rejected, message)
+			}
 			return statusCode, respBody, nil
 		case statusCode == 429 || statusCode == 500 || statusCode == 502 || statusCode == 503 || statusCode == 504:
 			// standard OTLP retryable statuses: retry in-process, and if the

@@ -136,6 +136,67 @@ type otlpLogsRequest struct {
 	logRecords         []otlpLogRecord
 }
 
+// protoScan walks a protobuf message and calls visit for every field with its
+// wire type and payload (varint value for wire type 0, raw bytes for wire type
+// 2). Stops silently on malformed input — callers treat that as "not present"
+func protoScan(buf []byte, visit func(fieldNumber int, varint uint64, bytes []byte)) {
+	pos := 0
+	for pos < len(buf) {
+		key, n := binary.Uvarint(buf[pos:])
+		if n <= 0 {
+			return
+		}
+		pos += n
+		fieldNumber := int(key >> 3)
+		switch key & 0x7 {
+		case 0:
+			v, n := binary.Uvarint(buf[pos:])
+			if n <= 0 {
+				return
+			}
+			pos += n
+			visit(fieldNumber, v, nil)
+		case 1:
+			pos += 8
+		case 5:
+			pos += 4
+		case 2:
+			length, n := binary.Uvarint(buf[pos:])
+			// compare in uint64 space: a hostile length > MaxInt64 would wrap
+			// negative through int() and slip past an int-space bounds check
+			// straight into a slice-bounds panic
+			if n <= 0 || length > uint64(len(buf)-pos-n) {
+				return
+			}
+			visit(fieldNumber, 0, buf[pos+n:pos+n+int(length)])
+			pos += n + int(length)
+		default:
+			return
+		}
+	}
+}
+
+// parseOtlpPartialSuccess extracts (rejected_log_records, error_message) from an
+// ExportLogsServiceResponse body: partial_success=1 { rejected_log_records=1
+// (int64), error_message=2 (string) }. An empty/omitted body means full success;
+// malformed bytes return (0, "") — the status code stays the delivery signal
+func parseOtlpPartialSuccess(body []byte) (rejected int64, errorMessage string) {
+	protoScan(body, func(field int, _ uint64, partial []byte) {
+		if field != 1 || partial == nil {
+			return
+		}
+		protoScan(partial, func(field int, varint uint64, bytes []byte) {
+			switch {
+			case field == 1 && bytes == nil:
+				rejected = int64(varint)
+			case field == 2 && bytes != nil:
+				errorMessage = string(bytes)
+			}
+		})
+	})
+	return rejected, errorMessage
+}
+
 func encodeOtlpLogsRequest(request *otlpLogsRequest) []byte {
 	// resource/v1 Resource: attributes=1
 	resource := &protoWriter{}
