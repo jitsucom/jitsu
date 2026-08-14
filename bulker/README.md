@@ -144,9 +144,28 @@ go build ./...
 go test ./...
 ```
 
-Destination tests spin up real databases via testcontainers, so Docker needs to be running. Release
-and packaging details are in [CONTRIBUTING.md](./CONTRIBUTING.md); repository-wide conventions are in
-the [root CONTRIBUTING.md](../CONTRIBUTING.md).
+Destination tests spin up real databases via testcontainers, so Docker needs to be running.
+
+The destination suite (`bulkerlib/implementations/sql`) runs against every warehouse it can
+configure, which is slow. Two environment variables narrow it down:
+
+- `BULKER_TEST_CONFIGS` — comma-separated destination ids to run, e.g.
+  `BULKER_TEST_CONFIGS=postgres,clickhouse`. Applied before anything is created, so the
+  containers and cloud connections for other destinations are never opened at all. Naming a
+  destination whose credentials are missing fails the run rather than silently skipping it.
+  CI uses this to give each warehouse its own job.
+- `BULKER_TEST_RUN_ID` — puts the run's tables in a schema (dataset, on BigQuery) of its own,
+  named `bulker_ci_<id>`. Cloud warehouses are shared, and table names come from test names,
+  so without this two runs at once drop each other's tables. CI sets it to the GitHub run id;
+  set it locally if someone else might be testing against the same warehouse. `go test -run
+  TestCleanupTestRun` with `BULKER_TEST_CLEANUP=true` drops the schemas afterwards (cloud
+  destinations only — the containerised ones take their state to the grave with them).
+
+Cloud destinations need credentials in `BULKER_TEST_BIGQUERY`, `BULKER_TEST_SNOWFLAKE`,
+`BULKER_TEST_REDSHIFT_IAM` and `BULKER_TEST_MOTHERDUCK`; those without are skipped.
+
+Release and packaging details are in [CONTRIBUTING.md](./CONTRIBUTING.md); repository-wide
+conventions are in the [root CONTRIBUTING.md](../CONTRIBUTING.md).
 
 ## License
 
