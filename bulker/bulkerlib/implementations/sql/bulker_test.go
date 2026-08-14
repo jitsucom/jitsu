@@ -78,7 +78,7 @@ func init() {
 	if utils.ArrayContains(allBulkerConfigs, BigqueryBulkerTypeId) {
 		bigqueryConfig := os.Getenv("BULKER_TEST_BIGQUERY")
 		if bigqueryConfig != "" {
-			configRegistry[BigqueryBulkerTypeId] = TestConfig{BulkerType: BigqueryBulkerTypeId, Config: withTestSchema(bigqueryConfig, "bqDataset")}
+			configRegistry[BigqueryBulkerTypeId] = TestConfig{BulkerType: BigqueryBulkerTypeId, Config: withTestSchema(BigqueryBulkerTypeId, bigqueryConfig, "bqDataset")}
 		} else {
 			allBulkerConfigs = utils.ArrayExcluding(allBulkerConfigs, BigqueryBulkerTypeId)
 		}
@@ -87,7 +87,7 @@ func init() {
 	if utils.ArrayContains(allBulkerConfigs, RedshiftBulkerTypeId) {
 		redshiftConfig := os.Getenv("BULKER_TEST_REDSHIFT")
 		if redshiftConfig != "" {
-			configRegistry[RedshiftBulkerTypeId] = TestConfig{BulkerType: RedshiftBulkerTypeId, Config: withTestSchema(redshiftConfig, "defaultSchema")}
+			configRegistry[RedshiftBulkerTypeId] = TestConfig{BulkerType: RedshiftBulkerTypeId, Config: withTestSchema(RedshiftBulkerTypeId, redshiftConfig, "defaultSchema")}
 		} else {
 			allBulkerConfigs = utils.ArrayExcluding(allBulkerConfigs, RedshiftBulkerTypeId)
 		}
@@ -96,7 +96,7 @@ func init() {
 	if utils.ArrayContains(allBulkerConfigs, RedshiftBulkerTypeId+"_serverless") {
 		redshiftServerlessConfig := os.Getenv("BULKER_TEST_REDSHIFT_SERVERLESS")
 		if redshiftServerlessConfig != "" {
-			configRegistry[RedshiftBulkerTypeId+"_serverless"] = TestConfig{BulkerType: RedshiftBulkerTypeId, Config: withTestSchema(redshiftServerlessConfig, "defaultSchema")}
+			configRegistry[RedshiftBulkerTypeId+"_serverless"] = TestConfig{BulkerType: RedshiftBulkerTypeId, Config: withTestSchema(RedshiftBulkerTypeId+"_serverless", redshiftServerlessConfig, "defaultSchema")}
 		} else {
 			allBulkerConfigs = utils.ArrayExcluding(allBulkerConfigs, RedshiftBulkerTypeId+"_serverless")
 		}
@@ -104,7 +104,7 @@ func init() {
 	if utils.ArrayContains(allBulkerConfigs, RedshiftBulkerTypeId+"_iam") {
 		redshiftServerlessConfig := os.Getenv("BULKER_TEST_REDSHIFT_IAM")
 		if redshiftServerlessConfig != "" {
-			configRegistry[RedshiftBulkerTypeId+"_iam"] = TestConfig{BulkerType: RedshiftBulkerTypeId, Config: withTestSchema(redshiftServerlessConfig, "defaultSchema")}
+			configRegistry[RedshiftBulkerTypeId+"_iam"] = TestConfig{BulkerType: RedshiftBulkerTypeId, Config: withTestSchema(RedshiftBulkerTypeId+"_iam", redshiftServerlessConfig, "defaultSchema")}
 		} else {
 			allBulkerConfigs = utils.ArrayExcluding(allBulkerConfigs, RedshiftBulkerTypeId+"_iam")
 		}
@@ -113,7 +113,7 @@ func init() {
 	if utils.ArrayContains(allBulkerConfigs, SnowflakeBulkerTypeId) {
 		snowflakeConfig := os.Getenv("BULKER_TEST_SNOWFLAKE")
 		if snowflakeConfig != "" {
-			configRegistry[SnowflakeBulkerTypeId] = TestConfig{BulkerType: SnowflakeBulkerTypeId, Config: withTestSchema(snowflakeConfig, "defaultSchema")}
+			configRegistry[SnowflakeBulkerTypeId] = TestConfig{BulkerType: SnowflakeBulkerTypeId, Config: withTestSchema(SnowflakeBulkerTypeId, snowflakeConfig, "defaultSchema")}
 		} else {
 			allBulkerConfigs = utils.ArrayExcluding(allBulkerConfigs, SnowflakeBulkerTypeId)
 		}
@@ -155,7 +155,7 @@ func init() {
 	if utils.ArrayContains(allBulkerConfigs, DuckDBBulkerTypeId) {
 		motherduckConfig := os.Getenv("BULKER_TEST_MOTHERDUCK")
 		if motherduckConfig != "" {
-			configRegistry[DuckDBBulkerTypeId] = TestConfig{BulkerType: DuckDBBulkerTypeId, Config: withTestSchema(motherduckConfig, "defaultSchema")}
+			configRegistry[DuckDBBulkerTypeId] = TestConfig{BulkerType: DuckDBBulkerTypeId, Config: withTestSchema(DuckDBBulkerTypeId, motherduckConfig, "defaultSchema")}
 		} else {
 			allBulkerConfigs = utils.ArrayExcluding(allBulkerConfigs, DuckDBBulkerTypeId)
 		}
@@ -215,6 +215,11 @@ func init() {
 	}
 
 	exceptBigquery = utils.ArrayExcluding(allBulkerConfigs, BigqueryBulkerTypeId)
+
+	// Skipped in cleanup mode, which is about to drop these very schemas.
+	if testRunId != "" && os.Getenv("BULKER_TEST_CLEANUP") == "" {
+		ensureTestRunSchemas()
+	}
 
 	logging.Infof("Initialized bulker types: %v", allBulkerConfigs)
 

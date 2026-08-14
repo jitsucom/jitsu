@@ -70,18 +70,6 @@ func testRunSchema() string {
 // cannot drift apart.
 var testNamespaces = []string{"bnsp", "mynamespace", "mynamespace2", "mynsp3"}
 
-// containerBackedConfigs run against throwaway testcontainers. Their state dies
-// with the container, so cleanup skips them — which also keeps it away from
-// MySQL and ClickHouse, where a schema is a database and DROP SCHEMA is not the
-// statement to reach for.
-var containerBackedConfigs = []string{
-	PostgresBulkerTypeId,
-	MySQLBulkerTypeId,
-	ClickHouseBulkerTypeId,
-	ClickHouseBulkerTypeId + "_cluster",
-	ClickHouseBulkerTypeId + "_cluster_noshards",
-}
-
 // testNamespace maps a namespace a test asks for onto the one it should
 // actually use for this run.
 func testNamespace(name string) string {
@@ -94,14 +82,76 @@ func testNamespace(name string) string {
 	return testRunSchema() + "_" + name
 }
 
+// originalConfigs keeps the pre-rewrite config of each cloud destination, whose
+// schema is the one from the secret and so is known to exist. Isolation needs a
+// connection that doesn't depend on the run's own schema twice: to create that
+// schema before any test opens a bulker, and to drop it afterwards.
+var originalConfigs = map[string]string{}
+
 // withTestSchema points a raw destination config at this run's own schema.
 // schemaKey is that config's schema field: "bqDataset" for BigQuery,
 // "defaultSchema" for everything else.
-func withTestSchema(configJson string, schemaKey string) string {
+func withTestSchema(configId string, configJson string, schemaKey string) string {
 	if testRunId == "" || configJson == "" {
 		return configJson
 	}
+	originalConfigs[configId] = configJson
 	return withSchema(configJson, schemaKey, testRunSchema())
+}
+
+// schemaCreator reuses each adapter's own create-schema helper, which isn't on
+// the SQLAdapter interface because production only ever creates a schema as a
+// side effect of writing to it. BigQuery isn't one of these and is handled apart.
+type schemaCreator interface {
+	createSchemaIfNotExists(ctx context.Context, schema string) error
+}
+
+// ensureTestRunSchemas creates all of the run's schemas on every cloud
+// destination before any test opens a bulker against them. Two reasons it can't
+// be left to the adapters' create-on-demand:
+//
+//   - Snowflake pins the schema at connection time and refuses to connect to
+//     one that doesn't exist, so the bulker can't be what creates it.
+//   - The schemas are brand new every run, so the first wave of parallel tests
+//     would otherwise all race to create the same one. On BigQuery that means
+//     409s and a "too many dataset metadata update operations" rate limit;
+//     before isolation the dataset already existed and nothing ever created it.
+func ensureTestRunSchemas() {
+	ctx := context.Background()
+	schemas := testRunSchemas()
+	for configId, configJson := range originalConfigs {
+		testConfig := configRegistry[configId]
+		blk, err := bulker.CreateBulker(bulker.Config{Id: "prepare_" + configId, BulkerType: testConfig.BulkerType, DestinationConfig: configJson})
+		if err != nil {
+			panic(fmt.Errorf("%s: failed to connect to create test run schemas: %v", configId, err))
+		}
+		adapter, ok := blk.(SQLAdapter)
+		if !ok {
+			_ = blk.Close()
+			panic(fmt.Errorf("%s: not a SQLAdapter, cannot create test run schemas", configId))
+		}
+		for _, schema := range schemas {
+			if err := createTestSchema(ctx, adapter, schema); err != nil {
+				_ = blk.Close()
+				panic(fmt.Errorf("%s: failed to create test run schema %s: %v", configId, schema, err))
+			}
+		}
+		_ = blk.Close()
+		logging.Infof("%s: created test run schemas %v", configId, schemas)
+	}
+}
+
+func createTestSchema(ctx context.Context, adapter SQLAdapter, schema string) error {
+	switch a := adapter.(type) {
+	case *BigQuery:
+		return a.createDatasetIfNotExists(ctx, schema)
+	default:
+		creator, ok := adapter.(schemaCreator)
+		if !ok {
+			return fmt.Errorf("don't know how to create a schema on %s", adapter.Type())
+		}
+		return creator.createSchemaIfNotExists(ctx, schema)
+	}
 }
 
 func withSchema(configJson string, schemaKey string, schema string) string {
@@ -224,20 +274,16 @@ func TestCleanupTestRun(t *testing.T) {
 	if testRunId == "" {
 		t.Fatal("BULKER_TEST_CLEANUP needs BULKER_TEST_RUN_ID: without it the run owns no schema, and the only schemas around are shared ones")
 	}
-	schemas := append([]string{testRunSchema()}, testRunNamespaces()...)
+	schemas := testRunSchemas()
 	ctx := context.Background()
-	for _, configId := range allBulkerConfigs {
-		testConfig, ok := configRegistry[configId]
-		if !ok {
-			continue
-		}
-		if slices.Contains(containerBackedConfigs, configId) {
-			// Nothing outlives the container, so there is nothing to drop —
-			// and MySQL/ClickHouse don't speak DROP SCHEMA anyway.
-			logging.Infof("%s: container-backed, nothing to clean up", configId)
-			continue
-		}
-		blk, err := bulker.CreateBulker(bulker.Config{Id: "cleanup_" + configId, BulkerType: testConfig.BulkerType, DestinationConfig: testConfig.Config})
+	// originalConfigs holds exactly the cloud destinations — the container-backed
+	// ones take their state to the grave with the container, and MySQL and
+	// ClickHouse don't speak DROP SCHEMA anyway. Connecting with the original
+	// config rather than the rewritten one means cleanup doesn't depend on the
+	// schema it is about to drop still being there.
+	for configId, configJson := range originalConfigs {
+		testConfig := configRegistry[configId]
+		blk, err := bulker.CreateBulker(bulker.Config{Id: "cleanup_" + configId, BulkerType: testConfig.BulkerType, DestinationConfig: configJson})
 		if err != nil {
 			t.Errorf("%s: failed to create bulker for cleanup: %v", configId, err)
 			continue
@@ -261,12 +307,15 @@ func TestCleanupTestRun(t *testing.T) {
 	}
 }
 
-func testRunNamespaces() []string {
-	namespaces := make([]string, 0, len(testNamespaces))
+// testRunSchemas is every schema this run owns: its default one plus one per
+// namespace the suite asks for. Setup creates them, cleanup drops them.
+func testRunSchemas() []string {
+	schemas := make([]string, 0, len(testNamespaces)+1)
+	schemas = append(schemas, testRunSchema())
 	for _, name := range testNamespaces {
-		namespaces = append(namespaces, testNamespace(name))
+		schemas = append(schemas, testNamespace(name))
 	}
-	return namespaces
+	return schemas
 }
 
 func dropTestSchema(ctx context.Context, adapter SQLAdapter, schema string) error {
