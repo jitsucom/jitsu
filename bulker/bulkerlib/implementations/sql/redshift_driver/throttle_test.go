@@ -72,6 +72,19 @@ func TestThrottleRetryRespectsContext(t *testing.T) {
 	cancel()
 	_, err := client.ExecuteStatement(ctx, &redshiftdata.ExecuteStatementInput{})
 	require.Error(t, err)
+	// cancellation is detectable via errors.Is while the throttle text is kept
+	require.ErrorIs(t, err, context.Canceled)
+	require.Contains(t, err.Error(), "ThrottlingException")
 	// cancelled context stops the retry loop after the first attempt
 	require.Equal(t, 1, mock.execCalls)
+}
+
+func TestThrottleRetryNilParams(t *testing.T) {
+	mock := &throttlingMockClient{}
+	client := newThrottleRetryClient(mock, 3)
+	// the generated SDK methods tolerate nil input; the wrapper must too
+	_, err := client.ExecuteStatement(context.Background(), nil)
+	require.NoError(t, err)
+	_, err = client.BatchExecuteStatement(context.Background(), nil)
+	require.Error(t, err) // mock's BatchExecuteStatement is not implemented — but no panic
 }

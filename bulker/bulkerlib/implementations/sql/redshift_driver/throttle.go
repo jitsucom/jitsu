@@ -2,6 +2,7 @@ package driver
 
 import (
 	"context"
+	"fmt"
 	"math/rand"
 	"strings"
 	"time"
@@ -50,20 +51,25 @@ func newThrottleRetryClient(inner RedshiftClient, maxAttempts int) *throttleRetr
 }
 
 // withThrottleRetry runs call until it succeeds, fails with a non-throttle
-// error, exhausts attempts, or the context ends
+// error, exhausts attempts, or the context ends. On cancellation the returned
+// error wraps ctx.Err() (so errors.Is detects it) while keeping the last
+// throttle error text for diagnostics
 func (c *throttleRetryClient) withThrottleRetry(ctx context.Context, call func() error) error {
 	delay := throttleRetryMinDelay
 	var err error
 	for attempt := 0; attempt < c.maxAttempts; attempt++ {
 		err = call()
-		if !isWrappedThrottleError(err) || ctx.Err() != nil {
+		if !isWrappedThrottleError(err) {
 			return err
+		}
+		if ctx.Err() != nil {
+			return fmt.Errorf("%w (last throttle error: %v)", ctx.Err(), err)
 		}
 		// full jitter: sleep a random fraction of the current backoff ceiling
 		sleep := time.Duration(rand.Int63n(int64(delay)) + int64(delay)/2)
 		select {
 		case <-ctx.Done():
-			return err
+			return fmt.Errorf("%w (last throttle error: %v)", ctx.Err(), err)
 		case <-time.After(sleep):
 		}
 		delay *= 2
@@ -83,6 +89,10 @@ func (c *throttleRetryClient) withThrottleRetry(ctx context.Context, call func()
 //     but each decorator re-invocation would get a fresh one — pinning it here
 //     makes the service dedupe re-submissions even in ambiguous edge cases
 func (c *throttleRetryClient) ExecuteStatement(ctx context.Context, params *redshiftdata.ExecuteStatementInput, optFns ...func(*redshiftdata.Options)) (out *redshiftdata.ExecuteStatementOutput, err error) {
+	if params == nil {
+		// the generated SDK methods tolerate nil input; stay transparent
+		params = &redshiftdata.ExecuteStatementInput{}
+	}
 	if params.ClientToken == nil {
 		params.ClientToken = aws.String(uuid.New())
 	}
@@ -94,6 +104,9 @@ func (c *throttleRetryClient) ExecuteStatement(ctx context.Context, params *reds
 }
 
 func (c *throttleRetryClient) BatchExecuteStatement(ctx context.Context, params *redshiftdata.BatchExecuteStatementInput, optFns ...func(*redshiftdata.Options)) (out *redshiftdata.BatchExecuteStatementOutput, err error) {
+	if params == nil {
+		params = &redshiftdata.BatchExecuteStatementInput{}
+	}
 	if params.ClientToken == nil {
 		params.ClientToken = aws.String(uuid.New())
 	}
