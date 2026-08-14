@@ -73,9 +73,10 @@ func (a *Context) InitContext(settings *appbase.AppSettings) error {
 
 	// Live Events observability export (JITSU-138): fan exportable records out
 	// to the workspace's otlp destination topic + billing. Fire-and-forget
-	// (no backpressure wait) — export never delays ingestion
+	// (no backpressure wait) — export never delays ingestion.
+	// Kafka service goes FIRST: MultiEventsLogService.PostEvent returns the
+	// last service's record id, which must stay the primary store's
 	a.eventsLogService = &eventslog.MultiEventsLogService{Services: []eventslog.EventsLogService{
-		a.eventsLogService,
 		eventslog.NewKafkaEventsLogService(eventslog.KafkaEventsLogConfig{
 			KafkaTopicPrefix:     a.config.KafkaTopicPrefix,
 			MetricsDestinationId: a.config.MetricsDestinationId,
@@ -87,6 +88,7 @@ func (a *Context) InitContext(settings *appbase.AppSettings) error {
 				_ = a.producer.ProduceAsync(topic, key, payload, nil, kafka.PartitionAny, "", false, 0)
 			},
 		}),
+		a.eventsLogService,
 	}}
 
 	a.backupsLogger = NewBackupLogger(a.config)

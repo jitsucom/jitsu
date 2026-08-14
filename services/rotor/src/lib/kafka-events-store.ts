@@ -101,8 +101,9 @@ export function createKafkaEventsStore(): EventsStore {
   };
 
   const publishUnsafe = (record: ExportRecord) => {
-    // the otlp connection's own records never export (self-export loop guard)
-    if (record.actorId.endsWith(OTLP_DESTINATION_SUFFIX)) {
+    // self-export loop guard — exact match: only the workspace's own synthesized
+    // otlp destination is excluded, not any actor id that ends with the suffix
+    if (record.actorId === `${record.workspaceId}${OTLP_DESTINATION_SUFFIX}`) {
       return;
     }
     if (!otlpExportEnabled(record.workspaceId)) {

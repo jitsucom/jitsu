@@ -5,7 +5,6 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	"strings"
 	"time"
 
 	"github.com/jitsucom/bulker/jitsubase/logging"
@@ -100,7 +99,9 @@ func (k *KafkaEventsLogService) exportable(event *ActorEvent) bool {
 	if event.WorkspaceId == "" {
 		return false
 	}
-	if strings.HasSuffix(event.ActorId, OtlpDestinationIdSuffix) {
+	// exact match: only the workspace's own synthesized otlp destination is
+	// excluded — a customer destination that happens to end with _otlp is not
+	if event.ActorId == event.WorkspaceId+OtlpDestinationIdSuffix {
 		return false
 	}
 	return k.config.OtlpEnabled(event.WorkspaceId)

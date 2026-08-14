@@ -131,6 +131,13 @@ func TestKafkaEventsLogExportableFiltering(t *testing.T) {
 	service.PostAsync(self)
 
 	require.Empty(t, *produced)
+
+	// exact match only: a customer destination that merely ends with _otlp exports
+	lookalike := testActorEvent()
+	lookalike.EventType = EventTypeBatch
+	lookalike.ActorId = "custom_otlp"
+	service.PostAsync(lookalike)
+	require.Len(t, *produced, 2)
 }
 
 func TestKafkaEventsLogBatchAndStreamTypes(t *testing.T) {
