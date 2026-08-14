@@ -20,6 +20,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"io"
 	"os"
+	"path"
 	"strings"
 	"testing"
 	"time"
@@ -44,14 +45,36 @@ var configRegistry = map[string]any{}
 
 var minioContainer *testcontainers.MinioContainer
 
+// isolatedRunConfig gives an env-provided cloud-storage config a per-run folder.
+// Unlike the per-run minio containers, the aws/gcs buckets are shared across CI
+// runs, and object names are deterministic (test fixture timestamps) — without
+// isolation, concurrent runs write/read/delete the same keys and race
+func isolatedRunConfig(rawJSON string) any {
+	cfg := map[string]any{}
+	if err := json.Unmarshal([]byte(rawJSON), &cfg); err != nil {
+		// let the adapter surface the parse error with the original config
+		return rawJSON
+	}
+	runId := os.Getenv("GITHUB_RUN_ID")
+	if runId == "" {
+		runId = fmt.Sprintf("local-%d", time.Now().UnixMilli())
+	}
+	if attempt := os.Getenv("GITHUB_RUN_ATTEMPT"); attempt != "" {
+		runId += "-" + attempt
+	}
+	folder, _ := cfg["folder"].(string)
+	cfg["folder"] = path.Join(folder, "run-"+runId)
+	return cfg
+}
+
 func init() {
 	gcsConfig := os.Getenv("BULKER_TEST_GCS")
 	if gcsConfig != "" {
-		configRegistry[implementations.GCSBulkerTypeId] = TestConfig{BulkerType: implementations.GCSBulkerTypeId, Config: gcsConfig}
+		configRegistry[implementations.GCSBulkerTypeId] = TestConfig{BulkerType: implementations.GCSBulkerTypeId, Config: isolatedRunConfig(gcsConfig)}
 	}
 	s3Config := os.Getenv("BULKER_TEST_S3")
 	if s3Config != "" {
-		configRegistry[implementations.S3BulkerTypeId+"_aws"] = TestConfig{BulkerType: implementations.S3BulkerTypeId, Config: s3Config}
+		configRegistry[implementations.S3BulkerTypeId+"_aws"] = TestConfig{BulkerType: implementations.S3BulkerTypeId, Config: isolatedRunConfig(s3Config)}
 	}
 	var err error
 	minioContainer, err = testcontainers.NewMinioContainer(context.Background(), "bulkertests")
@@ -427,10 +450,14 @@ func testStream(t *testing.T, testConfig bulkerTestConfig, mode bulker.BulkMode)
 		expectedRowCount := utils.Ternary(testConfig.expectedRows != nil, any(len(testConfig.expectedRows)), testConfig.expectedRowsCount).(int)
 		//Check rows count and rows data when provided
 		rowBytes, err := fileAdapter.Download(expectedFileName)
+		PostStep("download_result_file", testConfig, mode, reqr, err)
 		rows := []map[string]any{}
 		var reader io.Reader
 		if expectedRowCount > 0 && fileAdapter.Compression() == types.FileCompressionGZIP {
-			reader, _ = gzip.NewReader(bytes.NewReader(rowBytes))
+			// a failed/racy download yields non-gzip bytes; asserting here turns a
+			// nil-reader segfault into a readable test failure
+			reader, err = gzip.NewReader(bytes.NewReader(rowBytes))
+			PostStep("gzip_reader", testConfig, mode, reqr, err)
 		} else {
 			reader = bytes.NewReader(rowBytes)
 		}
