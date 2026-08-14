@@ -12,7 +12,9 @@ import { useBilling } from "../Billing/BillingProvider";
 import { UpgradeDialog } from "../Billing/UpgradeDialog";
 import { EditorField } from "../ConfigObjectEditor/EditorField";
 import { EditorButtons } from "../ConfigObjectEditor/EditorButtons";
+import { EditorTitle } from "../ConfigObjectEditor/EditorTitle";
 import { ConfigTestResult } from "../ConfigObjectEditor/ConfigEditor";
+import { useRouter } from "next/router";
 
 const planTiers = { free: 0, business: 1, enterprise: 2 } as const;
 type OtlpExportPlan = keyof typeof planTiers;
@@ -39,25 +41,31 @@ export const ObservabilityExportsEditorLoader: React.FC<{}> = () => {
   const workspace = useWorkspace();
   const appConfig = useAppConfig();
   const billing = useBilling();
+  const router = useRouter();
   const settings = useQuery(
     ["observability-exports", workspace.id],
     () => get(`/api/workspace/${workspace.id}/observability-exports`),
     { retry: false, cacheTime: 0, refetchOnWindowFocus: false }
   );
   const requiredPlan: OtlpExportPlan = appConfig.otlpExportBillingPlan || "free";
-  if (billing.loading) {
-    return <Skeleton active={true} />;
-  }
   // gate follows the Workspace Domains convention: applies only when billing is
   // enabled (self-hosted deployments have no plans to compare against)
-  if (billing.enabled && workspacePlanTier(billing.settings) < planTiers[requiredPlan]) {
-    return <UpgradeDialog featureDescription="Observability exports" availableInPlans={upgradePlans[requiredPlan]} />;
-  }
+  const planTooLow =
+    !billing.loading && billing.enabled && workspacePlanTier(billing.settings) < planTiers[requiredPlan];
   return (
-    <div>
-      {settings.isLoading && <Skeleton active={true} />}
-      {settings.isError && <ErrorCard error={settings.error} />}
-      {settings.data && <ObservabilityExportsEditor obj={ObservabilityExportsSettings.parse(settings.data)} />}
+    <div className="flex justify-center">
+      <div className="max-w-4xl grow">
+        <EditorTitle title="Observability exports" onBack={() => router.push(`/${workspace.slugOrId}/settings`)} />
+        {billing.loading || settings.isLoading ? (
+          <Skeleton active={true} />
+        ) : planTooLow ? (
+          <UpgradeDialog featureDescription="Observability exports" availableInPlans={upgradePlans[requiredPlan]} />
+        ) : settings.isError ? (
+          <ErrorCard error={settings.error} />
+        ) : settings.data ? (
+          <ObservabilityExportsEditor obj={ObservabilityExportsSettings.parse(settings.data)} />
+        ) : null}
+      </div>
     </div>
   );
 };
@@ -154,110 +162,107 @@ export const ObservabilityExportsEditor: React.FC<{ obj: ObservabilityExportsSet
   };
 
   return (
-    <div className="flex justify-center">
-      <div className="max-w-4xl grow">
-        <EditorField
+    <div>
+      <EditorField
+        id="enabled"
+        label="Enabled"
+        help={
+          <>
+            Export Live Events to your observability backend as OpenTelemetry logs. Turning this off stops new exports.
+            Live Events inside Jitsu are unaffected.
+          </>
+        }
+      >
+        <Switch
           id="enabled"
-          label="Enabled"
-          help={
-            <>
-              Export Live Events to your observability backend as OpenTelemetry logs. Turning this off stops new
-              exports. Live Events inside Jitsu are unaffected.
-            </>
-          }
-        >
-          <Switch
-            id="enabled"
-            checked={settings.enabled}
-            disabled={readonly || saving}
-            onChange={enabled => setSettings(s => ({ ...s, enabled }))}
-          />
-        </EditorField>
-        <EditorField
-          id="endpoint"
-          label="OTLP logs endpoint"
-          required={settings.enabled}
-          errors={displayErrors["endpoint"]}
-          help={
-            <>
-              HTTPS URL of your OTLP/HTTP endpoint, including the logs path — usually <code>/v1/logs</code>. For
-              Datadog, use your site's OTLP intake, for example <code>https://otlp.datadoghq.com/v1/logs</code> for US1.
-            </>
-          }
-        >
-          <Input
-            id="endpoint"
-            placeholder="https://otlp.datadoghq.com/v1/logs"
-            value={settings.endpoint}
-            disabled={readonly || saving}
-            onChange={e => setSettings(s => ({ ...s, endpoint: e.target.value }))}
-          />
-        </EditorField>
-        <EditorField
-          id="headers"
-          label="Authentication headers"
-          errors={displayErrors["headers"]}
-          help={
-            <>
-              Headers sent with every export request. Use them for your backend's API key — for Datadog,{" "}
-              <code>dd-api-key: &lt;your Datadog API key&gt;</code>. Values are hidden after saving and can only be
-              replaced, not read back. The <b>Send test log</b> button below sends one test log to your endpoint and
-              shows the response, so you can verify the URL and credentials. Test logs are marked as tests and are never
-              billed.
-            </>
-          }
-        >
-          <div className="flex flex-col gap-2">
-            {settings.headers.map((header, i) => (
-              <div key={i} className="flex gap-2 items-center">
-                <Input
-                  className="max-w-[20em]"
-                  placeholder="Header name"
-                  value={header.name}
-                  disabled={readonly || saving}
-                  onChange={e => setHeader(i, { name: e.target.value })}
-                />
-                <Input.Password
-                  placeholder="Header value"
-                  value={header.value}
-                  disabled={readonly || saving}
-                  onChange={e => setHeader(i, { value: e.target.value })}
-                />
-                <Button
-                  type="text"
-                  icon={<DeleteOutlined />}
-                  disabled={readonly || saving}
-                  onClick={() => setSettings(s => ({ ...s, headers: s.headers.filter((_, j) => j !== i) }))}
-                />
-              </div>
-            ))}
-            <div>
-              <Button
-                icon={<PlusOutlined />}
-                disabled={readonly || saving}
-                onClick={() => setSettings(s => ({ ...s, headers: [...s.headers, { name: "", value: "" }] }))}
-              >
-                Add header
-              </Button>
-            </div>
-          </div>
-        </EditorField>
-        <EditorButtons
-          isNew={true}
-          loading={saving}
-          testing={testing}
-          onDelete={() => {}}
-          onTest={onTest}
-          testButtonLabel="Send test log"
-          onCancel={() => {
-            setSettings(original);
-            setShowErrors(false);
-          }}
-          onSave={onSave}
-          isTouched={isTouched}
-          hasErrors={showErrors && hasErrors}
+          checked={settings.enabled}
+          disabled={readonly || saving}
+          onChange={enabled => setSettings(s => ({ ...s, enabled }))}
         />
-      </div>
+      </EditorField>
+      <EditorField
+        id="endpoint"
+        label="OTLP logs endpoint"
+        required={settings.enabled}
+        errors={displayErrors["endpoint"]}
+        help={
+          <>
+            HTTPS URL of your OTLP/HTTP endpoint, including the logs path — usually <code>/v1/logs</code>. For Datadog,
+            use your site's OTLP intake, for example <code>https://otlp.datadoghq.com/v1/logs</code> for US1.
+          </>
+        }
+      >
+        <Input
+          id="endpoint"
+          placeholder="https://otlp.datadoghq.com/v1/logs"
+          value={settings.endpoint}
+          disabled={readonly || saving}
+          onChange={e => setSettings(s => ({ ...s, endpoint: e.target.value }))}
+        />
+      </EditorField>
+      <EditorField
+        id="headers"
+        label="Authentication headers"
+        errors={displayErrors["headers"]}
+        help={
+          <>
+            Headers sent with every export request. Use them for your backend's API key — for Datadog,{" "}
+            <code>dd-api-key: &lt;your Datadog API key&gt;</code>. Values are hidden after saving and can only be
+            replaced, not read back. The <b>Send test log</b> button below sends one test log to your endpoint and shows
+            the response, so you can verify the URL and credentials. Test logs are marked as tests and are never billed.
+          </>
+        }
+      >
+        <div className="flex flex-col gap-2">
+          {settings.headers.map((header, i) => (
+            <div key={i} className="flex gap-2 items-center">
+              <Input
+                className="max-w-[20em]"
+                placeholder="Header name"
+                value={header.name}
+                disabled={readonly || saving}
+                onChange={e => setHeader(i, { name: e.target.value })}
+              />
+              <Input.Password
+                placeholder="Header value"
+                value={header.value}
+                disabled={readonly || saving}
+                onChange={e => setHeader(i, { value: e.target.value })}
+              />
+              <Button
+                type="text"
+                icon={<DeleteOutlined />}
+                disabled={readonly || saving}
+                onClick={() => setSettings(s => ({ ...s, headers: s.headers.filter((_, j) => j !== i) }))}
+              />
+            </div>
+          ))}
+          <div>
+            <Button
+              icon={<PlusOutlined />}
+              disabled={readonly || saving}
+              onClick={() => setSettings(s => ({ ...s, headers: [...s.headers, { name: "", value: "" }] }))}
+            >
+              Add header
+            </Button>
+          </div>
+        </div>
+      </EditorField>
+      <EditorButtons
+        isNew={true}
+        loading={saving}
+        testing={testing}
+        onDelete={() => {}}
+        onTest={onTest}
+        testButtonLabel="Send test log"
+        onCancel={() => {
+          setSettings(original);
+          setShowErrors(false);
+        }}
+        onSave={onSave}
+        isTouched={isTouched}
+        hasErrors={showErrors && hasErrors}
+      />
     </div>
   );
 };

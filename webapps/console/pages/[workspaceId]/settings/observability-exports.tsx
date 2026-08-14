@@ -4,10 +4,7 @@ import { ObservabilityExportsEditorLoader } from "../../../components/Observabil
 const ObservabilityExportsPage = () => {
   return (
     <WorkspacePageLayout>
-      <div>
-        <h1 className="text-4xl mb-6">Observability exports</h1>
-        <ObservabilityExportsEditorLoader />
-      </div>
+      <ObservabilityExportsEditorLoader />
     </WorkspacePageLayout>
   );
 };
