@@ -253,7 +253,7 @@ export const ObservabilityExportsEditor: React.FC<{ obj: ObservabilityExportsSet
         loading={saving}
         testing={testing}
         onDelete={() => {}}
-        onTest={onTest}
+        onTest={readonly ? undefined : onTest}
         testButtonLabel="Send test log"
         onCancel={() => {
           setSettings(original);

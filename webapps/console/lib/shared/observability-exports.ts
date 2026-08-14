@@ -4,9 +4,15 @@ import { MASKED_SECRET } from "../schema/destinations";
 
 export const observabilityExportsNamespace = "observability-exports";
 
+// RFC 9110 field-name token; values must not carry control characters (CR/LF
+// smuggling, and fetch/Go http reject them at send time anyway — fail at save
+// time instead of persisting a config that is guaranteed to break later)
+const headerNameRegex = /^[!#$%&'*+\-.^_`|~0-9A-Za-z]+$/;
+const noControlChars = /^[^\x00-\x1F\x7F]*$/;
+
 export const ObservabilityExportHeader = z.object({
-  name: z.string().trim().min(1),
-  value: z.string(),
+  name: z.string().trim().min(1).regex(headerNameRegex, "Invalid header name"),
+  value: z.string().regex(noControlChars, "Header value must not contain control characters"),
 });
 
 export type ObservabilityExportHeader = Simplify<z.infer<typeof ObservabilityExportHeader>>;

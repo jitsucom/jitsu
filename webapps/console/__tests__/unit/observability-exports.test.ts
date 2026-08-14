@@ -37,6 +37,23 @@ describe("observability-exports settings schema", () => {
     );
   });
 
+  it("rejects invalid header names and control characters in values", () => {
+    expect(
+      ObservabilityExportsSettings.safeParse({
+        enabled: false,
+        endpoint: "",
+        headers: [{ name: "bad name", value: "x" }],
+      }).success
+    ).toBe(false);
+    expect(
+      ObservabilityExportsSettings.safeParse({
+        enabled: false,
+        endpoint: "",
+        headers: [{ name: "dd-api-key", value: "line1\r\nline2" }],
+      }).success
+    ).toBe(false);
+  });
+
   it("rejects duplicate header names, case-insensitively", () => {
     expect(
       ObservabilityExportsSettings.safeParse({
