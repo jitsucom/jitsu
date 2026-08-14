@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/stretchr/testify/require"
 )
 
@@ -127,6 +128,19 @@ func TestRedshiftDataConfig__String(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestRedshiftConfigRetryMode(t *testing.T) {
+	// default is adaptive: Data API TPS quotas are account-wide
+	require.Equal(t, aws.RetryModeAdaptive, (&RedshiftConfig{}).GetRetryMode())
+	require.Equal(t, aws.RetryModeStandard, (&RedshiftConfig{RetryMode: "standard"}).GetRetryMode())
+
+	cfg, err := ParseDSN("admin@cluster(default)/dev?retryMode=standard")
+	require.NoError(t, err)
+	require.Equal(t, "standard", cfg.RetryMode)
+
+	_, err = ParseDSN("admin@cluster(default)/dev?retryMode=aggressive")
+	require.Error(t, err)
 }
 
 func TestRedshiftConfigSanitize(t *testing.T) {

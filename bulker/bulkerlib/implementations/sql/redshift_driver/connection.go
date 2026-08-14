@@ -311,15 +311,29 @@ func (c *redshiftConnection) wait(ctx context.Context, id *string) (output *reds
 		_, _ = c.client.CancelStatement(ctx, &redshiftdata.CancelStatementInput{Id: id})
 	}
 
-	// describeOutput describes the query and returns true if the query is finished or an error occurred
+	// describeOutput describes the query and returns true if the query is finished
+	// or polling should stop. A transient DescribeStatement failure (e.g. Data API
+	// throttling after the SDK retryer gave up) must NOT abandon a query that is
+	// still running server-side — keep polling and only give up after several
+	// consecutive failures
+	const maxConsecutiveDescribeErrors = 5
+	consecutiveErrors := 0
 	describeOutput := func() bool {
-		output, err = c.client.DescribeStatement(ctx, &redshiftdata.DescribeStatementInput{
+		var describeErr error
+		output, describeErr = c.client.DescribeStatement(ctx, &redshiftdata.DescribeStatementInput{
 			Id: id,
 		})
-		if err != nil {
+		if describeErr != nil {
 			output = nil
-			return true
+			consecutiveErrors++
+			if ctx.Err() != nil || consecutiveErrors >= maxConsecutiveDescribeErrors {
+				err = describeErr
+				return true
+			}
+			return false
 		}
+		consecutiveErrors = 0
+		err = nil
 		if isFinishedStatus(output.Status) {
 			return true
 		}
