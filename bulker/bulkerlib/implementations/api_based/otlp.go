@@ -33,6 +33,9 @@ const otlpServiceName = "jitsu-live-events"
 // the workspace's export forever on a single oversized record
 const maxEnvelopeBytes = 20 * 1024 * 1024
 
+// cap on the OTLP endpoint's response body (status text / partial_success only)
+const otlpResponseLimit = 64 * 1024
+
 func init() {
 	bulker.RegisterBulker(OtlpBulkerTypeId, NewOtlpBulker)
 }
@@ -271,7 +274,10 @@ func (o *OtlpBulker) Upload(reader io.Reader, _ string, _ int, _ map[string]any)
 			continue
 		}
 		var bodyBytes []byte
-		bodyBytes, err = io.ReadAll(res.Body)
+		// the endpoint is customer-configured: cap the response read so a
+		// misbehaving server can't force unbounded allocation. Real
+		// ExportLogsServiceResponse bodies are tiny
+		bodyBytes, err = io.ReadAll(io.LimitReader(res.Body, otlpResponseLimit))
 		_ = res.Body.Close()
 		respBody = string(bodyBytes)
 		statusCode = res.StatusCode
