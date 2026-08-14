@@ -1,10 +1,70 @@
 package driver
 
 import (
+	"context"
+	"errors"
 	"testing"
+	"time"
 
+	"github.com/aws/aws-sdk-go-v2/service/redshiftdata"
+	"github.com/aws/aws-sdk-go-v2/service/redshiftdata/types"
 	"github.com/stretchr/testify/require"
 )
+
+type mockRedshiftClient struct {
+	describeErrors    int // fail this many DescribeStatement calls before succeeding
+	describeCallCount int
+}
+
+func (m *mockRedshiftClient) ExecuteStatement(_ context.Context, _ *redshiftdata.ExecuteStatementInput, _ ...func(*redshiftdata.Options)) (*redshiftdata.ExecuteStatementOutput, error) {
+	return nil, errors.New("not implemented")
+}
+
+func (m *mockRedshiftClient) BatchExecuteStatement(_ context.Context, _ *redshiftdata.BatchExecuteStatementInput, _ ...func(*redshiftdata.Options)) (*redshiftdata.BatchExecuteStatementOutput, error) {
+	return nil, errors.New("not implemented")
+}
+
+func (m *mockRedshiftClient) CancelStatement(_ context.Context, _ *redshiftdata.CancelStatementInput, _ ...func(*redshiftdata.Options)) (*redshiftdata.CancelStatementOutput, error) {
+	return &redshiftdata.CancelStatementOutput{}, nil
+}
+
+func (m *mockRedshiftClient) GetStatementResult(_ context.Context, _ *redshiftdata.GetStatementResultInput, _ ...func(*redshiftdata.Options)) (*redshiftdata.GetStatementResultOutput, error) {
+	return nil, errors.New("not implemented")
+}
+
+func (m *mockRedshiftClient) DescribeStatement(_ context.Context, _ *redshiftdata.DescribeStatementInput, _ ...func(*redshiftdata.Options)) (*redshiftdata.DescribeStatementOutput, error) {
+	m.describeCallCount++
+	if m.describeCallCount <= m.describeErrors {
+		return nil, errors.New("ThrottlingException: rate exceeded")
+	}
+	hasResultSet := false
+	return &redshiftdata.DescribeStatementOutput{Status: types.StatusStringFinished, HasResultSet: &hasResultSet}, nil
+}
+
+func waitTestConnection(client RedshiftClient) *redshiftConnection {
+	return newConnection(client, &RedshiftConfig{
+		MinPolling: time.Millisecond,
+		MaxPolling: 2 * time.Millisecond,
+	})
+}
+
+func TestWaitToleratesTransientDescribeErrors(t *testing.T) {
+	client := &mockRedshiftClient{describeErrors: 3}
+	c := waitTestConnection(client)
+	output, err := c.wait(context.Background(), nil)
+	require.NoError(t, err)
+	require.Equal(t, types.StatusStringFinished, output.Status)
+	require.Equal(t, 4, client.describeCallCount)
+}
+
+func TestWaitGivesUpAfterConsecutiveDescribeErrors(t *testing.T) {
+	client := &mockRedshiftClient{describeErrors: 100}
+	c := waitTestConnection(client)
+	_, err := c.wait(context.Background(), nil)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "ThrottlingException")
+	require.Equal(t, 5, client.describeCallCount)
+}
 
 func TestRewriteQuery(t *testing.T) {
 	cases := []struct {
