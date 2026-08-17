@@ -1,5 +1,6 @@
-import { Button, Input, Skeleton, Switch } from "antd";
-import { useWorkspace, useWorkspaceRole } from "../../lib/context";
+import { Alert, Button, Input, Skeleton, Switch } from "antd";
+import { AlertCircle, Lock, Mail } from "lucide-react";
+import { useAppConfig, useWorkspace, useWorkspaceRole } from "../../lib/context";
 import { useQuery } from "@tanstack/react-query";
 import { get } from "../../lib/useApi";
 import { ErrorCard } from "../GlobalError/GlobalError";
@@ -9,7 +10,6 @@ import { rpc } from "juava";
 import { DeleteOutlined, PlusOutlined } from "@ant-design/icons";
 import { feedbackError, feedbackSuccess } from "../../lib/ui";
 import { useBilling } from "../Billing/BillingProvider";
-import { UpgradeDialog } from "../Billing/UpgradeDialog";
 import { EditorField } from "../ConfigObjectEditor/EditorField";
 import { EditorButtons } from "../ConfigObjectEditor/EditorButtons";
 import { EditorTitle } from "../ConfigObjectEditor/EditorTitle";
@@ -36,7 +36,7 @@ export const ObservabilityExportsEditorLoader: React.FC<{}> = () => {
         {billing.loading || settings.isLoading ? (
           <Skeleton active={true} />
         ) : planTooLow ? (
-          <UpgradeDialog featureDescription="Observability exports" />
+          <UpgradeBanner />
         ) : settings.isError ? (
           <ErrorCard error={settings.error} />
         ) : settings.data ? (
@@ -44,6 +44,64 @@ export const ObservabilityExportsEditorLoader: React.FC<{}> = () => {
         ) : null}
       </div>
     </div>
+  );
+};
+
+// Observability exports are sold with custom plans only, so unlike the generic
+// UpgradeDialog the CTA is "contact support", not the self-serve billing page.
+// Two variants: self-serve plans (free/business) are told a custom plan is
+// required; workspaces already on a custom plan are told a plan change is
+// required (their plan just doesn't include the feature)
+const UpgradeBanner: React.FC<{}> = () => {
+  const appConfig = useAppConfig();
+  const billing = useBilling();
+  const onCustomPlan = !!(billing.enabled && (billing.settings?.custom || billing.settings?.customBilling));
+  const contactUrl = `${appConfig.websiteUrl || "https://jitsu.com"}/contact?utm_source=app`;
+  // no h-full wrapper (unlike UpgradeDialog): the settings layout is a fixed
+  // height scroll container, and a 100%-height child below the EditorTitle
+  // always overflows it — that was the phantom scrollbar on this page
+  return (
+    <Alert
+      message={
+        <h3 className="text-2xl flex items-center space-x-2">
+          <Lock className="w-6 h-6" /> <span>{onCustomPlan ? "Plan change required" : "Custom plan required"}</span>
+        </h3>
+      }
+      icon={<AlertCircle />}
+      description={
+        <div>
+          {onCustomPlan ? (
+            <div className="text">
+              Observability exports aren&apos;t included in your current plan. Contact support and we&apos;ll add it —
+              exports can be enabled for this workspace right after.
+            </div>
+          ) : (
+            <>
+              <div className="text">
+                Observability exports stream your Live Events — function logs, batch statuses, sync results, and
+                delivery errors — straight to your own monitoring stack (Datadog or any OTLP-compatible backend).
+              </div>
+              <div className="text mt-2">
+                This feature is available on custom plans only. Get in touch and we&apos;ll put together a plan that
+                fits your workspace.
+              </div>
+            </>
+          )}
+          <div className="mt-4">
+            <Button
+              icon={<Mail className="w-4 h-4 anticon" />}
+              type="primary"
+              href={contactUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              Contact support
+            </Button>
+          </div>
+        </div>
+      }
+      type="info"
+    />
   );
 };
 
