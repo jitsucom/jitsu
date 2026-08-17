@@ -57,50 +57,51 @@ const UpgradeBanner: React.FC<{}> = () => {
   const billing = useBilling();
   const onCustomPlan = !!(billing.enabled && (billing.settings?.custom || billing.settings?.customBilling));
   const contactUrl = `${appConfig.websiteUrl || "https://jitsu.com"}/contact?utm_source=app`;
+  // no h-full wrapper (unlike UpgradeDialog): the settings layout is a fixed
+  // height scroll container, and a 100%-height child below the EditorTitle
+  // always overflows it — that was the phantom scrollbar on this page
   return (
-    <div className="h-full w-full">
-      <Alert
-        message={
-          <h3 className="text-2xl flex items-center space-x-2">
-            <Lock className="w-6 h-6" /> <span>{onCustomPlan ? "Plan change required" : "Custom plan required"}</span>
-          </h3>
-        }
-        icon={<AlertCircle />}
-        description={
-          <div>
-            {onCustomPlan ? (
-              <div className="text">
-                Observability exports aren&apos;t included in your current plan. Contact support and we&apos;ll add it —
-                exports can be enabled for this workspace right after.
-              </div>
-            ) : (
-              <>
-                <div className="text">
-                  Observability exports stream your Live Events — function logs, batch statuses, sync results, and
-                  delivery errors — straight to your own monitoring stack (Datadog or any OTLP-compatible backend).
-                </div>
-                <div className="text mt-2">
-                  This feature is available on custom plans only. Get in touch and we&apos;ll put together a plan that
-                  fits your workspace.
-                </div>
-              </>
-            )}
-            <div className="mt-4">
-              <Button
-                icon={<Mail className="w-4 h-4 anticon" />}
-                type="primary"
-                href={contactUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-              >
-                Contact support
-              </Button>
+    <Alert
+      message={
+        <h3 className="text-2xl flex items-center space-x-2">
+          <Lock className="w-6 h-6" /> <span>{onCustomPlan ? "Plan change required" : "Custom plan required"}</span>
+        </h3>
+      }
+      icon={<AlertCircle />}
+      description={
+        <div>
+          {onCustomPlan ? (
+            <div className="text">
+              Observability exports aren&apos;t included in your current plan. Contact support and we&apos;ll add it —
+              exports can be enabled for this workspace right after.
             </div>
+          ) : (
+            <>
+              <div className="text">
+                Observability exports stream your Live Events — function logs, batch statuses, sync results, and
+                delivery errors — straight to your own monitoring stack (Datadog or any OTLP-compatible backend).
+              </div>
+              <div className="text mt-2">
+                This feature is available on custom plans only. Get in touch and we&apos;ll put together a plan that
+                fits your workspace.
+              </div>
+            </>
+          )}
+          <div className="mt-4">
+            <Button
+              icon={<Mail className="w-4 h-4 anticon" />}
+              type="primary"
+              href={contactUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              Contact support
+            </Button>
           </div>
-        }
-        type="info"
-      />
-    </div>
+        </div>
+      }
+      type="info"
+    />
   );
 };
 
