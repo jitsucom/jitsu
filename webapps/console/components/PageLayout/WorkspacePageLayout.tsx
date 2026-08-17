@@ -513,6 +513,11 @@ function PageHeader() {
           path: "/settings/audit-log",
           icon: <ShieldAlert className="w-full h-full" />,
         },
+        {
+          title: "Observability Exports",
+          path: "/settings/observability-exports",
+          icon: <ScrollText className="w-full h-full" />,
+        },
         billing.enabled && billing.settings?.dataRetentionEditorEnabled
           ? {
               title: "Data Retention",
