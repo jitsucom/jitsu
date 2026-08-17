@@ -2,6 +2,7 @@ package eventslog
 
 import (
 	"encoding/json"
+	"fmt"
 	"testing"
 	"time"
 
@@ -20,8 +21,9 @@ func newTestKafkaService(prefix string, enabled map[string]bool) (*KafkaEventsLo
 		KafkaTopicPrefix:     prefix,
 		MetricsDestinationId: "metrics",
 		OtlpEnabled:          func(workspaceId string) bool { return enabled[workspaceId] },
-		Produce: func(topic string, key string, payload []byte) {
+		Produce: func(topic string, key string, payload []byte) error {
 			*produced = append(*produced, producedMessage{topic, key, payload})
+			return nil
 		},
 	})
 	return service, produced
@@ -172,14 +174,30 @@ func TestKafkaEventsLogBillingDisabled(t *testing.T) {
 	service := NewKafkaEventsLogService(KafkaEventsLogConfig{
 		MetricsDestinationId: "",
 		OtlpEnabled:          func(string) bool { return true },
-		Produce: func(topic string, key string, payload []byte) {
+		Produce: func(topic string, key string, payload []byte) error {
 			*produced = append(*produced, producedMessage{topic, key, payload})
+			return nil
 		},
 	})
 	service.PostAsync(testActorEvent())
 	// export still publishes; only the billing record is skipped
 	require.Len(t, *produced, 1)
 	require.Equal(t, "in.id.ws1_otlp.m.batch.t.live_events", (*produced)[0].topic)
+}
+
+func TestKafkaEventsLogNoBillingOnEnqueueFailure(t *testing.T) {
+	attempted := &[]string{}
+	service := NewKafkaEventsLogService(KafkaEventsLogConfig{
+		MetricsDestinationId: "metrics",
+		OtlpEnabled:          func(string) bool { return true },
+		Produce: func(topic string, key string, payload []byte) error {
+			*attempted = append(*attempted, topic)
+			return fmt.Errorf("queue full")
+		},
+	})
+	service.PostAsync(testActorEvent())
+	// a record that never enqueued for export must not produce a billing record
+	require.Equal(t, []string{"in.id.ws1_otlp.m.batch.t.live_events"}, *attempted)
 }
 
 func TestKafkaEventsLogInMultiService(t *testing.T) {

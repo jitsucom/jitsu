@@ -21,8 +21,11 @@ const serverEnv = getServerEnv();
 
 const OTLP_DESTINATION_SUFFIX = "_otlp";
 
-// same recipe as eventslog.ExportEventId (Go): content hash so export retries
-// and reprocessing produce the same id and billing dedup collapses them
+// same recipe as eventslog.ExportEventId (Go): a content hash minted once at
+// publish time, so delivery retries of the same envelope carry the same id and
+// billing dedup collapses them. A re-emitted log record (pipeline reprocessing)
+// is a new record with a new timestamp — delivered and billed again, matching
+// the at-least-once semantics of the Live Events store itself
 export function exportEventId(actorId: string, timestampMs: number, payload: string): string {
   return createHash("sha256")
     .update(actorId)
@@ -129,34 +132,35 @@ export function createKafkaEventsStore(): EventsStore {
       body,
     };
     const exportTopic = `${prefix}in.id.${otlpId}.m.batch.t.live_events`;
-    producer
-      .send({ topic: exportTopic, messages: [{ key: record.workspaceId, value: JSON.stringify(envelope) }] })
-      .catch(e => log.atDebug().withCause(e).log(`Failed to publish live-events export for ${record.workspaceId}`));
-
-    // billing: key {eventId}_0_{secondsWithinHour}, hour-truncated timestamp —
-    // ClickHouse uniqState(messageId) dedups retries downstream
-    if (!metricsDestinationId) {
-      return;
-    }
-    const hourMs = Math.floor(timestampMs / 3600000) * 3600000;
-    const secondsWithinHour = Math.floor((timestampMs - hourMs) / 1000);
-    const billingKey = `${eventId}_0_${secondsWithinHour}`;
-    const billingTopic = `${prefix}in.id.${metricsDestinationId}.m.batch.t.active_incoming`;
-    producer
-      .send({
-        topic: billingTopic,
-        messages: [
-          {
-            key: billingKey,
-            value: JSON.stringify({
-              timestamp: new Date(hourMs).toISOString(),
-              workspaceId: record.workspaceId,
-              messageId: billingKey,
-            }),
-          },
-        ],
+    const p = producer;
+    p.send({ topic: exportTopic, messages: [{ key: record.workspaceId, value: JSON.stringify(envelope) }] })
+      .then(() => {
+        // billing only after the export record was acked into Kafka — a record
+        // that never left the process must not be billed.
+        // key {eventId}_0_{secondsWithinHour}, hour-truncated timestamp —
+        // ClickHouse uniqState(messageId) dedups retries downstream
+        if (!metricsDestinationId) {
+          return;
+        }
+        const hourMs = Math.floor(timestampMs / 3600000) * 3600000;
+        const secondsWithinHour = Math.floor((timestampMs - hourMs) / 1000);
+        const billingKey = `${eventId}_0_${secondsWithinHour}`;
+        const billingTopic = `${prefix}in.id.${metricsDestinationId}.m.batch.t.active_incoming`;
+        p.send({
+          topic: billingTopic,
+          messages: [
+            {
+              key: billingKey,
+              value: JSON.stringify({
+                timestamp: new Date(hourMs).toISOString(),
+                workspaceId: record.workspaceId,
+                messageId: billingKey,
+              }),
+            },
+          ],
+        }).catch(e => log.atDebug().withCause(e).log(`Failed to publish export billing for ${record.workspaceId}`));
       })
-      .catch(e => log.atDebug().withCause(e).log(`Failed to publish export billing for ${record.workspaceId}`));
+      .catch(e => log.atDebug().withCause(e).log(`Failed to publish live-events export for ${record.workspaceId}`));
   };
 
   return {

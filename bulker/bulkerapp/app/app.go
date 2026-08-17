@@ -108,8 +108,8 @@ func (a *Context) InitContext(settings *appbase.AppSettings) error {
 				OtlpEnabled: func(workspaceId string) bool {
 					return a.repository.GetDestination(workspaceId+eventslog.OtlpDestinationIdSuffix) != nil
 				},
-				Produce: func(topic string, key string, payload []byte) {
-					_ = a.batchProducer.ProduceAsync(topic, key, payload, nil, kafka.PartitionAny, "", false, 0)
+				Produce: func(topic string, key string, payload []byte) error {
+					return a.batchProducer.ProduceAsync(topic, key, payload, nil, kafka.PartitionAny, "", false, 0)
 				},
 			}),
 			a.eventsLogService,

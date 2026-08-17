@@ -46,9 +46,12 @@ const OtlpDestinationIdSuffix = "_otlp"
 
 const exportTableName = "live_events"
 
-// ExportEventId derives the stable per-record id: a content hash, so export
-// retries and pipeline reprocessing produce the same id and the billing flow's
-// uniqState(messageId) dedup collapses them. Same recipe in rotor (TS)
+// ExportEventId derives the per-record id: a content hash minted once at
+// publish time, so export/delivery retries of the same envelope carry the same
+// id and the billing flow's uniqState(messageId) dedup collapses them.
+// Pipeline reprocessing that re-emits a log record produces a new record (new
+// timestamp) — it is delivered and billed again, matching the at-least-once
+// semantics of the Live Events store itself. Same recipe in rotor (TS)
 func ExportEventId(actorId string, timestamp time.Time, payload []byte) string {
 	h := sha256.New()
 	h.Write([]byte(actorId))
@@ -60,8 +63,10 @@ func ExportEventId(actorId string, timestamp time.Time, payload []byte) string {
 }
 
 // ExportProduceFunc produces one message to a Kafka topic. Implementations must
-// be async/non-blocking — export must never delay events-log writes
-type ExportProduceFunc func(topic string, key string, payload []byte)
+// be async/non-blocking — export must never delay events-log writes. The
+// returned error reports synchronous enqueue failure (queue full, unknown
+// topic, closed producer); async delivery failures are out of scope
+type ExportProduceFunc func(topic string, key string, payload []byte) error
 
 type KafkaEventsLogConfig struct {
 	// KafkaTopicPrefix as configured for the destination topics grammar
@@ -144,7 +149,11 @@ func (k *KafkaEventsLogService) PostAsync(event *ActorEvent) {
 	// topic grammar: {prefix}in.id.{destinationId}.m.batch.t.{table}
 	exportTopic := fmt.Sprintf("%sin.id.%s%s.m.batch.t.%s",
 		k.config.KafkaTopicPrefix, event.WorkspaceId, OtlpDestinationIdSuffix, exportTableName)
-	k.config.Produce(exportTopic, event.WorkspaceId, payload)
+	if err := k.config.Produce(exportTopic, event.WorkspaceId, payload); err != nil {
+		// a record that never left the process must not be billed
+		logging.Errorf("[kafka-export] failed to enqueue export for %s/%s: %v", event.WorkspaceId, event.ActorId, err)
+		return
+	}
 
 	k.produceBillingRecord(&envelope, timestamp)
 }
@@ -152,8 +161,8 @@ func (k *KafkaEventsLogService) PostAsync(event *ActorEvent) {
 // produceBillingRecord emits one active_incoming record per exported envelope.
 // The composed key {eventId}_0_{secondsWithinHour} with an hour-truncated
 // timestamp follows ingest's buildSyncMetrics; dedup happens downstream via
-// uniqState(messageId) in ClickHouse, so retries and regenerated records
-// cannot double-count
+// uniqState(messageId) in ClickHouse, so retries of the same envelope cannot
+// double-count
 func (k *KafkaEventsLogService) produceBillingRecord(envelope *ExportEnvelope, timestamp time.Time) {
 	// empty MetricsDestinationId means billing/metrics emission is disabled for
 	// this deployment (same convention as ingest) — export still happens
@@ -174,7 +183,9 @@ func (k *KafkaEventsLogService) produceBillingRecord(envelope *ExportEnvelope, t
 	}
 	billingTopic := fmt.Sprintf("%sin.id.%s.m.batch.t.active_incoming",
 		k.config.KafkaTopicPrefix, k.config.MetricsDestinationId)
-	k.config.Produce(billingTopic, key, payload)
+	if err := k.config.Produce(billingTopic, key, payload); err != nil {
+		logging.Errorf("[kafka-export] failed to enqueue billing record for %s: %v", envelope.WorkspaceId, err)
+	}
 }
 
 func (k *KafkaEventsLogService) PostEvent(event *ActorEvent) (id EventsLogRecordId, err error) {
