@@ -62,6 +62,18 @@ func ExportEventId(actorId string, timestamp time.Time, payload []byte) string {
 	return hex.EncodeToString(h.Sum(nil)[:16])
 }
 
+// jsonCanonical serializes the eventId hash input: sorted map keys make the
+// bytes deterministic for plain map bodies (ConfigDefault preserves Go's
+// random map iteration order, which would break hash stability); OrderedMap
+// values are already deterministic via insertion order. The envelope itself
+// still uses ConfigDefault so exported bodies keep their natural field order
+var jsonCanonical = jsonorder.Config{
+	EscapeHTML:                    false,
+	UseNumber:                     true,
+	ObjectFieldMustBeSimpleString: true,
+	SortMapKeys:                   true,
+}.Froze()
+
 // ExportProduceFunc produces one message to a Kafka topic. Implementations must
 // be async/non-blocking — export must never delay events-log writes. The
 // returned error reports synchronous enqueue failure (queue full, unknown
@@ -124,7 +136,7 @@ func (k *KafkaEventsLogService) PostAsync(event *ActorEvent) {
 	// (lastMappedRow, representation.schema, statistics.states) that only the
 	// jsonorder codec can serialize — encoding/json renders them as {} (the
 	// ClickHouse events log uses jsonorder for the same reason)
-	body, err := jsonorder.Marshal(event.Event)
+	body, err := jsonCanonical.Marshal(event.Event)
 	if err != nil {
 		logging.Errorf("[kafka-export] failed to marshal event body for %s/%s: %v", event.WorkspaceId, event.ActorId, err)
 		return
