@@ -14,6 +14,7 @@ import (
 type mockRedshiftClient struct {
 	describeErrors    int // fail this many DescribeStatement calls before succeeding
 	describeCallCount int
+	cancelCallCount   int
 }
 
 func (m *mockRedshiftClient) ExecuteStatement(_ context.Context, _ *redshiftdata.ExecuteStatementInput, _ ...func(*redshiftdata.Options)) (*redshiftdata.ExecuteStatementOutput, error) {
@@ -25,6 +26,7 @@ func (m *mockRedshiftClient) BatchExecuteStatement(_ context.Context, _ *redshif
 }
 
 func (m *mockRedshiftClient) CancelStatement(_ context.Context, _ *redshiftdata.CancelStatementInput, _ ...func(*redshiftdata.Options)) (*redshiftdata.CancelStatementOutput, error) {
+	m.cancelCallCount++
 	return &redshiftdata.CancelStatementOutput{}, nil
 }
 
@@ -64,6 +66,9 @@ func TestWaitGivesUpAfterConsecutiveDescribeErrors(t *testing.T) {
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "ThrottlingException")
 	require.Equal(t, 5, client.describeCallCount)
+	// the statement's outcome is unknown at give-up: it must be cancelled so a
+	// late completion can't land effects behind the caller's back
+	require.Equal(t, 1, client.cancelCallCount)
 }
 
 func TestRewriteQuery(t *testing.T) {
