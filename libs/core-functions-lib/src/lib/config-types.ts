@@ -52,6 +52,9 @@ export type WorkspaceWithProfiles = {
   slug: string;
   featuresEnabled: string[];
   profileBuilders: ProfileBuilder[];
+  // Live Events observability export (JITSU-138) is enabled for the workspace;
+  // injected by the workspaces-with-profiles export from workspace settings
+  otlpExportEnabled?: boolean;
 };
 
 export type ProfileBuilder = {

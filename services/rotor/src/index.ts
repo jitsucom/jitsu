@@ -1,7 +1,7 @@
 import { checkHash, checkRawToken, disableService, getLog, setServerJsonFormat, isTruish } from "juava";
 import { destinationMessagesTopic, getCredentialsFromEnv, rotorConsumerGroupId } from "./lib/kafka-config";
 import { kafkaRotor } from "./lib/rotor";
-import { DummyEventsStore, EventsStore } from "@jitsu/destination-functions";
+import { DummyEventsStore, EventsStore, MultiEventsStore } from "@jitsu/destination-functions";
 import express from "express";
 import Prometheus from "prom-client";
 import { initMaxMindClient, GeoResolver } from "./lib/maxmind";
@@ -21,6 +21,7 @@ import { db } from "./lib/db";
 import { ProfileEventsHandler } from "./http/profile-events";
 import { mongodb } from "./lib/mongodb";
 import { createClickhouseLogger } from "./lib/clickhouse-logger";
+import { createKafkaEventsStore } from "./lib/kafka-events-store";
 const log = getLog("rotor");
 
 disableService("prisma");
@@ -76,6 +77,11 @@ async function main() {
       eventsLogger = createClickhouseLogger();
     } else {
       eventsLogger = DummyEventsStore;
+    }
+    if (serverEnv.KAFKA_BOOTSTRAP_SERVERS) {
+      // Live Events observability export (JITSU-138): fan exportable records out
+      // to the workspace's otlp destination topic + billing
+      eventsLogger = MultiEventsStore([eventsLogger, createKafkaEventsStore()]);
     }
     if (serverEnv.REDIS_URL) {
       redisClient = createRedis();
