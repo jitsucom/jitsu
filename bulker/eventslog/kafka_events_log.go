@@ -3,10 +3,10 @@ package eventslog
 import (
 	"crypto/sha256"
 	"encoding/hex"
-	"encoding/json"
 	"fmt"
 	"time"
 
+	"github.com/jitsucom/bulker/jitsubase/jsonorder"
 	"github.com/jitsucom/bulker/jitsubase/logging"
 )
 
@@ -120,7 +120,11 @@ func (k *KafkaEventsLogService) PostAsync(event *ActorEvent) {
 	if timestamp.IsZero() {
 		timestamp = time.Now()
 	}
-	body, err := json.Marshal(event.Event)
+	// jsonorder, NOT encoding/json: event bodies carry OrderedMap values
+	// (lastMappedRow, representation.schema, statistics.states) that only the
+	// jsonorder codec can serialize — encoding/json renders them as {} (the
+	// ClickHouse events log uses jsonorder for the same reason)
+	body, err := jsonorder.Marshal(event.Event)
 	if err != nil {
 		logging.Errorf("[kafka-export] failed to marshal event body for %s/%s: %v", event.WorkspaceId, event.ActorId, err)
 		return
@@ -141,7 +145,7 @@ func (k *KafkaEventsLogService) PostAsync(event *ActorEvent) {
 	case EventTypeBatch, EventTypeProcessed:
 		envelope.DestinationId = event.ActorId
 	}
-	payload, err := json.Marshal(&envelope)
+	payload, err := jsonorder.Marshal(&envelope)
 	if err != nil {
 		logging.Errorf("[kafka-export] failed to marshal export envelope for %s/%s: %v", event.WorkspaceId, event.ActorId, err)
 		return
@@ -177,7 +181,7 @@ func (k *KafkaEventsLogService) produceBillingRecord(envelope *ExportEnvelope, t
 		WorkspaceId: envelope.WorkspaceId,
 		MessageId:   key,
 	}
-	payload, err := json.Marshal(&record)
+	payload, err := jsonorder.Marshal(&record)
 	if err != nil {
 		return
 	}

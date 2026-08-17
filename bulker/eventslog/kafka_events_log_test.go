@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/jitsucom/bulker/jitsubase/types"
 	"github.com/stretchr/testify/require"
 )
 
@@ -183,6 +184,23 @@ func TestKafkaEventsLogBillingDisabled(t *testing.T) {
 	// export still publishes; only the billing record is skipped
 	require.Len(t, *produced, 1)
 	require.Equal(t, "in.id.ws1_otlp.m.batch.t.live_events", (*produced)[0].topic)
+}
+
+func TestKafkaEventsLogOrderedMapBodyFidelity(t *testing.T) {
+	// regression: event bodies carry OrderedMap values (lastMappedRow,
+	// representation.schema); encoding/json silently rendered them as {}
+	service, produced := newTestKafkaService("", map[string]bool{"ws1": true})
+	row := types.NewJson(2)
+	row.Set("message_id", "m1")
+	nested := types.NewJson(1)
+	nested.Set("a", 1)
+	row.Set("nested", nested)
+	event := testActorEvent()
+	event.Event = map[string]any{"status": "COMPLETED", "lastMappedRow": row}
+	service.PostAsync(event)
+	require.Len(t, *produced, 2)
+	payload := string((*produced)[0].payload)
+	require.Contains(t, payload, `"lastMappedRow":{"message_id":"m1","nested":{"a":1}}`)
 }
 
 func TestKafkaEventsLogNoBillingOnEnqueueFailure(t *testing.T) {
