@@ -35,6 +35,7 @@ export default createRoute()
       ...(isFirebaseEnabled()
         ? {
             firebasePublic: requireFirebaseOptions().client,
+            ...(serverEnv.AUTH_SESSION_BRIDGE_ENABLED ? { sessionBridge: true } : {}),
           }
         : {}),
       ...(nextAuth

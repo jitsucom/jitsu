@@ -1,6 +1,7 @@
 import { createRoute } from "../../../lib/api";
 import { z } from "zod";
 import { firebase, getFirebaseUser, isFirebaseEnabled } from "../../../lib/server/firebase-server";
+import { getServerEnv } from "../../../lib/server/serverEnv";
 import { ApiError } from "../../../lib/shared/errors";
 
 /**
@@ -36,8 +37,11 @@ export default createRoute()
     }),
   })
   .handler(async ({ req, res, user }) => {
-    if (!isFirebaseEnabled()) {
-      throw new ApiError("Firebase auth is not enabled", { status: 404 });
+    // Deploy-time opt-in (AUTH_SESSION_BRIDGE_ENABLED): the bridge only exists
+    // on deployments that need subdomain SSO (canaries). Production keeps the
+    // endpoint dark.
+    if (!isFirebaseEnabled() || !getServerEnv().AUTH_SESSION_BRIDGE_ENABLED) {
+      throw new ApiError("Session bridge is not enabled", { status: 404 });
     }
     if (user.authType !== "firebase") {
       throw new ApiError("Session bridge is only available for firebase auth", { status: 400 });

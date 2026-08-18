@@ -182,6 +182,9 @@ export const AppConfig = z.object({
   auth: z
     .object({
       firebasePublic: z.any(),
+      // JITSU-159: server has AUTH_SESSION_BRIDGE_ENABLED — the client may
+      // attempt the session-cookie -> Firebase-SDK bridge on page load.
+      sessionBridge: z.boolean().optional(),
       nextauth: z
         .object({
           github: z.boolean().optional(),

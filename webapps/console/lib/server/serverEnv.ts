@@ -134,6 +134,12 @@ const ServerEnvSchema = ClientEnvSchema.extend({
   // Enable email/password login
   ENABLE_CREDENTIALS_LOGIN: z.string().default("false").transform(isTruish),
 
+  // JITSU-159: enables POST /api/fb-auth/custom-token — the session-cookie →
+  // Firebase-SDK bridge used for subdomain SSO onto canary hosts
+  // (pr<N>.use.jitsu.com). Off by default: production doesn't need the bridge,
+  // and keeping it off also spares signed-out page loads the probe roundtrip.
+  AUTH_SESSION_BRIDGE_ENABLED: z.string().default("false").transform(isTruish),
+
   // Firebase authentication configuration (JSON)
   FIREBASE_AUTH: z.string().optional(),
 

@@ -2,13 +2,13 @@ import { createContext, PropsWithChildren, useContext } from "react";
 import { getApps, initializeApp } from "firebase/app";
 import * as auth from "firebase/auth";
 import { AppConfig, ContextApiResponse, CreateUserResult } from "./schema";
-import { getLog, randomId, requireDefined, rpc } from "juava";
+import { ApiResponseError, getLog, randomId, requireDefined, rpc } from "juava";
 import { useJitsu } from "@jitsu/jitsu-react";
 
 type FirebaseClientSettings = Record<string, any>;
 export type FirebaseProviderInstance =
-  | { enabled: false; settings?: never }
-  | { enabled: true; settings: FirebaseClientSettings };
+  | { enabled: false; settings?: never; sessionBridge?: never }
+  | { enabled: true; settings: FirebaseClientSettings; sessionBridge?: boolean };
 
 /**
  * Outcome of resolving the current Firebase user into a Jitsu session. Returned
@@ -35,7 +35,7 @@ export const FirebaseProvider: React.FC<PropsWithChildren<{ appConfig: AppConfig
     <FirebaseContext.Provider
       value={
         appConfig.auth?.firebasePublic
-          ? { enabled: true, settings: appConfig.auth?.firebasePublic }
+          ? { enabled: true, settings: appConfig.auth?.firebasePublic, sessionBridge: appConfig.auth?.sessionBridge }
           : { enabled: false }
       }
     >
@@ -229,6 +229,34 @@ async function trySessionCookieBridge(): Promise<auth.User | null> {
 }
 
 /**
+ * A persisted bridged session can outlive its authorizing cookie: the SDK
+ * refresh token keeps renewing client-side state after the cookie has expired,
+ * been revoked, or started belonging to a different account (switch on the
+ * main origin) — the UI would then show one identity while cookie-backed API
+ * calls act as another (or 401). Re-run the exchange on every load of a
+ * bridged session: success re-signs with a token for the cookie's CURRENT
+ * user (idempotent for the same user, corrects a switch); a definitive server
+ * rejection (ApiResponseError — expired/revoked cookie, bridge disabled)
+ * drops the stale SDK state. Transient failures (network) keep the session —
+ * same best-effort stance as the initial bridge.
+ */
+async function revalidateBridgedSession(current: auth.User): Promise<auth.User | null> {
+  try {
+    const { token } = await rpc(`/api/fb-auth/custom-token`, { body: {} });
+    const credential = await auth.signInWithCustomToken(auth.getAuth(), token);
+    return credential.user;
+  } catch (e) {
+    if (e instanceof ApiResponseError) {
+      log.atInfo().log(`Bridged session is no longer backed by a valid cookie, signing out`);
+      await auth.signOut(auth.getAuth());
+      return null;
+    }
+    log.atWarn().withCause(e).log(`Bridged session revalidation failed transiently, keeping current session`);
+    return current;
+  }
+}
+
+/**
  * Records a Firebase sign-in audit event. Called only from the explicit
  * sign-in entry points (signIn / signInWith) — the implicit cookie-mint
  * path on every page load deliberately doesn't, otherwise the audit log
@@ -351,10 +379,16 @@ export function useFirebaseSession(): FirebaseSession {
               // getUserFromFirebase. Inside the try so a throwing unsubscribe
               // rejects instead of leaving the promise pending forever.
               unregister();
-              if (!user && !token) {
-                // No per-origin SDK state and no explicit ?token= — the session
-                // cookie may still be valid (subdomain carryover, JITSU-159).
-                user = await trySessionCookieBridge();
+              if (!token && config.sessionBridge) {
+                if (!user) {
+                  // No per-origin SDK state and no explicit ?token= — the session
+                  // cookie may still be valid (subdomain carryover, JITSU-159).
+                  user = await trySessionCookieBridge();
+                } else if ((await user.getIdTokenResult()).claims.bridge === true) {
+                  // Persisted bridged state must stay in lockstep with the
+                  // cookie that authorized it — see revalidateBridgedSession.
+                  user = await revalidateBridgedSession(user);
+                }
               }
               const result = user ? await getUserFromFirebase(user) : null;
               // Record the login only for an explicit sign-in (recordLogin) and only after
