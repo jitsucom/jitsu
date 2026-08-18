@@ -45,6 +45,15 @@ export const api: Api = {
       if (isUnverifiedPasswordAccount(decodedIdToken)) {
         throw new ApiError("Email address is not verified", { status: 403 });
       }
+      // JITSU-159: an ID token descending from a session-cookie bridge token
+      // (/api/fb-auth/custom-token) must never mint a NEW session cookie —
+      // otherwise credentials lifted from a bridged (e.g. canary) origin could
+      // be laundered into a fresh 5-day session that outlives the cookie they
+      // came from. Bridge sessions ride the existing cookie; only a real
+      // Firebase sign-in mints one.
+      if (decodedIdToken.bridge === true) {
+        throw new ApiError("Bridge sessions cannot mint session cookies", { status: 403 });
+      }
       const { cookie, expiresIn } = await createSessionCookie(idToken);
 
       // Audit logging lives in /api/fb-auth/audit-login which the client

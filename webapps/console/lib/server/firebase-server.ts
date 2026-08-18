@@ -230,7 +230,10 @@ export async function getFirebaseUser(req: NextApiRequest, checkRevoked?: boolea
   let decodedIdToken;
   try {
     decodedIdToken = authToken.idToken
-      ? await firebase().auth().verifyIdToken(authToken.idToken)
+      ? // Pass checkRevoked on both branches — previously the idToken branch
+        // silently dropped it, so callers requesting a revocation check (e.g.
+        // /api/me) only got one for cookie-authenticated requests.
+        await firebase().auth().verifyIdToken(authToken.idToken, checkRevoked)
       : await firebase()
           .auth()
           .verifySessionCookie(authToken.cookieToken as string, checkRevoked);

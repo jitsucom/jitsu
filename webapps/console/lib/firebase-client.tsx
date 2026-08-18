@@ -169,13 +169,20 @@ async function getUserFromFirebase(currentUser: auth.User): Promise<FirebaseAuth
   }
   const idToken = await currentUser.getIdToken(shouldRefreshToken);
   const decodedIdToken = await currentUser.getIdTokenResult(false);
-  const csrfToken = getCSRFToken("fb-csrfToken");
-  await rpc(`/api/fb-auth/create-session`, {
-    body: {
-      csrfToken,
-      idToken,
-    },
-  });
+  // JITSU-159: a bridged session (signed in via /api/fb-auth/custom-token)
+  // exists BECAUSE a valid session cookie was already presented — re-minting
+  // the cookie here would silently extend the 5-day session on every page
+  // load of a bridged host, and the server refuses bridge tokens anyway
+  // (create-session 403).
+  if (decodedIdToken.claims.bridge !== true) {
+    const csrfToken = getCSRFToken("fb-csrfToken");
+    await rpc(`/api/fb-auth/create-session`, {
+      body: {
+        csrfToken,
+        idToken,
+      },
+    });
+  }
   const expirationTime = new Date(decodedIdToken.expirationTime);
   const expirationMs = expirationTime.getTime() - Date.now();
   log.atDebug().log(`Firebase token expires in ${expirationMs / (1000 * 60)}min, at ${expirationTime.toISOString()}`);
@@ -210,7 +217,9 @@ async function getUserFromFirebase(currentUser: auth.User): Promise<FirebaseAuth
  */
 async function trySessionCookieBridge(): Promise<auth.User | null> {
   try {
-    const { token } = await rpc(`/api/fb-auth/custom-token`);
+    // POST: SameSite=lax withholds the cookie from cross-site POSTs, which is
+    // what makes the endpoint unreachable by cross-site navigation.
+    const { token } = await rpc(`/api/fb-auth/custom-token`, { body: {} });
     const credential = await auth.signInWithCustomToken(auth.getAuth(), token);
     return credential.user;
   } catch (e) {
@@ -335,12 +344,13 @@ export function useFirebaseSession(): FirebaseSession {
         let unregister = auth.onAuthStateChanged(
           auth.getAuth(),
           async user => {
-            // Unregister before any async work: the bridge below signs in via
-            // custom token, which would re-fire this listener and double-run
-            // getUserFromFirebase for the same resolution.
-            unregister();
             log.atDebug().log(`Firebase auth result`, user);
             try {
+              // Unregister before any async work: the bridge below signs in via
+              // custom token, which would re-fire this listener and double-run
+              // getUserFromFirebase. Inside the try so a throwing unsubscribe
+              // rejects instead of leaving the promise pending forever.
+              unregister();
               if (!user && !token) {
                 // No per-origin SDK state and no explicit ?token= — the session
                 // cookie may still be valid (subdomain carryover, JITSU-159).

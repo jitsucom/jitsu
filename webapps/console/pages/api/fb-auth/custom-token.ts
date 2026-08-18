@@ -12,21 +12,30 @@ import { ApiError } from "../../../lib/shared/errors";
  * the cookie is delivered there — this endpoint bridges that gap (JITSU-159,
  * canary deployments).
  *
- * Security: the caller must already hold a valid session cookie — the token is
- * minted for that same user, so this grants no privileges the cookie doesn't
- * already carry. The cookie is re-verified with checkRevoked so a revoked
- * (signed-out) session can't mint fresh credentials even before the cookie
- * expires. GET keeps it exempt from the mutating-request maintenance gate, so
- * the bridge works on read-only canaries.
+ * Security model:
+ * - Same-principal: the token is minted for the cookie's own user, so it
+ *   grants nothing the cookie doesn't already carry. The cookie is re-verified
+ *   with checkRevoked so a revoked (signed-out) session can't mint fresh
+ *   credentials before the cookie expires.
+ * - POST, not GET: SameSite=lax never attaches the cookie to cross-site POSTs,
+ *   so the endpoint is unreachable via cross-site navigation — the same reason
+ *   create-session is safe. allowDuringMaintenance keeps the bridge working on
+ *   read-only canaries (create-session uses the same exemption).
+ * - The token is tagged `bridge: true`, and create-session REFUSES bridge
+ *   tokens: a bridged session can establish client SDK state, but can never
+ *   mint a fresh 5-day session cookie from it. This caps what in-page script
+ *   on a canary host can do with the bridged credentials — they expire with
+ *   the underlying session instead of compounding into new cookies.
  */
 export default createRoute()
-  .GET({
+  .POST({
     auth: true,
+    allowDuringMaintenance: true,
     result: z.object({
       token: z.string(),
     }),
   })
-  .handler(async ({ req, user }) => {
+  .handler(async ({ req, res, user }) => {
     if (!isFirebaseEnabled()) {
       throw new ApiError("Firebase auth is not enabled", { status: 404 });
     }
@@ -39,12 +48,17 @@ export default createRoute()
     if (!fbUser) {
       throw new ApiError("Session is revoked or expired", { status: 401 });
     }
-    // Same claim shape as /api/admin/become: carry internalId so the client
-    // skips the create-user roundtrip. Omit the claim when it's not set (a
-    // first-login race) — firebase-admin rejects undefined claim values.
+    // A bearer-equivalent credential must never be cached by any intermediary.
+    res.setHeader("Cache-Control", "no-store");
+    // internalId claim as in /api/admin/become (skips the create-user roundtrip
+    // client-side); omitted when unset — firebase-admin rejects undefined claim
+    // values. `bridge: true` marks the token for the create-session refusal.
     const token = await firebase()
       .auth()
-      .createCustomToken(fbUser.externalId, fbUser.internalId ? { internalId: fbUser.internalId } : undefined);
+      .createCustomToken(fbUser.externalId, {
+        ...(fbUser.internalId ? { internalId: fbUser.internalId } : {}),
+        bridge: true,
+      });
     return { token };
   })
   .toNextApiHandler();
