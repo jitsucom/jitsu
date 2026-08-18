@@ -9,7 +9,7 @@ import { getServerSession, Session } from "next-auth";
 import { nextAuthConfig } from "./nextauth.config";
 import { inferTokenTypeFromId, SessionUser } from "./schema";
 import { db } from "./server/db";
-import { isMaintenanceActive } from "./server/maintenance";
+import { isMaintenanceActive, isReadOnly } from "./server/maintenance";
 import { prepareZodObjectForDeserialization, safeParseWithDate } from "./zod";
 import { ApiError } from "./shared/errors";
 import { getServerLog } from "./server/log";
@@ -367,12 +367,19 @@ export function nextJsApiHandler(api: Api): NextApiHandler {
     // descriptor sets `visible: false`).
     const isMutatingMethod = method === "POST" || method === "PUT" || method === "PATCH" || method === "DELETE";
     const isMutating = isMutatingMethod || !!handler.mutates;
-    const maintenanceBlocks = isMutating && !handler.allowDuringMaintenance && isMaintenanceActive();
-    if (maintenanceBlocks && !handler.auth) {
-      res.status(503).json({
-        error: "maintenance",
-        message: "Jitsu is in maintenance mode; modifications are temporarily disabled.",
-      });
+    const writeBlocked = isMutating && !handler.allowDuringMaintenance && isReadOnly();
+    // Distinguish the two reasons writes are blocked. A time-boxed maintenance
+    // window keeps the maintenance-coded 503 the frontend renders a banner for.
+    // The permanent read-only switch (JITSU_CONSOLE_READ_ONLY — canary/preview
+    // deployments, JITSU-159) must NOT masquerade as maintenance: there is no
+    // window to "end", and mislabeling it skews clients and alerting. It just
+    // rejects the write plainly.
+    const writeBlockedResponse = () =>
+      isMaintenanceActive()
+        ? { error: "maintenance", message: "Jitsu is in maintenance mode; modifications are temporarily disabled." }
+        : { error: "read_only", message: "This Jitsu deployment is read-only; modifications are disabled." };
+    if (writeBlocked && !handler.auth) {
+      res.status(503).json(writeBlockedResponse());
       return;
     }
     let currentUser: SessionUser | undefined = undefined;
@@ -385,13 +392,10 @@ export function nextJsApiHandler(api: Api): NextApiHandler {
           res.status(401).send({ error: "Authorization Required" });
           return;
         }
-        // Auth-required routes only learn about maintenance *after* successful
+        // Auth-required routes only learn about the write block *after* successful
         // auth — see the rationale above.
-        if (maintenanceBlocks) {
-          res.status(503).json({
-            error: "maintenance",
-            message: "Jitsu is in maintenance mode; modifications are temporarily disabled.",
-          });
+        if (writeBlocked) {
+          res.status(503).json(writeBlockedResponse());
           return;
         }
       }

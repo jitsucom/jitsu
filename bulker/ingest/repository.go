@@ -27,6 +27,7 @@ type Streams struct {
 	streamsByPlainKeyOrIds    map[string]*StreamWithDestinations
 	s2sStreamsByPlainKeyOrIds map[string]*StreamWithDestinations
 	streamsByDomains          map[string][]*StreamWithDestinations
+	otlpWorkspaces            map[string]bool
 	lastModified              time.Time
 }
 
@@ -50,6 +51,13 @@ func (s *Streams) GetStreams() []*StreamWithDestinations {
 	return s.streams
 }
 
+// IsOtlpExportEnabled reports whether the workspace has the Live Events
+// observability export enabled (JITSU-138). Derived from the per-stream
+// otlpExportEnabled flag the console export sets from workspace settings
+func (s *Streams) IsOtlpExportEnabled(workspaceId string) bool {
+	return s.otlpWorkspaces[workspaceId]
+}
+
 type StreamsRepositoryData struct {
 	data atomic.Pointer[Streams]
 }
@@ -66,6 +74,7 @@ func (s *StreamsRepositoryData) Init(reader io.Reader, tag any) error {
 	streamsByPlainKeyOrIds := map[string]*StreamWithDestinations{}
 	s2sStreamsByPlainKeyOrIds := map[string]*StreamWithDestinations{}
 	streamsByDomains := map[string][]*StreamWithDestinations{}
+	otlpWorkspaces := map[string]bool{}
 	// while the array contains values
 	for dec.More() {
 		swd := StreamWithDestinations{}
@@ -74,6 +83,9 @@ func (s *StreamsRepositoryData) Init(reader io.Reader, tag any) error {
 			return fmt.Errorf("Error unmarshalling stream config: %v", err)
 		}
 		swd.init()
+		if swd.OtlpExportEnabled {
+			otlpWorkspaces[swd.Stream.WorkspaceId] = true
+		}
 		streams = append(streams, &swd)
 		streamsByPlainKeyOrIds[swd.Stream.Id] = &swd
 		s2sStreamsByPlainKeyOrIds[swd.Stream.Id] = &swd
@@ -122,6 +134,7 @@ func (s *StreamsRepositoryData) Init(reader io.Reader, tag any) error {
 		streamsByPlainKeyOrIds:    streamsByPlainKeyOrIds,
 		s2sStreamsByPlainKeyOrIds: s2sStreamsByPlainKeyOrIds,
 		streamsByDomains:          streamsByDomains,
+		otlpWorkspaces:            otlpWorkspaces,
 	}
 	if tag != nil {
 		data.lastModified = tag.(time.Time)
@@ -217,7 +230,10 @@ type StreamWithDestinations struct {
 	// CaptureHeaders enables capturing HTTP request headers into event
 	// context.headers. Off by default; the console export sets it per stream from
 	// the workspace-level `captureHeaders` feature flag.
-	CaptureHeaders           bool                     `json:"captureHeaders"`
+	CaptureHeaders bool `json:"captureHeaders"`
+	// OtlpExportEnabled: workspace has the Live Events observability export
+	// enabled (JITSU-138); set per stream by the console export
+	OtlpExportEnabled        bool                     `json:"otlpExportEnabled"`
 	Destinations             []ShortDestinationConfig `json:"destinations"`
 	SynchronousDestinations  []*ShortDestinationConfig
 	AsynchronousDestinations []*ShortDestinationConfig

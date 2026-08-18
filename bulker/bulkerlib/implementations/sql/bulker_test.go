@@ -61,10 +61,24 @@ func init() {
 	// uncomment to run tests locally with just one bulker type
 	// allBulkerConfigs = []string{PostgresBulkerTypeId}
 
+	// In CI one job runs one destination — see the bulker-test matrix in
+	// .github/workflows/lint.yml. Filtering here, before anything is created,
+	// is what keeps a cloud shard from paying for local containers it will
+	// never use.
+	requestedConfigs := parseRequestedConfigs(os.Getenv("BULKER_TEST_CONFIGS"))
+	if len(requestedConfigs) > 0 {
+		// Catch a typo'd id here rather than after ~43s of container startup —
+		// nothing reaps those containers when ryuk is disabled.
+		if unknown := utils.ArrayExcluding(requestedConfigs, allBulkerConfigs...); len(unknown) > 0 {
+			panic(fmt.Sprintf("BULKER_TEST_CONFIGS asked for %v, which are not destination ids. Known ids: %v", unknown, allBulkerConfigs))
+		}
+		allBulkerConfigs = utils.ArrayIntersection(allBulkerConfigs, requestedConfigs)
+	}
+
 	if utils.ArrayContains(allBulkerConfigs, BigqueryBulkerTypeId) {
 		bigqueryConfig := os.Getenv("BULKER_TEST_BIGQUERY")
 		if bigqueryConfig != "" {
-			configRegistry[BigqueryBulkerTypeId] = TestConfig{BulkerType: BigqueryBulkerTypeId, Config: bigqueryConfig}
+			configRegistry[BigqueryBulkerTypeId] = TestConfig{BulkerType: BigqueryBulkerTypeId, Config: withTestSchema(BigqueryBulkerTypeId, bigqueryConfig, "bqDataset")}
 		} else {
 			allBulkerConfigs = utils.ArrayExcluding(allBulkerConfigs, BigqueryBulkerTypeId)
 		}
@@ -73,7 +87,7 @@ func init() {
 	if utils.ArrayContains(allBulkerConfigs, RedshiftBulkerTypeId) {
 		redshiftConfig := os.Getenv("BULKER_TEST_REDSHIFT")
 		if redshiftConfig != "" {
-			configRegistry[RedshiftBulkerTypeId] = TestConfig{BulkerType: RedshiftBulkerTypeId, Config: redshiftConfig}
+			configRegistry[RedshiftBulkerTypeId] = TestConfig{BulkerType: RedshiftBulkerTypeId, Config: withTestSchema(RedshiftBulkerTypeId, redshiftConfig, "defaultSchema")}
 		} else {
 			allBulkerConfigs = utils.ArrayExcluding(allBulkerConfigs, RedshiftBulkerTypeId)
 		}
@@ -82,7 +96,7 @@ func init() {
 	if utils.ArrayContains(allBulkerConfigs, RedshiftBulkerTypeId+"_serverless") {
 		redshiftServerlessConfig := os.Getenv("BULKER_TEST_REDSHIFT_SERVERLESS")
 		if redshiftServerlessConfig != "" {
-			configRegistry[RedshiftBulkerTypeId+"_serverless"] = TestConfig{BulkerType: RedshiftBulkerTypeId, Config: redshiftServerlessConfig}
+			configRegistry[RedshiftBulkerTypeId+"_serverless"] = TestConfig{BulkerType: RedshiftBulkerTypeId, Config: withTestSchema(RedshiftBulkerTypeId+"_serverless", redshiftServerlessConfig, "defaultSchema")}
 		} else {
 			allBulkerConfigs = utils.ArrayExcluding(allBulkerConfigs, RedshiftBulkerTypeId+"_serverless")
 		}
@@ -90,7 +104,7 @@ func init() {
 	if utils.ArrayContains(allBulkerConfigs, RedshiftBulkerTypeId+"_iam") {
 		redshiftServerlessConfig := os.Getenv("BULKER_TEST_REDSHIFT_IAM")
 		if redshiftServerlessConfig != "" {
-			configRegistry[RedshiftBulkerTypeId+"_iam"] = TestConfig{BulkerType: RedshiftBulkerTypeId, Config: redshiftServerlessConfig}
+			configRegistry[RedshiftBulkerTypeId+"_iam"] = TestConfig{BulkerType: RedshiftBulkerTypeId, Config: withTestSchema(RedshiftBulkerTypeId+"_iam", redshiftServerlessConfig, "defaultSchema")}
 		} else {
 			allBulkerConfigs = utils.ArrayExcluding(allBulkerConfigs, RedshiftBulkerTypeId+"_iam")
 		}
@@ -99,7 +113,7 @@ func init() {
 	if utils.ArrayContains(allBulkerConfigs, SnowflakeBulkerTypeId) {
 		snowflakeConfig := os.Getenv("BULKER_TEST_SNOWFLAKE")
 		if snowflakeConfig != "" {
-			configRegistry[SnowflakeBulkerTypeId] = TestConfig{BulkerType: SnowflakeBulkerTypeId, Config: snowflakeConfig}
+			configRegistry[SnowflakeBulkerTypeId] = TestConfig{BulkerType: SnowflakeBulkerTypeId, Config: withTestSchema(SnowflakeBulkerTypeId, snowflakeConfig, "defaultSchema")}
 		} else {
 			allBulkerConfigs = utils.ArrayExcluding(allBulkerConfigs, SnowflakeBulkerTypeId)
 		}
@@ -141,7 +155,7 @@ func init() {
 	if utils.ArrayContains(allBulkerConfigs, DuckDBBulkerTypeId) {
 		motherduckConfig := os.Getenv("BULKER_TEST_MOTHERDUCK")
 		if motherduckConfig != "" {
-			configRegistry[DuckDBBulkerTypeId] = TestConfig{BulkerType: DuckDBBulkerTypeId, Config: motherduckConfig}
+			configRegistry[DuckDBBulkerTypeId] = TestConfig{BulkerType: DuckDBBulkerTypeId, Config: withTestSchema(DuckDBBulkerTypeId, motherduckConfig, "defaultSchema")}
 		} else {
 			allBulkerConfigs = utils.ArrayExcluding(allBulkerConfigs, DuckDBBulkerTypeId)
 		}
@@ -192,7 +206,20 @@ func init() {
 		}}
 	}
 
+	// A destination whose credentials are missing is silently dropped above, so
+	// a shard asking for one it can't reach would otherwise run zero tests and
+	// still report green. The ids are known-good by now, so anything missing
+	// here lost its credentials rather than being misspelled.
+	if missing := utils.ArrayExcluding(requestedConfigs, allBulkerConfigs...); len(missing) > 0 {
+		panic(fmt.Sprintf("BULKER_TEST_CONFIGS asked for %v, but %v could not be configured — missing or invalid credentials?", requestedConfigs, missing))
+	}
+
 	exceptBigquery = utils.ArrayExcluding(allBulkerConfigs, BigqueryBulkerTypeId)
+
+	// Skipped in cleanup mode, which is about to drop these very schemas.
+	if testRunId != "" && os.Getenv("BULKER_TEST_CLEANUP") == "" {
+		ensureTestRunSchemas()
+	}
 
 	logging.Infof("Initialized bulker types: %v", allBulkerConfigs)
 
@@ -486,7 +513,7 @@ func TestBasics(t *testing.T) {
 			name:              "namespace",
 			modes:             []bulker.BulkMode{bulker.Batch, bulker.Stream, bulker.ReplaceTable, bulker.ReplacePartition},
 			expectPartitionId: true,
-			namespace:         "bnsp",
+			namespace:         testNamespace("bnsp"),
 			dataFile:          "test_data/columns_added.ndjson",
 			expectedTable: ExpectedTable{
 				Columns: justColumns("_timestamp", "id", "name", "column1", "column2", "column3"),
@@ -500,7 +527,7 @@ func TestBasics(t *testing.T) {
 				{"_timestamp": constantTime, "id": 5, "name": "test", "column1": nil, "column2": nil, "column3": nil},
 				{"_timestamp": constantTime, "id": 6, "name": "test4", "column1": "data", "column2": "data", "column3": "data"},
 			},
-			streamOptions:  []bulker.StreamOption{bulker.WithNamespace("bnsp")},
+			streamOptions:  []bulker.StreamOption{bulker.WithNamespace(testNamespace("bnsp"))},
 			expectedErrors: map[string]any{"create_stream_bigquery_stream": BigQueryAutocommitUnsupported},
 			configIds:      allBulkerConfigs,
 		},

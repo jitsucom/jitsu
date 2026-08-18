@@ -87,6 +87,12 @@ type SQLAdapterBase[T any] struct {
 	tmpTableUsePK        bool
 	doLocalDeduplication bool
 	renameToSchemaless   bool
+	// supportsSavepoints whether transactions opened by this adapter can isolate a failing
+	// statement with SAVEPOINT / ROLLBACK TO SAVEPOINT, see runIsolated. Only needed where
+	// a failed statement aborts the whole transaction, which of the supported databases is
+	// Postgres alone. Note it can't be derived from typeId: Redshift is built on top of the
+	// Postgres adapter and keeps its typeId, but has no savepoints.
+	supportsSavepoints bool
 	// stringifyObjects objects types like JSON, array will be stringified before sent to warehouse (warehouse will parse them back)
 	stringifyObjects bool
 
@@ -203,7 +209,7 @@ func (b *SQLAdapterBase[T]) openTx(ctx context.Context, sqlAdapter SQLAdapter) (
 		return nil, errorj.BeginTransactionError.Wrap(err, "failed to begin transaction")
 	}
 
-	return &TxSQLAdapter{sqlAdapter: sqlAdapter, tx: NewTxWrapper(b.Type(), tx, b.queryLogger, b.checkErrFunc)}, nil
+	return &TxSQLAdapter{sqlAdapter: sqlAdapter, tx: NewTxWrapper(b.Type(), tx, b.queryLogger, b.checkErrFunc, b.supportsSavepoints)}, nil
 }
 
 func (b *SQLAdapterBase[T]) txOrDb(ctx context.Context) TxOrDB {
@@ -619,43 +625,52 @@ func (b *SQLAdapterBase[T]) createTableOnly(ctx context.Context, schemaToCreate 
 
 // PatchTableSchema alter table with columns (if not empty)
 // recreate primary key (if not empty) or delete primary key if Table.DeletePrimaryKeyNamed is true
+//
+// The whole patch runs isolated: it is applied against a possibly stale view of the
+// table, so it is expected to lose races against other bulker instances writing to the
+// same table. On failure nothing of it is left applied and the caller recovers by
+// re-reading the schema and patching again.
 func (b *SQLAdapterBase[T]) PatchTableSchema(ctx context.Context, patchTable *Table) (*Table, error) {
 	quotedTableName := b.quotedTableName(patchTable.Name)
 	quotedSchema := b.namespacePrefix(patchTable.Namespace)
 
-	//patch columns
-	err := patchTable.Columns.ForEachIndexedE(func(_ int, columnName string, column types2.SQLColumn) error {
-		columnDDL := b.columnDDL(columnName, patchTable, column)
-		query := fmt.Sprintf(addColumnTemplate, quotedSchema, quotedTableName, columnDDL)
+	err := runIsolated(ctx, b.txOrDb(ctx), func() error {
+		//patch columns
+		err := patchTable.Columns.ForEachIndexedE(func(_ int, columnName string, column types2.SQLColumn) error {
+			columnDDL := b.columnDDL(columnName, patchTable, column)
+			query := fmt.Sprintf(addColumnTemplate, quotedSchema, quotedTableName, columnDDL)
 
-		if _, err := b.txOrDb(ctx).ExecContext(ctx, query); err != nil {
-			return errorj.PatchTableError.Wrap(err, "failed to patch table").
-				WithProperty(errorj.DBInfo, &types2.ErrorPayload{
-					Table:       quotedTableName,
-					PrimaryKeys: patchTable.GetPKFields(),
-					Statement:   query,
-				})
+			if _, err := b.txOrDb(ctx).ExecContext(ctx, query); err != nil {
+				return errorj.PatchTableError.Wrap(err, "failed to patch table").
+					WithProperty(errorj.DBInfo, &types2.ErrorPayload{
+						Table:       quotedTableName,
+						PrimaryKeys: patchTable.GetPKFields(),
+						Statement:   query,
+					})
+			}
+			return nil
+		})
+		if err != nil {
+			return err
+		}
+
+		//patch primary keys - delete old
+		if patchTable.DeletePrimaryKeyNamed != "" {
+			if err := b.deletePrimaryKey(ctx, patchTable); err != nil {
+				return err
+			}
+		}
+
+		//patch primary keys - create new
+		if patchTable.PKFields.Size() > 0 {
+			if err := b.createPrimaryKey(ctx, patchTable); err != nil {
+				return err
+			}
 		}
 		return nil
 	})
 	if err != nil {
 		return nil, err
-	}
-
-	//patch primary keys - delete old
-	if patchTable.DeletePrimaryKeyNamed != "" {
-		err := b.deletePrimaryKey(ctx, patchTable)
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	//patch primary keys - create new
-	if patchTable.PKFields.Size() > 0 {
-		err := b.createPrimaryKey(ctx, patchTable)
-		if err != nil {
-			return nil, err
-		}
 	}
 
 	return patchTable, nil

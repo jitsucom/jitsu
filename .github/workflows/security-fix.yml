@@ -103,9 +103,11 @@ jobs:
           gh api repos/${{ github.repository }}/dependabot/alerts --paginate \
             --jq '[.[] | select(.state == "open") | {
               number: .number,
+              ghsa: .security_advisory.ghsa_id,
               cve: .security_advisory.cve_id,
               severity: .security_advisory.severity,
               summary: .security_advisory.summary,
+              published_at: .security_advisory.published_at,
               package: .security_vulnerability.package.name,
               ecosystem: .security_vulnerability.package.ecosystem,
               vulnerable_range: .security_vulnerability.vulnerable_version_range,
@@ -151,15 +153,27 @@ jobs:
 
           - Node.js/pnpm workspace rooted at repo root (libs/, services/, webapps/, cli/, types/).
           - Go workspace rooted at bulker/ (bulker/go.work). All Go modules are members of this workspace — do NOT treat them as independent repos. Workspace members are listed in bulker/go.work.
-          - Root package.json has a pnpm.overrides block for pinning transitive versions.
+          - pnpm-workspace.yaml has an `overrides:` block for pinning transitive versions.
+            (It used to live in root package.json under `pnpm.overrides`; pnpm >=10.22
+            no longer reads that field and ignores it silently.)
 
           ## Input
 
           The primary source of work is .dependabot-alerts.json (already produced
-          by an earlier step). It is a JSON array; each entry has: number, cve,
-          severity, summary, package, ecosystem, vulnerable_range, fixed_version.
+          by an earlier step). It is a JSON array; each entry has: number, ghsa,
+          cve, severity, summary, published_at, package, ecosystem,
+          vulnerable_range, fixed_version.
 
           Read it with: cat .dependabot-alerts.json | jq .
+
+          `published_at` is when the ADVISORY was published, not when the package
+          was fixed. It matters because a patch released after that date may not
+          be reflected in vulnerable_range / fixed_version — see "Major version
+          bumps" below.
+
+          .github/security-fix-exceptions.yml records alerts a human has already
+          resolved in a way the advisory database does not recognise. It is
+          checked in and may be absent or empty.
 
           ## Procedure
 
@@ -172,7 +186,41 @@ jobs:
              gh pr list --search "security" --state open
              Skip any alert whose fix is already covered by an open PR.
           2. Filter alerts by MIN_SEVERITY (severity order: critical > high > moderate > low).
-          3. For EACH remaining alert, determine ALL versions of the package
+          3. Drop alerts already settled by a human. If
+             .github/security-fix-exceptions.yml exists, read its `exceptions:`
+             list and look for an item matching the alert on ALL THREE of `ghsa`,
+             `package` and `ecosystem`. One advisory can cover several packages,
+             and a deviation accepted for one of them says nothing about the
+             others — matching on ghsa alone would skip unrelated alerts that are
+             still genuinely vulnerable. More than one item may share a ghsa;
+             that is expected, so keep looking until all three fields match
+             rather than taking the first ghsa hit.
+             When an entry matches, judge every resolved copy of that package
+             separately. A copy is settled if EITHER it satisfies the entry's
+             `satisfied_by` semver range (the human vouched for it) OR it already
+             falls outside the alert's vulnerable_range (it is fixed on the
+             advisory's own terms, e.g. at or above fixed_version). SKIP the
+             alert only if EVERY resolved copy is settled under one of those two;
+             list it in the run summary under "Skipped (accepted deviation)" with
+             the recorded reason. If even one copy is settled by neither, the
+             exception does NOT apply — treat the alert normally.
+             Both tests are needed because a pnpm lockfile routinely holds
+             several copies of a package. A tree carrying a backport-fixed 7.x
+             copy alongside an already-fixed 8.x one is fully patched, but
+             `satisfied_by` alone would reject it and re-propose the very major
+             bump the exception exists to prevent.
+             Checking vulnerable_range rather than just widening the range keeps
+             the bound meaningful. `satisfied_by` is bounded on both sides on
+             purpose: a bare lower bound would keep matching after a major
+             migration, so a repo that later moved to a still-vulnerable version
+             on the next major line would have the alert silently suppressed by
+             an exception written for the old one. Versions between the two — on
+             the newer major but below its fix — satisfy neither test and are
+             still reported, which is the point.
+             Never edit this file yourself: it records decisions only a human can
+             make. An entry does not expire, so an alert can stay open forever
+             with the repo deliberately not on the advisory's fixed_version.
+          4. For EACH remaining alert, determine ALL versions of the package
              actually resolved in this repo, then SKIP the alert only if every
              one of them is already fixed:
              - A package can be resolved at MULTIPLE versions at once: a pnpm
@@ -202,7 +250,7 @@ jobs:
                fix would move any package to a LOWER version than it currently
                resolves to (directly or transitively), skip the alert and note it
                in the PR body under "Skipped (already satisfied / would downgrade)".
-          4. Group the remaining alerts into AT MOST TWO PRs — one per stack:
+          5. Group the remaining alerts into AT MOST TWO PRs — one per stack:
              - All npm / Node.js fixes → a single PR on branch security/fix-npm-YYYY-MM-DD
              - All Go fixes → a single PR on branch security/fix-go-YYYY-MM-DD
              This is mandatory: pnpm-lock.yaml, go.sum, and bulker/go.work.sum
@@ -210,30 +258,105 @@ jobs:
              If a fix is risky (major version bump, breaking change), still include
              it in the per-stack PR but flag it prominently in the PR body so a
              reviewer can split it out manually.
-          5. Apply every ecosystem-specific step below for all alerts in that
+          6. Apply every ecosystem-specific step below for all alerts in that
              stack BEFORE creating the PR. Do NOT push incremental commits per
              alert — one branch, one commit per stack, one PR per stack.
-          6. After applying fixes, verify nothing regressed before opening the PR:
+          7. After applying fixes, verify nothing regressed before opening the PR:
              - npm: `pnpm install --no-frozen-lockfile` must succeed.
              - Go: `go -C bulker work sync` and `go -C bulker/ACTUAL_MODULE build ./...`
                for each touched module must succeed.
              If verification fails for an alert, revert that alert's change and
              move it to the "Skipped" list. Never open a PR that does not build.
-          7. If after all of the above NO alerts remain to fix, do NOT create a
+          8. If after all of the above NO alerts remain to fix, do NOT create a
              branch or PR — just print a summary saying everything is already
              satisfied.
-          8. If DRY_RUN is true, output a report of what would be done and do NOT
+          9. If DRY_RUN is true, output a report of what would be done and do NOT
              create branches, commits, or PRs.
 
           ### npm / Node.js packages
 
+          #### Major version bumps
+
+          Do this BEFORE writing any override or version bump whose fixed_version
+          is on a HIGHER major than the version currently resolved.
+
+          An advisory is usually filed the day the first patch ships. If that
+          patch was on the newest major and a backport to an older line landed
+          later, the advisory frequently keeps the merged range it was created
+          with (e.g. ">= 7.12.0, < 8.3.0", fixed 8.3.0) and is never amended.
+          The backport is then invisible in vulnerable_range and fixed_version,
+          and taking fixed_version literally forces a major bump that was never
+          necessary. Do not assume the alert knows about every fix.
+
+          The upstream advisory is the authority, not the release dates. Work
+          from it first and use dates only to explain what you find.
+
+          1. Read the upstream advisory's own patched-versions list:
+               gh api /advisories/ACTUAL_GHSA_ID
+             If it names a patched version on the SAME major as the currently
+             resolved version, that is the backport — use it, and stop here.
+          2. If it shows only the merged range, the entry may predate the
+             backport. Widen the search: read the advisory page at
+             https://github.com/OWNER/REPO/security/advisories/ACTUAL_GHSA_ID
+             (its "Patched versions" field is often correct when the API entry is
+             stale), then list candidate releases:
+               npm view ACTUAL_PKG_NAME versions --json
+               npm view ACTUAL_PKG_NAME time --json
+             Consider EVERY release on the current major above the resolved
+             version. Do not filter by date: `published_at` is a hint about why
+             the advisory might be stale — a candidate published after it is a
+             likely backport — but under coordinated disclosure a fix can ship
+             before the advisory, so an earlier date does not rule a release out.
+          3. Publication order is never proof of a fix. Use a candidate only if
+             the advisory page, the release notes, or the changelog explicitly
+             names it as containing this fix. If nothing says so, treat it as no
+             backport rather than guessing.
+          4. If a confirmed backport exists, use it as FIXED_VER instead of the
+             alert's. The alert will NOT close, because the advisory range still
+             covers the backport — that is expected, not a failure. Record it in
+             the PR body under "Deviations" (see "Creating PRs") so a human can
+             add it to .github/security-fix-exceptions.yml; do not add it
+             yourself.
+          5. If no backport exists, the major bump is the only fix. Apply it, and
+             flag it under "Risks" in the PR body.
+
+          #### Applying the fix
+
           - Determine if the package is a direct dependency:
               grep -r '"ACTUAL_PKG_NAME"' package.json */package.json libs/*/package.json webapps/*/package.json cli/*/package.json services/*/package.json types/*/package.json
-          - Transitive-only: add an entry to the pnpm.overrides block in root package.json.
-            Pattern: "ACTUAL_PKG_NAME@<FIXED_VER": "^FIXED_VER"
+          - Transitive-only: add an entry to the `overrides:` block in pnpm-workspace.yaml
+            (NOT package.json - pnpm >=10.22 ignores `pnpm.overrides` there, so an
+            override written to package.json silently does nothing).
+            Pattern (YAML, quote both sides): "ACTUAL_PKG_NAME@<FIXED_VER": "^FIXED_VER"
             The override floor (^FIXED_VER) must never be lower than the version
             already resolved in pnpm-lock.yaml — an override that caps a package
             below its current version is a downgrade; skip it instead.
+          - Companion packages that pin each other EXACTLY must move together.
+            Sibling packages from one project (e.g. react-router / react-router-dom)
+            routinely depend on each other at an exact version, so overriding one
+            of the pair alone leaves the other demanding a version it will never
+            get. Before installing, list every package that pins it, by tracking
+            the enclosing snapshot header:
+              awk -v dep="ACTUAL_PKG_NAME" '
+                /^  [^ ].*:$/ { pkg = $0; gsub(/\047/, "", pkg); next }
+                { line = $0; sub(/^ +/, "", line); gsub(/\047/, "", line)
+                  if (index(line, dep ": ") == 1) {
+                    ver = substr(line, length(dep) + 3)
+                    if (ver ~ /^[0-9]/) print pkg " -> " line
+                  } }' pnpm-lock.yaml
+            Pass the name via -v and compare it as a plain string. Interpolating
+            it into an awk regex literal breaks on scoped packages, because the
+            slash in `@scope/pkg` closes the /.../ and awk dies with a syntax
+            error — which would look like "no companion packages" and let a
+            broken lockfile through. The gsub calls strip the single quotes that
+            YAML puts around scoped keys ('@scope/pkg': 1.2.3); \047 is an
+            apostrophe, written as an escape so the program can stay inside
+            single quotes in the shell. The `ver ~ /^[0-9]/` test is what selects
+            exact pins: range specifiers start with ^ or ~.
+            Any package depending on ACTUAL_PKG_NAME at an exact version (no ^ or ~)
+            needs its own override to a release that depends on FIXED_VER — add it
+            in the same commit. If no such release exists, skip the alert rather
+            than ship a lockfile whose two halves disagree.
           - Direct dependency: bump the version in the package.json that declares
             it — only ever UP. If the declared/resolved version is already >=
             FIXED_VER, leave it untouched (already satisfied).
@@ -285,6 +408,13 @@ jobs:
               - CVE_ID (SEVERITY): short vuln description — ACTUAL_PKG FROM_VER → FIXED_VER
             Plus a final "Risks" section calling out any major version bumps or
             breaking changes that a reviewer should split into a separate follow-up PR.
+          - If any fix used a backport instead of the alert's fixed_version, add a
+            "Deviations" section naming the alert, the version used, why the
+            advisory does not list it, and the evidence that it is patched. State
+            plainly that the alert will stay open until a human either dismisses it
+            or adds an entry to .github/security-fix-exceptions.yml — otherwise the
+            next scheduled run reopens the same major bump this PR avoided. Suggest
+            the exact entry to add.
           - After creating the first PR, reset before starting the other stack:
               git checkout newjitsu && git reset --hard origin/newjitsu
 
@@ -298,6 +428,12 @@ jobs:
             any resolved version, it is wrong: skip it.
           - A fixed_version from an alert is a FLOOR, not a target. If the repo is
             already at or above it, there is nothing to do — skip the alert.
+          - An alert describes the fixes known when it was written, not every fix
+            that exists. Never cross a major version boundary without first
+            checking for a backport on the current line.
+          - Closing the alert is not the goal; removing the vulnerability is. Prefer
+            the smallest upgrade that is genuinely patched, even when it leaves the
+            alert open, over a major bump that merely satisfies the range.
           - Prefer opening NO PR over opening one that downgrades, is a no-op, or
             does not build.
           - If any command fails, revert the working tree to clean state and skip that vulnerability.

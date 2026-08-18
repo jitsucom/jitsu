@@ -52,29 +52,37 @@ func (gc *GoogleConfig) Validate() error {
 			}
 		}
 	}
-	switch gc.KeyFile.(type) {
+	// An explicit credential is mandatory. Ambient / Application Default
+	// Credentials — the "workload_identity" sentinel, or an absent/empty
+	// keyFile that would otherwise fall through to ADC — is rejected outright:
+	// bulker would authenticate as its own service account against an
+	// attacker-controlled destination config, a confused deputy (e.g. writing
+	// to another tenant's event-archive bucket). Every success path below sets
+	// gc.Credentials, so no caller ever constructs an ADC client.
+	switch keyFile := gc.KeyFile.(type) {
 	case map[string]any:
-		keyFileObject := gc.KeyFile.(map[string]any)
-		if len(keyFileObject) == 0 {
+		if len(keyFile) == 0 {
 			return errors.New("Google keyFile is required parameter")
 		}
-		b, err := jsoniter.Marshal(keyFileObject)
+		b, err := jsoniter.Marshal(keyFile)
 		if err != nil {
 			return fmt.Errorf("Malformed google keyFile: %v", err)
 		}
-		gc.Credentials = option.WithCredentialsJSON(b)
+		// Pin to a service-account credential type: WithCredentials{JSON,File}
+		// are deprecated because they accept ANY credential config, so a
+		// customer-supplied keyFile could be an external_account /
+		// impersonated_service_account config that fetches tokens from an
+		// attacker-controlled URL. WithAuthCredentials* + ServiceAccount
+		// rejects those.
+		gc.Credentials = option.WithAuthCredentialsJSON(option.ServiceAccount, b)
 	case string:
-		keyFile := gc.KeyFile.(string)
-		if keyFile == "workload_identity" {
-			return nil
-		}
-		if keyFile == "" {
-			return errors.New("Google keyFile is required parameter")
+		if keyFile == "" || keyFile == "workload_identity" {
+			return errors.New("Google keyFile is required parameter (ambient/workload_identity credentials are not permitted)")
 		}
 		if strings.Contains(keyFile, "{") {
-			gc.Credentials = option.WithCredentialsJSON([]byte(keyFile))
+			gc.Credentials = option.WithAuthCredentialsJSON(option.ServiceAccount, []byte(keyFile))
 		} else {
-			gc.Credentials = option.WithCredentialsFile(keyFile)
+			gc.Credentials = option.WithAuthCredentialsFile(option.ServiceAccount, keyFile)
 		}
 	default:
 		return errors.New("Google key_file must be string or json object")
@@ -92,14 +100,13 @@ type GoogleCloudStorage struct {
 }
 
 func NewGoogleCloudStorage(config *GoogleConfig) (*GoogleCloudStorage, error) {
-	var client *storage.Client
-	var err error
-	err = config.Validate()
-	if config.Credentials == nil {
-		client, err = storage.NewClient(context.Background())
-	} else {
-		client, err = storage.NewClient(context.Background(), config.Credentials)
+	// Validate both surfaces config errors AND guarantees an explicit
+	// credential (it rejects everything that would leave Credentials nil), so
+	// there is no ADC / ambient-identity client path here.
+	if err := config.Validate(); err != nil {
+		return nil, err
 	}
+	client, err := storage.NewClient(context.Background(), config.Credentials)
 	if err != nil {
 		return nil, fmt.Errorf("Error creating google cloud storage client: %v", err)
 	}

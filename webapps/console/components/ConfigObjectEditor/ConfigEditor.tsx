@@ -28,7 +28,6 @@ import {
 
 import { ConfigEntityBase } from "../../lib/schema";
 import { useAppConfig, useWorkspace, useWorkspaceRole } from "../../lib/context";
-import { useEeApi } from "../../lib/eeApi";
 import { LoadingAnimation } from "../GlobalLoader/GlobalLoader";
 import { WLink } from "../Workspace/WLink";
 import { CheckCircleTwoTone, DeleteOutlined, InfoCircleTwoTone } from "@ant-design/icons";
@@ -66,6 +65,12 @@ import { CustomWidgetProps, PasswordEditor } from "./Editors";
 import { WorkspacePermissionsType } from "../../lib/workspace-roles";
 import { oauthDecorators } from "../../lib/server/oauth/destinations";
 import Nango from "@nangohq/frontend";
+import { transformConfigErrors, ValidationMessages } from "../../lib/schema/config-editor-errors";
+import {
+  applyClientFieldValidation,
+  ClientFieldValidator,
+  hasFieldValidationErrors,
+} from "../../lib/schema/config-editor-validation";
 
 const log = getLog("ConfigEditor");
 
@@ -178,6 +183,8 @@ export type FieldDisplay = {
   textarea?: boolean;
   password?: boolean;
   placeholder?: string;
+  validationMessages?: ValidationMessages;
+  clientValidator?: ClientFieldValidator;
 };
 
 export type EditorComponentFactory = (props: EditorComponentProps) => React.FC<EditorComponentProps> | undefined;
@@ -520,6 +527,8 @@ const EditorComponent: React.FC<EditorComponentProps> = props => {
           schema={schema as any}
           liveValidate={true}
           validator={validator}
+          customValidate={(formData, errors) => applyClientFieldValidation(formData, errors, fields)}
+          transformErrors={errors => transformConfigErrors(errors, fields)}
           onSubmit={async ({ formData }) => {
             if (
               onTest &&
@@ -623,18 +632,12 @@ const SingleObjectEditor: React.FC<SingleObjectEditorProps> = props => {
   const appConfig = useAppConfig();
   const router = useRouter();
   const reloadStore = useStoreReload();
-  const { eeRpc } = useEeApi();
 
   const onSaveMutation = useConfigObjectMutation(type as any, async (newObject: any) => {
     if (isNew) {
+      // Backup-bucket provisioning happens server-side in config-objects-service
+      // on stream creation (ee-api s3-init), so all creation paths get it.
       await getConfigApi(workspace.id, type).create(newObject);
-      if (type === "stream" && appConfig.ee.available) {
-        try {
-          await eeRpc("s3-init", { method: "GET", query: { workspaceId: workspace.id } });
-        } catch (e: any) {
-          console.error("Failed to init S3 bucket", e.message);
-        }
-      }
     } else {
       await getConfigApi(workspace.id, type).update(object.id, newObject);
     }
@@ -814,9 +817,9 @@ const NestedObjectFieldTemplate = props => {
   } = props;
   const { readonlyAsDisabled = true } = registry.formContext;
   const { RemoveButton } = registry.templates.ButtonTemplates;
-  const hasErrors = !!errors?.props?.errors && formCtx.displayInlineErrors;
+  const hasErrors = hasFieldValidationErrors(errors) && formCtx.displayInlineErrors;
   const helpProp = !!help?.props?.help ? help : undefined;
-  const errorsProp = !!errors?.props?.errors && formCtx.displayInlineErrors ? errors : undefined;
+  const errorsProp = hasErrors ? errors : undefined;
   const additional = ADDITIONAL_PROPERTY_FLAG in schema;
   const handleBlur = ({ target }: React.FocusEvent<HTMLInputElement>) => onKeyChange(target.value);
 
@@ -866,7 +869,7 @@ const FieldTemplate = props => {
   const formCtx = requireDefined(useContext(EditorComponentContext), "Not in <EditorComponentContext.Provider />");
   const { id, classNames, label, help, required, errors, children } = props;
   const helpProp = !!help?.props?.help ? help : undefined;
-  const errorsProp = !!errors?.props?.errors && formCtx.displayInlineErrors ? errors : undefined;
+  const errorsProp = hasFieldValidationErrors(errors) && formCtx.displayInlineErrors ? errors : undefined;
   return (
     <EditorField id={id} className={classNames} required={required} label={label} help={helpProp} errors={errorsProp}>
       {children}

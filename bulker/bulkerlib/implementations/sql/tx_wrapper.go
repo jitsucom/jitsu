@@ -20,6 +20,8 @@ type TxWrapper struct {
 	errorAdapter ErrorAdapter
 	closeDb      bool
 	error        error
+	// savepoints whether the transaction can isolate failing statements, see runIsolated
+	savepoints bool
 }
 
 type TxOrDB interface {
@@ -34,8 +36,8 @@ type DB interface {
 	io.Closer
 }
 
-func NewTxWrapper(dbType string, tx *sql.Tx, queryLogger *logging.QueryLogger, errorAdapter ErrorAdapter) *TxWrapper {
-	return &TxWrapper{dbType: dbType, tx: tx, queryLogger: queryLogger, errorAdapter: errorAdapter}
+func NewTxWrapper(dbType string, tx *sql.Tx, queryLogger *logging.QueryLogger, errorAdapter ErrorAdapter, savepoints bool) *TxWrapper {
+	return &TxWrapper{dbType: dbType, tx: tx, queryLogger: queryLogger, errorAdapter: errorAdapter, savepoints: savepoints}
 }
 
 func NewDbWrapper(dbType string, db DB, queryLogger *logging.QueryLogger, errorAdapter ErrorAdapter, closeDb bool) *TxWrapper {
@@ -48,6 +50,67 @@ func NewDummyTxWrapper(dbType string) *TxWrapper {
 
 func NewCustomWrapper(dbType string, custom io.Closer, err error) *TxWrapper {
 	return &TxWrapper{dbType: dbType, custom: custom, error: err, closeDb: true}
+}
+
+// savepointName is the savepoint taken before a statement that is allowed to fail.
+// A single name is enough because the savepoint is always released before the next
+// one is taken - on both paths, since rolling back to a savepoint does not destroy it.
+const savepointName = "bulker_stmt"
+
+// abortedTransactionSQLState is returned by every statement that follows a failed one
+// in the same Postgres transaction: "current transaction is aborted, commands ignored
+// until end of transaction block".
+const abortedTransactionSQLState = "25P02"
+
+func (t *TxWrapper) supportsSavepoints() bool {
+	return t.tx != nil && t.savepoints
+}
+
+// runIsolated runs statements whose failure must not poison the enclosing transaction,
+// so that the caller can recover on the same connection - e.g. re-read the table schema
+// and patch again after losing an ALTER TABLE race.
+//
+// Where the database needs it, fn runs inside a savepoint that is rolled back if fn
+// fails. Everywhere else fn just runs. Anything already applied by a failed fn is undone,
+// which is what the caller wants anyway: it is about to re-read the real schema and redo
+// the work from there.
+//
+// The whole block and not statement by statement, deliberately: each savepoint is a
+// subtransaction on the destination, and Postgres degrades cluster-wide once a
+// transaction holds more than 64 of them.
+func runIsolated(ctx context.Context, txOrDb TxOrDB, fn func() error) error {
+	tx, ok := txOrDb.(*TxWrapper)
+	if !ok || !tx.supportsSavepoints() {
+		return fn()
+	}
+	if _, err := tx.ExecContext(ctx, "SAVEPOINT "+savepointName); err != nil {
+		return err
+	}
+	if err := fn(); err != nil {
+		if _, rollbackErr := tx.ExecContext(ctx, "ROLLBACK TO SAVEPOINT "+savepointName); rollbackErr != nil {
+			// the transaction stays aborted - nothing left to do but report the original error
+			logging.Errorf("failed to rollback to savepoint: %v", rollbackErr)
+			return err
+		}
+		// rolling back to a savepoint keeps it established, so it has to be released here
+		// too - otherwise every failure leaves one behind for the rest of the transaction
+		if _, releaseErr := tx.ExecContext(ctx, "RELEASE SAVEPOINT "+savepointName); releaseErr != nil {
+			// logged rather than returned, unlike the success path below: the caller
+			// retries on any error from here, so returning this one instead would not
+			// spare it a doomed retry - it would only drop the error that says why the
+			// patch failed, which is the one worth having in the logs
+			logging.Errorf("failed to release savepoint after rollback: %v", releaseErr)
+		}
+		return err
+	}
+	if _, err := tx.ExecContext(ctx, "RELEASE SAVEPOINT "+savepointName); err != nil {
+		// fn succeeded, so the savepoint was there a statement ago: releasing it can only
+		// fail if the transaction itself is gone (connection dropped, context cancelled).
+		// Report that here rather than let the caller run on and fail further away from
+		// the cause.
+		return err
+	}
+	return nil
 }
 
 func wrap[R any](ctx context.Context,

@@ -58,16 +58,16 @@ type ReadSideCar struct {
 	// don't need an equivalent: the dbpool is configured with a 2-minute
 	// statement_timeout, so a stuck UpsertState fails fast with an error.
 	processRecordStart atomic.Int64
-	lastStateMessage  string
-	blk               bulker.Bulker
-	lastStream        *ActiveStream
-	processedStreams  map[string]*ActiveStream
-	catalog           *jsonorder.OrderedMap[string, *Stream]
-	destinationConfig map[string]any
-	initialState      string
-	fullSync          bool
-	eventsCounter     int
-	bytesCounter      int
+	lastStateMessage   string
+	blk                bulker.Bulker
+	lastStream         *ActiveStream
+	processedStreams   map[string]*ActiveStream
+	catalog            *jsonorder.OrderedMap[string, *Stream]
+	destinationConfig  map[string]any
+	initialState       string
+	fullSync           bool
+	eventsCounter      int
+	bytesCounter       int
 }
 
 func (s *ReadSideCar) Run() {
@@ -449,7 +449,7 @@ func (s *ReadSideCar) postEventsLog(destinationId string, state bulker.State, pr
 	if batchErr != "" {
 		level = eventslog.LevelError
 	}
-	_, err := s.eventsLogService.PostEvent(&eventslog.ActorEvent{Timestamp: time.Now().UTC(), EventType: eventslog.EventTypeBatch, Level: level, ActorId: destinationId, Event: batchState})
+	_, err := s.eventsLogService.PostEvent(&eventslog.ActorEvent{Timestamp: time.Now().UTC(), EventType: eventslog.EventTypeBatch, Level: level, ActorId: destinationId, WorkspaceId: s.workspaceId, Event: batchState})
 	if err != nil {
 		s.errprint("Error posting events log: %v", err)
 	}

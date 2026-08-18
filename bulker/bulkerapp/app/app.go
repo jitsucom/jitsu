@@ -96,6 +96,25 @@ func (a *Context) InitContext(settings *appbase.AppSettings) error {
 		}
 		a.batchProducer.Start()
 
+		// Live Events observability export (JITSU-138): fan exportable records out
+		// to the workspace's otlp destination topic + billing. Fire-and-forget
+		// (no backpressure wait) — export never delays events-log writes.
+		// Kafka service goes FIRST: MultiEventsLogService.PostEvent returns the
+		// last service's record id, which must stay the primary store's
+		a.eventsLogService = &eventslog.MultiEventsLogService{Services: []eventslog.EventsLogService{
+			eventslog.NewKafkaEventsLogService(eventslog.KafkaEventsLogConfig{
+				KafkaTopicPrefix:     a.config.KafkaTopicPrefix,
+				MetricsDestinationId: "metrics",
+				OtlpEnabled: func(workspaceId string) bool {
+					return a.repository.GetDestination(workspaceId+eventslog.OtlpDestinationIdSuffix) != nil
+				},
+				Produce: func(topic string, key string, payload []byte) error {
+					return a.batchProducer.ProduceAsync(topic, key, payload, nil, kafka.PartitionAny, "", false, 0)
+				},
+			}),
+			a.eventsLogService,
+		}}
+
 		if a.config.EnableConsumers {
 			streamProducerConfig := kafka.ConfigMap(utils.MapPutAll(kafka.ConfigMap{
 				"compression.type":    a.config.KafkaTopicCompression,

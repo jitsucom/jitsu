@@ -25,7 +25,7 @@ func (a *Context) InitContext(settings *appbase.AppSettings) error {
 		return err
 	}
 	ctx := context.Background()
-	a.certMgr, err = certificatemanager.NewClient(ctx, option.WithCredentialsJSON([]byte(a.config.GoogleServiceAccountJson)))
+	a.certMgr, err = certificatemanager.NewClient(ctx, option.WithAuthCredentialsJSON(option.ServiceAccount, []byte(a.config.GoogleServiceAccountJson)))
 	if err != nil {
 		return err
 	}

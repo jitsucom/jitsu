@@ -1,0 +1,64 @@
+# Alerts that are resolved in this repo in a way the advisory database does not
+# recognise, and that the weekly security-fix workflow must therefore stop
+# trying to "fix".
+#
+# The usual reason: an advisory is filed the day the first patch ships, on the
+# newest major. A backport to an older line lands days later and the advisory
+# keeps the merged range it was created with, so the alert stays open even
+# though the repo is patched. Without an entry here, every run sees
+# resolved < fixed_version and re-proposes the major bump.
+#
+# Only a human adds entries. The workflow reads this file and never writes it.
+#
+# Format — a list, one item per (ghsa, package, ecosystem):
+#
+#   exceptions:
+#     - ghsa: GHSA-xxxx-xxxx-xxxx
+#       package: name              # must match the alert's package
+#       ecosystem: npm             # must match the alert's ecosystem
+#       satisfied_by: ">=1.2.3 <2.0.0"
+#       reason: ...                # why this is genuinely fixed
+#       evidence: ...              # link a human can check
+#       added: YYYY-MM-DD
+#
+# A list rather than a map keyed by GHSA: one advisory can cover several
+# packages, and each needs its own entry. Keyed by GHSA, a second package under
+# the same advisory would silently overwrite the first — YAML keeps the last
+# duplicate key, so the lost entry would look like it had never been written.
+#
+# An entry applies only when ghsa, package AND ecosystem all match. Accepting a
+# deviation for one package says nothing about the others under that advisory.
+#
+# satisfied_by is bounded on BOTH sides. It describes the versions this
+# exception vouches for, not a floor — an open-ended ">=1.2.3" would keep
+# matching after a major migration and could suppress the alert on a next-major
+# version that is still vulnerable.
+#
+# It does not have to cover every resolved copy. A lockfile often holds several
+# copies of a package, and the alert is skipped when each one is either inside
+# satisfied_by or already outside the advisory's vulnerable range — so a tree
+# carrying both a backport-fixed 7.x copy and an already-fixed 8.3.x copy still
+# counts as settled. A copy that is neither, such as a version on the newer
+# major but below its fix, stops the exception applying and the alert is handled
+# normally again.
+#
+# Entries do not expire — delete one once the advisory is corrected or the repo
+# moves onto the version the alert actually asks for.
+
+exceptions:
+  - ghsa: GHSA-qwww-vcr4-c8h2
+    package: react-router
+    ecosystem: npm
+    satisfied_by: ">=7.18.2 <8.0.0"
+    reason: >-
+      Fixed by the 7.18.2 backport. The advisory was published 2026-07-22, the
+      day 8.3.0 shipped, with the merged range ">= 7.12.0, < 8.3.0", and was
+      never amended when 7.18.2 was published on 2026-07-28. GitHub and OSV
+      therefore still list 8.3.0 as the only fix, so alert #1105 stays open at
+      7.18.2. Taking it literally would force react-router-dom to v8 across the
+      console for a fix we already have.
+      The range stops below 8.0.0 because 8.0.0-8.2.x are genuinely vulnerable:
+      this exception vouches for the 7.x backport only. If the console ever
+      moves to v8 the alert must be handled normally again, which needs 8.3.0.
+    evidence: https://github.com/remix-run/react-router/security/advisories/GHSA-qwww-vcr4-c8h2
+    added: 2026-08-06

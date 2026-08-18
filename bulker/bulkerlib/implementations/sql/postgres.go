@@ -197,7 +197,9 @@ func NewPostgres(bulkerConfig bulker.Config) (bulker.Bulker, error) {
 			for k, v := range config.Parameters {
 				connectionString += " " + k + "=" + v + " "
 			}
-			logging.Infof("[%s] connecting: %s", bulkerConfig.Id, connectionString)
+			//log only what identifies the destination: the password is a customer secret, and
+			//the connection parameters are free-form enough to carry one too (sslpassword, options, ...)
+			logging.Infof("[%s] connecting: %s:%d db=%s schema=%s", bulkerConfig.Id, config.Host, config.Port, config.Db, config.Schema)
 			dataSource, err := sql.Open("pgx", connectionString)
 			if err != nil {
 				return nil, err
@@ -213,6 +215,9 @@ func NewPostgres(bulkerConfig bulker.Config) (bulker.Bulker, error) {
 	}
 	sqlAdapterBase, err := newSQLAdapterBase(bulkerConfig.Id, PostgresBulkerTypeId, config, config.Schema, dbConnectFunction, postgresDataTypes, queryLogger, typecastFunc, IndexParameterPlaceholder, pgColumnDDL, valueMappingFunc, checkErr, true)
 	p := &Postgres{sqlAdapterBase, tmpDir}
+	// a failed statement aborts the whole transaction on Postgres, so statements that may
+	// legitimately fail have to be isolated in a savepoint
+	p.supportsSavepoints = true
 	// some clients have no permission to create tmp tables
 	p.temporaryTables = false
 	p.tableHelper = NewTableHelper(PostgresBulkerTypeId, 63, '"')

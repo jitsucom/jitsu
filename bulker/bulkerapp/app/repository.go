@@ -226,6 +226,11 @@ func (d *Destination) Id() string {
 	return d.config.Id()
 }
 
+// WorkspaceId returns id of workspace that owns the destination. Empty for special and env-configured destinations
+func (d *Destination) WorkspaceId() string {
+	return d.config.WorkspaceId
+}
+
 func (d *Destination) InitBulkerInstance() {
 	if d.bulker != nil {
 		return

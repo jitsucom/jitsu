@@ -28,6 +28,7 @@ export type {
   FunctionChainContext,
   FetchType,
   EventsStore,
+  EventsLogContext,
   JitsuFunctionWrapper,
   InternalFetchType,
   logType,

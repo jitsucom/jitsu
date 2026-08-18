@@ -261,6 +261,15 @@ interface AnalyticsContext {
     //see https://developers.facebook.com/docs/marketing-api/conversions-api/parameters/customer-information-parameters
     fbc?: string;
     fbp?: string;
+    //Google Ads click identifiers, taken from the landing page URL params of the same name, or from
+    //the _gcl_aw / _gcl_dc cookies set by Google's conversion linker.
+    //see https://support.google.com/google-ads/answer/9744275
+    gclid?: string;
+    //iOS 14+ click identifiers: gbraid for app conversions, wbraid for web conversions
+    gbraid?: string;
+    wbraid?: string;
+    //Campaign Manager / Display & Video 360 click ID
+    dclid?: string;
     [key: string]: any;
   };
 

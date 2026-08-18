@@ -49,6 +49,13 @@ export default createRoute()
     await verifyAccessWithRole(user, workspace.id, "editEntities");
     if (section == "data-retention") {
       (body as any).pendingUpdate = true;
+      // Admin-set only (JITSU-143): backupRetentionHours gates the workspace's
+      // migration to the GCS event archive and its retention enforcement —
+      // retention 0 drains the whole archive. This endpoint merges the body
+      // unvalidated for workspace editors, so the field must never be
+      // writable here; deleting it from the body preserves any existing
+      // admin-set value through the deep merge below.
+      delete (body as any).backupRetentionHours;
     }
     const existing = await db.prisma().workspaceOptions.findFirst({
       where: { workspaceId: workspace.id, namespace: section },

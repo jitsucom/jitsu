@@ -321,11 +321,16 @@ func (tm *TopicManager) processMetadata(metadata *kafka.Metadata, nonEmptyTopics
 				dstTopics.Remove(topic)
 			}
 		}
-		if destination.config.Special == "backup" || destination.config.Special == "metrics" {
-			// create predefined tables for special kind of destinations: backup and metrics
+		if destination.config.Special == "backup" || destination.config.Special == "metrics" || destination.config.Special == "otlp" {
+			// create predefined tables for special kind of destinations: backup, metrics and otlp
 			tables := []string{destination.config.Special}
 			if destination.config.Special == "metrics" {
 				tables = append(tables, "active_incoming")
+			}
+			if destination.config.Special == "otlp" {
+				// live-events observability export (JITSU-138): events-log write sites
+				// produce export envelopes into this topic
+				tables = []string{"live_events"}
 			}
 			for _, table := range tables {
 				topicId, _ := MakeTopicId(destination.Id(), "batch", table, tm.config.KafkaTopicPrefix, 0, false)

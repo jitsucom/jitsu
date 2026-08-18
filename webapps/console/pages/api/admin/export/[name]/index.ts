@@ -11,6 +11,11 @@ import { default as stableHash } from "stable-hash";
 import { FunctionsServerDbModel } from "../../../../../prisma/schema";
 import { getServerEnv } from "../../../../../lib/server/serverEnv";
 import { Prisma } from "@prisma/client";
+import { isBackupEnabled } from "../../../../../lib/shared/data-retention";
+import {
+  observabilityExportsNamespace,
+  ObservabilityExportsSettings,
+} from "../../../../../lib/shared/observability-exports";
 
 const serverEnv = getServerEnv();
 const defaultFunctionsClass = serverEnv.DEFAULT_FUNCTIONS_CLASS;
@@ -277,12 +282,107 @@ async function getLastUpdated(): Promise<Date | undefined> {
                     (select max("updatedAt") from newjitsu."ProfileBuilder"),
                     (select max("updatedAt") from newjitsu."ConfigurationObject"),
                     (select max("updatedAt") from newjitsu."FunctionsServer"),
-                    (select max("updatedAt") from newjitsu."Workspace")
+                    (select max("updatedAt") from newjitsu."Workspace"),
+                    -- backup retention lives in WorkspaceOptions(namespace='data-retention');
+                    -- a retention change must invalidate streams-with-destinations
+                    -- (backupEnabled) and bulker-connections (backup destinations).
+                    -- observability-exports settings synthesize otlp connections
+                    -- into bulker-connections, so they invalidate too.
+                    -- Scoped to these namespaces: getLastUpdated() also gates
+                    -- rotor-connections/functions/syncs, which don't read options.
+                    (select max("updatedAt") from newjitsu."WorkspaceOptions" where namespace in ('data-retention', 'observability-exports'))
             ) as "last_updated"`;
   return rows[0]?.last_updated ?? undefined;
 }
 
+// Workspaces with the Live Events observability export enabled (JITSU-138) →
+// parsed settings + row timestamp. Drives the synthesized otlp connections in
+// bulker-connections and the per-workspace otlpExportEnabled flags in
+// streams-with-destinations / workspaces-with-profiles
+async function getEnabledObservabilityExports(): Promise<
+  Map<string, { settings: ObservabilityExportsSettings; updatedAt: Date }>
+> {
+  const rows = await db.prisma().workspaceOptions.findMany({
+    where: { namespace: observabilityExportsNamespace, workspace: { deleted: false } },
+    // (workspaceId, namespace) has no unique constraint (see the data-retention
+    // comment above): ascending order + Map overwrite = freshest row wins,
+    // deterministically; id as same-millisecond tiebreaker
+    orderBy: [{ updatedAt: "asc" }, { id: "asc" }],
+  });
+  const result = new Map<string, { settings: ObservabilityExportsSettings; updatedAt: Date }>();
+  for (const row of rows) {
+    const parsed = ObservabilityExportsSettings.safeParse(row.value);
+    if (parsed.success && parsed.data.enabled && parsed.data.endpoint) {
+      result.set(row.workspaceId, { settings: parsed.data, updatedAt: row.updatedAt });
+    } else {
+      // a stale duplicate must not shadow-delete a newer enabled row — only a
+      // newer disabled/invalid row turns the workspace off
+      result.delete(row.workspaceId);
+    }
+  }
+  return result;
+}
+
 async function exportBulkerConnections(writer: Writer) {
+  //pull event-archive (GCS/S3 backup) connections from ee-api BEFORE writing
+  //anything: an ee-api failure then surfaces as a clean 500 (headers not yet
+  //sent) instead of a truncated 200, and bulker/config-keeper keep their last
+  //good config. This export is consumed by the bulker service — there is no
+  //signed-in user — so it authenticates with the static service token.
+  //
+  //Deliberately NOT wrapped in try/catch: swallowing an ee-api failure here
+  //used to ship a well-formed export with no backup destinations at all,
+  //silently disarming archiving fleet-wide.
+  let backupConnections: unknown[] = [];
+  if (isEEAvailable()) {
+    const url = `${getEeConnection().host}api/s3-connections`;
+    const response: unknown = await rpc(url, {
+      method: "GET",
+      headers: {
+        "Content-Type": "application/json",
+        ...serviceTokenHeaders(),
+      },
+      // A stalled ee-api must fail this export fast (clean 500, bulker keeps
+      // its last good config), not hang the request until infra timeouts.
+      signal: AbortSignal.timeout(15_000),
+    });
+    if (!Array.isArray(response)) {
+      //ee-api returns {error: "..."} when its object storage isn't configured
+      throw new Error(`Unexpected s3-connections response: ${JSON.stringify(response)}`);
+    }
+    backupConnections = response;
+  }
+
+  // Observability exports (JITSU-138): each workspace with an enabled export gets
+  // one synthesized internal `otlp` connection. Live-events write sites produce
+  // envelope records into its batch topic; bulker's otlp destination posts them
+  // to the configured endpoint. Not a ConfigurationObject — the source of truth
+  // is WorkspaceOptions(namespace='observability-exports'), edited in
+  // /settings/observability-exports. Built fully BEFORE the streaming write for
+  // the same reason as backupConnections above: a failure here must surface as
+  // a clean 500, never a truncated 200.
+  const observabilityExports = await getEnabledObservabilityExports();
+  const otlpConnections = [...observabilityExports].map(([workspaceId, { settings, updatedAt }]) => ({
+    __debug: {
+      workspace: { id: workspaceId },
+    },
+    id: `${workspaceId}_otlp`,
+    workspaceId: workspaceId,
+    special: "otlp",
+    type: "otlp",
+    options: {
+      mode: "batch",
+      // fraction of a minute — logs should land in the backend reasonably fresh
+      frequency: 0.5,
+      deduplicate: false,
+    },
+    updatedAt: updatedAt,
+    credentials: {
+      endpoint: settings.endpoint,
+      headers: settings.headers,
+    },
+  }));
+
   writer.write("[");
 
   let lastId: string | undefined = undefined;
@@ -343,6 +443,7 @@ async function exportBulkerConnections(writer: Writer) {
               workspace: { id: workspace.id, name: workspace.slug },
             },
             id: id,
+            workspaceId: workspace.id,
             type: destinationType,
             options: omit(data, "clickhouseSettings"),
             updatedAt: dateMax(updatedAt, to.updatedAt),
@@ -395,6 +496,7 @@ async function exportBulkerConnections(writer: Writer) {
               workspace: { id: workspace.id, name: workspace.slug },
             },
             id: id,
+            workspaceId: workspace.id,
             type: destinationType,
             options: {
               mode: "batch",
@@ -425,35 +527,20 @@ async function exportBulkerConnections(writer: Writer) {
       break;
     }
   }
-  if (isEEAvailable()) {
-    //pull S3 backup connections from ee-api. This export is consumed by the
-    //bulker service — there is no signed-in user — so it authenticates with
-    //the static service token.
-    const url = `${getEeConnection().host}api/s3-connections`;
-    try {
-      const backupConnections: unknown = await rpc(url, {
-        method: "GET",
-        headers: {
-          "Content-Type": "application/json",
-          ...serviceTokenHeaders(),
-        },
-      });
-      if (!Array.isArray(backupConnections)) {
-        throw new Error(`Expected an array of backup connections, got: ${typeof backupConnections}`);
-      }
-      for (const conn of backupConnections) {
-        if (needComma) {
-          writer.write(",");
-        }
-        writer.write(JSON.stringify(conn));
-        needComma = true;
-      }
-    } catch (e) {
-      getLog()
-        .atError()
-        .withCause(e)
-        .log(`System error: Failed to export backup connections for 'bulker-connections': ${getErrorMessage(e)}`);
+  for (const conn of otlpConnections) {
+    if (needComma) {
+      writer.write(",");
     }
+    writer.write(JSON.stringify(conn));
+    needComma = true;
+  }
+
+  for (const conn of backupConnections) {
+    if (needComma) {
+      writer.write(",");
+    }
+    writer.write(JSON.stringify(conn));
+    needComma = true;
   }
 
   writer.write("]");
@@ -792,6 +879,21 @@ async function exportStreamsWithDestinations(writer: Writer) {
     const pbs = pbMap.get(pb.workspaceId) || [];
     pbMap.set(pb.workspaceId, [...pbs, pb]);
   }
+  // backup retention per workspace — drives backupEnabled below. Ascending
+  // order + Map overwrite = freshest row wins: (workspaceId, namespace) has no
+  // unique constraint, and the write path's find-then-create race can leave
+  // duplicate rows.
+  const dataRetentionMap = new Map<string, unknown>(
+    (
+      await db.prisma().workspaceOptions.findMany({
+        where: { namespace: "data-retention" },
+        // id as tiebreaker: same-millisecond concurrent writes (the very race
+        // that creates duplicates) can share an updatedAt
+        orderBy: [{ updatedAt: "asc" }, { id: "asc" }],
+      })
+    ).map(row => [row.workspaceId, row.value])
+  );
+  const observabilityExports = await getEnabledObservabilityExports();
 
   writer.write("[");
   let lastId: string | undefined = undefined;
@@ -834,12 +936,16 @@ async function exportStreamsWithDestinations(writer: Writer) {
             },
             workspaceId: obj.workspace.id,
           },
-          backupEnabled: isEEAvailable() && !(obj.workspace.featuresEnabled || []).includes("nobackup"),
+          backupEnabled:
+            isEEAvailable() && isBackupEnabled(obj.workspace.featuresEnabled, dataRetentionMap.get(obj.workspace.id)),
           throttle: throttlePercent,
           shard: shardNumber,
           // opt-in per workspace (Settings → Capture HTTP headers): ingest stores
           // request headers in event context.headers (AI agent / bot detection)
           captureHeaders: (obj.workspace.featuresEnabled || []).includes("captureHeaders"),
+          // Live Events observability export (JITSU-138): ingest fans function
+          // events out to the workspace's otlp topic when enabled
+          otlpExportEnabled: observabilityExports.has(obj.workspace.id),
           destinations: [
             ...obj.toLinks
               .filter(l => !l.deleted && l.type === "push" && !l.to.deleted)
@@ -1017,7 +1123,10 @@ async function exportWorkspacesWithProfilesLastModified(): Promise<Date | undefi
                   (select max("updatedAt") from newjitsu."ConfigurationObject" where type='function'),
                   (select max("updatedAt") from newjitsu."ProfileBuilder"),
                   (select max("updatedAt") from newjitsu."ProfileBuilderFunction"),
-                  (select max("updatedAt") from newjitsu."Workspace")
+                  (select max("updatedAt") from newjitsu."Workspace"),
+                  -- rotor gates the live-events observability export (JITSU-138) on
+                  -- the otlpExportEnabled flag injected into this export
+                  (select max("updatedAt") from newjitsu."WorkspaceOptions" where namespace = 'observability-exports')
               ) as "last_updated"`;
   const lastUpdated = rows[0]?.last_updated ?? undefined;
   // force refresh every 5 minute to actualize possible subscription status changes or expirations
@@ -1032,6 +1141,10 @@ async function exportWorkspacesWithProfiles(writer: Writer) {
   const workspacesWithClasses = await functionsClassByWorkspace();
   const functionsClassFunc = (workspaceId: string) =>
     workspacesWithClasses.get(workspaceId)?.class || defaultFunctionsClass;
+  // Observability exports (JITSU-138): rotor gates its live-events fan-out on
+  // this per-workspace flag (the otlp topic name is derived from the workspace
+  // id, so a boolean is all rotor needs)
+  const observabilityExports = await getEnabledObservabilityExports();
 
   // Load FunctionsServer records for profile builder routing
   const functionsServers = new Map<string, FunctionsServerDbModel>();
@@ -1070,6 +1183,8 @@ async function exportWorkspacesWithProfiles(writer: Writer) {
         const workspacePayload = {
           ...row,
           featuresEnabled: addFunctionsClass(row.featuresEnabled ?? [], functionsClassFunc(row.id)),
+          // Live Events observability export (JITSU-138): rotor's per-workspace gate
+          otlpExportEnabled: observabilityExports.has(row.id),
           profileBuilders: row.profileBuilders
             .filter(pb => pb.version > 0)
             .map(pb => ({

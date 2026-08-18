@@ -45,6 +45,10 @@ type ActorEvent struct {
 	EventType EventType
 	Level     Level
 	ActorId   string
+	// WorkspaceId of the actor. May be empty for callers that don't have it in scope (e.g. 'incoming' events before stream resolution)
+	WorkspaceId string
+	// MessageId of the source event this record was produced for, when the record relates to a single event
+	MessageId string
 	Event     any
 	Timestamp time.Time
 }

@@ -120,11 +120,58 @@ jobs:
         run: docker stop builder && docker rm builder
 
   bulker-test:
-    name: 🧪 Bulker Test
+    # One shard per warehouse. Redshift alone is ~47% of the suite's runtime, so
+    # running the destinations in one job made every change wait on it; split up,
+    # the local-container shard reports back in a couple of minutes and each
+    # cloud warehouse is only as slow as itself.
+    #
+    # `configs` is BULKER_TEST_CONFIGS, which the sql suite applies before it
+    # creates anything — that is what stops a cloud shard from starting (and
+    # waiting ~43s on) the local containers it will never use. A shard that names
+    # a destination it can't configure fails loudly rather than passing green
+    # with zero tests run, so each shard also gets only the secret it needs.
+    name: 🧪 Bulker Test (${{ matrix.shard }})
     timeout-minutes: 60
     runs-on: ubuntu-latest
     permissions:
       contents: read
+    strategy:
+      # A broken warehouse shouldn't hide the results of the others.
+      fail-fast: false
+      matrix:
+        include:
+          - shard: app
+            packages: >-
+              ./jitsubase/... ./ingest/... ./kafkabase/... ./eventslog/... ./bulkerapp/...
+              ./bulkerlib ./bulkerlib/types/... ./bulkerlib/implementations
+              ./bulkerlib/implementations/api_based/... ./bulkerlib/implementations/file_storage/...
+              ./bulkerlib/implementations/sql/redshift_driver/... ./bulkerlib/implementations/sql/testcontainers/...
+          - shard: local
+            packages: ./bulkerlib/implementations/sql
+            configs: postgres,mysql,clickhouse,clickhouse_cluster,clickhouse_cluster_noshards
+          - shard: bigquery
+            packages: ./bulkerlib/implementations/sql
+            configs: bigquery
+            needs_secrets: true
+          - shard: snowflake
+            packages: ./bulkerlib/implementations/sql
+            configs: snowflake
+            needs_secrets: true
+          - shard: redshift
+            packages: ./bulkerlib/implementations/sql
+            configs: redshift_iam
+            needs_secrets: true
+          - shard: motherduck
+            packages: ./bulkerlib/implementations/sql
+            configs: duckdb
+            needs_secrets: true
+    env:
+      # Isolates this run's warehouse objects from every other run's: the suite
+      # puts itself in a schema (dataset, on BigQuery) named after the run, so
+      # two runs in flight at once stop dropping each other's tables.
+      BULKER_TEST_RUN_ID: ${{ github.run_id }}_${{ github.run_attempt }}
+      BULKER_TEST_CONFIGS: ${{ matrix.configs }}
+      TESTCONTAINERS_RYUK_DISABLED: true
     steps:
       - name: 📥 Checkout code
         uses: actions/checkout@v6
@@ -145,50 +192,176 @@ jobs:
               - 'bulker/bulkerlib/**'
               - 'bulker/bulkerapp/**'
 
+      - name: 🔍 Check whether this shard can run
+        id: shard
+        env:
+          SHARD: ${{ matrix.shard }}
+          NEEDS_SECRETS: ${{ matrix.needs_secrets }}
+          EVENT_NAME: ${{ github.event_name }}
+          PR_HEAD_REPO: ${{ github.event.pull_request.head.repo.full_name }}
+          THIS_REPO: ${{ github.repository }}
+        run: |
+          # Pull requests from forks get no repository secrets, so a shard that
+          # needs warehouse credentials can only fail there. Skip it — the local
+          # and app shards still cover the change.
+          if [ "$NEEDS_SECRETS" = "true" ] && [ "$EVENT_NAME" = "pull_request" ] && [ "$PR_HEAD_REPO" != "$THIS_REPO" ]; then
+            echo "run=false" >> $GITHUB_OUTPUT
+            echo "::notice::Skipping the $SHARD shard: warehouse credentials aren't available to pull requests from forks."
+          else
+            echo "run=true" >> $GITHUB_OUTPUT
+          fi
+
       - name: Set up Go
-        if: steps.changes.outputs.bulker == 'true'
+        id: go
+        if: steps.changes.outputs.bulker == 'true' && steps.shard.outputs.run == 'true'
         uses: actions/setup-go@v6
         with:
           go-version: '1.26'
-          cache-dependency-path: "bulker/**/*.sum"
           check-latest: true
-#          cache: false
+          # Cached by the step below instead: setup-go derives one key from the
+          # go.sum hash, so all six shards would contend for a single entry —
+          # only the first to finish saves ("another job may be creating this
+          # cache"), and the rest then restore a cache built for someone else's
+          # packages. Compiling was ~46% of the app shard's runtime because of it.
+          cache: false
+
+      # Modules are fully determined by go.sum and identical for every shard, so
+      # they share one entry — the contention that breaks the build cache is
+      # harmless here, since whichever shard wins the save stores exactly what
+      # the others would have. The restore-key keeps a dependency bump from
+      # re-downloading the whole module set on all six shards at once — which is
+      # also why the toolchain version is deliberately absent here, unlike in the
+      # build cache below: downloaded modules don't depend on the compiler, so
+      # pinning them to it would throw the fallback away on every Go release.
+      - name: 💾 Restore Go module cache
+        if: steps.changes.outputs.bulker == 'true' && steps.shard.outputs.run == 'true'
+        uses: actions/cache@v5
+        with:
+          path: ~/go/pkg/mod
+          key: bulker-gomod-${{ hashFiles('bulker/**/*.sum') }}
+          restore-keys: |
+            bulker-gomod-
+
+      # Build output differs per shard, so this one needs its own key, and the
+      # run id keeps it fresh: actions/cache skips the save on an exact hit, so
+      # a key made only of go.sum would be written once and then never updated
+      # again — every later run restoring a cache that covers less and less of
+      # what actually changed. restore-keys supplies the warm start; the run id
+      # only decides what gets written back.
+      #
+      # The toolchain version is in both keys because check-latest floats it,
+      # and build entries from an older compiler are dead weight.
+      #
+      # This does write six entries per bulker run, against a 10GB repo budget
+      # shared with the turbo caches. It's bounded by the paths-filter above —
+      # nothing here runs unless the PR touches bulker — but if turbo starts
+      # missing, this is what to look at first.
+      - name: 💾 Restore Go build cache
+        if: steps.changes.outputs.bulker == 'true' && steps.shard.outputs.run == 'true'
+        uses: actions/cache@v5
+        with:
+          path: ~/.cache/go-build
+          key: bulker-gobuild-${{ matrix.shard }}-${{ steps.go.outputs.go-version }}-${{ hashFiles('bulker/**/*.sum') }}-${{ github.run_id }}
+          restore-keys: |
+            bulker-gobuild-${{ matrix.shard }}-${{ steps.go.outputs.go-version }}-
 
       - name: 🧪 Run Bulker tests
-        if: steps.changes.outputs.bulker == 'true'
+        if: steps.changes.outputs.bulker == 'true' && steps.shard.outputs.run == 'true'
         working-directory: ./bulker
         env:
+          # The app shard runs the S3/GCS file storage tests; the destination
+          # shards each get only their own warehouse's credentials.
           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           AWS_DEFAULT_REGION: ${{ secrets.AWS_DEFAULT_REGION }}
-          BULKER_TEST_BIGQUERY: ${{ secrets.BULKER_TEST_BIGQUERY }}
-          BULKER_TEST_REDSHIFT_IAM: ${{ secrets.BULKER_TEST_REDSHIFT_IAM }}
-          BULKER_TEST_S3: ${{ secrets.BULKER_TEST_S3 }}
-          BULKER_TEST_MOTHERDUCK: ${{ secrets.BULKER_TEST_MOTHERDUCK }}
-          # BULKER_TEST_REDSHIFT: ${{ secrets.BULKER_TEST_REDSHIFT }}
-          BULKER_TEST_REDSHIFT_SERVERLESS: ${{ secrets.BULKER_TEST_REDSHIFT_SERVERLESS }}
-          BULKER_TEST_SNOWFLAKE: ${{ secrets.BULKER_TEST_SNOWFLAKE }}
-          BULKER_TEST_MILLION_ROWS_BATCHED: postgres
-          TESTCONTAINERS_RYUK_DISABLED: true
+          BULKER_TEST_S3: ${{ matrix.shard == 'app' && secrets.BULKER_TEST_S3 || '' }}
+          BULKER_TEST_BIGQUERY: ${{ matrix.shard == 'bigquery' && secrets.BULKER_TEST_BIGQUERY || '' }}
+          BULKER_TEST_SNOWFLAKE: ${{ matrix.shard == 'snowflake' && secrets.BULKER_TEST_SNOWFLAKE || '' }}
+          BULKER_TEST_REDSHIFT_IAM: ${{ matrix.shard == 'redshift' && secrets.BULKER_TEST_REDSHIFT_IAM || '' }}
+          BULKER_TEST_MOTHERDUCK: ${{ matrix.shard == 'motherduck' && secrets.BULKER_TEST_MOTHERDUCK || '' }}
+          # BULKER_TEST_REDSHIFT / BULKER_TEST_REDSHIFT_SERVERLESS have no value
+          # configured, so those destinations have never actually run here. They
+          # get a shard of their own once the secrets exist.
+          BULKER_TEST_MILLION_ROWS_BATCHED: ${{ matrix.shard == 'local' && 'postgres' || '' }}
+          PACKAGES: ${{ matrix.packages }}
         run: |
-          go test -parallel=10 -timeout 60m -json ./jitsubase/... ./ingest/... ./kafkabase/... ./eventslog/... ./bulkerlib/... ./bulkerapp/... > test_report.json
+          go test -parallel=10 -timeout 60m -json $PACKAGES > test_report.json
 
+      - name: 🧹 Drop this run's warehouse schemas
+        # always(), so it also fires when the job is cancelled — which, with
+        # cancel-in-progress, is what happens on every re-push. The app and local
+        # shards have nothing to drop: their state lives in throwaway containers.
+        if: always() && matrix.needs_secrets && steps.changes.outputs.bulker == 'true' && steps.shard.outputs.run == 'true'
+        # A leaked schema is worth seeing in the log, but it isn't a reason to
+        # call a passing test run failed.
+        continue-on-error: true
+        working-directory: ./bulker
+        env:
+          BULKER_TEST_CLEANUP: "true"
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: ${{ secrets.AWS_DEFAULT_REGION }}
+          BULKER_TEST_BIGQUERY: ${{ matrix.shard == 'bigquery' && secrets.BULKER_TEST_BIGQUERY || '' }}
+          BULKER_TEST_SNOWFLAKE: ${{ matrix.shard == 'snowflake' && secrets.BULKER_TEST_SNOWFLAKE || '' }}
+          BULKER_TEST_REDSHIFT_IAM: ${{ matrix.shard == 'redshift' && secrets.BULKER_TEST_REDSHIFT_IAM || '' }}
+          BULKER_TEST_MOTHERDUCK: ${{ matrix.shard == 'motherduck' && secrets.BULKER_TEST_MOTHERDUCK || '' }}
+        # -v because this step is continue-on-error: without it a pass prints
+        # nothing and a failure is easy to miss, so the log is the only place a
+        # leaked schema would ever show up.
+        run: go test -count=1 -v -timeout 10m -run TestCleanupTestRun ./bulkerlib/implementations/sql
 
       - name: 📊 Generate test report
-        if: always() && steps.changes.outputs.bulker == 'true'
+        if: always() && steps.changes.outputs.bulker == 'true' && steps.shard.outputs.run == 'true'
         working-directory: ./bulker
         run: |
           go install github.com/vakenbolt/go-test-report@latest
           cat test_report.json | ~/go/bin/go-test-report
 
       - name: 📤 Upload test artifacts
-        if: always() && steps.changes.outputs.bulker == 'true'
+        if: always() && steps.changes.outputs.bulker == 'true' && steps.shard.outputs.run == 'true'
         uses: actions/upload-artifact@v7
         with:
-          name: bulker-test-report
+          name: bulker-test-report-${{ matrix.shard }}
           path: |
             bulker/test_report.html
             bulker/test_report.json
+
+  bulker-test-result:
+    # The `default-branch-protection` ruleset requires a check called exactly
+    # "🧪 Bulker Test". Sharding renamed that check to "🧪 Bulker Test (app)",
+    # "… (redshift)" and so on, so the required one would never report again and
+    # every PR would sit unmergeable. This job restores it as a single gate over
+    # the whole matrix; the ruleset needs no edit.
+    #
+    # Adding a shard to the matrix therefore does not require touching the
+    # ruleset either — this job keeps covering it.
+    name: 🧪 Bulker Test
+    needs: [bulker-test]
+    # Not the default (which skips when a dependency fails, leaving the required
+    # check pending forever rather than red), and not always() either: with
+    # cancel-in-progress above, every re-push cancels a run, and always() would
+    # publish this required check as failed for it. !cancelled() still fires when
+    # a shard fails, which is the case that has to turn the check red.
+    if: ${{ !cancelled() }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: 🔍 Check shard results
+        env:
+          RESULT: ${{ needs.bulker-test.result }}
+        run: |
+          # A matrix job's result is success only when every shard succeeded.
+          # On a PR that touches no bulker code the paths filter skips every
+          # step, but the job itself still reports success — 'skipped' can only
+          # happen if someone later puts a job-level if: on bulker-test, and it
+          # should pass then too. Anything else — failure, cancelled — must not.
+          if [ "$RESULT" = "success" ] || [ "$RESULT" = "skipped" ]; then
+            echo "All bulker test shards passed (result: $RESULT)."
+          else
+            echo "::error::Bulker test shards did not pass (result: $RESULT). See the per-shard jobs for detail."
+            exit 1
+          fi
 
   notify:
     name: 📢 Notify

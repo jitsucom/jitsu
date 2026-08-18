@@ -45,6 +45,7 @@ type RedshiftConfig struct {
 	MinPolling          time.Duration `json:"polling"`          // default: 10ms
 	MaxPolling          time.Duration `json:"maxPolling"`       // default: 5s
 	RetryMaxAttempts    int           `json:"retryMaxAttempts"` // default: 20
+	RetryMode           string        `json:"retryMode"`        // standard | adaptive (default). Data API TPS quotas are account-wide; adaptive self-throttles on ThrottlingException
 
 	// S3Config
 	AccessKeyID     string `mapstructure:"accessKeyId,omitempty" json:"accessKeyId,omitempty" yaml:"accessKeyId,omitempty"`
@@ -156,6 +157,12 @@ func (cfg *RedshiftConfig) LoadOpts(ctx context.Context) ([]func(*config.LoadOpt
 		}))
 	}
 	opts = append(opts, config.WithRetryMaxAttempts(cfg.GetRetryMaxAttempts()))
+	// Data API TPS quotas (ExecuteStatement 30/s, GetStatementResult 20/s, …) are
+	// account-wide per region and non-adjustable: under concurrent load the
+	// standard retryer's token bucket fails fast, while adaptive mode rate-limits
+	// the client until throttling clears. Per-client (i.e. per-connection) only —
+	// no cross-process coordination, but each connection backs off on its own
+	opts = append(opts, config.WithRetryMode(cfg.GetRetryMode()))
 	return opts, nil
 }
 
@@ -197,6 +204,11 @@ func (cfg *RedshiftConfig) String() string {
 		params.Add("retryMaxAttempts", strconv.Itoa(cfg.RetryMaxAttempts))
 	} else {
 		params.Del("retryMaxAttempts")
+	}
+	if cfg.RetryMode != "" {
+		params.Add("retryMode", cfg.RetryMode)
+	} else {
+		params.Del("retryMode")
 	}
 	if cfg.Region != "" {
 		params.Add("region", cfg.Region)
@@ -275,6 +287,14 @@ func (cfg *RedshiftConfig) setParams(params url.Values) error {
 			return fmt.Errorf("parse retry max attempts as int: %w", err)
 		}
 		cfg.Params.Del("retryMaxAttempts")
+	}
+	if params.Has("retryMode") {
+		mode := params.Get("retryMode")
+		if mode != string(aws.RetryModeStandard) && mode != string(aws.RetryModeAdaptive) {
+			return fmt.Errorf("retryMode must be %q or %q, got %q", aws.RetryModeStandard, aws.RetryModeAdaptive, mode)
+		}
+		cfg.RetryMode = mode
+		cfg.Params.Del("retryMode")
 	}
 	if params.Has("region") {
 		cfg.Region = params.Get("region")
@@ -355,6 +375,13 @@ func (cfg *RedshiftConfig) GetRetryMaxAttempts() int {
 		return 20
 	}
 	return cfg.RetryMaxAttempts
+}
+
+func (cfg *RedshiftConfig) GetRetryMode() aws.RetryMode {
+	if cfg.RetryMode == string(aws.RetryModeStandard) {
+		return aws.RetryModeStandard
+	}
+	return aws.RetryModeAdaptive
 }
 
 func ParseDSN(dsn string) (*RedshiftConfig, error) {

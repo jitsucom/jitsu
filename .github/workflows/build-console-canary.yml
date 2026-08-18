@@ -1,0 +1,86 @@
+# Builds a per-PR canary console image for JITSU-159.
+#
+# When a PR is labeled `canary:console`, this builds the console image from the
+# PR head and pushes `jitsucom/console:canary-<short_sha>`. The ArgoCD
+# ApplicationSet in jitsucom/jitsu-cloud-infra (k8s/canary-console) then deploys
+# it at pr<N>.use.jitsu.com in read-only mode.
+#
+# TRUST BOUNDARY — this MUST stay on `pull_request`, never `pull_request_target`.
+# GitHub withholds secrets (DOCKERHUB_*) from fork-triggered `pull_request` runs,
+# so a fork PR simply cannot build/push a canary image even if labeled. Combined
+# with the maintainer-only label, that means canary code is always maintainer-
+# opted-in code from a same-repo branch — the guardrail the whole canary design
+# leans on. Using pull_request_target would run PR code with our secrets and
+# break that boundary.
+#
+# TAG CONTRACT — the tag suffix is the FIRST 7 CHARS of the PR head SHA, which is
+# exactly ArgoCD's `head_short_sha_7` template parameter. The ApplicationSet
+# references `canary-{{.head_short_sha_7}}`; the two must stay in lockstep or
+# canaries ImagePullBackOff. We truncate the SHA string (not `git rev-parse
+# --short`, which is ambiguity-aware and can return >7 chars) so it matches
+# ArgoCD's plain truncation exactly.
+name: Build canary console image
+
+on:
+  pull_request:
+    types: [labeled, synchronize, reopened]
+    branches: [newjitsu]
+
+# Newer pushes supersede in-flight builds for the same PR.
+concurrency:
+  group: canary-console-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build & push canary console image
+    if: contains(github.event.pull_request.labels.*.name, 'canary:console')
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - name: 📥 Checkout PR head
+        uses: actions/checkout@v6
+        with:
+          # Build the PR's actual code, not the synthetic pull_request merge ref.
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 1
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v4
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+        with:
+          driver: cloud
+          endpoint: "jitsucom/newjitsu"
+
+      - name: 🏗️ Build and push canary console image
+        env:
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          REGISTRY: ${{ secrets.DOCKERHUB_USERNAME }}
+        run: |
+          set -euo pipefail
+          SHORT_SHA="${HEAD_SHA:0:7}"          # == ArgoCD head_short_sha_7
+          TAG="canary-${SHORT_SHA}"
+          IMAGE="${REGISTRY}/console:${TAG}"
+          echo "Building ${IMAGE} (head ${HEAD_SHA})"
+
+          docker buildx build \
+            --target console \
+            --platform linux/amd64 \
+            --build-arg JITSU_BUILD_VERSION="${TAG}" \
+            --build-arg JITSU_BUILD_DOCKER_TAG=canary \
+            --build-arg JITSU_BUILD_COMMIT_SHA="${HEAD_SHA}" \
+            --build-arg CI=true \
+            -t "${IMAGE}" \
+            -f all.Dockerfile \
+            --push \
+            .
+
+          echo "Pushed ${IMAGE}" >> "$GITHUB_STEP_SUMMARY"

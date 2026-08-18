@@ -330,7 +330,11 @@ func (r *Router) postEventsLog(destinationId string, state bulker.State, process
 	if batchErr != nil {
 		level = eventslog.LevelError
 	}
-	r.eventsLogService.PostAsync(&eventslog.ActorEvent{EventType: eventslog.EventTypeBatch, Level: level, ActorId: destinationId, Event: batchState})
+	workspaceId := ""
+	if destination := r.repository.GetDestination(destinationId); destination != nil {
+		workspaceId = destination.WorkspaceId()
+	}
+	r.eventsLogService.PostAsync(&eventslog.ActorEvent{EventType: eventslog.EventTypeBatch, Level: level, ActorId: destinationId, WorkspaceId: workspaceId, Event: batchState})
 }
 
 func maskWriteKey(wk string) string {

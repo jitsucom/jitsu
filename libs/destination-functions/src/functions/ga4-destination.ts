@@ -402,6 +402,8 @@ function trackEvent(event: AnalyticsServerEvent): Ga4Event {
   };
 }
 
+const GA4_MEASUREMENT_PROTOCOL_URL = "https://www.google-analytics.com/mp/collect";
+
 const Ga4Destination: JitsuFunction<AnalyticsServerEvent, Ga4Credentials> = async (event, ctx) => {
   if (typeof ctx.props.events !== "undefined") {
     const filter = createFilter(ctx.props.events || "");
@@ -454,9 +456,7 @@ const Ga4Destination: JitsuFunction<AnalyticsServerEvent, Ga4Credentials> = asyn
       return;
     }
 
-    const baseUrl = ctx.props.url ?? "https://www.google-analytics.com/mp/collect";
-
-    const url = `${baseUrl}?${query}`;
+    const url = `${GA4_MEASUREMENT_PROTOCOL_URL}?${query}`;
 
     gaRequest = {
       ...idPart,

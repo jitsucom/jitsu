@@ -14,7 +14,6 @@ import {
   UserContextProvider,
   useUser,
   useUserSafe,
-  useWorkspace,
   WorkspaceContextProvider,
 } from "../lib/context";
 import { AppConfig, ContextApiResponse, SessionUser } from "../lib/schema";
@@ -31,8 +30,7 @@ import { VerifyEmailGate } from "../components/SignInOrUp/VerifyEmailGate";
 import { FirebaseSignup } from "../components/SignInOrUp/FirebaseSignup";
 import { JitsuButton } from "../components/JitsuButton/JitsuButton";
 import { BillingProvider } from "../components/Billing/BillingProvider";
-import { useEeApi } from "../lib/eeApi";
-import { useConfigObjectList, useConfigObjectsUpdater, useLoadedWorkspace } from "../lib/store";
+import { useConfigObjectsUpdater, useLoadedWorkspace } from "../lib/store";
 import { useQuery } from "@tanstack/react-query";
 import { get } from "../lib/useApi";
 import { WorkspaceRoleType, WorkspaceRoleWithPermissions, WorkspaceRolePermissions } from "../lib/workspace-roles";
@@ -421,31 +419,6 @@ const WorkspaceWrapper: React.FC<PropsWithChildren<{}>> = ({ children }) => {
   } else {
     return <>{children}</>;
   }
-};
-
-/**
- * We need to get rid of this, and move this to the backend completely.
- *
- * We should actually use this component somewhere in the app
- * @constructor
- */
-export const S3BucketInitializer: React.FC<{}> = () => {
-  const appConfig = useAppConfig();
-  const workspace = useWorkspace();
-  const streams = useConfigObjectList("stream");
-  const { eeRpc } = useEeApi();
-  useEffect(() => {
-    (async () => {
-      if (appConfig.ee.available && workspace?.id && streams.length > 0) {
-        try {
-          await eeRpc("s3-init", { method: "GET", query: { workspaceId: workspace.id } });
-        } catch (e: any) {
-          console.error("Failed to init S3 bucket", e.message);
-        }
-      }
-    })();
-  }, [workspace?.id, streams, appConfig, eeRpc]);
-  return <></>;
 };
 
 const WorkspaceLoader: React.FC<
