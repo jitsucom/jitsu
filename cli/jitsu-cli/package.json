@@ -55,7 +55,7 @@
     "etag": "^1.8.1",
     "inquirer": "^9.2.11",
     "jest": "^29.7.0",
-    "js-yaml": "^4.3.0",
+    "js-yaml": "^4.3.1",
     "@types/js-yaml": "^4.0.9",
     "json5": "^2.2.3",
     "juava": "workspace:*",

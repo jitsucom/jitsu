@@ -3,7 +3,7 @@ import { Pool, PoolClient } from "pg";
 import Cursor from "pg-cursor";
 import { getSingleton, namedParameters, newError, requireDefined, stopwatch, hideSensitiveInfo } from "juava";
 import { getServerLog } from "./log";
-import { isMaintenanceActive } from "./maintenance";
+import { isReadOnly } from "./maintenance";
 import { isTruish } from "../shared/chores";
 import { getServerEnv } from "./serverEnv";
 
@@ -228,7 +228,7 @@ export function createPrisma(): PrismaClient {
     query: {
       $allModels: {
         async $allOperations({ operation, args, query }) {
-          if (isMaintenanceActive() && mutationActions.find(candidate => operation.indexOf(candidate) === 0)) {
+          if (isReadOnly() && mutationActions.find(candidate => operation.indexOf(candidate) === 0)) {
             throw new Error(`Prisma operation ${operation} is not allowed in read-only mode`);
           }
           return query(args);
