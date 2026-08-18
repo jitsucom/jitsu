@@ -15,6 +15,7 @@ import { EditorButtons } from "../ConfigObjectEditor/EditorButtons";
 import { EditorTitle } from "../ConfigObjectEditor/EditorTitle";
 import { ConfigTestResult } from "../ConfigObjectEditor/ConfigEditor";
 import { useRouter } from "next/router";
+import Link from "next/link";
 
 export const ObservabilityExportsEditorLoader: React.FC<{}> = () => {
   const workspace = useWorkspace();
@@ -32,7 +33,28 @@ export const ObservabilityExportsEditorLoader: React.FC<{}> = () => {
   return (
     <div className="flex justify-center">
       <div className="max-w-4xl grow">
-        <EditorTitle title="Observability exports" onBack={() => router.push(`/${workspace.slugOrId}/settings`)} />
+        <EditorTitle
+          title="Observability exports"
+          subtitle={
+            <div className="text-textLight mb-6">
+              <div>
+                Stream Live Events — function logs, batch and sync statuses, delivery errors — to Datadog or any
+                OTLP-compatible backend as OpenTelemetry logs.
+              </div>
+              <div className="mt-1">
+                <Link
+                  className="font-semibold"
+                  href="https://docs.jitsu.com/features/observability-exports"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  Read the docs
+                </Link>
+              </div>
+            </div>
+          }
+          onBack={() => router.push(`/${workspace.slugOrId}/settings`)}
+        />
         {billing.loading || settings.isLoading ? (
           <Skeleton active={true} />
         ) : planTooLow ? (
@@ -76,16 +98,10 @@ const UpgradeBanner: React.FC<{}> = () => {
               exports can be enabled for this workspace right after.
             </div>
           ) : (
-            <>
-              <div className="text">
-                Observability exports stream your Live Events — function logs, batch statuses, sync results, and
-                delivery errors — straight to your own monitoring stack (Datadog or any OTLP-compatible backend).
-              </div>
-              <div className="text mt-2">
-                This feature is available on custom plans only. Get in touch and we&apos;ll put together a plan that
-                fits your workspace.
-              </div>
-            </>
+            <div className="text">
+              This feature is available on custom plans only. Get in touch and we&apos;ll put together a plan that fits
+              your workspace.
+            </div>
           )}
           <div className="mt-4">
             <Button
@@ -201,12 +217,7 @@ export const ObservabilityExportsEditor: React.FC<{ obj: ObservabilityExportsSet
       <EditorField
         id="enabled"
         label="Enabled"
-        help={
-          <>
-            Export Live Events to your observability backend as OpenTelemetry logs. Turning this off stops new exports.
-            Live Events inside Jitsu are unaffected.
-          </>
-        }
+        help={<>Turning this off stops new exports. Live Events inside Jitsu are unaffected.</>}
       >
         <Switch
           id="enabled"
