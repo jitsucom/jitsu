@@ -37,11 +37,20 @@ export const ObservabilityExportsEditorLoader: React.FC<{}> = () => {
           title="Observability exports"
           subtitle={
             <div className="text-textLight mb-6">
-              Stream Live Events — function logs, batch and sync statuses, delivery errors — to Datadog or any
-              OTLP-compatible backend as OpenTelemetry logs.{" "}
-              <Link href="https://docs.jitsu.com/features/observability-exports" target="_blank">
-                Read the docs
-              </Link>
+              <div>
+                Stream Live Events — function logs, batch and sync statuses, delivery errors — to Datadog or any
+                OTLP-compatible backend as OpenTelemetry logs.
+              </div>
+              <div className="mt-1">
+                <Link
+                  className="font-semibold"
+                  href="https://docs.jitsu.com/features/observability-exports"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  Read the docs
+                </Link>
+              </div>
             </div>
           }
           onBack={() => router.push(`/${workspace.slugOrId}/settings`)}
