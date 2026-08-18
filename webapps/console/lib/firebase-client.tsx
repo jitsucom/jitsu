@@ -195,6 +195,31 @@ async function getUserFromFirebase(currentUser: auth.User): Promise<FirebaseAuth
 }
 
 /**
+ * Session-cookie → Firebase SDK bridge (JITSU-159). The `jitsu-auth` session
+ * cookie is scoped to AUTH_COOKIE_DOMAIN (e.g. jitsu.com) and so carries over
+ * to sibling hosts like pr<N>.use.jitsu.com — but the Firebase JS SDK persists
+ * its auth state in per-origin IndexedDB, so on a host the user never signed
+ * in on, onAuthStateChanged yields null despite the valid cookie (and a fresh
+ * sign-in there would fail Firebase's authorized-domains check). Exchange the
+ * cookie for a custom token server-side and establish SDK state with it.
+ *
+ * Best-effort: any failure (401 = no/revoked cookie, network) returns null and
+ * the caller falls through to the sign-in screen. The cookie is httpOnly, so
+ * its presence can't be probed client-side — on signed-out page loads this
+ * costs one 401 roundtrip.
+ */
+async function trySessionCookieBridge(): Promise<auth.User | null> {
+  try {
+    const { token } = await rpc(`/api/fb-auth/custom-token`);
+    const credential = await auth.signInWithCustomToken(auth.getAuth(), token);
+    return credential.user;
+  } catch (e) {
+    log.atDebug().withCause(e).log(`Session-cookie bridge not available, proceeding signed-out`);
+    return null;
+  }
+}
+
+/**
  * Records a Firebase sign-in audit event. Called only from the explicit
  * sign-in entry points (signIn / signInWith) — the implicit cookie-mint
  * path on every page load deliberately doesn't, otherwise the audit log
@@ -310,8 +335,17 @@ export function useFirebaseSession(): FirebaseSession {
         let unregister = auth.onAuthStateChanged(
           auth.getAuth(),
           async user => {
+            // Unregister before any async work: the bridge below signs in via
+            // custom token, which would re-fire this listener and double-run
+            // getUserFromFirebase for the same resolution.
+            unregister();
             log.atDebug().log(`Firebase auth result`, user);
             try {
+              if (!user && !token) {
+                // No per-origin SDK state and no explicit ?token= — the session
+                // cookie may still be valid (subdomain carryover, JITSU-159).
+                user = await trySessionCookieBridge();
+              }
               const result = user ? await getUserFromFirebase(user) : null;
               // Record the login only for an explicit sign-in (recordLogin) and only after
               // getUserFromFirebase has minted/linked internalId — otherwise a first-time
@@ -326,8 +360,6 @@ export function useFirebaseSession(): FirebaseSession {
               // promise — without this catch the throw escapes the async callback
               // as an unhandled rejection and the caller hangs.
               reject(e);
-            } finally {
-              unregister();
             }
           },
           error => {
