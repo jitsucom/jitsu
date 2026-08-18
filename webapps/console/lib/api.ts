@@ -8,7 +8,7 @@ import { assertDefined, checkHash, checkRawToken, getErrorMessage, requireDefine
 import { getServerSession, Session } from "next-auth";
 import { nextAuthConfig } from "./nextauth.config";
 import { inferTokenTypeFromId, SessionUser } from "./schema";
-import { db } from "./server/db";
+import { db, isDatabaseReachable } from "./server/db";
 import { isMaintenanceActive } from "./server/maintenance";
 import { prepareZodObjectForDeserialization, safeParseWithDate } from "./zod";
 import { ApiError } from "./shared/errors";
@@ -345,6 +345,27 @@ export async function getUser(
   return session ? getUserFromSession(session) : undefined;
 }
 
+/**
+ * On the request error path, tells a database outage apart from an ordinary
+ * failure by actively probing the DB. When it's unreachable, responds with a
+ * clear `database_unavailable` 503 (fail-closed, with Retry-After) and returns
+ * true; otherwise leaves the response untouched and returns false so the caller
+ * falls back to its normal handling. Centralized here so every route — not just
+ * rate-limited ones — surfaces the same message when Postgres is down.
+ */
+async function respondIfDatabaseDown(req: NextApiRequest, res: NextApiResponse, e: unknown): Promise<boolean> {
+  if (await isDatabaseReachable()) {
+    return false;
+  }
+  log.atError().withCause(e).log(`database is unreachable for ${req.method} ${req.url}; request rejected`);
+  res.setHeader("Retry-After", "5");
+  res.status(503).json({
+    error: "database_unavailable",
+    message: "Database is unavailable; request rejected.",
+  });
+  return true;
+}
+
 export function nextJsApiHandler(api: Api): NextApiHandler {
   const handleRequest = async (req: NextApiRequest, res: NextApiResponse) => {
     const method = req.method as HttpMethodType;
@@ -423,6 +444,14 @@ export function nextJsApiHandler(api: Api): NextApiHandler {
           // Fail closed: the limiter store is unavailable, so we reject rather than
           // silently letting everyone through. A future per-route failOpen flag can
           // carve exceptions when we need them.
+          //
+          // The Postgres-backed limiter runs an INSERT on every request, so a DB
+          // outage tends to surface here first. Probe the DB and, when it's the
+          // real cause, report that instead of blaming the rate limiter — which
+          // would point developers at the wrong subsystem.
+          if (await respondIfDatabaseDown(req, res, e)) {
+            return;
+          }
           log.atWarn().withCause(e).log(`rate limiter unavailable for ${req.method} ${req.url}`);
           res.setHeader("Retry-After", "5");
           res.status(503).json({
@@ -524,6 +553,12 @@ export function nextJsApiHandler(api: Api): NextApiHandler {
         }
         res.status(status).send(errorBody);
       } else {
+        // A dead database bubbles up here as a raw Prisma error (not an ApiError).
+        // Probe and, if it's really down, return the unified database_unavailable
+        // 503 so every route reports the same clear cause.
+        if (await respondIfDatabaseDown(req, res, e)) {
+          return;
+        }
         log.atError().withCause(e).log(`Request for ${req.method} ${req.url} failed`);
         res
           .status(500)

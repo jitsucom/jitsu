@@ -77,6 +77,36 @@ export const db = {
   pgHelper: () => pgHelper,
 } as const;
 
+/**
+ * Actively probes the database with a trivial `SELECT 1`. Prisma exposes no
+ * "am I connected?" flag — connections are lazy and pooled — so the only
+ * reliable signal is to run a cheap query and see whether it succeeds. Used on
+ * the request error path to tell a genuine outage apart from an ordinary query
+ * failure, without having to pattern-match on Prisma error codes.
+ *
+ * Bounded by `timeoutMs` so an unreachable server can't stall the response
+ * while the driver waits out its own (much longer) connect timeout.
+ */
+export async function isDatabaseReachable(timeoutMs = 1500): Promise<boolean> {
+  const ping = db.prisma().$queryRaw`SELECT 1`;
+  // If the timeout wins the race the query promise still settles later; swallow
+  // its rejection so it can't surface as an unhandled rejection.
+  Promise.resolve(ping).catch(() => {});
+  try {
+    await Promise.race([
+      ping,
+      new Promise((_, reject) => {
+        const t = setTimeout(() => reject(new Error("db ping timed out")), timeoutMs);
+        // Don't let the probe timer keep the event loop alive on its own.
+        (t as { unref?: () => void }).unref?.();
+      }),
+    ]);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 export type DatabaseConnection = typeof db;
 
 export type PrismaSSLMode = "disable" | "prefer" | "require" | "no-verify";
