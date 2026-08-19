@@ -75,9 +75,11 @@ func FilterEvent(event Json) {
 
 // SanitizeSqlTypes keeps well-formed __sql_type* hints and deletes the rest.
 // Used on the s2s path, where hints are a supported feature but their values
-// end up in SQL DDL: a hint must be a type-shaped string (or a 1-2 element
-// array of such strings, [castType, ddlType] — see extractSQLTypesHints in
-// bulkerlib). The event itself is never rejected over a bad hint.
+// end up in SQL DDL: a hint must be a single type-shaped string. The
+// [castType, ddlType] array form accepted by extractSQLTypesHints in bulkerlib
+// is deliberately not allowed through ingest — a separate ddlType is a wider
+// DDL surface with no known external user. The event itself is never rejected
+// over a bad hint.
 func SanitizeSqlTypes(event Json) {
 	filterEvent(event, isValidSqlTypeHint)
 }
@@ -113,21 +115,6 @@ func filterEvent(event any, keepHint func(any) bool) {
 }
 
 func isValidSqlTypeHint(v any) bool {
-	switch val := v.(type) {
-	case string:
-		return sqlTypeHintValue.MatchString(val)
-	case []any:
-		if len(val) == 0 || len(val) > 2 {
-			return false
-		}
-		for _, e := range val {
-			s, ok := e.(string)
-			if !ok || !sqlTypeHintValue.MatchString(s) {
-				return false
-			}
-		}
-		return true
-	default:
-		return false
-	}
+	s, ok := v.(string)
+	return ok && sqlTypeHintValue.MatchString(s)
 }

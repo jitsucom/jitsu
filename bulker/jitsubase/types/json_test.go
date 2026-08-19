@@ -109,6 +109,7 @@ const jHints = `{
     "__sql_type_": "JSON",
     "__sql_type_ts": "TIMESTAMP WITH TIME ZONE",
     "__sql_type_arr": ["DateTime64(3)", "Nullable(DateTime64(3))"],
+    "__sql_type_arr1": ["DateTime64(3)"],
     "__sql_type_quoted": "Enum8('a'=1)",
     "__sql_type_num": 42,
     "__sql_type_long_arr": ["a", "b", "c"],
@@ -123,7 +124,7 @@ const jHints = `{
   }
 }`
 
-const jHintsSanitized = `{"type":"track","event":"test","__sql_type_type":"VARCHAR(255)","properties":{"__sql_type_":"JSON","__sql_type_ts":"TIMESTAMP WITH TIME ZONE","__sql_type_arr":["DateTime64(3)","Nullable(DateTime64(3))"],"title":"Jitsu"},"context":{"nested":[{"__sql_type_ok":"ARRAY<STRING>","a":1}]}}`
+const jHintsSanitized = `{"type":"track","event":"test","__sql_type_type":"VARCHAR(255)","properties":{"__sql_type_":"JSON","__sql_type_ts":"TIMESTAMP WITH TIME ZONE","title":"Jitsu"},"context":{"nested":[{"__sql_type_ok":"ARRAY<STRING>","a":1}]}}`
 
 func TestSanitizeSqlTypes(t *testing.T) {
 	var obj *jsonorder.OrderedMap[string, any]
@@ -144,8 +145,6 @@ func TestIsValidSqlTypeHint(t *testing.T) {
 		"TIMESTAMP_NTZ",
 		"LowCardinality(String)",
 		"ARRAY<STRING>",
-		[]any{"DateTime64(3)"},
-		[]any{"DateTime64(3)", "Nullable(DateTime64(3))"},
 	}
 	for _, v := range valid {
 		require.True(t, isValidSqlTypeHint(v), "expected valid: %v", v)
@@ -163,7 +162,10 @@ func TestIsValidSqlTypeHint(t *testing.T) {
 		42,
 		true,
 		nil,
+		// the [castType, ddlType] array form is not allowed through ingest
 		[]any{},
+		[]any{"DateTime64(3)"},
+		[]any{"DateTime64(3)", "Nullable(DateTime64(3))"},
 		[]any{"JSON", "JSON", "JSON"},
 		[]any{42},
 		[]any{"JSON", 42},
