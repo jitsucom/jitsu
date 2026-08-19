@@ -8,6 +8,24 @@ import (
 
 const SqlTypePrefix = "__sql_type"
 
+// sqlTypeHintAllowlist enumerates the __sql_type* hint values allowed through
+// s2s ingest, compared case-insensitively (the original casing is passed
+// through, which matters for case-sensitive drivers like ClickHouse). The
+// hint's only supported use at ingest is mapping a (nested) object to a JSON-
+// or string-typed column, so only bare object/string type names are allowed —
+// no parameters, no expressions, nothing that could alter generated DDL.
+// Richer hints can still be produced by transformation functions downstream.
+var sqlTypeHintAllowlist = map[string]bool{
+	"json":    true, // Postgres, MySQL, ClickHouse, BigQuery
+	"jsonb":   true, // Postgres
+	"string":  true, // ClickHouse, BigQuery
+	"text":    true,
+	"varchar": true,
+	"variant": true, // Snowflake
+	"object":  true, // Snowflake
+	"super":   true, // Redshift
+}
+
 type Json = *jsonorder.OrderedMap[string, any]
 
 func NewJson(defaultCapacity int) Json {
@@ -62,10 +80,22 @@ func FilterEvent(event Json) {
 	_ = event.Delete("SALESFORCE_MATCHERS_OPERATOR")
 	_ = event.Delete("SALESFORCE_MATCHERS")
 	_ = event.Delete("SALESFORCE_PAYLOAD")
-	filterEvent(event)
+	filterEvent(event, nil)
 }
 
-func filterEvent(event any) {
+// SanitizeSqlTypes keeps allowlisted __sql_type* hints and deletes the rest.
+// Used on the s2s path, where hints are a supported feature but their values
+// end up in SQL DDL: a hint must be a single string from
+// sqlTypeHintAllowlist. The [castType, ddlType] array form accepted by
+// extractSQLTypesHints in bulkerlib is deliberately not allowed through
+// ingest. The event itself is never rejected over a bad hint.
+func SanitizeSqlTypes(event Json) {
+	filterEvent(event, isValidSqlTypeHint)
+}
+
+// keepHint == nil deletes every __sql_type* key; otherwise keys whose value
+// fails keepHint are deleted.
+func filterEvent(event any, keepHint func(any) bool) {
 	switch v := event.(type) {
 	case Json:
 		for el := v.Front(); el != nil; {
@@ -73,11 +103,13 @@ func filterEvent(event any) {
 			// move to the next element before deleting the current one. otherwise iteration will be broken
 			el = el.Next()
 			if strings.HasPrefix(curEl.Key, SqlTypePrefix) {
-				v.DeleteElement(curEl)
+				if keepHint == nil || !keepHint(curEl.Value) {
+					v.DeleteElement(curEl)
+				}
 			} else {
 				switch v2 := curEl.Value.(type) {
 				case Json, []any:
-					filterEvent(v2)
+					filterEvent(v2, keepHint)
 				}
 			}
 		}
@@ -85,8 +117,13 @@ func filterEvent(event any) {
 		for _, a := range v {
 			switch v2 := a.(type) {
 			case Json, []any:
-				filterEvent(v2)
+				filterEvent(v2, keepHint)
 			}
 		}
 	}
+}
+
+func isValidSqlTypeHint(v any) bool {
+	s, ok := v.(string)
+	return ok && sqlTypeHintAllowlist[strings.ToLower(s)]
 }

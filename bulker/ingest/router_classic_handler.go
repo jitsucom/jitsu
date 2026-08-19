@@ -232,6 +232,10 @@ func patchClassicEvent(c *gin.Context, messageId string, ev types.Json, _ string
 		// remove any jitsu special properties from ingested events
 		// it is only allowed to be set via functions
 		types.FilterEvent(ev)
+	} else {
+		// s2s callers may use __sql_type* hints, but hint values reach SQL DDL —
+		// keep only type-shaped ones
+		types.SanitizeSqlTypes(ev)
 	}
 	nowIsoDate := time.Now().UTC().Format(timestamp.JsonISO)
 	ev.Set("_timestamp", nowIsoDate)

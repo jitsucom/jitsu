@@ -434,7 +434,7 @@ func patchEvent(c *gin.Context, messageId string, ev types.Json, tp string, inge
 		// remove any jitsu special properties from ingested events
 		// it is only allowed to be set via functions
 		types.FilterEvent(ev)
-	} else if ingestType == IngestTypeS2S {
+	} else {
 		// server-to-server: capture the (forwarding) request headers, but let the caller
 		// override allow-listed headers via the event body to forward the original
 		// device's headers. When capture is disabled, a body-provided context.headers is
@@ -442,6 +442,9 @@ func patchEvent(c *gin.Context, messageId string, ev types.Json, tp string, inge
 		if stream != nil && stream.CaptureHeaders {
 			ctx.Set("headers", buildContextHeaders(c, ctx.GetN("headers"), ctx))
 		}
+		// s2s callers may use __sql_type* hints (unlike browser, where FilterEvent
+		// drops them), but hint values reach SQL DDL — keep only type-shaped ones
+		types.SanitizeSqlTypes(ev)
 	}
 	nowIsoDate := time.Now().UTC().Format(timestamp.JsonISO)
 	ev.Set("receivedAt", nowIsoDate)
