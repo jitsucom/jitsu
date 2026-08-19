@@ -103,13 +103,13 @@ func TestEventFilter(t *testing.T) {
 const jHints = `{
   "type": "track",
   "event": "test",
-  "__sql_type_type": "VARCHAR(255)",
+  "__sql_type_type": "String",
   "__sql_type_bad": "TEXT); DROP TABLE users;--",
   "properties": {
     "__sql_type_": "JSON",
-    "__sql_type_ts": "TIMESTAMP WITH TIME ZONE",
+    "__sql_type_param": "VARCHAR(255)",
     "__sql_type_arr": ["DateTime64(3)", "Nullable(DateTime64(3))"],
-    "__sql_type_arr1": ["DateTime64(3)"],
+    "__sql_type_arr1": ["JSON"],
     "__sql_type_quoted": "Enum8('a'=1)",
     "__sql_type_num": 42,
     "__sql_type_long_arr": ["a", "b", "c"],
@@ -117,14 +117,14 @@ const jHints = `{
   },
   "context": {
     "nested": [{
-      "__sql_type_ok": "ARRAY<STRING>",
+      "__sql_type_ok": "jsonb",
       "__sql_type_comment": "TEXT /* x */",
       "a": 1
     }]
   }
 }`
 
-const jHintsSanitized = `{"type":"track","event":"test","__sql_type_type":"VARCHAR(255)","properties":{"__sql_type_":"JSON","__sql_type_ts":"TIMESTAMP WITH TIME ZONE","title":"Jitsu"},"context":{"nested":[{"__sql_type_ok":"ARRAY<STRING>","a":1}]}}`
+const jHintsSanitized = `{"type":"track","event":"test","__sql_type_type":"String","properties":{"__sql_type_":"JSON","title":"Jitsu"},"context":{"nested":[{"__sql_type_ok":"jsonb","a":1}]}}`
 
 func TestSanitizeSqlTypes(t *testing.T) {
 	var obj *jsonorder.OrderedMap[string, any]
@@ -139,24 +139,36 @@ func TestSanitizeSqlTypes(t *testing.T) {
 func TestIsValidSqlTypeHint(t *testing.T) {
 	valid := []any{
 		"JSON",
-		"VARCHAR(255)",
-		"NUMERIC(10,2)",
-		"TIMESTAMP WITH TIME ZONE",
-		"TIMESTAMP_NTZ",
-		"LowCardinality(String)",
-		"ARRAY<STRING>",
+		"json",
+		"jsonb",
+		"String",
+		"STRING",
+		"text",
+		"varchar",
+		"VARIANT",
+		"OBJECT",
+		"super",
 	}
 	for _, v := range valid {
 		require.True(t, isValidSqlTypeHint(v), "expected valid: %v", v)
 	}
 	invalid := []any{
+		// only bare allowlisted object/string type names pass — no
+		// parameters, no other types, no expressions
+		"VARCHAR(255)",
+		"NUMERIC(10,2)",
+		"TIMESTAMP WITH TIME ZONE",
+		"LowCardinality(String)",
+		"ARRAY<STRING>",
 		"TEXT); DROP TABLE users;--",
 		"Enum8('a'=1)",
 		`STRING"`,
 		"TEXT /* comment */",
 		"TEXT; SELECT 1",
+		"TEXT, evil_col TEXT",
+		"TEXT DEFAULT currentUser()",
 		" JSON",
-		"1NT",
+		"JSON ",
 		"",
 		strings.Repeat("A", 129),
 		42,
@@ -164,8 +176,8 @@ func TestIsValidSqlTypeHint(t *testing.T) {
 		nil,
 		// the [castType, ddlType] array form is not allowed through ingest
 		[]any{},
-		[]any{"DateTime64(3)"},
-		[]any{"DateTime64(3)", "Nullable(DateTime64(3))"},
+		[]any{"JSON"},
+		[]any{"JSON", "jsonb"},
 		[]any{"JSON", "JSON", "JSON"},
 		[]any{42},
 		[]any{"JSON", 42},
@@ -173,6 +185,4 @@ func TestIsValidSqlTypeHint(t *testing.T) {
 	for _, v := range invalid {
 		require.False(t, isValidSqlTypeHint(v), "expected invalid: %v", v)
 	}
-	// boundary: exactly 128 chars is allowed
-	require.True(t, isValidSqlTypeHint(strings.Repeat("A", 128)))
 }

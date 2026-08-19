@@ -1,7 +1,6 @@
 package types
 
 import (
-	"regexp"
 	"strings"
 
 	"github.com/jitsucom/bulker/jitsubase/jsonorder"
@@ -9,12 +8,23 @@ import (
 
 const SqlTypePrefix = "__sql_type"
 
-// sqlTypeHintValue is the shape a __sql_type* hint value must have to survive
-// s2s ingest: a plain SQL type name, e.g. "JSON", "VARCHAR(255)",
-// "TIMESTAMP WITH TIME ZONE", "Nullable(String)", "ARRAY<STRING>".
-// Quotes, semicolons, dashes and slashes are excluded so a hint cannot break
-// out of the type position in generated DDL.
-var sqlTypeHintValue = regexp.MustCompile(`^[A-Za-z][A-Za-z0-9 _,()<>]{0,127}$`)
+// sqlTypeHintAllowlist enumerates the __sql_type* hint values allowed through
+// s2s ingest, compared case-insensitively (the original casing is passed
+// through, which matters for case-sensitive drivers like ClickHouse). The
+// hint's only supported use at ingest is mapping a (nested) object to a JSON-
+// or string-typed column, so only bare object/string type names are allowed —
+// no parameters, no expressions, nothing that could alter generated DDL.
+// Richer hints can still be produced by transformation functions downstream.
+var sqlTypeHintAllowlist = map[string]bool{
+	"json":    true, // Postgres, MySQL, ClickHouse, BigQuery
+	"jsonb":   true, // Postgres
+	"string":  true, // ClickHouse, BigQuery
+	"text":    true,
+	"varchar": true,
+	"variant": true, // Snowflake
+	"object":  true, // Snowflake
+	"super":   true, // Redshift
+}
 
 type Json = *jsonorder.OrderedMap[string, any]
 
@@ -73,13 +83,12 @@ func FilterEvent(event Json) {
 	filterEvent(event, nil)
 }
 
-// SanitizeSqlTypes keeps well-formed __sql_type* hints and deletes the rest.
+// SanitizeSqlTypes keeps allowlisted __sql_type* hints and deletes the rest.
 // Used on the s2s path, where hints are a supported feature but their values
-// end up in SQL DDL: a hint must be a single type-shaped string. The
-// [castType, ddlType] array form accepted by extractSQLTypesHints in bulkerlib
-// is deliberately not allowed through ingest — a separate ddlType is a wider
-// DDL surface with no known external user. The event itself is never rejected
-// over a bad hint.
+// end up in SQL DDL: a hint must be a single string from
+// sqlTypeHintAllowlist. The [castType, ddlType] array form accepted by
+// extractSQLTypesHints in bulkerlib is deliberately not allowed through
+// ingest. The event itself is never rejected over a bad hint.
 func SanitizeSqlTypes(event Json) {
 	filterEvent(event, isValidSqlTypeHint)
 }
@@ -116,5 +125,5 @@ func filterEvent(event any, keepHint func(any) bool) {
 
 func isValidSqlTypeHint(v any) bool {
 	s, ok := v.(string)
-	return ok && sqlTypeHintValue.MatchString(s)
+	return ok && sqlTypeHintAllowlist[strings.ToLower(s)]
 }
