@@ -216,23 +216,25 @@ func NewRouter(appContext *Context, partitionSelector kafkabase.PartitionSelecto
 	return router
 }
 
+// CorsMiddleware serves the ingest API as an intentionally open, credential-less
+// endpoint: a constant wildcard origin and no Access-Control-Allow-Credentials.
+// Reflecting the Origin together with allow-credentials would let any site read
+// credentialed responses (JITSU-11); no supported client sends cookies here.
 func (r *Router) CorsMiddleware(c *gin.Context) {
 	origin := c.GetHeader("Origin")
 	if c.Request.Method == "OPTIONS" {
-		c.Header("Access-Control-Allow-Origin", utils.NvlString(origin, "*"))
+		c.Header("Access-Control-Allow-Origin", "*")
 		c.Header("Access-Control-Allow-Methods", "GET,POST,HEAD,OPTIONS")
 		// x-jitsu-custom - in case client want to add some custom payload via header
 		c.Header("Access-Control-Allow-Headers", "x-enable-debug, x-write-key, authorization, content-type, x-ip-policy, cache-control, x-jitsu-custom")
-		c.Header("Access-Control-Allow-Credentials", "true")
 		c.Header("Access-Control-Max-Age", "86400")
 		c.AbortWithStatus(http.StatusOK)
 		return
 	} else if origin != "" {
-		c.Header("Access-Control-Allow-Origin", origin)
+		c.Header("Access-Control-Allow-Origin", "*")
 		c.Header("Access-Control-Allow-Methods", "GET,POST,HEAD,OPTIONS")
 		// x-jitsu-custom - in case client want to add some custom payload via header
 		c.Header("Access-Control-Allow-Headers", "x-enable-debug, x-write-key, authorization, content-type, x-ip-policy, cache-control, x-jitsu-custom")
-		c.Header("Access-Control-Allow-Credentials", "true")
 		c.Header("Access-Control-Max-Age", "86400")
 	}
 	c.Next()
