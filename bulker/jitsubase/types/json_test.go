@@ -1,6 +1,7 @@
 package types
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/jitsucom/bulker/jitsubase/jsonorder"
@@ -97,4 +98,79 @@ func TestEventFilter(t *testing.T) {
 	t.Logf("JSON: %s", ja)
 	require.Equal(t, expectedJson, string(ja))
 	require.JSONEq(t, j, string(ja))
+}
+
+const jHints = `{
+  "type": "track",
+  "event": "test",
+  "__sql_type_type": "VARCHAR(255)",
+  "__sql_type_bad": "TEXT); DROP TABLE users;--",
+  "properties": {
+    "__sql_type_": "JSON",
+    "__sql_type_ts": "TIMESTAMP WITH TIME ZONE",
+    "__sql_type_arr": ["DateTime64(3)", "Nullable(DateTime64(3))"],
+    "__sql_type_quoted": "Enum8('a'=1)",
+    "__sql_type_num": 42,
+    "__sql_type_long_arr": ["a", "b", "c"],
+    "title": "Jitsu"
+  },
+  "context": {
+    "nested": [{
+      "__sql_type_ok": "ARRAY<STRING>",
+      "__sql_type_comment": "TEXT /* x */",
+      "a": 1
+    }]
+  }
+}`
+
+const jHintsSanitized = `{"type":"track","event":"test","__sql_type_type":"VARCHAR(255)","properties":{"__sql_type_":"JSON","__sql_type_ts":"TIMESTAMP WITH TIME ZONE","__sql_type_arr":["DateTime64(3)","Nullable(DateTime64(3))"],"title":"Jitsu"},"context":{"nested":[{"__sql_type_ok":"ARRAY<STRING>","a":1}]}}`
+
+func TestSanitizeSqlTypes(t *testing.T) {
+	var obj *jsonorder.OrderedMap[string, any]
+	require.NoError(t, jsonorder.Unmarshal([]byte(jHints), &obj))
+	SanitizeSqlTypes(obj)
+	ja, err := jsonorder.Marshal(obj)
+	require.NoError(t, err)
+	t.Logf("JSON: %s", ja)
+	require.Equal(t, jHintsSanitized, string(ja))
+}
+
+func TestIsValidSqlTypeHint(t *testing.T) {
+	valid := []any{
+		"JSON",
+		"VARCHAR(255)",
+		"NUMERIC(10,2)",
+		"TIMESTAMP WITH TIME ZONE",
+		"TIMESTAMP_NTZ",
+		"LowCardinality(String)",
+		"ARRAY<STRING>",
+		[]any{"DateTime64(3)"},
+		[]any{"DateTime64(3)", "Nullable(DateTime64(3))"},
+	}
+	for _, v := range valid {
+		require.True(t, isValidSqlTypeHint(v), "expected valid: %v", v)
+	}
+	invalid := []any{
+		"TEXT); DROP TABLE users;--",
+		"Enum8('a'=1)",
+		`STRING"`,
+		"TEXT /* comment */",
+		"TEXT; SELECT 1",
+		" JSON",
+		"1NT",
+		"",
+		strings.Repeat("A", 129),
+		42,
+		true,
+		nil,
+		[]any{},
+		[]any{"JSON", "JSON", "JSON"},
+		[]any{42},
+		[]any{"JSON", 42},
+	}
+	for _, v := range invalid {
+		require.False(t, isValidSqlTypeHint(v), "expected invalid: %v", v)
+	}
+	// boundary: exactly 128 chars is allowed
+	require.True(t, isValidSqlTypeHint(strings.Repeat("A", 128)))
 }

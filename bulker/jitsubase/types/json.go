@@ -1,12 +1,20 @@
 package types
 
 import (
+	"regexp"
 	"strings"
 
 	"github.com/jitsucom/bulker/jitsubase/jsonorder"
 )
 
 const SqlTypePrefix = "__sql_type"
+
+// sqlTypeHintValue is the shape a __sql_type* hint value must have to survive
+// s2s ingest: a plain SQL type name, e.g. "JSON", "VARCHAR(255)",
+// "TIMESTAMP WITH TIME ZONE", "Nullable(String)", "ARRAY<STRING>".
+// Quotes, semicolons, dashes and slashes are excluded so a hint cannot break
+// out of the type position in generated DDL.
+var sqlTypeHintValue = regexp.MustCompile(`^[A-Za-z][A-Za-z0-9 _,()<>]{0,127}$`)
 
 type Json = *jsonorder.OrderedMap[string, any]
 
@@ -62,10 +70,21 @@ func FilterEvent(event Json) {
 	_ = event.Delete("SALESFORCE_MATCHERS_OPERATOR")
 	_ = event.Delete("SALESFORCE_MATCHERS")
 	_ = event.Delete("SALESFORCE_PAYLOAD")
-	filterEvent(event)
+	filterEvent(event, nil)
 }
 
-func filterEvent(event any) {
+// SanitizeSqlTypes keeps well-formed __sql_type* hints and deletes the rest.
+// Used on the s2s path, where hints are a supported feature but their values
+// end up in SQL DDL: a hint must be a type-shaped string (or a 1-2 element
+// array of such strings, [castType, ddlType] — see extractSQLTypesHints in
+// bulkerlib). The event itself is never rejected over a bad hint.
+func SanitizeSqlTypes(event Json) {
+	filterEvent(event, isValidSqlTypeHint)
+}
+
+// keepHint == nil deletes every __sql_type* key; otherwise keys whose value
+// fails keepHint are deleted.
+func filterEvent(event any, keepHint func(any) bool) {
 	switch v := event.(type) {
 	case Json:
 		for el := v.Front(); el != nil; {
@@ -73,11 +92,13 @@ func filterEvent(event any) {
 			// move to the next element before deleting the current one. otherwise iteration will be broken
 			el = el.Next()
 			if strings.HasPrefix(curEl.Key, SqlTypePrefix) {
-				v.DeleteElement(curEl)
+				if keepHint == nil || !keepHint(curEl.Value) {
+					v.DeleteElement(curEl)
+				}
 			} else {
 				switch v2 := curEl.Value.(type) {
 				case Json, []any:
-					filterEvent(v2)
+					filterEvent(v2, keepHint)
 				}
 			}
 		}
@@ -85,8 +106,28 @@ func filterEvent(event any) {
 		for _, a := range v {
 			switch v2 := a.(type) {
 			case Json, []any:
-				filterEvent(v2)
+				filterEvent(v2, keepHint)
 			}
 		}
+	}
+}
+
+func isValidSqlTypeHint(v any) bool {
+	switch val := v.(type) {
+	case string:
+		return sqlTypeHintValue.MatchString(val)
+	case []any:
+		if len(val) == 0 || len(val) > 2 {
+			return false
+		}
+		for _, e := range val {
+			s, ok := e.(string)
+			if !ok || !sqlTypeHintValue.MatchString(s) {
+				return false
+			}
+		}
+		return true
+	default:
+		return false
 	}
 }
