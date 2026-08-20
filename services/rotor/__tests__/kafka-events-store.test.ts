@@ -1,5 +1,25 @@
 import { describe, expect, it } from "vitest";
-import { exportEventId } from "../src/lib/kafka-events-store";
+import { deadLetterMessage, exportEventId } from "../src/lib/kafka-events-store";
+
+describe("dead-letter message synthesis", () => {
+  it("uses string errors and Error-like objects, falls back to bare label", () => {
+    expect(deadLetterMessage("boom")).toBe("dead-letter — boom");
+    expect(deadLetterMessage(new Error("kaput"))).toBe("dead-letter — kaput");
+    expect(deadLetterMessage({ message: "obj msg" })).toBe("dead-letter — obj msg");
+    expect(deadLetterMessage(null)).toBe("dead-letter");
+    expect(deadLetterMessage({ code: 42 })).toBe("dead-letter");
+  });
+
+  it("truncates long errors rune-safely", () => {
+    const msg = deadLetterMessage("x".repeat(200));
+    expect(msg).toMatch(/…$/);
+    expect(Array.from(msg).length).toBeLessThan(200 - 140 + 160);
+    // astral characters must not be split into surrogate halves
+    const emoji = deadLetterMessage("💥".repeat(150));
+    expect(emoji.includes("�")).toBe(false);
+    expect(Array.from(emoji).slice(-2).join("")).toBe("💥…");
+  });
+});
 
 describe("export eventId content hash", () => {
   it("matches the pinned cross-language vector (same recipe as Go eventslog.ExportEventId)", () => {
