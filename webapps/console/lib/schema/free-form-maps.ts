@@ -5,6 +5,7 @@ import { getServerLog } from "../server/log";
 import get from "lodash/get";
 import set from "lodash/set";
 import has from "lodash/has";
+import isEmpty from "lodash/isEmpty";
 
 const log = getServerLog("free-form-maps");
 
@@ -16,14 +17,17 @@ const log = getServerLog("free-form-maps");
  *
  * Merging breaks down for *free-form maps* — fields whose key set is itself user
  * data, e.g. a warehouse's `parameters`. deepMerge only adds or overwrites keys,
- * so a removed key survives and the user cannot clear it (JITSU-xxx). For those
+ * so a removed key survives and the user cannot clear it (JITSU-160). For those
  * fields the map has to be replaced wholesale.
  *
  * A field counts as free-form when its schema leaves the key set open:
  *   - zod (destinations): `z.object({...}).catchall(...)`, `.passthrough()`, or
  *     `z.record(...)` — note Mysql's `parameters` declares `tls` *and* a catchall,
  *     so the presence of a catchall is the signal, not an empty shape.
- *   - JSON Schema (services): `type: "object"` carrying `additionalProperties`.
+ *   - JSON Schema (services): `type: "object"` whose `additionalProperties` is a
+ *     *schema*, or is `true` with no `properties` declared beside it. A bare
+ *     `additionalProperties: true` on a declared object does not count — Airbyte uses
+ *     it there as a laxness flag (see `isOpenMapSchema`).
  *
  * Replacement is still keyed off the patch: a path absent from the patch is left
  * alone, so partial updates keep working. Only a map the caller actually sent —
@@ -110,6 +114,28 @@ export function getDestinationFreeFormPaths(destinationType: string): string[] {
 }
 
 /**
+ * Is this JSON Schema node a free-form map, i.e. is its key set genuinely user data?
+ *
+ * A *schema-valued* `additionalProperties` always counts — it describes the values of keys
+ * the spec cannot name, which is exactly an open map.
+ *
+ * A bare `additionalProperties: true` only counts when nothing is declared alongside it.
+ * On its own it is the "arbitrary key/value bag" idiom; next to `properties` it is merely a
+ * laxness flag, which Airbyte specs use routinely on ordinary declared objects (e.g.
+ * source-postgres `ssl_mode`, whose every branch declares `properties` *and*
+ * `additionalProperties: true`). Reading the latter as a map would replace the object
+ * wholesale on a partial update and drop the untouched keys — including stored secrets,
+ * which `removeMaskedValues` strips out of the patch before the merge.
+ */
+function isOpenMapSchema(schema: any): boolean {
+  const ap = schema?.additionalProperties;
+  if (typeof ap === "object" && ap !== null) {
+    return true;
+  }
+  return ap === true && isEmpty(schema?.properties);
+}
+
+/**
  * Walk an Airbyte `connectionSpecification` and return `credentials.`-prefixed
  * paths of every free-form map. Mirrors `getServiceSecretPaths`, including the
  * oneOf/anyOf handling. Pure — exported so it's unit-testable without a DB.
@@ -125,9 +151,8 @@ export function collectJsonSchemaFreeFormPaths(connectionSpec: any): string[] {
     }
     Object.entries(properties).forEach(([key, schema]: [string, any]) => {
       const path = basePath ? `${basePath}.${key}` : key;
-      if (schema?.type === "object" && schema.additionalProperties) {
-        // Open key set — replace rather than merge. Declared `properties`
-        // alongside additionalProperties don't change that (cf. Mysql's `tls`).
+      if (schema?.type === "object" && isOpenMapSchema(schema)) {
+        // Open key set — replace rather than merge (see `isOpenMapSchema`).
         paths.push(`credentials.${path}`);
         return;
       }

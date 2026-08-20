@@ -90,7 +90,7 @@ describe("destination update: credentials.parameters", () => {
 });
 
 describe("collectJsonSchemaFreeFormPaths (service specs)", () => {
-  it("finds objects with additionalProperties, nested and in oneOf branches", () => {
+  it("finds objects with a schema-valued additionalProperties, nested and in oneOf branches", () => {
     const spec = {
       properties: {
         host: { type: "string" },
@@ -98,7 +98,7 @@ describe("collectJsonSchemaFreeFormPaths (service specs)", () => {
         tunnel: {
           type: "object",
           properties: {
-            extra: { type: "object", additionalProperties: true },
+            extra: { type: "object", additionalProperties: { type: "string" } },
             port: { type: "integer" },
           },
         },
@@ -117,6 +117,57 @@ describe("collectJsonSchemaFreeFormPaths (service specs)", () => {
     ]);
   });
 
+  // `additionalProperties: true` is a laxness flag in Airbyte specs, not an open key set.
+  // Treating it as a free-form map replaces the object wholesale on a partial update, which
+  // drops the keys the caller didn't send - including secrets stripped by removeMaskedValues.
+  it("ignores a bare `additionalProperties: true` on a declared object", () => {
+    // Shape of airbyte/source-youtube-analytics `credentials`, all three fields airbyte_secret.
+    const spec = {
+      properties: {
+        credentials: {
+          type: "object",
+          additionalProperties: true,
+          properties: {
+            client_id: { type: "string", airbyte_secret: true },
+            client_secret: { type: "string", airbyte_secret: true },
+            refresh_token: { type: "string", airbyte_secret: true },
+          },
+        },
+      },
+    };
+    expect(collectJsonSchemaFreeFormPaths(spec)).toEqual([]);
+  });
+
+  // Pins the deliberate choice not to treat a oneOf/anyOf branch as a map itself: only the
+  // properties inside a branch are walked. Every branch-level `additionalProperties` in the
+  // connector specs we ship is the boolean laxness flag, never a real open key set.
+  it("does not treat a oneOf/anyOf branch itself as an open map", () => {
+    // Shape of airbyte/source-postgres `ssl_mode` / `replication_method`: every branch
+    // declares properties alongside `additionalProperties: true`.
+    const spec = {
+      properties: {
+        ssl_mode: {
+          title: "SSL Modes",
+          oneOf: [
+            { title: "disable", additionalProperties: true, properties: { mode: { type: "string" } } },
+            {
+              title: "verify-ca",
+              additionalProperties: true,
+              properties: { mode: { type: "string" }, ca_certificate: { type: "string", airbyte_secret: true } },
+            },
+          ],
+        },
+      },
+    };
+    expect(collectJsonSchemaFreeFormPaths(spec)).toEqual([]);
+  });
+
+  it("finds a bare `additionalProperties: true` when nothing is declared beside it", () => {
+    // The "arbitrary key/value bag" idiom - an open key set, unlike the laxness-flag case above.
+    const spec = { properties: { tags: { type: "object", additionalProperties: true } } };
+    expect(collectJsonSchemaFreeFormPaths(spec)).toEqual(["credentials.tags"]);
+  });
+
   it("ignores objects with a closed key set", () => {
     const spec = { properties: { nested: { type: "object", properties: { a: { type: "string" } } } } };
     expect(collectJsonSchemaFreeFormPaths(spec)).toEqual([]);
@@ -125,5 +176,45 @@ describe("collectJsonSchemaFreeFormPaths (service specs)", () => {
   it("tolerates a missing or empty spec", () => {
     expect(collectJsonSchemaFreeFormPaths(undefined)).toEqual([]);
     expect(collectJsonSchemaFreeFormPaths({})).toEqual([]);
+  });
+});
+
+describe("service update: partial patch of a declared object", () => {
+  // The bug this guards: `credentials` on airbyte/source-youtube-analytics is a declared
+  // object carrying `additionalProperties: true`. Reading that as a free-form map made
+  // replaceFreeFormMaps overwrite it with the patch - and the patch has the masked secrets
+  // removed by removeMaskedValues, so client_secret / refresh_token were silently lost.
+  const spec = {
+    properties: {
+      credentials: {
+        type: "object",
+        additionalProperties: true,
+        properties: {
+          client_id: { type: "string", airbyte_secret: true },
+          client_secret: { type: "string", airbyte_secret: true },
+          refresh_token: { type: "string", airbyte_secret: true },
+        },
+      },
+    },
+  };
+
+  it("keeps the stored secrets the patch didn't carry", () => {
+    const stored = {
+      credentials: { credentials: { client_id: "CID", client_secret: "REAL_SECRET", refresh_token: "REAL_TOKEN" } },
+    };
+    // What removeMaskedValues leaves behind when the user edits only client_id.
+    const cleanedPatch = { credentials: { credentials: { client_id: "CID2" } } };
+
+    const result = replaceFreeFormMaps(
+      deepMerge(stored, cleanedPatch),
+      cleanedPatch,
+      collectJsonSchemaFreeFormPaths(spec)
+    );
+
+    expect(result.credentials.credentials).toEqual({
+      client_id: "CID2",
+      client_secret: "REAL_SECRET",
+      refresh_token: "REAL_TOKEN",
+    });
   });
 });
