@@ -279,4 +279,11 @@ func TestBreakerRejectsIdCoverageCollapse(t *testing.T) {
 	// breaker permanently blind
 	cold := testBreaker()
 	require.Error(t, breakerInit(cold, "["+strings.Join(idless[:50], ",")+"]"))
+
+	// no floor on validity: a sub-20-row all-id-less payload is rejected too —
+	// accepting it would collapse the baseline to empty and blind the breaker
+	small := testBreaker()
+	require.NoError(t, breakerInit(small, rowsPayload(10, `{"a":1}`)))
+	require.Error(t, breakerInit(small, "["+strings.Join(idless[:10], ",")+"]"))
+	require.Equal(t, rowsPayload(10, `{"a":1}`), string(*small.GetData()))
 }

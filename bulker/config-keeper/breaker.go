@@ -108,11 +108,14 @@ func (b *BreakerRepositoryData) Init(reader io.Reader, tag any) error {
 		return fmt.Errorf("[%s] payload is not a valid JSON array: %v", b.name, err)
 	}
 	// guarded repositories carry an `id` on every row by contract. A payload
-	// where id coverage collapses is treated as invalid — NOT as thresholds
-	// and NOT bypassable by an armed accept: with ids gone the breaker would be
-	// blind (rows can neither match the baseline nor form a new one), so
-	// accepting it would fail open. Small counts of odd rows stay tolerated
-	if total := noId + len(hashes); noId >= b.cfg.MinChangedRows && float64(noId)/float64(total)*100 > b.cfg.MaxRemovePercent {
+	// where the id-less share exceeds MaxRemovePercent is treated as invalid —
+	// NOT bypassable by an armed accept, and deliberately WITHOUT the
+	// MinChangedRows floor: the floor exists for legitimate churn, but an
+	// id-less majority is a contract violation at any fleet size, and
+	// accepting one would collapse the baseline and blind the breaker. A
+	// minority of odd rows stays tolerated so one junk row can't wedge
+	// refreshes
+	if total := noId + len(hashes); total > 0 && noId > 0 && float64(noId)/float64(total)*100 > b.cfg.MaxRemovePercent {
 		return fmt.Errorf("[%s] payload rejected: %d of %d rows have no id — refusing a payload the breaker cannot track", b.name, noId, total)
 	}
 	b.mu.Lock()
