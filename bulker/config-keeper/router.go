@@ -120,6 +120,7 @@ func (r *Router) RepositoryHandler(c *gin.Context) {
 				if strings.TrimSpace(guarded) == repName {
 					data = NewBreakerRepositoryData(repName, BreakerConfig{
 						MaxChangePercent: r.appContext.config.BreakerMaxChangePercent,
+						MaxRemovePercent: r.appContext.config.BreakerMaxRemovePercent,
 						MinChangedRows:   r.appContext.config.BreakerMinChangedRows,
 					}, r.appContext.config.CacheDir)
 					break

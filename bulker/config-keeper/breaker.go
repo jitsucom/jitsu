@@ -36,8 +36,13 @@ type BreakerConfig struct {
 	// MaxChangePercent: reject a refresh when more than this percentage of the
 	// rows present in both generations changed at once
 	MaxChangePercent float64
-	// MinChangedRows: never trip below this many changed rows — small fleets
-	// and bulk edits of a handful of connections must not trip
+	// MaxRemovePercent: reject a refresh when more than this percentage of the
+	// baseline's rows disappeared at once — a console bug that filters rows
+	// out (broken join, runaway skip-and-log) is as destructive as blanking
+	// them: consumers drop those connections and traffic dead-letters
+	MaxRemovePercent float64
+	// MinChangedRows: never trip below this many changed (or removed) rows —
+	// small fleets and bulk edits/cleanups of a handful of rows must not trip
 	MinChangedRows int
 }
 
@@ -105,9 +110,17 @@ func (b *BreakerRepositoryData) Init(reader io.Reader, tag any) error {
 		if common > 0 {
 			pct = float64(changed) / float64(common) * 100
 		}
+		removed := len(b.baseline) - common
+		removedPct := float64(removed) / float64(len(b.baseline)) * 100
+		var reason string
 		if changed >= b.cfg.MinChangedRows && pct > b.cfg.MaxChangePercent {
-			reason := fmt.Sprintf("%d of %d common rows (%.1f%%) changed in one refresh (threshold: >%.1f%% and >=%d rows)",
+			reason = fmt.Sprintf("%d of %d common rows (%.1f%%) changed in one refresh (threshold: >%.1f%% and >=%d rows)",
 				changed, common, pct, b.cfg.MaxChangePercent, b.cfg.MinChangedRows)
+		} else if removed >= b.cfg.MinChangedRows && removedPct > b.cfg.MaxRemovePercent {
+			reason = fmt.Sprintf("%d of %d baseline rows (%.1f%%) removed in one refresh (threshold: >%.1f%% and >=%d rows)",
+				removed, len(b.baseline), removedPct, b.cfg.MaxRemovePercent, b.cfg.MinChangedRows)
+		}
+		if reason != "" {
 			transition := b.held.CompareAndSwap(false, true)
 			if transition {
 				now := time.Now()

@@ -30,7 +30,7 @@ func breakerInitNetwork(b *BreakerRepositoryData, payload string) error {
 }
 
 func testBreaker() *BreakerRepositoryData {
-	return NewBreakerRepositoryData("bulker-connections", BreakerConfig{MaxChangePercent: 50, MinChangedRows: 20}, "")
+	return NewBreakerRepositoryData("bulker-connections", BreakerConfig{MaxChangePercent: 50, MaxRemovePercent: 50, MinChangedRows: 20}, "")
 }
 
 func TestBreakerFirstLoadAccepted(t *testing.T) {
@@ -82,13 +82,43 @@ func TestBreakerFloorSuppressesSmallFleets(t *testing.T) {
 	require.False(t, b.Held())
 }
 
-func TestBreakerAddsAndRemovalsDoNotTrip(t *testing.T) {
+func TestBreakerAddsDoNotTrip(t *testing.T) {
 	b := testBreaker()
 	require.NoError(t, breakerInit(b, rowsPayload(100, `{"a":1}`)))
 	// 300 new rows appear, none of the common rows changed — accepted
 	require.NoError(t, breakerInit(b, rowsPayload(400, `{"a":1}`)))
-	// mass removal back to 50 rows — accepted (common rows unchanged)
-	require.NoError(t, breakerInit(b, rowsPayload(50, `{"a":1}`)))
+	require.False(t, b.Held())
+}
+
+func TestBreakerModerateRemovalAccepted(t *testing.T) {
+	b := testBreaker()
+	require.NoError(t, breakerInit(b, rowsPayload(100, `{"a":1}`)))
+	// 30% of rows removed (< 50%) — legitimate cleanup, accepted
+	require.NoError(t, breakerInit(b, rowsPayload(70, `{"a":1}`)))
+	require.False(t, b.Held())
+}
+
+func TestBreakerTripsOnMassRemoval(t *testing.T) {
+	b := testBreaker()
+	good := rowsPayload(100, `{"a":1}`)
+	require.NoError(t, breakerInit(b, good))
+	// a console bug filtering out most rows is as destructive as blanking
+	// them: 70% of the baseline vanishing at once must trip
+	err := breakerInit(b, rowsPayload(30, `{"a":1}`))
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "removed")
+	require.True(t, b.Held())
+	require.Equal(t, good, string(*b.GetData()))
+	// recovery when rows come back
+	require.NoError(t, breakerInit(b, good))
+	require.False(t, b.Held())
+}
+
+func TestBreakerRemovalFloor(t *testing.T) {
+	// 100% of a 10-row fleet removed: below the 20-row floor — accepted
+	b := testBreaker()
+	require.NoError(t, breakerInit(b, rowsPayload(10, `{"a":1}`)))
+	require.NoError(t, breakerInit(b, `[]`))
 	require.False(t, b.Held())
 }
 

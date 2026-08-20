@@ -93,6 +93,7 @@ func (a *Context) InitContext(settings *appbase.AppSettings) error {
 		if breakerRepos[rep] {
 			breaker := NewBreakerRepositoryData(rep, BreakerConfig{
 				MaxChangePercent: a.config.BreakerMaxChangePercent,
+				MaxRemovePercent: a.config.BreakerMaxRemovePercent,
 				MinChangedRows:   a.config.BreakerMinChangedRows,
 			}, cacheDir)
 			a.breakers[rep] = breaker

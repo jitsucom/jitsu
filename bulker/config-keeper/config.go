@@ -28,6 +28,7 @@ type Config struct {
 	// See breaker.go
 	BreakerEnabled          bool    `mapstructure:"BREAKER_ENABLED" default:"true"`
 	BreakerMaxChangePercent float64 `mapstructure:"BREAKER_MAX_CHANGE_PERCENT" default:"50"`
+	BreakerMaxRemovePercent float64 `mapstructure:"BREAKER_MAX_REMOVE_PERCENT" default:"50"`
 	BreakerMinChangedRows   int     `mapstructure:"BREAKER_MIN_CHANGED_ROWS" default:"20"`
 	// repositories guarded by the breaker (must be JSON-array payloads with id-keyed rows)
 	BreakerRepositories string `mapstructure:"BREAKER_REPOSITORIES" default:"streams-with-destinations,workspaces-with-profiles,rotor-connections,bulker-connections,syncs"`
