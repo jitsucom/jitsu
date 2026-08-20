@@ -50,6 +50,8 @@ func NewRouter(appContext *Context) *Router {
 		repStatuses := map[string]any{}
 		now := time.Now()
 		for _, rep := range strings.Split(reps, ",") {
+			// repositories are stored under trimmed names (see InitContext)
+			rep = strings.TrimSpace(rep)
 			repository, ok := appContext.repositories[rep]
 			if !ok {
 				healthy = false

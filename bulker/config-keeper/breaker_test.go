@@ -231,3 +231,29 @@ func TestBreakerRowsWithoutIdIgnored(t *testing.T) {
 	require.NoError(t, breakerInit(b, `[{"noid":false},`+rowsPayload(30, `{"a":1}`)[1:]))
 	require.False(t, b.Held())
 }
+
+func TestBreakerRejectsIdCoverageCollapse(t *testing.T) {
+	b := testBreaker()
+	good := rowsPayload(100, `{"a":1}`)
+	require.NoError(t, breakerInit(b, good))
+
+	// every row lost its id: the breaker cannot track such a payload — must
+	// reject as invalid, keeping last-known-good
+	var idless []string
+	for i := 0; i < 100; i++ {
+		idless = append(idless, fmt.Sprintf(`{"options":{"a":%d}}`, i))
+	}
+	err := breakerInit(b, "["+strings.Join(idless, ",")+"]")
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "no id")
+	require.Equal(t, good, string(*b.GetData()))
+
+	// not bypassable by operator accept — it is payload validity, not a threshold
+	b.AcceptNext()
+	require.Error(t, breakerInit(b, "["+strings.Join(idless, ",")+"]"))
+
+	// cold start (no baseline) must reject it too — accepting would leave the
+	// breaker permanently blind
+	cold := testBreaker()
+	require.Error(t, breakerInit(cold, "["+strings.Join(idless[:50], ",")+"]"))
+}

@@ -70,7 +70,7 @@ func NewBreakerRepositoryData(name string, cfg BreakerConfig, cacheDir string) *
 	b := &BreakerRepositoryData{name: name, cfg: cfg}
 	if cacheDir != "" {
 		if data, err := os.ReadFile(path.Join(cacheDir, name)); err == nil {
-			if hashes, err := hashRows(data); err == nil {
+			if hashes, _, err := hashRows(data); err == nil {
 				b.baseline = hashes
 				logging.Infof("[%s] repository circuit breaker baseline seeded from cache: %d rows", name, len(hashes))
 			}
@@ -96,11 +96,19 @@ func (b *BreakerRepositoryData) Init(reader io.Reader, tag any) error {
 			return fmt.Errorf("circuit breaker: held, rejected generation unchanged")
 		}
 	}
-	hashes, err := hashRows(data)
+	hashes, noId, err := hashRows(data)
 	if err != nil {
 		// repositories guarded by the breaker are JSON arrays by contract —
 		// an unparseable payload must never replace a good one
 		return fmt.Errorf("[%s] payload is not a valid JSON array: %v", b.name, err)
+	}
+	// guarded repositories carry an `id` on every row by contract. A payload
+	// where id coverage collapses is treated as invalid — NOT as thresholds
+	// and NOT bypassable by acceptNext: with ids gone the breaker would be
+	// blind (rows can neither match the baseline nor form a new one), so
+	// accepting it would fail open. Small counts of odd rows stay tolerated
+	if total := noId + len(hashes); noId >= b.cfg.MinChangedRows && float64(noId)/float64(total)*100 > b.cfg.MaxRemovePercent {
+		return fmt.Errorf("[%s] payload rejected: %d of %d rows have no id — refusing a payload the breaker cannot track", b.name, noId, total)
 	}
 	b.mu.Lock()
 	defer b.mu.Unlock()
@@ -221,24 +229,25 @@ func (b *BreakerRepositoryData) Status() map[string]any {
 // breaker. That is the operator-confirmation case — such deploys are rare,
 // fleet-wide, and exactly when a human should be watching; canonicalizing
 // every row on every refresh isn't worth dodging that one confirmation
-func hashRows(payload []byte) (map[string]uint64, error) {
+func hashRows(payload []byte) (hashes map[string]uint64, noId int, err error) {
 	var rows []json.RawMessage
-	if err := json.Unmarshal(payload, &rows); err != nil {
-		return nil, err
+	if err = json.Unmarshal(payload, &rows); err != nil {
+		return nil, 0, err
 	}
-	hashes := make(map[string]uint64, len(rows))
+	hashes = make(map[string]uint64, len(rows))
 	for _, row := range rows {
 		var idHolder struct {
 			Id string `json:"id"`
 		}
 		if err := json.Unmarshal(row, &idHolder); err != nil || idHolder.Id == "" {
+			noId++
 			continue
 		}
 		h := fnv.New64a()
 		_, _ = h.Write(row)
 		hashes[idHolder.Id] = h.Sum64()
 	}
-	return hashes, nil
+	return hashes, noId, nil
 }
 
 // diffRows counts rows present in both generations (common) and how many of
