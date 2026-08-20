@@ -3,21 +3,20 @@ import { z } from "zod";
 import { eventsLogQuery, streamEventsLog } from "../../../../../lib/server/events-log-stream";
 
 /**
- * Events log of a single actor (site / connection / profile builder). See `./index.ts` for the
- * same log across every actor of the workspace
+ * Events log across every actor of the workspace. Each record carries `actorId`. See
+ * `./[actorId].ts` for a single actor
  */
 export const api: Api = {
   url: inferUrl(__filename),
   GET: {
     types: {
-      query: eventsLogQuery.extend({ actorId: z.string() }),
+      query: eventsLogQuery,
       result: z.any(),
     },
     streaming: true,
     auth: true,
     handle: async ({ user, res, query }) => {
-      const { actorId, ...rest } = query;
-      await streamEventsLog({ user, res, query: rest, actorId });
+      await streamEventsLog({ user, res, query });
     },
   },
 };
