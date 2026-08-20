@@ -54,6 +54,15 @@ type ExportRecord = {
   body: Record<string, any>;
 };
 
+// mirrors the Go producer's stateMessage: short human line for backends that
+// surface a message field, with a rune-safe 140-char error preview
+export function deadLetterMessage(error: any): string {
+  const errText = typeof error === "string" ? error : error && typeof error.message === "string" ? error.message : "";
+  const runes = Array.from(errText);
+  const preview = runes.length > 140 ? runes.slice(0, 140).join("") + "…" : errText;
+  return preview ? `dead-letter — ${preview}` : "dead-letter";
+}
+
 export function createKafkaEventsStore(): EventsStore {
   const prefix = serverEnv.KAFKA_TOPIC_PREFIX || "";
   // unset = billing/metrics emission disabled for this deployment, matching
@@ -189,7 +198,11 @@ export function createKafkaEventsStore(): EventsStore {
         level: "error",
         actorId: connectionId,
         connectionId,
-        body: { payload, error },
+        // dead-letter bodies are rotor-owned, so the human-readable message
+        // line for observability backends is synthesized here at the producer —
+        // the otlp destination stays payload-agnostic. Function-log bodies
+        // already carry their own message and are never touched
+        body: { payload, error, message: deadLetterMessage(error) },
       });
     },
     close() {

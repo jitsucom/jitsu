@@ -3,11 +3,14 @@ package eventslog
 import (
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/jitsucom/bulker/jitsubase/jsonorder"
 	"github.com/jitsucom/bulker/jitsubase/logging"
+	"github.com/jitsucom/bulker/jitsubase/types"
 )
 
 // Live Events observability export fan-out (JITSU-138): a KafkaEventsLogService
@@ -156,6 +159,15 @@ func (k *KafkaEventsLogService) PostAsync(event *ActorEvent) {
 		envelope.ConnectionId = event.ActorId
 	case EventTypeBatch, EventTypeProcessed:
 		envelope.DestinationId = event.ActorId
+		// bulker_batch / bulker_stream bodies are constructed by bulker itself
+		// (bulker.State / stream status shapes), so we own their top-level keys
+		// and adapt them for observability backends here, at the producer —
+		// the otlp destination stays payload-agnostic. Function-log bodies are
+		// user data and are never touched. The eventId hash above is computed
+		// from the unadapted body, so the id is unaffected
+		if adapted := adaptOwnedBody(body, string(event.EventType)); adapted != nil {
+			envelope.Body = adapted
+		}
 	}
 	payload, err := jsonorder.Marshal(&envelope)
 	if err != nil {
@@ -172,6 +184,71 @@ func (k *KafkaEventsLogService) PostAsync(event *ActorEvent) {
 	}
 
 	k.produceBillingRecord(&envelope, timestamp)
+}
+
+// adaptOwnedBody adapts a bulker-owned record body for observability
+// backends: `status` is renamed to `record_status` (Datadog's agentless OTLP
+// intake merges top-level body keys into root log attributes, where `status`
+// is reserved for severity — COMPLETED/FAILED values made every record render
+// as `critical`), and a short human-readable `message` is synthesized when
+// absent or empty so log list views show a line instead of a blank. Returns
+// nil (caller keeps the original body) when the body can't be re-parsed
+func adaptOwnedBody(bodyJSON []byte, eventType string) types.Json {
+	obj := types.NewJson(0)
+	if err := jsonorder.Unmarshal(bodyJSON, &obj); err != nil || obj == nil {
+		return nil
+	}
+	if v, ok := obj.Get("status"); ok {
+		obj.Delete("status")
+		obj.Set("record_status", v)
+	}
+	if v, ok := obj.Get("message"); !ok || v == "" || v == nil {
+		obj.Set("message", stateMessage(eventType, obj))
+	}
+	return obj
+}
+
+// stateMessage: e.g. "bulker_batch COMPLETED: 2 rows → events39"
+func stateMessage(eventType string, body types.Json) string {
+	var b strings.Builder
+	b.WriteString(eventType)
+	if s := body.GetS("record_status"); s != "" {
+		b.WriteString(" " + s)
+	}
+	if v, ok := body.Get("processedRows"); ok {
+		if n, isNum := asInt64(v); isNum {
+			fmt.Fprintf(&b, ": %d rows", n)
+		}
+	}
+	if rep, ok := body.Get("representation"); ok {
+		if repObj, isObj := rep.(types.Json); isObj {
+			if name := repObj.GetS("name"); name != "" {
+				b.WriteString(" → " + name)
+			}
+		}
+	}
+	if e := body.GetS("error"); e != "" {
+		if r := []rune(e); len(r) > 140 {
+			e = string(r[:140]) + "…"
+		}
+		b.WriteString(" — " + e)
+	}
+	return b.String()
+}
+
+func asInt64(v any) (int64, bool) {
+	switch n := v.(type) {
+	case json.Number:
+		i, err := n.Int64()
+		return i, err == nil
+	case float64:
+		return int64(n), true
+	case int64:
+		return n, true
+	case int:
+		return int64(n), true
+	}
+	return 0, false
 }
 
 // produceBillingRecord emits one active_incoming record per exported envelope.

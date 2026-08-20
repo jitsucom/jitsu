@@ -3,6 +3,7 @@ package eventslog
 import (
 	"encoding/json"
 	"fmt"
+	"strings"
 	"testing"
 	"time"
 
@@ -201,6 +202,54 @@ func TestKafkaEventsLogOrderedMapBodyFidelity(t *testing.T) {
 	require.Len(t, *produced, 2)
 	payload := string((*produced)[0].payload)
 	require.Contains(t, payload, `"lastMappedRow":{"message_id":"m1","nested":{"a":1}}`)
+}
+
+func TestKafkaEventsLogAdaptsOwnedBodies(t *testing.T) {
+	service, produced := newTestKafkaService("", map[string]bool{"ws1": true})
+
+	// bulker_batch: status renamed (Datadog reserved-attribute collision) and a
+	// message line synthesized from status/rows/target table
+	batch := testActorEvent()
+	batch.EventType = EventTypeBatch
+	batch.ActorId = "dst1"
+	rep := types.NewJson(1)
+	rep.Set("name", "events39")
+	body := types.NewJson(3)
+	body.Set("status", "COMPLETED")
+	body.Set("processedRows", 2)
+	body.Set("representation", rep)
+	batch.Event = body
+	service.PostAsync(batch)
+	require.Len(t, *produced, 2)
+	envelope := map[string]any{}
+	require.NoError(t, json.Unmarshal((*produced)[0].payload, &envelope))
+	exported := envelope["body"].(map[string]any)
+	require.NotContains(t, exported, "status")
+	require.Equal(t, "COMPLETED", exported["record_status"])
+	require.Equal(t, "bulker_batch COMPLETED: 2 rows → events39", exported["message"])
+
+	// failed stream: error preview appended, long errors truncated
+	stream := testActorEvent()
+	stream.EventType = EventTypeProcessed
+	stream.ActorId = "dst1"
+	stream.Event = map[string]any{"status": "FAILED", "error": strings.Repeat("x", 200)}
+	service.PostAsync(stream)
+	require.NoError(t, json.Unmarshal((*produced)[2].payload, &envelope))
+	exported = envelope["body"].(map[string]any)
+	msg := exported["message"].(string)
+	require.True(t, strings.HasPrefix(msg, "bulker_stream FAILED — "))
+	require.True(t, strings.HasSuffix(msg, "…"))
+	require.Less(t, len(msg), 200)
+
+	// function logs are user data: status untouched, no message synthesized
+	fn := testActorEvent()
+	fn.Event = map[string]any{"type": "log-info", "status": "custom-user-value"}
+	service.PostAsync(fn)
+	require.NoError(t, json.Unmarshal((*produced)[4].payload, &envelope))
+	exported = envelope["body"].(map[string]any)
+	require.Equal(t, "custom-user-value", exported["status"])
+	require.NotContains(t, exported, "record_status")
+	require.NotContains(t, exported, "message")
 }
 
 func TestKafkaEventsLogNoBillingOnEnqueueFailure(t *testing.T) {

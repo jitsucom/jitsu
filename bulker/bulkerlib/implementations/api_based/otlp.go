@@ -9,7 +9,6 @@ import (
 	"io"
 	"net/http"
 	"os"
-	"strings"
 	"sync/atomic"
 	"time"
 
@@ -147,7 +146,7 @@ func (o *OtlpBulker) mapLogRecord(envelope *OtlpEnvelope) otlpLogRecord {
 	}
 	var body any
 	if envelope.Body != nil {
-		body = presentBody(envelope)
+		body = envelope.Body
 	}
 	return otlpLogRecord{
 		timestamp:      time.UnixMilli(envelope.Timestamp),
@@ -156,56 +155,6 @@ func (o *OtlpBulker) mapLogRecord(envelope *OtlpEnvelope) otlpLogRecord {
 		body:           body,
 		attributes:     attributes,
 	}
-}
-
-// presentBody adapts the record body for OTLP backends without changing its
-// structure. Datadog's agentless intake merges the body's top-level keys into
-// root log attributes, where `status` is reserved: bulker.State values
-// (COMPLETED/FAILED) collide with it and every record renders as `critical`
-// regardless of severity — so `status` is renamed to `record_status` in the
-// OTLP output only (Live Events keep the original shape). Records without a
-// `message` of their own (batch/stream statuses, dead-letters) get a short
-// synthesized one so log list views show a readable line instead of a blank
-func presentBody(envelope *OtlpEnvelope) map[string]any {
-	m := envelope.Body
-	out := make(map[string]any, len(m)+1)
-	for k, v := range m {
-		out[k] = v
-	}
-	if v, ok := out["status"]; ok {
-		delete(out, "status")
-		out["record_status"] = v
-	}
-	// synthesize when message is absent or an empty string; a non-string
-	// message is producer data and passes through untouched
-	if v, exists := out["message"]; !exists || v == "" {
-		out["message"] = syntheticMessage(envelope, out)
-	}
-	return out
-}
-
-// syntheticMessage: e.g. "bulker_batch COMPLETED: 2 rows → events39"
-func syntheticMessage(envelope *OtlpEnvelope, body map[string]any) string {
-	var b strings.Builder
-	b.WriteString(envelope.Type)
-	if s, ok := body["record_status"].(string); ok && s != "" {
-		b.WriteString(" " + s)
-	}
-	if n, ok := body["processedRows"].(float64); ok {
-		fmt.Fprintf(&b, ": %d rows", int64(n))
-	}
-	if rep, ok := body["representation"].(map[string]any); ok {
-		if name, ok := rep["name"].(string); ok && name != "" {
-			b.WriteString(" → " + name)
-		}
-	}
-	if e, ok := body["error"].(string); ok && e != "" {
-		if r := []rune(e); len(r) > 140 {
-			e = string(r[:140]) + "…"
-		}
-		b.WriteString(" — " + e)
-	}
-	return b.String()
 }
 
 func (o *OtlpBulker) buildRequest(reader io.Reader) ([]byte, int, error) {
