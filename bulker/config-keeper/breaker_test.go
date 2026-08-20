@@ -140,6 +140,29 @@ func TestBreakerOperatorAccept(t *testing.T) {
 	require.Error(t, breakerInit(b, rowsPayload(100, `{"x":9}`)))
 }
 
+func TestBreakerAcceptArmExpires(t *testing.T) {
+	b := testBreaker()
+	clock := time.Now()
+	b.now = func() time.Time { return clock }
+
+	good := rowsPayload(100, `{"mode":"batch"}`)
+	require.NoError(t, breakerInit(b, good))
+	blanked := rowsPayload(100, `{}`)
+
+	// a pre-arm bounded by TTL: after expiry it must not bypass a trip —
+	// a forgotten arm cannot silently accept a future incident
+	b.AcceptNext()
+	clock = clock.Add(acceptTTL + time.Minute)
+	require.Error(t, breakerInit(b, blanked))
+	require.True(t, b.Held())
+
+	// a fresh arm within TTL works
+	b.AcceptNext()
+	clock = clock.Add(acceptTTL / 2)
+	require.NoError(t, breakerInit(b, blanked))
+	require.False(t, b.Held())
+}
+
 func TestBreakerRejectsInvalidJSON(t *testing.T) {
 	b := testBreaker()
 	good := rowsPayload(30, `{"a":1}`)

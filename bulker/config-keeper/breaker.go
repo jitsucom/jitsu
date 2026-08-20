@@ -60,14 +60,19 @@ type BreakerRepositoryData struct {
 	lastRejected uint64
 	lastTripLog  time.Time
 
-	acceptNext atomic.Bool
-	held       atomic.Bool
-	heldSince  atomic.Pointer[time.Time]
-	tripReason atomic.Pointer[string]
+	// acceptArmedUntil: operator pre-arm expiry. A pre-armed accept must not
+	// linger indefinitely — an accept armed for a planned deploy that then
+	// doesn't happen would silently bypass a real incident later. now() is a
+	// field for tests
+	acceptArmedUntil atomic.Pointer[time.Time]
+	now              func() time.Time
+	held             atomic.Bool
+	heldSince        atomic.Pointer[time.Time]
+	tripReason       atomic.Pointer[string]
 }
 
 func NewBreakerRepositoryData(name string, cfg BreakerConfig, cacheDir string) *BreakerRepositoryData {
-	b := &BreakerRepositoryData{name: name, cfg: cfg}
+	b := &BreakerRepositoryData{name: name, cfg: cfg, now: time.Now}
 	if cacheDir != "" {
 		if data, err := os.ReadFile(path.Join(cacheDir, name)); err == nil {
 			if hashes, _, err := hashRows(data); err == nil {
@@ -85,7 +90,7 @@ func (b *BreakerRepositoryData) Init(reader io.Reader, tag any) error {
 		return err
 	}
 	payloadHash := hashBytes(data)
-	if b.held.Load() && !b.acceptNext.Load() {
+	if b.held.Load() && !b.acceptArmed() {
 		b.mu.Lock()
 		sameRejected := payloadHash == b.lastRejected
 		b.mu.Unlock()
@@ -104,7 +109,7 @@ func (b *BreakerRepositoryData) Init(reader io.Reader, tag any) error {
 	}
 	// guarded repositories carry an `id` on every row by contract. A payload
 	// where id coverage collapses is treated as invalid — NOT as thresholds
-	// and NOT bypassable by acceptNext: with ids gone the breaker would be
+	// and NOT bypassable by an armed accept: with ids gone the breaker would be
 	// blind (rows can neither match the baseline nor form a new one), so
 	// accepting it would fail open. Small counts of odd rows stay tolerated
 	if total := noId + len(hashes); noId >= b.cfg.MinChangedRows && float64(noId)/float64(total)*100 > b.cfg.MaxRemovePercent {
@@ -113,7 +118,7 @@ func (b *BreakerRepositoryData) Init(reader io.Reader, tag any) error {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	changed, common := diffRows(b.baseline, hashes)
-	if len(b.baseline) > 0 && !b.acceptNext.Load() {
+	if len(b.baseline) > 0 && !b.acceptArmed() {
 		pct := 0.0
 		if common > 0 {
 			pct = float64(changed) / float64(common) * 100
@@ -148,7 +153,7 @@ func (b *BreakerRepositoryData) Init(reader io.Reader, tag any) error {
 			return fmt.Errorf("circuit breaker: %s", reason)
 		}
 	}
-	if b.acceptNext.Swap(false) {
+	if b.consumeAccept() {
 		logging.Infof("[%s] repository circuit breaker: operator accepted the pending generation (%d rows)", b.name, len(hashes))
 	}
 	// bootstrap replay: when the first network fetch after a restart trips, the
@@ -192,8 +197,25 @@ func (b *BreakerRepositoryData) Store(writer io.Writer) error {
 
 // AcceptNext makes the breaker accept the next generation unconditionally —
 // the operator's confirmation path for intended mass changes
-func (b *BreakerRepositoryData) AcceptNext() {
-	b.acceptNext.Store(true)
+// acceptTTL bounds a pre-armed accept: long enough to arm before a planned
+// deploy, short enough that a forgotten arm can't bypass a future incident
+const acceptTTL = 15 * time.Minute
+
+func (b *BreakerRepositoryData) AcceptNext() time.Time {
+	until := b.now().Add(acceptTTL)
+	b.acceptArmedUntil.Store(&until)
+	return until
+}
+
+func (b *BreakerRepositoryData) acceptArmed() bool {
+	t := b.acceptArmedUntil.Load()
+	return t != nil && b.now().Before(*t)
+}
+
+// consumeAccept reports whether an unexpired arm was present, and disarms
+func (b *BreakerRepositoryData) consumeAccept() bool {
+	t := b.acceptArmedUntil.Swap(nil)
+	return t != nil && b.now().Before(*t)
 }
 
 func (b *BreakerRepositoryData) Held() bool {

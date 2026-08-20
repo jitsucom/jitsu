@@ -36,12 +36,14 @@ func NewRouter(appContext *Context) *Router {
 			c.JSON(http.StatusNotFound, gin.H{"error": fmt.Sprintf("no circuit breaker for repository %s", repName)})
 			return
 		}
-		breaker.AcceptNext()
+		validUntil := breaker.AcceptNext()
 		hostname, _ := os.Hostname()
-		router.Infof("Circuit breaker for %s: operator requested acceptance of the next generation (replica %s)", repName, hostname)
+		router.Infof("Circuit breaker for %s: operator armed acceptance of the next generation until %s (replica %s)", repName, validUntil.Format(time.RFC3339), hostname)
 		// pod is included so operators can confirm which replica accepted —
-		// each replica keeps its own baseline and must be accepted separately
-		c.JSON(http.StatusOK, gin.H{"status": "ok", "repository": repName, "held": breaker.Held(), "pod": hostname})
+		// each replica keeps its own baseline and must be accepted separately.
+		// The arm expires (see acceptTTL) so a forgotten pre-arm cannot bypass
+		// a future incident
+		c.JSON(http.StatusOK, gin.H{"status": "ok", "repository": repName, "held": breaker.Held(), "pod": hostname, "validUntil": validUntil.Format(time.RFC3339)})
 	})
 
 	engine.GET("/health", func(c *gin.Context) {
