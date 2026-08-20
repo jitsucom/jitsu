@@ -139,6 +139,23 @@ func TestOtlpPresentBody(t *testing.T) {
 	require.Equal(t, "hello from udf", body["message"])
 	require.NotContains(t, body, "record_status")
 
+	// empty-string message counts as missing → synthesized; non-string
+	// message is producer data → untouched
+	r = b.mapLogRecord(&OtlpEnvelope{
+		EventId: "ev3b", WorkspaceId: "ws1", Type: "bulker_stream", Level: "info",
+		Timestamp: 1700000000002, ActorId: "dst1",
+		Body: map[string]any{"message": "", "status": "COMPLETED"},
+	})
+	body = r.body.(map[string]any)
+	require.Equal(t, "bulker_stream COMPLETED", body["message"])
+	r = b.mapLogRecord(&OtlpEnvelope{
+		EventId: "ev3c", WorkspaceId: "ws1", Type: "function", Level: "info",
+		Timestamp: 1700000000002, ActorId: "con1",
+		Body: map[string]any{"message": float64(42)},
+	})
+	body = r.body.(map[string]any)
+	require.Equal(t, float64(42), body["message"])
+
 	// the original envelope body must not be mutated (copy semantics)
 	orig := map[string]any{"status": "COMPLETED"}
 	_ = b.mapLogRecord(&OtlpEnvelope{

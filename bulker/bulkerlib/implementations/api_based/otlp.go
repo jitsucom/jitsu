@@ -176,7 +176,9 @@ func presentBody(envelope *OtlpEnvelope) map[string]any {
 		delete(out, "status")
 		out["record_status"] = v
 	}
-	if _, ok := out["message"]; !ok {
+	// synthesize when message is absent or an empty string; a non-string
+	// message is producer data and passes through untouched
+	if v, exists := out["message"]; !exists || v == "" {
 		out["message"] = syntheticMessage(envelope, out)
 	}
 	return out
