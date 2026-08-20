@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/jitsucom/bulker/jitsubase/appbase"
+	"github.com/jitsucom/bulker/jitsubase/logging"
 	"io"
 	"net/http"
 	"strings"
@@ -17,6 +18,7 @@ type Context struct {
 	server       *http.Server
 	pScript      appbase.Repository[[]byte]
 	repositories map[string]appbase.Repository[[]byte]
+	breakers     map[string]*BreakerRepositoryData
 }
 
 type RawRepositoryData struct {
@@ -66,8 +68,37 @@ func (a *Context) InitContext(settings *appbase.AppSettings) error {
 	a.repositories = map[string]appbase.Repository[[]byte]{
 		"p.js": a.pScript,
 	}
+	a.breakers = map[string]*BreakerRepositoryData{}
+	breakerRepos := map[string]bool{}
+	if a.config.BreakerEnabled {
+		configured := map[string]bool{}
+		for _, rep := range strings.Split(reps, ",") {
+			configured[strings.TrimSpace(rep)] = true
+		}
+		for _, rep := range strings.Split(a.config.BreakerRepositories, ",") {
+			rep = strings.TrimSpace(rep)
+			breakerRepos[rep] = true
+			if !configured[rep] {
+				// a misspelled entry must not silently leave a repo unguarded
+				logging.Warnf("[cfgkpr] BREAKER_REPOSITORIES entry %q is not in REPOSITORIES — no such repository is served statically", rep)
+			}
+		}
+	}
 	for _, rep := range strings.Split(reps, ",") {
-		a.repositories[rep] = appbase.NewHTTPRepository[[]byte](rep, baseUrl+"/"+rep, token, appbase.HTTPTagLastModified, &RawRepositoryData{validateJSON: true}, 2, refreshPeriodSec, cacheDir)
+		// trimmed so a spaced REPOSITORIES list can't silently unguard a repo
+		// (breakerRepos keys are trimmed too)
+		rep = strings.TrimSpace(rep)
+		// the breaker's row-level parse subsumes validateJSON for guarded repos
+		var data appbase.RepositoryData[[]byte] = &RawRepositoryData{validateJSON: true}
+		if breakerRepos[rep] {
+			breaker := NewBreakerRepositoryData(rep, BreakerConfig{
+				MaxChangePercent: a.config.BreakerMaxChangePercent,
+				MinChangedRows:   a.config.BreakerMinChangedRows,
+			}, cacheDir)
+			a.breakers[rep] = breaker
+			data = breaker
+		}
+		a.repositories[rep] = appbase.NewHTTPRepository[[]byte](rep, baseUrl+"/"+rep, token, appbase.HTTPTagLastModified, data, 2, refreshPeriodSec, cacheDir)
 
 	}
 	router := NewRouter(a)

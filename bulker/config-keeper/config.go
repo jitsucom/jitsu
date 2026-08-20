@@ -19,6 +19,15 @@ type Config struct {
 	RepositoryAuthToken        string `mapstructure:"REPOSITORY_AUTH_TOKEN"`
 	RepositoryRefreshPeriodSec int    `mapstructure:"REPOSITORY_REFRESH_PERIOD_SEC" default:"5"`
 	Repositories               string `mapstructure:"REPOSITORIES" default:"streams-with-destinations,workspaces-with-profiles,functions,rotor-connections,bulker-connections"`
+
+	// Repository payload circuit breaker (JITSU-182): reject a refresh that
+	// materially changes too many rows at once, keeping last-known-good.
+	// See breaker.go
+	BreakerEnabled          bool    `mapstructure:"BREAKER_ENABLED" default:"true"`
+	BreakerMaxChangePercent float64 `mapstructure:"BREAKER_MAX_CHANGE_PERCENT" default:"50"`
+	BreakerMinChangedRows   int     `mapstructure:"BREAKER_MIN_CHANGED_ROWS" default:"20"`
+	// repositories guarded by the breaker (must be JSON-array payloads)
+	BreakerRepositories string `mapstructure:"BREAKER_REPOSITORIES" default:"streams-with-destinations,workspaces-with-profiles,rotor-connections,bulker-connections"`
 }
 
 func init() {
