@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	logtest "github.com/sirupsen/logrus/hooks/test"
 	"github.com/stretchr/testify/require"
 )
 
@@ -286,4 +287,52 @@ func TestBreakerRejectsIdCoverageCollapse(t *testing.T) {
 	require.NoError(t, breakerInit(small, rowsPayload(10, `{"a":1}`)))
 	require.Error(t, breakerInit(small, "["+strings.Join(idless[:10], ",")+"]"))
 	require.Equal(t, rowsPayload(10, `{"a":1}`), string(*small.GetData()))
+}
+
+func systemErrors(hook *logtest.Hook) []string {
+	var out []string
+	for _, e := range hook.AllEntries() {
+		if strings.HasPrefix(e.Message, "System error:") {
+			out = append(out, e.Message)
+		}
+	}
+	return out
+}
+
+// every rejection path must page through the "System error:" marker — the
+// churn trip AND the validity rejections — throttled, not once per poll
+func TestBreakerRejectionsFireSystemError(t *testing.T) {
+	hook := logtest.NewGlobal()
+	defer hook.Reset()
+	b := testBreaker()
+	require.NoError(t, breakerInit(b, rowsPayload(30, `{"a":1}`)))
+	require.Empty(t, systemErrors(hook))
+
+	// validity rejection: alerts once, then throttled across the framework's
+	// immediate retry and subsequent polls
+	require.Error(t, breakerInit(b, `{"not":"an array"`))
+	require.Error(t, breakerInit(b, `{"not":"an array"`))
+	require.Error(t, breakerInit(b, rowsPayload(30, `{"a":1}`)[:10]+`{"noid":1}]`))
+	errs := systemErrors(hook)
+	require.Len(t, errs, 1)
+	require.Contains(t, errs[0], "not a valid JSON array")
+
+	// an accepted (zero-diff) generation re-arms the alert
+	require.NoError(t, breakerInitNetwork(b, rowsPayload(30, `{"a":1}`)))
+	hook.Reset()
+	require.Error(t, breakerInit(b, strings.ReplaceAll(rowsPayload(30, `{"a":1}`), `"id"`, `"ident"`)))
+	errs = systemErrors(hook)
+	require.Len(t, errs, 1)
+	require.Contains(t, errs[0], "rows have no id")
+
+	// churn trip alerts on the transition, then is short-circuited/throttled
+	require.NoError(t, breakerInitNetwork(b, rowsPayload(30, `{"a":1}`)))
+	hook.Reset()
+	require.Error(t, breakerInitNetwork(b, rowsPayload(30, `{}`)))
+	require.Error(t, breakerInitNetwork(b, rowsPayload(30, `{}`)))
+	require.Error(t, breakerInitNetwork(b, rowsPayload(30, `{"x":1}`)))
+	errs = systemErrors(hook)
+	require.Len(t, errs, 1)
+	require.Contains(t, errs[0], "tripped")
+	require.Contains(t, errs[0], "/breaker/")
 }

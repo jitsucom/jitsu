@@ -105,7 +105,7 @@ func (b *BreakerRepositoryData) Init(reader io.Reader, tag any) error {
 	if err != nil {
 		// repositories guarded by the breaker are JSON arrays by contract —
 		// an unparseable payload must never replace a good one
-		return fmt.Errorf("[%s] payload is not a valid JSON array: %v", b.name, err)
+		return b.reject(fmt.Sprintf("payload is not a valid JSON array: %v", err))
 	}
 	// guarded repositories carry an `id` on every row by contract. A payload
 	// where the id-less share exceeds MaxRemovePercent is treated as invalid —
@@ -116,7 +116,7 @@ func (b *BreakerRepositoryData) Init(reader io.Reader, tag any) error {
 	// minority of odd rows stays tolerated so one junk row can't wedge
 	// refreshes
 	if total := noId + len(hashes); total > 0 && noId > 0 && float64(noId)/float64(total)*100 > b.cfg.MaxRemovePercent {
-		return fmt.Errorf("[%s] payload rejected: %d of %d rows have no id — refusing a payload the breaker cannot track", b.name, noId, total)
+		return b.reject(fmt.Sprintf("%d of %d rows have no id — refusing a payload the breaker cannot track", noId, total))
 	}
 	b.mu.Lock()
 	defer b.mu.Unlock()
@@ -143,15 +143,8 @@ func (b *BreakerRepositoryData) Init(reader io.Reader, tag any) error {
 				b.heldSince.Store(&now)
 			}
 			b.tripReason.Store(&reason)
-			// alert on the trip transition and then at most once a minute — not
-			// on every rejection, and not per byte-varying regeneration of the
-			// same bad payload. "System error:" is the marker log-based
-			// alerting hooks on
-			if transition || time.Since(b.lastTripLog) > time.Minute {
-				logging.Errorf("System error: [%s] repository circuit breaker tripped, keeping last-known-good payload: %s. "+
-					"If this mass change is intended, confirm it with POST /breaker/%s/accept (per replica)", b.name, reason, b.name)
-				b.lastTripLog = time.Now()
-			}
+			b.alertLocked(transition, fmt.Sprintf("tripped, keeping last-known-good payload: %s. "+
+				"If this mass change is intended, confirm it with POST /breaker/%s/accept (per replica)", reason, b.name))
 			b.lastRejected = payloadHash
 			return fmt.Errorf("circuit breaker: %s", reason)
 		}
@@ -173,15 +166,39 @@ func (b *BreakerRepositoryData) Init(reader io.Reader, tag any) error {
 	}
 	b.baseline = hashes
 	b.lastRejected = 0
+	// a fresh rejection after an accepted generation must alert immediately
+	// again — applies to validity rejections too, which never set held
+	b.lastTripLog = time.Time{}
 	if b.held.Swap(false) {
 		b.heldSince.Store(nil)
 		b.tripReason.Store(nil)
-		// a fresh trip after this recovery must alert immediately again
-		b.lastTripLog = time.Time{}
 		logging.Infof("[%s] repository circuit breaker recovered: new generation accepted", b.name)
 	}
 	b.raw.data.Store(&data)
 	return nil
+}
+
+// reject is the validity-rejection path (unparseable payload, id-coverage
+// collapse): the payload is refused before any diff, so it neither trips nor
+// sets held — but it IS the breaker keeping last-known-good against a broken
+// console, and must page like a trip does
+func (b *BreakerRepositoryData) reject(reason string) error {
+	b.mu.Lock()
+	b.alertLocked(false, "payload rejected, keeping last-known-good payload: "+reason)
+	b.mu.Unlock()
+	return fmt.Errorf("circuit breaker: %s", reason)
+}
+
+// alertLocked emits the "System error:" log (the marker log-based alerting
+// hooks on) — on a forced transition and otherwise at most once a minute, not
+// on every rejection: the framework retries immediately and then every poll,
+// and a console may regenerate a byte-varying bad payload each time. Caller
+// holds mu
+func (b *BreakerRepositoryData) alertLocked(force bool, msg string) {
+	if force || time.Since(b.lastTripLog) > time.Minute {
+		logging.SystemErrorf("[%s] repository circuit breaker %s", b.name, msg)
+		b.lastTripLog = time.Now()
+	}
 }
 
 func hashBytes(data []byte) uint64 {
