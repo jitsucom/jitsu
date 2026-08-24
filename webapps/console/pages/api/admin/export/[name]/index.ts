@@ -3,6 +3,12 @@ import { db } from "../../../../../lib/server/db";
 import { getErrorMessage, getLog, hash as juavaHash, isTruish, requireDefined, rpc } from "juava";
 import { z } from "zod";
 import { getCoreDestinationTypeNonStrict } from "../../../../../lib/schema/destinations";
+import {
+  BackupConnectionRow,
+  BulkerConnectionRow,
+  RotorConnectionRow,
+  RotorDestinationRow,
+} from "../../../../../lib/schema/export-contracts";
 import { getEeConnection, isEEAvailable, serviceTokenHeaders } from "../../../../../lib/server/ee";
 import omit from "lodash/omit";
 import { NextApiRequest } from "next";
@@ -438,17 +444,22 @@ async function exportBulkerConnections(writer: Writer) {
           //   // inside batch of two rows having the same messageId(pk) will be chosen the one with the highest timestampColumn value
           //   data.discriminatorField = [data.timestampColumn];
           // }
-          payload = JSON.stringify({
-            __debug: {
-              workspace: { id: workspace.id, name: workspace.slug },
-            },
-            id: id,
-            workspaceId: workspace.id,
-            type: destinationType,
-            options: omit(data, "clickhouseSettings"),
-            updatedAt: dateMax(updatedAt, to.updatedAt),
-            credentials: credentials,
-          });
+          // Output contract (JITSU-181, postmortem item 5): a row violating the
+          // consumer contract throws here and is skipped-and-logged by the
+          // catch below — never shipped malformed to consumers.
+          payload = JSON.stringify(
+            BulkerConnectionRow.parse({
+              __debug: {
+                workspace: { id: workspace.id, name: workspace.slug },
+              },
+              id: id,
+              workspaceId: workspace.id,
+              type: destinationType,
+              options: omit(data, "clickhouseSettings"),
+              updatedAt: dateMax(updatedAt, to.updatedAt),
+              credentials: credentials,
+            })
+          );
         }
       } catch (e) {
         // Only entity materialization/serialization is guarded: one malformed row
@@ -491,21 +502,23 @@ async function exportBulkerConnections(writer: Writer) {
         const destinationType = parsedConfig.destinationType;
         const coreDestinationType = getCoreDestinationTypeNonStrict(destinationType);
         if (coreDestinationType?.usesBulker || coreDestinationType?.hybrid) {
-          payload = JSON.stringify({
-            __debug: {
-              workspace: { id: workspace.id, name: workspace.slug },
-            },
-            id: id,
-            workspaceId: workspace.id,
-            type: destinationType,
-            options: {
-              mode: "batch",
-              frequency: 1,
-              deduplicate: true,
-            },
-            updatedAt: updatedAt,
-            credentials: omit(parsedConfig, "destinationType", "type", "name"),
-          });
+          payload = JSON.stringify(
+            BulkerConnectionRow.parse({
+              __debug: {
+                workspace: { id: workspace.id, name: workspace.slug },
+              },
+              id: id,
+              workspaceId: workspace.id,
+              type: destinationType,
+              options: {
+                mode: "batch",
+                frequency: 1,
+                deduplicate: true,
+              },
+              updatedAt: updatedAt,
+              credentials: omit(parsedConfig, "destinationType", "type", "name"),
+            })
+          );
         }
       } catch (e) {
         // Only entity materialization/serialization is guarded: one malformed row
@@ -528,18 +541,33 @@ async function exportBulkerConnections(writer: Writer) {
     }
   }
   for (const conn of otlpConnections) {
+    let payload: string | undefined;
+    try {
+      payload = JSON.stringify(BulkerConnectionRow.parse(conn));
+    } catch (e) {
+      logExportEntityError("bulker-connections", conn.id, e);
+      continue;
+    }
     if (needComma) {
       writer.write(",");
     }
-    writer.write(JSON.stringify(conn));
+    writer.write(payload);
     needComma = true;
   }
 
   for (const conn of backupConnections) {
+    // prebuilt by ee-api — the contract vouches only for the identity field
+    let payload: string | undefined;
+    try {
+      payload = JSON.stringify(BackupConnectionRow.parse(conn));
+    } catch (e) {
+      logExportEntityError("bulker-connections", JSON.stringify(conn).slice(0, 100), e);
+      continue;
+    }
     if (needComma) {
       writer.write(",");
     }
-    writer.write(JSON.stringify(conn));
+    writer.write(payload);
     needComma = true;
   }
 
@@ -602,32 +630,36 @@ async function exportRotorConnections(writer: Writer) {
           getLog().atError().log(`Unknown destination type: ${destinationType} for connection ${id}`);
         }
         const credentials = omit(asRecord(to.config), "destinationType", "type", "name");
-        payload = JSON.stringify({
-          __debug: {
-            workspace: { id: workspace.id, name: workspace.slug },
-          },
-          id: id,
-          type: destinationType,
-          workspaceId: workspace.id,
-          streamId: from.id,
-          streamName: ObjectConfig.parse(from.config).name,
-          destinationId: to.id,
-          usesBulker: !!coreDestinationType?.usesBulker,
-          options: {
-            ...data,
-            ...((workspace.featuresEnabled ?? []).includes("nofetchlogs") &&
-            data.functionsEnv?.FETCH_LOGS_ENABLED !== "true"
-              ? { fetchLogLevel: "debug" }
-              : {}),
-            ...((workspace.featuresEnabled ?? []).includes("fastFunctions") ? { fastFunctions: true } : {}),
-            functionsServer: selectFunctionsServer(functionsServers, workspace.id, id, functionsClassFunc(workspace)),
-            workspaceUpdatedAt: workspace.updatedAt,
-          },
-          optionsHash: hashValue(data),
-          updatedAt: dateMax(updatedAt, to.updatedAt),
-          credentials: credentials,
-          credentialsHash: hashValue(credentials),
-        });
+        // Output contract (JITSU-181): a violating row throws and is
+        // skipped-and-logged by the catch below — never shipped malformed.
+        payload = JSON.stringify(
+          RotorConnectionRow.parse({
+            __debug: {
+              workspace: { id: workspace.id, name: workspace.slug },
+            },
+            id: id,
+            type: destinationType,
+            workspaceId: workspace.id,
+            streamId: from.id,
+            streamName: ObjectConfig.parse(from.config).name,
+            destinationId: to.id,
+            usesBulker: !!coreDestinationType?.usesBulker,
+            options: {
+              ...data,
+              ...((workspace.featuresEnabled ?? []).includes("nofetchlogs") &&
+              data.functionsEnv?.FETCH_LOGS_ENABLED !== "true"
+                ? { fetchLogLevel: "debug" }
+                : {}),
+              ...((workspace.featuresEnabled ?? []).includes("fastFunctions") ? { fastFunctions: true } : {}),
+              functionsServer: selectFunctionsServer(functionsServers, workspace.id, id, functionsClassFunc(workspace)),
+              workspaceUpdatedAt: workspace.updatedAt,
+            },
+            optionsHash: hashValue(data),
+            updatedAt: dateMax(updatedAt, to.updatedAt),
+            credentials: credentials,
+            credentialsHash: hashValue(credentials),
+          })
+        );
       } catch (e) {
         // Only entity materialization/serialization is guarded: one malformed row
         // must not take down the whole export. Writes happen OUTSIDE the try so a
@@ -670,18 +702,20 @@ async function exportRotorConnections(writer: Writer) {
         const coreDestinationType = getCoreDestinationTypeNonStrict(destinationType);
         if (coreDestinationType?.usesBulker || coreDestinationType?.hybrid) {
           const credentials = omit(parsedConfig, "destinationType", "type", "name");
-          payload = JSON.stringify({
-            id: id,
-            type: destinationType,
-            workspaceId: workspace.id,
-            streamId: id,
-            streamName: parsedConfig.name,
-            destinationId: id,
-            usesBulker: !!coreDestinationType?.usesBulker,
-            updatedAt: updatedAt,
-            credentials: credentials,
-            credentialsHash: hashValue(credentials),
-          });
+          payload = JSON.stringify(
+            RotorDestinationRow.parse({
+              id: id,
+              type: destinationType,
+              workspaceId: workspace.id,
+              streamId: id,
+              streamName: parsedConfig.name,
+              destinationId: id,
+              usesBulker: !!coreDestinationType?.usesBulker,
+              updatedAt: updatedAt,
+              credentials: credentials,
+              credentialsHash: hashValue(credentials),
+            })
+          );
         }
       } catch (e) {
         // Only entity materialization/serialization is guarded: one malformed row
@@ -730,23 +764,25 @@ async function exportRotorConnections(writer: Writer) {
         ),
         workspaceUpdatedAt: pb.workspace.updatedAt,
       };
-      payload = JSON.stringify({
-        __debug: {
-          workspace: { id: pb.workspaceId },
-        },
-        id: pb.id,
-        type: "profiles",
-        workspaceId: pb.workspaceId,
-        streamId: pb.id,
-        streamName: "profiles",
-        destinationId: pb.destinationId,
-        usesBulker: false,
-        options: opts,
-        optionsHash: hashValue(opts),
-        updatedAt: pb.updatedAt,
-        credentials: cred,
-        credentialsHash: hashValue(cred),
-      });
+      payload = JSON.stringify(
+        RotorConnectionRow.parse({
+          __debug: {
+            workspace: { id: pb.workspaceId },
+          },
+          id: pb.id,
+          type: "profiles",
+          workspaceId: pb.workspaceId,
+          streamId: pb.id,
+          streamName: "profiles",
+          destinationId: pb.destinationId,
+          usesBulker: false,
+          options: opts,
+          optionsHash: hashValue(opts),
+          updatedAt: pb.updatedAt,
+          credentials: cred,
+          credentialsHash: hashValue(cred),
+        })
+      );
     } catch (e) {
       // Only entity materialization/serialization is guarded: one malformed row
       // must not take down the whole export. Writes happen OUTSIDE the try so a
