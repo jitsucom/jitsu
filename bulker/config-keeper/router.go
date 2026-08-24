@@ -31,8 +31,10 @@ func NewRouter(appContext *Context) *Router {
 		healthy := true
 		repStatuses := map[string]any{}
 		now := time.Now()
+		// one snapshot for both loops, so the two views cannot disagree
+		all := appContext.repositories.snapshot()
 		for _, rep := range strings.Split(reps, ",") {
-			repository, ok := appContext.repositories[rep]
+			repository, ok := all[rep]
 			if !ok {
 				healthy = false
 				repStatuses[rep] = map[string]any{"error": "not_found"}
@@ -46,7 +48,7 @@ func NewRouter(appContext *Context) *Router {
 				healthy = false
 			}
 		}
-		for name, repository := range appContext.repositories {
+		for name, repository := range all {
 			lastSuccess := repository.LastSuccess()
 			status := map[string]any{
 				"loaded":       repository.Loaded(),
@@ -74,31 +76,35 @@ func NewRouter(appContext *Context) *Router {
 }
 func (r *Router) RepositoryHandler(c *gin.Context) {
 	repName := c.Param("repository")
-	repository, ok := r.appContext.repositories[repName]
+	repository, ok := r.appContext.repositories.get(repName)
 	if !ok {
 		r.Infof("Repository %s not found, initializing", repName)
-		repository = appbase.NewHTTPRepository[[]byte](repName, r.appContext.config.RepositoryBaseURL+"/"+repName, r.appContext.config.RepositoryAuthToken, appbase.HTTPTagLastModified, &RawRepositoryData{validateJSON: true}, 2, r.appContext.config.RepositoryRefreshPeriodSec, r.appContext.config.CacheDir)
+		repository = appbase.NewHTTPRepository[[]byte](repName, r.appContext.config.RepositoryBaseURL+"/"+repName, r.appContext.config.RepositoryAuthToken, appbase.HTTPTagLastModified, &RawRepositoryData{validateJSON: true}, 2, r.appContext.config.RepositoryRefreshPeriodSec, r.appContext.config.CacheDir, appbase.WaitForData)
 		initTimeout := time.After(time.Second * 60)
 		ticker := time.NewTicker(time.Second)
 		defer ticker.Stop()
-		select {
-		case <-ticker.C:
-			if repository.Loaded() {
-				r.Infof("Repository %s initialized", repName)
-				r.appContext.repositories[repName] = repository
-				break
+		// keep polling until it loads or the timeout fires: a single receive on
+		// the ticker only proves one second passed, not that the load finished
+	wait:
+		for !repository.Loaded() {
+			select {
+			case <-ticker.C:
+			case <-initTimeout:
+				break wait
 			}
-		case <-initTimeout:
-			if !repository.Loaded() {
-				_ = repository.Close()
-				r.Errorf("Repository %s initialization timeout", repName)
-				_ = c.AbortWithError(http.StatusInternalServerError, fmt.Errorf("Repository %s initialization timeout", repName))
-				return
-			} else {
-				r.Infof("Repository %s initialized", repName)
-				r.appContext.repositories[repName] = repository
-				break
-			}
+		}
+		if !repository.Loaded() {
+			_ = repository.Close()
+			r.Errorf("Repository %s initialization timeout", repName)
+			_ = c.AbortWithError(http.StatusInternalServerError, fmt.Errorf("repository %s initialization timeout", repName))
+			return
+		}
+		r.Infof("Repository %s initialized", repName)
+		// a concurrent request for the same name may have finished first; keep
+		// whichever landed in the map and close the loser
+		if existing, stored := r.appContext.repositories.addIfAbsent(repName, repository); !stored {
+			_ = repository.Close()
+			repository = existing
 		}
 	}
 	var ifModifiedSince time.Time
@@ -109,6 +115,15 @@ func (r *Router) RepositoryHandler(c *gin.Context) {
 		if err != nil {
 			fmt.Println("Error parsing If-Modified-Since header:", err)
 		}
+	}
+	// Repositories wait for their datasource instead of killing the process, so
+	// one can be alive but never loaded - GetData is nil until the first load.
+	// Say so rather than dereference it, and let the consumer retry.
+	data := repository.GetData()
+	if data == nil {
+		r.Errorf("Repository %s is not loaded yet", repName)
+		c.AbortWithStatusJSON(http.StatusServiceUnavailable, gin.H{"error": fmt.Sprintf("repository %s is not loaded yet", repName)})
+		return
 	}
 	lastModified := repository.GetLastModified()
 
@@ -121,7 +136,7 @@ func (r *Router) RepositoryHandler(c *gin.Context) {
 		c.Header("Last-Modified", lastModified.Format(http.TimeFormat))
 	}
 	c.Writer.Header().Set("Content-Type", "application/json")
-	_, _ = c.Writer.Write(*repository.GetData())
+	_, _ = c.Writer.Write(*data)
 }
 
 func (r *Router) ScriptHandler(c *gin.Context) {
@@ -133,9 +148,15 @@ func (r *Router) ScriptHandler(c *gin.Context) {
 		c.Status(http.StatusNotModified)
 		return
 	}
+	script := r.appContext.pScript.GetData()
+	if script == nil {
+		r.Errorf("p.js is not loaded yet")
+		c.AbortWithStatusJSON(http.StatusServiceUnavailable, gin.H{"error": "p.js is not loaded yet"})
+		return
+	}
 	if etag != "" {
 		c.Header("ETag", etag)
 	}
 	c.Writer.Header().Set("Content-Type", "application/javascript")
-	_, _ = c.Writer.Write(*r.appContext.pScript.GetData())
+	_, _ = c.Writer.Write(*script)
 }

@@ -25,6 +25,22 @@ type RepositoryData[D any] interface {
 	Store(closer io.Writer) error
 }
 
+// NoDataPolicy decides what a repository does when it has no data at all: the
+// datasource is unreachable on a cold start and there is no usable cached copy.
+type NoDataPolicy int
+
+const (
+	// ExitOnNoData aborts the process. For services that would otherwise start
+	// serving traffic against empty configuration - an ingest that answers with
+	// an empty stream map rejects every event, which is worse than being down.
+	ExitOnNoData NoDataPolicy = iota
+	// WaitForData keeps retrying on the refresh ticker until the data appears.
+	// Loaded() stays false until then, so a consumer picking this MUST gate on
+	// it - both to keep itself out of the load balancer and to avoid reading
+	// data that is not there yet (GetData returns nil before the first load).
+	WaitForData
+)
+
 type AbstractRepository[T any] struct {
 	Service
 	changesChan chan bool
@@ -37,13 +53,14 @@ type AbstractRepository[T any] struct {
 	data             RepositoryData[T]
 	lastSuccess      atomic.Pointer[time.Time]
 	tag              atomic.Pointer[any]
+	noDataPolicy     NoDataPolicy
 	closed           chan struct{}
 }
 
 // RepositoryDataLoader loads data from external source. tag can be used for etag or last modified handling
 type RepositoryDataLoader func(tag any) (reader io.ReadCloser, newTag any, modified bool, err error)
 
-func NewAbstractRepository[T any](id string, emptyData RepositoryData[T], source RepositoryDataLoader, attempts int, refreshPeriodSec int, cacheDir string) *AbstractRepository[T] {
+func NewAbstractRepository[T any](id string, emptyData RepositoryData[T], source RepositoryDataLoader, attempts int, refreshPeriodSec int, cacheDir string, noDataPolicy NoDataPolicy) *AbstractRepository[T] {
 	base := NewServiceBase(id)
 	if attempts <= 0 {
 		attempts = 1
@@ -56,31 +73,46 @@ func NewAbstractRepository[T any](id string, emptyData RepositoryData[T], source
 		dataSource:       source,
 		attempts:         attempts,
 		data:             emptyData,
+		noDataPolicy:     noDataPolicy,
 		closed:           make(chan struct{}),
 	}
 	return r
 }
 
+// noDataf reports that the repository has no usable data yet. Under ExitOnNoData
+// it aborts the process; under WaitForData it logs and returns, leaving Loaded()
+// false so the refresh ticker keeps trying until the datasource comes back.
+//
+// Only reached after a refresh has already failed, so every case it reports is
+// genuinely abnormal - a missing cache file on its own is not an error.
+func (r *AbstractRepository[T]) noDataf(format string, a ...any) {
+	if r.noDataPolicy == WaitForData {
+		r.Errorf(format+" Repository is not loaded, waiting for it to appear...", a...)
+		return
+	}
+	r.Fatalf(format+"\nCannot serve without repository. Exitting...", a...)
+}
+
 func (r *AbstractRepository[T]) loadCached() {
 	file, err := os.Open(path.Join(r.cacheDir, r.ID))
 	if err != nil {
-		r.Fatalf("Error opening cached repository: %v\nCannot serve without repository. Exitting...", err)
+		r.noDataf("Error opening cached repository: %v.", err)
 		return
 	}
 	defer file.Close()
 	stat, err := file.Stat()
 	if err != nil {
-		r.Fatalf("Error getting cached repository info: %v\nCannot serve without repository. Exitting...", err)
+		r.noDataf("Error getting cached repository info: %v.", err)
 		return
 	}
 	fileSize := stat.Size()
 	if fileSize == 0 {
-		r.Fatalf("Cached repository is empty\nCannot serve without repository. Exitting...")
+		r.noDataf("Cached repository is empty.")
 		return
 	}
 	err = r.data.Init(file, nil)
 	if err != nil {
-		r.Fatalf("Error init from cached repository: %v\nCannot serve without repository. Exitting...", err)
+		r.noDataf("Error init from cached repository: %v.", err)
 		return
 	}
 	r.inited.Store(true)
@@ -123,7 +155,7 @@ func (r *AbstractRepository[T]) refresh(notify bool) {
 				if r.cacheDir != "" {
 					r.loadCached()
 				} else {
-					r.Fatalf("Cannot load cached repository. No CACHE_DIR is set. Cannot serve without repository. Exitting...")
+					r.noDataf("Cannot load cached repository: no CACHE_DIR is set.")
 				}
 			}
 		} else {

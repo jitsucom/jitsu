@@ -83,7 +83,7 @@ type HTTPConfigurationSource struct {
 }
 
 func NewHTTPConfigurationSource(appconfig *Config) *HTTPConfigurationSource {
-	rep := appbase.NewHTTPRepository[Destinations]("bulker-connections", appconfig.ConfigSource, appconfig.ConfigSourceHTTPAuthToken, appbase.HTTPTagLastModified, &DestinationsRepositoryData{}, 1, appconfig.ConfigRefreshPeriodSec, appconfig.CacheDir)
+	rep := appbase.NewHTTPRepository[Destinations]("bulker-connections", appconfig.ConfigSource, appconfig.ConfigSourceHTTPAuthToken, appbase.HTTPTagLastModified, &DestinationsRepositoryData{}, 1, appconfig.ConfigRefreshPeriodSec, appconfig.CacheDir, appbase.ExitOnNoData)
 	return &HTTPConfigurationSource{rep}
 }
 

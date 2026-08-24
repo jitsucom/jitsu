@@ -8,6 +8,7 @@ import (
 	"io"
 	"net/http"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"time"
 )
@@ -16,7 +17,58 @@ type Context struct {
 	config       *Config
 	server       *http.Server
 	pScript      appbase.Repository[[]byte]
-	repositories map[string]appbase.Repository[[]byte]
+	repositories *repositories
+}
+
+// repositories is a map that is safe for concurrent use. RepositoryHandler adds
+// lazily discovered repositories from request goroutines while /health ranges
+// over them, and Go aborts the process on a concurrent map read and write.
+type repositories struct {
+	mu     sync.RWMutex
+	byName map[string]appbase.Repository[[]byte]
+}
+
+func newRepositories() *repositories {
+	return &repositories{byName: map[string]appbase.Repository[[]byte]{}}
+}
+
+func (r *repositories) add(name string, rep appbase.Repository[[]byte]) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.byName[name] = rep
+}
+
+func (r *repositories) get(name string) (appbase.Repository[[]byte], bool) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	rep, ok := r.byName[name]
+	return rep, ok
+}
+
+// addIfAbsent returns the repository registered under name afterwards, and
+// whether rep was the one registered. Two requests for the same unknown
+// repository each build their own; the loser must be closed rather than left
+// refreshing forever against nothing.
+func (r *repositories) addIfAbsent(name string, rep appbase.Repository[[]byte]) (appbase.Repository[[]byte], bool) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if existing, ok := r.byName[name]; ok {
+		return existing, false
+	}
+	r.byName[name] = rep
+	return rep, true
+}
+
+// snapshot copies the map so callers can range over it without holding the lock
+// (and so /health reports one consistent view).
+func (r *repositories) snapshot() map[string]appbase.Repository[[]byte] {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	out := make(map[string]appbase.Repository[[]byte], len(r.byName))
+	for name, rep := range r.byName {
+		out[name] = rep
+	}
+	return out
 }
 
 type RawRepositoryData struct {
@@ -61,14 +113,12 @@ func (a *Context) InitContext(settings *appbase.AppSettings) error {
 	refreshPeriodSec := a.config.RepositoryRefreshPeriodSec
 	cacheDir := a.config.CacheDir
 
-	a.pScript = appbase.NewHTTPRepository[[]byte]("p.js", a.config.ScriptOrigin, "", appbase.HTTPTagETag, &RawRepositoryData{}, 5, 60, cacheDir)
+	a.pScript = appbase.NewHTTPRepository[[]byte]("p.js", a.config.ScriptOrigin, "", appbase.HTTPTagETag, &RawRepositoryData{}, 5, 60, cacheDir, appbase.WaitForData)
 	reps := a.config.Repositories
-	a.repositories = map[string]appbase.Repository[[]byte]{
-		"p.js": a.pScript,
-	}
+	a.repositories = newRepositories()
+	a.repositories.add("p.js", a.pScript)
 	for _, rep := range strings.Split(reps, ",") {
-		a.repositories[rep] = appbase.NewHTTPRepository[[]byte](rep, baseUrl+"/"+rep, token, appbase.HTTPTagLastModified, &RawRepositoryData{validateJSON: true}, 2, refreshPeriodSec, cacheDir)
-
+		a.repositories.add(rep, appbase.NewHTTPRepository[[]byte](rep, baseUrl+"/"+rep, token, appbase.HTTPTagLastModified, &RawRepositoryData{validateJSON: true}, 2, refreshPeriodSec, cacheDir, appbase.WaitForData))
 	}
 	router := NewRouter(a)
 	a.server = &http.Server{
@@ -82,7 +132,7 @@ func (a *Context) InitContext(settings *appbase.AppSettings) error {
 }
 
 func (a *Context) Cleanup() error {
-	for _, rep := range a.repositories {
+	for _, rep := range a.repositories.snapshot() {
 		_ = rep.Close()
 	}
 	return nil

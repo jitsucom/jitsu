@@ -158,7 +158,7 @@ func (s *StreamsRepositoryData) Store(writer io.Writer) error {
 }
 
 func NewStreamsRepository(url, token string, refreshPeriodSec int, cacheDir string) appbase.Repository[Streams] {
-	return appbase.NewHTTPRepository[Streams]("streams-with-destinations", url, token, appbase.HTTPTagLastModified, &StreamsRepositoryData{}, 1, refreshPeriodSec, cacheDir)
+	return appbase.NewHTTPRepository[Streams]("streams-with-destinations", url, token, appbase.HTTPTagLastModified, &StreamsRepositoryData{}, 1, refreshPeriodSec, cacheDir, appbase.ExitOnNoData)
 }
 
 type DataLayout string
