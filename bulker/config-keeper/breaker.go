@@ -1,12 +1,16 @@
 package main
 
 import (
+	"bytes"
+	"encoding/binary"
 	"encoding/json"
 	"fmt"
+	"hash"
 	"hash/fnv"
 	"io"
 	"os"
 	"path"
+	"sort"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -265,12 +269,13 @@ func (b *BreakerRepositoryData) Status() map[string]any {
 // purposes (they can neither trip nor suppress it); duplicate ids collapse to
 // the last occurrence.
 //
-// Hashing raw row bytes (not canonicalized JSON) is a deliberate trade-off: a
-// console deploy that changes row serialization (key order, materialized
-// defaults) without semantic changes reads as a mass change and trips the
-// breaker. That is the operator-confirmation case — such deploys are rare,
-// fleet-wide, and exactly when a human should be watching; canonicalizing
-// every row on every refresh isn't worth dodging that one confirmation
+// Rows are hashed CANONICALLY (object keys sorted, structure-tagged), not by
+// raw bytes: a console deploy that merely changes row serialization (key
+// order) must not read as a fleet-wide mass change. That exact false positive
+// tripped the breaker on every guarded repo the day it shipped (jitsu#1478's
+// zod parse reordering keys, 2026-08-24). Numbers hash by their literal (via
+// json.Number), so value precision is preserved; the producer is always the
+// console's JSON.stringify, so literal formatting is stable across refreshes.
 func hashRows(payload []byte) (hashes map[string]uint64, noId int, err error) {
 	var rows []json.RawMessage
 	if err = json.Unmarshal(payload, &rows); err != nil {
@@ -278,18 +283,73 @@ func hashRows(payload []byte) (hashes map[string]uint64, noId int, err error) {
 	}
 	hashes = make(map[string]uint64, len(rows))
 	for _, row := range rows {
-		var idHolder struct {
-			Id string `json:"id"`
+		dec := json.NewDecoder(bytes.NewReader(row))
+		dec.UseNumber()
+		var obj map[string]any
+		if err := dec.Decode(&obj); err != nil {
+			noId++
+			continue
 		}
-		if err := json.Unmarshal(row, &idHolder); err != nil || idHolder.Id == "" {
+		id, _ := obj["id"].(string)
+		if id == "" {
 			noId++
 			continue
 		}
 		h := fnv.New64a()
-		_, _ = h.Write(row)
-		hashes[idHolder.Id] = h.Sum64()
+		writeCanonical(h, obj)
+		hashes[id] = h.Sum64()
 	}
 	return hashes, noId, nil
+}
+
+// writeCanonical feeds a decoded JSON value into the hasher in a
+// deterministic, structure-tagged form: object keys sorted, strings
+// length-prefixed (so {"a":"bc"} and {"ab":"c"} cannot collide), values
+// tagged by type.
+func writeCanonical(h hash.Hash64, v any) {
+	switch t := v.(type) {
+	case map[string]any:
+		_, _ = h.Write([]byte{'{'})
+		keys := make([]string, 0, len(t))
+		for k := range t {
+			keys = append(keys, k)
+		}
+		sort.Strings(keys)
+		for _, k := range keys {
+			writeCanonicalString(h, k)
+			_, _ = h.Write([]byte{':'})
+			writeCanonical(h, t[k])
+		}
+		_, _ = h.Write([]byte{'}'})
+	case []any:
+		_, _ = h.Write([]byte{'['})
+		for _, e := range t {
+			writeCanonical(h, e)
+			_, _ = h.Write([]byte{','})
+		}
+		_, _ = h.Write([]byte{']'})
+	case string:
+		_, _ = h.Write([]byte{'s'})
+		writeCanonicalString(h, t)
+	case json.Number:
+		_, _ = h.Write([]byte{'#'})
+		writeCanonicalString(h, t.String())
+	case bool:
+		if t {
+			_, _ = h.Write([]byte{'T'})
+		} else {
+			_, _ = h.Write([]byte{'F'})
+		}
+	default: // nil
+		_, _ = h.Write([]byte{'N'})
+	}
+}
+
+func writeCanonicalString(h hash.Hash64, s string) {
+	var lenBuf [8]byte
+	binary.LittleEndian.PutUint64(lenBuf[:], uint64(len(s)))
+	_, _ = h.Write(lenBuf[:])
+	_, _ = h.Write([]byte(s))
 }
 
 // diffRows counts rows present in both generations (common) and how many of
