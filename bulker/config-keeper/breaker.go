@@ -316,6 +316,10 @@ func writeCanonical(h hash.Hash64, v any) {
 		}
 		sort.Strings(keys)
 		for _, k := range keys {
+			// separator makes the encoding uniquely decodable: without it the
+			// object-close '}' can collide with the first byte of a key's
+			// length prefix (reviewer-constructed collision, pathological keys)
+			_, _ = h.Write([]byte{','})
 			writeCanonicalString(h, k)
 			_, _ = h.Write([]byte{':'})
 			writeCanonical(h, t[k])
@@ -349,7 +353,7 @@ func writeCanonicalString(h hash.Hash64, s string) {
 	var lenBuf [8]byte
 	binary.LittleEndian.PutUint64(lenBuf[:], uint64(len(s)))
 	_, _ = h.Write(lenBuf[:])
-	_, _ = h.Write([]byte(s))
+	_, _ = io.WriteString(h, s)
 }
 
 // diffRows counts rows present in both generations (common) and how many of

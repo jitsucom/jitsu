@@ -356,6 +356,11 @@ func TestBreakerSurvivesKeyReorder(t *testing.T) {
 	err := b.Init(strings.NewReader(changed), time.Now())
 	require.Error(t, err)
 	require.True(t, b.Held())
+	// a reordered rendering of the known-good payload clears the held state:
+	// lastRejected short-circuits on bytes, so this exercises the full
+	// canonical re-hash path
+	require.NoError(t, breakerInitNetwork(b, "["+strings.Join(v1, ",")+"]"))
+	require.False(t, b.Held())
 }
 
 // Canonical hashing must still distinguish genuinely different values that
@@ -374,4 +379,10 @@ func TestCanonicalHashDistinguishesValues(t *testing.T) {
 	require.NotEqual(t, h(`null`), h(`0`))
 	require.NotEqual(t, h(`9007199254740993`), h(`9007199254740992`)) // beyond float64 integer precision
 	require.Equal(t, h(`{"a":1,"b":2}`), h(`{"b":2,"a":1}`))
+	// escape style is normalized by the decoder — a serializer switching
+	// escaping must not read as a change
+	require.Equal(t, h(`"\u0041"`), h(`"A"`))
+	// number literals are compared verbatim (single stable producer; the
+	// failure mode of a literal-format switch is a trip, not a miss)
+	require.NotEqual(t, h(`1`), h(`1.0`))
 }
