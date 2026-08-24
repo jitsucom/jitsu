@@ -31,7 +31,7 @@ func NewRouter(appContext *Context) *Router {
 	// Bearer-token protected like every non-exempt route
 	engine.POST("/breaker/:repository/accept", func(c *gin.Context) {
 		repName := c.Param("repository")
-		breaker, ok := appContext.breakers[repName]
+		breaker, ok := appContext.getBreaker(repName)
 		if !ok {
 			c.JSON(http.StatusNotFound, gin.H{"error": fmt.Sprintf("no circuit breaker for repository %s", repName)})
 			return
@@ -54,7 +54,7 @@ func NewRouter(appContext *Context) *Router {
 		for _, rep := range strings.Split(reps, ",") {
 			// repositories are stored under trimmed names (see InitContext)
 			rep = strings.TrimSpace(rep)
-			repository, ok := appContext.repositories[rep]
+			repository, ok := appContext.getRepository(rep)
 			if !ok {
 				healthy = false
 				repStatuses[rep] = map[string]any{"error": "not_found"}
@@ -67,7 +67,7 @@ func NewRouter(appContext *Context) *Router {
 			// JITSU-182) is deliberately NOT unhealthy: it serves good data,
 			// and failing liveness would just restart pods into the same held
 			// state. The held flag below + the "System error:" log are the signal
-			if breaker, guarded := appContext.breakers[rep]; guarded && breaker.Held() {
+			if breaker, guarded := appContext.getBreaker(rep); guarded && breaker.Held() {
 				continue
 			}
 			lastSuccess := repository.LastSuccess()
@@ -75,13 +75,13 @@ func NewRouter(appContext *Context) *Router {
 				healthy = false
 			}
 		}
-		for name, repository := range appContext.repositories {
+		for name, repository := range appContext.repositorySnapshot() {
 			lastSuccess := repository.LastSuccess()
 			status := map[string]any{
 				"loaded":       repository.Loaded(),
 				"last_success": repository.LastSuccess(),
 			}
-			if breaker, guarded := appContext.breakers[name]; guarded {
+			if breaker, guarded := appContext.getBreaker(name); guarded {
 				if held := breaker.Status(); held != nil {
 					status["breaker"] = held
 					repStatuses[name] = status
@@ -110,23 +110,24 @@ func NewRouter(appContext *Context) *Router {
 }
 func (r *Router) RepositoryHandler(c *gin.Context) {
 	repName := c.Param("repository")
-	repository, ok := r.appContext.repositories[repName]
+	repository, ok := r.appContext.getRepository(repName)
 	if !ok {
 		r.Infof("Repository %s not found, initializing", repName)
 		// lazily created repositories get breaker protection too when their
-		// name is in BREAKER_REPOSITORIES; they are not registered in
-		// appContext.breakers (populated at startup only — mutating it here
-		// would race concurrent handlers), so /health and the accept endpoint
-		// don't cover them: env-level BREAKER_* switches are the override path
+		// name is in BREAKER_REPOSITORIES; registerRepository adds the breaker
+		// to appContext.breakers so /health and the accept endpoint cover
+		// them like statically configured repos
+		var breaker *BreakerRepositoryData
 		var data appbase.RepositoryData[[]byte] = &RawRepositoryData{validateJSON: true}
 		if r.appContext.config.BreakerEnabled {
 			for _, guarded := range strings.Split(r.appContext.config.BreakerRepositories, ",") {
 				if strings.TrimSpace(guarded) == repName {
-					data = NewBreakerRepositoryData(repName, BreakerConfig{
+					breaker = NewBreakerRepositoryData(repName, BreakerConfig{
 						MaxChangePercent: r.appContext.config.BreakerMaxChangePercent,
 						MaxRemovePercent: r.appContext.config.BreakerMaxRemovePercent,
 						MinChangedRows:   r.appContext.config.BreakerMinChangedRows,
 					}, r.appContext.config.CacheDir)
+					data = breaker
 					break
 				}
 			}
@@ -139,7 +140,7 @@ func (r *Router) RepositoryHandler(c *gin.Context) {
 		case <-ticker.C:
 			if repository.Loaded() {
 				r.Infof("Repository %s initialized", repName)
-				r.appContext.repositories[repName] = repository
+				repository = r.appContext.registerRepository(repName, repository, breaker)
 				break
 			}
 		case <-initTimeout:
@@ -150,7 +151,7 @@ func (r *Router) RepositoryHandler(c *gin.Context) {
 				return
 			} else {
 				r.Infof("Repository %s initialized", repName)
-				r.appContext.repositories[repName] = repository
+				repository = r.appContext.registerRepository(repName, repository, breaker)
 				break
 			}
 		}
