@@ -336,3 +336,53 @@ func TestBreakerRejectionsFireSystemError(t *testing.T) {
 	require.Contains(t, errs[0], "tripped")
 	require.Contains(t, errs[0], "/breaker/")
 }
+
+// A serializer change that only reorders JSON keys (jitsu#1478's zod parse,
+// 2026-08-24: __debug moved last in every row → 100% "changed" → fleet-wide
+// trip) must be invisible to the breaker.
+func TestBreakerSurvivesKeyReorder(t *testing.T) {
+	b := testBreaker()
+	var v1, v2 []string
+	for i := 0; i < 100; i++ {
+		// same content, different key order at both root and nested levels
+		v1 = append(v1, fmt.Sprintf(`{"__debug":{"x":1,"y":"z"},"id":"conn%03d","options":{"mode":"batch","deduplicate":true},"n":42}`, i))
+		v2 = append(v2, fmt.Sprintf(`{"id":"conn%03d","options":{"deduplicate":true,"mode":"batch"},"n":42,"__debug":{"y":"z","x":1}}`, i))
+	}
+	require.NoError(t, breakerInit(b, "["+strings.Join(v1, ",")+"]"))
+	require.NoError(t, breakerInitNetwork(b, "["+strings.Join(v2, ",")+"]"))
+	require.False(t, b.Held())
+	// and a real value change under the reordered layout still counts
+	changed := strings.ReplaceAll("["+strings.Join(v2, ",")+"]", `"mode":"batch"`, `"mode":"stream"`)
+	err := b.Init(strings.NewReader(changed), time.Now())
+	require.Error(t, err)
+	require.True(t, b.Held())
+	// a reordered rendering of the known-good payload clears the held state:
+	// lastRejected short-circuits on bytes, so this exercises the full
+	// canonical re-hash path
+	require.NoError(t, breakerInitNetwork(b, "["+strings.Join(v1, ",")+"]"))
+	require.False(t, b.Held())
+}
+
+// Canonical hashing must still distinguish genuinely different values that
+// raw-byte hashing would also catch: strings vs numbers, ambiguous string
+// boundaries, number literals.
+func TestCanonicalHashDistinguishesValues(t *testing.T) {
+	h := func(s string) uint64 {
+		hashes, _, err := hashRows([]byte(fmt.Sprintf(`[{"id":"a","v":%s}]`, s)))
+		require.NoError(t, err)
+		return hashes["a"]
+	}
+	require.NotEqual(t, h(`"1"`), h(`1`))
+	require.NotEqual(t, h(`{"a":"bc"}`), h(`{"ab":"c"}`))
+	require.NotEqual(t, h(`[1,2]`), h(`[12]`))
+	require.NotEqual(t, h(`true`), h(`"true"`))
+	require.NotEqual(t, h(`null`), h(`0`))
+	require.NotEqual(t, h(`9007199254740993`), h(`9007199254740992`)) // beyond float64 integer precision
+	require.Equal(t, h(`{"a":1,"b":2}`), h(`{"b":2,"a":1}`))
+	// escape style is normalized by the decoder — a serializer switching
+	// escaping must not read as a change
+	require.Equal(t, h(`"\u0041"`), h(`"A"`))
+	// number literals are compared verbatim (single stable producer; the
+	// failure mode of a literal-format switch is a trip, not a miss)
+	require.NotEqual(t, h(`1`), h(`1.0`))
+}
