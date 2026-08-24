@@ -3,6 +3,12 @@ import { db } from "../../../../../lib/server/db";
 import { getErrorMessage, getLog, hash as juavaHash, isTruish, requireDefined, rpc } from "juava";
 import { z } from "zod";
 import { getCoreDestinationTypeNonStrict } from "../../../../../lib/schema/destinations";
+import {
+  BackupConnectionRow,
+  BulkerConnectionRow,
+  RotorConnectionRow,
+  RotorDestinationRow,
+} from "../../../../../lib/schema/export-contracts";
 import { getEeConnection, isEEAvailable, serviceTokenHeaders } from "../../../../../lib/server/ee";
 import omit from "lodash/omit";
 import { NextApiRequest } from "next";
@@ -134,6 +140,14 @@ function deepPassthrough(schema: z.ZodTypeAny): z.ZodTypeAny {
 
 const linkDataSchemaCache = new Map<string, z.ZodTypeAny>();
 function parseLinkData(destinationType: string | undefined, data: unknown): LinkDataParsed {
+  // A non-object root is corrupt storage, not options somebody chose: every
+  // fallback below would collapse it to {} and the connection would ship with
+  // effectively blank options — the JITSU-158 incident shape. Throw instead so
+  // each export's per-row catch skips the row and pages via the "System
+  // error:" marker. Verified against prod (2026-08-24): zero such rows exist.
+  if (data != null && (typeof data !== "object" || Array.isArray(data))) {
+    throw new Error(`connection options root must be an object, got ${Array.isArray(data) ? "array" : typeof data}`);
+  }
   const coreType = getCoreDestinationTypeNonStrict(destinationType);
   if (coreType) {
     let schema = linkDataSchemaCache.get(coreType.id);
@@ -438,17 +452,22 @@ async function exportBulkerConnections(writer: Writer) {
           //   // inside batch of two rows having the same messageId(pk) will be chosen the one with the highest timestampColumn value
           //   data.discriminatorField = [data.timestampColumn];
           // }
-          payload = JSON.stringify({
-            __debug: {
-              workspace: { id: workspace.id, name: workspace.slug },
-            },
-            id: id,
-            workspaceId: workspace.id,
-            type: destinationType,
-            options: omit(data, "clickhouseSettings"),
-            updatedAt: dateMax(updatedAt, to.updatedAt),
-            credentials: credentials,
-          });
+          // Output contract (JITSU-181, postmortem item 5): a row violating the
+          // consumer contract throws here and is skipped-and-logged by the
+          // catch below — never shipped malformed to consumers.
+          payload = JSON.stringify(
+            BulkerConnectionRow.parse({
+              __debug: {
+                workspace: { id: workspace.id, name: workspace.slug },
+              },
+              id: id,
+              workspaceId: workspace.id,
+              type: destinationType,
+              options: omit(data, "clickhouseSettings"),
+              updatedAt: dateMax(updatedAt, to.updatedAt),
+              credentials: credentials,
+            })
+          );
         }
       } catch (e) {
         // Only entity materialization/serialization is guarded: one malformed row
@@ -491,21 +510,23 @@ async function exportBulkerConnections(writer: Writer) {
         const destinationType = parsedConfig.destinationType;
         const coreDestinationType = getCoreDestinationTypeNonStrict(destinationType);
         if (coreDestinationType?.usesBulker || coreDestinationType?.hybrid) {
-          payload = JSON.stringify({
-            __debug: {
-              workspace: { id: workspace.id, name: workspace.slug },
-            },
-            id: id,
-            workspaceId: workspace.id,
-            type: destinationType,
-            options: {
-              mode: "batch",
-              frequency: 1,
-              deduplicate: true,
-            },
-            updatedAt: updatedAt,
-            credentials: omit(parsedConfig, "destinationType", "type", "name"),
-          });
+          payload = JSON.stringify(
+            BulkerConnectionRow.parse({
+              __debug: {
+                workspace: { id: workspace.id, name: workspace.slug },
+              },
+              id: id,
+              workspaceId: workspace.id,
+              type: destinationType,
+              options: {
+                mode: "batch",
+                frequency: 1,
+                deduplicate: true,
+              },
+              updatedAt: updatedAt,
+              credentials: omit(parsedConfig, "destinationType", "type", "name"),
+            })
+          );
         }
       } catch (e) {
         // Only entity materialization/serialization is guarded: one malformed row
@@ -528,18 +549,35 @@ async function exportBulkerConnections(writer: Writer) {
     }
   }
   for (const conn of otlpConnections) {
+    let payload: string | undefined;
+    try {
+      payload = JSON.stringify(BulkerConnectionRow.parse(conn));
+    } catch (e) {
+      logExportEntityError("bulker-connections", conn.id, e);
+      continue;
+    }
     if (needComma) {
       writer.write(",");
     }
-    writer.write(JSON.stringify(conn));
+    writer.write(payload);
     needComma = true;
   }
 
   for (const conn of backupConnections) {
+    // prebuilt by ee-api — the contract vouches only for the identity field
+    let payload: string | undefined;
+    try {
+      payload = JSON.stringify(BackupConnectionRow.parse(conn));
+    } catch (e) {
+      // do not stringify the row here: a raw ee-api s3-connection carries
+      // credential material that must not reach the alerting log stream
+      logExportEntityError("bulker-connections", String((conn as { id?: unknown })?.id ?? "backup:unknown-id"), e);
+      continue;
+    }
     if (needComma) {
       writer.write(",");
     }
-    writer.write(JSON.stringify(conn));
+    writer.write(payload);
     needComma = true;
   }
 
@@ -602,32 +640,36 @@ async function exportRotorConnections(writer: Writer) {
           getLog().atError().log(`Unknown destination type: ${destinationType} for connection ${id}`);
         }
         const credentials = omit(asRecord(to.config), "destinationType", "type", "name");
-        payload = JSON.stringify({
-          __debug: {
-            workspace: { id: workspace.id, name: workspace.slug },
-          },
-          id: id,
-          type: destinationType,
-          workspaceId: workspace.id,
-          streamId: from.id,
-          streamName: ObjectConfig.parse(from.config).name,
-          destinationId: to.id,
-          usesBulker: !!coreDestinationType?.usesBulker,
-          options: {
-            ...data,
-            ...((workspace.featuresEnabled ?? []).includes("nofetchlogs") &&
-            data.functionsEnv?.FETCH_LOGS_ENABLED !== "true"
-              ? { fetchLogLevel: "debug" }
-              : {}),
-            ...((workspace.featuresEnabled ?? []).includes("fastFunctions") ? { fastFunctions: true } : {}),
-            functionsServer: selectFunctionsServer(functionsServers, workspace.id, id, functionsClassFunc(workspace)),
-            workspaceUpdatedAt: workspace.updatedAt,
-          },
-          optionsHash: hashValue(data),
-          updatedAt: dateMax(updatedAt, to.updatedAt),
-          credentials: credentials,
-          credentialsHash: hashValue(credentials),
-        });
+        // Output contract (JITSU-181): a violating row throws and is
+        // skipped-and-logged by the catch below — never shipped malformed.
+        payload = JSON.stringify(
+          RotorConnectionRow.parse({
+            __debug: {
+              workspace: { id: workspace.id, name: workspace.slug },
+            },
+            id: id,
+            type: destinationType,
+            workspaceId: workspace.id,
+            streamId: from.id,
+            streamName: ObjectConfig.parse(from.config).name,
+            destinationId: to.id,
+            usesBulker: !!coreDestinationType?.usesBulker,
+            options: {
+              ...data,
+              ...((workspace.featuresEnabled ?? []).includes("nofetchlogs") &&
+              data.functionsEnv?.FETCH_LOGS_ENABLED !== "true"
+                ? { fetchLogLevel: "debug" }
+                : {}),
+              ...((workspace.featuresEnabled ?? []).includes("fastFunctions") ? { fastFunctions: true } : {}),
+              functionsServer: selectFunctionsServer(functionsServers, workspace.id, id, functionsClassFunc(workspace)),
+              workspaceUpdatedAt: workspace.updatedAt,
+            },
+            optionsHash: hashValue(data),
+            updatedAt: dateMax(updatedAt, to.updatedAt),
+            credentials: credentials,
+            credentialsHash: hashValue(credentials),
+          })
+        );
       } catch (e) {
         // Only entity materialization/serialization is guarded: one malformed row
         // must not take down the whole export. Writes happen OUTSIDE the try so a
@@ -670,18 +712,20 @@ async function exportRotorConnections(writer: Writer) {
         const coreDestinationType = getCoreDestinationTypeNonStrict(destinationType);
         if (coreDestinationType?.usesBulker || coreDestinationType?.hybrid) {
           const credentials = omit(parsedConfig, "destinationType", "type", "name");
-          payload = JSON.stringify({
-            id: id,
-            type: destinationType,
-            workspaceId: workspace.id,
-            streamId: id,
-            streamName: parsedConfig.name,
-            destinationId: id,
-            usesBulker: !!coreDestinationType?.usesBulker,
-            updatedAt: updatedAt,
-            credentials: credentials,
-            credentialsHash: hashValue(credentials),
-          });
+          payload = JSON.stringify(
+            RotorDestinationRow.parse({
+              id: id,
+              type: destinationType,
+              workspaceId: workspace.id,
+              streamId: id,
+              streamName: parsedConfig.name,
+              destinationId: id,
+              usesBulker: !!coreDestinationType?.usesBulker,
+              updatedAt: updatedAt,
+              credentials: credentials,
+              credentialsHash: hashValue(credentials),
+            })
+          );
         }
       } catch (e) {
         // Only entity materialization/serialization is guarded: one malformed row
@@ -730,23 +774,25 @@ async function exportRotorConnections(writer: Writer) {
         ),
         workspaceUpdatedAt: pb.workspace.updatedAt,
       };
-      payload = JSON.stringify({
-        __debug: {
-          workspace: { id: pb.workspaceId },
-        },
-        id: pb.id,
-        type: "profiles",
-        workspaceId: pb.workspaceId,
-        streamId: pb.id,
-        streamName: "profiles",
-        destinationId: pb.destinationId,
-        usesBulker: false,
-        options: opts,
-        optionsHash: hashValue(opts),
-        updatedAt: pb.updatedAt,
-        credentials: cred,
-        credentialsHash: hashValue(cred),
-      });
+      payload = JSON.stringify(
+        RotorConnectionRow.parse({
+          __debug: {
+            workspace: { id: pb.workspaceId },
+          },
+          id: pb.id,
+          type: "profiles",
+          workspaceId: pb.workspaceId,
+          streamId: pb.id,
+          streamName: "profiles",
+          destinationId: pb.destinationId,
+          usesBulker: false,
+          options: opts,
+          optionsHash: hashValue(opts),
+          updatedAt: pb.updatedAt,
+          credentials: cred,
+          credentialsHash: hashValue(cred),
+        })
+      );
     } catch (e) {
       // Only entity materialization/serialization is guarded: one malformed row
       // must not take down the whole export. Writes happen OUTSIDE the try so a
@@ -949,9 +995,17 @@ async function exportStreamsWithDestinations(writer: Writer) {
           destinations: [
             ...obj.toLinks
               .filter(l => !l.deleted && l.type === "push" && !l.to.deleted)
-              .map(l => {
-                const toConfig = ObjectConfig.parse(l.to.config);
-                return { l, toConfig, data: parseLinkData(toConfig.destinationType, l.data) };
+              .flatMap(l => {
+                // per-link guard: one corrupt link must drop only itself, not
+                // the whole stream row (ingest routes events by stream — a
+                // missing stream row would reject the site's traffic)
+                try {
+                  const toConfig = ObjectConfig.parse(l.to.config);
+                  return [{ l, toConfig, data: parseLinkData(toConfig.destinationType, l.data) }];
+                } catch (e) {
+                  logExportEntityError("streams-with-destinations", l.id, e);
+                  return [];
+                }
               })
               .filter(({ data }) => !data.disabled)
               .map(({ l, toConfig, data }) => ({
