@@ -136,23 +136,25 @@ func (r *Router) RepositoryHandler(c *gin.Context) {
 		initTimeout := time.After(time.Second * 60)
 		ticker := time.NewTicker(time.Second)
 		defer ticker.Stop()
-		select {
-		case <-ticker.C:
-			if repository.Loaded() {
+	waitLoop:
+		for {
+			select {
+			case <-ticker.C:
+				if repository.Loaded() {
+					r.Infof("Repository %s initialized", repName)
+					repository = r.appContext.registerRepository(repName, repository, breaker)
+					break waitLoop
+				}
+			case <-initTimeout:
+				if !repository.Loaded() {
+					_ = repository.Close()
+					r.Errorf("Repository %s initialization timeout", repName)
+					_ = c.AbortWithError(http.StatusInternalServerError, fmt.Errorf("Repository %s initialization timeout", repName))
+					return
+				}
 				r.Infof("Repository %s initialized", repName)
 				repository = r.appContext.registerRepository(repName, repository, breaker)
-				break
-			}
-		case <-initTimeout:
-			if !repository.Loaded() {
-				_ = repository.Close()
-				r.Errorf("Repository %s initialization timeout", repName)
-				_ = c.AbortWithError(http.StatusInternalServerError, fmt.Errorf("Repository %s initialization timeout", repName))
-				return
-			} else {
-				r.Infof("Repository %s initialized", repName)
-				repository = r.appContext.registerRepository(repName, repository, breaker)
-				break
+				break waitLoop
 			}
 		}
 	}
