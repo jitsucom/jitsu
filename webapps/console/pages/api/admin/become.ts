@@ -1,3 +1,7 @@
+/* eslint-disable @typescript-eslint/no-unsafe-assignment --
+ * Pre-existing implicit-`any` debt, exempted when the unsafe-any gate was
+ * introduced for pages/api/admin (JITSU-158 action item 3). Fix the `any`
+ * flows in this file, then remove this header - do not add new ones. */
 import { createRoute } from "../../../lib/api";
 import { z } from "zod";
 import { assertDefined, assertTrue, requireDefined } from "juava";

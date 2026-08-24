@@ -277,8 +277,8 @@ export function getCoreDestinationType(typeId: string): DestinationType {
   return destinationType;
 }
 
-export function getCoreDestinationTypeNonStrict(typeId: string): DestinationType | undefined {
-  return coreDestinationsMap[typeId];
+export function getCoreDestinationTypeNonStrict(typeId: string | undefined): DestinationType | undefined {
+  return typeId ? coreDestinationsMap[typeId] : undefined;
 }
 
 export const ClickhouseCredentials = z.object({
