@@ -13,10 +13,12 @@ const DateIsh = z.union([z.date(), z.string().min(1)]);
 const AnyRecord = z.record(z.unknown());
 
 // Post-jitsu#1441 a link row of a known destination type always materializes
-// the destination schema's defaults, and the generic fallback only ships
-// non-empty stored objects — so empty options can only mean options were lost
-// between the database and serialization (the 2026-07-30 incident shape),
-// never a legitimate row.
+// the destination schema's defaults, and corrupt (non-object) stored roots are
+// rejected upstream in parseLinkData — so empty options can only mean options
+// were lost between the database and serialization (the 2026-07-30 incident
+// shape), never a legitimate row. Note the guard bites mainly on bulker rows:
+// rotor rows always gain synthetic keys (functionsServer, workspaceUpdatedAt)
+// before validation, so for rotor it is a structural backstop only.
 const NonEmptyRecord = AnyRecord.refine(r => Object.keys(r).length > 0, {
   message: "options must not be empty",
 });
@@ -53,7 +55,10 @@ const RotorRowBase = z.object({
   // ConfigurationObject.config.name is optional in storage; JSON.stringify
   // drops the undefined key.
   streamName: z.string().optional(),
-  destinationId: z.string().min(1),
+  // nullish: ProfileBuilder.destinationId is nullable in the schema and the
+  // console UI supports clearing it — such rows shipped before the contract
+  // existed, and enforcing it must not change what ships
+  destinationId: z.string().nullish(),
   usesBulker: z.boolean(),
   updatedAt: DateIsh,
   credentials: AnyRecord,

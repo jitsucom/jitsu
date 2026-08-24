@@ -97,6 +97,19 @@ describe("admin config exports (JITSU-181)", () => {
     // clickhouse credential special-casing (link rows only) survives the
     // contract parse
     expect(full.credentials.loadAsJson).toBe(false);
+
+    // streams-with-destinations: the corrupt link drops only itself — the
+    // stream row survives with its healthy destinations, so ingest keeps
+    // routing the site's traffic
+    const streams = await runExport("streams-with-destinations");
+    const streamRow = streams.find(s => s.id === stream.id);
+    expect(streamRow).toBeDefined();
+    const connIds = streamRow.destinations.map((d: any) => d.connectionId);
+    expect(connIds).toContain(lFull.id);
+    expect(connIds).not.toContain(lCorrupt.id);
+    for (const d of streamRow.destinations) {
+      expect(Object.keys(d.options).length).toBeGreaterThan(0);
+    }
   });
 
   it("rotor-connections: link rows carry options+optionsHash, destination rows carry neither, all conform", async () => {
@@ -122,6 +135,15 @@ describe("admin config exports (JITSU-181)", () => {
         fromId: stream.id,
         toId: chDest.id,
         data: { mode: "stream", batchSize: 500, customExtra: "x" },
+      },
+    });
+    const corruptDest = await seedClickhouseDest(workspace.id, "d-corrupt-rotor");
+    const corruptLink = await prisma.configurationObjectLink.create({
+      data: {
+        workspaceId: workspace.id,
+        fromId: stream.id,
+        toId: corruptDest.id,
+        data: "not-an-object" as unknown as Prisma.InputJsonValue,
       },
     });
 
@@ -158,6 +180,10 @@ describe("admin config exports (JITSU-181)", () => {
     const webhookDestRow = rows.find(r => r.id === webhookDest.id && !("options" in r));
     expect(webhookDestRow).toBeDefined();
     expect(() => RotorDestinationRow.parse(webhookDestRow)).not.toThrow();
+
+    // a corrupt (non-object) stored root is rejected in parseLinkData and the
+    // row is skipped — rotor's synthetic option keys must not resurrect it
+    expect(byId.has(corruptLink.id)).toBe(false);
   });
 
   it("output contracts reject the JITSU-158 regression shape", () => {

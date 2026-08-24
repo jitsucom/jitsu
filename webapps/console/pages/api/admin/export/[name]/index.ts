@@ -140,6 +140,14 @@ function deepPassthrough(schema: z.ZodTypeAny): z.ZodTypeAny {
 
 const linkDataSchemaCache = new Map<string, z.ZodTypeAny>();
 function parseLinkData(destinationType: string | undefined, data: unknown): LinkDataParsed {
+  // A non-object root is corrupt storage, not options somebody chose: every
+  // fallback below would collapse it to {} and the connection would ship with
+  // effectively blank options — the JITSU-158 incident shape. Throw instead so
+  // each export's per-row catch skips the row and pages via the "System
+  // error:" marker. Verified against prod (2026-08-24): zero such rows exist.
+  if (data != null && (typeof data !== "object" || Array.isArray(data))) {
+    throw new Error(`connection options root must be an object, got ${Array.isArray(data) ? "array" : typeof data}`);
+  }
   const coreType = getCoreDestinationTypeNonStrict(destinationType);
   if (coreType) {
     let schema = linkDataSchemaCache.get(coreType.id);
@@ -561,7 +569,9 @@ async function exportBulkerConnections(writer: Writer) {
     try {
       payload = JSON.stringify(BackupConnectionRow.parse(conn));
     } catch (e) {
-      logExportEntityError("bulker-connections", JSON.stringify(conn).slice(0, 100), e);
+      // do not stringify the row here: a raw ee-api s3-connection carries
+      // credential material that must not reach the alerting log stream
+      logExportEntityError("bulker-connections", String((conn as { id?: unknown })?.id ?? "backup:unknown-id"), e);
       continue;
     }
     if (needComma) {
@@ -985,9 +995,17 @@ async function exportStreamsWithDestinations(writer: Writer) {
           destinations: [
             ...obj.toLinks
               .filter(l => !l.deleted && l.type === "push" && !l.to.deleted)
-              .map(l => {
-                const toConfig = ObjectConfig.parse(l.to.config);
-                return { l, toConfig, data: parseLinkData(toConfig.destinationType, l.data) };
+              .flatMap(l => {
+                // per-link guard: one corrupt link must drop only itself, not
+                // the whole stream row (ingest routes events by stream — a
+                // missing stream row would reject the site's traffic)
+                try {
+                  const toConfig = ObjectConfig.parse(l.to.config);
+                  return [{ l, toConfig, data: parseLinkData(toConfig.destinationType, l.data) }];
+                } catch (e) {
+                  logExportEntityError("streams-with-destinations", l.id, e);
+                  return [];
+                }
               })
               .filter(({ data }) => !data.disabled)
               .map(({ l, toConfig, data }) => ({
