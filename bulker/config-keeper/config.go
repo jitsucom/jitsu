@@ -13,6 +13,10 @@ type Config struct {
 	//Cache dir for repositories data
 	CacheDir string `mapstructure:"CACHE_DIR"`
 
+	// Prometheus /metrics is served on this port (scraped in-cluster). 9091
+	// matches the other bulker services' convention.
+	MetricsPort int `mapstructure:"METRICS_PORT" default:"9091"`
+
 	ScriptOrigin string `mapstructure:"SCRIPT_ORIGIN" default:"https://cdn.jsdelivr.net/npm/@jitsu/js@latest/dist/web/p.js.txt"`
 
 	RepositoryBaseURL          string `mapstructure:"REPOSITORY_BASE_URL"`

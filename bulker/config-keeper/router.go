@@ -118,7 +118,7 @@ func (r *Router) RepositoryHandler(c *gin.Context) {
 		// to appContext.breakers so /health and the accept endpoint cover
 		// them like statically configured repos
 		var breaker *BreakerRepositoryData
-		var data appbase.RepositoryData[[]byte] = &RawRepositoryData{validateJSON: true}
+		var data appbase.RepositoryData[[]byte] = &RawRepositoryData{name: repName, validateJSON: true}
 		if r.appContext.config.BreakerEnabled {
 			for _, guarded := range strings.Split(r.appContext.config.BreakerRepositories, ",") {
 				if strings.TrimSpace(guarded) == repName {
