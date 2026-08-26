@@ -15,9 +15,10 @@ import (
 )
 
 type Context struct {
-	config  *Config
-	server  *http.Server
-	pScript appbase.Repository[[]byte]
+	config        *Config
+	server        *http.Server
+	metricsServer *MetricsServer
+	pScript       appbase.Repository[[]byte]
 	// mu guards repositories and breakers: both are written by lazy
 	// initialization in RepositoryHandler while other handlers read them
 	mu           sync.RWMutex
@@ -71,6 +72,9 @@ func (a *Context) registerRepository(name string, repository appbase.Repository[
 }
 
 type RawRepositoryData struct {
+	// name labels the repository-rows metric; "" disables it (p.js, and the
+	// breaker's embedded raw, which emits the metric itself).
+	name string
 	// validateJSON rejects payloads that are not complete, valid JSON. A repository
 	// source that fails mid-stream can produce a truncated body with HTTP 200 —
 	// without this check such payload gets cached and served to every consumer.
@@ -87,6 +91,7 @@ func (r *RawRepositoryData) Init(reader io.Reader, tag any) error {
 		return fmt.Errorf("payload is not valid JSON (%d bytes) - keeping previous data", len(data))
 	}
 	r.data.Store(&data)
+	recordRepositoryRows(r.name, data)
 	return nil
 }
 
@@ -138,7 +143,7 @@ func (a *Context) InitContext(settings *appbase.AppSettings) error {
 		// (breakerRepos keys are trimmed too)
 		rep = strings.TrimSpace(rep)
 		// the breaker's row-level parse subsumes validateJSON for guarded repos
-		var data appbase.RepositoryData[[]byte] = &RawRepositoryData{validateJSON: true}
+		var data appbase.RepositoryData[[]byte] = &RawRepositoryData{name: rep, validateJSON: true}
 		if breakerRepos[rep] {
 			breaker := NewBreakerRepositoryData(rep, BreakerConfig{
 				MaxChangePercent: a.config.BreakerMaxChangePercent,
@@ -159,10 +164,14 @@ func (a *Context) InitContext(settings *appbase.AppSettings) error {
 		ReadHeaderTimeout: time.Second * 60,
 		IdleTimeout:       time.Second * 65,
 	}
+	a.metricsServer = NewMetricsServer(a.config.MetricsPort)
 	return nil
 }
 
 func (a *Context) Cleanup() error {
+	if a.metricsServer != nil {
+		_ = a.metricsServer.Stop()
+	}
 	for _, rep := range a.repositorySnapshot() {
 		_ = rep.Close()
 	}

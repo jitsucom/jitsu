@@ -118,6 +118,12 @@ func (r *Router) RepositoryHandler(c *gin.Context) {
 		// to appContext.breakers so /health and the accept endpoint cover
 		// them like statically configured repos
 		var breaker *BreakerRepositoryData
+		// No rows metric for lazily served repos: repName comes straight from
+		// the request path, so labelling the gauge with it would let any
+		// token-holder mint unbounded Prometheus series. Statically configured
+		// repos (InitContext) and breaker-guarded ones (bounded by
+		// BREAKER_REPOSITORIES) still emit; the repos that matter for baselines
+		// are all in the static REPOSITORIES set.
 		var data appbase.RepositoryData[[]byte] = &RawRepositoryData{validateJSON: true}
 		if r.appContext.config.BreakerEnabled {
 			for _, guarded := range strings.Split(r.appContext.config.BreakerRepositories, ",") {

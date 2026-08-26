@@ -77,10 +77,12 @@ type BreakerRepositoryData struct {
 
 func NewBreakerRepositoryData(name string, cfg BreakerConfig, cacheDir string) *BreakerRepositoryData {
 	b := &BreakerRepositoryData{name: name, cfg: cfg, now: time.Now}
+	setBreakerHeld(name, false)
 	if cacheDir != "" {
 		if data, err := os.ReadFile(path.Join(cacheDir, name)); err == nil {
 			if hashes, _, err := hashRows(data); err == nil {
 				b.baseline = hashes
+				recordRepositoryRows(name, data)
 				logging.Infof("[%s] repository circuit breaker baseline seeded from cache: %d rows", name, len(hashes))
 			}
 		}
@@ -147,6 +149,7 @@ func (b *BreakerRepositoryData) Init(reader io.Reader, tag any) error {
 				b.heldSince.Store(&now)
 			}
 			b.tripReason.Store(&reason)
+			setBreakerHeld(b.name, true)
 			b.alertLocked(transition, fmt.Sprintf("tripped, keeping last-known-good payload: %s. "+
 				"If this mass change is intended, confirm it with POST /breaker/%s/accept (per replica)", reason, b.name))
 			b.lastRejected = payloadHash
@@ -166,6 +169,7 @@ func (b *BreakerRepositoryData) Init(reader io.Reader, tag any) error {
 	// would 304-wedge the held state forever against a sane console
 	if tag == nil && b.held.Load() && b.raw.GetData() == nil && changed == 0 && common == len(hashes) {
 		b.raw.data.Store(&data)
+		recordRepositoryRows(b.name, data)
 		return nil
 	}
 	b.baseline = hashes
@@ -176,9 +180,11 @@ func (b *BreakerRepositoryData) Init(reader io.Reader, tag any) error {
 	if b.held.Swap(false) {
 		b.heldSince.Store(nil)
 		b.tripReason.Store(nil)
+		setBreakerHeld(b.name, false)
 		logging.Infof("[%s] repository circuit breaker recovered: new generation accepted", b.name)
 	}
 	b.raw.data.Store(&data)
+	recordRepositoryRows(b.name, data)
 	return nil
 }
 
