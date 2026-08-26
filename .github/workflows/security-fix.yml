@@ -475,7 +475,7 @@ jobs:
           openai-api-key: ${{ secrets.OPENAI_API_KEY }}
           prompt-file: .github/codex/security-fix.prompt.md
           output-file: .github/codex/security-fix.output.md
-          model: gpt-5.3-codex
+          model: gpt-5.6-terra
           effort: high
           # Same CLI release as ai-review.yml in jitsucom/github-workflows —
           # verified clean with v1.11; keeps a CLI release from changing
