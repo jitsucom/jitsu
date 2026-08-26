@@ -447,18 +447,23 @@ jobs:
         # (@openai/codex-linux-x64) sometimes gets skipped, producing:
         #   "Missing optional dependency @openai/codex-linux-x64"
         # Force a clean reinstall with --include=optional before the action.
+        # Pinned to the same CLI release as `codex-version` below (and as
+        # ai-review.yml in jitsucom/github-workflows) so the workaround can't
+        # pull a newer CLI than the action itself installs.
         run: |
           set -euo pipefail
           npm uninstall -g @openai/codex >/dev/null 2>&1 || true
-          npm install -g --include=optional @openai/codex@latest
+          npm install -g --include=optional @openai/codex@0.149.0
           codex --version
 
       - name: 🔒 Fix vulnerabilities with Codex
         id: run-codex
-        # openai is a major vendor with a controlled release process; @v1 is a
-        # sufficient pin. SHA-pinning every OpenAI action update would be more
-        # overhead than the risk warrants.
-        uses: openai/codex-action@v1
+        # Pinned to the v1.11 commit, not the floating v1 tag — same pin as
+        # ai-review.yml in jitsucom/github-workflows: v1.12 (2026-08-20)
+        # rewrote the Linux launch path and the step never returns after a
+        # heavy turn (openai/codex-action#150). Bump both places together
+        # once upstream ships a fix.
+        uses: openai/codex-action@52fe01ec70a42f454c9d2ebd47598f9fd6893d56 # v1.11
         env:
           GH_TOKEN: ${{ github.token }}
           GITHUB_TOKEN: ${{ github.token }}
@@ -472,6 +477,10 @@ jobs:
           output-file: .github/codex/security-fix.output.md
           model: gpt-5.3-codex
           effort: high
+          # Same CLI release as ai-review.yml in jitsucom/github-workflows —
+          # verified clean with v1.11; keeps a CLI release from changing
+          # behaviour under us.
+          codex-version: 0.149.0
           # danger-full-access: no approval gating — required because the agent
           # needs to run `pnpm install`, `go get`, `git commit`, `gh pr create`
           # without waiting for a human to approve each one.
