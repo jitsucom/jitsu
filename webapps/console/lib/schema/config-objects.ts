@@ -119,6 +119,8 @@ export const getAllConfigObjectTypeNames = (): string[] => {
   return Object.keys(configObjectTypes);
 };
 
+export const getConfigObjectTypeNonStrict = (type: string): ConfigObjectType | undefined => configObjectTypes[type];
+
 export const getConfigObjectType: (type: string) => Required<ConfigObjectType> = type => {
   const configType = configObjectTypes[type];
   assertDefined(configType, `Unknown config object type ${type}`);
