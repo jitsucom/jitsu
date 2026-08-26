@@ -98,6 +98,7 @@ overrides:
   "@babel/runtime@<7.26.10": "^7.26.10"
   "@babel/helpers@<7.26.10": "^7.26.10"
   "@babel/core@<7.29.6": "^7.29.6"
+  "body-parser@<1.20.6": "^1.20.6"
   "tmp@<0.2.6": "^0.2.6"
   "js-cookie@<3.0.7": "^3.0.7"
   "react-router@<7.18.2": "^7.18.2"
