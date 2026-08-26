@@ -80,9 +80,9 @@ func NewBreakerRepositoryData(name string, cfg BreakerConfig, cacheDir string) *
 	setBreakerHeld(name, false)
 	if cacheDir != "" {
 		if data, err := os.ReadFile(path.Join(cacheDir, name)); err == nil {
-			if hashes, noId, err := hashRows(data); err == nil {
+			if hashes, _, err := hashRows(data); err == nil {
 				b.baseline = hashes
-				setRepositoryRows(name, noId+len(hashes))
+				recordRepositoryRows(name, data)
 				logging.Infof("[%s] repository circuit breaker baseline seeded from cache: %d rows", name, len(hashes))
 			}
 		}
@@ -169,7 +169,7 @@ func (b *BreakerRepositoryData) Init(reader io.Reader, tag any) error {
 	// would 304-wedge the held state forever against a sane console
 	if tag == nil && b.held.Load() && b.raw.GetData() == nil && changed == 0 && common == len(hashes) {
 		b.raw.data.Store(&data)
-		setRepositoryRows(b.name, noId+len(hashes))
+		recordRepositoryRows(b.name, data)
 		return nil
 	}
 	b.baseline = hashes
@@ -184,7 +184,7 @@ func (b *BreakerRepositoryData) Init(reader io.Reader, tag any) error {
 		logging.Infof("[%s] repository circuit breaker recovered: new generation accepted", b.name)
 	}
 	b.raw.data.Store(&data)
-	setRepositoryRows(b.name, noId+len(hashes))
+	recordRepositoryRows(b.name, data)
 	return nil
 }
 

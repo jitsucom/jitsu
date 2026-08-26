@@ -44,24 +44,23 @@ var (
 )
 
 // recordRepositoryRows counts top-level JSON array elements of a served
-// payload and publishes the gauge. Non-array payloads (e.g. the p.js script)
-// are skipped — they have no row concept.
+// payload and publishes the gauge. Every row-tracked repository (those given a
+// non-empty name) is a JSON array by contract, so a non-array payload is
+// itself a bad-deploy signal: publish 0 rather than freezing the last good
+// count, so the anomaly surfaces instead of hiding. Counting array elements
+// directly (not the breaker's id-keyed baseline, which dedups) keeps the
+// metric matching its "array elements" description even if a payload carries
+// duplicate ids. Callers pass name="" for non-array payloads (p.js) to skip.
 func recordRepositoryRows(name string, data []byte) {
 	if name == "" {
 		return
 	}
 	var rows []json.RawMessage
 	if err := json.Unmarshal(data, &rows); err != nil {
+		repositoryRows.WithLabelValues(name).Set(0)
 		return
 	}
 	repositoryRows.WithLabelValues(name).Set(float64(len(rows)))
-}
-
-func setRepositoryRows(name string, count int) {
-	if name == "" {
-		return
-	}
-	repositoryRows.WithLabelValues(name).Set(float64(count))
 }
 
 func setBreakerHeld(name string, held bool) {

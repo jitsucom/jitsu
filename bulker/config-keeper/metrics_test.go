@@ -19,12 +19,23 @@ func TestRecordRepositoryRowsCountsArrayElements(t *testing.T) {
 	require.Equal(t, 3.0, testutil.ToFloat64(repositoryRows.WithLabelValues("test-repo")))
 }
 
-func TestRecordRepositoryRowsSkipsNonArray(t *testing.T) {
-	// p.js-style non-array payload must not error or publish a bogus count
-	recordRepositoryRows("script-repo", []byte("function(){}"))
-	require.Equal(t, 0.0, testutil.ToFloat64(repositoryRows.WithLabelValues("script-repo")))
-	// empty name never publishes
-	recordRepositoryRows("", []byte(rowsPayload(5, `{"a":1}`)))
+func TestRecordRepositoryRowsNonArrayPublishesZero(t *testing.T) {
+	// a row-tracked repo is a JSON array by contract; a non-array payload is a
+	// bad-deploy signal and must surface as 0, not freeze the last good count
+	recordRepositoryRows("nonarray-repo", []byte(rowsPayload(40, `{"a":1}`)))
+	require.Equal(t, 40.0, testutil.ToFloat64(repositoryRows.WithLabelValues("nonarray-repo")))
+	recordRepositoryRows("nonarray-repo", []byte(`{"unexpected":"object"}`))
+	require.Equal(t, 0.0, testutil.ToFloat64(repositoryRows.WithLabelValues("nonarray-repo")))
+	// empty name (p.js and the breaker's embedded raw) never publishes
+	recordRepositoryRows("", []byte("function(){}"))
+}
+
+func TestRecordRepositoryRowsCountsElementsNotDistinctIds(t *testing.T) {
+	// duplicate ids collapse in the breaker's id-keyed baseline; the rows
+	// metric must still report actual array length
+	dup := `[{"id":"a"},{"id":"a"},{"id":"a"},{"id":"b"}]`
+	recordRepositoryRows("dup-repo", []byte(dup))
+	require.Equal(t, 4.0, testutil.ToFloat64(repositoryRows.WithLabelValues("dup-repo")))
 }
 
 func TestBreakerEmitsRowsAndHeld(t *testing.T) {
