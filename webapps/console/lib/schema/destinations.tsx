@@ -278,7 +278,11 @@ export function getCoreDestinationType(typeId: string): DestinationType {
 }
 
 export function getCoreDestinationTypeNonStrict(typeId: string | undefined): DestinationType | undefined {
-  return typeId ? coreDestinationsMap[typeId] : undefined;
+  // Own-key lookup — see getConfigObjectTypeNonStrict: prototype-inherited names
+  // like "toString" must not resolve to a destination type.
+  return typeId && Object.prototype.hasOwnProperty.call(coreDestinationsMap, typeId)
+    ? coreDestinationsMap[typeId]
+    : undefined;
 }
 
 export const ClickhouseCredentials = z.object({

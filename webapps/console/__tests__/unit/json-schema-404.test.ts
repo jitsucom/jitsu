@@ -49,4 +49,14 @@ describe("getResourceJsonSchema unknown types", () => {
   test("unknown link subtype is 404", () => {
     expect404(() => getResourceJsonSchema("link", "no-such-destination"));
   });
+
+  test("prototype-inherited names are 404, not a lookup hit", () => {
+    // plain-object registries inherit Object.prototype; a truthiness check
+    // would resolve these to functions and crash downstream with a 500
+    for (const name of ["toString", "constructor", "hasOwnProperty", "__proto__"]) {
+      expect404(() => getResourceJsonSchema(name));
+      expect404(() => getResourceJsonSchema("destination", name));
+      expect404(() => getResourceJsonSchema("link", name));
+    }
+  });
 });
