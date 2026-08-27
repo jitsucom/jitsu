@@ -119,6 +119,11 @@ export const getAllConfigObjectTypeNames = (): string[] => {
   return Object.keys(configObjectTypes);
 };
 
+// Own-key lookup: a plain-object registry inherits Object.prototype, so a bare
+// index would resolve e.g. "toString" to a function and defeat the 404 guards.
+export const getConfigObjectTypeNonStrict = (type: string): ConfigObjectType | undefined =>
+  Object.prototype.hasOwnProperty.call(configObjectTypes, type) ? configObjectTypes[type] : undefined;
+
 export const getConfigObjectType: (type: string) => Required<ConfigObjectType> = type => {
   const configType = configObjectTypes[type];
   assertDefined(configType, `Unknown config object type ${type}`);

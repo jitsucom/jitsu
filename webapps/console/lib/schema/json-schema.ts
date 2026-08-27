@@ -1,7 +1,8 @@
 import { z } from "zod";
 import zodToJsonSchema from "zod-to-json-schema";
-import { getConfigObjectType } from "./config-objects";
-import { getCoreDestinationType } from "./destinations";
+import { getConfigObjectType, getConfigObjectTypeNonStrict } from "./config-objects";
+import { getCoreDestinationTypeNonStrict } from "./destinations";
+import { ApiError } from "../shared/errors";
 import { BaseLinkType, SyncOptionsType } from "./index";
 
 /**
@@ -26,10 +27,23 @@ export function getResourceJsonSchema(type: string, subType?: string): any {
         // (upsertLink defaults a missing `type` to "push").
         return zodToJsonSchema(BaseLinkType.merge(z.object({ type: z.literal("sync"), data: SyncOptionsType })));
       }
-      const opts = getCoreDestinationType(subType).connectionOptions;
-      return zodToJsonSchema(BaseLinkType.merge(z.object({ type: z.literal("push"), data: opts })));
+      const destinationType = getCoreDestinationTypeNonStrict(subType);
+      if (!destinationType) {
+        // The public /api/schema route feeds arbitrary crawler input here — an
+        // unknown destination type is the caller's mistake, not a server error.
+        throw new ApiError(`Unknown destination type '${subType}'`, { status: 404 });
+      }
+      return zodToJsonSchema(
+        BaseLinkType.merge(z.object({ type: z.literal("push"), data: destinationType.connectionOptions }))
+      );
     }
     return zodToJsonSchema(BaseLinkType.merge(z.object({ data: z.any() })));
+  }
+  if (!getConfigObjectTypeNonStrict(type)) {
+    throw new ApiError(`Unknown resource type '${type}'`, { status: 404 });
+  }
+  if (subType && type === "destination" && !getCoreDestinationTypeNonStrict(subType)) {
+    throw new ApiError(`Unknown destination type '${subType}'`, { status: 404 });
   }
   const objectType = getConfigObjectType(type);
   const zodType = subType
