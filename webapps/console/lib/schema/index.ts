@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { getLog } from "juava";
 import { UserProfileDbModel, WorkspaceDbModel } from "../../prisma/schema";
 import { WorkspaceRolesZodType } from "../workspace-roles";
 import { ConfigApiDeleteOptions } from "../useApi";
@@ -109,11 +110,40 @@ export const BillingSettings = z.object({
    * metadata via billing/settings, like the other per-feature flags */
   observabilityExportsEnabled: z.boolean().default(false).optional(),
   isLegacyPlan: z.boolean().default(false).optional(),
+  /**
+   * Longest event-backup window (days) a member may select in the console
+   * (JITSU-202). Optional on purpose: when absent, free plans get the free cap
+   * and everything else the paid cap — see getBackupRetentionCapDays(). Set it
+   * in Stripe plan_data / a workspace's customSettings to override (e.g. an
+   * enterprise contract above 90 days).
+   */
+  backupRetentionMaxDays: z.number().min(0).optional(),
   //in-app banners (JITSU-88); attached from the billing/settings response, not part of subscriptionStatus
   banners: z.array(BillingBanner).optional(),
 });
 
 export type BillingSettings = z.infer<typeof BillingSettings>;
+
+/**
+ * Parse an ee-api `billing/settings` response into BillingSettings. Shared by
+ * the browser BillingProvider and server routes that must enforce a plan gate
+ * themselves (a UI-only gate is bypassed by any API token).
+ */
+export const parseBillingSettings = (settings: any): BillingSettings => {
+  // banners is a sibling of subscriptionStatus in the billing/settings
+  // response (JITSU-88) — attach it after parsing the subscription. Banners
+  // are decorative: a malformed payload drops to [] instead of failing the
+  // whole billing context.
+  const bannersParsed = z.array(BillingBanner).safeParse(settings.banners ?? []);
+  if (!bannersParsed.success) {
+    getLog().atWarn().log(`Ignoring malformed billing banners payload`, bannersParsed.error);
+  }
+  const banners = bannersParsed.success ? bannersParsed.data : [];
+  if (settings.noRestrictions) {
+    return { ...noRestrictions, banners };
+  }
+  return { ...BillingSettings.parse(settings.subscriptionStatus), banners };
+};
 
 export const noRestrictions: BillingSettings = {
   planId: "$admin",

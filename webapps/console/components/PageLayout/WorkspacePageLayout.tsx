@@ -54,7 +54,6 @@ import { BillingBanners } from "../Billing/BillingBanners";
 import { useJitsu } from "@jitsu/jitsu-react";
 import { useSearchParams } from "next/navigation";
 import omit from "lodash/omit";
-import { useBilling } from "../Billing/BillingProvider";
 import { MenuItemType } from "antd/lib/menu/interface";
 import { FaGear } from "react-icons/fa6";
 
@@ -449,7 +448,6 @@ const UserProfileButton: React.FC<{}> = () => {
 function PageHeader() {
   const appConfig = useAppConfig();
   const workspace = useWorkspace();
-  const billing = useBilling();
   const items: (TabsMenuItem | TabsMenuGroup | undefined | false)[] = [
     { title: "Overview", path: "/", aliases: "/overview", icon: <LayoutDashboard className="w-full h-full" /> },
     {
@@ -518,9 +516,12 @@ function PageHeader() {
           path: "/settings/observability-exports",
           icon: <ScrollText className="w-full h-full" />,
         },
-        billing.enabled && billing.settings?.dataRetentionEditorEnabled
+        // Self-serve backup retention (JITSU-202) is available to every Jitsu
+        // Cloud workspace; the page itself shows the legacy retention-policy
+        // editor only when the plan enables it.
+        appConfig.ee?.available
           ? {
-              title: "Data Retention",
+              title: "Data Retention & Backups",
               path: "/settings/data-retention",
               icon: <PackageOpen className="w-full h-full" />,
             }
