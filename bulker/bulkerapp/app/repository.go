@@ -89,6 +89,9 @@ func (r *Repository) init() error {
 	metrics.RepositoryDestinations("added").Add(float64(len(repositoryChange.AddedDestinations)))
 	metrics.RepositoryDestinations("changed").Add(float64(len(repositoryChange.ChangedDestinations)))
 	metrics.RepositoryDestinations("removed").Add(float64(len(repositoryChange.RemovedDestinationIds)))
+	// live repository size (JITSU-191): internal.destinations is the full set
+	// just stored — unchanged copies + added + changed, minus removed.
+	metrics.RepositoryDestinationsCurrent.Set(float64(len(internal.destinations)))
 	select {
 	case r.changesChan <- repositoryChange:
 	default:

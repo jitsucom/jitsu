@@ -166,6 +166,17 @@ var (
 		return repositoryDestinations.WithLabelValues(status)
 	}
 
+	// RepositoryDestinationsCurrent is the live count of destinations the
+	// repository currently holds — a gauge, unlike the add/change/remove event
+	// counter above. A drop signals config loss (JITSU-191 post-rollout
+	// baselines); the counter can't express current size (it only ever goes up).
+	RepositoryDestinationsCurrent = promauto.NewGauge(prometheus.GaugeOpts{
+		Namespace: "bulkerapp",
+		Subsystem: "repository",
+		Name:      "destinations_current",
+		Help:      "Current number of destinations loaded in the repository.",
+	})
+
 	repositoryDestinationInitError = promauto.NewCounterVec(prometheus.CounterOpts{
 		Namespace: "bulkerapp",
 		Subsystem: "repository",
