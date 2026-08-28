@@ -44,9 +44,11 @@ export async function verifyCapDaysViaEe(
     // Self-hosted: no plans, nothing to gate (and no ee-managed backups either).
     return getBackupRetentionCapDays({ planId: "self-hosted" });
   }
-  let settings: any;
+  // Everything that can go wrong — transport, a non-ok payload, a payload
+  // that fails the BillingSettings parse — is the same outcome for the
+  // caller: the plan is unverified, 503.
   try {
-    settings = await rpc(`${getEeConnection().host}api/billing/settings`, {
+    const settings: any = await rpc(`${getEeConnection().host}api/billing/settings`, {
       method: "GET",
       query: { workspaceId, email: user.email },
       headers: {
@@ -55,14 +57,14 @@ export async function verifyCapDaysViaEe(
       },
       signal: AbortSignal.timeout(10_000),
     });
+    if (!settings?.ok) {
+      throw new Error(`billing/settings returned ok=false: ${settings?.error ?? "unknown error"}`);
+    }
+    return getBackupRetentionCapDays(parseBillingSettings(settings));
   } catch (e) {
     log.atError().withCause(e).log(`Can't verify the plan of workspace ${workspaceId} for a backup retention change`);
     throw new ApiError(PLAN_UNVERIFIED, { status: 503 });
   }
-  if (!settings?.ok) {
-    throw new ApiError(PLAN_UNVERIFIED, { status: 503 });
-  }
-  return getBackupRetentionCapDays(parseBillingSettings(settings));
 }
 
 /**
