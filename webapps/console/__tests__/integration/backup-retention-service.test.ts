@@ -22,6 +22,28 @@ function svc(opts: { capDays?: number | Error } = {}) {
   };
 }
 
+/**
+ * The real client, with a hook that fires right after the service reads the
+ * data-retention rows — the window in which the legacy `[section]` POST can
+ * update one of the duplicates the service is about to delete.
+ */
+function prismaWithConcurrentWrite(onAfterRead: (rows: any[]) => Promise<void>) {
+  const base = deps().prisma;
+  return {
+    workspace: base.workspace,
+    workspaceOptions: {
+      findMany: async (args: any) => {
+        const found = await base.workspaceOptions.findMany(args);
+        await onAfterRead(found);
+        return found;
+      },
+      update: (args: any) => base.workspaceOptions.update(args),
+      create: (args: any) => base.workspaceOptions.create(args),
+      deleteMany: (args: any) => base.workspaceOptions.deleteMany(args),
+    },
+  } as any;
+}
+
 async function rows(workspaceId: string) {
   return deps().prisma.workspaceOptions.findMany({ where: { workspaceId, namespace: dataRetentionNamespace } });
 }
@@ -142,6 +164,41 @@ describe("BackupRetentionService.update", () => {
       backupRetentionHours: 168,
     });
     expect(await prisma.workspaceOptions.findUnique({ where: { id: stale.id } })).toBeNull();
+  });
+
+  it("does not delete a duplicate row that changed between the read and the cleanup", async () => {
+    const { user, workspace } = await seedWorkspace();
+    const prisma = deps().prisma;
+    const stale = await prisma.workspaceOptions.create({
+      data: {
+        workspaceId: workspace.id,
+        namespace: dataRetentionNamespace,
+        value: { kafkaRetentionHours: 1 },
+        updatedAt: new Date(Date.now() - 60_000),
+      },
+    });
+    await prisma.workspaceOptions.create({
+      data: { workspaceId: workspace.id, namespace: dataRetentionNamespace, value: { kafkaRetentionHours: 48 } },
+    });
+    let raced = false;
+    const service = new BackupRetentionService({
+      prisma: prismaWithConcurrentWrite(async found => {
+        // the legacy [section] POST lands on the stale row while we hold it
+        if (!raced && found.length > 1) {
+          raced = true;
+          await prisma.workspaceOptions.update({
+            where: { id: stale.id },
+            data: { value: { kafkaRetentionHours: 999 } },
+          });
+        }
+      }),
+      verifyCapDays: async () => 90,
+      applyRetentionNow: async () => {},
+    });
+    await service.update(user, workspace.id, { retentionDays: 7 });
+    const survivor = await prisma.workspaceOptions.findUnique({ where: { id: stale.id } });
+    expect(survivor).not.toBeNull();
+    expect(survivor!.value).toEqual({ kafkaRetentionHours: 999 });
   });
 
   it("enforces the verified plan cap for values above the free cap", async () => {
