@@ -1,14 +1,11 @@
 import { Alert, Button, Checkbox, Modal, Skeleton } from "antd";
 import React, { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { CheckOutlined } from "@ant-design/icons";
-import { Lock, Unlock } from "lucide-react";
-import Link from "next/link";
+import { Lock } from "lucide-react";
 import { rpc } from "juava";
 import { useWorkspace, useWorkspaceRole } from "../../lib/context";
 import { get } from "../../lib/useApi";
 import { useBilling } from "../Billing/BillingProvider";
-import { PremiumBadge } from "../Billing/PremiumBadge";
 import { ErrorCard } from "../GlobalError/GlobalError";
 import { WJitsuButton } from "../JitsuButton/JitsuButton";
 import { feedbackError, feedbackSuccess } from "../../lib/ui";
@@ -51,7 +48,6 @@ export const BackupRetentionEditorLoader: React.FC<{}> = () => {
           key={`${parsed.retentionHours}:${parsed.source}`}
           state={parsed}
           capDays={capDays}
-          planName={billing.enabled ? billing.settings?.planName || billing.settings?.planId : undefined}
           upgradeHref={onCustomPlan ? "/support" : "/settings/billing"}
           onSaved={next => queryClient.setQueryData(["backup-retention", workspace.id], next)}
         />
@@ -63,20 +59,24 @@ export const BackupRetentionEditorLoader: React.FC<{}> = () => {
 type Option = {
   days: number;
   label: string;
-  description: string;
+  hint: string;
   /** Above the plan cap — visible, but not selectable. */
   premium: boolean;
-  /** Not one of the presets: set by an admin, shown as the current value only. */
-  custom: boolean;
 };
+
+const PremiumPill: React.FC<{}> = () => (
+  <span className="bg-primary/10 text-primary inline-flex items-center gap-[3px] rounded-full px-[7px] py-0.5 text-[10px] font-bold tracking-wide">
+    <Lock className="h-[9px] w-[9px]" strokeWidth={2.5} />
+    PREMIUM
+  </span>
+);
 
 export const BackupRetentionEditor: React.FC<{
   state: BackupRetentionState;
   capDays: number;
-  planName?: string;
   upgradeHref: string;
   onSaved: (next: BackupRetentionState) => void;
-}> = ({ state, capDays, planName, upgradeHref, onSaved }) => {
+}> = ({ state, capDays, upgradeHref, onSaved }) => {
   const workspace = useWorkspace();
   const role = useWorkspaceRole();
   const currentDays = state.retentionHours / 24;
@@ -90,27 +90,28 @@ export const BackupRetentionEditor: React.FC<{
   const options: Option[] = BACKUP_RETENTION_PRESET_DAYS.map(days => ({
     days,
     label: days === 0 ? "No backups" : `${days} days`,
-    description:
+    hint:
       days === 0
-        ? "Events are not archived. Nothing can be restored."
+        ? "Nothing is archived or restorable."
         : days <= FREE_BACKUP_RETENTION_CAP_DAYS
-        ? "Enough to replay a short outage."
+        ? "Replay a short outage."
         : days < 90
-        ? "Covers a month of destination or warehouse issues."
-        : "Maximum self-serve window. Replay a full quarter.",
-    premium: days > capDays,
-    custom: false,
+        ? "Covers a month of issues."
+        : "Replay a full quarter.",
+    // The current value stays selectable even when it is above the cap (a free
+    // workspace on the fleet default): re-selecting it is a no-op.
+    premium: days > capDays && days !== currentDays,
   }));
   if (!isBackupRetentionPreset(currentDays)) {
     options.unshift({
       days: currentDays,
       label: formatBackupRetention(state.retentionHours),
-      description: "Custom window set by Jitsu for this workspace.",
+      hint: "Custom window set by Jitsu.",
       premium: false,
-      custom: true,
     });
   }
-  const anyPremium = options.some(o => o.premium);
+  const lockedDays = options.filter(o => o.premium).map(o => o.days);
+  const upgradeTo = lockedDays.length > 0 ? Math.max(...lockedDays) : undefined;
 
   const save = async (acknowledgeDataLoss?: boolean) => {
     setSaving(true);
@@ -132,21 +133,8 @@ export const BackupRetentionEditor: React.FC<{
     }
   };
 
-  // Rendered nested under the "Backups" row of RetentionStagesPanel — no card
-  // chrome or heading of its own; the row is the heading.
   return (
-    <div className="pt-3">
-      <div className="text-textLight mb-4 text-sm">
-        Choose how long backups are kept; older backups are deleted automatically.{" "}
-        <Link
-          className="font-semibold"
-          href="https://docs.jitsu.com/features/event-backups"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          Read the docs
-        </Link>
-      </div>
+    <div className="bg-background rounded-[10px] border border-neutral-100 p-5">
       {state.locked && (
         <Alert
           className="mb-4"
@@ -159,13 +147,31 @@ export const BackupRetentionEditor: React.FC<{
       {!role.editEntities && !state.locked && (
         <Alert className="mb-4" type="info" showIcon message="Only workspace editors can change the backup window" />
       )}
-      <div role="radiogroup" aria-label="Backup retention" className="grid grid-cols-1 gap-3 md:grid-cols-2">
+
+      <div className="mb-3.5 flex items-center justify-between gap-4">
+        <div className="text-textLight text-[13px]">How long should backups be kept?</div>
+        {upgradeTo && !state.locked && (
+          <WJitsuButton
+            type="primary"
+            size="small"
+            href={upgradeHref}
+            icon={<Lock className="h-3 w-3 anticon" />}
+            className="whitespace-nowrap"
+          >
+            {upgradeHref === "/support" ? `Contact support for ${upgradeTo} days` : `Unlock up to ${upgradeTo} days`}
+          </WJitsuButton>
+        )}
+      </div>
+
+      <div
+        role="radiogroup"
+        aria-label="Backup retention"
+        className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 lg:grid-cols-4"
+      >
         {options.map(option => {
           const isSelected = option.days === selected;
           const isCurrent = option.days === currentDays;
-          // The current value stays selectable even when it is above the cap
-          // (a free workspace on the fleet default): re-selecting it is a no-op.
-          const disabled = !canEdit || saving || (option.premium && !isCurrent);
+          const disabled = !canEdit || saving || option.premium;
           return (
             <button
               key={option.days}
@@ -174,89 +180,53 @@ export const BackupRetentionEditor: React.FC<{
               aria-checked={isSelected}
               disabled={disabled}
               onClick={() => setSelected(option.days)}
-              className={`flex items-start gap-3 rounded-lg border p-4 text-left transition-colors ${
-                isSelected ? "border-primary bg-primary/5" : "border-textDisabled"
-              } ${disabled ? "cursor-not-allowed opacity-70" : "hover:border-primaryLight"}`}
+              className={`flex flex-col gap-1 rounded-[10px] border p-3 text-left transition-colors ${
+                isSelected ? "border-primary bg-primary/5" : "border-textDisabled bg-backgroundLight"
+              } ${disabled ? "cursor-not-allowed opacity-60" : "hover:border-primaryLight cursor-pointer"}`}
             >
-              <span
-                aria-hidden
-                className={`mt-1 h-4 w-4 shrink-0 rounded-full border ${
-                  isSelected ? "border-primary bg-primary" : "border-textLight"
-                }`}
-              />
-              <span className="flex flex-col gap-1">
-                <span className="flex flex-wrap items-center gap-2 font-semibold">
-                  {option.label}
-                  {isCurrent && <span className="text-textLight text-xs font-normal">current</span>}
-                  {option.premium && <PremiumBadge />}
-                </span>
-                <span className="text-textLight text-sm">{option.description}</span>
+              <span className="flex items-center justify-between gap-1.5">
+                <span className="text-textDark text-sm font-medium">{option.label}</span>
+                {option.premium && <PremiumPill />}
+                {isCurrent && !option.premium && <span className="text-textLight text-[11px]">current</span>}
               </span>
+              <span className="text-textLight text-xs leading-[17px]">{option.hint}</span>
             </button>
           );
         })}
       </div>
-      {anyPremium && !state.locked && (
-        <Alert
-          className="mt-4"
-          type="info"
-          icon={<Lock className="h-5 w-5" />}
-          showIcon
-          message="Keep backups for up to 90 days"
-          description={
-            <div>
-              <div>
-                {planName ? (
-                  <>
-                    Your <b className="uppercase">{planName}</b> plan
-                  </>
-                ) : (
-                  "Your plan"
-                )}{" "}
-                includes up to {capDays} days of event backups. Longer windows let you replay events after a destination
-                outage that went unnoticed for weeks.
-              </div>
-              <div className="mt-3">
-                <WJitsuButton icon={<Unlock className="h-4 w-4" />} type="primary" href={upgradeHref}>
-                  {upgradeHref === "/support" ? "Contact support" : "Upgrade plan"}
-                </WJitsuButton>
-              </div>
-            </div>
-          }
-        />
-      )}
+
       {hasChanges && selected === 0 && (
         <Alert
-          className="mt-4"
+          className="mt-3.5"
           type="warning"
           showIcon
           message="No recovery copy"
-          description="With backups off, Jitsu keeps no copy of your events beyond the other pipeline stages listed above. If a destination or warehouse fails or loses data, those events cannot be recovered. Existing backups are deleted."
+          description="With backups off there is nothing to restore from — if a destination or warehouse loses data, those events cannot be recovered. Existing backups are deleted."
         />
       )}
       {hasChanges && selected > 0 && selected < currentDays && (
         <Alert
-          className="mt-4"
+          className="mt-3.5"
           type="warning"
           showIcon
           message={`Backups older than ${selected} days will be deleted`}
-          description="The shorter window applies to existing backups too. Deleted backups cannot be restored."
+          description="The shorter window applies to existing backups too. This cannot be undone."
         />
       )}
       {hasChanges && currentDays === 0 && selected > 0 && (
         <Alert
-          className="mt-4"
+          className="mt-3.5"
           type="info"
           showIcon
           message="Backups start from now"
           description="Events received while backups were off were not archived and cannot be recovered."
         />
       )}
-      <div className="text-textLight mt-4 flex items-center justify-between gap-4 text-sm">
-        <span>Changes are applied to the backup bucket within an hour.</span>
+
+      <div className="mt-4 flex items-center justify-between gap-4">
+        <span className="text-textLight text-xs">Changes apply to the backup bucket within an hour.</span>
         <Button
           type="primary"
-          icon={<CheckOutlined />}
           loading={saving}
           disabled={!canEdit || !hasChanges || saving}
           onClick={() => (selected === 0 ? setAckOpen(true) : save())}
@@ -264,6 +234,7 @@ export const BackupRetentionEditor: React.FC<{
           Save
         </Button>
       </div>
+
       <Modal
         open={ackOpen}
         title="Turn off event backups?"
