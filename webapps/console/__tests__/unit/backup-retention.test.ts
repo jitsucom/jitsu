@@ -26,10 +26,12 @@ describe("resolveBackupMode / describeBackupRetention", () => {
       source: "nobackup",
       locked: true,
     });
+    // an explicit row wins over the flag, so the flag governs nothing and the
+    // workspace must not be reported (or gated) as "backups turned off"
     expect(describeBackupRetention(["nobackup"], { backupRetentionHours: 720 })).toEqual({
       retentionHours: 720,
       source: "explicit",
-      locked: true,
+      locked: false,
     });
     expect(describeBackupRetention(null, { backupRetentionHours: "168" })).toEqual({
       retentionHours: 168,
@@ -87,6 +89,10 @@ describe("defaultBackupRetentionHours (plan-aware default)", () => {
       source: "nobackup",
       locked: true,
     });
+    // the plan cap never turns the lock on or off
+    expect(
+      describeBackupRetention(["nobackup"], { backupRetentionHours: 168 }, FREE_BACKUP_RETENTION_CAP_DAYS)
+    ).toEqual({ retentionHours: 168, source: "explicit", locked: false });
   });
 });
 

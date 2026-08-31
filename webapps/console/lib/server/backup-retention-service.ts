@@ -12,7 +12,6 @@ import {
   describeBackupRetention,
   FREE_BACKUP_RETENTION_CAP_DAYS,
   getBackupRetentionCapDays,
-  hasNoBackupFlag,
   validateBackupRetentionChange,
 } from "../shared/data-retention";
 import { workspaceAuditLog } from "./audit-log";
@@ -167,7 +166,10 @@ export class BackupRetentionService {
     const workspace = await this.getWorkspace(workspaceIdOrSlug);
     await verifyAccessWithRole(user, workspace.id, "editEntities");
     const change = BackupRetentionChange.parse(body);
-    const locked = hasNoBackupFlag(workspace.featuresEnabled);
+    const { row, staleRows } = await this.getStoredRows(workspace.id);
+    // `locked` mirrors what the GET reports: the nobackup flag only governs
+    // when no explicit row overrides it (see describeBackupRetention).
+    const locked = describeBackupRetention(workspace.featuresEnabled, row?.value).locked;
     // Cheap checks first (presets, the admin lock, the 0-days acknowledgement)
     // against the free cap — these reject without ever touching billing.
     const early = validateBackupRetentionChange(change, { capDays: FREE_BACKUP_RETENTION_CAP_DAYS, locked });
@@ -191,7 +193,6 @@ export class BackupRetentionService {
       }
     }
 
-    const { row, staleRows } = await this.getStoredRows(workspace.id);
     const prev = describeBackupRetention(workspace.featuresEnabled, row?.value, capDays);
     const retentionHours = change.retentionDays * 24;
     // Preserve every other field of the row (queue / logs retention, custom

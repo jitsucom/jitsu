@@ -182,9 +182,11 @@ export const BackupRetentionState = z.object({
   retentionHours: z.number(),
   source: z.enum(["explicit", "nobackup", "default"]),
   /**
-   * `nobackup` is an admin decision: backups are off and members cannot turn
-   * them back on from the console (an explicit row would otherwise override
-   * the flag — see resolveBackupMode).
+   * The admin `nobackup` flag is actually in effect: backups are off and
+   * members cannot turn them back on from the console. False when an explicit
+   * row overrides the flag (resolveBackupMode resolves the row first), because
+   * then the flag governs nothing and saying otherwise would misreport a
+   * workspace that is still archiving.
    */
   locked: z.boolean(),
 });
@@ -195,12 +197,18 @@ export function describeBackupRetention(
   dataRetentionValue: unknown,
   capDays?: number
 ): BackupRetentionState {
-  const locked = hasNoBackupFlag(featuresEnabled);
   const mode = resolveBackupMode(featuresEnabled, dataRetentionValue, capDays);
   const retentionHours = mode.migrated ? mode.retentionHours : 0;
   const source =
-    parseExplicitBackupRetentionHours(dataRetentionValue) !== undefined ? "explicit" : locked ? "nobackup" : "default";
-  return { retentionHours, source, locked };
+    parseExplicitBackupRetentionHours(dataRetentionValue) !== undefined
+      ? "explicit"
+      : hasNoBackupFlag(featuresEnabled)
+      ? "nobackup"
+      : "default";
+  // Only report the lock when the flag is the reason for the current value —
+  // an explicit row wins over it, and a workspace that is still archiving must
+  // not be shown (or gated) as "backups turned off by Jitsu".
+  return { retentionHours, source, locked: source === "nobackup" };
 }
 
 /** PUT backup-retention body. */

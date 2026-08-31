@@ -1,5 +1,6 @@
 import { Alert } from "antd";
 import { useRouter } from "next/router";
+import Link from "next/link";
 import { DataRetentionEditorLoader } from "../../../components/DataRentionEditor/DataRentionEditor";
 import { BackupRetentionEditorLoader } from "../../../components/BackupRetentionEditor/BackupRetentionEditor";
 import { WorkspacePageLayout } from "../../../components/PageLayout/WorkspacePageLayout";
@@ -30,7 +31,17 @@ const DataRetentionEditorPage = () => {
                   lives at every step — and where you decide: <span className="text-text font-medium">backups</span>,
                   the raw copy of your events that Jitsu can restore from if a destination ever fails or loses data.
                 </div>
-                <div className="mt-2">Once data has aged out of every stage, Jitsu no longer holds a copy of it.</div>
+                <div className="mt-2">
+                  Once data has aged out of every stage, Jitsu no longer holds a copy of it.{" "}
+                  <Link
+                    className="font-semibold"
+                    href="https://docs.jitsu.com/features/event-backups"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    Read the docs
+                  </Link>
+                </div>
               </div>
             }
             onBack={() => router.push(`/${workspace.slugOrId}/settings`)}
