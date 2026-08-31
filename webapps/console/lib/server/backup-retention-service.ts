@@ -168,16 +168,17 @@ export class BackupRetentionService {
     await verifyAccessWithRole(user, workspace.id, "editEntities");
     const change = BackupRetentionChange.parse(body);
     const locked = hasNoBackupFlag(workspace.featuresEnabled);
-    // Resolved once: the cap both authorizes the change and tells us what the
-    // workspace's default was (a free workspace defaults to the free cap, not
-    // the fleet default), which the audit entry records.
-    const { capDays, error: capError } = await this.capDaysForDisplay(workspace.id, user, opts.req);
     // Cheap checks first (presets, the admin lock, the 0-days acknowledgement)
-    // against the free cap; only a request above it needs a verified plan.
+    // against the free cap — these reject without ever touching billing.
     const early = validateBackupRetentionChange(change, { capDays: FREE_BACKUP_RETENTION_CAP_DAYS, locked });
     if (early && early.code !== "plan_cap") {
       throw new ApiError(early.message, { status: early.code === "locked" ? 403 : 400, responseObject: early });
     }
+    // Past the cheap checks the change will be applied, so the plan is worth
+    // one round trip: it authorizes anything above the free cap, and it tells
+    // us what the workspace's default was (free workspaces default to the free
+    // cap, not the fleet default) for the audit entry.
+    const { capDays, error: capError } = await this.capDaysForDisplay(workspace.id, user, opts.req);
     if (early?.code === "plan_cap") {
       if (capDays === undefined) {
         // Fail closed: a request above the free cap is only allowed against a

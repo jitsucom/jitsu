@@ -184,23 +184,26 @@ describe("BackupRetentionService.update", () => {
     expect((await rows(workspace.id))[0].value).toEqual({ backupRetentionHours: 0 });
   });
 
-  it("rejects non-preset values", async () => {
+  it("rejects non-preset values before touching billing", async () => {
     const { user, workspace } = await seedWorkspace();
-    const { service } = svc();
+    const { service, verifyCapDays } = svc();
     await expect(service.update(user, workspace.id, { retentionDays: 14 })).rejects.toMatchObject({
       status: 400,
       responseObject: { code: "not_preset" },
     });
     await expect(service.update(user, workspace.id, { retentionDays: 1.5 })).rejects.toThrow();
+    expect(verifyCapDays).not.toHaveBeenCalled();
   });
 
   it("refuses changes on a nobackup-locked workspace", async () => {
     const { user, workspace } = await seedWorkspace();
     await deps().prisma.workspace.update({ where: { id: workspace.id }, data: { featuresEnabled: ["nobackup"] } });
-    await expect(svc().service.update(user, workspace.id, { retentionDays: 7 })).rejects.toMatchObject({
+    const locked = svc();
+    await expect(locked.service.update(user, workspace.id, { retentionDays: 7 })).rejects.toMatchObject({
       status: 403,
       responseObject: { code: "locked" },
     });
+    expect(locked.verifyCapDays).not.toHaveBeenCalled();
     expect(await rows(workspace.id)).toHaveLength(0);
   });
 
