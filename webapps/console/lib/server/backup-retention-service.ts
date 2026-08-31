@@ -110,7 +110,12 @@ export class BackupRetentionService {
   private async getWorkspace(workspaceIdOrSlug: string) {
     return requireDefined(
       await this.deps.prisma.workspace.findFirst({
-        where: { OR: [{ id: workspaceIdOrSlug }, { slug: workspaceIdOrSlug }] },
+        // Deleting a workspace only sets `deleted` and leaves WorkspaceAccess
+        // rows intact, so without this filter a former member would still pass
+        // verifyAccess and could read or change retention (and trigger
+        // provisioning) on a deleted workspace. ee-api's s3-init and the
+        // reconciler both ignore deleted workspaces; this route matches them.
+        where: { deleted: false, OR: [{ id: workspaceIdOrSlug }, { slug: workspaceIdOrSlug }] },
       }),
       `Workspace ${workspaceIdOrSlug} not found`
     );
@@ -176,17 +181,19 @@ export class BackupRetentionService {
     if (early && early.code !== "plan_cap") {
       throw new ApiError(early.message, { status: early.code === "locked" ? 403 : 400, responseObject: early });
     }
-    // Past the cheap checks the change will be applied, so the plan is worth
-    // one round trip: it authorizes anything above the free cap, and it tells
-    // us what the workspace's default was (free workspaces default to the free
-    // cap, not the fleet default) for the audit entry.
-    const { capDays, error: capError } = await this.capDaysForDisplay(workspace.id, user, opts.req);
+    // The plan is only consulted when it has something to authorize — a window
+    // above the free cap. A 0/7-day change is allowed on every plan, so it must
+    // not wait on (or be delayed by) ee-api; the cap then stays unknown, which
+    // only makes the audit entry below less precise.
+    let capDays: number | undefined;
     if (early?.code === "plan_cap") {
-      if (capDays === undefined) {
+      const resolved = await this.capDaysForDisplay(workspace.id, user, opts.req);
+      if (resolved.capDays === undefined) {
         // Fail closed: a request above the free cap is only allowed against a
         // plan we actually verified.
-        throw capError;
+        throw resolved.error;
       }
+      capDays = resolved.capDays;
       const error = validateBackupRetentionChange(change, { capDays, locked });
       if (error) {
         throw new ApiError(error.message, { status: 403, responseObject: error });
@@ -210,7 +217,14 @@ export class BackupRetentionService {
       });
     }
     if (staleRows.length > 0) {
-      await this.deps.prisma.workspaceOptions.deleteMany({ where: { id: { in: staleRows.map(r => r.id) } } });
+      // Only drop duplicates that are still exactly as we read them: the legacy
+      // `[section]` POST picks a row with an unordered findFirst, so one of
+      // these may have just received someone's queue/logs/Mongo edit. Matching
+      // on the observed updatedAt leaves such a row alone (the next write
+      // heals it) instead of destroying that save.
+      await this.deps.prisma.workspaceOptions.deleteMany({
+        where: { OR: staleRows.map(r => ({ id: r.id, updatedAt: r.updatedAt })) },
+      });
     }
     const next = describeBackupRetention(workspace.featuresEnabled, newValue, capDays);
     await workspaceAuditLog(
@@ -218,7 +232,12 @@ export class BackupRetentionService {
       workspace.id,
       "updated",
       {
-        prevVersion: { backupRetentionHours: prev.retentionHours, backupRetentionSource: prev.source },
+        // On the default with no verified plan the effective number is ee-api's
+        // to resolve; record the state, not a guess.
+        prevVersion:
+          prev.source === "default" && capDays === undefined
+            ? { backupRetentionSource: prev.source }
+            : { backupRetentionHours: prev.retentionHours, backupRetentionSource: prev.source },
         newVersion: { backupRetentionHours: next.retentionHours, backupRetentionSource: next.source },
         workspaceName: workspace.name,
       },
@@ -227,7 +246,8 @@ export class BackupRetentionService {
     await withProductAnalytics(
       p =>
         p.track("backup_retention_changed", {
-          previousDays: prev.retentionHours / 24,
+          // omitted when the previous value was an unverified default — see the audit entry
+          ...(prev.source === "default" && capDays === undefined ? {} : { previousDays: prev.retentionHours / 24 }),
           newDays: change.retentionDays,
           previousSource: prev.source,
         }),

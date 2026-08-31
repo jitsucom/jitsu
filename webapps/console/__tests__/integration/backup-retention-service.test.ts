@@ -73,6 +73,13 @@ describe("BackupRetentionService.get", () => {
     });
   });
 
+  it("hides a soft-deleted workspace from former members", async () => {
+    const { user, workspace } = await seedWorkspace();
+    await deps().prisma.workspace.update({ where: { id: workspace.id }, data: { deleted: true } });
+    await expect(svc().service.get(user, workspace.id)).rejects.toThrow(/not found/);
+    await expect(svc().service.update(user, workspace.id, { retentionDays: 7 })).rejects.toThrow(/not found/);
+  });
+
   it("denies a user without workspace access (real verifyAccess)", async () => {
     const { workspace } = await seedWorkspace();
     const { user: stranger } = await seedWorkspace();
@@ -81,11 +88,13 @@ describe("BackupRetentionService.get", () => {
 });
 
 describe("BackupRetentionService.update", () => {
-  it("writes a preset within the free cap, applies it, and audits the plan-aware previous value", async () => {
+  it("writes a preset within the free cap without consulting billing, applies it, and audits", async () => {
     const { user, workspace } = await seedWorkspace();
-    const { service, applyRetentionNow } = svc({ capDays: 7 });
+    const { service, verifyCapDays, applyRetentionNow } = svc({ capDays: 7 });
     const result = await service.update(user, workspace.id, { retentionDays: 7 });
     expect(result).toEqual({ retentionHours: 168, source: "explicit", locked: false });
+    // a 0/7-day change is allowed on every plan — it must not wait on ee-api
+    expect(verifyCapDays).not.toHaveBeenCalled();
     expect(applyRetentionNow).toHaveBeenCalledWith(workspace.id);
     const stored = await rows(workspace.id);
     expect(stored).toHaveLength(1);
@@ -96,10 +105,12 @@ describe("BackupRetentionService.update", () => {
     });
     expect(audit).not.toBeNull();
     expect(audit!.changes).toMatchObject({
-      // 7 days, not the fleet default: that is what this free workspace had
-      prevVersion: { backupRetentionHours: 168, backupRetentionSource: "default" },
+      // the plan was never consulted, so the prior effective number is unknown —
+      // the state is recorded, not a guess
+      prevVersion: { backupRetentionSource: "default" },
       newVersion: { backupRetentionHours: 168, backupRetentionSource: "explicit" },
     });
+    expect((audit!.changes as any).prevVersion.backupRetentionHours).toBeUndefined();
   });
 
   it("preserves the other fields of an existing row and heals duplicates", async () => {
@@ -123,6 +134,7 @@ describe("BackupRetentionService.update", () => {
     await svc().service.update(user, workspace.id, { retentionDays: 7 });
     const stored = await rows(workspace.id);
     expect(stored.map(r => r.id)).toEqual([fresh.id]);
+    expect(await prisma.workspaceOptions.findUnique({ where: { id: stale.id } })).toBeNull();
     expect(stored[0].value).toEqual({
       kafkaRetentionHours: 48,
       customMongoDb: "mongodb://x",
