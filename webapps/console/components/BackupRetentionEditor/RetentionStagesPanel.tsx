@@ -73,7 +73,7 @@ export const RetentionStagesPanel: React.FC<{ backupRetentionHours: number; back
               <div className="font-medium">{stage.name}</div>
               <div className={stage.highlight ? "text-primary font-semibold" : "font-semibold"}>{stage.retention}</div>
               <div className="text-textLight text-sm">{stage.description}</div>
-              <div className="flex items-start justify-end">
+              <div className={`${configurable ? "flex" : "hidden md:flex"} items-start justify-end`}>
                 {configurable && (
                   <Settings
                     aria-hidden
@@ -104,11 +104,15 @@ export const RetentionStagesPanel: React.FC<{ backupRetentionHours: number; back
               >
                 {cells}
               </button>
-              {expanded && (
-                <div id="backup-retention-settings" className="border-textDisabled mb-3 ml-0 border-l-2 pb-1 pl-4">
-                  {backupSettings}
-                </div>
-              )}
+              {/* Kept mounted (hidden, not unmounted) so aria-controls always
+                  resolves and the editor's draft state survives a collapse. */}
+              <div
+                id="backup-retention-settings"
+                hidden={!expanded}
+                className="border-textDisabled mb-3 ml-0 border-l-2 pb-1 pl-4"
+              >
+                {backupSettings}
+              </div>
             </div>
           );
         })}
