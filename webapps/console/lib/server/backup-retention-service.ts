@@ -128,11 +128,34 @@ export class BackupRetentionService {
     return { row: rows[0], staleRows: rows.slice(1) };
   }
 
-  async get(user: SessionUser, workspaceIdOrSlug: string): Promise<BackupRetentionState> {
+  /**
+   * The plan cap for display/audit: `undefined` rather than a throw when the
+   * plan can't be verified, so a billing outage degrades a read to the fleet
+   * default instead of breaking the settings page. Authorization uses the
+   * throwing form — see {@link update}.
+   */
+  private async capDaysForDisplay(
+    workspaceId: string,
+    user: SessionUser,
+    req?: NextApiRequest
+  ): Promise<{ capDays?: number; error?: unknown }> {
+    try {
+      return { capDays: await this.deps.verifyCapDays(workspaceId, user, req) };
+    } catch (error) {
+      return { error };
+    }
+  }
+
+  async get(
+    user: SessionUser,
+    workspaceIdOrSlug: string,
+    opts: { req?: NextApiRequest } = {}
+  ): Promise<BackupRetentionState> {
     const workspace = await this.getWorkspace(workspaceIdOrSlug);
     await verifyAccess(user, workspace.id);
     const { row } = await this.getStoredRows(workspace.id);
-    return describeBackupRetention(workspace.featuresEnabled, row?.value);
+    const { capDays } = await this.capDaysForDisplay(workspace.id, user, opts.req);
+    return describeBackupRetention(workspace.featuresEnabled, row?.value, capDays);
   }
 
   async update(
@@ -145,14 +168,22 @@ export class BackupRetentionService {
     await verifyAccessWithRole(user, workspace.id, "editEntities");
     const change = BackupRetentionChange.parse(body);
     const locked = hasNoBackupFlag(workspace.featuresEnabled);
+    // Resolved once: the cap both authorizes the change and tells us what the
+    // workspace's default was (a free workspace defaults to the free cap, not
+    // the fleet default), which the audit entry records.
+    const { capDays, error: capError } = await this.capDaysForDisplay(workspace.id, user, opts.req);
     // Cheap checks first (presets, the admin lock, the 0-days acknowledgement)
-    // against the free cap; only a request above it costs a billing round-trip.
+    // against the free cap; only a request above it needs a verified plan.
     const early = validateBackupRetentionChange(change, { capDays: FREE_BACKUP_RETENTION_CAP_DAYS, locked });
     if (early && early.code !== "plan_cap") {
       throw new ApiError(early.message, { status: early.code === "locked" ? 403 : 400, responseObject: early });
     }
     if (early?.code === "plan_cap") {
-      const capDays = await this.deps.verifyCapDays(workspace.id, user, opts.req);
+      if (capDays === undefined) {
+        // Fail closed: a request above the free cap is only allowed against a
+        // plan we actually verified.
+        throw capError;
+      }
       const error = validateBackupRetentionChange(change, { capDays, locked });
       if (error) {
         throw new ApiError(error.message, { status: 403, responseObject: error });
@@ -160,7 +191,7 @@ export class BackupRetentionService {
     }
 
     const { row, staleRows } = await this.getStoredRows(workspace.id);
-    const prev = describeBackupRetention(workspace.featuresEnabled, row?.value);
+    const prev = describeBackupRetention(workspace.featuresEnabled, row?.value, capDays);
     const retentionHours = change.retentionDays * 24;
     // Preserve every other field of the row (queue / logs retention, custom
     // Mongo, the legacy editor's pendingUpdate) — only the backup window changes.
@@ -179,7 +210,7 @@ export class BackupRetentionService {
     if (staleRows.length > 0) {
       await this.deps.prisma.workspaceOptions.deleteMany({ where: { id: { in: staleRows.map(r => r.id) } } });
     }
-    const next = describeBackupRetention(workspace.featuresEnabled, newValue);
+    const next = describeBackupRetention(workspace.featuresEnabled, newValue, capDays);
     await workspaceAuditLog(
       user,
       workspace.id,

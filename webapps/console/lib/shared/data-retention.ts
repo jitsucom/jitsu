@@ -36,10 +36,26 @@ export const defaultDataRetentionSettings: DataRetentionSettings = {
 };
 
 /**
- * Fleet default retention (90 days), applied to any workspace without an
- * explicit `backupRetentionHours` — see {@link resolveBackupMode}.
+ * Fleet default retention (90 days) — the ceiling for a workspace without an
+ * explicit `backupRetentionHours`. What such a workspace actually gets is
+ * {@link defaultBackupRetentionHours}, which never exceeds its plan cap.
  */
 export const DEFAULT_BACKUP_RETENTION_HOURS = 90 * 24;
+
+/**
+ * The retention a workspace with no explicit row gets, given its plan cap
+ * (JITSU-202): never longer than the plan lets a member select, so free
+ * workspaces default to the free cap (7 days) and paid ones to the fleet
+ * default. An unknown cap (billing unreachable) falls back to the fleet
+ * default — a display-only overstatement during an outage; ee-api owns the
+ * enforced value and resolves the cap from its own subscription data.
+ */
+export function defaultBackupRetentionHours(capDays?: number): number {
+  if (typeof capDays !== "number" || !Number.isFinite(capDays) || capDays < 0) {
+    return DEFAULT_BACKUP_RETENTION_HOURS;
+  }
+  return Math.min(DEFAULT_BACKUP_RETENTION_HOURS, capDays * 24);
+}
 
 /**
  * Resolves a workspace's event-archive retention. Every workspace archives to
@@ -48,7 +64,8 @@ export const DEFAULT_BACKUP_RETENTION_HOURS = 90 * 24;
  * anything without an explicit row — including newly created workspaces).
  *
  * Order: explicit `backupRetentionHours` -> `nobackup` (permanent alias for
- * 0) -> DEFAULT_BACKUP_RETENTION_HOURS. `0` = no archive at all; it drains.
+ * 0) -> the plan-aware default (see {@link defaultBackupRetentionHours}).
+ * `0` = no archive at all; it drains.
  *
  * The ee billing server mirrors this logic (`lib/data-retention.ts` in
  * jitsu-cloud-billing) to emit bulker backup connections and manage bucket
@@ -65,7 +82,8 @@ export type BackupMode = { migrated: true; retentionHours: number } | { migrated
 
 export function resolveBackupMode(
   featuresEnabled: string[] | null | undefined,
-  dataRetentionValue: unknown
+  dataRetentionValue: unknown,
+  capDays?: number
 ): BackupMode {
   const explicit = parseExplicitBackupRetentionHours(dataRetentionValue);
   if (explicit !== undefined) {
@@ -75,7 +93,7 @@ export function resolveBackupMode(
   if (hasNoBackupFlag(featuresEnabled)) {
     return { migrated: true, retentionHours: 0 };
   }
-  return { migrated: true, retentionHours: DEFAULT_BACKUP_RETENTION_HOURS };
+  return { migrated: true, retentionHours: defaultBackupRetentionHours(capDays) };
 }
 
 /**
@@ -174,10 +192,11 @@ export type BackupRetentionState = z.infer<typeof BackupRetentionState>;
 
 export function describeBackupRetention(
   featuresEnabled: string[] | null | undefined,
-  dataRetentionValue: unknown
+  dataRetentionValue: unknown,
+  capDays?: number
 ): BackupRetentionState {
   const locked = hasNoBackupFlag(featuresEnabled);
-  const mode = resolveBackupMode(featuresEnabled, dataRetentionValue);
+  const mode = resolveBackupMode(featuresEnabled, dataRetentionValue, capDays);
   const retentionHours = mode.migrated ? mode.retentionHours : 0;
   const source =
     parseExplicitBackupRetentionHours(dataRetentionValue) !== undefined ? "explicit" : locked ? "nobackup" : "default";
@@ -234,7 +253,11 @@ export function validateBackupRetentionChange(
 }
 
 /** Whether ingest should copy this workspace's events to the backup topic. */
-export function isBackupEnabled(featuresEnabled: string[] | null | undefined, dataRetentionValue: unknown): boolean {
-  const mode = resolveBackupMode(featuresEnabled, dataRetentionValue);
+export function isBackupEnabled(
+  featuresEnabled: string[] | null | undefined,
+  dataRetentionValue: unknown,
+  capDays?: number
+): boolean {
+  const mode = resolveBackupMode(featuresEnabled, dataRetentionValue, capDays);
   return mode.migrated ? mode.retentionHours > 0 : mode.legacyBackupEnabled;
 }

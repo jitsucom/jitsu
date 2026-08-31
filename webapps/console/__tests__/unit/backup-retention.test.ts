@@ -1,10 +1,12 @@
 import { describe, expect, it } from "vitest";
 import {
   BackupRetentionChange,
+  defaultBackupRetentionHours,
   DEFAULT_BACKUP_RETENTION_HOURS,
   describeBackupRetention,
   formatBackupRetention,
   FREE_BACKUP_RETENTION_CAP_DAYS,
+  isBackupEnabled,
   getBackupRetentionCapDays,
   PAID_BACKUP_RETENTION_CAP_DAYS,
   parseExplicitBackupRetentionHours,
@@ -47,6 +49,44 @@ describe("resolveBackupMode / describeBackupRetention", () => {
     expect(parseExplicitBackupRetentionHours({ backupRetentionHours: 0 })).toBe(0);
     expect(parseExplicitBackupRetentionHours({ backupRetentionHours: "0" })).toBe(0);
     expect(parseExplicitBackupRetentionHours(null)).toBeUndefined();
+  });
+});
+
+describe("defaultBackupRetentionHours (plan-aware default)", () => {
+  it("caps the fleet default at what the plan allows", () => {
+    expect(defaultBackupRetentionHours(FREE_BACKUP_RETENTION_CAP_DAYS)).toBe(7 * 24);
+    expect(defaultBackupRetentionHours(PAID_BACKUP_RETENTION_CAP_DAYS)).toBe(DEFAULT_BACKUP_RETENTION_HOURS);
+    expect(defaultBackupRetentionHours(30)).toBe(30 * 24);
+    // an enterprise cap above the fleet default doesn't raise the default
+    expect(defaultBackupRetentionHours(365)).toBe(DEFAULT_BACKUP_RETENTION_HOURS);
+    expect(defaultBackupRetentionHours(0)).toBe(0);
+  });
+
+  it("falls back to the fleet default when the cap is unknown or malformed", () => {
+    expect(defaultBackupRetentionHours(undefined)).toBe(DEFAULT_BACKUP_RETENTION_HOURS);
+    expect(defaultBackupRetentionHours(NaN)).toBe(DEFAULT_BACKUP_RETENTION_HOURS);
+    expect(defaultBackupRetentionHours(-1)).toBe(DEFAULT_BACKUP_RETENTION_HOURS);
+  });
+
+  it("free workspaces default to 7 days, and backups stay enabled", () => {
+    expect(describeBackupRetention([], undefined, FREE_BACKUP_RETENTION_CAP_DAYS)).toEqual({
+      retentionHours: 7 * 24,
+      source: "default",
+      locked: false,
+    });
+    expect(isBackupEnabled([], undefined, FREE_BACKUP_RETENTION_CAP_DAYS)).toBe(true);
+  });
+
+  it("an explicit row and the nobackup flag still win over the plan default", () => {
+    expect(resolveBackupMode([], { backupRetentionHours: 2160 }, FREE_BACKUP_RETENTION_CAP_DAYS)).toEqual({
+      migrated: true,
+      retentionHours: 2160,
+    });
+    expect(describeBackupRetention(["nobackup"], undefined, PAID_BACKUP_RETENTION_CAP_DAYS)).toEqual({
+      retentionHours: 0,
+      source: "nobackup",
+      locked: true,
+    });
   });
 });
 

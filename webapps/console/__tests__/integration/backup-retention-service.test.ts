@@ -27,9 +27,24 @@ async function rows(workspaceId: string) {
 }
 
 describe("BackupRetentionService.get", () => {
-  it("reports the fleet default when the workspace has no row", async () => {
+  it("defaults a free workspace to its plan cap, not the fleet default", async () => {
     const { user, workspace } = await seedWorkspace();
-    expect(await svc().service.get(user, workspace.id)).toEqual({
+    expect(await svc({ capDays: 7 }).service.get(user, workspace.id)).toEqual({
+      retentionHours: 7 * 24,
+      source: "default",
+      locked: false,
+    });
+    expect(await svc({ capDays: 90 }).service.get(user, workspace.id)).toEqual({
+      retentionHours: DEFAULT_BACKUP_RETENTION_HOURS,
+      source: "default",
+      locked: false,
+    });
+  });
+
+  it("degrades to the fleet default when the plan cannot be verified", async () => {
+    const { user, workspace } = await seedWorkspace();
+    const broken = svc({ capDays: Object.assign(new Error("ee down"), { status: 503 }) });
+    expect(await broken.service.get(user, workspace.id)).toEqual({
       retentionHours: DEFAULT_BACKUP_RETENTION_HOURS,
       source: "default",
       locked: false,
@@ -66,12 +81,11 @@ describe("BackupRetentionService.get", () => {
 });
 
 describe("BackupRetentionService.update", () => {
-  it("writes a preset within the free cap without consulting billing, applies it, and audits", async () => {
+  it("writes a preset within the free cap, applies it, and audits the plan-aware previous value", async () => {
     const { user, workspace } = await seedWorkspace();
-    const { service, verifyCapDays, applyRetentionNow } = svc();
+    const { service, applyRetentionNow } = svc({ capDays: 7 });
     const result = await service.update(user, workspace.id, { retentionDays: 7 });
     expect(result).toEqual({ retentionHours: 168, source: "explicit", locked: false });
-    expect(verifyCapDays).not.toHaveBeenCalled();
     expect(applyRetentionNow).toHaveBeenCalledWith(workspace.id);
     const stored = await rows(workspace.id);
     expect(stored).toHaveLength(1);
@@ -82,7 +96,8 @@ describe("BackupRetentionService.update", () => {
     });
     expect(audit).not.toBeNull();
     expect(audit!.changes).toMatchObject({
-      prevVersion: { backupRetentionHours: DEFAULT_BACKUP_RETENTION_HOURS, backupRetentionSource: "default" },
+      // 7 days, not the fleet default: that is what this free workspace had
+      prevVersion: { backupRetentionHours: 168, backupRetentionSource: "default" },
       newVersion: { backupRetentionHours: 168, backupRetentionSource: "explicit" },
     });
   });
@@ -135,13 +150,22 @@ describe("BackupRetentionService.update", () => {
     });
   });
 
-  it("fails closed when the plan cannot be verified", async () => {
+  it("fails closed above the free cap when the plan cannot be verified", async () => {
     const { user, workspace } = await seedWorkspace();
     const broken = svc({ capDays: Object.assign(new Error("ee down"), { status: 503 }) });
     await expect(broken.service.update(user, workspace.id, { retentionDays: 90 })).rejects.toMatchObject({
       status: 503,
     });
     expect(await rows(workspace.id)).toHaveLength(0);
+  });
+
+  it("still accepts a within-free-cap change when the plan cannot be verified", async () => {
+    const { user, workspace } = await seedWorkspace();
+    const broken = svc({ capDays: Object.assign(new Error("ee down"), { status: 503 }) });
+    expect(await broken.service.update(user, workspace.id, { retentionDays: 7 })).toMatchObject({
+      retentionHours: 168,
+      source: "explicit",
+    });
   });
 
   it("requires the acknowledgement for 0 days and skips the immediate apply", async () => {
@@ -160,15 +184,14 @@ describe("BackupRetentionService.update", () => {
     expect((await rows(workspace.id))[0].value).toEqual({ backupRetentionHours: 0 });
   });
 
-  it("rejects non-preset values before touching billing", async () => {
+  it("rejects non-preset values", async () => {
     const { user, workspace } = await seedWorkspace();
-    const { service, verifyCapDays } = svc();
+    const { service } = svc();
     await expect(service.update(user, workspace.id, { retentionDays: 14 })).rejects.toMatchObject({
       status: 400,
       responseObject: { code: "not_preset" },
     });
     await expect(service.update(user, workspace.id, { retentionDays: 1.5 })).rejects.toThrow();
-    expect(verifyCapDays).not.toHaveBeenCalled();
   });
 
   it("refuses changes on a nobackup-locked workspace", async () => {

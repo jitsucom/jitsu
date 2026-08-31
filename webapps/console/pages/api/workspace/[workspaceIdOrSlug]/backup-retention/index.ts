@@ -10,8 +10,8 @@ export default createRoute()
     query: z.object({ workspaceIdOrSlug: z.string() }),
     result: BackupRetentionState,
   })
-  .handler(async ({ query: { workspaceIdOrSlug }, user }) => {
-    return new BackupRetentionService().get(user, workspaceIdOrSlug);
+  .handler(async ({ query: { workspaceIdOrSlug }, user, req }) => {
+    return new BackupRetentionService().get(user, workspaceIdOrSlug, { req });
   })
   .PUT({
     auth: true,
