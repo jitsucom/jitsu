@@ -66,7 +66,7 @@ export const RetentionStagesPanel: React.FC<{ backupRetentionHours: number; back
         <button
           type="button"
           aria-expanded={expanded}
-          aria-controls="backup-retention-settings"
+          aria-controls={configurable ? "backup-retention-settings" : undefined}
           disabled={!configurable}
           onClick={() => setExpanded(v => !v)}
           title={expanded ? "Hide backup settings" : "Configure backup retention"}

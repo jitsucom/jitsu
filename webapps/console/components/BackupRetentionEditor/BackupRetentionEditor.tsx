@@ -110,8 +110,12 @@ export const BackupRetentionEditor: React.FC<{
       premium: false,
     });
   }
-  const lockedDays = options.filter(o => o.premium).map(o => o.days);
-  const upgradeTo = lockedDays.length > 0 ? Math.max(...lockedDays) : undefined;
+  // The ceiling the CTA advertises is what the PLAN would unlock, not what is
+  // selectable right now: a free workspace still on the 90-day fleet default
+  // keeps 90 as its current value (so it isn't badged premium), but an upgrade
+  // is still what buys the right to choose it.
+  const abovePlanCap = BACKUP_RETENTION_PRESET_DAYS.filter(days => days > capDays);
+  const upgradeTo = options.some(o => o.premium) ? Math.max(...abovePlanCap) : undefined;
 
   const save = async (acknowledgeDataLoss?: boolean) => {
     setSaving(true);
