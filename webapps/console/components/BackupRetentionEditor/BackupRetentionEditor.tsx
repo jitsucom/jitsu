@@ -160,7 +160,7 @@ export const BackupRetentionEditor: React.FC<{
             size="small"
             href={upgradeHref}
             icon={<Lock className="block h-3.5 w-3.5" />}
-            className="whitespace-nowrap"
+            className="h-8 whitespace-nowrap px-4"
           >
             {upgradeHref === "/support" ? `Contact support for ${upgradeTo} days` : `Unlock up to ${upgradeTo} days`}
           </WJitsuButton>
