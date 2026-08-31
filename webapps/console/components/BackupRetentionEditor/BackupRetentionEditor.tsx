@@ -155,7 +155,7 @@ export const BackupRetentionEditor: React.FC<{
             type="primary"
             size="small"
             href={upgradeHref}
-            icon={<Lock className="h-3 w-3 anticon" />}
+            icon={<Lock className="block h-3.5 w-3.5" />}
             className="whitespace-nowrap"
           >
             {upgradeHref === "/support" ? `Contact support for ${upgradeTo} days` : `Unlock up to ${upgradeTo} days`}
@@ -180,7 +180,7 @@ export const BackupRetentionEditor: React.FC<{
               aria-checked={isSelected}
               disabled={disabled}
               onClick={() => setSelected(option.days)}
-              className={`flex flex-col gap-1 rounded-[10px] border p-3 text-left transition-colors ${
+              className={`flex flex-col items-stretch gap-1 rounded-[10px] border px-3.5 py-3 text-left transition-colors ${
                 isSelected ? "border-primary bg-primary/5" : "border-textDisabled bg-backgroundLight"
               } ${disabled ? "cursor-not-allowed opacity-60" : "hover:border-primaryLight cursor-pointer"}`}
             >

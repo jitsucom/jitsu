@@ -25,10 +25,12 @@ const DataRetentionEditorPage = () => {
             title="Data Retention & Backups"
             subtitle={
               <div className="text-textLight mb-6 max-w-[40rem] text-sm leading-[22px]">
-                Jitsu keeps your event data only as long as each stage of the pipeline needs it. Here is how long data
-                lives at every step — and where you decide: <span className="text-text font-medium">backups</span>, the
-                raw copy of your events that Jitsu can restore from if a destination ever fails or loses data. Once data
-                has aged out of every stage, Jitsu no longer holds a copy of it.
+                <div>
+                  Jitsu keeps your event data only as long as each stage of the pipeline needs it. Here is how long data
+                  lives at every step — and where you decide: <span className="text-text font-medium">backups</span>,
+                  the raw copy of your events that Jitsu can restore from if a destination ever fails or loses data.
+                </div>
+                <div className="mt-2">Once data has aged out of every stage, Jitsu no longer holds a copy of it.</div>
               </div>
             }
             onBack={() => router.push(`/${workspace.slugOrId}/settings`)}
