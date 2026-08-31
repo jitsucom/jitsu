@@ -44,17 +44,19 @@ export const BackupRetentionEditorLoader: React.FC<{}> = () => {
   const capDays = billing.enabled ? getBackupRetentionCapDays(billing.settings) : FREE_BACKUP_RETENTION_CAP_DAYS;
   const onCustomPlan = !!(billing.enabled && (billing.settings?.custom || billing.settings?.customBilling));
   return (
-    <div className="flex flex-col gap-6">
-      <BackupRetentionEditor
-        key={`${parsed.retentionHours}:${parsed.source}`}
-        state={parsed}
-        capDays={capDays}
-        planName={billing.enabled ? billing.settings?.planName || billing.settings?.planId : undefined}
-        upgradeHref={onCustomPlan ? "/support" : "/settings/billing"}
-        onSaved={next => queryClient.setQueryData(["backup-retention", workspace.id], next)}
-      />
-      <RetentionStagesPanel backupRetentionHours={parsed.retentionHours} />
-    </div>
+    <RetentionStagesPanel
+      backupRetentionHours={parsed.retentionHours}
+      backupSettings={
+        <BackupRetentionEditor
+          key={`${parsed.retentionHours}:${parsed.source}`}
+          state={parsed}
+          capDays={capDays}
+          planName={billing.enabled ? billing.settings?.planName || billing.settings?.planId : undefined}
+          upgradeHref={onCustomPlan ? "/support" : "/settings/billing"}
+          onSaved={next => queryClient.setQueryData(["backup-retention", workspace.id], next)}
+        />
+      }
+    />
   );
 };
 
@@ -130,13 +132,12 @@ export const BackupRetentionEditor: React.FC<{
     }
   };
 
+  // Rendered nested under the "Backups" row of RetentionStagesPanel — no card
+  // chrome or heading of its own; the row is the heading.
   return (
-    <div className="border-textDisabled rounded-lg border px-6 py-4">
-      <div className="mb-1 text-lg font-semibold">Event backups</div>
+    <div className="pt-3">
       <div className="text-textLight mb-4 text-sm">
-        Jitsu keeps a raw copy of every incoming event in a dedicated Google Cloud Storage bucket, so events can be
-        replayed if a destination or warehouse fails or loses data. Choose how long those backups are kept; older
-        backups are deleted automatically.{" "}
+        Choose how long backups are kept; older backups are deleted automatically.{" "}
         <Link
           className="font-semibold"
           href="https://docs.jitsu.com/features/event-backups"
@@ -230,7 +231,7 @@ export const BackupRetentionEditor: React.FC<{
           type="warning"
           showIcon
           message="No recovery copy"
-          description="With backups off, Jitsu keeps no copy of your events beyond the pipeline stages listed below. If a destination or warehouse fails or loses data, those events cannot be recovered. Existing backups are deleted."
+          description="With backups off, Jitsu keeps no copy of your events beyond the other pipeline stages listed above. If a destination or warehouse fails or loses data, those events cannot be recovered. Existing backups are deleted."
         />
       )}
       {hasChanges && selected > 0 && selected < currentDays && (

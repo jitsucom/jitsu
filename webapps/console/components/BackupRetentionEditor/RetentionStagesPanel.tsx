@@ -1,4 +1,5 @@
-import React, { ReactNode } from "react";
+import React, { ReactNode, useState } from "react";
+import { Settings } from "lucide-react";
 import { formatBackupRetention } from "../../lib/shared/data-retention";
 
 type Stage = { name: string; retention: ReactNode; description: ReactNode; highlight?: boolean };
@@ -6,9 +7,15 @@ type Stage = { name: string; retention: ReactNode; description: ReactNode; highl
 /**
  * How long Jitsu keeps event data at each stage of the pipeline (JITSU-202).
  * The figures for the fixed stages are the Jitsu Cloud defaults; only the
- * backup window is per-workspace and comes from the editor above the panel.
+ * backup window is per-workspace. When `backupSettings` is provided, the
+ * Backups row becomes an expandable subsection (gear icon in the right
+ * column) with the settings nested under it.
  */
-export const RetentionStagesPanel: React.FC<{ backupRetentionHours: number }> = ({ backupRetentionHours }) => {
+export const RetentionStagesPanel: React.FC<{ backupRetentionHours: number; backupSettings?: ReactNode }> = ({
+  backupRetentionHours,
+  backupSettings,
+}) => {
+  const [expanded, setExpanded] = useState(false);
   const stages: Stage[] = [
     {
       name: "Event stream",
@@ -37,8 +44,8 @@ export const RetentionStagesPanel: React.FC<{ backupRetentionHours: number }> = 
       retention: formatBackupRetention(backupRetentionHours),
       description: (
         <>
-          Raw event backups in Google Cloud Storage, retained for the window configured above. This is the only copy
-          Jitsu can restore from if a destination fails or loses data.
+          Raw event backups in Google Cloud Storage — the only copy Jitsu can restore from if a destination fails or
+          loses data. The retention window is configurable per workspace.
         </>
       ),
       highlight: true,
@@ -50,6 +57,7 @@ export const RetentionStagesPanel: React.FC<{ backupRetentionHours: number }> = 
         "Live Events and function logs per configured entity (e.g. per source or destination), kept in ClickHouse for operational visibility and debugging.",
     },
   ];
+  const rowGrid = "grid grid-cols-1 gap-1 py-3 md:grid-cols-[12rem_12rem_1fr_2.5rem] md:gap-4";
   return (
     <div className="border-textDisabled rounded-lg border px-6 py-4">
       <div className="mb-1 text-lg font-semibold">How long Jitsu keeps your data</div>
@@ -58,13 +66,52 @@ export const RetentionStagesPanel: React.FC<{ backupRetentionHours: number }> = 
         stage, Jitsu no longer has a copy of it.
       </div>
       <div className="divide-textDisabled divide-y">
-        {stages.map(stage => (
-          <div key={stage.name} className="grid grid-cols-1 gap-1 py-3 md:grid-cols-[12rem_12rem_1fr] md:gap-4">
-            <div className="font-medium">{stage.name}</div>
-            <div className={stage.highlight ? "text-primary font-semibold" : "font-semibold"}>{stage.retention}</div>
-            <div className="text-textLight text-sm">{stage.description}</div>
-          </div>
-        ))}
+        {stages.map(stage => {
+          const configurable = stage.highlight && backupSettings !== undefined;
+          const cells = (
+            <>
+              <div className="font-medium">{stage.name}</div>
+              <div className={stage.highlight ? "text-primary font-semibold" : "font-semibold"}>{stage.retention}</div>
+              <div className="text-textLight text-sm">{stage.description}</div>
+              <div className="flex items-start justify-end">
+                {configurable && (
+                  <Settings
+                    aria-hidden
+                    className={`text-textLight h-5 w-5 transition-transform ${
+                      expanded ? "text-primary rotate-90" : ""
+                    }`}
+                  />
+                )}
+              </div>
+            </>
+          );
+          if (!configurable) {
+            return (
+              <div key={stage.name} className={rowGrid}>
+                {cells}
+              </div>
+            );
+          }
+          return (
+            <div key={stage.name}>
+              <button
+                type="button"
+                aria-expanded={expanded}
+                aria-controls="backup-retention-settings"
+                onClick={() => setExpanded(v => !v)}
+                className={`${rowGrid} hover:bg-backgroundDark w-full rounded text-left transition-colors`}
+                title={expanded ? "Hide backup settings" : "Configure backup retention"}
+              >
+                {cells}
+              </button>
+              {expanded && (
+                <div id="backup-retention-settings" className="border-textDisabled mb-3 ml-0 border-l-2 pb-1 pl-4">
+                  {backupSettings}
+                </div>
+              )}
+            </div>
+          );
+        })}
       </div>
     </div>
   );
