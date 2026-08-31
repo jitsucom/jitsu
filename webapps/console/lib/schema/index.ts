@@ -90,10 +90,28 @@ export const BillingSettings = z.object({
   canShowProvisionDbCredentials: z.boolean().default(false),
   dataRetentionEditorEnabled: z.boolean().default(false).optional(),
   destinationEvensPerMonth: z.number().default(200_000),
+  /**
+   * Length of one billing period (JITSU-200). Annual plans commit to a volume
+   * for the whole contract year and meter against that single pool, so quota
+   * and usage must never be read as monthly. Missing = "month", which is what
+   * every plan predating annual pricing is.
+   */
+  billingInterval: z.enum(["month", "year"]).optional(),
+  /**
+   * Included destination events for one full billing period. For an annual
+   * plan this is the committed annual volume (e.g. 18,000,000,000) — a
+   * negotiated figure, not 12 x the monthly tier, so it cannot be derived.
+   * Missing = fall back to `destinationEvensPerMonth`. Read it through
+   * `billingPeriod()` rather than directly.
+   */
+  destinationEventsPerPeriod: z.number().optional(),
   expiresAt: z.string().optional(),
   /**
-   * Subscription period. For monthly subscriptions it will be [expiresAt - 1 month, expiresAt]. For annual subscriptions - current
-   * month adjusted to a correct billing start date
+   * Current subscription period, as reported by the billing API: for
+   * Stripe-managed plans it is the subscription's own period (a year for an
+   * annual price, a month for a monthly one), for custom-billed workspaces the
+   * month anchored on the contract start day. Absent for the free plan, where
+   * the console falls back to the UTC calendar month.
    */
   currentPeriod: z
     .object({

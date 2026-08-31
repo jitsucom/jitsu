@@ -5,11 +5,17 @@ import { useBilling } from "./BillingProvider";
 import dayjs from "dayjs";
 import utc from "dayjs/plugin/utc";
 import { ActiveEventsReport } from "../../lib/shared/reporting";
+import { billingPeriod } from "./billing-period";
 dayjs.extend(utc);
 
 export type Usage = {
   events: number;
   projectionByTheEndOfPeriod?: number;
+  /**
+   * Events included in the current billing period — the committed annual
+   * volume on an annual plan, the monthly allowance otherwise. See
+   * `billingPeriod()`.
+   */
   maxAllowedDestinatonEvents: number;
   usagePercentage: number;
   periodStart: Date;
@@ -52,8 +58,11 @@ export function useEventsUsage(opts?: { skipSubscribed?: boolean; cacheSeconds?:
     periodEnd = dayjs().utc().endOf("month").add(-1, "millisecond").toDate();
   }
 
+  // periodStart is part of the key so that crossing a period boundary (an
+  // annual pool resets on the contract anniversary) refetches instead of
+  // serving the previous pool's total from cache.
   const { isLoading, error, data } = useQuery(
-    ["billing usage", workspace.id, opts?.skipSubscribed, billing.settings.planId],
+    ["billing usage", workspace.id, opts?.skipSubscribed, billing.settings.planId, periodStart.toISOString()],
     async () => {
       if (opts?.skipSubscribed && billing.settings.planId !== "free") {
         //if workspace is subscribed to a paid plan - we don't really need usage in some cases
@@ -75,6 +84,7 @@ export function useEventsUsage(opts?: { skipSubscribed?: boolean; cacheSeconds?:
     periodDuration > 0 && data
       ? (data.usage / periodDuration) * dayjs(periodEnd).diff(dayjs(periodStart), "day")
       : undefined;
+  const { eventsQuota } = billingPeriod(billing.settings);
   return {
     isLoading,
     error,
@@ -85,8 +95,9 @@ export function useEventsUsage(opts?: { skipSubscribed?: boolean; cacheSeconds?:
           periodEnd,
           events: data.usage,
           projectionByTheEndOfPeriod: projection,
-          maxAllowedDestinatonEvents: billing.settings.destinationEvensPerMonth,
-          usagePercentage: data.usage / billing.settings.destinationEvensPerMonth,
+          maxAllowedDestinatonEvents: eventsQuota,
+          //a misconfigured plan (quota 0) must not render a NaN/Infinity progress bar
+          usagePercentage: eventsQuota > 0 ? data.usage / eventsQuota : 0,
         }
       : undefined,
   };

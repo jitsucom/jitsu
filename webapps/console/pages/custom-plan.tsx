@@ -119,6 +119,15 @@ const CustomPlanView: React.FC<{ token: string }> = ({ token }) => {
     throw new Error(`Data is empty`);
   }
 
+  // A negotiated quote can be monthly or annual (JITSU-200) — an annual one
+  // commits to a volume for the whole contract year, so both the price and the
+  // included events are per billing interval, not per month. `interval`/`price`
+  // are absent on a billing API that predates annual quotes; fall back to the
+  // monthly-only shape it does send.
+  const interval: "month" | "year" = data.plan.interval === "year" ? "year" : "month";
+  const price = data.plan.price ?? data.plan.monthlyPrice;
+  const includedEvents = data.plan.data.destinationEventsPerPeriod ?? data.plan.data.destinationEvensPerMonth;
+
   return (
     <section className="w-full py-16 md:py-28 lg:py-36 flex justify-center">
       <div className="container px-4 md:px-6">
@@ -149,18 +158,21 @@ const CustomPlanView: React.FC<{ token: string }> = ({ token }) => {
               />
               <div className="flex flex-col space-y-4">
                 <p className="text-2xl">
-                  <span className="font-bold">${data.plan.monthlyPrice}</span>
-                  <span className="text-textLight">/month</span>
+                  <span className="font-bold">${price}</span>
+                  <span className="text-textLight">/{interval}</span>
                 </p>
                 <div className="text-textLight">
                   Terms:{" "}
                   <b>
-                    {Number.parseInt(data.plan.data.destinationEvensPerMonth).toLocaleString("en-US", {
+                    {Number.parseInt(includedEvents).toLocaleString("en-US", {
                       maximumFractionDigits: 0,
                     })}
                   </b>{" "}
-                  events per month included, <b>${data.plan.data.overagePricePer100k * 10}</b> per extra million events.
-                  Month-to-month, cancel at any time
+                  events per {interval} included, <b>${data.plan.data.overagePricePer100k * 10}</b> per extra million
+                  events.{" "}
+                  {interval === "year"
+                    ? "Billed annually; the committed volume covers the whole contract year."
+                    : "Month-to-month, cancel at any time"}
                 </div>
               </div>
               <Button

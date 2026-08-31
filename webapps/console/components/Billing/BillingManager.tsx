@@ -13,6 +13,7 @@ import styles from "./BillingManager.module.css";
 import { useQuery } from "@tanstack/react-query";
 import { ErrorCard } from "../GlobalError/GlobalError";
 import { useEventsUsage } from "./use-events-usage";
+import { billingPeriod } from "./billing-period";
 import { JitsuButton } from "../JitsuButton/JitsuButton";
 import dayjs from "dayjs";
 
@@ -66,6 +67,7 @@ const EventsUsageSection: React.FC<{}> = () => {
   assertFalse(billing.loading, "Billing must be loaded before using UsageSection component");
 
   const { isLoading, error, usage, throttle } = useEventsUsage();
+  const period = billingPeriod(billing.settings);
 
   if (isLoading) {
     return <Skeleton active paragraph={{ rows: 1, width: "100%" }} title={false} />;
@@ -85,7 +87,8 @@ const EventsUsageSection: React.FC<{}> = () => {
       <div className="flex items-center justify-between">
         <div>
           {formatNumber(Math.round(usage?.events))} / {formatNumber(usage.maxAllowedDestinatonEvents)} destination
-          events used from <i>{dayjs(usage.periodStart).utc().format("MMM DD, YYYY")}</i> to{" "}
+          events used{period.interval === "year" ? " against your annual commitment" : ""} from{" "}
+          <i>{dayjs(usage.periodStart).utc().format("MMM DD, YYYY")}</i> to{" "}
           <i>{dayjs(usage.periodEnd).utc().format("MMM DD, YYYY")}</i>. The quota will be reset on{" "}
           <i>{dayjs(usage.periodEnd).add(1, "day").utc().format("MMM DD")}</i>.
           <br />
@@ -112,7 +115,7 @@ const EventsUsageSection: React.FC<{}> = () => {
             message={<h4 className="font-bold">Overage fee warning</h4>}
             description={
               <div>
-                You have exceeded your monthly events destination limit by{" "}
+                You have exceeded your {period.adjective} events destination limit by{" "}
                 <b>{formatNumber(usage.events - usage.maxAllowedDestinatonEvents)}</b>. The overage fee of at least $
                 <b>
                   {(
@@ -123,7 +126,7 @@ const EventsUsageSection: React.FC<{}> = () => {
                 will be added to your next invoice.{" "}
                 {usage.projectionByTheEndOfPeriod && (
                   <>
-                    The projected overage fee by end of the month is{" "}
+                    The projected overage fee by the end of the {period.noun} is{" "}
                     <b>
                       $
                       {(
@@ -180,6 +183,8 @@ const ConnectorUsageSection: React.FC<{}> = () => {
 
   const activeSyncs = data.activeSyncs;
   const maxActiveSyncs = billing.settings.dailyActiveSyncs || 1;
+  //the sync report below is queried over the billing period, so the label has to follow it
+  const period = billingPeriod(billing.settings);
   const percentage = activeSyncs / maxActiveSyncs;
 
   return (
@@ -187,7 +192,7 @@ const ConnectorUsageSection: React.FC<{}> = () => {
       <Progress percent={percentage * 100} showInfo={false} status={percentage > 1 ? "exception" : undefined} />
       <div className="flex items-center justify-between">
         <div>
-          {activeSyncs} / {maxActiveSyncs} monthly active syncs from{" "}
+          {activeSyncs} / {maxActiveSyncs} {period.adjective} active syncs from{" "}
           <i>{dayjs(periodStart).utc().format("MMM DD, YYYY")}</i> to{" "}
           <i>{dayjs(periodEnd).utc().format("MMM DD, YYYY")}</i>. The quota will be reset on{" "}
           <i>{dayjs(periodEnd).add(1, "day").utc().format("MMM DD")}</i>.
