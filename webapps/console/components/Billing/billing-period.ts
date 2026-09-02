@@ -102,5 +102,9 @@ export function syncQuotaWindow(settings: BillingSettings, now: Date = new Date(
   if (anchor.add(months, "month").isAfter(current)) {
     months -= 1;
   }
+  // The billing API never reports a period that hasn't started (a future-dated
+  // deal comes back as the free plan with no period), but should it ever, the
+  // first contract month is the window — never the month before the contract.
+  months = Math.max(0, months);
   return { start: anchor.add(months, "month").toDate(), end: anchor.add(months + 1, "month").toDate() };
 }

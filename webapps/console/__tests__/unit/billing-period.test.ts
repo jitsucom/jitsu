@@ -111,6 +111,13 @@ describe("syncQuotaWindow", () => {
     });
   });
 
+  it("never steps before the contract start if the period has not begun yet", () => {
+    expect(iso(syncQuotaWindow(annual, new Date("2026-02-01T12:00:00Z")))).toEqual({
+      start: "2026-03-15T14:23:11.000Z",
+      end: "2026-04-15T14:23:11.000Z",
+    });
+  });
+
   it("clamps a day-31 anchor to shorter months without overlapping windows", () => {
     const jan31 = settings({
       billingInterval: "year",
