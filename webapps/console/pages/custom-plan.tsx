@@ -197,6 +197,10 @@ const CustomPlanView: React.FC<{ token: string }> = ({ token }) => {
                   eeRedirect("billing/upgrade", {
                     workspaceId: selectedWorkspace,
                     planId: data.plan.id,
+                    // the quote token authorizes checkout of a negotiated (custom) plan, not
+                    // just its discovery — without it anyone knowing the plan id could check
+                    // out at the negotiated price
+                    token,
                     email: user.email,
                     returnUrl: `${window.location.origin}/${selectedWorkspace}/settings/billing`,
                     cancelUrl: window.location.href,
