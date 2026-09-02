@@ -36,6 +36,37 @@ export function billingPeriod(settings: BillingSettings): BillingPeriod {
   };
 }
 
+export type ChargeCadence = {
+  /** Unit for a price label: "$X /month", "/quarter", "/year", "/6 months". */
+  per: string;
+  /** Adverb for copy: "billed monthly" / "quarterly" / "annually" / "every 6 months". */
+  billed: string;
+};
+
+/**
+ * How often a Stripe price charges: its `recurring.interval` times
+ * `interval_count`. An annual commitment is often invoiced in installments (a
+ * quarterly price on a plan metered yearly), so the charge cadence and the
+ * metering interval are independent and must be labelled separately.
+ */
+export function chargeCadence(interval: "month" | "year", count: number = 1): ChargeCadence {
+  if (interval === "year") {
+    return count === 1
+      ? { per: "year", billed: "annually" }
+      : { per: `${count} years`, billed: `every ${count} years` };
+  }
+  switch (count) {
+    case 1:
+      return { per: "month", billed: "monthly" };
+    case 3:
+      return { per: "quarter", billed: "quarterly" };
+    case 12:
+      return { per: "year", billed: "annually" };
+    default:
+      return { per: `${count} months`, billed: `every ${count} months` };
+  }
+}
+
 export type SyncQuotaWindow = { start: Date; end: Date };
 
 /**

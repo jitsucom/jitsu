@@ -8,6 +8,7 @@ import { useQuery } from "@tanstack/react-query";
 import { rpc } from "juava";
 import { LoadingAnimation } from "../components/GlobalLoader/GlobalLoader";
 import { useEffect, useState } from "react";
+import { chargeCadence } from "../components/Billing/billing-period";
 
 function timeUntil(date: Date): { days: number; hours: number; minutes: number; seconds: number } {
   const now = new Date();
@@ -119,14 +120,30 @@ const CustomPlanView: React.FC<{ token: string }> = ({ token }) => {
     throw new Error(`Data is empty`);
   }
 
-  // A negotiated quote can be monthly or annual (JITSU-200) — an annual one
-  // commits to a volume for the whole contract year, so both the price and the
-  // included events are per billing interval, not per month. `interval`/`price`
-  // are absent on a billing API that predates annual quotes; fall back to the
-  // monthly-only shape it does send.
-  const interval: "month" | "year" = data.plan.interval === "year" ? "year" : "month";
+  // A negotiated quote can be monthly or annual (JITSU-200). Two independent
+  // cadences describe it: what one charge covers (`interval` x `intervalCount`
+  // of the Stripe price — an annual commitment is often invoiced quarterly) and
+  // the period the included events are metered over (`billingInterval`, the
+  // contract year for an annual commitment). Labelling the committed volume
+  // with the charge cadence would show a quarterly-invoiced 18B/year deal as
+  // "18B events per quarter". `interval`/`price` are absent on a billing API
+  // that predates annual quotes; fall back to the monthly-only shape it sends.
+  const chargeInterval: "month" | "year" = data.plan.interval === "year" ? "year" : "month";
+  const cadence = chargeCadence(chargeInterval, data.plan.intervalCount ?? 1);
+  // An explicit metering interval always wins — "month" on an annual price is a
+  // monthly quota with a yearly invoice, not an annual commitment.
+  const meteringInterval: "month" | "year" =
+    data.plan.billingInterval === "year" || data.plan.billingInterval === "month"
+      ? data.plan.billingInterval
+      : chargeInterval;
   const price = data.plan.price ?? data.plan.monthlyPrice;
   const includedEvents = data.plan.data.destinationEventsPerPeriod ?? data.plan.data.destinationEvensPerMonth;
+  const terms =
+    meteringInterval === "year"
+      ? `The committed volume covers the whole contract year, billed ${cadence.billed}.`
+      : cadence.per === "month"
+      ? "Month-to-month, cancel at any time"
+      : `Billed ${cadence.billed}.`;
 
   return (
     <section className="w-full py-16 md:py-28 lg:py-36 flex justify-center">
@@ -159,7 +176,7 @@ const CustomPlanView: React.FC<{ token: string }> = ({ token }) => {
               <div className="flex flex-col space-y-4">
                 <p className="text-2xl">
                   <span className="font-bold">${price}</span>
-                  <span className="text-textLight">/{interval}</span>
+                  <span className="text-textLight">/{cadence.per}</span>
                 </p>
                 <div className="text-textLight">
                   Terms:{" "}
@@ -168,11 +185,8 @@ const CustomPlanView: React.FC<{ token: string }> = ({ token }) => {
                       maximumFractionDigits: 0,
                     })}
                   </b>{" "}
-                  events per {interval} included, <b>${data.plan.data.overagePricePer100k * 10}</b> per extra million
-                  events.{" "}
-                  {interval === "year"
-                    ? "Billed annually; the committed volume covers the whole contract year."
-                    : "Month-to-month, cancel at any time"}
+                  events per {meteringInterval} included, <b>${data.plan.data.overagePricePer100k * 10}</b> per extra
+                  million events. {terms}
                 </div>
               </div>
               <Button

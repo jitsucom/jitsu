@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { billingPeriod, syncQuotaWindow } from "../../components/Billing/billing-period";
+import { billingPeriod, chargeCadence, syncQuotaWindow } from "../../components/Billing/billing-period";
 import { BillingSettings } from "../../lib/schema";
 
 const settings = (over: Partial<BillingSettings> = {}): BillingSettings =>
@@ -47,6 +47,20 @@ describe("billingPeriod", () => {
 
   it("uses the free-plan default when nothing is configured", () => {
     expect(billingPeriod(settings()).eventsQuota).toBe(200_000);
+  });
+});
+
+describe("chargeCadence", () => {
+  it("labels the common Stripe cadences", () => {
+    expect(chargeCadence("month")).toEqual({ per: "month", billed: "monthly" });
+    expect(chargeCadence("month", 3)).toEqual({ per: "quarter", billed: "quarterly" });
+    expect(chargeCadence("month", 12)).toEqual({ per: "year", billed: "annually" });
+    expect(chargeCadence("year")).toEqual({ per: "year", billed: "annually" });
+  });
+
+  it("falls back to a count for unusual cadences", () => {
+    expect(chargeCadence("month", 6)).toEqual({ per: "6 months", billed: "every 6 months" });
+    expect(chargeCadence("year", 2)).toEqual({ per: "2 years", billed: "every 2 years" });
   });
 });
 
