@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { billingPeriod } from "../../components/Billing/billing-period";
+import { billingPeriod, syncQuotaWindow } from "../../components/Billing/billing-period";
 import { BillingSettings } from "../../lib/schema";
 
 const settings = (over: Partial<BillingSettings> = {}): BillingSettings =>
@@ -47,5 +47,68 @@ describe("billingPeriod", () => {
 
   it("uses the free-plan default when nothing is configured", () => {
     expect(billingPeriod(settings()).eventsQuota).toBe(200_000);
+  });
+});
+
+describe("syncQuotaWindow", () => {
+  const iso = (w: { start: Date; end: Date }) => ({ start: w.start.toISOString(), end: w.end.toISOString() });
+  const annual = settings({
+    billingInterval: "year",
+    currentPeriod: { start: "2026-03-15T14:23:11.000Z", end: "2027-03-15T14:23:11.000Z" },
+  });
+
+  it("uses the UTC calendar month when the plan has no billing period (free plan)", () => {
+    expect(iso(syncQuotaWindow(settings(), new Date("2026-08-31T12:00:00Z")))).toEqual({
+      start: "2026-08-01T00:00:00.000Z",
+      end: "2026-08-31T23:59:59.998Z",
+    });
+  });
+
+  it("keeps the billing period on a monthly plan", () => {
+    const currentPeriod = { start: "2026-08-15T14:23:11.000Z", end: "2026-09-15T14:23:11.000Z" };
+    expect(iso(syncQuotaWindow(settings({ currentPeriod }), new Date("2026-08-31T12:00:00Z")))).toEqual(currentPeriod);
+  });
+
+  it("meters an annual plan over the contract month containing now, not the whole year", () => {
+    expect(iso(syncQuotaWindow(annual, new Date("2026-08-31T12:00:00Z")))).toEqual({
+      start: "2026-08-15T14:23:11.000Z",
+      end: "2026-09-15T14:23:11.000Z",
+    });
+    // before this month's anchor day: the window that opened last month is still running
+    expect(iso(syncQuotaWindow(annual, new Date("2026-08-10T12:00:00Z")))).toEqual({
+      start: "2026-07-15T14:23:11.000Z",
+      end: "2026-08-15T14:23:11.000Z",
+    });
+    // on the anchor day but before the anchor time: same
+    expect(iso(syncQuotaWindow(annual, new Date("2026-08-15T09:00:00Z")))).toEqual({
+      start: "2026-07-15T14:23:11.000Z",
+      end: "2026-08-15T14:23:11.000Z",
+    });
+  });
+
+  it("lines the first and last contract months up with the annual period boundaries", () => {
+    expect(iso(syncQuotaWindow(annual, new Date("2026-03-20T12:00:00Z")))).toEqual({
+      start: "2026-03-15T14:23:11.000Z",
+      end: "2026-04-15T14:23:11.000Z",
+    });
+    expect(iso(syncQuotaWindow(annual, new Date("2027-03-10T12:00:00Z")))).toEqual({
+      start: "2027-02-15T14:23:11.000Z",
+      end: "2027-03-15T14:23:11.000Z",
+    });
+  });
+
+  it("clamps a day-31 anchor to shorter months without overlapping windows", () => {
+    const jan31 = settings({
+      billingInterval: "year",
+      currentPeriod: { start: "2027-01-31T00:00:00.000Z", end: "2028-01-31T00:00:00.000Z" },
+    });
+    expect(iso(syncQuotaWindow(jan31, new Date("2027-02-20T12:00:00Z")))).toEqual({
+      start: "2027-01-31T00:00:00.000Z",
+      end: "2027-02-28T00:00:00.000Z",
+    });
+    expect(iso(syncQuotaWindow(jan31, new Date("2027-03-01T12:00:00Z")))).toEqual({
+      start: "2027-02-28T00:00:00.000Z",
+      end: "2027-03-31T00:00:00.000Z",
+    });
   });
 });

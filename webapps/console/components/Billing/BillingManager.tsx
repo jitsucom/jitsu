@@ -13,7 +13,7 @@ import styles from "./BillingManager.module.css";
 import { useQuery } from "@tanstack/react-query";
 import { ErrorCard } from "../GlobalError/GlobalError";
 import { useEventsUsage } from "./use-events-usage";
-import { billingPeriod } from "./billing-period";
+import { billingPeriod, syncQuotaWindow } from "./billing-period";
 import { JitsuButton } from "../JitsuButton/JitsuButton";
 import dayjs from "dayjs";
 
@@ -153,17 +153,10 @@ const ConnectorUsageSection: React.FC<{}> = () => {
   assertFalse(billing.loading, "Billing must be loaded before using CurrentSubscription component");
   const workspace = useWorkspace();
   const user = useUser();
-  let periodStart: Date;
-  let periodEnd: Date;
-  if (billing.settings?.currentPeriod) {
-    periodEnd = new Date(billing.settings?.currentPeriod.end);
-    periodStart = new Date(billing.settings?.currentPeriod.start);
-  } else {
-    periodStart = dayjs().utc().startOf("month").toDate();
-    periodEnd = dayjs().utc().endOf("month").add(-1, "millisecond").toDate();
-  }
+  //the sync limit is monthly even on an annual plan, so this window is not the billing period
+  const { start: periodStart, end: periodEnd } = syncQuotaWindow(billing.settings);
   const { isLoading, error, data } = useQuery(
-    ["connector usage", workspace.id],
+    ["connector usage", workspace.id, periodStart.toISOString()],
     async () => {
       const report = await rpc(
         `/api/${workspace.id}/reports/sync-stat?start=${periodStart.toISOString()}&end=${dayjs(periodEnd)
@@ -183,8 +176,6 @@ const ConnectorUsageSection: React.FC<{}> = () => {
 
   const activeSyncs = data.activeSyncs;
   const maxActiveSyncs = billing.settings.dailyActiveSyncs || 1;
-  //the sync report below is queried over the billing period, so the label has to follow it
-  const period = billingPeriod(billing.settings);
   const percentage = activeSyncs / maxActiveSyncs;
 
   return (
@@ -192,7 +183,7 @@ const ConnectorUsageSection: React.FC<{}> = () => {
       <Progress percent={percentage * 100} showInfo={false} status={percentage > 1 ? "exception" : undefined} />
       <div className="flex items-center justify-between">
         <div>
-          {activeSyncs} / {maxActiveSyncs} {period.adjective} active syncs from{" "}
+          {activeSyncs} / {maxActiveSyncs} monthly active syncs from{" "}
           <i>{dayjs(periodStart).utc().format("MMM DD, YYYY")}</i> to{" "}
           <i>{dayjs(periodEnd).utc().format("MMM DD, YYYY")}</i>. The quota will be reset on{" "}
           <i>{dayjs(periodEnd).add(1, "day").utc().format("MMM DD")}</i>.

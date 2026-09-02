@@ -1,4 +1,8 @@
 import { BillingSettings } from "../../lib/schema";
+import dayjs from "dayjs";
+import utc from "dayjs/plugin/utc";
+
+dayjs.extend(utc);
 
 /**
  * How to read a workspace's quota and usage for its current billing period
@@ -30,4 +34,42 @@ export function billingPeriod(settings: BillingSettings): BillingPeriod {
     adjective: interval === "year" ? "annual" : "monthly",
     noun: interval === "year" ? "year" : "month",
   };
+}
+
+export type SyncQuotaWindow = { start: Date; end: Date };
+
+/**
+ * Window the sync quota is metered over.
+ *
+ * `dailyActiveSyncs` is a monthly limit with no annual terms (the billing
+ * service keeps it monthly-defined on annual deals), so an annual plan must not
+ * count a whole contract year of distinct syncs against it — a customer who
+ * stays within a monthly limit of 3 but rotates syncs through the year would
+ * be shown over quota and warned of an overage. On an annual plan the window is
+ * the contract month containing `now`, anchored on the period start's day of
+ * month and time of day exactly as a monthly subscription on the same anchor
+ * would bill. Every anchor is derived from the period start, so a day-31 anchor
+ * clamps to the end of shorter months without windows overlapping.
+ *
+ * Monthly plans keep their billing period and the free plan keeps the UTC
+ * calendar month — both unchanged.
+ */
+export function syncQuotaWindow(settings: BillingSettings, now: Date = new Date()): SyncQuotaWindow {
+  const period = settings.currentPeriod;
+  if (!period) {
+    return {
+      start: dayjs(now).utc().startOf("month").toDate(),
+      end: dayjs(now).utc().endOf("month").add(-1, "millisecond").toDate(),
+    };
+  }
+  if (billingPeriod(settings).interval !== "year") {
+    return { start: new Date(period.start), end: new Date(period.end) };
+  }
+  const anchor = dayjs.utc(period.start);
+  const current = dayjs.utc(now);
+  let months = (current.year() - anchor.year()) * 12 + (current.month() - anchor.month());
+  if (anchor.add(months, "month").isAfter(current)) {
+    months -= 1;
+  }
+  return { start: anchor.add(months, "month").toDate(), end: anchor.add(months + 1, "month").toDate() };
 }
