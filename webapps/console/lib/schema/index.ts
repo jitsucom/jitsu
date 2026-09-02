@@ -107,11 +107,13 @@ export const BillingSettings = z.object({
   destinationEventsPerPeriod: z.number().optional(),
   expiresAt: z.string().optional(),
   /**
-   * Current subscription period, as reported by the billing API: for
-   * Stripe-managed plans it is the subscription's own period (a year for an
-   * annual price, a month for a monthly one), for custom-billed workspaces the
-   * month anchored on the contract start day. Absent for the free plan, where
-   * the console falls back to the UTC calendar month.
+   * Current subscription period, as reported by the billing API, always one
+   * full `billingInterval`: for Stripe-managed plans the subscription's own
+   * period (or, for an annual commitment invoiced in installments, the
+   * contract year anchored on the subscription start), for custom-billed
+   * workspaces the month or year anchored on the contract start date. The
+   * console never derives this itself. Absent for the free plan, where the
+   * console falls back to the UTC calendar month.
    */
   currentPeriod: z
     .object({
