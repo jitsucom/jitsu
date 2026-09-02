@@ -261,7 +261,12 @@ const CurrentSubscription: React.FC<{}> = () => {
                 <div className="text-error">Cancels at</div>
               )}
               <div className="ml-2 rounded-3xl bg-textDark text-backgroundLight px-3 py-1 text-sm">
-                {dayjs(billing.settings?.expiresAt as string).format("MMMM DD, YYYY")}
+                {/* expiresAt is a UTC instant (an anniversary at 00:00 UTC on an annual
+                    plan); the local zone would show the previous day west of UTC, and
+                    every other period date on this page is already rendered in UTC */}
+                {dayjs(billing.settings?.expiresAt as string)
+                  .utc()
+                  .format("MMMM DD, YYYY")}
               </div>
             </div>
           )}
