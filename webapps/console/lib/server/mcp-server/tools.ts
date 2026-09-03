@@ -13,6 +13,7 @@ import { type EventsLogService, QUERYABLE_TYPES } from "../events-log-service";
 import { type SyncService } from "../sync-service";
 import { type DebugService } from "../debug-service";
 import { type ReportsService } from "../reports-service";
+import { AUDIT_LOG_MAX_LIMIT, AUDIT_LOG_ORIGINS, type AuditLogService } from "../audit-log-service";
 
 const log = getServerLog("mcp-tools");
 
@@ -22,6 +23,7 @@ export interface ToolDeps {
   syncs: SyncService;
   debug: DebugService;
   reports: ReportsService;
+  auditLog: AuditLogService;
   /** The inbound HTTP request — scheduleSync derives the app base URL and EE auth from it. */
   req: NextApiRequest;
 }
@@ -114,7 +116,7 @@ async function run(label: string, fn: () => Promise<any>): Promise<CallToolResul
 }
 
 export function registerTools(sdkServer: SdkMcpServer, deps: ToolDeps) {
-  const { service, eventsLog, syncs, debug, reports, req } = deps;
+  const { service, eventsLog, syncs, debug, reports, auditLog, req } = deps;
   const types = [...service.resourceTypes().filter(t => t !== "misc"), CONNECTION];
   const typeList = types.join(", ");
   const eventTypeList = QUERYABLE_TYPES.join(", ");
@@ -412,6 +414,54 @@ export function registerTools(sdkServer: SdkMcpServer, deps: ToolDeps) {
     async ({ workspaceId, syncId, taskId, status, from, to }, ctx) =>
       run("list_sync_tasks", () =>
         syncs.listSyncTasks(principalFromAuth(ctx.authInfo), workspaceId, { syncId, taskId, status, from, to })
+      )
+  );
+
+  register(
+    "get_audit_log",
+    {
+      title: "Get audit log",
+      annotations: READ_ONLY,
+      description:
+        "Audit log entries, newest first: configuration changes (with a field-level `diff`, secrets masked), " +
+        "membership changes, and login/logout events. Pass `workspaceId` (id or slug) to read one workspace — " +
+        "requires the owner role there; omit it for the cross-workspace view, which is available to platform " +
+        "admins only. Filter by `type` and `severity` (comma-separated), `origin` (comma-separated subset of " +
+        AUDIT_LOG_ORIGINS.join(", ") +
+        " — `mcp` is what this server writes), and a `from`/`to` time window. Returns `{ items, nextCursor }`; " +
+        "when `nextCursor` is present, pass it back as `cursor` to fetch the next page.",
+      inputSchema: {
+        workspaceId: z.string().optional().describe("Workspace id or slug; omit for all workspaces (admin only)"),
+        type: z.string().optional().describe("Comma-separated event types, e.g. config-object-update,auth-login"),
+        severity: z.string().optional().describe("Comma-separated severities, e.g. info,warn"),
+        origin: z
+          .string()
+          .optional()
+          .describe(`Comma-separated subset of ${AUDIT_LOG_ORIGINS.join(", ")}`),
+        from: z.string().datetime({ offset: true }).optional().describe("ISO timestamp — entries at/after"),
+        to: z.string().datetime({ offset: true }).optional().describe("ISO timestamp — entries at/before"),
+        cursor: z.string().optional().describe("`nextCursor` from the previous page"),
+        limit: z
+          .number()
+          .int()
+          .min(1)
+          .max(AUDIT_LOG_MAX_LIMIT)
+          .optional()
+          .describe(`Page size (default 50, max ${AUDIT_LOG_MAX_LIMIT})`),
+      },
+    },
+    async ({ workspaceId, type, severity, origin, from, to, cursor, limit }, ctx) =>
+      run("get_audit_log", () =>
+        auditLog.list(principalFromAuth(ctx.authInfo), {
+          workspaceId,
+          type,
+          severity,
+          origin,
+          from: from ? new Date(from) : undefined,
+          to: to ? new Date(to) : undefined,
+          cursor,
+          limit,
+        })
       )
   );
 

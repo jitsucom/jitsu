@@ -4,6 +4,7 @@ import { clickhouse } from "./clickhouse";
 import { SyncService } from "./sync-service";
 import { DebugService } from "./debug-service";
 import { ReportsService } from "./reports-service";
+import { AuditLogService } from "./audit-log-service";
 
 // Response schema owned by SyncService, re-exported so route handlers pull their
 // service surface from one place.
@@ -18,3 +19,5 @@ export const syncService = once(() => new SyncService({ prisma: db.prisma(), pgP
 export const debugService = once(() => new DebugService({ prisma: db.prisma() }));
 
 export const reportsService = once(() => new ReportsService({ prisma: db.prisma(), pgPool: db.pgPool(), clickhouse }));
+
+export const auditLogService = once(() => new AuditLogService({ prisma: db.prisma() }));
