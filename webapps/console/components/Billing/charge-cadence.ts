@@ -34,6 +34,6 @@ export function chargeCadence(interval: "month" | "year", count: number = 1): Ch
  * (`commitmentInterval`, JITSU-200): "12-month commitment" for a year, nothing
  * for a month-to-month plan or when absent.
  */
-export function commitmentLabel(commitmentInterval: string | undefined): string | undefined {
+export function commitmentLabel(commitmentInterval: string | null | undefined): string | undefined {
   return commitmentInterval === "year" ? "12-month commitment" : undefined;
 }

@@ -90,7 +90,21 @@ export const BillingSettings = z.object({
   canShowProvisionDbCredentials: z.boolean().default(false),
   dataRetentionEditorEnabled: z.boolean().default(false).optional(),
   destinationEvensPerMonth: z.number().default(200_000),
+  /**
+   * End of the current period, or, on a committed contract, the end of the
+   * commitment term (the contract anniversary for a commitment billed
+   * quarterly). Always a UTC instant.
+   */
   expiresAt: z.string().optional(),
+  /**
+   * Commitment term of a negotiated contract (JITSU-200), from the plan's
+   * `plan_data`; absent for month-to-month plans. The quota stays monthly
+   * regardless — this only says what `expiresAt` is the end of. Expected
+   * values are "month" | "year", but it is typed loosely: the value is Stripe
+   * metadata spread wholesale into the response, and a typo there must not
+   * take the billing page down — an unknown value just renders no term.
+   */
+  commitmentInterval: z.string().nullable().optional(),
   /**
    * Current billing period, as reported by the billing API, always one month:
    * the Stripe cycle for a plain monthly price, otherwise the contract month

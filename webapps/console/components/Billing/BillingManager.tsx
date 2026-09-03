@@ -15,6 +15,7 @@ import { ErrorCard } from "../GlobalError/GlobalError";
 import { useEventsUsage } from "./use-events-usage";
 import { JitsuButton } from "../JitsuButton/JitsuButton";
 import dayjs from "dayjs";
+import { commitmentLabel } from "./charge-cadence";
 
 function formatNumber(n: number) {
   return n.toLocaleString("en-US", { maximumFractionDigits: 0 });
@@ -272,6 +273,13 @@ const CurrentSubscription: React.FC<{}> = () => {
                   .utc()
                   .format("MMMM DD, YYYY")}
               </div>
+              {/* on a committed contract expiresAt is the end of the term, not of the
+                  monthly metering period — say so, or the date reads as a monthly cycle */}
+              {commitmentLabel(billing.settings.commitmentInterval) && (
+                <div className="ml-2 text-textLight text-sm">
+                  ({commitmentLabel(billing.settings.commitmentInterval)})
+                </div>
+              )}
             </div>
           )}
         </div>

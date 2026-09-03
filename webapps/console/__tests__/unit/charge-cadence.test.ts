@@ -20,5 +20,8 @@ describe("commitmentLabel", () => {
     expect(commitmentLabel("year")).toBe("12-month commitment");
     expect(commitmentLabel("month")).toBeUndefined();
     expect(commitmentLabel(undefined)).toBeUndefined();
+    expect(commitmentLabel(null)).toBeUndefined();
+    // Stripe metadata typo must not produce a bogus term
+    expect(commitmentLabel("annual")).toBeUndefined();
   });
 });
