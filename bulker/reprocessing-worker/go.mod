@@ -3,6 +3,7 @@ module github.com/jitsucom/bulker/reprocessing-worker
 go 1.26
 
 require (
+	cloud.google.com/go/storage v1.62.1
 	github.com/aws/aws-sdk-go-v2 v1.42.0
 	github.com/aws/aws-sdk-go-v2/config v1.32.24
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.103.3

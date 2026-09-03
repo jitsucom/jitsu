@@ -36,7 +36,7 @@ The failover reprocessor uses Kubernetes Indexed Jobs for distributed processing
 ### How It Works
 
 1. **Job Creation**: Admin service receives reprocessing request via API
-2. **File Discovery**: Lists all files from S3 or local path, gets file sizes
+2. **File Discovery**: Lists all files from S3, GCS, or a local path and gets file sizes
 3. **Worker Distribution**: Calculates optimal worker count (1 worker per 10 files, max 50)
 4. **ConfigMap Creation**: Creates two ConfigMaps:
    - File list with sizes
@@ -78,6 +78,7 @@ K8S_NAMESPACE=default
 K8S_MAX_PARALLEL_WORKERS=10  # Default max workers running simultaneously (per-job `parallel_workers` overrides it)
 KUBERNETES_NODE_SELECTOR='{"disktype": "ssd"}'  # Optional: node selector in JSON format
 REPROCESSING_WORKER_IMAGE=jitsucom/bulker-reprocessing-worker:latest
+REPROCESSING_WORKER_SERVICE_ACCOUNT=bulker-reprocessing  # Optional worker pod identity
 
 # Infrastructure credentials (passed to worker pods via Secret)
 KAFKA_BOOTSTRAP_SERVERS=...
@@ -90,6 +91,13 @@ AWS_ACCESS_KEY_ID=...
 AWS_SECRET_ACCESS_KEY=...
 AWS_DEFAULT_REGION=us-east-1
 ```
+
+GCS access uses [Application Default Credentials](https://cloud.google.com/docs/authentication/application-default-credentials).
+On GKE, grant the admin and worker pod identities access to the bucket through
+Workload Identity. The admin needs object-list permission and workers need
+object-read permission. Set `REPROCESSING_WORKER_SERVICE_ACCOUNT` to the
+Kubernetes service account bound to the workers' Google service account; when
+unset, worker pods use the namespace's default Kubernetes service account.
 
 **Note**: Both `DATABASE_URL` and Kubernetes access are required. The reprocessing manager will not initialize without them.
 
@@ -148,13 +156,20 @@ Content-Type: application/json
 Authorization: Bearer <token>
 
 {
-  "s3_path": "s3://bucket/failover/",
+  "gcs_path": "gs://bucket/failover/",
   "stream_ids": ["stream1", "stream2"],
+  "events": ["page", "signup"],
   "date_from": "2024-01-01T00:00:00Z",
   "date_to": "2024-01-31T23:59:59Z",
   "parallel_workers": 20
 }
 ```
+
+Exactly one of `s3_path`, `gcs_path`, or `local_path` is required. GCS paths
+use the `gs://bucket/prefix` form. The optional `events` array is an exact
+allowlist matched against the event's `type` and, when `type` is `track`, its
+`event` name. For example, `"track"` accepts every track event while
+`"signup"` accepts track events named `signup`.
 
 ### Selecting streams and connections
 
@@ -359,8 +374,9 @@ This builds and pushes `jitsucom/bulker-reprocessing-worker:latest`
 Ensure the admin service has:
 1. PostgreSQL database access
 2. Kubernetes access (via in-cluster config or kubeconfig)
-3. S3 access (via AWS credentials)
-4. Kafka access
+3. S3 access (via AWS credentials), when processing S3 files
+4. GCS access (via Application Default Credentials), when processing GCS files
+5. Kafka access
 
 **Note**: The admin service automatically provisions infrastructure credentials (database_url, kafka_bootstrap_servers, kafka_destinations_topic, repository_url, repository_auth_token) to worker pods via Kubernetes Secrets. Worker pods do not need these as environment variables - they read them from the mounted secret at `/config/job/`.
 
@@ -534,6 +550,7 @@ Common issues:
   - Check network policies allow worker pods to reach repository service
   - Verify repository service returns valid JSON array of streams
 - **S3 credentials**: Not available in worker pods (check IAM roles or environment variables)
+- **GCS credentials**: The admin or worker identity lacks bucket access (check Application Default Credentials / GKE Workload Identity)
 - **Database connection**: Worker can't connect to PostgreSQL
 - **Kafka connection**: Worker can't connect to Kafka brokers
 

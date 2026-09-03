@@ -13,8 +13,10 @@ import (
 // ReprocessingStartRequest represents a request to start a reprocessing job
 type ReprocessingStartRequest struct {
 	S3Path            string         `json:"s3_path,omitempty"`
+	GCSPath           string         `json:"gcs_path,omitempty"`
 	LocalPath         string         `json:"local_path,omitempty"`
 	StreamIds         StreamSelector `json:"stream_ids,omitempty"`
+	Events            []string       `json:"events,omitempty"`
 	Files             []string       `json:"files,omitempty"`
 	DryRun            bool           `json:"dry_run"`
 	StartFile         string         `json:"start_file,omitempty"`
@@ -155,8 +157,10 @@ func (r *Router) startReprocessingJob(c *gin.Context) {
 	// Create job config
 	config := ReprocessingJobConfig{
 		S3Path:            req.S3Path,
+		GCSPath:           req.GCSPath,
 		LocalPath:         req.LocalPath,
 		StreamIds:         req.StreamIds,
+		Events:            req.Events,
 		Files:             req.Files,
 		DryRun:            req.DryRun,
 		StartFile:         req.StartFile,
@@ -482,6 +486,10 @@ func (r *Router) serveAdminHTML(c *gin.Context) {
                     <input type="text" id="s3Path" placeholder="s3://bucket/path">
                 </div>
                 <div class="form-group">
+                    <label for="gcsPath">GCS Path:</label>
+                    <input type="text" id="gcsPath" placeholder="gs://bucket/path">
+                </div>
+                <div class="form-group">
                     <label for="localPath">Local Path:</label>
                     <input type="text" id="localPath" placeholder="/path/to/files">
                 </div>
@@ -501,6 +509,13 @@ func (r *Router) serveAdminHTML(c *gin.Context) {
                         <option value="override">Override — use listed connections instead of mapped ones</option>
                         <option value="filter">Filter — keep mapped connections only if listed</option>
                     </select>
+                </div>
+                <div class="form-group">
+                    <label for="events">Event Types / Track Names:</label>
+                    <textarea id="events" placeholder="One per line (optional allowlist)"></textarea>
+                    <div class="date-help">
+                        Exact matches against event.type and, for track events, event.event.
+                    </div>
                 </div>
                 <div class="form-group">
                     <label for="files">Files to Process:</label>
@@ -672,6 +687,7 @@ func (r *Router) serveAdminHTML(c *gin.Context) {
 
         async function startJob() {
             const files = document.getElementById('files').value.split('\n').filter(f => f.trim());
+            const events = document.getElementById('events').value.split('\n').map(e => e.trim()).filter(e => e);
 
             // Stream IDs accepts a plain list (one per line), a JSON array of ids,
             // or a JSON map of stream id -> connection ids
@@ -730,8 +746,10 @@ func (r *Router) serveAdminHTML(c *gin.Context) {
 
             const jobData = {
                 s3_path: document.getElementById('s3Path').value || undefined,
+                gcs_path: document.getElementById('gcsPath').value || undefined,
                 local_path: document.getElementById('localPath').value || undefined,
                 stream_ids: streamIds,
+                events: events.length > 0 ? events : undefined,
                 files: files.length > 0 ? files : undefined,
                 start_file: document.getElementById('startFile').value || undefined,
                 start_line: parseInt(document.getElementById('startLine').value) || 0,
@@ -886,6 +904,7 @@ func (r *Router) serveAdminHTML(c *gin.Context) {
             };
 
             setValue('s3Path', cfg.s3_path);
+            setValue('gcsPath', cfg.gcs_path);
             setValue('localPath', cfg.local_path);
             // stream_ids is either a list of ids or a map of id -> connection ids
             if (cfg.stream_ids && !Array.isArray(cfg.stream_ids)) {
@@ -899,6 +918,7 @@ func (r *Router) serveAdminHTML(c *gin.Context) {
                 setLines('streamIds', cfg.stream_ids);
             }
             document.getElementById('connectionsMode').value = cfg.connections_filter ? 'filter' : 'override';
+            setLines('events', cfg.events);
             setLines('files', cfg.files);
             setValue('startFile', cfg.start_file);
             setValue('startLine', cfg.start_line);

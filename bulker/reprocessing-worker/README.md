@@ -11,7 +11,7 @@ The reprocessing worker is part of the Kubernetes-based reprocessing system. It 
 1. **Started by K8s Job**: The admin service creates a Kubernetes Indexed Job with N completions
 2. **Loads Configuration**: Worker reads job config from mounted Secret and file list from ConfigMap
 3. **Selects Files**: Uses its completion index to select files via modulo distribution (index % total_workers)
-4. **Processes Files**: Reads files from S3 or local filesystem, parses NDJSON, applies filters
+4. **Processes Files**: Reads files from S3, GCS, or the local filesystem, parses NDJSON, and applies filters
 5. **Sends to Kafka**: Batches events and sends to Kafka destinations topic
 6. **Updates Status**: Writes progress to PostgreSQL every 1000 lines
 
@@ -91,6 +91,7 @@ go run main.go
 - `kafkabase` - Kafka producer wrapper
 - PostgreSQL via pgx
 - AWS SDK for S3 access
+- Google Cloud Storage SDK using Application Default Credentials (including GKE Workload Identity)
 - Confluent Kafka client
 
 ## Error Handling
