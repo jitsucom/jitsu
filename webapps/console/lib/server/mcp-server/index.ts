@@ -16,6 +16,7 @@ import { EventsLogService } from "../events-log-service";
 import { SyncService } from "../sync-service";
 import { DebugService } from "../debug-service";
 import { ReportsService } from "../reports-service";
+import { AuditLogService } from "../audit-log-service";
 
 const log = getServerLog("mcp-server");
 
@@ -50,6 +51,7 @@ export class McpServer {
   private readonly syncs: SyncService;
   private readonly debug: DebugService;
   private readonly reports: ReportsService;
+  private readonly auditLog: AuditLogService;
 
   constructor(private readonly deps: McpServerDeps) {
     this.oauth = new OAuthHandlers({
@@ -66,6 +68,7 @@ export class McpServer {
     this.syncs = new SyncService({ prisma: deps.prisma, pgPool, clickhouse: ch });
     this.debug = new DebugService({ prisma: deps.prisma });
     this.reports = new ReportsService({ prisma: deps.prisma, pgPool, clickhouse: ch });
+    this.auditLog = new AuditLogService({ prisma: deps.prisma });
   }
 
   // ─── OAuth endpoints ────────────────────────────────────────────────────
@@ -95,6 +98,7 @@ export class McpServer {
       syncs: this.syncs,
       debug: this.debug,
       reports: this.reports,
+      auditLog: this.auditLog,
       req,
     });
     const transport = new StreamableHTTPServerTransport({ sessionIdGenerator: undefined });
