@@ -27,8 +27,9 @@ type Config struct {
 	KubernetesContext      string `mapstructure:"KUBERNETES_CONTEXT"`
 	KubernetesNodeSelector string `mapstructure:"KUBERNETES_NODE_SELECTOR"`
 
-	K8sMaxParallelWorkers   int    `mapstructure:"K8S_MAX_PARALLEL_WORKERS" default:"10"`
-	ReprocessingWorkerImage string `mapstructure:"REPROCESSING_WORKER_IMAGE" default:"jitsucom/reprocessing-worker:latest"`
+	K8sMaxParallelWorkers            int    `mapstructure:"K8S_MAX_PARALLEL_WORKERS" default:"10"`
+	ReprocessingWorkerImage          string `mapstructure:"REPROCESSING_WORKER_IMAGE" default:"jitsucom/reprocessing-worker:latest"`
+	ReprocessingWorkerServiceAccount string `mapstructure:"REPROCESSING_WORKER_SERVICE_ACCOUNT"`
 
 	WorkerKafkaBootstrapServers string `mapstructure:"REPROCESSING_WORKER_KAFKA_BOOTSTRAP_SERVERS"`
 

@@ -78,6 +78,7 @@ K8S_NAMESPACE=default
 K8S_MAX_PARALLEL_WORKERS=10  # Default max workers running simultaneously (per-job `parallel_workers` overrides it)
 KUBERNETES_NODE_SELECTOR='{"disktype": "ssd"}'  # Optional: node selector in JSON format
 REPROCESSING_WORKER_IMAGE=jitsucom/bulker-reprocessing-worker:latest
+REPROCESSING_WORKER_SERVICE_ACCOUNT=bulker-reprocessing  # Optional worker pod identity
 
 # Infrastructure credentials (passed to worker pods via Secret)
 KAFKA_BOOTSTRAP_SERVERS=...
@@ -94,7 +95,9 @@ AWS_DEFAULT_REGION=us-east-1
 GCS access uses [Application Default Credentials](https://cloud.google.com/docs/authentication/application-default-credentials).
 On GKE, grant the admin and worker pod identities access to the bucket through
 Workload Identity. The admin needs object-list permission and workers need
-object-read permission.
+object-read permission. Set `REPROCESSING_WORKER_SERVICE_ACCOUNT` to the
+Kubernetes service account bound to the workers' Google service account; when
+unset, worker pods use the namespace's default Kubernetes service account.
 
 **Note**: Both `DATABASE_URL` and Kubernetes access are required. The reprocessing manager will not initialize without them.
 

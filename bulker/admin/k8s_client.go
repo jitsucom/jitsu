@@ -305,8 +305,9 @@ func (k *K8sJobClient) buildIndexedJob(jobName, filesConfigMapName, jobConfigMap
 				},
 
 				Spec: v1.PodSpec{
-					RestartPolicy: v1.RestartPolicyOnFailure,
-					NodeSelector:  nodeSelector,
+					RestartPolicy:      v1.RestartPolicyOnFailure,
+					ServiceAccountName: k.config.ReprocessingWorkerServiceAccount,
+					NodeSelector:       nodeSelector,
 					Tolerations: []v1.Toleration{
 						{
 							Operator: v1.TolerationOpEqual,
