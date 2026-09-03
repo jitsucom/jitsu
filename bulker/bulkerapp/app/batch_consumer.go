@@ -149,7 +149,7 @@ func (bc *BatchConsumerImpl) processBatchImpl(destination *Destination, batchNum
 				// waitForMessages period is over. it's ok. considering batch as full
 				break
 			}
-			bc.errorMetric("consumer_error:" + metrics.KafkaErrorCode(kafkaErr))
+			bc.onReadError(kafkaErr)
 			if bulkerStream != nil {
 				_ = bulkerStream.Abort(ctx)
 			}
@@ -224,7 +224,7 @@ func (bc *BatchConsumerImpl) processBatchImpl(destination *Destination, batchNum
 		if processed == batchSize {
 			nextBatch = true
 		}
-		pauseTimer := time.AfterFunc(time.Duration(bc.config.KafkaMaxPollIntervalMs)*time.Millisecond/2, func() {
+		pauseTimer := time.AfterFunc(bc.heartbeatInterval(), func() {
 			// we need to pause consumer to avoid kafka session timeout while loading huge batches to slow destinations
 			bc.pause(true)
 		})
@@ -270,7 +270,16 @@ func (bc *BatchConsumerImpl) processBatchImpl(destination *Destination, batchNum
 		}
 		counters.processed = processed
 		counters.processedBytes = consumedBytes
-		_, err = consumer.CommitMessage(latestMessage)
+		//re-read the pointer: loading a batch into a slow destination can outlast
+		//a consumer restart (the pause heartbeat may have replaced the consumer
+		//this batch was read with), and committing on the retired handle would
+		//fail after it is closed
+		consumer = bc.consumer.Load()
+		if consumer == nil {
+			err = bc.NewError("no kafka consumer to commit the batch with")
+		} else {
+			_, err = consumer.CommitMessage(latestMessage)
+		}
 		if err != nil {
 			bc.errorMetric("KAFKA_COMMIT_ERR:" + metrics.KafkaErrorCode(err))
 			bc.Errorf("Failed to commit kafka consumer after batch was successfully committed to the destination: %v", err)
@@ -299,7 +308,13 @@ func (bc *BatchConsumerImpl) processBatchImpl(destination *Destination, batchNum
 			})
 			if !committed {
 				var tp []kafka.TopicPartition
-				tp, err = bc.consumer.Load().CommitMessage(latestMessage)
+				//the restart above may have left no consumer at all (retired
+				//meanwhile), and the offset repair did not run either
+				if current := bc.consumer.Load(); current == nil {
+					err = bc.NewError("no kafka consumer to commit the batch with after restart")
+				} else {
+					tp, err = current.CommitMessage(latestMessage)
+				}
 				if err != nil {
 					bc.SystemErrorf("Failed to commit kafka consumer after batch was successfully committed to the destination: %v", err)
 					err = bc.NewError("Failed to commit kafka consumer: %v", err)
