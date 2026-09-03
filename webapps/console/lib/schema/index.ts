@@ -99,8 +99,8 @@ export const BillingSettings = z.object({
   /**
    * Commitment term of a negotiated contract (JITSU-200), from the plan's
    * `plan_data`; absent for month-to-month plans. The quota stays monthly
-   * regardless — this only says what `expiresAt` is the end of. Expected
-   * values are "month" | "year", but it is typed loosely: the value is Stripe
+   * regardless — this only says what `expiresAt` is the end of. The only
+   * value the billing API emits is "year", but it is typed loosely: the value is Stripe
    * metadata spread wholesale into the response, and a typo there must not
    * take the billing page down — an unknown value just renders no term.
    */
