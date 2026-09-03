@@ -828,6 +828,15 @@ func (bc *AbstractBatchConsumer) restartConsumer(beforeInit func()) {
 			if old := bc.consumer.Swap(consumer); old != nil {
 				bc.quarantineClose(old)
 			}
+			//Retirement can also land between the check above and this swap,
+			//with close() running in between: it would have taken the old
+			//consumer out and closed it, and nothing would ever close the one
+			//just published. Withdraw it — unless someone already took it out,
+			//in which case they close it.
+			if bc.retired.Load() && bc.idle.Load() && bc.consumer.CompareAndSwap(consumer, nil) {
+				bc.Infof("Consumer was retired while restarting. Discarding the new consumer")
+				_ = bc.closeConsumer(consumer)
+			}
 			return
 		}
 		//creation failed (broker unreachable?): retry after a session timeout,
