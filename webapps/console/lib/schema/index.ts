@@ -90,30 +90,15 @@ export const BillingSettings = z.object({
   canShowProvisionDbCredentials: z.boolean().default(false),
   dataRetentionEditorEnabled: z.boolean().default(false).optional(),
   destinationEvensPerMonth: z.number().default(200_000),
-  /**
-   * Length of one billing period (JITSU-200). Annual plans commit to a volume
-   * for the whole contract year and meter against that single pool, so quota
-   * and usage must never be read as monthly. Missing = "month", which is what
-   * every plan predating annual pricing is.
-   */
-  billingInterval: z.enum(["month", "year"]).optional(),
-  /**
-   * Included destination events for one full billing period. For an annual
-   * plan this is the committed annual volume (e.g. 18,000,000,000) — a
-   * negotiated figure, not 12 x the monthly tier, so it cannot be derived.
-   * Missing = fall back to `destinationEvensPerMonth`. Read it through
-   * `billingPeriod()` rather than directly.
-   */
-  destinationEventsPerPeriod: z.number().optional(),
   expiresAt: z.string().optional(),
   /**
-   * Current subscription period, as reported by the billing API, always one
-   * full `billingInterval`: for Stripe-managed plans the subscription's own
-   * period (or, for an annual commitment invoiced in installments, the
-   * contract year anchored on the subscription start), for custom-billed
-   * workspaces the month or year anchored on the contract start date. The
-   * console never derives this itself. Absent for the free plan, where the
-   * console falls back to the UTC calendar month.
+   * Current billing period, as reported by the billing API, always one month:
+   * the Stripe cycle for a plain monthly price, otherwise the contract month
+   * anchored on the subscription start (day-of-month, day 29–31 clamped). A
+   * committed contract (JITSU-200) invoiced quarterly or annually still meters
+   * `destinationEvensPerMonth` per month — there is no annual pool — and only
+   * `expiresAt` reflects the commitment term. Absent for the free plan, where
+   * the console falls back to the UTC calendar month.
    */
   currentPeriod: z
     .object({

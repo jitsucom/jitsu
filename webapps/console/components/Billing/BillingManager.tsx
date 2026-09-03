@@ -13,7 +13,6 @@ import styles from "./BillingManager.module.css";
 import { useQuery } from "@tanstack/react-query";
 import { ErrorCard } from "../GlobalError/GlobalError";
 import { useEventsUsage } from "./use-events-usage";
-import { billingPeriod, syncQuotaWindow } from "./billing-period";
 import { JitsuButton } from "../JitsuButton/JitsuButton";
 import dayjs from "dayjs";
 
@@ -67,7 +66,6 @@ const EventsUsageSection: React.FC<{}> = () => {
   assertFalse(billing.loading, "Billing must be loaded before using UsageSection component");
 
   const { isLoading, error, usage, throttle } = useEventsUsage();
-  const period = billingPeriod(billing.settings);
 
   if (isLoading) {
     return <Skeleton active paragraph={{ rows: 1, width: "100%" }} title={false} />;
@@ -87,8 +85,7 @@ const EventsUsageSection: React.FC<{}> = () => {
       <div className="flex items-center justify-between">
         <div>
           {formatNumber(Math.round(usage?.events))} / {formatNumber(usage.maxAllowedDestinatonEvents)} destination
-          events used{period.interval === "year" ? " against your annual commitment" : ""} from{" "}
-          <i>{dayjs(usage.periodStart).utc().format("MMM DD, YYYY")}</i> to{" "}
+          events used from <i>{dayjs(usage.periodStart).utc().format("MMM DD, YYYY")}</i> to{" "}
           <i>{dayjs(usage.periodEnd).utc().format("MMM DD, YYYY")}</i>. The quota will be reset on{" "}
           <i>{dayjs(usage.periodEnd).add(1, "day").utc().format("MMM DD")}</i>.
           <br />
@@ -115,7 +112,7 @@ const EventsUsageSection: React.FC<{}> = () => {
             message={<h4 className="font-bold">Overage fee warning</h4>}
             description={
               <div>
-                You have exceeded your {period.adjective} events destination limit by{" "}
+                You have exceeded your monthly events destination limit by{" "}
                 <b>{formatNumber(usage.events - usage.maxAllowedDestinatonEvents)}</b>. The overage fee of at least $
                 <b>
                   {(
@@ -126,7 +123,7 @@ const EventsUsageSection: React.FC<{}> = () => {
                 will be added to your next invoice.{" "}
                 {usage.projectionByTheEndOfPeriod && (
                   <>
-                    The projected overage fee by the end of the {period.noun} is{" "}
+                    The projected overage fee by end of the month is{" "}
                     <b>
                       $
                       {(
@@ -153,10 +150,17 @@ const ConnectorUsageSection: React.FC<{}> = () => {
   assertFalse(billing.loading, "Billing must be loaded before using CurrentSubscription component");
   const workspace = useWorkspace();
   const user = useUser();
-  //the sync limit is monthly even on an annual plan, so this window is not the billing period
-  const { start: periodStart, end: periodEnd } = syncQuotaWindow(billing.settings);
+  let periodStart: Date;
+  let periodEnd: Date;
+  if (billing.settings?.currentPeriod) {
+    periodEnd = new Date(billing.settings?.currentPeriod.end);
+    periodStart = new Date(billing.settings?.currentPeriod.start);
+  } else {
+    periodStart = dayjs().utc().startOf("month").toDate();
+    periodEnd = dayjs().utc().endOf("month").add(-1, "millisecond").toDate();
+  }
   const { isLoading, error, data } = useQuery(
-    ["connector usage", workspace.id, periodStart.toISOString()],
+    ["connector usage", workspace.id],
     async () => {
       const report = await rpc(
         `/api/${workspace.id}/reports/sync-stat?start=${periodStart.toISOString()}&end=${dayjs(periodEnd)
@@ -261,9 +265,9 @@ const CurrentSubscription: React.FC<{}> = () => {
                 <div className="text-error">Cancels at</div>
               )}
               <div className="ml-2 rounded-3xl bg-textDark text-backgroundLight px-3 py-1 text-sm">
-                {/* expiresAt is a UTC instant (an anniversary at 00:00 UTC on an annual
-                    plan); the local zone would show the previous day west of UTC, and
-                    every other period date on this page is already rendered in UTC */}
+                {/* expiresAt is a UTC instant (a contract anniversary at 00:00 UTC on a
+                    committed plan); the local zone would show the previous day west of UTC,
+                    and every other period date on this page is already rendered in UTC */}
                 {dayjs(billing.settings?.expiresAt as string)
                   .utc()
                   .format("MMMM DD, YYYY")}
