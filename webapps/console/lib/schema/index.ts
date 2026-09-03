@@ -3,6 +3,7 @@ import { getLog } from "juava";
 import { UserProfileDbModel, WorkspaceDbModel } from "../../prisma/schema";
 import { WorkspaceRolesZodType } from "../workspace-roles";
 import { ConfigApiDeleteOptions } from "../useApi";
+import { monthlyEventsQuota } from "../events-quota";
 
 export const SessionUser = z.object({
   name: z.string(),
@@ -74,7 +75,7 @@ export const BillingBanner = z.object({
 export type BillingBanner = z.infer<typeof BillingBanner>;
 
 //Default values are for "free" (default) plan
-export const BillingSettings = z.object({
+const BillingSettingsShape = z.object({
   planId: z.string().default("free"),
   //if plan has a custom pricing prepared for a particular workspace
   customBilling: z.boolean().default(false).optional(),
@@ -90,11 +91,40 @@ export const BillingSettings = z.object({
   overagePricePer100k: z.number().optional(),
   canShowProvisionDbCredentials: z.boolean().default(false),
   dataRetentionEditorEnabled: z.boolean().default(false).optional(),
+  /**
+   * Monthly destination-events quota. The key is misspelt for historical
+   * reasons and stays the one every reader uses: `BillingSettings` resolves
+   * both spellings through `monthlyEventsQuota` on parse and writes the result
+   * here, so readers keep working whichever key the plan was configured with,
+   * including a future where the typo is no longer emitted. Read raw plan data
+   * (which the billing service does not normalize) via that helper too.
+   */
   destinationEvensPerMonth: z.number().default(200_000),
+  /** Correct spelling of `destinationEvensPerMonth`; see there. */
+  destinationEventsPerMonth: z.number().optional(),
+  /**
+   * End of the current period, or, on a committed contract, the end of the
+   * commitment term (the contract anniversary for a commitment billed
+   * quarterly). Always a UTC instant.
+   */
   expiresAt: z.string().optional(),
   /**
-   * Subscription period. For monthly subscriptions it will be [expiresAt - 1 month, expiresAt]. For annual subscriptions - current
-   * month adjusted to a correct billing start date
+   * Commitment term of a negotiated contract (JITSU-200), from the plan's
+   * `plan_data`; absent for month-to-month plans. The quota stays monthly
+   * regardless — this only says what `expiresAt` is the end of. The only
+   * value the billing API emits is "year", but it is typed loosely: the value is Stripe
+   * metadata spread wholesale into the response, and a typo there must not
+   * take the billing page down — an unknown value just renders no term.
+   */
+  commitmentInterval: z.string().nullable().optional(),
+  /**
+   * Current billing period, as reported by the billing API, always one month:
+   * the Stripe cycle for a plain monthly price, otherwise the contract month
+   * anchored on the subscription start (day-of-month, day 29–31 clamped). A
+   * committed contract (JITSU-200) invoiced quarterly or annually still meters
+   * `destinationEvensPerMonth` per month — there is no annual pool — and only
+   * `expiresAt` reflects the commitment term. Absent for the free plan, where
+   * the console falls back to the UTC calendar month.
    */
   currentPeriod: z
     .object({
@@ -121,6 +151,27 @@ export const BillingSettings = z.object({
   //in-app banners (JITSU-88); attached from the billing/settings response, not part of subscriptionStatus
   banners: z.array(BillingBanner).optional(),
 });
+
+/**
+ * Billing settings as parsed from the billing API's `subscriptionStatus` or,
+ * in the plans table, from a plan's raw data. `monthlyEventsQuota` is the one
+ * place that decides the events quota, for both spellings of the key, so that
+ * the plans table, the usage bar and the quote page can never disagree about a
+ * given plan — including on a record the billing service itself considers
+ * quota-less, where the schema's own default applies instead.
+ */
+export const BillingSettings = z.preprocess(raw => {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
+    return raw;
+  }
+  const {
+    destinationEventsPerMonth: _correct,
+    destinationEvensPerMonth: _legacy,
+    ...rest
+  } = raw as Record<string, unknown>;
+  const quota = monthlyEventsQuota(raw as Record<string, unknown>);
+  return quota === undefined ? rest : { ...rest, destinationEvensPerMonth: quota, destinationEventsPerMonth: quota };
+}, BillingSettingsShape);
 
 export type BillingSettings = z.infer<typeof BillingSettings>;
 

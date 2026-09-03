@@ -8,6 +8,8 @@ import { useQuery } from "@tanstack/react-query";
 import { rpc } from "juava";
 import { LoadingAnimation } from "../components/GlobalLoader/GlobalLoader";
 import { useEffect, useState } from "react";
+import { chargeCadence, commitmentLabel } from "../components/Billing/charge-cadence";
+import { monthlyEventsQuota } from "../lib/events-quota";
 
 function timeUntil(date: Date): { days: number; hours: number; minutes: number; seconds: number } {
   const now = new Date();
@@ -119,6 +121,25 @@ const CustomPlanView: React.FC<{ token: string }> = ({ token }) => {
     throw new Error(`Data is empty`);
   }
 
+  // A negotiated quote (JITSU-200) is described by three independent things:
+  // what one charge covers (`interval` x `intervalCount` of the Stripe price —
+  // a commitment is often invoiced quarterly), the commitment term
+  // (`commitmentInterval`, e.g. a 12-month contract), and the quota, which is
+  // always monthly. `interval`/`price`/`commitmentInterval` are absent on a
+  // billing API that predates negotiated terms; fall back to the monthly-only
+  // shape it sends.
+  const cadence = chargeCadence(data.plan.interval === "year" ? "year" : "month", data.plan.intervalCount ?? 1);
+  const price = data.plan.price ?? data.plan.monthlyPrice;
+  const commitment = commitmentLabel(data.plan.commitmentInterval);
+  // `plan.data` is the product's raw plan_data, not normalized by the billing
+  // service, so the quota may sit under either spelling of the key.
+  const eventsPerMonth = monthlyEventsQuota(data.plan.data);
+  const terms = commitment
+    ? `${commitment}, billed ${cadence.billed}.`
+    : cadence.per === "month"
+    ? "Month-to-month, cancel at any time"
+    : `Billed ${cadence.billed}.`;
+
   return (
     <section className="w-full py-16 md:py-28 lg:py-36 flex justify-center">
       <div className="container px-4 md:px-6">
@@ -149,18 +170,18 @@ const CustomPlanView: React.FC<{ token: string }> = ({ token }) => {
               />
               <div className="flex flex-col space-y-4">
                 <p className="text-2xl">
-                  <span className="font-bold">${data.plan.monthlyPrice}</span>
-                  <span className="text-textLight">/month</span>
+                  <span className="font-bold">${price}</span>
+                  <span className="text-textLight">/{cadence.per}</span>
                 </p>
                 <div className="text-textLight">
                   Terms:{" "}
                   <b>
-                    {Number.parseInt(data.plan.data.destinationEvensPerMonth).toLocaleString("en-US", {
-                      maximumFractionDigits: 0,
-                    })}
+                    {eventsPerMonth === undefined
+                      ? "—"
+                      : eventsPerMonth.toLocaleString("en-US", { maximumFractionDigits: 0 })}
                   </b>{" "}
-                  events per month included, <b>${data.plan.data.overagePricePer100k * 10}</b> per extra million events.
-                  Month-to-month, cancel at any time
+                  events per month included, <b>${data.plan.data.overagePricePer100k * 10}</b> per extra million events.{" "}
+                  {terms}
                 </div>
               </div>
               <Button
@@ -171,6 +192,10 @@ const CustomPlanView: React.FC<{ token: string }> = ({ token }) => {
                   eeRedirect("billing/upgrade", {
                     workspaceId: selectedWorkspace,
                     planId: data.plan.id,
+                    // the quote token authorizes checkout of a negotiated (custom) plan, not
+                    // just its discovery — without it anyone knowing the plan id could check
+                    // out at the negotiated price
+                    token,
                     email: user.email,
                     returnUrl: `${window.location.origin}/${selectedWorkspace}/settings/billing`,
                     cancelUrl: window.location.href,
