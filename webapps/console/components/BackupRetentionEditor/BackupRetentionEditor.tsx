@@ -1,13 +1,13 @@
 import { Alert, Button, Checkbox, Modal, Skeleton } from "antd";
 import React, { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import Link from "next/link";
 import { Lock } from "lucide-react";
 import { rpc } from "juava";
 import { useWorkspace, useWorkspaceRole } from "../../lib/context";
 import { get } from "../../lib/useApi";
 import { useBilling } from "../Billing/BillingProvider";
 import { ErrorCard } from "../GlobalError/GlobalError";
-import { WJitsuButton } from "../JitsuButton/JitsuButton";
 import { feedbackError, feedbackSuccess } from "../../lib/ui";
 import {
   BACKUP_RETENTION_PRESET_DAYS,
@@ -17,7 +17,7 @@ import {
   getBackupRetentionCapDays,
   isBackupRetentionPreset,
 } from "../../lib/shared/data-retention";
-import { RetentionStagesPanel } from "./RetentionStagesPanel";
+import { PipelineRetentionList } from "./PipelineRetentionList";
 
 export const BackupRetentionEditorLoader: React.FC<{}> = () => {
   const workspace = useWorkspace();
@@ -41,42 +41,36 @@ export const BackupRetentionEditorLoader: React.FC<{}> = () => {
   const capDays = billing.enabled ? getBackupRetentionCapDays(billing.settings) : FREE_BACKUP_RETENTION_CAP_DAYS;
   const onCustomPlan = !!(billing.enabled && (billing.settings?.custom || billing.settings?.customBilling));
   return (
-    <RetentionStagesPanel
-      backupRetentionHours={parsed.retentionHours}
-      backupSettings={
-        <BackupRetentionEditor
-          key={`${parsed.retentionHours}:${parsed.source}`}
-          state={parsed}
-          capDays={capDays}
-          upgradeHref={onCustomPlan ? "/support" : "/settings/billing"}
-          onSaved={next => queryClient.setQueryData(["backup-retention", workspace.id], next)}
-        />
-      }
-    />
+    // The pipeline list is read-only reference; the Recovery panel beside it is
+    // the only control on the page. Stacks below `lg`.
+    <div className="grid items-start gap-10 lg:grid-cols-[1fr_25rem] lg:gap-14">
+      <PipelineRetentionList />
+      <BackupRetentionEditor
+        key={`${parsed.retentionHours}:${parsed.source}`}
+        state={parsed}
+        capDays={capDays}
+        upgradeHref={onCustomPlan ? "/support" : "/settings/billing"}
+        upgradeLabel={onCustomPlan ? "Contact support" : "Compare plans"}
+        onSaved={next => queryClient.setQueryData(["backup-retention", workspace.id], next)}
+      />
+    </div>
   );
 };
 
 type Option = {
   days: number;
   label: string;
-  hint: string;
   /** Above the plan cap — visible, but not selectable. */
   premium: boolean;
 };
-
-const PremiumPill: React.FC<{}> = () => (
-  <span className="bg-primary/10 text-primary inline-flex items-center gap-[3px] rounded-full px-[7px] py-0.5 text-[10px] font-bold tracking-wide">
-    <Lock className="h-[9px] w-[9px]" strokeWidth={2.5} />
-    PREMIUM
-  </span>
-);
 
 export const BackupRetentionEditor: React.FC<{
   state: BackupRetentionState;
   capDays: number;
   upgradeHref: string;
+  upgradeLabel: string;
   onSaved: (next: BackupRetentionState) => void;
-}> = ({ state, capDays, upgradeHref, onSaved }) => {
+}> = ({ state, capDays, upgradeHref, upgradeLabel, onSaved }) => {
   const workspace = useWorkspace();
   const role = useWorkspaceRole();
   const currentDays = state.retentionHours / 24;
@@ -90,32 +84,18 @@ export const BackupRetentionEditor: React.FC<{
   const options: Option[] = BACKUP_RETENTION_PRESET_DAYS.map(days => ({
     days,
     label: days === 0 ? "No backups" : `${days} days`,
-    hint:
-      days === 0
-        ? "Nothing is archived or restorable."
-        : days <= FREE_BACKUP_RETENTION_CAP_DAYS
-        ? "Replay a short outage."
-        : days < 90
-        ? "Covers a month of issues."
-        : "Replay a full quarter.",
     // The current value stays selectable even when it is above the cap (a free
     // workspace on the fleet default): re-selecting it is a no-op.
     premium: days > capDays && days !== currentDays,
   }));
   if (!isBackupRetentionPreset(currentDays)) {
-    options.unshift({
-      days: currentDays,
-      label: formatBackupRetention(state.retentionHours),
-      hint: "Custom window set by Jitsu.",
-      premium: false,
-    });
+    options.unshift({ days: currentDays, label: formatBackupRetention(state.retentionHours), premium: false });
   }
-  // The ceiling the CTA advertises is what the PLAN would unlock, not what is
-  // selectable right now: a free workspace still on the 90-day fleet default
-  // keeps 90 as its current value (so it isn't badged premium), but an upgrade
-  // is still what buys the right to choose it.
-  const abovePlanCap = BACKUP_RETENTION_PRESET_DAYS.filter(days => days > capDays);
-  const upgradeTo = options.some(o => o.premium) ? Math.max(...abovePlanCap) : undefined;
+  // Shown whenever the plan cannot reach the longest window — including for a
+  // free workspace still on the 90-day fleet default, where 90 is its current
+  // value (so not badged premium) but an upgrade is what buys the right to
+  // keep choosing it.
+  const showUpgradeLink = capDays < Math.max(...BACKUP_RETENTION_PRESET_DAYS) && !state.locked;
 
   const save = async (acknowledgeDataLoss?: boolean) => {
     setSaving(true);
@@ -138,7 +118,15 @@ export const BackupRetentionEditor: React.FC<{
   };
 
   return (
-    <div className="bg-background rounded-[10px] border border-neutral-100 p-5">
+    <aside aria-labelledby="backup-retention" className="bg-primary/5 border-primary/20 rounded-xl border p-6">
+      <div className="text-primary text-[11px] font-semibold uppercase tracking-[0.06em]">Recovery</div>
+      <h2 id="backup-retention" className="text-textDark mb-1 mt-2.5 text-lg font-semibold">
+        Backup retention
+      </h2>
+      <p className="text-textLight mb-[18px] text-[13px] leading-[1.5]">
+        A raw copy of your events — the only thing Jitsu can restore a destination from if it fails or loses data.
+      </p>
+
       {state.locked && (
         <Alert
           className="mb-4"
@@ -152,26 +140,7 @@ export const BackupRetentionEditor: React.FC<{
         <Alert className="mb-4" type="info" showIcon message="Only workspace editors can change the backup window" />
       )}
 
-      <div className="mb-3.5 flex items-center justify-between gap-4">
-        <div className="text-textLight text-[13px]">How long should backups be kept?</div>
-        {upgradeTo && !state.locked && (
-          <WJitsuButton
-            type="primary"
-            size="small"
-            href={upgradeHref}
-            icon={<Lock className="block h-3.5 w-3.5" />}
-            className="h-8 whitespace-nowrap px-4"
-          >
-            {upgradeHref === "/support" ? `Contact support for ${upgradeTo} days` : `Unlock up to ${upgradeTo} days`}
-          </WJitsuButton>
-        )}
-      </div>
-
-      <div
-        role="radiogroup"
-        aria-label="Backup retention"
-        className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 lg:grid-cols-4"
-      >
+      <div role="radiogroup" aria-label="Backup retention" className="grid gap-2">
         {options.map(option => {
           const isSelected = option.days === selected;
           const isCurrent = option.days === currentDays;
@@ -184,16 +153,31 @@ export const BackupRetentionEditor: React.FC<{
               aria-checked={isSelected}
               disabled={disabled}
               onClick={() => setSelected(option.days)}
-              className={`flex flex-col items-stretch gap-1 rounded-[10px] border px-3.5 py-3 text-left transition-colors ${
-                isSelected ? "border-primary bg-primary/5" : "border-textDisabled bg-backgroundLight"
-              } ${disabled ? "cursor-not-allowed opacity-60" : "hover:border-primaryLight cursor-pointer"}`}
+              className={`bg-backgroundLight flex w-full items-center gap-3 rounded-lg border px-3.5 py-3 text-left text-sm transition-colors ${
+                isSelected ? "border-primary ring-primary ring-1 ring-inset" : "border-textDisabled"
+              } ${disabled ? "cursor-not-allowed" : "hover:border-primaryLight cursor-pointer"}`}
             >
-              <span className="flex items-center justify-between gap-1.5">
-                <span className="text-textDark text-sm font-medium">{option.label}</span>
-                {option.premium && <PremiumPill />}
-                {isCurrent && !option.premium && <span className="text-textLight text-[11px]">current</span>}
+              <span
+                aria-hidden
+                className={`box-border h-4 w-4 flex-none rounded-full ${
+                  isSelected ? "border-[5px] border-primary" : "border-[1.5px] border-neutral-300"
+                }`}
+              />
+              <span
+                className={`flex-1 ${option.premium ? "text-textLight" : "text-textDark"} ${
+                  isSelected ? "font-medium" : ""
+                }`}
+              >
+                {option.label}
               </span>
-              <span className="text-textLight text-xs leading-[17px]">{option.hint}</span>
+              {option.premium ? (
+                <span className="text-textLight inline-flex items-center gap-1 text-xs">
+                  <Lock className="block h-3 w-3" />
+                  Premium
+                </span>
+              ) : (
+                isCurrent && <span className="text-primary text-xs font-semibold">Current</span>
+              )}
             </button>
           );
         })}
@@ -228,16 +212,22 @@ export const BackupRetentionEditor: React.FC<{
       )}
 
       <div className="mt-4 flex items-center justify-between gap-4">
-        <span className="text-textLight text-xs">Changes apply to the backup bucket within an hour.</span>
+        {showUpgradeLink && (
+          <Link className="text-[13px] font-medium" href={`/${workspace.slugOrId}${upgradeHref}`}>
+            {upgradeLabel}
+          </Link>
+        )}
         <Button
+          className="ml-auto"
           type="primary"
           loading={saving}
           disabled={!canEdit || !hasChanges || saving}
           onClick={() => (selected === 0 ? setAckOpen(true) : save())}
         >
-          Save
+          {hasChanges ? "Save changes" : "Save"}
         </Button>
       </div>
+      <p className="text-textLight mt-3 text-xs">Takes effect within an hour.</p>
 
       <Modal
         open={ackOpen}
@@ -258,6 +248,6 @@ export const BackupRetentionEditor: React.FC<{
           I understand that events cannot be recovered without backups
         </Checkbox>
       </Modal>
-    </div>
+    </aside>
   );
 };

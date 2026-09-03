@@ -21,18 +21,16 @@ const DataRetentionEditorPage = () => {
   return (
     <WorkspacePageLayout>
       <div className="flex justify-center">
-        <div className="max-w-4xl grow">
+        <div className="max-w-[1100px] grow">
           <EditorTitle
             title="Data Retention & Backups"
             subtitle={
-              <div className="text-textLight mb-6 max-w-[40rem] text-sm leading-[22px]">
+              <div className="text-textLight mb-9 max-w-[40rem] text-[15px] leading-[1.55]">
                 <div>
-                  Jitsu keeps your event data only as long as each stage of the pipeline needs it. Here is how long data
-                  lives at every step — and where you decide: <span className="text-text font-medium">backups</span>,
-                  the raw copy of your events that Jitsu can restore from if a destination ever fails or loses data.
+                  Jitsu keeps event data only as long as each stage needs it, then drops it. One thing is yours to
+                  decide: how long backups stay restorable.
                 </div>
-                <div className="mt-2">Once data has aged out of every stage, Jitsu no longer holds a copy of it.</div>
-                <div className="mt-2">
+                <div className="mt-2 text-sm">
                   <Link
                     className="font-semibold"
                     href="https://docs.jitsu.com/features/event-backups"
@@ -54,7 +52,7 @@ const DataRetentionEditorPage = () => {
               description="This deployment doesn't archive events. Configure a warehouse or file-storage destination if you need a raw copy of incoming events."
             />
           ) : (
-            <div className="flex flex-col gap-6">
+            <div className="flex flex-col gap-10">
               <BackupRetentionEditorLoader />
               {legacyEditorEnabled && (
                 <div>
