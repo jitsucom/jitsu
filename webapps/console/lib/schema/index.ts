@@ -92,11 +92,11 @@ const BillingSettingsShape = z.object({
   dataRetentionEditorEnabled: z.boolean().default(false).optional(),
   /**
    * Monthly destination-events quota. The key is misspelt for historical
-   * reasons and stays the one every reader uses. The billing service also
-   * accepts and emits the correct spelling below; `BillingSettings` copies it
-   * over this one on parse (correct spelling wins), so readers keep working
-   * whichever key the plan was configured with — including a future where the
-   * typo is no longer emitted. Read raw plan data via `monthlyEventsQuota`.
+   * reasons and stays the one every reader uses: `BillingSettings` resolves
+   * both spellings through `monthlyEventsQuota` on parse and writes the result
+   * here, so readers keep working whichever key the plan was configured with,
+   * including a future where the typo is no longer emitted. Read raw plan data
+   * (which the billing service does not normalize) via that helper too.
    */
   destinationEvensPerMonth: z.number().default(200_000),
   /** Correct spelling of `destinationEvensPerMonth`; see there. */
@@ -144,18 +144,23 @@ const BillingSettingsShape = z.object({
 });
 
 /**
- * Billing settings as parsed from the billing API's `subscriptionStatus` or a
- * plan's data. Normalizes the events quota so that a value under the correct
- * `destinationEventsPerMonth` key is what `destinationEvensPerMonth` reads.
+ * Billing settings as parsed from the billing API's `subscriptionStatus` or,
+ * in the plans table, from a plan's raw data. `monthlyEventsQuota` is the one
+ * place that decides the events quota, for both spellings of the key, so that
+ * the plans table, the usage bar and the quote page can never disagree about a
+ * given plan — including on a record the billing service itself considers
+ * quota-less, where the schema's own default applies instead.
  */
 export const BillingSettings = z.preprocess(raw => {
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
     return raw;
   }
-  const { destinationEventsPerMonth: _correctKey, ...rest } = raw as Record<string, unknown>;
+  const {
+    destinationEventsPerMonth: _correct,
+    destinationEvensPerMonth: _legacy,
+    ...rest
+  } = raw as Record<string, unknown>;
   const quota = monthlyEventsQuota(raw as Record<string, unknown>);
-  // Neither key usable: drop the correct one (if it held junk) and let the
-  // legacy key's own validation / default apply.
   return quota === undefined ? rest : { ...rest, destinationEvensPerMonth: quota, destinationEventsPerMonth: quota };
 }, BillingSettingsShape);
 
