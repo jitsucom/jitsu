@@ -17,4 +17,9 @@ describe("usagePercentage", () => {
   it("reports zero usage against a zero quota as nothing used", () => {
     expect(usagePercentage(0, 0)).toBe(0);
   });
+
+  it("never reports usage against a negative (unlimited) quota as exceeded", () => {
+    expect(usagePercentage(0, -1)).toBe(0);
+    expect(usagePercentage(1_000_000_000, -1)).toBe(0);
+  });
 });
