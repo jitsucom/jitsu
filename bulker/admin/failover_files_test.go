@@ -140,3 +140,36 @@ func TestFilterLocalFilesByList(t *testing.T) {
 		t.Errorf("filtered to %v, want %v", fileNames(filtered), want)
 	}
 }
+
+func TestParseGCSPath(t *testing.T) {
+	tests := []struct {
+		name       string
+		path       string
+		wantBucket string
+		wantPrefix string
+		wantErr    bool
+	}{
+		{name: "bucket root", path: "gs://events", wantBucket: "events"},
+		{name: "object prefix", path: "gs://events/failover/2026/", wantBucket: "events", wantPrefix: "failover/2026/"},
+		{name: "wrong scheme", path: "s3://events/failover", wantErr: true},
+		{name: "missing bucket", path: "gs:///failover", wantErr: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			bucket, prefix, err := parseGCSPath(tt.path)
+			if tt.wantErr {
+				if err == nil {
+					t.Fatalf("parseGCSPath(%q) succeeded, want error", tt.path)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("parseGCSPath(%q): %v", tt.path, err)
+			}
+			if bucket != tt.wantBucket || prefix != tt.wantPrefix {
+				t.Errorf("parseGCSPath(%q) = %q, %q; want %q, %q", tt.path, bucket, prefix, tt.wantBucket, tt.wantPrefix)
+			}
+		})
+	}
+}

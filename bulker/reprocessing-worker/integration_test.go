@@ -44,12 +44,22 @@ func (f *fakeProducer) ProduceAsync(topic, messageKey string, event []byte, head
 
 // event renders one failover log line
 func event(messageId, sourceId, created string) string {
-	line, _ := json.Marshal(map[string]interface{}{
+	return eventWithType(messageId, sourceId, created, "track", "")
+}
+
+func eventWithType(messageId, sourceId, created, eventType, eventName string) string {
+	payload := map[string]interface{}{"type": eventType}
+	if eventName != "" {
+		payload["event"] = eventName
+	}
+	message := map[string]interface{}{
 		"messageId":      messageId,
 		"messageCreated": created,
-		"type":           "track",
+		"type":           eventType,
 		"origin":         map[string]string{"sourceId": sourceId, "slug": sourceId + "-slug"},
-	})
+		"httpPayload":    payload,
+	}
+	line, _ := json.Marshal(message)
 	return string(line)
 }
 
@@ -93,7 +103,7 @@ func runFile(t *testing.T, file FileItem, config string, streams *Streams, produ
 	rules := parseConnectionRules(parsed)
 	status := &WorkerStatus{}
 	// dbpool is only touched every 100k lines, s3Client only for s3:// paths
-	err := processFile(file, parsed, rules, producer, nil, streams,
+	err := processFile(file, parsed, rules, producer, nil, nil, streams,
 		&WorkerConfig{JobID: "test", KafkaTopicName: "destination-messages"}, status, nil, false)
 	if err != nil {
 		t.Fatalf("processFile: %v", err)
@@ -251,6 +261,25 @@ func TestReprocessLocalFiles(t *testing.T) {
 	}
 }
 
+func TestReprocessEventAllowlist(t *testing.T) {
+	dir := t.TempDir()
+	file := writeLogFile(t, dir, "failover-2026_07_30T09_00_00.ndjson", []string{
+		eventWithType("e1", "s1", "2026-07-30T10:00:00Z", "page", ""),
+		eventWithType("e2", "s1", "2026-07-30T11:00:00Z", "track", "signup"),
+		eventWithType("e3", "s1", "2026-07-30T12:00:00Z", "track", "purchase"),
+		eventWithType("e4", "s1", "2026-07-30T13:00:00Z", "identify", ""),
+	})
+	producer := &fakeProducer{}
+	status := runFile(t, file, `{"events":["page","signup"]}`, testStreams(map[string][]string{"s1": {"m1"}}), producer)
+
+	if !sameIds(sentIds(producer), []string{"e1", "e2"}) {
+		t.Errorf("produced %v, want [e1 e2]", sentIds(producer))
+	}
+	if status.SuccessCount != 2 || status.SkippedCount != 2 || status.ErrorCount != 0 || status.TotalLines != 4 {
+		t.Errorf("unexpected status: %+v", status)
+	}
+}
+
 // A produce failure aborts the batch; the failing message and the ones after it
 // in that batch must be accounted for exactly once.
 func TestReprocessLocalFilesProduceFailure(t *testing.T) {
@@ -266,7 +295,7 @@ func TestReprocessLocalFilesProduceFailure(t *testing.T) {
 
 	parsed := jobConfig(t, `{"batch_size": 4}`)
 	status := &WorkerStatus{}
-	err := processFile(file, parsed, parseConnectionRules(parsed), producer, nil, streams,
+	err := processFile(file, parsed, parseConnectionRules(parsed), producer, nil, nil, streams,
 		&WorkerConfig{JobID: "test", KafkaTopicName: "destination-messages"}, status, nil, false)
 	if err != nil {
 		t.Fatalf("processFile returned %v; the send failure is reported through status", err)

@@ -3,6 +3,8 @@ package main
 import (
 	"encoding/json"
 	"testing"
+
+	"github.com/jitsucom/bulker/jitsubase/jsonorder"
 )
 
 // jobConfig builds a job config the way the worker reads it: parsed from the
@@ -26,6 +28,78 @@ func sameIds(a, b []string) bool {
 		}
 	}
 	return true
+}
+
+func TestParseGCSPath(t *testing.T) {
+	tests := []struct {
+		name       string
+		path       string
+		wantBucket string
+		wantObject string
+		wantErr    bool
+	}{
+		{name: "object", path: "gs://events/failover/file.ndjson.gz", wantBucket: "events", wantObject: "failover/file.ndjson.gz"},
+		{name: "wrong scheme", path: "s3://events/file.ndjson", wantErr: true},
+		{name: "missing bucket", path: "gs:///file.ndjson", wantErr: true},
+		{name: "missing object", path: "gs://events", wantErr: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			bucket, object, err := parseGCSPath(tt.path)
+			if tt.wantErr {
+				if err == nil {
+					t.Fatalf("parseGCSPath(%q) succeeded, want error", tt.path)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("parseGCSPath(%q): %v", tt.path, err)
+			}
+			if bucket != tt.wantBucket || object != tt.wantObject {
+				t.Errorf("parseGCSPath(%q) = %q, %q; want %q, %q", tt.path, bucket, object, tt.wantBucket, tt.wantObject)
+			}
+		})
+	}
+}
+
+func TestEventFilterMatchesTypeAndTrackName(t *testing.T) {
+	filter := parseEventFilter(jobConfig(t, `{"events":[" page ","signup"]}`))
+	message := func(raw string) map[string]interface{} {
+		var result map[string]interface{}
+		if err := jsonorder.Unmarshal([]byte(raw), &result); err != nil {
+			t.Fatalf("unmarshal event: %v", err)
+		}
+		return result
+	}
+	tests := []struct {
+		name    string
+		message map[string]interface{}
+		want    bool
+	}{
+		{name: "matches event type", message: message(`{"type":"page","httpPayload":{"type":"page"}}`), want: true},
+		{name: "matches track name", message: message(`{"type":"track","httpPayload":{"type":"track","event":"signup"}}`), want: true},
+		{name: "does not match another track name", message: message(`{"type":"track","httpPayload":{"type":"track","event":"purchase"}}`)},
+		{name: "ignores event field for non-track types", message: message(`{"type":"identify","httpPayload":{"type":"identify","event":"signup"}}`)},
+		{name: "missing fields do not match", message: map[string]interface{}{}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := filter.matches(tt.message); got != tt.want {
+				t.Errorf("matches(%v) = %v, want %v", tt.message, got, tt.want)
+			}
+		})
+	}
+
+	if !parseEventFilter(jobConfig(t, `{}`)).matches(map[string]interface{}{}) {
+		t.Error("an absent event filter should allow every event")
+	}
+	if !parseEventFilter(jobConfig(t, `{"events":[]}`)).matches(map[string]interface{}{}) {
+		t.Error("an empty event filter should allow every event")
+	}
+	trackFilter := parseEventFilter(jobConfig(t, `{"events":["track"]}`))
+	if !trackFilter.matches(message(`{"type":"track","httpPayload":{"type":"track","event":"purchase"}}`)) {
+		t.Error("the track type should allow every track event name")
+	}
 }
 
 func TestParseConnectionRules(t *testing.T) {

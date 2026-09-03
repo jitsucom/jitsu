@@ -176,3 +176,28 @@ func TestStreamSelectorRoundTripThroughJobConfig(t *testing.T) {
 		})
 	}
 }
+
+func TestGCSAndEventsRoundTripThroughJobConfig(t *testing.T) {
+	var request ReprocessingStartRequest
+	if err := json.Unmarshal([]byte(`{"gcs_path":"gs://events/failover/","events":["page","signup"]}`), &request); err != nil {
+		t.Fatalf("unmarshal request: %v", err)
+	}
+	config := ReprocessingJobConfig{GCSPath: request.GCSPath, Events: request.Events}
+	encoded, err := json.Marshal(config)
+	if err != nil {
+		t.Fatalf("marshal config: %v", err)
+	}
+	var decoded struct {
+		GCSPath string   `json:"gcs_path"`
+		Events  []string `json:"events"`
+	}
+	if err := json.Unmarshal(encoded, &decoded); err != nil {
+		t.Fatalf("decode config: %v", err)
+	}
+	if decoded.GCSPath != "gs://events/failover/" {
+		t.Errorf("gcs_path = %q", decoded.GCSPath)
+	}
+	if !sameIds(decoded.Events, []string{"page", "signup"}) {
+		t.Errorf("events = %v", decoded.Events)
+	}
+}

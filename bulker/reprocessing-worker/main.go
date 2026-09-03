@@ -13,6 +13,7 @@ import (
 	"strings"
 	"time"
 
+	"cloud.google.com/go/storage"
 	"github.com/aws/aws-sdk-go-v2/aws"
 	awsconfig "github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
@@ -237,6 +238,22 @@ func main() {
 		return
 	}
 
+	// GCS credentials are resolved only for workers that actually have GCS
+	// objects assigned. storage.NewClient uses Application Default Credentials,
+	// including GKE Workload Identity.
+	var gcsClient *storage.Client
+	if hasPathWithPrefix(myFiles, "gs://") {
+		gcsClient, err = storage.NewClient(context.Background())
+		if err != nil {
+			message := "Failed to initialize GCS client: " + err.Error()
+			fmt.Fprintln(os.Stderr, message)
+			updateWorkerError(dbpool, config, message)
+			_ = producer.Close()
+			os.Exit(1)
+		}
+		defer gcsClient.Close()
+	}
+
 	fmt.Printf("Worker %d processing %d files\n", config.WorkerIndex, len(myFiles))
 
 	// Update status to running
@@ -289,7 +306,7 @@ func main() {
 			savedErrorCount := status.ErrorCount
 			savedSkippedCount := status.SkippedCount
 
-			lastErr = processFile(fileItem, jobConfig, rules, producer, s3Client, streams, config, status, dbpool, dryRun)
+			lastErr = processFile(fileItem, jobConfig, rules, producer, s3Client, gcsClient, streams, config, status, dbpool, dryRun)
 			if lastErr == nil {
 				// Success - break retry loop
 				break
@@ -517,7 +534,16 @@ func selectWorkerFiles(files []FileItem, workerIndex, totalWorkers int) []FileIt
 	return myFiles
 }
 
-func processFile(fileItem FileItem, jobConfig map[string]interface{}, rules *connectionRules, producer messageProducer, s3Client *s3.Client, streams *Streams, config *WorkerConfig, status *WorkerStatus, dbpool *pgxpool.Pool, dryRun bool) error {
+func hasPathWithPrefix(files []FileItem, prefix string) bool {
+	for _, file := range files {
+		if strings.HasPrefix(file.Path, prefix) {
+			return true
+		}
+	}
+	return false
+}
+
+func processFile(fileItem FileItem, jobConfig map[string]interface{}, rules *connectionRules, producer messageProducer, s3Client *s3.Client, gcsClient *storage.Client, streams *Streams, config *WorkerConfig, status *WorkerStatus, dbpool *pgxpool.Pool, dryRun bool) error {
 	status.CurrentFile = fileItem.Path
 
 	// Get file reader
@@ -525,9 +551,21 @@ func processFile(fileItem FileItem, jobConfig map[string]interface{}, rules *con
 	var err error
 
 	if strings.HasPrefix(fileItem.Path, "s3://") {
+		if s3Client == nil {
+			return fmt.Errorf("S3 client is not initialized")
+		}
 		reader, err = downloadS3File(s3Client, fileItem.Path)
 		if err != nil {
 			return fmt.Errorf("failed to download S3 file: %w", err)
+		}
+		defer reader.Close()
+	} else if strings.HasPrefix(fileItem.Path, "gs://") {
+		if gcsClient == nil {
+			return fmt.Errorf("GCS client is not initialized")
+		}
+		reader, err = downloadGCSFile(gcsClient, fileItem.Path)
+		if err != nil {
+			return fmt.Errorf("failed to download GCS file: %w", err)
 		}
 		defer reader.Close()
 	} else {
@@ -559,6 +597,7 @@ func processFile(fileItem FileItem, jobConfig map[string]interface{}, rules *con
 	}
 
 	batch := make([]map[string]interface{}, 0, batchSize)
+	eventFilter := parseEventFilter(jobConfig)
 
 	for scanner.Scan() {
 		lineNum++
@@ -576,7 +615,7 @@ func processFile(fileItem FileItem, jobConfig map[string]interface{}, rules *con
 		}
 
 		// Filter message based on job config
-		if !shouldProcessMessage(message, jobConfig, rules) {
+		if !shouldProcessMessage(message, jobConfig, rules, eventFilter) {
 			status.SkippedCount++
 			continue
 		}
@@ -627,7 +666,71 @@ func downloadS3File(s3Client *s3.Client, s3Path string) (io.ReadCloser, error) {
 	return result.Body, nil
 }
 
-func shouldProcessMessage(message map[string]interface{}, jobConfig map[string]interface{}, rules *connectionRules) bool {
+func downloadGCSFile(gcsClient *storage.Client, gcsPath string) (io.ReadCloser, error) {
+	bucket, object, err := parseGCSPath(gcsPath)
+	if err != nil {
+		return nil, err
+	}
+	return gcsClient.Bucket(bucket).Object(object).NewReader(context.Background())
+}
+
+func parseGCSPath(gcsPath string) (bucket, object string, err error) {
+	const prefix = "gs://"
+	if !strings.HasPrefix(gcsPath, prefix) {
+		return "", "", fmt.Errorf("invalid GCS path %q: expected gs://bucket/object", gcsPath)
+	}
+	parts := strings.SplitN(strings.TrimPrefix(gcsPath, prefix), "/", 2)
+	if len(parts) != 2 || parts[0] == "" || parts[1] == "" {
+		return "", "", fmt.Errorf("invalid GCS path %q: bucket and object are required", gcsPath)
+	}
+	return parts[0], parts[1], nil
+}
+
+type eventFilter map[string]struct{}
+
+func parseEventFilter(jobConfig map[string]interface{}) eventFilter {
+	var values []string
+	switch events := jobConfig["events"].(type) {
+	case []interface{}:
+		for _, value := range events {
+			if event, ok := value.(string); ok {
+				values = append(values, event)
+			}
+		}
+	case []string:
+		values = events
+	}
+
+	filter := eventFilter{}
+	for _, value := range values {
+		if value = strings.TrimSpace(value); value != "" {
+			filter[value] = struct{}{}
+		}
+	}
+	return filter
+}
+
+func (f eventFilter) matches(message map[string]interface{}) bool {
+	if len(f) == 0 {
+		return true
+	}
+	eventType, _ := message["type"].(string)
+	if _, ok := f[eventType]; ok {
+		return true
+	}
+	if eventType == "track" {
+		payload, _ := message["httpPayload"].(*jsonorder.OrderedMap[string, interface{}])
+		if payload == nil {
+			return false
+		}
+		eventName := payload.GetS("event")
+		_, ok := f[eventName]
+		return ok
+	}
+	return false
+}
+
+func shouldProcessMessage(message map[string]interface{}, jobConfig map[string]interface{}, rules *connectionRules, events eventFilter) bool {
 	// Only selected streams are reprocessed — in both the plain and the map
 	// form of stream_ids (a map without a "*" entry excludes everything it
 	// doesn't mention).
@@ -639,6 +742,9 @@ func shouldProcessMessage(message map[string]interface{}, jobConfig map[string]i
 		if !rules.matches(origin.GetS("sourceId"), origin.GetS("slug")) {
 			return false
 		}
+	}
+	if !events.matches(message) {
+		return false
 	}
 	// Add date filtering if needed
 	if dateFrom, ok := jobConfig["date_from"].(string); ok && dateFrom != "" && dateFrom != "0001-01-01T00:00:00Z" {
