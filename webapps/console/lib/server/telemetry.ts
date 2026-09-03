@@ -63,6 +63,8 @@ type TrackEvents =
   | "delete_object"
   | "connection_created"
   | "connection_deleted"
+  // self-serve backup window changed in the console (JITSU-202); an upsell signal
+  | "backup_retention_changed"
   | "login"
   | "logout";
 

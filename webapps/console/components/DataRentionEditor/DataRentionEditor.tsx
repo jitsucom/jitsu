@@ -67,19 +67,20 @@ export const UnitEditor: React.FC<{ name: any; unit: string }> = ({ name, unit }
   );
 };
 
+// disableS3Archive is deliberately not a form field: nothing reads it any more
+// (the event archive is governed by backupRetentionHours, edited in
+// BackupRetentionEditor); the schema keeps it only so old rows still parse.
 export const FormValuesType = DataRetentionSettings.omit({ disableS3Archive: true }).and(
   z.object({
     mongoEnabled: z.coerce.boolean(),
-    enableS3Archive: z.coerce.boolean(),
   })
 );
 
 type FormValuesType = z.infer<typeof FormValuesType>;
 
-function fromFormValues({ mongoEnabled, enableS3Archive, ...values }: FormValuesType): DataRetentionSettings {
+function fromFormValues({ mongoEnabled, ...values }: FormValuesType): DataRetentionSettings {
   return DataRetentionSettings.parse({
     ...values,
-    disableS3Archive: !enableS3Archive,
     customMongoDb: mongoEnabled ? values.customMongoDb : undefined,
   });
 }
@@ -88,7 +89,6 @@ function toFormValues(obj: DataRetentionSettings): FormValuesType {
   return {
     ...obj,
     mongoEnabled: !!obj.customMongoDb,
-    enableS3Archive: !obj.disableS3Archive,
   };
 }
 
@@ -208,23 +208,6 @@ export const DataRetentionEditor: React.FC<{
               <Form.Item className="customMongoDb" noStyle>
                 <Input className="mb-4" placeholder="Mongo DB connection string" disabled={!currentObj.mongoEnabled} />
               </Form.Item>
-            </div>
-          </ConfigSection>
-          <ConfigSection
-            title="S3 Archive"
-            documentation={
-              <>
-                Jitsu archives all incoming event into a dedicated S3 bucket{" "}
-                <code>{workspace.id}.data.use.jitsu.com</code> so they could be replayed later. You can disable this
-                behavior if you don't need it.
-              </>
-            }
-          >
-            <div className="flex items-center gap-2">
-              <Form.Item name="enableS3Archive" noStyle valuePropName="checked">
-                <Switch id="enableS3Archive" />
-              </Form.Item>
-              <label htmlFor="enableS3Archive">{currentObj.enableS3Archive ? "Enabled" : "Disabled"}</label>
             </div>
           </ConfigSection>
         </div>
