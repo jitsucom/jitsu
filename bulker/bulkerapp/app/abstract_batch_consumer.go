@@ -90,6 +90,10 @@ type AbstractBatchConsumer struct {
 	//group.instance.id so a replacement is never fenced against the consumer
 	//it replaces (see newConsumer).
 	restartGeneration atomic.Int64
+	//lastRestartAt is when a restart last published a replacement consumer
+	//(unix nanos; zero before the first one). Only a replacement is subject to
+	//the restart cooldown — see restartConsumer.
+	lastRestartAt atomic.Int64
 	//assignmentFailures counts consecutive runs that ended without a partition
 	//assignment (retry mode). One is a rebalance; several in a row is a zombie.
 	assignmentFailures atomic.Int64
@@ -637,6 +641,10 @@ func (bc *AbstractBatchConsumer) initConsumer() (consumer *kafka.Consumer, creat
 	if err != nil {
 		return nil, false, err
 	}
+	//this consumer replaces nothing (first run, or a start after a suspend), so
+	//it is not covered by the restart cooldown — clear any stamp an earlier
+	//restart left behind, or a fatal error on it would be skipped
+	bc.lastRestartAt.Store(0)
 	bc.consumer.Store(consumer)
 	return consumer, true, nil
 }
@@ -777,7 +785,13 @@ func (bc *AbstractBatchConsumer) restartConsumer(beforeInit func()) {
 		return
 	}
 	sessionTimeout := time.Duration(bc.config.KafkaSessionTimeoutMs) * time.Millisecond
-	if bc.consumer.Load() != nil && time.Since(time.Unix(0, bc.consumerCreatedAt.Load())) < sessionTimeout {
+	//Only a consumer that a restart installed is subject to the cooldown: it
+	//means a concurrent restart already replaced the one this caller was
+	//looking at. A consumer created by initConsumer (the first one, or one
+	//started after a suspend) is nobody's replacement, so a fatal error on it
+	//must still force a restart rather than leave an unusable handle in place.
+	lastRestart := bc.lastRestartAt.Load()
+	if lastRestart > 0 && bc.consumer.Load() != nil && time.Since(time.Unix(0, lastRestart)) < sessionTimeout {
 		bc.Infof("Consumer was restarted less than %s ago. Skipping restart", sessionTimeout)
 		//beforeInit still runs: it is the caller's own recovery work (an offset
 		//fix-up via the admin client), and skipping it because someone else
@@ -810,6 +824,7 @@ func (bc *AbstractBatchConsumer) restartConsumer(beforeInit func()) {
 				_ = bc.closeConsumer(consumer)
 				return
 			}
+			bc.lastRestartAt.Store(time.Now().UnixNano())
 			if old := bc.consumer.Swap(consumer); old != nil {
 				bc.quarantineClose(old)
 			}
