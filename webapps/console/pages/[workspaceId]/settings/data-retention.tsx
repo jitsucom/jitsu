@@ -21,7 +21,7 @@ const DataRetentionEditorPage = () => {
   return (
     <WorkspacePageLayout>
       <div className="flex justify-center">
-        <div className="max-w-[1100px] grow">
+        <div className="w-full max-w-4xl">
           <EditorTitle
             title="Data Retention & Backups"
             subtitle={

@@ -43,7 +43,7 @@ export const BackupRetentionEditorLoader: React.FC<{}> = () => {
   return (
     // The pipeline list is read-only reference; the Recovery panel beside it is
     // the only control on the page. Stacks below `lg`.
-    <div className="grid items-start gap-10 lg:grid-cols-[1fr_25rem] lg:gap-14">
+    <div className="grid items-start gap-8 lg:grid-cols-[1fr_20rem] lg:gap-10">
       <PipelineRetentionList />
       <BackupRetentionEditor
         key={`${parsed.retentionHours}:${parsed.source}`}
@@ -213,7 +213,10 @@ export const BackupRetentionEditor: React.FC<{
 
       <div className="mt-4 flex items-center justify-between gap-4">
         {showUpgradeLink && (
-          <Link className="text-[13px] font-medium" href={`/${workspace.slugOrId}${upgradeHref}`}>
+          <Link
+            className="text-primary text-[13px] font-medium underline"
+            href={`/${workspace.slugOrId}${upgradeHref}`}
+          >
             {upgradeLabel}
           </Link>
         )}
