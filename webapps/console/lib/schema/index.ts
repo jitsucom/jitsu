@@ -2,6 +2,7 @@ import { z } from "zod";
 import { UserProfileDbModel, WorkspaceDbModel } from "../../prisma/schema";
 import { WorkspaceRolesZodType } from "../workspace-roles";
 import { ConfigApiDeleteOptions } from "../useApi";
+import { monthlyEventsQuota } from "../events-quota";
 
 export const SessionUser = z.object({
   name: z.string(),
@@ -73,7 +74,7 @@ export const BillingBanner = z.object({
 export type BillingBanner = z.infer<typeof BillingBanner>;
 
 //Default values are for "free" (default) plan
-export const BillingSettings = z.object({
+const BillingSettingsShape = z.object({
   planId: z.string().default("free"),
   //if plan has a custom pricing prepared for a particular workspace
   customBilling: z.boolean().default(false).optional(),
@@ -89,7 +90,17 @@ export const BillingSettings = z.object({
   overagePricePer100k: z.number().optional(),
   canShowProvisionDbCredentials: z.boolean().default(false),
   dataRetentionEditorEnabled: z.boolean().default(false).optional(),
+  /**
+   * Monthly destination-events quota. The key is misspelt for historical
+   * reasons and stays the one every reader uses. The billing service also
+   * accepts and emits the correct spelling below; `BillingSettings` copies it
+   * over this one on parse (correct spelling wins), so readers keep working
+   * whichever key the plan was configured with — including a future where the
+   * typo is no longer emitted. Read raw plan data via `monthlyEventsQuota`.
+   */
   destinationEvensPerMonth: z.number().default(200_000),
+  /** Correct spelling of `destinationEvensPerMonth`; see there. */
+  destinationEventsPerMonth: z.number().optional(),
   /**
    * End of the current period, or, on a committed contract, the end of the
    * commitment term (the contract anniversary for a commitment billed
@@ -131,6 +142,22 @@ export const BillingSettings = z.object({
   //in-app banners (JITSU-88); attached from the billing/settings response, not part of subscriptionStatus
   banners: z.array(BillingBanner).optional(),
 });
+
+/**
+ * Billing settings as parsed from the billing API's `subscriptionStatus` or a
+ * plan's data. Normalizes the events quota so that a value under the correct
+ * `destinationEventsPerMonth` key is what `destinationEvensPerMonth` reads.
+ */
+export const BillingSettings = z.preprocess(raw => {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
+    return raw;
+  }
+  const { destinationEventsPerMonth: _correctKey, ...rest } = raw as Record<string, unknown>;
+  const quota = monthlyEventsQuota(raw as Record<string, unknown>);
+  // Neither key usable: drop the correct one (if it held junk) and let the
+  // legacy key's own validation / default apply.
+  return quota === undefined ? rest : { ...rest, destinationEvensPerMonth: quota, destinationEventsPerMonth: quota };
+}, BillingSettingsShape);
 
 export type BillingSettings = z.infer<typeof BillingSettings>;
 
