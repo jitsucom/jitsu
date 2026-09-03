@@ -5,6 +5,7 @@ import { useBilling } from "./BillingProvider";
 import dayjs from "dayjs";
 import utc from "dayjs/plugin/utc";
 import { ActiveEventsReport } from "../../lib/shared/reporting";
+import { usagePercentage } from "./usage-percentage";
 dayjs.extend(utc);
 
 export type Usage = {
@@ -88,9 +89,7 @@ export function useEventsUsage(opts?: { skipSubscribed?: boolean; cacheSeconds?:
           events: data.usage,
           projectionByTheEndOfPeriod: projection,
           maxAllowedDestinatonEvents: billing.settings.destinationEvensPerMonth,
-          //a misconfigured plan (quota 0) must not render a NaN/Infinity progress bar
-          usagePercentage:
-            billing.settings.destinationEvensPerMonth > 0 ? data.usage / billing.settings.destinationEvensPerMonth : 0,
+          usagePercentage: usagePercentage(data.usage, billing.settings.destinationEvensPerMonth),
         }
       : undefined,
   };
