@@ -87,8 +87,10 @@ const EventsUsageSection: React.FC<{}> = () => {
         <div>
           {formatNumber(Math.round(usage?.events))} / {formatNumber(usage.maxAllowedDestinatonEvents)} destination
           events used from <i>{dayjs(usage.periodStart).utc().format("MMM DD, YYYY")}</i> to{" "}
-          <i>{dayjs(usage.periodEnd).utc().format("MMM DD, YYYY")}</i>. The quota will be reset on{" "}
-          <i>{dayjs(usage.periodEnd).add(1, "day").utc().format("MMM DD")}</i>.
+          {/* periodEnd is the exclusive end of the period (= the reset instant); the
+              usage window's last included day is one millisecond before it */}
+          <i>{dayjs(usage.periodEnd).subtract(1, "millisecond").utc().format("MMM DD, YYYY")}</i>. The quota will be
+          reset on <i>{dayjs(usage.periodEnd).utc().format("MMM DD")}</i>.
           <br />
           {billing?.settings?.overagePricePer100k && (
             <div className="text-textLight text-xs">
@@ -97,9 +99,11 @@ const EventsUsageSection: React.FC<{}> = () => {
           )}
         </div>
         <Link
-          href={`/${
-            workspace.slugOrId
-          }/settings/billing/details?start=${usage.periodStart.toISOString()}&end=${usage.periodEnd.toISOString()}`}
+          href={`/${workspace.slugOrId}/settings/billing/details?start=${usage.periodStart.toISOString()}&end=${dayjs(
+            usage.periodEnd
+          )
+            .subtract(1, "millisecond")
+            .toISOString()}`}
           className="flex items-center text-primary"
         >
           View detailed stat
@@ -158,7 +162,9 @@ const ConnectorUsageSection: React.FC<{}> = () => {
     periodStart = new Date(billing.settings?.currentPeriod.start);
   } else {
     periodStart = dayjs().utc().startOf("month").toDate();
-    periodEnd = dayjs().utc().endOf("month").add(-1, "millisecond").toDate();
+    // Exclusive end (start of next month), matching the billing API's convention
+    // so this fallback path renders the same way as a real currentPeriod.
+    periodEnd = dayjs().utc().startOf("month").add(1, "month").toDate();
   }
   const { isLoading, error, data } = useQuery(
     ["connector usage", workspace.id],
@@ -190,8 +196,9 @@ const ConnectorUsageSection: React.FC<{}> = () => {
         <div>
           {activeSyncs} / {maxActiveSyncs} monthly active syncs from{" "}
           <i>{dayjs(periodStart).utc().format("MMM DD, YYYY")}</i> to{" "}
-          <i>{dayjs(periodEnd).utc().format("MMM DD, YYYY")}</i>. The quota will be reset on{" "}
-          <i>{dayjs(periodEnd).add(1, "day").utc().format("MMM DD")}</i>.
+          {/* periodEnd is exclusive (= the reset instant); the last included day is 1ms before */}
+          <i>{dayjs(periodEnd).subtract(1, "millisecond").utc().format("MMM DD, YYYY")}</i>. The quota will be reset on{" "}
+          <i>{dayjs(periodEnd).utc().format("MMM DD")}</i>.
           {billing?.settings?.dailyActiveSyncsOverage && (
             <div className="text-textLight text-xs">
               Overage fee: ${billing?.settings?.dailyActiveSyncsOverage} per extra daily active sync
