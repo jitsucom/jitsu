@@ -59,6 +59,13 @@ const dataExtra: Record<string, string> = {
   "$Camel##Case#": "$camel##case#",
 };
 
+const dataDigits: Record<string, string> = {
+  // underscore must be inserted between a digit and a following capital letter
+  field1Name: "field1_name",
+  address2Line: "address2_line",
+  plan9FromOuterSpace: "plan9_from_outer_space",
+};
+
 test("test idToSnakeCaseFast", async () => {
   for (const [value, expected] of Object.entries(data)) {
     const res = idToSnakeCaseFast(value);
@@ -77,5 +84,18 @@ test("test idToSnakeCaseRegex", async () => {
   for (const [value, expected] of Object.entries(data)) {
     const res = idToSnakeCaseRegex(value);
     expect(res).toEqual(expected);
+  }
+});
+
+test("test idToSnakeCaseFast with digits", async () => {
+  for (const [value, expected] of Object.entries(dataDigits)) {
+    const res = idToSnakeCaseFast(value);
+    expect(res).toEqual(expected);
+  }
+});
+
+test("test idToSnakeCaseFast matches idToSnakeCaseRegex on digit boundaries", async () => {
+  for (const value of Object.keys(dataDigits)) {
+    expect(idToSnakeCaseFast(value)).toEqual(idToSnakeCaseRegex(value));
   }
 });
