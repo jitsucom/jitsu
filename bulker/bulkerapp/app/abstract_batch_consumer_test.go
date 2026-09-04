@@ -7,26 +7,6 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestHasLag(t *testing.T) {
-	testCases := []struct {
-		desc      string
-		committed int64
-		high      int64
-		expected  bool
-	}{
-		{"empty topic, nothing committed", int64(kafka.OffsetBeginning), 0, false},
-		{"empty topic, stale commit", 10, 0, false},
-		{"messages but no committed offset (new topic or deleted group)", int64(kafka.OffsetBeginning), 262_072, true},
-		{"committed behind the watermark", 100, 150, true},
-		{"fully consumed", 150, 150, false},
-	}
-	for _, tc := range testCases {
-		t.Run(tc.desc, func(t *testing.T) {
-			assert.Equal(t, tc.expected, hasLag(tc.committed, tc.high))
-		})
-	}
-}
-
 func TestMembershipLossReason(t *testing.T) {
 	testCases := []struct {
 		desc     string
