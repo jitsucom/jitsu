@@ -50,7 +50,9 @@ export function useEventsUsage(opts?: { skipSubscribed?: boolean; cacheSeconds?:
     periodStart = new Date(billing.settings?.currentPeriod.start);
   } else {
     periodStart = dayjs().utc().startOf("month").toDate();
-    periodEnd = dayjs().utc().endOf("month").add(-1, "millisecond").toDate();
+    // Exclusive end (start of next month), matching the billing API's convention
+    // so this fallback path agrees with a real currentPeriod.
+    periodEnd = dayjs().utc().startOf("month").add(1, "month").toDate();
   }
 
   const { isLoading, error, data } = useQuery(

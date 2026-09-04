@@ -128,7 +128,15 @@ const BillingSettingsShape = z.object({
    */
   currentPeriod: z
     .object({
+      /**
+       * Exclusive end of the period: the instant the next period begins and the
+       * quota resets, so it renders directly as the reset date and equals
+       * `expiresAt` for a plan renewing on the boundary. The usage window's last
+       * included instant is one millisecond before it (usage queries and the
+       * "…to X" label subtract 1ms).
+       */
       end: z.string(),
+      /** Inclusive start of the period (a UTC instant). */
       start: z.string(),
     })
     .optional(),
