@@ -11,7 +11,7 @@ import { ApiError } from "../shared/errors";
 import { configObjectAuditLog } from "./audit-log";
 import { productTelemetryEnabled, trackTelemetryEvent, withProductAnalytics } from "./telemetry";
 import { scheduleSync, validateSyncSchedule } from "./sync";
-import { getEeConnection, isEEAvailable, serviceTokenHeaders } from "./ee";
+import { getEeServerConnection, isEEAvailable, serviceTokenHeaders } from "./ee";
 import { omitDeletedList } from "./omit-deleted";
 import { getServerLog } from "./log";
 
@@ -259,7 +259,7 @@ export class ConfigObjectsService {
       // eeRpc call in ConfigEditor). Best-effort: the hourly backup-retention-sync
       // job on ee-api is the backstop, so a failure must not fail stream creation.
       try {
-        await rpc(`${getEeConnection().host}api/s3-init?workspaceId=${encodeURIComponent(workspaceId)}`, {
+        await rpc(`${getEeServerConnection().host}api/s3-init?workspaceId=${encodeURIComponent(workspaceId)}`, {
           method: "GET",
           headers: { "Content-Type": "application/json", ...serviceTokenHeaders() },
           // This await sits on the stream-creation response path; a hung

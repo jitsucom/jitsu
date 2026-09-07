@@ -9,7 +9,7 @@ import {
   RotorConnectionRow,
   RotorDestinationRow,
 } from "../../../../../lib/schema/export-contracts";
-import { getEeConnection, isEEAvailable, serviceTokenHeaders } from "../../../../../lib/server/ee";
+import { getEeServerConnection, isEEAvailable, serviceTokenHeaders } from "../../../../../lib/server/ee";
 import omit from "lodash/omit";
 import { NextApiRequest } from "next";
 import hash from "object-hash";
@@ -349,7 +349,7 @@ async function exportBulkerConnections(writer: Writer) {
   //silently disarming archiving fleet-wide.
   let backupConnections: unknown[] = [];
   if (isEEAvailable()) {
-    const url = `${getEeConnection().host}api/s3-connections`;
+    const url = `${getEeServerConnection().host}api/s3-connections`;
     const response: unknown = await rpc(url, {
       method: "GET",
       headers: {
