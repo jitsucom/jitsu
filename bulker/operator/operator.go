@@ -2,7 +2,6 @@ package main
 
 import (
 	"bytes"
-	"compress/gzip"
 	"context"
 	"crypto/sha256"
 	"encoding/json"
@@ -18,6 +17,9 @@ import (
 	"github.com/jitsucom/bulker/jitsubase/pg"
 	"github.com/jitsucom/bulker/jitsubase/safego"
 	"github.com/jitsucom/bulker/jitsubase/utils"
+	// Drop-in for compress/gzip: emits standard gzip, so existing consumers
+	// of the stored objects are unaffected.
+	"github.com/klauspost/compress/gzip"
 	appsv1 "k8s.io/api/apps/v1"
 	autoscalingv2 "k8s.io/api/autoscaling/v2"
 	corev1 "k8s.io/api/core/v1"
