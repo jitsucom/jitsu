@@ -47,7 +47,7 @@ function copyCursor(cursor: SourceCursor | undefined): SourceCursor | undefined 
 
 /**
  * Upsert lifecycle core. No database driver, provider API, automatic retry or
- * scheduling here. The production caller MUST supply the fenced sidecar journal;
+ * scheduling here. The production caller MUST supply the fenced PostgreSQL-backed journal;
  * this module deliberately provides no memory-only journal fallback.
  *
  * Consecutive operations of the same kind share a batch; kind changes flush it.
@@ -84,7 +84,7 @@ export async function runReverseEtl<C, R, O, I>(
   }
   ctx.signal.throwIfAborted();
   // Any uncertain remote work must be reconciled before opening a changed query
-  // or creating a second provider session. assertReady is a fenced sidecar gate.
+  // or creating a second provider session. assertReady is a fenced persistence gate.
   const resume = await ctx.delivery.assertReady().catch(() => {
     throw new ReverseEtlProtocolError("Recovery admission failed; reconcile outstanding work before running");
   });
@@ -125,7 +125,7 @@ export async function runReverseEtl<C, R, O, I>(
       throw new ReverseEtlProtocolError("Batch delivery is uncertain; reconcile its journal before retrying");
     }
     // Persist known outcomes even if cancellation arrived during the request, or
-    // one row was rejected. Only the sidecar decides durable acceptance/billing.
+    // one row was rejected. Only the journal records durable acceptance/billing.
     await journal.acknowledge(prepared.batchId, result, store());
     if (result.outcomes.some(outcome => outcome.status === "rejected")) {
       throw new ReverseEtlProtocolError("Destination rejected a row; the run stopped without skipping it");

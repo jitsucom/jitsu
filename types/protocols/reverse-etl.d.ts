@@ -52,7 +52,7 @@ export interface BufferedSyncStore {
   get(key: string): Json | undefined;
   set(key: string, value: Json): void;
   delete(key: string): void;
-  /** A bounded copy, committed atomically with receipts/checkpoints by the sidecar. */
+  /** A bounded copy, committed atomically with receipts/checkpoints by the persistence module. */
   snapshot(): JsonObject;
 }
 export interface SnapshotEntry<Value> {
@@ -89,7 +89,9 @@ export interface ResumePoint {
 }
 
 /**
- * Acknowledged, fenced sidecar RPC boundary, NOT an in-memory implementation.
+ * Awaited, fenced persistence boundary; production uses PostgreSQL in the Node runner.
+ * Provider implementations receive this interface, never a database client.
+ * There is no production in-memory fallback or requirement for an RPC transport.
  * Bind scope on construction and validate it on every write. Persist bounded
  * encrypted replay payloads before returning from prepare. Acknowledge writes
  * effective membership, receipts and the usage outbox transactionally. Accepted

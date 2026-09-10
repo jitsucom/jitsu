@@ -5,8 +5,10 @@ This is not a runnable CronJob yet. No advertising provider is registered or ena
 
 - Browser code imports `./meta` only; server code imports `./index`. Existing event destinations remain unchanged.
 - Provider streams will live beside their event implementations in `src/functions`, under `builtin.reverse.<type>`.
-- The caller supplies a fenced Go-sidecar `DeliveryJournal`. There is no production in-memory persistence fallback.
-- The sidecar must persist encrypted prepared payloads, bind target/revision/run/epoch, refuse unresolved recovery work, validate contiguous receipts and atomically commit state/outbox. Those RPCs/migrations are the next slice.
+- The caller supplies a fenced PostgreSQL-backed `DeliveryJournal` implemented in the Node runner. There is no Go sidecar, socket transport, or production in-memory persistence fallback.
+- The persistence module must persist encrypted prepared payloads, bind workspace/sync/target/revision/run/epoch, refuse unresolved recovery work, validate contiguous receipts and atomically commit state/outbox. The Node persistence backend, migrations, and recovery tests are the next slice.
+- Provider implementations receive narrow journal/snapshot interfaces, not database clients or credentials. Only trusted built-in code runs in-process; this boundary is not a security sandbox. The runner uses restricted database credentials and bounded transactions/connections.
+- The executable Node runner will own lease renewal, task/log persistence, and bounded graceful shutdown. syncctl/CronJobs retain scheduling/admission/cancellation and independent pod/task failure detection; controller container/status assumptions must be adapted. Existing connector sidecars are unchanged.
 - Batches remain in source order. Kind changes, size limits and checkpoint barriers flush the current bounded buffer.
 - Any staged outcome inhibits subsequent checkpoints until finish acceptance is durably acknowledged. The journal owns large manifests; Node retains one batch, not a per-run ID set.
 - Provider throws/malformed responses remain uncertain and fail closed; provider-specific bounded safe retry/reconciliation will be implemented with each verified adapter.
