@@ -27,7 +27,15 @@ type Config struct {
 	KubernetesContext      string `mapstructure:"KUBERNETES_CONTEXT"`
 	KubernetesNodeSelector string `mapstructure:"KUBERNETES_NODE_SELECTOR"`
 
-	K8sMaxParallelWorkers            int    `mapstructure:"K8S_MAX_PARALLEL_WORKERS" default:"10"`
+	K8sMaxParallelWorkers int `mapstructure:"K8S_MAX_PARALLEL_WORKERS" default:"10"`
+
+	// Codec used to compress job payloads passed to reprocessing-worker via
+	// ConfigMap: "gzip" or "zstd". Defaults to gzip so deploying this changes
+	// nothing at runtime.
+	//
+	// No deploy ordering is needed against the worker: it sniffs magic bytes
+	// rather than trusting a configured codec, so it reads whatever it is given.
+	JobPayloadCompressionCodec       string `mapstructure:"JOB_PAYLOAD_COMPRESSION_CODEC" default:"gzip"`
 	ReprocessingWorkerImage          string `mapstructure:"REPROCESSING_WORKER_IMAGE" default:"jitsucom/reprocessing-worker:latest"`
 	ReprocessingWorkerServiceAccount string `mapstructure:"REPROCESSING_WORKER_SERVICE_ACCOUNT"`
 

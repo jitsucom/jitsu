@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"math"
 	"os"
 	"sort"
@@ -14,6 +15,7 @@ import (
 
 	"github.com/hjson/hjson-go/v4"
 	"github.com/jitsucom/bulker/jitsubase/utils"
+	"github.com/klauspost/compress/zstd"
 	batchv1 "k8s.io/api/batch/v1"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -147,13 +149,29 @@ func (k *K8sJobClient) CreateReprocessingJob(ctx context.Context, jobID string, 
 	return createdJob.Name, nil
 }
 
-func gzipCompress(data []byte) ([]byte, error) {
+// compressPayload compresses a job payload with the configured codec. The reader
+// (reprocessing-worker) detects the format from magic bytes, so changing this
+// needs no coordinated deploy.
+func (k *K8sJobClient) compressPayload(data []byte) ([]byte, error) {
 	var buf bytes.Buffer
-	gz := gzip.NewWriter(&buf)
-	if _, err := gz.Write(data); err != nil {
+	var w io.WriteCloser
+	if k.config != nil && k.config.JobPayloadCompressionCodec == "zstd" {
+		// SpeedDefault: job payloads are write-once-read-once and then discarded.
+		enc, err := zstd.NewWriter(&buf,
+			zstd.WithEncoderLevel(zstd.SpeedDefault),
+			zstd.WithEncoderConcurrency(1))
+		if err != nil {
+			return nil, err
+		}
+		w = enc
+	} else {
+		w = gzip.NewWriter(&buf)
+	}
+	if _, err := w.Write(data); err != nil {
+		_ = w.Close()
 		return nil, err
 	}
-	if err := gz.Close(); err != nil { // important — flush and close
+	if err := w.Close(); err != nil { // important — flush and close
 		return nil, err
 	}
 	return buf.Bytes(), nil
@@ -166,7 +184,7 @@ func (k *K8sJobClient) createFileListConfigMap(ctx context.Context, name string,
 		return fmt.Errorf("failed to marshal files: %w", err)
 	}
 	//compress
-	gzipFilesJSON, err := gzipCompress(filesJSON)
+	gzipFilesJSON, err := k.compressPayload(filesJSON)
 	if err != nil {
 		return fmt.Errorf("failed to gzip files json: %w", err)
 	}

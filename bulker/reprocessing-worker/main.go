@@ -19,10 +19,12 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/confluentinc/confluent-kafka-go/v2/kafka"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/jitsucom/bulker/jitsubase/compression"
 	"github.com/jitsucom/bulker/jitsubase/jsonorder"
 	"github.com/jitsucom/bulker/jitsubase/pg"
 	"github.com/jitsucom/bulker/jitsubase/uuid"
 	"github.com/jitsucom/bulker/kafkabase"
+	"github.com/klauspost/compress/zstd"
 )
 
 // FileItem represents a file to be processed
@@ -478,19 +480,77 @@ func drainProducer(producer producerQueue, timeout, poll time.Duration) int {
 	}
 }
 
-func gzipDecompress(data []byte) ([]byte, error) {
-	buf := bytes.NewBuffer(data)
-	gz, err := gzip.NewReader(buf)
-	if err != nil {
-		return nil, err
-	}
-	defer gz.Close()
+// Magic bytes rather than a file extension or a config flag: the job file-list is
+// read from a fixed path (/config/files/files.json) that carries no suffix, and
+// sniffing means this decoder accepts whatever admin's k8s_client wrote. That
+// removes the deploy-ordering constraint on the pair - the decoder does not need
+// to know which codec the producer was configured for.
+var (
+	gzipMagic = []byte{0x1f, 0x8b}
+	zstdMagic = []byte{0x28, 0xb5, 0x2f, 0xfd}
+)
 
-	var outBuf bytes.Buffer
-	if _, err := outBuf.ReadFrom(gz); err != nil {
-		return nil, err
+// decompressorFor wraps r in the decoder implied by the compression suffix of
+// path, returning the reader to use and a close function that is always safe to
+// call.
+//
+// The archive holds .gz and .zst side by side indefinitely - every object written
+// before the switch keeps its .gz name for its full retention window - so this is
+// a permanent dual-format read path, not a migration. An unrecognised suffix reads
+// through uncompressed.
+//
+// The suffix list is shared (jitsubase/compression) rather than spelled out here,
+// so a codec cannot be added to the writers and forgotten by this reader.
+func decompressorFor(path string, r io.Reader) (io.Reader, func(), error) {
+	switch compression.Suffix(path) {
+	case compression.SuffixZstd:
+		dec, err := zstd.NewReader(r)
+		if err != nil {
+			return nil, func() {}, fmt.Errorf("failed to create zstd reader: %w", err)
+		}
+		return dec, dec.Close, nil
+	case compression.SuffixGzip:
+		gz, err := gzip.NewReader(r)
+		if err != nil {
+			return nil, func() {}, fmt.Errorf("failed to create gzip reader: %w", err)
+		}
+		return gz, func() { _ = gz.Close() }, nil
+	default:
+		return r, func() {}, nil
 	}
-	return outBuf.Bytes(), nil
+}
+
+// decompressBlob decompresses a gzip or zstd blob, passing through anything else
+// unchanged.
+func decompressBlob(data []byte) ([]byte, error) {
+	switch {
+	case bytes.HasPrefix(data, zstdMagic):
+		dec, err := zstd.NewReader(bytes.NewReader(data))
+		if err != nil {
+			return nil, fmt.Errorf("failed to create zstd reader: %w", err)
+		}
+		defer dec.Close()
+		var outBuf bytes.Buffer
+		if _, err := outBuf.ReadFrom(dec); err != nil {
+			return nil, err
+		}
+		return outBuf.Bytes(), nil
+
+	case bytes.HasPrefix(data, gzipMagic):
+		gz, err := gzip.NewReader(bytes.NewReader(data))
+		if err != nil {
+			return nil, err
+		}
+		defer gz.Close()
+		var outBuf bytes.Buffer
+		if _, err := outBuf.ReadFrom(gz); err != nil {
+			return nil, err
+		}
+		return outBuf.Bytes(), nil
+
+	default:
+		return data, nil
+	}
 }
 
 func loadJobData() ([]FileItem, map[string]interface{}, error) {
@@ -499,7 +559,7 @@ func loadJobData() ([]FileItem, map[string]interface{}, error) {
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to read files list: %w", err)
 	}
-	filesData, err := gzipDecompress(filesDataGz)
+	filesData, err := decompressBlob(filesDataGz)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to decompress files list: %w", err)
 	}
@@ -576,16 +636,11 @@ func processFile(fileItem FileItem, jobConfig map[string]interface{}, rules *con
 		defer reader.Close()
 	}
 
-	// Handle gzip compression
-	var fileReader io.Reader = reader
-	if strings.HasSuffix(fileItem.Path, ".gz") {
-		gzReader, err := gzip.NewReader(reader)
-		if err != nil {
-			return fmt.Errorf("failed to create gzip reader: %w", err)
-		}
-		defer gzReader.Close()
-		fileReader = gzReader
+	fileReader, closeDecompressor, err := decompressorFor(fileItem.Path, reader)
+	if err != nil {
+		return err
 	}
+	defer closeDecompressor()
 
 	// Process lines
 	scanner := bufio.NewScanner(fileReader)

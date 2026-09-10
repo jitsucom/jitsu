@@ -260,10 +260,10 @@ export const blockStorageSettings = z.object({
       "Format of the files stored in the block storage: <b>ndjson</b> - Newline Delimited JSON, <b>ndjson_flat</b> - Newline Delimited JSON flattened, <b>csv</b> - CSV"
     ),
   compression: z
-    .enum(["gzip", "none"])
+    .enum(["gzip", "zstd", "none"])
     .default("gzip")
     .describe(
-      "Compression mode used for the files stored in the block storage:<br/><b>gzip</b> - files will be compressed and have <code>.gz</code> filename suffix and <code>Content-Type: application/gzip</code><br/><b>none</b> - no compression, <code>Content-Type</code> and file extension will be set according to the format"
+      "Compression mode used for the files stored in the block storage:<br/><b>gzip</b> - files will be compressed and have <code>.gz</code> filename suffix and <code>Content-Type: application/gzip</code><br/><b>zstd</b> - Zstandard compression, <code>.zst</code> filename suffix and <code>Content-Type: application/zstd</code>. Smaller and faster than gzip, but check your downstream tooling can read it<br/><b>none</b> - no compression, <code>Content-Type</code> and file extension will be set according to the format"
     ),
 });
 

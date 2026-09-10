@@ -14,6 +14,7 @@ require (
 	github.com/jackc/pgx/v5 v5.9.2
 	github.com/jitsucom/bulker/jitsubase v0.0.0-20250910114132-348f517fbb54
 	github.com/jitsucom/bulker/kafkabase v0.0.0-20250910114132-348f517fbb54
+	github.com/klauspost/compress v1.19.1
 	github.com/spf13/viper v1.21.0
 	google.golang.org/api v0.275.0
 	k8s.io/api v0.35.2
@@ -104,7 +105,6 @@ require (
 	github.com/jackc/pgservicefile v0.0.0-20240606120523-5a60cdf6a761 // indirect
 	github.com/jackc/puddle/v2 v2.2.2 // indirect
 	github.com/json-iterator/go v1.1.12 // indirect
-	github.com/klauspost/compress v1.19.1 // indirect
 	github.com/klauspost/cpuid/v2 v2.3.0 // indirect
 	github.com/leodido/go-urn v1.4.0 // indirect
 	github.com/mattn/go-isatty v0.0.20 // indirect
