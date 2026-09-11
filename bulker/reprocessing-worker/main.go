@@ -480,16 +480,6 @@ func drainProducer(producer producerQueue, timeout, poll time.Duration) int {
 	}
 }
 
-// Magic bytes rather than a file extension or a config flag: the job file-list is
-// read from a fixed path (/config/files/files.json) that carries no suffix, and
-// sniffing means this decoder accepts whatever admin's k8s_client wrote. That
-// removes the deploy-ordering constraint on the pair - the decoder does not need
-// to know which codec the producer was configured for.
-var (
-	gzipMagic = []byte{0x1f, 0x8b}
-	zstdMagic = []byte{0x28, 0xb5, 0x2f, 0xfd}
-)
-
 // decompressorFor wraps r in the decoder implied by the compression suffix of
 // path, returning the reader to use and a close function that is always safe to
 // call.
@@ -520,37 +510,19 @@ func decompressorFor(path string, r io.Reader) (io.Reader, func(), error) {
 	}
 }
 
-// decompressBlob decompresses a gzip or zstd blob, passing through anything else
-// unchanged.
-func decompressBlob(data []byte) ([]byte, error) {
-	switch {
-	case bytes.HasPrefix(data, zstdMagic):
-		dec, err := zstd.NewReader(bytes.NewReader(data))
-		if err != nil {
-			return nil, fmt.Errorf("failed to create zstd reader: %w", err)
-		}
-		defer dec.Close()
-		var outBuf bytes.Buffer
-		if _, err := outBuf.ReadFrom(dec); err != nil {
-			return nil, err
-		}
-		return outBuf.Bytes(), nil
-
-	case bytes.HasPrefix(data, gzipMagic):
-		gz, err := gzip.NewReader(bytes.NewReader(data))
-		if err != nil {
-			return nil, err
-		}
-		defer gz.Close()
-		var outBuf bytes.Buffer
-		if _, err := outBuf.ReadFrom(gz); err != nil {
-			return nil, err
-		}
-		return outBuf.Bytes(), nil
-
-	default:
-		return data, nil
+func gzipDecompress(data []byte) ([]byte, error) {
+	buf := bytes.NewBuffer(data)
+	gz, err := gzip.NewReader(buf)
+	if err != nil {
+		return nil, err
 	}
+	defer gz.Close()
+
+	var outBuf bytes.Buffer
+	if _, err := outBuf.ReadFrom(gz); err != nil {
+		return nil, err
+	}
+	return outBuf.Bytes(), nil
 }
 
 func loadJobData() ([]FileItem, map[string]interface{}, error) {
@@ -559,7 +531,7 @@ func loadJobData() ([]FileItem, map[string]interface{}, error) {
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to read files list: %w", err)
 	}
-	filesData, err := decompressBlob(filesDataGz)
+	filesData, err := gzipDecompress(filesDataGz)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to decompress files list: %w", err)
 	}

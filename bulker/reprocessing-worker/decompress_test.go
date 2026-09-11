@@ -11,63 +11,6 @@ import (
 	"github.com/klauspost/compress/zstd"
 )
 
-// The job file-list arrives at a fixed path with no extension, so the format is
-// detected from magic bytes. This is what lets admin switch codec without a
-// coordinated deploy: whatever it writes, this reads.
-func TestDecompressBlobDetectsFormat(t *testing.T) {
-	payload := []byte(`[{"path":"a.ndjson.gz"},{"path":"b.ndjson.zst"}]`)
-
-	gzipped := func() []byte {
-		var b bytes.Buffer
-		w := gzip.NewWriter(&b)
-		_, _ = w.Write(payload)
-		_ = w.Close()
-		return b.Bytes()
-	}()
-
-	zstded := func() []byte {
-		var b bytes.Buffer
-		w, err := zstd.NewWriter(&b, zstd.WithEncoderLevel(zstd.SpeedDefault))
-		if err != nil {
-			t.Fatal(err)
-		}
-		_, _ = w.Write(payload)
-		_ = w.Close()
-		return b.Bytes()
-	}()
-
-	cases := map[string][]byte{
-		"gzip":         gzipped,
-		"zstd":         zstded,
-		"uncompressed": payload,
-	}
-	for name, in := range cases {
-		t.Run(name, func(t *testing.T) {
-			got, err := decompressBlob(in)
-			if err != nil {
-				t.Fatalf("decompressBlob: %v", err)
-			}
-			if !bytes.Equal(got, payload) {
-				t.Fatalf("got %q, want %q", got, payload)
-			}
-		})
-	}
-}
-
-// A gzip blob must not be mistaken for zstd or vice versa - the magic prefixes are
-// what the whole scheme rests on.
-func TestMagicPrefixesAreDistinct(t *testing.T) {
-	if bytes.HasPrefix(gzipMagic, zstdMagic) || bytes.HasPrefix(zstdMagic, gzipMagic) {
-		t.Fatal("gzip and zstd magic bytes overlap")
-	}
-	if !bytes.Equal(gzipMagic, []byte{0x1f, 0x8b}) {
-		t.Fatalf("gzip magic changed: %x", gzipMagic)
-	}
-	if !bytes.Equal(zstdMagic, []byte{0x28, 0xb5, 0x2f, 0xfd}) {
-		t.Fatalf("zstd magic changed: %x", zstdMagic)
-	}
-}
-
 // encodersBySuffix must cover every suffix in compression.Suffixes. Keeping the
 // map here, rather than deriving it, is deliberate: adding a codec to the writers
 // makes this test fail until someone adds an encoder AND confirms the reader
