@@ -223,8 +223,8 @@ export async function runReverseEtl<C, R, O>(
     finishStarted = true;
     const result = validateFinishResult(await writer.finish());
     await journal.acknowledgeFinish(result, store());
-    if (result.delivery === "pending") return { delivery: "pending", sourceSequence: point.sourceSequence };
     ctx.signal.throwIfAborted();
+    if (result.delivery === "pending") return { delivery: "pending", sourceSequence: point.sourceSequence };
     await journal.commitCheckpoint(point, store(), true);
     return { delivery: "accepted", sourceSequence: point.sourceSequence };
   } catch (error) {

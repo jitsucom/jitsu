@@ -317,6 +317,32 @@ describe("Reverse ETL lifecycle", () => {
     expect(f.journal.commitCheckpoint).not.toHaveBeenCalled();
     expect(f.writer.abort).not.toHaveBeenCalled();
   });
+  it.each(["finish", "acknowledgement"])(
+    "cancellation during pending %s is observed after durable acknowledgement",
+    async phase => {
+      const f = fixture(1);
+      const pending = { delivery: "pending" as const, remoteJobIds: ["job-1"] };
+      let acknowledged = false;
+      vi.mocked(f.writer.finish).mockImplementation(async () => {
+        if (phase === "finish") f.controller.abort();
+        return pending;
+      });
+      vi.mocked(f.journal.acknowledgeFinish).mockImplementation(async result => {
+        expect(result).toEqual(pending);
+        if (phase === "acknowledgement") f.controller.abort();
+        await Promise.resolve();
+        acknowledged = true;
+      });
+      await expect(f.run()).rejects.toThrow("Reverse ETL run cancelled");
+      expect(acknowledged).toBe(true);
+      expect(f.journal.acknowledgeFinish).toHaveBeenCalledWith(pending, {});
+      expect(f.writer.finish).toHaveBeenCalledTimes(1);
+      expect(f.journal.commitCheckpoint).not.toHaveBeenCalled();
+      expect(f.writer.abort).not.toHaveBeenCalled();
+      expect(f.journal.prepareAbort).not.toHaveBeenCalled();
+      expect(f.journal.acknowledgeAbort).not.toHaveBeenCalled();
+    }
+  );
   it("permanent rejection acknowledges accepted siblings and stops immediately", async () => {
     const f = fixture(6);
     vi.mocked(f.writer.upsert).mockImplementation(async batch => ({
