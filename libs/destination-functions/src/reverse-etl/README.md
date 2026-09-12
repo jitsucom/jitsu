@@ -3,6 +3,27 @@
 Second, stacked implementation slice: destination contracts and an upsert lifecycle core.
 This is not a runnable CronJob yet. No advertising provider is registered or enabled.
 
+## Package imports
+
+Supported imports for TypeScript-aware consumers (such as the Node runner's bundler):
+
+```ts
+// Server only: runner lifecycle, registry and identity/state helpers.
+import { runReverseEtl, createReverseEtlRegistry } from "@jitsu/destination-functions/src/reverse-etl/index";
+
+// Browser-safe metadata validation; does not import the server runtime.
+import { validateReverseEtlConfig } from "@jitsu/destination-functions/src/reverse-etl/meta";
+```
+
+The npm package includes `src/reverse-etl/**`, including both entry points and their
+local dependencies. Like the existing package entry points, these ship as TypeScript
+source, not precompiled JavaScript; compile/bundle them before running in plain Node.
+No `exports` map is introduced, preserving existing deep imports. The root event
+registry is unchanged and does not re-export the Reverse ETL server module.
+The packaging smoke test runs an offline `npm pack --dry-run --ignore-scripts`.
+
+## Design decisions
+
 - Browser code imports `./meta` only; server code imports `./index`. Existing event destinations remain unchanged.
 - Provider streams will live beside their event implementations in `src/functions`, under `builtin.reverse.<type>`.
 - The caller supplies a fenced PostgreSQL-backed `DeliveryJournal` implemented in the Node runner. There is no Go sidecar, socket transport, or production in-memory persistence fallback.
