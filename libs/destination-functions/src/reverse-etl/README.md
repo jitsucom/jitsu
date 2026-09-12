@@ -16,6 +16,8 @@ This is not a runnable CronJob yet. No advertising provider is registered or ena
 - Provider throws/malformed responses remain uncertain and fail closed; provider-specific bounded safe retry/reconciliation will be implemented with each verified adapter.
 - Every valid result is acknowledged before acting on permanent rejection or cancellation. Permanent errors never skip a row.
 - Remote cleanup also requires fenced `prepareAbort` and `acknowledgeAbort`; stale workers cannot initiate it. Already-authorized in-flight requests/cleanup still require reconciliation: this is not atomic provider-side fencing.
+- Once provider finalization starts, errors/cancellation leave it to recovery instead of invoking `abort`: finalization may already have accepted delivery even when its acknowledgement/checkpoint fails.
+- Explicit full refresh ignores the saved extraction cursor after recovery and never commits intermediate checkpoints, even when the reader emits cursor values. Accepted receipts/provider state remain available; this does not erase recovery data.
 - Finish is explicit even for empty input. Pending finish preserves recovery context, never calls abort merely because processing is pending, and never commits completion.
 - Core-owned snapshot mirroring is required for the first production audience release. This foundation still refuses mirror until its runner-core planner, persistence and recovery tests are implemented; removing `ctx.snapshot` does not enable mirror execution. Verified provider-native replacement remains a later optional strategy, not the basis of generic mirroring.
 - Receipts/outbox are authoritative. Only accepted operations activate a monthly sync; staged work and operation counts are not invoice charges.

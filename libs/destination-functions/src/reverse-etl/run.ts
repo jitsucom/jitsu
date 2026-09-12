@@ -90,14 +90,18 @@ export async function runReverseEtl<C, R, O>(
   });
   if (!Number.isSafeInteger(resume.sourceSequence) || resume.sourceSequence < 0)
     throw new ReverseEtlProtocolError("Invalid resume sequence");
-  if (resume.sourceSequence > 0 && !resume.cursor)
+  if (!ctx.fullRefresh && resume.sourceSequence > 0 && !resume.cursor)
     throw new ReverseEtlProtocolError("A full query must restart after recovery, not resume by sequence alone");
   let writer: ReverseEtlWriter<R> | undefined;
-  let point: ResumePoint = { sourceSequence: resume.sourceSequence, cursor: copyCursor(resume.cursor) };
+  // Full refresh starts a full scan after recovery, never from a saved cursor.
+  let point: ResumePoint = ctx.fullRefresh
+    ? { sourceSequence: 0 }
+    : { sourceSequence: resume.sourceSequence, cursor: copyCursor(resume.cursor) };
   let batch: WriteBatch<R>["records"] = [];
   let action: "upsert" | "remove" = "upsert";
   let bytes = 0;
   let staged = false;
+  let finishStarted = false;
   let sinceCheckpoint = 0;
   const store = () => ctx.store.snapshot();
   const journal: DeliveryJournal = ctx.delivery;
@@ -200,7 +204,7 @@ export async function runReverseEtl<C, R, O>(
       sinceCheckpoint++;
       if (batch.length >= stream.batchSize || sinceCheckpoint >= checkpointEvery) await flush();
       if (sinceCheckpoint >= checkpointEvery) {
-        if (!staged && point.cursor) await journal.commitCheckpoint(point, store(), false);
+        if (!ctx.fullRefresh && !staged && point.cursor) await journal.commitCheckpoint(point, store(), false);
         sinceCheckpoint = 0;
       }
     }
@@ -210,6 +214,7 @@ export async function runReverseEtl<C, R, O>(
     ctx.signal.throwIfAborted();
     // An uncertain finish remains a prepared manifest for recovery. Never call
     // finish twice, and never substitute an empty remove batch for finalization.
+    finishStarted = true;
     const result = validateFinishResult(await writer.finish());
     await journal.acknowledgeFinish(result, store());
     if (result.delivery === "pending") return { delivery: "pending", sourceSequence: point.sourceSequence };
@@ -218,7 +223,9 @@ export async function runReverseEtl<C, R, O>(
     return { delivery: "accepted", sourceSequence: point.sourceSequence };
   } catch (error) {
     try {
-      if (writer) {
+      // Once finalization starts, even a timeout can mean remote acceptance.
+      // Recovery must reconcile/commit it, not undo it through provider abort.
+      if (writer && !finishStarted) {
         // A stale worker must not cancel/delete a session now owned by recovery.
         // Like writes, already-authorized in-flight cleanup remains reconcilable.
         await journal.prepareAbort();

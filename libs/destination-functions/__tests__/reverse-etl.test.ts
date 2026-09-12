@@ -199,6 +199,8 @@ describe("Reverse ETL lifecycle", () => {
     expect(f.writer.finish).toHaveBeenCalledTimes(1);
     expect(f.journal.acknowledgeFinish).not.toHaveBeenCalled();
     expect(f.journal.commitCheckpoint).not.toHaveBeenCalled();
+    expect(f.writer.abort).not.toHaveBeenCalled();
+    expect(f.journal.prepareAbort).not.toHaveBeenCalled();
   });
   it("validates options before recovery admission or provider work", async () => {
     const f = fixture();
@@ -376,6 +378,71 @@ describe("Reverse ETL lifecycle", () => {
     await c.run();
     expect(a.batches[0].records[0].operationId).toBe(b.batches[0].records[0].operationId);
     expect(a.batches[0].records[0].operationId).not.toBe(c.batches[0].records[0].operationId);
+  });
+  it("full refresh ignores an old cursor and commits only after the full scan", async () => {
+    const f = fixture(4);
+    f.ctx.fullRefresh = true;
+    vi.mocked(f.journal.assertReady).mockResolvedValue({
+      sourceSequence: 20,
+      cursor: { value: "old", primaryKeyValues: ["old"] },
+    });
+    await f.run();
+    expect(f.source).toHaveBeenCalledWith(undefined, f.controller.signal);
+    expect(f.batches[0].records[0].sourceSequence).toBe(1);
+    expect(f.journal.commitCheckpoint).toHaveBeenCalledTimes(1);
+    expect(f.journal.commitCheckpoint).toHaveBeenCalledWith(
+      { sourceSequence: 4, cursor: f.rows[3].checkpoint },
+      {},
+      true
+    );
+  });
+  it("an interrupted full refresh retains receipts but no intermediate checkpoint", async () => {
+    const f = fixture(4);
+    f.ctx.fullRefresh = true;
+    f.source.mockImplementation(async function* () {
+      yield* f.rows.slice(0, 2);
+      throw new Error("source interrupted");
+    });
+    await expect(f.run()).rejects.toThrow();
+    expect(f.journal.acknowledge).toHaveBeenCalledTimes(1);
+    expect(f.journal.commitCheckpoint).not.toHaveBeenCalled();
+    // Recovery has reconciled old operations; the retry must scan from the start.
+    vi.mocked(f.journal.assertReady).mockResolvedValue({
+      sourceSequence: 20,
+      cursor: { value: "old", primaryKeyValues: ["old"] },
+    });
+    f.source.mockImplementation(async function* () {
+      yield* f.rows;
+    });
+    await f.run();
+    expect(f.source.mock.calls.every(([after]) => after === undefined)).toBe(true);
+    expect(f.journal.commitCheckpoint).toHaveBeenCalledTimes(1);
+  });
+  it("checkpoint failure after accepted finish never aborts provider delivery", async () => {
+    const f = fixture(1);
+    vi.mocked(f.journal.commitCheckpoint).mockRejectedValue(new Error("DB unavailable"));
+    await expect(f.run()).rejects.toThrow();
+    expect(f.journal.acknowledgeFinish).toHaveBeenCalledWith({ delivery: "accepted" }, {});
+    expect(f.writer.abort).not.toHaveBeenCalled();
+    expect(f.journal.prepareAbort).not.toHaveBeenCalled();
+  });
+  it("cancellation after acknowledged finish leaves checkpoint completion to recovery", async () => {
+    const f = fixture(1);
+    vi.mocked(f.journal.acknowledgeFinish).mockImplementation(async () => {
+      f.controller.abort();
+    });
+    await expect(f.run()).rejects.toThrow(/cancelled/);
+    expect(f.journal.commitCheckpoint).not.toHaveBeenCalled();
+    expect(f.writer.abort).not.toHaveBeenCalled();
+    expect(f.journal.prepareAbort).not.toHaveBeenCalled();
+  });
+  it("finish acknowledgement failure does not undo a possibly accepted submission", async () => {
+    const f = fixture(1);
+    vi.mocked(f.journal.acknowledgeFinish).mockRejectedValue(new Error("DB unavailable"));
+    await expect(f.run()).rejects.toThrow();
+    expect(f.journal.prepareFinish).toHaveBeenCalled();
+    expect(f.journal.commitCheckpoint).not.toHaveBeenCalled();
+    expect(f.writer.abort).not.toHaveBeenCalled();
   });
   it("refuses mirror until snapshot recovery is implemented", async () => {
     const f = fixture();
