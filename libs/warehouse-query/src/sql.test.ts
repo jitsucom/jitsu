@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { ModelDefinition, ReverseSyncOptions, validateReverseSyncModel } from "./schema";
-import { compileModel, decodeDelete, validateColumns, validateQuery } from "./sql";
+import { decodeDelete } from "./sql";
+import { getWarehouseSqlDialect } from "./index";
+import { postgresSql } from "./postgres";
+import { clickhouseSql } from "./clickhouse";
 
 const model = ModelDefinition.parse({
   warehouseId: "wh",
@@ -22,11 +25,15 @@ describe("read-only SQL", () => {
     ["SELECT $$hello; world$$ AS value;", "SELECT $$hello; world$$ AS value"],
     ["SELECT $é$semi;colon$é$ AS value;", "SELECT $é$semi;colon$é$ AS value"],
   ])("preserves original SQL spelling: %s", (input, expected) => {
-    expect(validateQuery(input, "postgres")).toBe(expected);
+    expect(postgresSql.validateQuery(input)).toBe(expected);
   });
   it.each(["postgres", "clickhouse"] as const)("accepts SELECTs and SELECT CTEs for %s", dialect => {
-    expect(validateQuery("WITH a AS (SELECT id FROM audience) SELECT id FROM a; -- tail", dialect)).toContain("SELECT");
-    expect(validateQuery("SELECT 'delete from t; -- not a comment' AS value", dialect)).toContain("delete from t");
+    expect(
+      getWarehouseSqlDialect(dialect).validateQuery("WITH a AS (SELECT id FROM audience) SELECT id FROM a; -- tail")
+    ).toContain("SELECT");
+    expect(
+      getWarehouseSqlDialect(dialect).validateQuery("SELECT 'delete from t; -- not a comment' AS value")
+    ).toContain("delete from t");
   });
   it.each([
     "DELETE FROM audience",
@@ -37,7 +44,7 @@ describe("read-only SQL", () => {
     "SELECT 1; DROP TABLE audience",
     "SELECT 1\0",
     "",
-  ])("rejects unsafe SQL: %s", sql => expect(() => validateQuery(sql, "postgres")).toThrow());
+  ])("rejects unsafe SQL: %s", sql => expect(() => postgresSql.validateQuery(sql)).toThrow());
 });
 
 describe("model contracts", () => {
@@ -46,11 +53,18 @@ describe("model contracts", () => {
     expect(() => ModelDefinition.parse({ ...model, primaryKey: ["id", "id"] })).toThrow();
     expect(() => ModelDefinition.parse({ ...model, cursor: { ...model.cursor, lookbackSeconds: 1 } })).toThrow();
   });
+  it.each(["number", "string"])("rejects zero lookback for a %s cursor", type => {
+    expect(() => ModelDefinition.parse({ ...model, cursor: { column: "changed", type, lookbackSeconds: 0 } })).toThrow(
+      /Lookback requires a timestamp cursor/
+    );
+  });
   it("requires unique projected columns with a compatible cursor type", () => {
-    expect(() => validateColumns(model, columns)).not.toThrow();
-    expect(() => validateColumns(model, [columns[0]])).toThrow(/project/);
-    expect(() => validateColumns(model, [...columns, columns[0]])).toThrow(/duplicate/);
-    expect(() => validateColumns(model, [columns[0], { name: "changed", type: "25" }])).toThrow(/does not match/);
+    expect(() => postgresSql.validateColumns(model, columns)).not.toThrow();
+    expect(() => postgresSql.validateColumns(model, [columns[0]])).toThrow(/project/);
+    expect(() => postgresSql.validateColumns(model, [...columns, columns[0]])).toThrow(/duplicate/);
+    expect(() => postgresSql.validateColumns(model, [columns[0], { name: "changed", type: "25" }])).toThrow(
+      /does not match/
+    );
   });
   it("permanent errors always fail; mirror cannot use incremental models", () => {
     const options = ReverseSyncOptions.parse({ stream: "audience", mode: "mirror", mapping: {} });
@@ -67,7 +81,7 @@ describe("model contracts", () => {
 
 describe("checkpoint queries", () => {
   it("binds lossless composite values and applies lexicographic ordering", () => {
-    const compiled = compileModel(model, "postgres", columns, {
+    const compiled = postgresSql.compileModel(model, columns, {
       value: "9007199254740993",
       primaryKeyValues: ["1'; DELETE FROM audience; --"],
     });
@@ -76,19 +90,39 @@ describe("checkpoint queries", () => {
     expect(compiled.query).not.toContain("DELETE");
     expect(compiled.query).toContain('PARTITION BY "id"');
   });
-  it("lookback binds only the timestamp, without unused key parameters", () => {
-    const input = { ...model, cursor: { column: "changed", type: "timestamp" as const, lookbackSeconds: 60 } };
-    const result = compileModel(input, "postgres", [columns[0], { name: "changed", type: "1184" }], {
+  it.each([0, 60])("lookback %s binds only the timestamp, without unused key parameters", lookbackSeconds => {
+    const input = ModelDefinition.parse({
+      ...model,
+      cursor: { column: "changed", type: "timestamp", lookbackSeconds },
+    });
+    const result = postgresSql.compileModel(input, [columns[0], { name: "changed", type: "1184" }], {
       value: "2026-01-01 00:00:00.123456+00",
       primaryKeyValues: ["7"],
     });
     expect(result.values).toHaveLength(1);
-    expect(result.query).toContain("INTERVAL '60 seconds'");
+    expect(result.query).toContain(`INTERVAL '${lookbackSeconds} seconds'`);
+    expect(result.query).toContain('"changed" >=');
+    expect(result.query).not.toContain('"id" >');
+  });
+  it("zero lookback does not validate or bind an unbound ClickHouse enum key", () => {
+    const input = ModelDefinition.parse({
+      ...model,
+      cursor: { column: "changed", type: "timestamp", lookbackSeconds: 0 },
+    });
+    const result = clickhouseSql.compileModel(
+      input,
+      [
+        { name: "id", type: "Enum8('a' = 1)" },
+        { name: "changed", type: "DateTime64(6)" },
+      ],
+      { value: "2026-01-01 00:00:00.123456", primaryKeyValues: ["a"] }
+    );
+    expect(result.queryParams).toEqual({ p0: "2026-01-01 00:00:00.123456" });
+    expect(result.query).toContain("`changed` >= subtractSeconds({p0: DateTime64(6)}, 0)");
   });
   it("ClickHouse parameters use trusted scalar metadata types", () => {
-    const result = compileModel(
+    const result = clickhouseSql.compileModel(
       model,
-      "clickhouse",
       [
         { name: "id", type: "UInt64" },
         { name: "changed", type: "Int64" },

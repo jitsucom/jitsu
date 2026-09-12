@@ -9,8 +9,10 @@ const getComputedStyle = window.getComputedStyle.bind(window);
 
 const state = vi.hoisted(() => ({
   enabled: true,
+  preview: vi.fn(),
   api: { list: vi.fn(), create: vi.fn(), update: vi.fn(), del: vi.fn() },
 }));
+vi.mock("juava", async importOriginal => ({ ...(await importOriginal<typeof import("juava")>()), rpc: state.preview }));
 vi.mock("../../components/PageLayout/WorkspacePageLayout", () => ({
   WorkspacePageLayout: ({ children }: any) => children,
 }));
@@ -71,6 +73,28 @@ function mount() {
 }
 
 describe("model editor", () => {
+  it("offers only delete-compatible preview columns in the delete picker", async () => {
+    state.preview.mockResolvedValue({
+      columns: [
+        { name: "removed", type: "16", supportsDelete: true },
+        { name: "flag_text", type: "25", supportsDelete: true },
+        { name: "payload", type: "3802", supportsDelete: false },
+        { name: "unknown", type: "custom" },
+      ],
+      rows: [],
+      truncated: false,
+    });
+    const client = mount();
+    fireEvent.click(await screen.findByRole("button", { name: "Audience" }));
+    fireEvent.click(screen.getByRole("button", { name: "Preview up to 100 rows" }));
+    await waitFor(() => expect(state.preview).toHaveBeenCalled());
+    fireEvent.mouseDown(screen.getByLabelText("Delete column (optional)"));
+    expect(await screen.findByRole("option", { name: "removed (16)" })).toBeTruthy();
+    expect(screen.getByRole("option", { name: "flag_text (25)" })).toBeTruthy();
+    expect(screen.queryByRole("option", { name: "payload (3802)" })).toBeNull();
+    expect(screen.queryByRole("option", { name: "unknown (custom)" })).toBeNull();
+    client.clear();
+  });
   it("preserves an API-configured lookback when changing the name", async () => {
     const client = mount();
     fireEvent.click(await screen.findByRole("button", { name: "Audience" }));
@@ -87,11 +111,19 @@ describe("model editor", () => {
     );
     client.clear();
   });
-  it("does not fetch Models for a workspace without the flag", async () => {
+  it("lists existing models for cleanup without enabling creation", async () => {
     state.enabled = false;
     const client = mount();
     expect(screen.getByText("Reverse ETL is not enabled for this workspace")).toBeTruthy();
-    expect(state.api.list).not.toHaveBeenCalled();
+    expect(await screen.findByRole("button", { name: "Audience" })).toBeTruthy();
+    expect(state.api.list).toHaveBeenCalled();
+    expect((screen.getByRole("button", { name: "New model" }) as HTMLButtonElement).disabled).toBe(true);
+    expect((screen.getByRole("button", { name: "Delete" }) as HTMLButtonElement).disabled).toBe(false);
+    fireEvent.click(screen.getByRole("button", { name: "Audience" }));
+    expect(screen.getByText("View model")).toBeTruthy();
+    expect((screen.getByLabelText("Name") as HTMLInputElement).disabled).toBe(true);
+    expect((screen.getByRole("button", { name: "Save model" }) as HTMLButtonElement).disabled).toBe(true);
+    expect((screen.getByRole("button", { name: "Preview up to 100 rows" }) as HTMLButtonElement).disabled).toBe(true);
     client.clear();
   });
 });

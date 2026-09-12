@@ -14,13 +14,7 @@ import { scheduleSync, validateSyncSchedule } from "./sync";
 import { getEeConnection, isEEAvailable, serviceTokenHeaders } from "./ee";
 import { omitDeletedList } from "./omit-deleted";
 import { getServerLog } from "./log";
-import {
-  assertModelsEnabled,
-  guardModelReferences,
-  validateModelForSave,
-  modelMutation,
-  recheckModelWarehouse,
-} from "./reverse-etl-models";
+import { guardModelReferences, validateModelForSave, modelMutation, recheckModelWarehouse } from "./reverse-etl-models";
 import { supportsWarehouseReader } from "@jitsu/warehouse-query/src/schema";
 
 const log = getServerLog("config-objects-service");
@@ -150,7 +144,7 @@ export class ConfigObjectsService {
   /** Backs `config/[type]/index.ts` GET. */
   async list(user: SessionUser, workspaceId: string, type: string): Promise<any[]> {
     await verifyAccess(user, workspaceId);
-    if (type === "model") await assertModelsEnabled(this.prisma, workspaceId);
+    // Reading existing models remains available for cleanup when rollout is off.
     this.assertKnownType(type);
     const configObjectType = getConfigObjectType(type);
     const objects = await this.prisma.configurationObject.findMany({
@@ -170,7 +164,6 @@ export class ConfigObjectsService {
   /** Backs `config/[type]/[id].ts` GET. */
   async get(user: SessionUser, workspaceId: string, type: string, id: string): Promise<any> {
     await verifyAccess(user, workspaceId);
-    if (type === "model") await assertModelsEnabled(this.prisma, workspaceId);
     this.assertKnownType(type);
     const configObjectType = getConfigObjectType(type);
     // Constrain by `type`: outputFilter is chosen from the caller-supplied type, so an
@@ -366,7 +359,7 @@ export class ConfigObjectsService {
     if (!object) {
       return null;
     }
-    if (type === "model") await assertModelsEnabled(this.prisma, workspaceId);
+    // Rollout flags gate use, not cleanup. Roles and live references still apply.
     const configObjectType = getConfigObjectType(type);
     await modelMutation(this.prisma, workspaceId, type, async tx => {
       await guardModelReferences(tx, workspaceId, id, type);

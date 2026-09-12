@@ -19,7 +19,7 @@ export const ModelDefinition = z.object({
       type: z.enum(["timestamp", "number", "string"]),
       lookbackSeconds: z.number().int().min(0).max(604800).optional(),
     })
-    .refine(c => !c.lookbackSeconds || c.type === "timestamp", "Lookback requires a timestamp cursor")
+    .refine(c => c.lookbackSeconds === undefined || c.type === "timestamp", "Lookback requires a timestamp cursor")
     .optional(),
   deleteColumn: column.optional(),
   pageSize: z.number().int().min(1).max(10_000).default(1_000),
@@ -49,7 +49,12 @@ export function validateReverseSyncModel(model: ModelDefinition, options: Revers
 }
 
 export const PreviewRequest = ModelDefinition.pick({ warehouseId: true, query: true });
-export const WarehouseColumn = z.object({ name: z.string(), type: z.string() });
+export const WarehouseColumn = z.object({
+  name: z.string(),
+  type: z.string(),
+  // Advisory preview metadata for the picker; save-time validation is authoritative.
+  supportsDelete: z.boolean().optional(),
+});
 export type WarehouseColumn = z.infer<typeof WarehouseColumn>;
 export const PreviewResult = z.object({
   columns: z.array(WarehouseColumn),

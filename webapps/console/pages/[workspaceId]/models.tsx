@@ -1,5 +1,19 @@
 import React, { useRef, useState } from "react";
-import { Alert, Button, Empty, Form, Input, InputNumber, Modal, Select, Space, Table, Typography, message } from "antd";
+import {
+  Alert,
+  Button,
+  Collapse,
+  Empty,
+  Form,
+  Input,
+  InputNumber,
+  Modal,
+  Select,
+  Space,
+  Table,
+  Typography,
+  message,
+} from "antd";
 import { useQuery } from "@tanstack/react-query";
 import { randomId, rpc } from "juava";
 import { ModelDefinition, PreviewResult, supportsWarehouseReader } from "@jitsu/warehouse-query/src/schema";
@@ -23,17 +37,17 @@ function Models() {
   const api = useConfigApi<ModelConfig>("model");
   const enabled = workspace.featuresEnabled.includes("reverse-etl");
   const warehouses = useConfigObjectList("destination").filter(supportsWarehouseReader);
-  const models = useQuery({ queryKey: ["reverse-etl-models", workspace.id], queryFn: () => api.list(), enabled });
+  const models = useQuery({ queryKey: ["reverse-etl-models", workspace.id], queryFn: () => api.list() });
   const [editing, setEditing] = useState<ModelConfig | "new">();
   const [saving, setSaving] = useState(false);
   const [previewing, setPreviewing] = useState(false);
+  const [previewExpanded, setPreviewExpanded] = useState(false);
   const [preview, setPreview] = useState<PreviewResult>();
   const [error, setError] = useState<string>();
   const previewVersion = useRef(0);
   const [form] = Form.useForm();
   const cursorType = Form.useWatch(["cursor", "type"], form);
 
-  if (!enabled) return <Alert type="info" title="Reverse ETL is not enabled for this workspace" />;
   const open = (model: ModelConfig | "new") => {
     previewVersion.current++;
     setPreview(undefined);
@@ -58,6 +72,7 @@ function Models() {
     setPreview(undefined);
   };
   const doPreview = async () => {
+    if (!enabled) return;
     const values = await form.validateFields(["warehouseId", "query"]);
     const version = ++previewVersion.current;
     setPreviewing(true);
@@ -67,7 +82,10 @@ function Models() {
         method: "POST",
         body: { warehouseId: values.warehouseId, query: values.query },
       });
-      if (version === previewVersion.current) setPreview(PreviewResult.parse(result));
+      if (version === previewVersion.current) {
+        setPreview(PreviewResult.parse(result));
+        setPreviewExpanded(true);
+      }
     } catch (e) {
       if (version === previewVersion.current) setError((e as Error).message);
     } finally {
@@ -75,6 +93,7 @@ function Models() {
     }
   };
   const save = async () => {
+    if (!enabled) return;
     const values = await form.validateFields();
     setSaving(true);
     setError(undefined);
@@ -108,6 +127,8 @@ function Models() {
     }
   };
   const columns = preview?.columns.map(c => ({ label: `${c.name} (${c.type})`, value: c.name })) ?? [];
+  const deleteColumns =
+    preview?.columns.filter(c => c.supportsDelete).map(c => ({ label: `${c.name} (${c.type})`, value: c.name })) ?? [];
   return (
     <div className="w-full max-w-6xl px-6 py-6 mx-auto">
       <div className="flex items-start justify-between mb-6">
@@ -117,11 +138,23 @@ function Models() {
             Reusable warehouse queries for Reverse ETL audiences.
           </Typography.Paragraph>
         </div>
-        <Button type="primary" disabled={!role.editEntities || !warehouses.length} onClick={() => open("new")}>
+        <Button
+          type="primary"
+          disabled={!enabled || !role.editEntities || !warehouses.length}
+          onClick={() => open("new")}
+        >
           New model
         </Button>
       </div>
-      {!warehouses.length && (
+      {!enabled && (
+        <Alert
+          className="mb-4"
+          type="info"
+          title="Reverse ETL is not enabled for this workspace"
+          description="Existing models can be viewed or deleted. Creating, editing and previewing models requires Reverse ETL to be enabled."
+        />
+      )}
+      {enabled && !warehouses.length && (
         <Alert
           className="mb-4"
           type="info"
@@ -182,7 +215,7 @@ function Models() {
         ]}
       />
       <Modal
-        title={editing === "new" ? "New model" : "Edit model"}
+        title={!enabled ? "View model" : editing === "new" ? "New model" : "Edit model"}
         open={!!editing}
         width={1000}
         onCancel={close}
@@ -197,7 +230,7 @@ function Models() {
             <Button
               type="primary"
               loading={saving}
-              disabled={!role.editEntities}
+              disabled={!enabled || !role.editEntities}
               onClick={() => void save().catch(() => {})}
             >
               Save model
@@ -208,7 +241,7 @@ function Models() {
         <Form
           form={form}
           layout="vertical"
-          disabled={!role.editEntities || saving}
+          disabled={!enabled || !role.editEntities || saving}
           onValuesChange={changed => {
             if ("query" in changed || "warehouseId" in changed) {
               previewVersion.current++;
@@ -232,11 +265,49 @@ function Models() {
           </Form.Item>
           <Button
             loading={previewing}
-            disabled={!role.editEntities || saving}
+            disabled={!enabled || !role.editEntities || saving}
             onClick={() => void doPreview().catch(() => {})}
           >
             Preview up to 100 rows
           </Button>
+          {preview && (
+            <Collapse
+              className="mt-4"
+              activeKey={previewExpanded ? ["preview"] : []}
+              onChange={keys => setPreviewExpanded(keys.includes("preview"))}
+              items={[
+                {
+                  key: "preview",
+                  label: `Preview · ${preview.rows.length} rows${preview.truncated ? " (limited)" : ""}`,
+                  children: (
+                    <Table<{ index: number; values: Record<string, unknown> }>
+                      size="small"
+                      scroll={{ x: true }}
+                      pagination={{ pageSize: 10 }}
+                      rowKey="index"
+                      dataSource={preview.rows.map((values, index) => ({ values, index }))}
+                      columns={preview.columns.map(c => ({
+                        title: c.name,
+                        key: c.name,
+                        render: (_, row) => {
+                          const value = row.values[c.name];
+                          return (
+                            <span className="font-mono whitespace-pre-wrap break-all">
+                              {value == null
+                                ? "NULL"
+                                : typeof value === "object"
+                                ? JSON.stringify(value)
+                                : String(value)}
+                            </span>
+                          );
+                        },
+                      }))}
+                    />
+                  ),
+                },
+              ]}
+            />
+          )}
           <div className="grid grid-cols-2 gap-x-4 mt-4">
             <Form.Item
               name="primaryKey"
@@ -249,9 +320,9 @@ function Models() {
             <Form.Item
               name="deleteColumn"
               label="Delete column (optional)"
-              extra="A boolean SELECT expression marks rows to remove."
+              extra="Use a boolean SELECT expression, or a column containing only 0/1 values (null means keep). Preview to list compatible types."
             >
-              <Select allowClear options={columns} />
+              <Select allowClear options={deleteColumns} />
             </Form.Item>
             <Form.Item name={["cursor", "column"]} label="Incremental cursor (optional)">
               <Select
@@ -290,32 +361,6 @@ function Models() {
           </Form.Item>
         </Form>
         {error && <Alert className="my-4" type="error" title="Model could not be processed" description={error} />}
-        {preview && (
-          <div className="mt-4">
-            <Typography.Title level={5}>
-              Preview · {preview.rows.length} rows{preview.truncated ? " (limited)" : ""}
-            </Typography.Title>
-            <Table<{ index: number; values: Record<string, unknown> }>
-              size="small"
-              scroll={{ x: true }}
-              pagination={{ pageSize: 10 }}
-              rowKey="index"
-              dataSource={preview.rows.map((values, index) => ({ values, index }))}
-              columns={preview.columns.map(c => ({
-                title: c.name,
-                key: c.name,
-                render: (_, row) => {
-                  const value = row.values[c.name];
-                  return (
-                    <span className="font-mono whitespace-pre-wrap break-all">
-                      {value == null ? "NULL" : typeof value === "object" ? JSON.stringify(value) : String(value)}
-                    </span>
-                  );
-                },
-              }))}
-            />
-          </div>
-        )}
       </Modal>
     </div>
   );

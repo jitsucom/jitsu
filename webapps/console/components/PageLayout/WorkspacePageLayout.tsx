@@ -43,8 +43,8 @@ import {
 import { NextRouter, useRouter } from "next/router";
 import Link from "next/link";
 import { getDomains, useAppConfig, useUser, useUserSessionControls, useWorkspace } from "../../lib/context";
-import { useApi } from "../../lib/useApi";
-import { useQueryClient } from "@tanstack/react-query";
+import { useApi, useConfigApi } from "../../lib/useApi";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { Overlay } from "../Overlay/Overlay";
 import { WorkspaceNameAndSlugEditor } from "../WorkspaceNameAndSlugEditor/WorkspaceNameAndSlugEditor";
@@ -448,6 +448,15 @@ const UserProfileButton: React.FC<{}> = () => {
 function PageHeader() {
   const appConfig = useAppConfig();
   const workspace = useWorkspace();
+  const reverseEtlEnabled = workspace.featuresEnabled?.includes("reverse-etl");
+  const modelsApi = useConfigApi("model");
+  // Share the Models page's cache to keep cleanup reachable while models exist.
+  const cleanupModels = useQuery({
+    queryKey: ["reverse-etl-models", workspace.id],
+    queryFn: () => modelsApi.list(),
+    enabled: !reverseEtlEnabled,
+    staleTime: 60_000,
+  });
   const items: (TabsMenuItem | TabsMenuGroup | undefined | false)[] = [
     { title: "Overview", path: "/", aliases: "/overview", icon: <LayoutDashboard className="w-full h-full" /> },
     {
@@ -473,7 +482,7 @@ function PageHeader() {
       icon: <User className="w-full h-full" />,
       items: [{ title: "Profile Builder", path: "/profile-builder", icon: <UserRoundPen className="w-full h-full" /> }],
     },
-    workspace.featuresEnabled?.includes("reverse-etl") && {
+    (reverseEtlEnabled || !!cleanupModels.data?.length) && {
       title: "Reverse ETL",
       icon: <Share2 className="w-full h-full" />,
       items: [{ title: "Models", path: "/models", icon: <SearchCode className="w-full h-full" /> }],
