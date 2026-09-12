@@ -84,9 +84,13 @@ export interface ResumePoint {
  * operations activate a monthly sync once; their count is never an invoice meter.
  */
 export interface DeliveryJournal {
-  /** Refuse unresolved prepared/pending work before new extraction or init. */
+  /**
+   * Refuse unresolved prepared/pending work before new extraction or init.
+   * Without a cursor, the runner restarts extraction at sequence zero after this
+   * gate, even for a completed run. Retain prior receipts; never skip by sequence.
+   */
   assertReady(): Promise<ResumePoint>;
-  /** Fence and journal init before any audience/session creation. */
+  /** Fence and journal init before writer construction or any audience/session creation. */
   prepareInit(store: JsonObject): Promise<void>;
   acknowledgeInit(store: JsonObject): Promise<void>;
   /** Fence and prepare cleanup before provider-mutating abort. Reject stale owners. */
@@ -123,10 +127,12 @@ export interface ReverseEtlWriter<Row> {
   upsert(batch: WriteBatch<Row>): Promise<BatchResult>;
   remove?(batch: WriteBatch<Row>): Promise<BatchResult>;
   finish(): Promise<FinishResult>;
+  /** Clean up unaccepted staging only; never undo accepted operations or erase recovery evidence. */
   abort(reason: "error" | "cancelled"): Promise<void>;
   reconcile?(remoteJobIds: string[]): Promise<FinishResult>;
 }
 export interface ReverseEtlStream<Credentials, Row, Options> extends ReverseEtlStreamMetadata<Row, Options> {
+  /** Called inside the prepared init boundary; persist any created remote IDs for recovery. */
   createWriter(ctx: ReverseEtlContext<Credentials, Options>): Promise<ReverseEtlWriter<Row>>;
 }
 export interface ReverseEtlDestination<Credentials> {

@@ -14,10 +14,13 @@ This is not a runnable CronJob yet. No advertising provider is registered or ena
 - Batches remain in source order. Kind changes, size limits and checkpoint barriers flush the current bounded buffer.
 - Any staged outcome inhibits subsequent checkpoints until finish acceptance is durably acknowledged. The journal owns large manifests; Node retains one batch, not a per-run ID set.
 - Provider throws/malformed responses remain uncertain and fail closed; provider-specific bounded safe retry/reconciliation will be implemented with each verified adapter.
+- Init is prepared before the awaited writer factory; factory/init failures retain that manifest. Provider-created remote IDs must be persisted for recovery.
+- Unacknowledged init/batch calls (including malformed results, failed acknowledgement or unknown-marker writes) suppress abort. Once outcomes are durable, abort may clean only unaccepted staging, never accepted delivery or recovery evidence.
 - Every valid result is acknowledged before acting on permanent rejection or cancellation. Permanent errors never skip a row.
 - Remote cleanup also requires fenced `prepareAbort` and `acknowledgeAbort`; stale workers cannot initiate it. Already-authorized in-flight requests/cleanup still require reconciliation: this is not atomic provider-side fencing.
 - Once provider finalization starts, errors/cancellation leave it to recovery instead of invoking `abort`: finalization may already have accepted delivery even when its acknowledgement/checkpoint fails.
 - Explicit full refresh ignores the saved extraction cursor after recovery and never commits intermediate checkpoints, even when the reader emits cursor values. Accepted receipts/provider state remain available; this does not erase recovery data.
+- Cursorless extraction always restarts at sequence zero after recovery admission, including subsequent completed runs; its saved sequence is receipt accounting, not a resumable offset. Final checkpoints retain the full accepted sequence for validation; no receipts are erased.
 - Finish is explicit even for empty input. Pending finish preserves recovery context, never calls abort merely because processing is pending, and never commits completion.
 - Core-owned snapshot mirroring is required for the first production audience release. This foundation still refuses mirror until its runner-core planner, persistence and recovery tests are implemented; removing `ctx.snapshot` does not enable mirror execution. Verified provider-native replacement remains a later optional strategy, not the basis of generic mirroring.
 - Receipts/outbox are authoritative. Only accepted operations activate a monthly sync; staged work and operation counts are not invoice charges.

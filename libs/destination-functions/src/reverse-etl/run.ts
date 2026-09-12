@@ -90,18 +90,19 @@ export async function runReverseEtl<C, R, O>(
   });
   if (!Number.isSafeInteger(resume.sourceSequence) || resume.sourceSequence < 0)
     throw new ReverseEtlProtocolError("Invalid resume sequence");
-  if (!ctx.fullRefresh && resume.sourceSequence > 0 && !resume.cursor)
-    throw new ReverseEtlProtocolError("A full query must restart after recovery, not resume by sequence alone");
   let writer: ReverseEtlWriter<R> | undefined;
-  // Full refresh starts a full scan after recovery, never from a saved cursor.
-  let point: ResumePoint = ctx.fullRefresh
-    ? { sourceSequence: 0 }
-    : { sourceSequence: resume.sourceSequence, cursor: copyCursor(resume.cursor) };
+  // Cursorless queries restart after recovery; sequence is not an extraction offset.
+  // Keep the original sequence in durable receipts, not in the new full scan.
+  let point: ResumePoint =
+    ctx.fullRefresh || resume.cursor === undefined
+      ? { sourceSequence: 0 }
+      : { sourceSequence: resume.sourceSequence, cursor: copyCursor(resume.cursor) };
   let batch: WriteBatch<R>["records"] = [];
   let action: "upsert" | "remove" = "upsert";
   let bytes = 0;
   let staged = false;
   let finishStarted = false;
+  let providerCallUnacknowledged = false;
   let sinceCheckpoint = 0;
   const store = () => ctx.store.snapshot();
   const journal: DeliveryJournal = ctx.delivery;
@@ -119,6 +120,7 @@ export async function runReverseEtl<C, R, O>(
     await journal.prepare(prepared, store());
     ctx.signal.throwIfAborted();
     let result;
+    providerCallUnacknowledged = true;
     try {
       const raw = action === "upsert" ? await writer!.upsert(prepared) : await writer!.remove!(prepared);
       result = validateBatchResult(prepared, raw);
@@ -131,6 +133,7 @@ export async function runReverseEtl<C, R, O>(
     // Persist known outcomes even if cancellation arrived during the request, or
     // one row was rejected. Only the journal records durable acceptance/billing.
     await journal.acknowledge(prepared.batchId, result, store());
+    providerCallUnacknowledged = false;
     if (result.outcomes.some(outcome => outcome.status === "rejected")) {
       throw new ReverseEtlProtocolError("Destination rejected a row; the run stopped without skipping it");
     }
@@ -142,15 +145,18 @@ export async function runReverseEtl<C, R, O>(
 
   try {
     ctx.signal.throwIfAborted();
+    await journal.prepareInit(store());
+    ctx.signal.throwIfAborted();
+    providerCallUnacknowledged = true;
     writer = await stream.createWriter(ctx);
     if (stream.capabilities.supportsExplicitRemove && !writer.remove)
       throw new ReverseEtlProtocolError("Writer is missing its declared remove method");
     if (stream.capabilities.replay === "reconcile-required" && !writer.reconcile)
       throw new ReverseEtlProtocolError("Writer requires a reconciliation method");
-    await journal.prepareInit(store());
     ctx.signal.throwIfAborted();
     await writer.init();
     await journal.acknowledgeInit(store());
+    providerCallUnacknowledged = false;
     ctx.signal.throwIfAborted();
     for await (const record of source(copyCursor(point.cursor), ctx.signal)) {
       ctx.signal.throwIfAborted();
@@ -223,9 +229,9 @@ export async function runReverseEtl<C, R, O>(
     return { delivery: "accepted", sourceSequence: point.sourceSequence };
   } catch (error) {
     try {
-      // Once finalization starts, even a timeout can mean remote acceptance.
-      // Recovery must reconcile/commit it, not undo it through provider abort.
-      if (writer && !finishStarted) {
+      // Unacknowledged provider calls and any finalization may have accepted work.
+      // Leave them to recovery, not cleanup that could destroy remote evidence.
+      if (writer && !finishStarted && !providerCallUnacknowledged) {
         // A stale worker must not cancel/delete a session now owned by recovery.
         // Like writes, already-authorized in-flight cleanup remains reconcilable.
         await journal.prepareAbort();

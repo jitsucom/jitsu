@@ -3,6 +3,7 @@ import { z } from "zod";
 import type {
   BatchResult,
   DeliveryJournal,
+  ResumePoint,
   ReverseEtlContext,
   ReverseEtlStream,
   ReverseEtlWriter,
@@ -126,6 +127,43 @@ function fixture(count = 3) {
 }
 
 describe("Reverse ETL lifecycle", () => {
+  it("prepares init before entering an awaited writer factory", async () => {
+    const f = fixture(0);
+    vi.mocked(f.stream.createWriter).mockImplementation(async ctx => {
+      expect(f.journal.prepareInit).toHaveBeenCalledTimes(1);
+      await ctx.delivery.saveProviderState({ sessionId: "factory-session" });
+      return f.writer;
+    });
+    await f.run();
+    expect(f.journal.saveProviderState).toHaveBeenCalledWith({ sessionId: "factory-session" });
+    expect(f.journal.acknowledgeInit).toHaveBeenCalledTimes(1);
+  });
+  it.each(["failure", "cancellation"])("init preparation %s prevents writer construction", async failure => {
+    const f = fixture();
+    vi.mocked(f.journal.prepareInit).mockImplementation(async () => {
+      if (failure === "failure") throw new Error("lost fence");
+      f.controller.abort();
+    });
+    await expect(f.run()).rejects.toThrow();
+    expect(f.stream.createWriter).not.toHaveBeenCalled();
+    expect(f.writer.init).not.toHaveBeenCalled();
+    expect(f.journal.prepareAbort).not.toHaveBeenCalled();
+    expect(f.source).not.toHaveBeenCalled();
+  });
+  it.each(["factory", "init", "acknowledgement"])("%s failure leaves init to recovery without cleanup", async phase => {
+    const f = fixture();
+    const fail = async () => {
+      throw new Error("uncertain provider session");
+    };
+    if (phase === "factory") vi.mocked(f.stream.createWriter).mockImplementation(fail);
+    if (phase === "init") vi.mocked(f.writer.init).mockImplementation(fail);
+    if (phase === "acknowledgement") vi.mocked(f.journal.acknowledgeInit).mockImplementation(fail);
+    await expect(f.run()).rejects.toThrow();
+    expect(f.journal.prepareInit).toHaveBeenCalledTimes(1);
+    expect(f.writer.abort).not.toHaveBeenCalled();
+    expect(f.journal.prepareAbort).not.toHaveBeenCalled();
+    expect(f.source).not.toHaveBeenCalled();
+  });
   it("creates writers without exposing a snapshot persistence service", async () => {
     const f = fixture(0);
     await f.run();
@@ -208,11 +246,12 @@ describe("Reverse ETL lifecycle", () => {
     await expect(f.run()).rejects.toThrow(/options/);
     expect(f.journal.assertReady).not.toHaveBeenCalled();
   });
-  it("cannot resume a cursorless query by sequence alone", async () => {
+  it("restarts a cursorless query after recovery instead of skipping by sequence", async () => {
     const f = fixture();
     vi.mocked(f.journal.assertReady).mockResolvedValue({ sourceSequence: 2 });
-    await expect(f.run()).rejects.toThrow(/sequence alone/);
-    expect(f.source).not.toHaveBeenCalled();
+    await f.run();
+    expect(f.source).toHaveBeenCalledWith(undefined, f.controller.signal);
+    expect(f.batches[0].records[0].sourceSequence).toBe(1);
   });
   it("prepares and acknowledges before checkpointing, then explicitly finishes", async () => {
     const f = fixture();
@@ -308,6 +347,8 @@ describe("Reverse ETL lifecycle", () => {
     expect(f.journal.markUnknown).toHaveBeenCalledTimes(1);
     expect(f.writer.upsert).toHaveBeenCalledTimes(1);
     expect(f.journal.commitCheckpoint).not.toHaveBeenCalled();
+    expect(f.writer.abort).not.toHaveBeenCalled();
+    expect(f.journal.prepareAbort).not.toHaveBeenCalled();
   });
   it("a malformed acknowledgement cannot advance checkpoints", async () => {
     const f = fixture();
@@ -315,6 +356,7 @@ describe("Reverse ETL lifecycle", () => {
     await expect(f.run()).rejects.toThrow(/uncertain/);
     expect(f.journal.acknowledge).not.toHaveBeenCalled();
     expect(f.journal.markUnknown).toHaveBeenCalled();
+    expect(f.writer.abort).not.toHaveBeenCalled();
   });
   it("cancellation during a provider call persists the response before abort", async () => {
     const f = fixture();
@@ -343,6 +385,42 @@ describe("Reverse ETL lifecycle", () => {
     await expect(f.run()).rejects.toThrow();
     expect(f.journal.prepare).toHaveBeenCalled();
     expect(f.journal.commitCheckpoint).not.toHaveBeenCalled();
+    expect(f.writer.abort).not.toHaveBeenCalled();
+    expect(f.journal.prepareAbort).not.toHaveBeenCalled();
+  });
+  it.each(["upsert", "remove"] as const)(
+    "%s acknowledgement failure preserves accepted remote delivery",
+    async action => {
+      const f = fixture(4);
+      f.rows.forEach(row => {
+        row.deleted = action === "remove";
+      });
+      const remoteMembers = new Set<string>();
+      vi.mocked(f.writer[action]!).mockImplementation(async batch => {
+        batch.records.forEach(row => remoteMembers.add(row.operationId));
+        return { outcomes: batch.records.map(row => ({ operationId: row.operationId, status: "accepted" })) };
+      });
+      // Deliberately destructive provider: the runner must not call it with undurable outcomes.
+      vi.mocked(f.writer.abort).mockImplementation(async () => {
+        remoteMembers.clear();
+      });
+      vi.mocked(f.journal.acknowledge).mockRejectedValue(new Error("lost acknowledgement"));
+      await expect(f.run()).rejects.toThrow();
+      expect(remoteMembers.size).toBe(2);
+      expect(f.writer[action]).toHaveBeenCalledTimes(1);
+      expect(f.journal.prepareAbort).not.toHaveBeenCalled();
+      expect(f.writer.finish).not.toHaveBeenCalled();
+      expect(f.journal.commitCheckpoint).not.toHaveBeenCalled();
+    }
+  );
+  it("failure to mark an ambiguous batch unknown still suppresses abort", async () => {
+    const f = fixture();
+    vi.mocked(f.writer.upsert).mockRejectedValue(new Error("timeout"));
+    vi.mocked(f.journal.markUnknown).mockRejectedValue(new Error("database down"));
+    await expect(f.run()).rejects.toThrow();
+    expect(f.journal.prepare).toHaveBeenCalled();
+    expect(f.writer.abort).not.toHaveBeenCalled();
+    expect(f.journal.prepareAbort).not.toHaveBeenCalled();
   });
   it("unfinished recovery blocks init and extraction", async () => {
     const f = fixture();
@@ -458,6 +536,34 @@ describe("Reverse ETL lifecycle", () => {
     await f.run();
     expect(f.journal.commitCheckpoint).toHaveBeenCalledTimes(1);
     expect(f.journal.commitCheckpoint).toHaveBeenLastCalledWith({ sourceSequence: 4, cursor: undefined }, {}, true);
+  });
+  it("a second cursorless run reuses committed state without forcing full refresh", async () => {
+    const f = fixture(4);
+    f.rows.forEach(row => {
+      delete (row as any).checkpoint;
+    });
+    let committed: ResumePoint = { sourceSequence: 0 };
+    vi.mocked(f.journal.assertReady).mockImplementation(async () => committed);
+    vi.mocked(f.journal.commitCheckpoint).mockImplementation(async (point, _, complete) => {
+      expect(complete).toBe(true);
+      committed = { ...point };
+    });
+    await f.run();
+    expect(committed).toEqual({ sourceSequence: 4, cursor: undefined });
+    f.ctx.logicalRunId = "second-run";
+    f.ctx.taskId = "second-task";
+    await f.run();
+    expect(f.ctx.fullRefresh).toBe(false);
+    expect(f.source).toHaveBeenNthCalledWith(2, undefined, f.controller.signal);
+    expect(f.batches.map(batch => batch.records.map(row => row.sourceSequence))).toEqual([
+      [1, 2],
+      [3, 4],
+      [1, 2],
+      [3, 4],
+    ]);
+    expect(f.batches[0].records[0].operationId).not.toBe(f.batches[2].records[0].operationId);
+    expect(f.journal.acknowledge).toHaveBeenCalledTimes(4);
+    expect(f.journal.commitCheckpoint).toHaveBeenCalledTimes(2);
   });
 });
 
