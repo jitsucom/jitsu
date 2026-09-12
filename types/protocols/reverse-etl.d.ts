@@ -55,20 +55,6 @@ export interface BufferedSyncStore {
   /** A bounded copy, committed atomically with receipts/checkpoints by the persistence module. */
   snapshot(): JsonObject;
 }
-export interface SnapshotEntry<Value> {
-  key: RecordKey;
-  identityHash: string;
-  value: Value;
-  payloadHash: string;
-}
-export interface SnapshotStore<Value> {
-  lookup(keys: RecordKey[]): Promise<SnapshotEntry<Value>[]>;
-  recordDesired(entries: SnapshotEntry<Value>[]): Promise<void>;
-  sealSource(): Promise<void>;
-  removals(pageSize: number): AsyncIterable<SnapshotEntry<Value>[]>;
-  preparePromotion(): Promise<string>;
-}
-
 /** Bound to one immutable target/revision/logical run and its fencing epoch. */
 export interface ReverseEtlRunScope {
   syncId: string;
@@ -120,7 +106,8 @@ export interface DeliveryJournal {
   /** Verify a contiguous accepted prefix; atomically write cursor + store + sequence. */
   commitCheckpoint(point: ResumePoint, store: JsonObject, complete: boolean): Promise<void>;
 }
-export interface ReverseEtlContext<Credentials, Options, Identity> extends ReverseEtlRunScope {
+/** Snapshot storage, diff planning and generation promotion belong to the runner core. */
+export interface ReverseEtlContext<Credentials, Options> extends ReverseEtlRunScope {
   mode: "upsert" | "mirror";
   fullRefresh: boolean;
   credentials: Credentials;
@@ -129,7 +116,6 @@ export interface ReverseEtlContext<Credentials, Options, Identity> extends Rever
   log: FunctionLogger;
   fetch: FetchType;
   store: BufferedSyncStore;
-  snapshot: SnapshotStore<Identity>;
   delivery: DeliveryJournal;
 }
 export interface ReverseEtlWriter<Row> {
@@ -140,11 +126,11 @@ export interface ReverseEtlWriter<Row> {
   abort(reason: "error" | "cancelled"): Promise<void>;
   reconcile?(remoteJobIds: string[]): Promise<FinishResult>;
 }
-export interface ReverseEtlStream<Credentials, Row, Options, Identity> extends ReverseEtlStreamMetadata<Row, Options> {
-  createWriter(ctx: ReverseEtlContext<Credentials, Options, Identity>): Promise<ReverseEtlWriter<Row>>;
+export interface ReverseEtlStream<Credentials, Row, Options> extends ReverseEtlStreamMetadata<Row, Options> {
+  createWriter(ctx: ReverseEtlContext<Credentials, Options>): Promise<ReverseEtlWriter<Row>>;
 }
 export interface ReverseEtlDestination<Credentials> {
   credentials: ZodType<Credentials>;
-  streams: ReverseEtlStream<Credentials, any, any, any>[];
+  streams: ReverseEtlStream<Credentials, any, any>[];
   defaultStream: string;
 }

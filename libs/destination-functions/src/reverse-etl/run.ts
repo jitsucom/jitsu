@@ -17,9 +17,9 @@ export interface ReverseSourceRecord {
   deleted: boolean;
   checkpoint?: SourceCursor;
 }
-export interface RunOptions<Credentials, Row, Options, Identity> {
-  stream: ReverseEtlStream<Credentials, Row, Options, Identity>;
-  context: ReverseEtlContext<Credentials, Options, Identity>;
+export interface RunOptions<Credentials, Row, Options> {
+  stream: ReverseEtlStream<Credentials, Row, Options>;
+  context: ReverseEtlContext<Credentials, Options>;
   mapping: Record<string, string>;
   /** Must open lazily, only after recovery admission. Readers enforce unique keys. */
   source: (after: SourceCursor | undefined, signal: AbortSignal) => AsyncIterable<ReverseSourceRecord>;
@@ -53,8 +53,8 @@ function copyCursor(cursor: SourceCursor | undefined): SourceCursor | undefined 
  * Consecutive operations of the same kind share a batch; kind changes flush it.
  * Serial writes keep source order and bound memory even for finish-staged runs.
  */
-export async function runReverseEtl<C, R, O, I>(
-  input: RunOptions<C, R, O, I>
+export async function runReverseEtl<C, R, O>(
+  input: RunOptions<C, R, O>
 ): Promise<{
   delivery: "accepted" | "pending";
   sourceSequence: number;

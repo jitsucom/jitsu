@@ -79,7 +79,7 @@ function fixture(count = 3) {
       calls.push(complete ? "complete" : "checkpoint");
     }),
   };
-  const ctx: ReverseEtlContext<{}, {}, never> = {
+  const ctx: ReverseEtlContext<{}, {}> = {
     syncId: "sync",
     taskId: "task",
     logicalRunId: "logical-run",
@@ -94,16 +94,9 @@ function fixture(count = 3) {
     log: { info() {}, warn() {}, error() {}, debug() {} },
     fetch: vi.fn(),
     store: createBufferedSyncStore(),
-    snapshot: {
-      lookup: vi.fn(),
-      recordDesired: vi.fn(),
-      sealSource: vi.fn(),
-      removals: vi.fn(),
-      preparePromotion: vi.fn(),
-    },
     delivery: journal,
   };
-  const stream: ReverseEtlStream<{}, Row, {}, never> = {
+  const stream: ReverseEtlStream<{}, Row, {}> = {
     name: "audience",
     displayName: "Audience",
     rowType,
@@ -133,6 +126,14 @@ function fixture(count = 3) {
 }
 
 describe("Reverse ETL lifecycle", () => {
+  it("creates writers without exposing a snapshot persistence service", async () => {
+    const f = fixture(0);
+    await f.run();
+    const context = vi.mocked(f.stream.createWriter).mock.calls[0][0];
+    expect(context).not.toHaveProperty("snapshot");
+    // This is only the bounded provider KV serialization, not audience snapshots.
+    expect(context.store.snapshot()).toEqual({});
+  });
   it("bounds resumed cursor state even when the next source is empty", async () => {
     const f = fixture(0);
     vi.mocked(f.journal.assertReady).mockResolvedValue({
