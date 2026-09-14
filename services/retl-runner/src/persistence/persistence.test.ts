@@ -299,9 +299,14 @@ describe("PostgreSQL persistence", () => {
           : { operationId: b.records[0].operationId, status: outcome },
       ],
     };
-    await expect(recovered.delivery.acknowledge(b.batchId, result, { changed: true })).rejects.toThrow(
-      /explicit reconciliation/
-    );
+    if (initial === "staged" && outcome === "staged") {
+      // Already-durable identical staging evidence is now a read-only retry, not reconciliation.
+      await recovered.delivery.acknowledge(b.batchId, result, { changed: true });
+    } else {
+      await expect(recovered.delivery.acknowledge(b.batchId, result, { changed: true })).rejects.toThrow(
+        /explicit reconciliation/
+      );
+    }
     expect(await recovered.core.recoveryBatch(b.batchId)).toEqual(before);
     expect((await recovered.core.state()).store).toEqual({ saved: true });
     expect(
@@ -501,6 +506,169 @@ describe("PostgreSQL persistence", () => {
     await recovered.core.acknowledgeRecovered(b.batchId, final, { version: 1 });
     expect((await recovered.core.state()).store).toEqual({ version: 2 });
   });
+  it.each(
+    (["upsert", "remove"] as const).flatMap(earlierAction =>
+      (["upsert", "remove"] as const).flatMap(laterAction =>
+        [false, true].map(recovery => ({ earlierAction, laterAction, recovery }))
+      )
+    )
+  )(
+    "preserves source-order membership after deferred acceptance ($earlierAction/$laterAction, recovery=$recovery)",
+    async ({ earlierAction, laterAction, recovery }) => {
+      const shared: Project = (_, row: any) => [
+        { identity: "shared", upsert: { id: row.id }, remove: { id: "shared" } },
+      ];
+      const run = await openPersistence(db, runInput, shared);
+      await init(run);
+      const earlier = batch(run, ["old"], 1, earlierAction);
+      const later = batch(run, ["new"], 2, laterAction);
+      await run.delivery.prepare(earlier, {});
+      await run.delivery.acknowledge(earlier.batchId, outcomes(earlier, "staged"), {});
+      await run.delivery.prepare(later, {});
+      await run.delivery.acknowledge(later.batchId, outcomes(later), {});
+      const before = (await admin.query("SELECT * FROM newjitsu.reverse_sync_membership")).rows;
+      let active = run;
+      if (recovery) {
+        await release(db, run.scope);
+        active = await openPersistence(db, { ...runInput, taskId: "recovery" }, shared);
+        await active.core.acknowledgeRecovered(earlier.batchId, outcomes(earlier), {});
+      }
+      await finish(active, later);
+      expect((await admin.query("SELECT * FROM newjitsu.reverse_sync_membership")).rows).toEqual(before);
+      const control = (
+        await admin.query(
+          "SELECT membership_entries,membership_bytes,reserved_entries,reserved_bytes FROM newjitsu.reverse_sync_control"
+        )
+      ).rows[0];
+      expect(control.membership_entries).toBe(laterAction === "upsert" ? "1" : "0");
+      expect(control.reserved_entries).toBe("0");
+      expect(control.reserved_bytes).toBe("0");
+      expect(Number(control.membership_bytes)).toBe(before.reduce((total, row) => total + row.value.length, 0));
+      expect((await active.core.recoveryBatch(earlier.batchId)).operations[0].status).toBe("accepted");
+    }
+  );
+  it("orders accepted effects per identity even when receipt outcomes arrive in reverse order", async () => {
+    const projection: Project = (_, row: any) => [
+      { identity: "shared", upsert: { id: row.id }, remove: { id: "shared" } },
+      ...(row.id === "old" ? [{ identity: "only-old", upsert: { id: "only-old" }, remove: { id: "only-old" } }] : []),
+    ];
+    const run = await openPersistence(db, runInput, projection);
+    await init(run);
+    const b = batch(run, ["old", "new"]);
+    await run.delivery.prepare(b, {});
+    await run.delivery.acknowledge(b.batchId, { outcomes: outcomes(b).outcomes.reverse() }, {});
+    const membership = (
+      await admin.query(
+        "SELECT identity_hash,payload_hash FROM newjitsu.reverse_sync_membership ORDER BY identity_hash"
+      )
+    ).rows;
+    expect(membership).toEqual(
+      [
+        { identity_hash: contentHash("shared"), payload_hash: contentHash({ id: "new" }) },
+        { identity_hash: contentHash("only-old"), payload_hash: contentHash({ id: "only-old" }) },
+      ].sort((a, b) => a.identity_hash.localeCompare(b.identity_hash))
+    );
+    await finish(run, b);
+    expect(await count("newjitsu.reverse_sync_membership")).toBe(2);
+  });
+  it("does not let a later rejection hide an earlier accepted effect", async () => {
+    const projection: Project = (_, row: any) => [
+      { identity: "shared", upsert: { id: row.id }, remove: { id: "shared" } },
+    ];
+    const run = await openPersistence(db, runInput, projection);
+    await init(run);
+    const earlier = batch(run, ["old"]);
+    const later = batch(run, ["new"], 2, "remove");
+    await run.delivery.prepare(earlier, {});
+    await run.delivery.acknowledge(earlier.batchId, outcomes(earlier, "staged"), {});
+    await run.delivery.prepare(later, {});
+    await run.delivery.acknowledge(
+      later.batchId,
+      {
+        outcomes: [
+          { operationId: later.records[0].operationId, status: "rejected", code: "invalid", safeReason: "Invalid" },
+        ],
+      },
+      {}
+    );
+    await run.core.acknowledgeRecovered(earlier.batchId, outcomes(earlier), {});
+    await run.delivery.prepareAbort();
+    await run.delivery.acknowledgeAbort();
+    expect((await admin.query("SELECT payload_hash FROM newjitsu.reverse_sync_membership")).rows).toEqual([
+      { payload_hash: contentHash({ id: "old" }) },
+    ]);
+  });
+  it.each([false, true].flatMap(recovery => [false, true].map(mixed => ({ recovery, mixed }))))(
+    "protects unchanged staged receipts and pending metadata (recovery=$recovery, mixed=$mixed)",
+    async ({ recovery, mixed }) => {
+      const run = await session();
+      await init(run);
+      const b = batch(run, ["a", "b", "c"]);
+      await run.delivery.prepare(b, {});
+      const result: BatchResult = {
+        outcomes: b.records.map((r, index) => ({
+          operationId: r.operationId,
+          status: mixed && index === 0 ? "accepted" : "staged",
+        })),
+        remoteJobIds: ["original"],
+        providerCheckpoint: { cursor: "original" },
+      };
+      await run.delivery.acknowledge(b.batchId, result, { version: 1 });
+      let active = run;
+      if (recovery) {
+        await release(db, run.scope);
+        active = await session({ taskId: "recovery" });
+      }
+      const snapshot = async () => ({
+        batch: (await admin.query("SELECT result,result_bytes FROM newjitsu.reverse_sync_batch")).rows,
+        control: (
+          await admin.query(
+            "SELECT store,journal_bytes,reserved_entries,reserved_bytes,membership_entries,membership_bytes FROM newjitsu.reverse_sync_control"
+          )
+        ).rows,
+        operations: (await active.core.recoveryBatch(b.batchId)).operations,
+      });
+      const before = await snapshot();
+      const duplicate = { ...result, outcomes: [...result.outcomes].reverse() };
+      await active.delivery.acknowledge(b.batchId, duplicate, { version: 0 });
+      await active.core.acknowledgeRecovered(b.batchId, duplicate, { version: 2 });
+      expect(await snapshot()).toEqual(before);
+      for (const changed of [
+        { ...result, remoteJobIds: ["replacement"] },
+        { ...result, providerCheckpoint: { cursor: "replacement" } },
+        { outcomes: result.outcomes },
+      ]) {
+        await expect(active.delivery.acknowledge(b.batchId, changed, {})).rejects.toThrow(/unchanged staged receipt/);
+        await expect(active.core.acknowledgeRecovered(b.batchId, changed, {})).rejects.toThrow(
+          /unchanged staged receipt/
+        );
+        expect(await snapshot()).toEqual(before);
+      }
+      const advancing: BatchResult = {
+        ...result,
+        outcomes: result.outcomes.map((o, index) => (index < 2 ? { ...o, status: "accepted" } : o)),
+      };
+      for (const changed of [
+        { ...advancing, remoteJobIds: ["replacement"] },
+        { ...advancing, providerCheckpoint: { cursor: "replacement" } },
+        { outcomes: advancing.outcomes },
+      ]) {
+        await expect(active.core.acknowledgeRecovered(b.batchId, changed, {})).rejects.toThrow(
+          /pending batch metadata/
+        );
+        expect(await snapshot()).toEqual(before);
+      }
+      if (recovery) {
+        await expect(active.delivery.acknowledge(b.batchId, advancing, {})).rejects.toThrow(/explicit reconciliation/);
+        await active.core.acknowledgeRecovered(b.batchId, advancing, { version: 2 });
+      } else await active.delivery.acknowledge(b.batchId, advancing, { version: 2 });
+      expect((await active.core.recoveryBatch(b.batchId)).result).toEqual(advancing);
+      const final = { ...outcomes(b), remoteJobIds: ["completed"], providerCheckpoint: { cursor: "final" } };
+      await active.core.acknowledgeRecovered(b.batchId, final, { version: 3 });
+      expect((await active.core.recoveryBatch(b.batchId)).result).toEqual(final);
+      expect((await active.core.state()).store).toEqual({ version: 3 });
+    }
+  );
   it("completes an empty run without creating delivery receipts", async () => {
     const run = await session();
     await init(run);

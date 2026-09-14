@@ -203,7 +203,7 @@ export class Journal implements DeliveryJournal {
           "Operation identity mismatch"
         );
         await client.query(
-          "INSERT INTO reverse_sync_operation (workspace_id,sync_id,run_id,operation_id,batch_id,sequence,action,effects,reserved_entries,reserved_bytes) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)",
+          "INSERT INTO reverse_sync_operation (workspace_id,sync_id,run_id,operation_id,batch_id,sequence,action,effects,reserved_entries,reserved_bytes,identity_hashes) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)",
           [
             ...this.key,
             record.operationId,
@@ -213,6 +213,7 @@ export class Journal implements DeliveryJournal {
             encryptedEffects[index],
             reservations[index].entries,
             reservations[index].bytes,
+            projected[index].map(effect => effect.identityHash),
           ]
         );
       }
@@ -327,6 +328,26 @@ export class Journal implements DeliveryJournal {
           // A duplicate is read-only: the run store may already belong to a later batch.
           return;
         }
+        const incoming = new Map(result.outcomes.map(outcome => [outcome.operationId, outcome]));
+        const advancing = saved.outcomes.some(
+          outcome => outcome.status === "staged" && incoming.get(outcome.operationId)!.status !== "staged"
+        );
+        if (!advancing) {
+          ensure(canonicalReceipt(saved) === canonicalReceipt(result), "Cannot overwrite an unchanged staged receipt");
+          return;
+        }
+        for (const outcome of saved.outcomes) {
+          if (outcome.status !== "staged")
+            ensure(
+              canonicalJson(outcome) === canonicalJson(incoming.get(outcome.operationId)),
+              "Cannot overwrite a terminal receipt"
+            );
+        }
+        if (result.outcomes.some(outcome => outcome.status === "staged")) {
+          // Batch-level metadata cannot identify which pending row no longer needs a job/checkpoint.
+          const metadata = ({ outcomes, ...rest }: BatchResult) => canonicalJson(rest);
+          ensure(metadata(saved) === metadata(result), "Cannot overwrite pending batch metadata");
+        }
       }
       let acceptance: Date | undefined;
       for (const outcome of result.outcomes) {
@@ -382,6 +403,14 @@ export class Journal implements DeliveryJournal {
       `effects:${this.scope.logicalRunId}:${operation.operation_id}`
     );
     for (const effect of projected) {
+      const later = await client.query(
+        `SELECT 1 FROM reverse_sync_operation WHERE workspace_id=$1 AND sync_id=$2 AND run_id=$3
+        AND sequence>$4 AND status='accepted' AND identity_hashes @> ARRAY[$5]::text[] LIMIT 1`,
+        [...this.key, operation.sequence, effect.identityHash]
+      );
+      // A delayed acceptance still gets a receipt and releases its reservation, but cannot
+      // overwrite a later accepted upsert or resurrect a later accepted removal.
+      if (later.rowCount) continue;
       const previous = await client.query(
         "SELECT octet_length(value) AS bytes FROM reverse_sync_membership WHERE workspace_id=$1 AND sync_id=$2 AND identity_hash=$3",
         [...this.key.slice(0, 2), effect.identityHash]

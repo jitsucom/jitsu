@@ -86,7 +86,11 @@ safe replay before acknowledgement. There is no automatic replay or blanket
 "clear unknown" operation. Accepted/rejected receipts cannot be downgraded.
 Once a batch result is fully terminal, its complete receipt is immutable. Matching
 retries are read-only and never overwrite a newer run store; conflicting metadata
-is rejected. Staged results may still progress through verified reconciliation.
+is rejected. Identical staged/mixed receipts are read-only too, including after
+takeover. A replacement must advance a staged outcome to accepted/rejected, preserve
+already-terminal outcomes, and keep the original job IDs/checkpoint unchanged while
+any staged outcomes remain. Once all outcomes are terminal, final metadata may replace
+the pending metadata. Recovered transitions still require explicit core reconciliation.
 
 `acknowledgeRecovered` and `acknowledgeRecoveredFinish` are explicit core-only
 reconciliation methods. Call them only after verifying provider outcomes; recovered
@@ -126,6 +130,14 @@ Desired generations store unique source keys and deduplicated provider-ready
 identities. Full-snapshot diffs need no stored source-to-identity associations:
 an identity remains desired while any source row produces it. Conflicting shared-identity payloads are rejected. Effective
 membership is updated on **every durable acceptance**, including failed runs.
+For each identity, the latest accepted source-sequence operation wins, regardless
+of acknowledgement order. An indexed hash list on each operation lets delayed staged
+acceptance skip effects superseded by a later accepted upsert or removal, without
+scanning/decrypting the entire journal. The delayed operation still gets its acceptance
+receipt and releases its reservation; other identities it affects still apply.
+Current-run operations retain this ordering evidence until the run has ended, including
+accepted removals, so no membership tombstone or extra table is needed. This is local
+accounting order, not a guarantee of provider-side request ordering.
 Indexed keyset pages keep diff reads bounded. Removals require sealed valid input
 and all desired additions accepted; no staged addition can authorize deletion.
 Completion verifies membership equality and atomically promotes the generation

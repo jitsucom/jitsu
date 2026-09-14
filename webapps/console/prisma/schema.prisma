@@ -410,6 +410,8 @@ model reverse_sync_operation {
   action           reverse_sync_action
   status           String              @default("prepared")
   effects          Bytes
+  // Core-projected hashes support source-order membership updates without decrypting the run journal.
+  identity_hashes  String[]
   reserved_entries BigInt
   reserved_bytes   BigInt
   // Local acknowledgement time, not a provider delivery timestamp or billing attribution.
@@ -419,6 +421,7 @@ model reverse_sync_operation {
   @@id([workspace_id, sync_id, run_id, operation_id])
   @@unique([workspace_id, sync_id, run_id, sequence])
   @@index([workspace_id, sync_id, run_id, status, sequence], map: "reverse_sync_operation_pending")
+  @@index([identity_hashes], type: Gin, map: "reverse_sync_operation_identities")
 }
 
 model reverse_sync_generation {
