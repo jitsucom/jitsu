@@ -82,20 +82,16 @@ healthcheck() {
   fi
 }
 
-update_schema() {
-  PRISMA_CLI_PATH="$(command -v prisma)" node /app/update-schema.mjs --skip-generate "$@"
-}
-
 main() {
   cmd=$1
   export SIGNALS_LIFECYCLE=1
   if [ -z "$cmd" ]; then
     if [ "$FORCE_UPDATE_DB" = "1" ] || [ "$FORCE_UPDATE_DB" = "yes" ] || [ "$FORCE_UPDATE_DB" = "true" ]; then
       echo "FORCE_UPDATE_DB is set, updating database schema..."
-      update_schema --accept-data-loss || return $?
+      prisma db push --skip-generate --schema schema.prisma --accept-data-loss
     elif [ "$UPDATE_DB" != "0" ] && [ "$UPDATE_DB" != "no" ] && [ "$UPDATE_DB" != "false" ]; then
       echo "Updating database schema..."
-      update_schema || return $?
+      prisma db push --skip-generate --schema schema.prisma
     fi
 
     # Run seed if SEED_DEMO_CONFIGURATION is set
@@ -117,7 +113,7 @@ main() {
 
 
   elif [ "$cmd" = "db-prepare" ]; then
-    update_schema
+    prisma db push --skip-generate --schema schema.prisma
   else
     echo "ERROR! Unknown command '$cmd'"
   fi

@@ -9,16 +9,11 @@ in the lifecycle library. The closed ClickHouse failover PR #1512 is not include
 All `reverse_sync_*` tables are defined in `webapps/console/prisma/schema.prisma`
 alongside `source_state`. They use the same configuration database schema. Apply
 them through the existing console `db:update-schema` command with schema-owner
-credentials; do not give the runner DDL access. The command runs Prisma `db push`
-and automatically preserves the billing-period ordering CHECK, which Prisma 6
-cannot represent. There is no separate Reverse ETL migration or `retl` schema, and
-no DDL runs on module import or runner startup. Use this command rather than bare
-`prisma db push` when provisioning a fresh database so the CHECK is installed too.
-
-The enums, keys, foreign key and indexes are Prisma-managed. The former partial
-outbox index is replaced by a Prisma-managed composite index matching workspace,
-publication status, creation time and event ID. `pg` still handles runtime locking,
-fencing and transactions; schema ownership does not require Prisma Client at runtime.
+credentials; do not give the runner DDL access. The existing Prisma `db push`
+workflow manages all tables, enums, keys and indexes. There is no separate Reverse
+ETL migration, `retl` schema, supplementary SQL, or custom schema-update command.
+No DDL runs on module import or runner startup. `pg` still handles runtime locking,
+fencing and transactions; the runner does not need Prisma Client.
 
 Provision a restricted runtime login outside this package, then grant:
 
@@ -29,8 +24,7 @@ GRANT SELECT, INSERT, UPDATE, DELETE ON
   newjitsu.reverse_sync_batch, newjitsu.reverse_sync_operation,
   newjitsu.reverse_sync_generation, newjitsu.reverse_sync_source_key,
   newjitsu.reverse_sync_desired, newjitsu.reverse_sync_association,
-  newjitsu.reverse_sync_membership, newjitsu.reverse_sync_activation,
-  newjitsu.reverse_sync_outbox TO retl_runtime;
+  newjitsu.reverse_sync_membership TO retl_runtime;
 GRANT SELECT, INSERT, UPDATE ON newjitsu.source_state TO retl_runtime;
 ```
 
@@ -91,12 +85,15 @@ an uncertain request from a changed warehouse query. Verify provider outcomes or
 safe replay before acknowledgement. There is no automatic replay or blanket
 "clear unknown" operation. Accepted/rejected receipts cannot be downgraded.
 
-`acknowledgeRecovered` and `acknowledgeRecoveredFinish` require verified acceptance
-time and the corresponding customer billing period when newly recognizing remote
-acceptance. If the outcome/time is unknown, leave it unresolved. Pending finish
-retains remote job IDs. Accepted finish resolves staged operations in bounded
-transactions; a crash leaves `finish_resolving`, whose stored acceptance evidence
-allows restarting local resolution without submitting provider finish again.
+`acknowledgeRecovered` and `acknowledgeRecoveredFinish` are explicit core-only
+reconciliation methods. Call them only after verifying provider outcomes; recovered
+acceptance cannot be acknowledged through the writer facade. No billing period or
+provider acceptance timestamp is required. Receipt `accepted_at` records the
+database-clock time when Jitsu acknowledged the outcome, not remote delivery time.
+Pending finish retains remote job IDs. Accepted finish resolves staged operations
+in bounded transactions; a crash leaves `finish_resolving`, whose saved result and
+acknowledgement timestamp allow local resolution to resume without submitting
+provider finish again.
 
 Checkpoints verify contiguous accepted receipts and the exact prepared batch-end
 cursor. Full extraction checkpoints only at completion. The compact encrypted
@@ -104,7 +101,7 @@ cursor. Full extraction checkpoints only at completion. The compact encrypted
 together; it is not a separate `_STORE_` write. Permanent rejections block progress.
 Abort acknowledges cleanup of unaccepted staging only and preserves accepted work.
 
-## Snapshot and billing guarantees
+## Snapshot and delivery guarantees
 
 Desired generations store unique source keys, shared identity associations and
 provider-ready values. Conflicting shared-identity payloads are rejected. Effective
@@ -114,17 +111,12 @@ and all desired additions accepted; no staged addition can authorize deletion.
 Completion verifies membership equality and atomically promotes the generation
 with final state. There is no standalone promotion call and no writer snapshot API.
 
-Receipt, membership change, operation event and monthly activation commit together.
-Activation is unique per workspace/sync/customer billing-period start. Accepted
-then failed runs remain active; empty, staged-only and failed-before-acceptance runs
-do not activate. Operation counts are telemetry, never an invoice meter. Billing
-periods come from trusted admission, not a guessed calendar month. An expired
-period blocks unproven acknowledgement until recovery supplies correct evidence.
-Quota reservations, invoicing and commercial plan UI remain later work.
+Receipt and effective-membership changes commit together. Accepted changes from
+failed runs are preserved for later recovery or removal.
 
-`publishOutbox` sends bounded pages with at-least-once delivery. Consumers must
-deduplicate by event ID; publication is marked only after the callback succeeds.
-Activation history and outbox events are independent of task/config retention.
+Billing is entirely deferred from this PR: no activation table, billing-period
+inputs, usage outbox/publisher, entitlement enforcement, or invoicing. Durable
+delivery receipts exist for recovery and are not a billing ledger.
 
 ## Budgets and retention
 
@@ -146,14 +138,14 @@ candidate starts. Call fenced `prune` repeatedly to remove superseded/abandoned
 snapshot data in bounded pages. Current candidate and committed generation are
 never pruned. Receipt pruning takes an explicit retention cutoff (at least 24h),
 deletes only old-run terminal receipts and encrypted manifests, and preserves
-effective membership, billing history and outbox. The rollout must configure its
+effective membership. The rollout must configure its
 retention policy and invoke maintenance; this library runs no background sweeper.
 
 ## Validation
 
 `pnpm --filter @jitsu-internal/retl-runner test` starts an isolated PostgreSQL 18
-container and applies the canonical console Prisma schema through the shared
-schema-update helper. It also checks repeated schema updates, database constraints,
+container and applies the canonical console Prisma schema using ordinary
+Prisma `db push`. It also checks repeated schema updates, database constraints,
 configured-schema routing and scoped runtime grants. Docker is required; there is no
 in-memory substitute or silent integration-test skip. No external credentials,
 production database, advertising API, or deployment is used.

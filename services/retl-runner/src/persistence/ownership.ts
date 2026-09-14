@@ -34,33 +34,16 @@ export async function acquire(
   );
   ensure(input.mode !== "mirror" || input.extraction === "full", "Mirror requires full extraction");
   ensure(Number.isSafeInteger(leaseMs) && leaseMs >= 100 && leaseMs <= 60_000, "Invalid lease duration");
-  const start = new Date(input.billingPeriod.start);
-  const end = new Date(input.billingPeriod.end);
-  ensure(
-    start instanceof Date && end instanceof Date && Number.isFinite(+start) && +end > +start,
-    "Invalid billing period"
-  );
-  // Detach caller-owned mutable fields before any await.
-  const run = { ...input, billingPeriod: { start: new Date(start), end: new Date(end) } };
+  // Capture caller-owned fields before any await.
+  const run = { ...input };
   return db.transaction(async client => {
     const target = contentHash(run.targetIdentity);
     // Serialize target admission too: an upsert cannot race exclusive mirror ownership.
     await client.query("SELECT pg_advisory_xact_lock(hashtextextended($1,0))", [target]);
     await client.query(
-      `INSERT INTO reverse_sync_control (workspace_id,sync_id,run_id,task_id,revision,target_hash,lease_until,mode,extraction,billing_period_start,billing_period_end)
-      VALUES ($1,$2,$3,$4,$5,$6,clock_timestamp(),$7,$8,$9,$10) ON CONFLICT (workspace_id,sync_id) DO NOTHING`,
-      [
-        run.workspaceId,
-        run.syncId,
-        run.logicalRunId,
-        run.taskId,
-        run.configRevision,
-        target,
-        run.mode,
-        run.extraction,
-        start,
-        end,
-      ]
+      `INSERT INTO reverse_sync_control (workspace_id,sync_id,run_id,task_id,revision,target_hash,lease_until,mode,extraction)
+      VALUES ($1,$2,$3,$4,$5,$6,clock_timestamp(),$7,$8) ON CONFLICT (workspace_id,sync_id) DO NOTHING`,
+      [run.workspaceId, run.syncId, run.logicalRunId, run.taskId, run.configRevision, target, run.mode, run.extraction]
     );
     const {
       rows: [control],
@@ -77,12 +60,7 @@ export async function acquire(
     ensure(sameRun || ["complete", "aborted"].includes(control.phase), "Previous logical run requires recovery");
     if (sameRun) {
       ensure(!["complete", "aborted"].includes(control.phase), "Logical run already ended; use a new run ID");
-      ensure(
-        control.extraction === run.extraction &&
-          +control.billing_period_start === +start &&
-          +control.billing_period_end === +end,
-        "Recovery must preserve the original run configuration"
-      );
+      ensure(control.extraction === run.extraction, "Recovery must preserve the original run configuration");
     }
     if (run.mode === "mirror") {
       const other = await client.query(
@@ -126,15 +104,15 @@ export async function acquire(
     }
     const updated = await client.query(
       `UPDATE reverse_sync_control SET epoch=epoch+1, task_id=$3, lease_until=clock_timestamp()+($4 * interval '1 millisecond'),
-      run_id=$5, extraction=$6, billing_period_start=$7,billing_period_end=$8,
-      phase=CASE WHEN $9 THEN phase ELSE 'new' END,
-      base_sequence=CASE WHEN $9 AND phase <> 'new' THEN base_sequence ELSE $10 END,
-      next_sequence=CASE WHEN $9 AND phase <> 'new' THEN next_sequence ELSE $10 END,
-      checkpoint_sequence=CASE WHEN $9 AND phase <> 'new' THEN checkpoint_sequence ELSE $10 END,
-      finish_sequence=CASE WHEN $9 THEN finish_sequence ELSE NULL END,
-      finish_result=CASE WHEN $9 THEN finish_result ELSE NULL END
+      run_id=$5, extraction=$6,
+      phase=CASE WHEN $7 THEN phase ELSE 'new' END,
+      base_sequence=CASE WHEN $7 AND phase <> 'new' THEN base_sequence ELSE $8 END,
+      next_sequence=CASE WHEN $7 AND phase <> 'new' THEN next_sequence ELSE $8 END,
+      checkpoint_sequence=CASE WHEN $7 AND phase <> 'new' THEN checkpoint_sequence ELSE $8 END,
+      finish_sequence=CASE WHEN $7 THEN finish_sequence ELSE NULL END,
+      finish_result=CASE WHEN $7 THEN finish_result ELSE NULL END
       WHERE workspace_id=$1 AND sync_id=$2 RETURNING epoch`,
-      [run.workspaceId, run.syncId, run.taskId, leaseMs, run.logicalRunId, run.extraction, start, end, sameRun, base]
+      [run.workspaceId, run.syncId, run.taskId, leaseMs, run.logicalRunId, run.extraction, sameRun, base]
     );
     return {
       scope: Object.freeze({ ...run, fencingEpoch: updated.rows[0].epoch }),

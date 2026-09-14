@@ -2,7 +2,8 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { GenericContainer, Wait, type StartedTestContainer } from "testcontainers";
 import { Client, type PoolConfig } from "pg";
 import { createRequire } from "node:module";
-import { pushConfigSchema } from "../../../../webapps/console/prisma/update-schema";
+import { execFileSync } from "node:child_process";
+import { fileURLToPath } from "node:url";
 import { randomBytes } from "node:crypto";
 import { contentHash, createBufferedSyncStore } from "@jitsu/destination-functions/src/reverse-etl/identity";
 import { runReverseEtl } from "@jitsu/destination-functions/src/reverse-etl/run";
@@ -10,17 +11,7 @@ import type { BatchResult, PreparedBatch } from "@jitsu/protocols/reverse-etl";
 import { z } from "zod";
 import { effects } from "./snapshots";
 import { encryptedByteBudget } from "./crypto";
-import {
-  Cipher,
-  Database,
-  openPersistence,
-  release,
-  renew,
-  prune,
-  publishOutbox,
-  type RunInput,
-  type Project,
-} from "./index";
+import { Cipher, Database, openPersistence, release, renew, prune, type RunInput, type Project } from "./index";
 
 let container: StartedTestContainer;
 let admin: Client;
@@ -28,6 +19,15 @@ let db: Database;
 let runtimeConfig: PoolConfig;
 let adminUrl: string;
 const prismaCli = createRequire(import.meta.url).resolve("prisma/build/index.js");
+// Test-only provisioning uses the standard Prisma command, just like console deployment.
+function pushSchema(databaseUrl: string) {
+  const schema = fileURLToPath(new URL("../../../../webapps/console/prisma/schema.prisma", import.meta.url));
+  execFileSync(process.execPath, [prismaCli, "db", "push", `--schema=${schema}`, "--skip-generate"], {
+    // eslint-disable-next-line no-restricted-properties -- only the disposable test database is passed to Prisma.
+    env: { ...process.env, DATABASE_URL: databaseUrl },
+    stdio: "inherit",
+  });
+}
 const cipher = new Cipher("test", { test: randomBytes(32) });
 const project: Project = (_, row: any) => [{ identity: row.id, upsert: row, remove: { id: row.id } }];
 const input = (extra: Partial<RunInput> = {}): RunInput => ({
@@ -39,7 +39,6 @@ const input = (extra: Partial<RunInput> = {}): RunInput => ({
   targetIdentity: "provider/account/audience",
   mode: "upsert",
   extraction: "cursor",
-  billingPeriod: { start: new Date(Date.now() - 86400000), end: new Date(Date.now() + 86400000) },
   ...extra,
 });
 let runInput: RunInput;
@@ -119,7 +118,7 @@ beforeAll(async () => {
   admin = new Client(config);
   await admin.connect();
   adminUrl = `postgresql://postgres:test@${config.host}:${config.port}/${config.database}?schema=newjitsu`;
-  pushConfigSchema(adminUrl, { prismaCli, args: ["--skip-generate"] });
+  pushSchema(adminUrl);
   await admin.query(
     "CREATE ROLE retl_runtime LOGIN PASSWORD 'runtime'; GRANT USAGE ON SCHEMA newjitsu TO retl_runtime"
   );
@@ -136,7 +135,7 @@ beforeAll(async () => {
 beforeEach(async () => {
   runInput = input();
   await admin.query(
-    "TRUNCATE newjitsu.reverse_sync_operation,newjitsu.reverse_sync_batch,newjitsu.reverse_sync_control,newjitsu.reverse_sync_target_owner,newjitsu.reverse_sync_generation,newjitsu.reverse_sync_source_key,newjitsu.reverse_sync_desired,newjitsu.reverse_sync_association,newjitsu.reverse_sync_membership,newjitsu.reverse_sync_activation,newjitsu.reverse_sync_outbox,newjitsu.source_state"
+    "TRUNCATE newjitsu.reverse_sync_operation,newjitsu.reverse_sync_batch,newjitsu.reverse_sync_control,newjitsu.reverse_sync_target_owner,newjitsu.reverse_sync_generation,newjitsu.reverse_sync_source_key,newjitsu.reverse_sync_desired,newjitsu.reverse_sync_association,newjitsu.reverse_sync_membership,newjitsu.source_state"
   );
 });
 afterAll(async () => {
@@ -152,30 +151,37 @@ describe("PostgreSQL persistence", () => {
     const b = batch(run, ["a"]);
     await run.delivery.prepare(b, {});
     await run.delivery.acknowledge(b.batchId, outcomes(b), {});
-    pushConfigSchema(adminUrl, { prismaCli, args: ["--skip-generate"] });
+    pushSchema(adminUrl);
     expect(await count("newjitsu.reverse_sync_operation")).toBe(1);
     expect(await count("newjitsu.reverse_sync_membership")).toBe(1);
     expect((await admin.query("SELECT 1 FROM pg_namespace WHERE nspname='retl'")).rowCount).toBe(0);
+    expect(
+      (
+        await admin.query(
+          "SELECT tablename FROM pg_tables WHERE schemaname='newjitsu' AND tablename IN ('reverse_sync_activation','reverse_sync_outbox')"
+        )
+      ).rows
+    ).toEqual([]);
+    expect(
+      (
+        await admin.query(
+          "SELECT column_name FROM information_schema.columns WHERE table_schema='newjitsu' AND table_name='reverse_sync_control' AND column_name LIKE 'billing_%'"
+        )
+      ).rows
+    ).toEqual([]);
     await expect(admin.query("UPDATE newjitsu.reverse_sync_control SET mode='invalid'")).rejects.toThrow(/enum/);
-    await expect(
-      admin.query("UPDATE newjitsu.reverse_sync_control SET billing_period_end=billing_period_start")
-    ).rejects.toThrow(/reverse_sync_billing_period_order/);
     await expect(admin.query("UPDATE newjitsu.reverse_sync_operation SET batch_id='missing'")).rejects.toThrow(
       /foreign key/
     );
     await expect(
       admin.query("INSERT INTO newjitsu.reverse_sync_operation SELECT * FROM newjitsu.reverse_sync_operation")
     ).rejects.toThrow(/duplicate key/);
-    const indexes = await admin.query(
-      "SELECT indexdef FROM pg_indexes WHERE schemaname='newjitsu' AND indexname='reverse_sync_outbox_unpublished'"
-    );
-    expect(indexes.rows[0].indexdef).toContain("workspace_id, published_at, created_at, id");
   }, 30000);
   it("uses the configured schema for every transaction without relying on pooled search_path", async () => {
     const schema = "other_config";
     const url = new URL(adminUrl);
     url.searchParams.set("schema", schema);
-    pushConfigSchema(url.toString(), { prismaCli, args: ["--skip-generate"] });
+    pushSchema(url.toString());
     await admin.query(`GRANT USAGE ON SCHEMA ${schema} TO retl_runtime`);
     const tables = await admin.query(
       "SELECT tablename FROM pg_tables WHERE schemaname=$1 AND starts_with(tablename,'reverse_sync_')",
@@ -264,16 +270,11 @@ describe("PostgreSQL persistence", () => {
     expect(recovered.recovery).toBe(true);
     await expect(recovered.delivery.assertReady()).rejects.toThrow(/Recover/);
     expect(await recovered.core.loadBatch(b.batchId)).toEqual(b);
-    await expect(recovered.delivery.acknowledge(b.batchId, outcomes(b), {})).rejects.toThrow(/verified time/);
-    await recovered.core.acknowledgeRecovered(
-      b.batchId,
-      outcomes(b),
-      {},
-      { at: new Date(), period: runInput.billingPeriod }
-    );
+    await expect(recovered.delivery.acknowledge(b.batchId, outcomes(b), {})).rejects.toThrow(/explicit reconciliation/);
+    await recovered.core.acknowledgeRecovered(b.batchId, outcomes(b), {});
     await finish(recovered, b);
   });
-  it("acknowledges membership, receipt and activation atomically, including accepted-then-failed runs", async () => {
+  it("acknowledges membership and receipts atomically, including accepted-then-failed runs", async () => {
     const run = await session();
     await init(run);
     const b = batch(run, ["a", "b"]);
@@ -289,36 +290,32 @@ describe("PostgreSQL persistence", () => {
       {}
     );
     expect(await count("newjitsu.reverse_sync_membership")).toBe(1);
-    expect(await count("newjitsu.reverse_sync_activation")).toBe(1);
-    expect(await count("newjitsu.reverse_sync_outbox")).toBe(2);
     await expect(run.delivery.commitCheckpoint({ sourceSequence: 2, cursor: b.cursor }, {}, false)).rejects.toThrow(
       /unaccepted/
     );
     await run.delivery.prepareAbort();
     await run.delivery.acknowledgeAbort();
     expect(await count("newjitsu.reverse_sync_membership")).toBe(1);
-    expect(await count("newjitsu.reverse_sync_activation")).toBe(1);
   });
-  it("rolls back all acceptance writes when the outbox insert fails", async () => {
+  it("rolls back all acceptance writes when saving the batch receipt fails", async () => {
     const run = await session();
     await init(run);
     const b = batch(run, ["a"]);
     await run.delivery.prepare(b, {});
     await admin.query(
-      "ALTER TABLE newjitsu.reverse_sync_outbox ADD CONSTRAINT injected_failure CHECK (false) NOT VALID"
+      "ALTER TABLE newjitsu.reverse_sync_batch ADD CONSTRAINT injected_failure CHECK (status <> 'acknowledged') NOT VALID"
     );
     try {
       await expect(run.delivery.acknowledge(b.batchId, outcomes(b), {})).rejects.toThrow();
     } finally {
-      await admin.query("ALTER TABLE newjitsu.reverse_sync_outbox DROP CONSTRAINT injected_failure");
+      await admin.query("ALTER TABLE newjitsu.reverse_sync_batch DROP CONSTRAINT injected_failure");
     }
     expect(await count("newjitsu.reverse_sync_membership")).toBe(0);
-    expect(await count("newjitsu.reverse_sync_activation")).toBe(0);
     expect((await admin.query("SELECT status FROM newjitsu.reverse_sync_operation")).rows[0].status).toBe("prepared");
     await run.delivery.acknowledge(b.batchId, outcomes(b), {});
     expect(await count("newjitsu.reverse_sync_membership")).toBe(1);
   });
-  it("deduplicates accepted receipts and monthly sync activation", async () => {
+  it("deduplicates accepted receipts and membership updates", async () => {
     const run = await session();
     await init(run);
     const b = batch(run, ["a"]);
@@ -334,14 +331,21 @@ describe("PostgreSQL persistence", () => {
     const b2 = batch(next, ["b"], 2);
     await next.delivery.prepare(b2, {});
     await next.delivery.acknowledge(b2.batchId, outcomes(b2), {});
-    expect(await count("newjitsu.reverse_sync_activation")).toBe(1);
-    expect(await count("newjitsu.reverse_sync_outbox")).toBe(3);
+    expect(await count("newjitsu.reverse_sync_membership")).toBe(2);
+    expect(await count("newjitsu.reverse_sync_operation")).toBe(2);
+    expect(
+      Number(
+        (await admin.query("SELECT membership_entries FROM newjitsu.reverse_sync_control")).rows[0].membership_entries
+      )
+    ).toBe(2);
   });
-  it("does not activate an empty run", async () => {
+  it("completes an empty run without creating delivery receipts", async () => {
     const run = await session();
     await init(run);
     await finish(run);
-    expect(await count("newjitsu.reverse_sync_activation")).toBe(0);
+    expect(await count("newjitsu.reverse_sync_operation")).toBe(0);
+    expect(await count("newjitsu.reverse_sync_membership")).toBe(0);
+    expect(await count("newjitsu.source_state")).toBe(1);
   });
   it("blocks a checkpoint past a staged delete even if a later upsert is accepted", async () => {
     const run = await session();
@@ -357,27 +361,25 @@ describe("PostgreSQL persistence", () => {
     );
     expect(await count("newjitsu.source_state")).toBe(0);
   });
-  it("resolves pending finish before checkpointing or activating staged work", async () => {
+  it("resolves pending finish before checkpointing or accepting staged work", async () => {
     const run = await session();
     await init(run);
     const b = batch(run, ["a"]);
     await run.delivery.prepare(b, {});
     await run.delivery.acknowledge(b.batchId, outcomes(b, "staged"), {});
-    expect(await count("newjitsu.reverse_sync_activation")).toBe(0);
     await run.delivery.prepareFinish(1, {});
     await run.delivery.acknowledgeFinish({ delivery: "pending", remoteJobIds: ["job"] }, {});
     await expect(run.delivery.commitCheckpoint({ sourceSequence: 1, cursor: b.cursor }, {}, true)).rejects.toThrow();
     await expect(run.delivery.prepareAbort()).rejects.toThrow();
     await expire();
     const recovered = await session({ taskId: "recovery" });
-    await recovered.core.acknowledgeRecoveredFinish(
-      { delivery: "accepted" },
-      {},
-      { at: new Date(), period: runInput.billingPeriod }
+    await expect(recovered.delivery.acknowledgeFinish({ delivery: "accepted" }, {})).rejects.toThrow(
+      /explicit reconciliation/
     );
+    expect((await recovered.core.recoveryBatch(b.batchId)).operations[0].status).toBe("staged");
+    await recovered.core.acknowledgeRecoveredFinish({ delivery: "accepted" }, {});
     await recovered.delivery.commitCheckpoint({ sourceSequence: 1, cursor: b.cursor }, {}, true);
     expect(await count("newjitsu.reverse_sync_membership")).toBe(1);
-    expect(await count("newjitsu.reverse_sync_activation")).toBe(1);
   });
   it("rejects gaps, invented cursors and terminal receipt downgrades", async () => {
     const run = await session();
@@ -478,19 +480,13 @@ describe("recovery and operational boundaries", () => {
         .expired
     ).toBe(true);
   });
-  it("detaches billing period dates before any asynchronous admission work", async () => {
-    const originalStart = +runInput.billingPeriod.start,
-      originalEnd = +runInput.billingPeriod.end;
-    const opening = session();
-    runInput.billingPeriod.start.setTime(originalStart + 3600000);
-    runInput.billingPeriod.end.setTime(originalEnd + 3600000);
+  it("captures run configuration before asynchronous admission work", async () => {
+    const opening = openPersistence(db, runInput, project);
+    runInput.configRevision = "mutated";
     const run = await opening;
-    const stored = (
-      await admin.query("SELECT billing_period_start,billing_period_end FROM newjitsu.reverse_sync_control")
-    ).rows[0];
-    expect(+stored.billing_period_start).toBe(originalStart);
-    expect(+stored.billing_period_end).toBe(originalEnd);
-    expect(+run.scope.billingPeriod.start).toBe(originalStart);
+    const stored = (await admin.query("SELECT revision FROM newjitsu.reverse_sync_control")).rows[0];
+    expect(stored.revision).toBe("revision");
+    expect(run.scope.configRevision).toBe("revision");
   });
   it("reserves key-rotation envelope headroom before delivery", async () => {
     const oldKey = randomBytes(32),
@@ -520,12 +516,7 @@ describe("recovery and operational boundaries", () => {
       await run.delivery.prepare(b, {});
       await expire();
       const recovered = await openPersistence(rotatedDb, { ...runInput, taskId: "recovery" }, project);
-      await recovered.core.acknowledgeRecovered(
-        b.batchId,
-        outcomes(b),
-        {},
-        { at: new Date(), period: runInput.billingPeriod }
-      );
+      await recovered.core.acknowledgeRecovered(b.batchId, outcomes(b), {});
       expect(
         Number(
           (await admin.query("SELECT membership_bytes FROM newjitsu.reverse_sync_control")).rows[0].membership_bytes
@@ -602,26 +593,34 @@ describe("recovery and operational boundaries", () => {
     await recovered.core.acknowledgeRecoveredFinish({ delivery: "accepted" }, {});
     await recovered.delivery.commitCheckpoint({ sourceSequence: 105, cursor: b.cursor }, {}, true);
     expect(await count("newjitsu.reverse_sync_membership")).toBe(105);
-    expect(await count("newjitsu.reverse_sync_activation")).toBe(1);
-    expect(await count("newjitsu.reverse_sync_outbox")).toBe(106);
+    expect(
+      (
+        await admin.query(
+          "SELECT count(DISTINCT accepted_at) AS n FROM newjitsu.reverse_sync_operation WHERE status='accepted'"
+        )
+      ).rows[0].n
+    ).toBe("1");
   }, 15000);
-  it("keeps unknown outcomes blocked across billing-period boundaries until verified", async () => {
-    const oldPeriod = { start: new Date(Date.now() - 3 * 86400000), end: new Date(Date.now() - 2 * 86400000) };
-    const run = await session({ billingPeriod: oldPeriod });
+  it("records reconciliation time without requiring a provider acceptance timestamp", async () => {
+    const run = await session();
     await init(run);
     const b = batch(run, ["a"]);
     await run.delivery.prepare(b, {});
-    await expect(run.delivery.acknowledge(b.batchId, outcomes(b), {})).rejects.toThrow(/billing period/);
-    expect(await count("newjitsu.reverse_sync_activation")).toBe(0);
-    await run.core.acknowledgeRecovered(
-      b.batchId,
-      outcomes(b),
-      {},
-      { at: new Date(+oldPeriod.start + 1000), period: oldPeriod }
-    );
-    expect(
-      (await admin.query("SELECT period_start FROM newjitsu.reverse_sync_activation")).rows[0].period_start
-    ).toEqual(oldPeriod.start);
+    await run.delivery.markUnknown(b.batchId);
+    await expire();
+    const recovered = await session({ taskId: "recovery" });
+    await expect(recovered.delivery.acknowledge(b.batchId, outcomes(b), {})).rejects.toThrow(/explicit reconciliation/);
+    expect((await recovered.core.recoveryBatch(b.batchId)).operations[0]).toMatchObject({
+      status: "unknown",
+      acceptedAt: null,
+    });
+    const before = (await admin.query("SELECT clock_timestamp() AS now")).rows[0].now;
+    await recovered.core.acknowledgeRecovered(b.batchId, outcomes(b), {});
+    const accepted = (await recovered.core.recoveryBatch(b.batchId)).operations[0];
+    expect(accepted.status).toBe("accepted");
+    expect(+accepted.acceptedAt!).toBeGreaterThanOrEqual(+before);
+    await recovered.core.acknowledgeRecovered(b.batchId, outcomes(b), {});
+    expect((await recovered.core.recoveryBatch(b.batchId)).operations[0].acceptedAt).toEqual(accepted.acceptedAt);
   });
   it("reserves membership capacity before submission and rolls back rejected snapshot batches", async () => {
     const limited = new Database(runtimeConfig, cipher, { limits: { snapshotEntries: 1 } });
@@ -660,7 +659,6 @@ describe("recovery and operational boundaries", () => {
     expect(removed.batches).toBe(1);
     expect(await count("newjitsu.reverse_sync_batch")).toBe(1);
     expect(await count("newjitsu.reverse_sync_membership")).toBe(1);
-    expect(await count("newjitsu.reverse_sync_activation")).toBe(1);
     const expected = (
       await admin.query(
         "SELECT (SELECT sum(octet_length(manifest)+result_bytes) FROM newjitsu.reverse_sync_batch)+(SELECT sum(octet_length(effects)) FROM newjitsu.reverse_sync_operation) AS bytes"
@@ -670,36 +668,6 @@ describe("recovery and operational boundaries", () => {
       expected
     );
     expect((await next.core.recoveryBatch(current.batchId)).operations[0].status).toBe("prepared");
-  });
-  it("publishes outbox events at least once without losing failed publications", async () => {
-    const run = await session();
-    await init(run);
-    const b = batch(run, ["a"]);
-    await run.delivery.prepare(b, {});
-    await run.delivery.acknowledge(b.batchId, outcomes(b), {});
-    const delivered: string[] = [];
-    await expect(
-      publishOutbox(db, "workspace", async event => {
-        delivered.push(event.id);
-        throw new Error("publisher unavailable");
-      })
-    ).rejects.toThrow();
-    expect(
-      (await admin.query("SELECT count(*) AS n FROM newjitsu.reverse_sync_outbox WHERE published_at IS NOT NULL"))
-        .rows[0].n
-    ).toBe("0");
-    expect(
-      await publishOutbox(db, "workspace", async event => {
-        delivered.push(event.id);
-      })
-    ).toBe(2);
-    expect(delivered[0]).toBe(delivered[1]);
-    expect(await publishOutbox(db, "workspace", async () => {})).toBe(0);
-    expect(
-      await publishOutbox(db, "other", async () => {
-        throw new Error("foreign event");
-      })
-    ).toBe(0);
   });
   it("requires the empty cursor run to retain its actual starting checkpoint", async () => {
     const run = await session();

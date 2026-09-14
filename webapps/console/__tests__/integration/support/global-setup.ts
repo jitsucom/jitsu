@@ -3,7 +3,8 @@
 import { GenericContainer, StartedTestContainer, Wait } from "testcontainers";
 import { Client } from "pg";
 import { createClient } from "@clickhouse/client";
-import { pushConfigSchema } from "../../../prisma/update-schema";
+import { execFileSync } from "node:child_process";
+import { createRequire } from "node:module";
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import * as path from "node:path";
@@ -17,7 +18,7 @@ import type { TestProject } from "vitest/node";
 // CONSOLE_TEST_CONTAINERS_REUSE=1 keeps the containers running between local
 // runs (testcontainers reuse): the next run connects in ~1s instead of paying
 // the ~25s boot + `prisma db push`. The template is keyed by a hash of
-// schema.prisma and its supplemental constraints, so schema changes rebuild it. Trade-off: the containers
+// schema.prisma, so a schema change rebuilds it. Trade-off: the containers
 // stay up until you `docker rm -f` them. See CONTRIBUTING.md.
 
 const REUSE = process.env.CONSOLE_TEST_CONTAINERS_REUSE === "1";
@@ -28,8 +29,7 @@ const CH_IMAGE = "clickhouse/clickhouse-server:25.4-alpine";
 
 function templateDbName(root: string): string {
   const schema = readFileSync(path.join(root, "prisma/schema.prisma"));
-  const supplementary = readFileSync(path.join(root, "prisma/update-schema.ts"));
-  return `console_tpl_${createHash("sha256").update(schema).update(supplementary).digest("hex").slice(0, 8)}`;
+  return `console_tpl_${createHash("sha256").update(schema).digest("hex").slice(0, 8)}`;
 }
 
 export default async function setup(project: TestProject) {
@@ -71,7 +71,23 @@ export default async function setup(project: TestProject) {
     const exists = await admin.query(`select 1 from pg_database where datname = $1`, [templateDb]);
     if (exists.rowCount === 0) {
       await admin.query(`create database "${templateDb}"`);
-      pushConfigSchema(`${pgUrlBase}/${templateDb}?schema=newjitsu`, { args: ["--skip-generate"] });
+      // prisma has no supported programmatic API for `db push` — spawn the CLI,
+      // resolved through the module system (no .bin or node_modules hardcodes).
+      const require = createRequire(import.meta.url);
+      execFileSync(
+        process.execPath,
+        [
+          require.resolve("prisma/build/index.js"),
+          "db",
+          "push",
+          "--skip-generate",
+          `--schema=${path.join(root, "prisma/schema.prisma")}`,
+        ],
+        {
+          env: { ...process.env, DATABASE_URL: `${pgUrlBase}/${templateDb}?schema=newjitsu` },
+          stdio: "inherit",
+        }
+      );
       // Seal the template: CREATE DATABASE ... TEMPLATE requires zero live connections.
       await admin.query(`select pg_terminate_backend(pid) from pg_stat_activity where datname = $1`, [templateDb]);
       await admin.query(`alter database "${templateDb}" with is_template true allow_connections false`);

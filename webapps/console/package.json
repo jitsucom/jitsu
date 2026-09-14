@@ -15,18 +15,17 @@
     "console:start": "next start",
     "console:analyze": "next experimental-analyze",
     "email:dev": "email dev -p 3901",
-    "build": "prisma generate && next build && pnpm build:manage && pnpm build:schema-update",
+    "build": "prisma generate && next build && pnpm build:manage",
     "build:manage": "esbuild scripts/manage.ts --bundle --platform=node --outfile=build/manage.js --external:@prisma/client --external:pg-native",
-    "build:schema-update": "esbuild scripts/update-schema.ts --bundle --platform=node --format=esm --outfile=build/update-schema.mjs",
     "manage": "tsx scripts/manage.ts",
     "clean": "rm -rf ./.next ./.turbo ./build",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "tool:hash": "tsx scripts/manage.ts password-hash",
     "db:code-gen": "prisma generate",
-    "db:update-schema": "tsx scripts/update-schema.ts",
+    "db:update-schema": "prisma db push",
     "db:format-schema": "prisma format",
-    "db:update-schema-force": "tsx scripts/update-schema.ts --accept-data-loss"
+    "db:update-schema-force": "prisma db push --accept-data-loss"
   },
   "dependencies": {
     "@ant-design/cssinjs": "^1.21.1",

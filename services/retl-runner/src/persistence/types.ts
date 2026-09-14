@@ -5,8 +5,6 @@ export interface RunInput extends Omit<ReverseEtlRunScope, "fencingEpoch"> {
   mode: "upsert" | "mirror";
   /** Full includes cursorless models and explicit full refresh. */
   extraction: "cursor" | "full";
-  /** Trusted admission supplies the customer's billing period, not a calendar-month guess. */
-  billingPeriod: { start: Date; end: Date };
 }
 export interface Scope extends RunInput {
   fencingEpoch: string;

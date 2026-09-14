@@ -573,7 +573,7 @@ db_push() {
         log_error "Run '$0 deploy' instead — the db-push hook applies the schema on every deploy."
         exit 1
     fi
-    if ! kubectl exec -n "$NAMESPACE" deploy/console -- npm run db:update-schema; then
+    if ! kubectl exec -n "$NAMESPACE" deploy/console -- npx prisma db push; then
         log_error "db push failed. Is the console pod running? (kubectl get pods -n $NAMESPACE)"
         exit 1
     fi

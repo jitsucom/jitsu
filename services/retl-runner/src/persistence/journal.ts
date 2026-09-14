@@ -15,12 +15,6 @@ import { statePurpose, stateStream, type SavedState } from "./ownership";
 import { effects, Snapshots } from "./snapshots";
 import { ensure, type Effect, type Project, type Scope } from "./types";
 
-/** Recovery supplies verified acceptance time/period; ambiguous delivery must not be guessed. */
-export interface Acceptance {
-  at: Date;
-  period: { start: Date; end: Date };
-}
-
 export class Journal implements DeliveryJournal {
   readonly snapshots: Snapshots;
   constructor(
@@ -291,34 +285,27 @@ export class Journal implements DeliveryJournal {
       );
     });
   }
-  private async acceptance(client: PoolClient, control: any, proof?: Acceptance): Promise<Acceptance> {
+  /** Timestamp the durable acknowledgement, not the unknown remote delivery time. */
+  private async acceptance(client: PoolClient, reconciled: boolean): Promise<Date> {
+    ensure(!this.recovery || reconciled, "Recovered acceptance requires explicit reconciliation");
     const {
       rows: [clock],
     } = await client.query("SELECT clock_timestamp() AS now");
-    ensure(!this.recovery || proof, "Recovered acceptance needs verified time and billing period");
-    const result = proof ?? {
-      at: clock.now,
-      period: { start: control.billing_period_start, end: control.billing_period_end },
-    };
-    ensure(
-      Number.isFinite(+result.at) &&
-        +result.at <= +clock.now &&
-        +result.period.start <= +result.at &&
-        +result.at < +result.period.end,
-      "Acceptance is outside its verified billing period"
-    );
-    return result;
+    return clock.now;
   }
   async acknowledge(batchId: string, result: BatchResult, store: JsonObject) {
-    return this.acknowledgeRecovered(batchId, result, store);
+    return this.acknowledgeBatch(batchId, result, store, false);
   }
   /** Only core recovery calls this with evidence from provider reconciliation. */
-  async acknowledgeRecovered(batchId: string, input: BatchResult, store: JsonObject, proof?: Acceptance) {
+  async acknowledgeRecovered(batchId: string, input: BatchResult, store: JsonObject) {
+    return this.acknowledgeBatch(batchId, input, store, true);
+  }
+  private async acknowledgeBatch(batchId: string, input: BatchResult, store: JsonObject, reconciled: boolean) {
     await this.db.owned(this.scope, async (client, control) => {
       ensure(control.phase === "running", "Cannot acknowledge batch in this phase");
       const batch = await this.batch(client, batchId);
       const result = validateBatchResult(batch, input);
-      let acceptance: Acceptance | undefined;
+      let acceptance: Date | undefined;
       for (const outcome of result.outcomes) {
         const {
           rows: [operation],
@@ -331,7 +318,7 @@ export class Journal implements DeliveryJournal {
           "Cannot overwrite a terminal receipt"
         );
         if (outcome.status === "accepted" && operation.status !== "accepted") {
-          acceptance ??= await this.acceptance(client, control, proof);
+          acceptance ??= await this.acceptance(client, reconciled);
           await this.accept(client, operation, acceptance);
         } else if (operation.status !== "accepted") {
           if (outcome.status === "rejected") await this.releaseReservation(client, operation);
@@ -364,7 +351,7 @@ export class Journal implements DeliveryJournal {
       await this.saveStore(client, store);
     });
   }
-  private async accept(client: PoolClient, operation: any, proof: Acceptance) {
+  private async accept(client: PoolClient, operation: any, acceptedAt: Date) {
     const projected = this.open<Effect[]>(
       operation.effects,
       `effects:${this.scope.logicalRunId}:${operation.operation_id}`
@@ -395,30 +382,8 @@ export class Journal implements DeliveryJournal {
     await this.releaseReservation(client, operation);
     await client.query(
       "UPDATE reverse_sync_operation SET status='accepted',accepted_at=$5 WHERE workspace_id=$1 AND sync_id=$2 AND run_id=$3 AND operation_id=$4",
-      [...this.key, operation.operation_id, proof.at]
+      [...this.key, operation.operation_id, acceptedAt]
     );
-    const activation = await client.query(
-      "INSERT INTO reverse_sync_activation (workspace_id,sync_id,period_start,period_end,accepted_at) VALUES ($1,$2,$3,$4,$5) ON CONFLICT DO NOTHING RETURNING 1",
-      [...this.key.slice(0, 2), proof.period.start, proof.period.end, proof.at]
-    );
-    const event = {
-      logicalRunId: this.scope.logicalRunId,
-      operationId: operation.operation_id,
-      acceptedAt: proof.at.toISOString(),
-    };
-    await client.query(
-      "INSERT INTO reverse_sync_outbox (id,workspace_id,sync_id,kind,payload) VALUES ($1,$2,$3,'operation_accepted',$4) ON CONFLICT DO NOTHING",
-      [contentHash([...this.key, operation.operation_id]), ...this.key.slice(0, 2), event]
-    );
-    if (activation.rowCount)
-      await client.query(
-        "INSERT INTO reverse_sync_outbox (id,workspace_id,sync_id,kind,payload) VALUES ($1,$2,$3,'sync_activated',$4) ON CONFLICT DO NOTHING",
-        [
-          contentHash([this.scope.workspaceId, this.scope.syncId, proof.period.start.toISOString()]),
-          ...this.key.slice(0, 2),
-          { periodStart: proof.period.start.toISOString(), periodEnd: proof.period.end.toISOString() },
-        ]
-      );
   }
   private async releaseReservation(client: PoolClient, operation: any) {
     await client.query(
@@ -491,9 +456,13 @@ export class Journal implements DeliveryJournal {
     });
   }
   async acknowledgeFinish(result: FinishResult, store: JsonObject) {
-    return this.acknowledgeRecoveredFinish(result, store);
+    return this.acknowledgeFinishResult(result, store, false);
   }
-  async acknowledgeRecoveredFinish(input: FinishResult, store: JsonObject, proof?: Acceptance) {
+  /** Only core recovery calls this after verifying the provider's final outcome. */
+  async acknowledgeRecoveredFinish(input: FinishResult, store: JsonObject) {
+    return this.acknowledgeFinishResult(input, store, true);
+  }
+  private async acknowledgeFinishResult(input: FinishResult, store: JsonObject, reconciled: boolean) {
     const result = validateFinishResult(input);
     await this.db.owned(this.scope, async (client, control) => {
       ensure(
@@ -509,15 +478,13 @@ export class Journal implements DeliveryJournal {
         this.key
       );
       const accepted =
-        result.delivery === "accepted" && staged.rowCount ? await this.acceptance(client, control, proof) : undefined;
+        result.delivery === "accepted" && staged.rowCount ? await this.acceptance(client, reconciled) : undefined;
       const saved = {
         result,
         ...(accepted
           ? {
               acceptance: {
-                at: accepted.at.toISOString(),
-                start: accepted.period.start.toISOString(),
-                end: accepted.period.end.toISOString(),
+                at: accepted.toISOString(),
               },
             }
           : {}),
@@ -533,7 +500,7 @@ export class Journal implements DeliveryJournal {
       );
     });
     if (result.delivery === "pending") return;
-    // A crash between chunks leaves finish_resolving + its verified acceptance context.
+    // A crash between chunks leaves finish_resolving + its recorded acknowledgement time.
     // Retry this local resolution, not provider.finish(), after acquiring a new epoch.
     let done = false;
     while (!done)
@@ -552,10 +519,7 @@ export class Journal implements DeliveryJournal {
         }
         const saved = this.open<any>(control.finish_result, "finish").acceptance;
         ensure(saved, "Missing finish acceptance evidence");
-        const acceptance = {
-          at: new Date(saved.at),
-          period: { start: new Date(saved.start), end: new Date(saved.end) },
-        };
+        const acceptance = new Date(saved.at);
         for (const operation of pending.rows) await this.accept(client, operation, acceptance);
         return false;
       });

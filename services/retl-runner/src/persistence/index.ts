@@ -7,8 +7,7 @@ import type { Project, RunInput } from "./types";
 export { Database } from "./database";
 export { Cipher } from "./crypto";
 export { acquire, renew, release } from "./ownership";
-export { prune, publishOutbox } from "./maintenance";
-export type { Acceptance } from "./journal";
+export { prune } from "./maintenance";
 export type { RunInput, Scope, Identity, Effect, Limits, Project } from "./types";
 
 export async function openPersistence(db: Database, input: RunInput, project: Project, leaseMs?: number) {

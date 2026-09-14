@@ -346,11 +346,6 @@ enum reverse_sync_action {
   remove
 }
 
-enum reverse_sync_event_kind {
-  operation_accepted
-  sync_activated
-}
-
 model reverse_sync_control {
   workspace_id         String
   sync_id              String                  @unique
@@ -376,10 +371,7 @@ model reverse_sync_control {
   journal_bytes        BigInt                  @default(0)
   reserved_entries     BigInt                  @default(0)
   reserved_bytes       BigInt                  @default(0)
-  billing_period_start DateTime                @db.Timestamptz(6)
-  billing_period_end   DateTime                @db.Timestamptz(6)
 
-  // Cross-column ordering CHECK is applied automatically by the schema-update command.
   @@id([workspace_id, sync_id])
 }
 
@@ -420,6 +412,7 @@ model reverse_sync_operation {
   effects          Bytes
   reserved_entries BigInt
   reserved_bytes   BigInt
+  // Local acknowledgement time, not a provider delivery timestamp or billing attribution.
   accepted_at      DateTime?           @db.Timestamptz(6)
   batch            reverse_sync_batch  @relation(fields: [workspace_id, sync_id, run_id, batch_id], references: [workspace_id, sync_id, run_id, batch_id], onDelete: NoAction, onUpdate: NoAction)
 
@@ -479,29 +472,6 @@ model reverse_sync_membership {
   value         Bytes
 
   @@id([workspace_id, sync_id, identity_hash])
-}
-
-model reverse_sync_activation {
-  workspace_id String
-  sync_id      String
-  period_start DateTime @db.Timestamptz(6)
-  period_end   DateTime @db.Timestamptz(6)
-  accepted_at  DateTime @db.Timestamptz(6)
-
-  @@id([workspace_id, sync_id, period_start])
-}
-
-model reverse_sync_outbox {
-  id           String                  @id
-  workspace_id String
-  sync_id      String
-  kind         reverse_sync_event_kind
-  payload      Json
-  created_at   DateTime                @default(dbgenerated("clock_timestamp()")) @db.Timestamptz(6)
-  published_at DateTime?               @db.Timestamptz(6)
-
-  // Prisma-managed replacement for the partial index; matches scoped pending-event reads.
-  @@index([workspace_id, published_at, created_at, id], map: "reverse_sync_outbox_unpublished")
 }
 
 model source_state {

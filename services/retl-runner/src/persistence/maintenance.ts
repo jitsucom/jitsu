@@ -53,28 +53,3 @@ export async function prune(db: Database, scope: Scope, receiptsBefore: Date) {
     return { batches: batches.rowCount ?? 0, snapshotRows };
   });
 }
-
-/** At-least-once publication; consumers deduplicate by event.id. No lease or task retention dependency. */
-export async function publishOutbox(
-  db: Database,
-  workspaceId: string,
-  publish: (event: { id: string; syncId: string; kind: string; payload: unknown }) => Promise<void>
-) {
-  const events = await db.transaction(client =>
-    client.query(
-      "SELECT id,sync_id,kind,payload FROM reverse_sync_outbox WHERE workspace_id=$1 AND published_at IS NULL ORDER BY created_at,id LIMIT 100",
-      [workspaceId]
-    )
-  );
-  for (const event of events.rows) {
-    await publish({ id: event.id, syncId: event.sync_id, kind: event.kind, payload: event.payload });
-    // A crash between publish and acknowledgement replays the same event ID.
-    await db.transaction(client =>
-      client.query(
-        "UPDATE reverse_sync_outbox SET published_at=clock_timestamp() WHERE workspace_id=$1 AND id=$2 AND published_at IS NULL",
-        [workspaceId, event.id]
-      )
-    );
-  }
-  return events.rowCount ?? 0;
-}
