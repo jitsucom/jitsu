@@ -98,7 +98,8 @@ async function finish(run: Session, b?: PreparedBatch<unknown>) {
     ? { sourceSequence: b.records.at(-1)!.sourceSequence, ...(b.cursor ? { cursor: b.cursor } : {}) }
     : { sourceSequence: 0 };
   await run.delivery.prepareFinish(point.sourceSequence, {});
-  await run.delivery.acknowledgeFinish({ delivery: "accepted" }, {});
+  if (run.recovery) await run.core.acknowledgeRecoveredFinish({ delivery: "accepted" }, {});
+  else await run.delivery.acknowledgeFinish({ delivery: "accepted" }, {});
   await run.delivery.commitCheckpoint(point, {}, true);
 }
 
@@ -274,6 +275,78 @@ describe("PostgreSQL persistence", () => {
     await recovered.core.acknowledgeRecovered(b.batchId, outcomes(b), {});
     await finish(recovered, b);
   });
+  it.each(
+    (["prepared", "unknown", "staged"] as const).flatMap(initial =>
+      (["accepted", "rejected", "staged"] as const).map(outcome => ({ initial, outcome }))
+    )
+  )("requires core reconciliation for recovered $initial -> $outcome batches", async ({ initial, outcome }) => {
+    const run = await session();
+    await init(run);
+    const b = batch(run, ["a"]);
+    await run.delivery.prepare(b, { saved: true });
+    if (initial === "unknown") await run.delivery.markUnknown(b.batchId);
+    if (initial === "staged") await run.delivery.acknowledge(b.batchId, outcomes(b, "staged"), { saved: true });
+    await release(db, run.scope);
+    const recovered = await session({ taskId: "recovery" });
+    const before = await recovered.core.recoveryBatch(b.batchId);
+    const counters = (
+      await admin.query("SELECT reserved_entries,reserved_bytes,journal_bytes FROM newjitsu.reverse_sync_control")
+    ).rows[0];
+    const result: BatchResult = {
+      outcomes: [
+        outcome === "rejected"
+          ? { operationId: b.records[0].operationId, status: outcome, code: "invalid", safeReason: "Invalid row" }
+          : { operationId: b.records[0].operationId, status: outcome },
+      ],
+    };
+    await expect(recovered.delivery.acknowledge(b.batchId, result, { changed: true })).rejects.toThrow(
+      /explicit reconciliation/
+    );
+    expect(await recovered.core.recoveryBatch(b.batchId)).toEqual(before);
+    expect((await recovered.core.state()).store).toEqual({ saved: true });
+    expect(
+      (await admin.query("SELECT reserved_entries,reserved_bytes,journal_bytes FROM newjitsu.reverse_sync_control"))
+        .rows[0]
+    ).toEqual(counters);
+    expect(await count("newjitsu.reverse_sync_membership")).toBe(0);
+    if (initial !== "staged") await expect(recovered.delivery.prepareAbort()).rejects.toThrow(/reconciliation/);
+    await recovered.core.acknowledgeRecovered(b.batchId, result, {});
+    expect((await recovered.core.recoveryBatch(b.batchId)).operations[0].status).toBe(outcome);
+    if (outcome !== "staged") {
+      const terminal = await recovered.core.recoveryBatch(b.batchId);
+      await recovered.delivery.acknowledge(b.batchId, result, {});
+      expect(await recovered.core.recoveryBatch(b.batchId)).toEqual(terminal);
+    }
+  });
+  it.each([false, true].flatMap(hasRows => [false, true].map(pending => ({ hasRows, pending }))))(
+    "requires reconciliation for recovered finish without staged rows (hasRows=$hasRows, pending=$pending)",
+    async ({ hasRows, pending }) => {
+      const run = await session();
+      await init(run);
+      const b = hasRows ? batch(run, ["a"]) : undefined;
+      if (b) {
+        await run.delivery.prepare(b, {});
+        await run.delivery.acknowledge(b.batchId, outcomes(b), {});
+      }
+      await run.delivery.prepareFinish(hasRows ? 1 : 0, { saved: true });
+      if (pending)
+        await run.delivery.acknowledgeFinish({ delivery: "pending", remoteJobIds: ["job"] }, { saved: true });
+      await release(db, run.scope);
+      const recovered = await session({ taskId: "recovery" });
+      const before = await recovered.core.recoveryStatus();
+      await expect(recovered.delivery.acknowledgeFinish({ delivery: "accepted" }, { changed: true })).rejects.toThrow(
+        /explicit reconciliation/
+      );
+      expect(await recovered.core.recoveryStatus()).toEqual(before);
+      expect((await recovered.core.state()).store).toEqual({ saved: true });
+      const point = { sourceSequence: hasRows ? 1 : 0, ...(b ? { cursor: b.cursor } : {}) };
+      await expect(recovered.delivery.commitCheckpoint(point, {}, true)).rejects.toThrow(/phase/);
+      expect(await count("newjitsu.source_state")).toBe(0);
+      await recovered.core.acknowledgeRecoveredFinish({ delivery: "accepted" }, {});
+      await recovered.delivery.commitCheckpoint(point, {}, true);
+      expect(await count("newjitsu.source_state")).toBe(1);
+    }
+  );
   it("acknowledges membership and receipts atomically, including accepted-then-failed runs", async () => {
     const run = await session();
     await init(run);
@@ -590,7 +663,8 @@ describe("recovery and operational boundaries", () => {
     db = new Database(runtimeConfig, cipher);
     await expire();
     const recovered = await session({ taskId: "recovery" });
-    await recovered.core.acknowledgeRecoveredFinish({ delivery: "accepted" }, {});
+    // Acceptance was recorded before the crash; only local resolution remains.
+    await recovered.delivery.acknowledgeFinish({ delivery: "accepted" }, {});
     await recovered.delivery.commitCheckpoint({ sourceSequence: 105, cursor: b.cursor }, {}, true);
     expect(await count("newjitsu.reverse_sync_membership")).toBe(105);
     expect(

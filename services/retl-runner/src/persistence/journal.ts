@@ -317,6 +317,12 @@ export class Journal implements DeliveryJournal {
           operation && (!["accepted", "rejected"].includes(operation.status) || operation.status === outcome.status),
           "Cannot overwrite a terminal receipt"
         );
+        // Every unresolved outcome needs reconciliation after takeover, including
+        // rejection/staging: neither may erase an uncertain remote acceptance.
+        ensure(
+          !this.recovery || reconciled || ["accepted", "rejected"].includes(operation.status),
+          "Recovered batch requires explicit reconciliation"
+        );
         if (outcome.status === "accepted" && operation.status !== "accepted") {
           acceptance ??= await this.acceptance(client, reconciled);
           await this.accept(client, operation, acceptance);
@@ -473,6 +479,11 @@ export class Journal implements DeliveryJournal {
         ensure(result.delivery === "accepted", "Accepted finish cannot become pending");
         return;
       }
+      // Finish itself is a remote operation even for empty/already-accepted batches.
+      ensure(
+        !this.recovery || reconciled || result.delivery !== "accepted",
+        "Recovered finish requires explicit reconciliation"
+      );
       const staged = await client.query(
         "SELECT 1 FROM reverse_sync_operation WHERE workspace_id=$1 AND sync_id=$2 AND run_id=$3 AND status='staged' LIMIT 1",
         this.key
