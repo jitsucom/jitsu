@@ -23,7 +23,7 @@ GRANT SELECT, INSERT, UPDATE, DELETE ON
   newjitsu.reverse_sync_control, newjitsu.reverse_sync_target_owner,
   newjitsu.reverse_sync_batch, newjitsu.reverse_sync_operation,
   newjitsu.reverse_sync_generation, newjitsu.reverse_sync_source_key,
-  newjitsu.reverse_sync_desired, newjitsu.reverse_sync_association,
+  newjitsu.reverse_sync_desired,
   newjitsu.reverse_sync_membership TO retl_runtime;
 GRANT SELECT, INSERT, UPDATE ON newjitsu.source_state TO retl_runtime;
 ```
@@ -103,8 +103,9 @@ Abort acknowledges cleanup of unaccepted staging only and preserves accepted wor
 
 ## Snapshot and delivery guarantees
 
-Desired generations store unique source keys, shared identity associations and
-provider-ready values. Conflicting shared-identity payloads are rejected. Effective
+Desired generations store unique source keys and deduplicated provider-ready
+identities. Full-snapshot diffs need no stored source-to-identity associations:
+an identity remains desired while any source row produces it. Conflicting shared-identity payloads are rejected. Effective
 membership is updated on **every durable acceptance**, including failed runs.
 Indexed keyset pages keep diff reads bounded. Removals require sealed valid input
 and all desired additions accepted; no staged addition can authorize deletion.
@@ -121,8 +122,11 @@ delivery receipts exist for recovery and are not a billing ledger.
 ## Budgets and retention
 
 Defaults: 1,000 records / 10 MB per batch, 100 identities per source row, 1 million
-associations / 256 MB per desired generation, 1 million effective identities /
+projected identity occurrences / 256 MB per desired generation, 1 million effective identities /
 256 MB effective membership, and 256 MB encrypted journal storage per sync.
+The generation entry budget counts shared identities once per source occurrence
+to bound projection work; its logical byte budget counts source-key hashes and
+unique encrypted desired values, not PostgreSQL table/index overhead.
 Provider state is limited to 64 KiB. These operational limits are unrelated to
 billing; smaller limits can be supplied. Membership growth is conservatively
 reserved before remote calls, including previously staged batches. Near a storage

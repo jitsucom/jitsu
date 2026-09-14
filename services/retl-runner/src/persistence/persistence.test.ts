@@ -135,7 +135,7 @@ beforeAll(async () => {
 beforeEach(async () => {
   runInput = input();
   await admin.query(
-    "TRUNCATE newjitsu.reverse_sync_operation,newjitsu.reverse_sync_batch,newjitsu.reverse_sync_control,newjitsu.reverse_sync_target_owner,newjitsu.reverse_sync_generation,newjitsu.reverse_sync_source_key,newjitsu.reverse_sync_desired,newjitsu.reverse_sync_association,newjitsu.reverse_sync_membership,newjitsu.source_state"
+    "TRUNCATE newjitsu.reverse_sync_operation,newjitsu.reverse_sync_batch,newjitsu.reverse_sync_control,newjitsu.reverse_sync_target_owner,newjitsu.reverse_sync_generation,newjitsu.reverse_sync_source_key,newjitsu.reverse_sync_desired,newjitsu.reverse_sync_membership,newjitsu.source_state"
   );
 });
 afterAll(async () => {
@@ -158,7 +158,7 @@ describe("PostgreSQL persistence", () => {
     expect(
       (
         await admin.query(
-          "SELECT tablename FROM pg_tables WHERE schemaname='newjitsu' AND tablename IN ('reverse_sync_activation','reverse_sync_outbox')"
+          "SELECT tablename FROM pg_tables WHERE schemaname='newjitsu' AND tablename IN ('reverse_sync_activation','reverse_sync_outbox','reverse_sync_association')"
         )
       ).rows
     ).toEqual([]);
@@ -709,7 +709,13 @@ describe("core snapshot storage", () => {
     const run = await mirror();
     await run.snapshots.append([desired("key1", "shared"), desired("key2", "shared")]);
     expect(await count("newjitsu.reverse_sync_desired")).toBe(1);
-    expect(await count("newjitsu.reverse_sync_association")).toBe(2);
+    expect(await count("newjitsu.reverse_sync_source_key")).toBe(2);
+    const size = (await admin.query("SELECT sum(octet_length(value)) AS n FROM newjitsu.reverse_sync_desired")).rows[0]
+      .n;
+    const accounting = (
+      await admin.query("SELECT key_count,entry_count,byte_count FROM newjitsu.reverse_sync_generation")
+    ).rows[0];
+    expect(accounting).toEqual({ key_count: "2", entry_count: "2", byte_count: String(Number(size) + 2 * 64) });
     await expect(run.snapshots.append([desired("key1", "different")])).rejects.toThrow();
     await expect(
       run.snapshots.append([
@@ -720,6 +726,44 @@ describe("core snapshot storage", () => {
       ])
     ).rejects.toThrow(/Conflicting/);
     expect(await count("newjitsu.reverse_sync_source_key")).toBe(2);
+    expect(
+      (await admin.query("SELECT key_count,entry_count,byte_count FROM newjitsu.reverse_sync_generation")).rows[0]
+    ).toEqual(accounting);
+  });
+  it("keeps a shared identity until its last source row disappears from a full snapshot", async () => {
+    const first = await mirror();
+    await first.snapshots.append([desired("key1", "shared"), desired("key2", "shared")]);
+    await first.snapshots.seal();
+    const addition = batch(first, ["shared"], 1, "upsert", false);
+    await first.delivery.prepare(addition, {});
+    await first.delivery.acknowledge(addition.batchId, outcomes(addition), {});
+    await finish(first, addition);
+    await release(db, first.scope);
+
+    const second = await session({ mode: "mirror", extraction: "full", taskId: "second", logicalRunId: "second" });
+    await init(second);
+    await second.snapshots.start();
+    await second.snapshots.append([desired("key2", "shared")]);
+    await second.snapshots.seal();
+    expect(await second.snapshots.page("additions")).toEqual([]);
+    expect(await second.snapshots.page("removals")).toEqual([]);
+    await finish(second);
+    await release(db, second.scope);
+
+    const third = await session({ mode: "mirror", extraction: "full", taskId: "third", logicalRunId: "third" });
+    await init(third);
+    await prune(db, third.scope, new Date(Date.now() - 30 * 86400000));
+    expect(
+      (await admin.query("SELECT generation FROM newjitsu.reverse_sync_generation ORDER BY generation")).rows
+    ).toEqual([{ generation: "second" }]);
+    await third.snapshots.start();
+    await third.snapshots.seal();
+    expect((await third.snapshots.page("removals")).map(row => row.remove)).toEqual([{ id: "shared" }]);
+    const removal = batch(third, ["shared"], 1, "remove", false);
+    await third.delivery.prepare(removal, {});
+    await third.delivery.acknowledge(removal.batchId, outcomes(removal), {});
+    await finish(third, removal);
+    expect(await count("newjitsu.reverse_sync_membership")).toBe(0);
   });
   it("requires sealed full source and accepted additions before any removal", async () => {
     const run = await mirror();

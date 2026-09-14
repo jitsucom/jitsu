@@ -11,7 +11,7 @@ export async function prune(db: Database, scope: Scope, receiptsBefore: Date) {
     const key = [scope.workspaceId, scope.syncId, scope.logicalRunId];
     let snapshotRows = 0;
     // Table names are a closed, code-owned list, never caller input.
-    for (const table of ["association", "source_key", "desired"]) {
+    for (const table of ["source_key", "desired"]) {
       const result = await client.query(
         `DELETE FROM reverse_sync_${table} WHERE ctid IN (
         SELECT ctid FROM reverse_sync_${table} WHERE workspace_id=$1 AND sync_id=$2 AND generation<>$3
@@ -22,7 +22,6 @@ export async function prune(db: Database, scope: Scope, receiptsBefore: Date) {
     }
     await client.query(
       `DELETE FROM reverse_sync_generation g WHERE g.workspace_id=$1 AND g.sync_id=$2 AND g.generation<>$3 AND g.generation IS DISTINCT FROM $4
-      AND NOT EXISTS (SELECT 1 FROM reverse_sync_association a WHERE a.workspace_id=g.workspace_id AND a.sync_id=g.sync_id AND a.generation=g.generation)
       AND NOT EXISTS (SELECT 1 FROM reverse_sync_source_key k WHERE k.workspace_id=g.workspace_id AND k.sync_id=g.sync_id AND k.generation=g.generation)
       AND NOT EXISTS (SELECT 1 FROM reverse_sync_desired d WHERE d.workspace_id=g.workspace_id AND d.sync_id=g.sync_id AND d.generation=g.generation)`,
       [...key, control.committed_generation]

@@ -65,6 +65,7 @@ export class Snapshots {
           "INSERT INTO reverse_sync_source_key (workspace_id,sync_id,generation,key_hash) VALUES ($1,$2,$3,$4)",
           [...this.key, row.key]
         );
+        bytes += 64; // Stored source-key hash; no source-to-identity mapping is persisted.
         for (const effect of row.effects) {
           const value = this.db.cipher.seal(
             effect,
@@ -86,12 +87,8 @@ export class Snapshots {
             );
             ensure(canonicalJson(previous) === canonicalJson(effect), "Conflicting payloads for shared identity");
           } else bytes += value.length;
-          await client.query(
-            "INSERT INTO reverse_sync_association (workspace_id,sync_id,generation,key_hash,identity_hash) VALUES ($1,$2,$3,$4,$5)",
-            [...this.key, row.key, effect.identityHash]
-          );
+          // Bound projection work even when many source rows share one desired identity.
           entries++;
-          bytes += 128;
         }
       }
       ensure(

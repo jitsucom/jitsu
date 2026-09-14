@@ -453,17 +453,6 @@ model reverse_sync_desired {
   @@id([workspace_id, sync_id, generation, identity_hash])
 }
 
-model reverse_sync_association {
-  workspace_id  String
-  sync_id       String
-  generation    String
-  key_hash      String
-  identity_hash String
-
-  @@id([workspace_id, sync_id, generation, key_hash, identity_hash])
-  @@index([workspace_id, sync_id, generation, identity_hash], map: "reverse_sync_association_identity")
-}
-
 model reverse_sync_membership {
   workspace_id  String
   sync_id       String
