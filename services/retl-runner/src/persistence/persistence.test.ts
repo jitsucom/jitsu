@@ -1,7 +1,8 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { GenericContainer, Wait, type StartedTestContainer } from "testcontainers";
 import { Client, type PoolConfig } from "pg";
-import { readFileSync } from "node:fs";
+import { createRequire } from "node:module";
+import { pushConfigSchema } from "../../../../webapps/console/prisma/update-schema";
 import { randomBytes } from "node:crypto";
 import { contentHash, createBufferedSyncStore } from "@jitsu/destination-functions/src/reverse-etl/identity";
 import { runReverseEtl } from "@jitsu/destination-functions/src/reverse-etl/run";
@@ -25,6 +26,8 @@ let container: StartedTestContainer;
 let admin: Client;
 let db: Database;
 let runtimeConfig: PoolConfig;
+let adminUrl: string;
+const prismaCli = createRequire(import.meta.url).resolve("prisma/build/index.js");
 const cipher = new Cipher("test", { test: randomBytes(32) });
 const project: Project = (_, row: any) => [{ identity: row.id, upsert: row, remove: { id: row.id } }];
 const input = (extra: Partial<RunInput> = {}): RunInput => ({
@@ -89,7 +92,7 @@ async function count(table: string) {
   return Number((await admin.query(`SELECT count(*) AS n FROM ${table}`)).rows[0].n);
 }
 async function expire() {
-  await admin.query("UPDATE retl.control SET lease_until=clock_timestamp()-interval '1 second'");
+  await admin.query("UPDATE newjitsu.reverse_sync_control SET lease_until=clock_timestamp()-interval '1 second'");
 }
 async function finish(run: Session, b?: PreparedBatch<unknown>) {
   const point = b
@@ -115,20 +118,25 @@ beforeAll(async () => {
   };
   admin = new Client(config);
   await admin.connect();
+  adminUrl = `postgresql://postgres:test@${config.host}:${config.port}/${config.database}?schema=newjitsu`;
+  pushConfigSchema(adminUrl, { prismaCli, args: ["--skip-generate"] });
   await admin.query(
-    "CREATE SCHEMA newjitsu; CREATE TABLE newjitsu.source_state (sync_id text,stream text,state jsonb NOT NULL,timestamp timestamptz NOT NULL,PRIMARY KEY(sync_id,stream))"
+    "CREATE ROLE retl_runtime LOGIN PASSWORD 'runtime'; GRANT USAGE ON SCHEMA newjitsu TO retl_runtime"
   );
-  await admin.query(readFileSync(new URL("../../migrations/001-persistence.sql", import.meta.url), "utf8"));
-  await admin.query(
-    "CREATE ROLE retl_runtime LOGIN PASSWORD 'runtime'; GRANT USAGE ON SCHEMA retl,newjitsu TO retl_runtime; GRANT SELECT,INSERT,UPDATE,DELETE ON ALL TABLES IN SCHEMA retl TO retl_runtime; GRANT SELECT,INSERT,UPDATE ON newjitsu.source_state TO retl_runtime"
+  const tables = await admin.query(
+    "SELECT tablename FROM pg_tables WHERE schemaname='newjitsu' AND starts_with(tablename,'reverse_sync_')"
   );
+  for (const { tablename } of tables.rows) {
+    await admin.query(`GRANT SELECT,INSERT,UPDATE,DELETE ON newjitsu."${tablename}" TO retl_runtime`);
+  }
+  await admin.query("GRANT SELECT,INSERT,UPDATE ON newjitsu.source_state TO retl_runtime");
   runtimeConfig = { ...config, user: "retl_runtime", password: "runtime" };
   db = new Database(runtimeConfig, cipher);
 }, 120000);
 beforeEach(async () => {
   runInput = input();
   await admin.query(
-    "TRUNCATE retl.operation,retl.batch,retl.control,retl.target_owner,retl.generation,retl.source_key,retl.desired,retl.association,retl.membership,retl.activation,retl.outbox,newjitsu.source_state"
+    "TRUNCATE newjitsu.reverse_sync_operation,newjitsu.reverse_sync_batch,newjitsu.reverse_sync_control,newjitsu.reverse_sync_target_owner,newjitsu.reverse_sync_generation,newjitsu.reverse_sync_source_key,newjitsu.reverse_sync_desired,newjitsu.reverse_sync_association,newjitsu.reverse_sync_membership,newjitsu.reverse_sync_activation,newjitsu.reverse_sync_outbox,newjitsu.source_state"
   );
 });
 afterAll(async () => {
@@ -138,11 +146,72 @@ afterAll(async () => {
 });
 
 describe("PostgreSQL persistence", () => {
+  it("keeps Prisma-owned tables, constraints and existing rows intact across schema updates", async () => {
+    const run = await session();
+    await init(run);
+    const b = batch(run, ["a"]);
+    await run.delivery.prepare(b, {});
+    await run.delivery.acknowledge(b.batchId, outcomes(b), {});
+    pushConfigSchema(adminUrl, { prismaCli, args: ["--skip-generate"] });
+    expect(await count("newjitsu.reverse_sync_operation")).toBe(1);
+    expect(await count("newjitsu.reverse_sync_membership")).toBe(1);
+    expect((await admin.query("SELECT 1 FROM pg_namespace WHERE nspname='retl'")).rowCount).toBe(0);
+    await expect(admin.query("UPDATE newjitsu.reverse_sync_control SET mode='invalid'")).rejects.toThrow(/enum/);
+    await expect(
+      admin.query("UPDATE newjitsu.reverse_sync_control SET billing_period_end=billing_period_start")
+    ).rejects.toThrow(/reverse_sync_billing_period_order/);
+    await expect(admin.query("UPDATE newjitsu.reverse_sync_operation SET batch_id='missing'")).rejects.toThrow(
+      /foreign key/
+    );
+    await expect(
+      admin.query("INSERT INTO newjitsu.reverse_sync_operation SELECT * FROM newjitsu.reverse_sync_operation")
+    ).rejects.toThrow(/duplicate key/);
+    const indexes = await admin.query(
+      "SELECT indexdef FROM pg_indexes WHERE schemaname='newjitsu' AND indexname='reverse_sync_outbox_unpublished'"
+    );
+    expect(indexes.rows[0].indexdef).toContain("workspace_id, published_at, created_at, id");
+  }, 30000);
+  it("uses the configured schema for every transaction without relying on pooled search_path", async () => {
+    const schema = "other_config";
+    const url = new URL(adminUrl);
+    url.searchParams.set("schema", schema);
+    pushConfigSchema(url.toString(), { prismaCli, args: ["--skip-generate"] });
+    await admin.query(`GRANT USAGE ON SCHEMA ${schema} TO retl_runtime`);
+    const tables = await admin.query(
+      "SELECT tablename FROM pg_tables WHERE schemaname=$1 AND starts_with(tablename,'reverse_sync_')",
+      [schema]
+    );
+    for (const { tablename } of tables.rows)
+      await admin.query(`GRANT SELECT,INSERT,UPDATE,DELETE ON ${schema}."${tablename}" TO retl_runtime`);
+    await admin.query(`GRANT SELECT,INSERT,UPDATE ON ${schema}.source_state TO retl_runtime`);
+    url.username = "retl_runtime";
+    url.password = "runtime";
+    const custom = new Database({ connectionString: url.toString(), options: "-c search_path=public" }, cipher);
+    try {
+      const run = await openPersistence(custom, runInput, project);
+      await init(run);
+      const b = batch(run, ["a"]);
+      await run.delivery.prepare(b, {});
+      await run.delivery.acknowledge(b.batchId, outcomes(b), {});
+      await finish(run, b);
+      expect(await count(`${schema}.reverse_sync_control`)).toBe(1);
+      expect(await count(`${schema}.source_state`)).toBe(1);
+      expect(await count("newjitsu.reverse_sync_control")).toBe(0);
+      expect(await count("newjitsu.source_state")).toBe(0);
+      const path = await custom.pool.query("SHOW search_path");
+      expect(path.rows[0].search_path).toBe("public");
+    } finally {
+      await custom.close();
+    }
+  }, 30000);
   it("uses a restricted runtime role and a provider facade without database or snapshot access", async () => {
     const run = await session();
     expect(Object.keys(run.delivery)).not.toContain("db");
     expect(Object.keys(run.delivery)).not.toContain("snapshots");
-    await expect(db.pool.query("CREATE TABLE retl.forbidden (id int)")).rejects.toThrow(/permission denied/);
+    await expect(db.pool.query("CREATE TABLE newjitsu.reverse_sync_forbidden (id int)")).rejects.toThrow(
+      /permission denied/
+    );
+    await expect(db.pool.query('SELECT * FROM newjitsu."Workspace"')).rejects.toThrow(/permission denied/);
   });
   it("allows only one concurrent owner, and fences every old owner after takeover", async () => {
     const competing = await Promise.allSettled([session(), session({ taskId: "other" })]);
@@ -160,11 +229,11 @@ describe("PostgreSQL persistence", () => {
     const run = await openPersistence(db, runInput, project, 100);
     await expect(
       db.owned(run.scope, async client => {
-        await client.query("UPDATE retl.control SET phase='running'");
+        await client.query("UPDATE newjitsu.reverse_sync_control SET phase='running'");
         await client.query("SELECT pg_sleep(0.15)");
       })
     ).rejects.toThrow(/ownership/);
-    expect((await admin.query("SELECT phase FROM retl.control")).rows[0].phase).toBe("new");
+    expect((await admin.query("SELECT phase FROM newjitsu.reverse_sync_control")).rows[0].phase).toBe("new");
   });
   it("isolates workspaces and binds ciphertext to its scope", async () => {
     const run = await session();
@@ -172,9 +241,11 @@ describe("PostgreSQL persistence", () => {
     await expect(session({ workspaceId: "foreign" })).rejects.toThrow();
     const b = batch(run, ["private@example.com"]);
     await run.delivery.prepare(b, { token: "secret" });
-    const saved = (await admin.query("SELECT manifest FROM retl.batch")).rows[0].manifest;
+    const saved = (await admin.query("SELECT manifest FROM newjitsu.reverse_sync_batch")).rows[0].manifest;
     expect(saved.toString()).not.toContain("private@example.com");
-    expect((await admin.query("SELECT store FROM retl.control")).rows[0].store.toString()).not.toContain("secret");
+    expect(
+      (await admin.query("SELECT store FROM newjitsu.reverse_sync_control")).rows[0].store.toString()
+    ).not.toContain("secret");
     expect(() =>
       cipher.open(saved, db.aad({ workspaceId: "foreign", syncId: "sync" }, `batch:run:${b.batchId}`))
     ).toThrow(/decrypt/);
@@ -217,33 +288,35 @@ describe("PostgreSQL persistence", () => {
       },
       {}
     );
-    expect(await count("retl.membership")).toBe(1);
-    expect(await count("retl.activation")).toBe(1);
-    expect(await count("retl.outbox")).toBe(2);
+    expect(await count("newjitsu.reverse_sync_membership")).toBe(1);
+    expect(await count("newjitsu.reverse_sync_activation")).toBe(1);
+    expect(await count("newjitsu.reverse_sync_outbox")).toBe(2);
     await expect(run.delivery.commitCheckpoint({ sourceSequence: 2, cursor: b.cursor }, {}, false)).rejects.toThrow(
       /unaccepted/
     );
     await run.delivery.prepareAbort();
     await run.delivery.acknowledgeAbort();
-    expect(await count("retl.membership")).toBe(1);
-    expect(await count("retl.activation")).toBe(1);
+    expect(await count("newjitsu.reverse_sync_membership")).toBe(1);
+    expect(await count("newjitsu.reverse_sync_activation")).toBe(1);
   });
   it("rolls back all acceptance writes when the outbox insert fails", async () => {
     const run = await session();
     await init(run);
     const b = batch(run, ["a"]);
     await run.delivery.prepare(b, {});
-    await admin.query("ALTER TABLE retl.outbox ADD CONSTRAINT injected_failure CHECK (false) NOT VALID");
+    await admin.query(
+      "ALTER TABLE newjitsu.reverse_sync_outbox ADD CONSTRAINT injected_failure CHECK (false) NOT VALID"
+    );
     try {
       await expect(run.delivery.acknowledge(b.batchId, outcomes(b), {})).rejects.toThrow();
     } finally {
-      await admin.query("ALTER TABLE retl.outbox DROP CONSTRAINT injected_failure");
+      await admin.query("ALTER TABLE newjitsu.reverse_sync_outbox DROP CONSTRAINT injected_failure");
     }
-    expect(await count("retl.membership")).toBe(0);
-    expect(await count("retl.activation")).toBe(0);
-    expect((await admin.query("SELECT status FROM retl.operation")).rows[0].status).toBe("prepared");
+    expect(await count("newjitsu.reverse_sync_membership")).toBe(0);
+    expect(await count("newjitsu.reverse_sync_activation")).toBe(0);
+    expect((await admin.query("SELECT status FROM newjitsu.reverse_sync_operation")).rows[0].status).toBe("prepared");
     await run.delivery.acknowledge(b.batchId, outcomes(b), {});
-    expect(await count("retl.membership")).toBe(1);
+    expect(await count("newjitsu.reverse_sync_membership")).toBe(1);
   });
   it("deduplicates accepted receipts and monthly sync activation", async () => {
     const run = await session();
@@ -253,7 +326,7 @@ describe("PostgreSQL persistence", () => {
     await run.delivery.acknowledge(b.batchId, outcomes(b), {});
     await run.delivery.acknowledge(b.batchId, outcomes(b), {});
     await run.delivery.markUnknown(b.batchId);
-    expect((await admin.query("SELECT status FROM retl.operation")).rows[0].status).toBe("accepted");
+    expect((await admin.query("SELECT status FROM newjitsu.reverse_sync_operation")).rows[0].status).toBe("accepted");
     await finish(run, b);
     await expire();
     const next = await session({ logicalRunId: "run2", taskId: "task2" });
@@ -261,14 +334,14 @@ describe("PostgreSQL persistence", () => {
     const b2 = batch(next, ["b"], 2);
     await next.delivery.prepare(b2, {});
     await next.delivery.acknowledge(b2.batchId, outcomes(b2), {});
-    expect(await count("retl.activation")).toBe(1);
-    expect(await count("retl.outbox")).toBe(3);
+    expect(await count("newjitsu.reverse_sync_activation")).toBe(1);
+    expect(await count("newjitsu.reverse_sync_outbox")).toBe(3);
   });
   it("does not activate an empty run", async () => {
     const run = await session();
     await init(run);
     await finish(run);
-    expect(await count("retl.activation")).toBe(0);
+    expect(await count("newjitsu.reverse_sync_activation")).toBe(0);
   });
   it("blocks a checkpoint past a staged delete even if a later upsert is accepted", async () => {
     const run = await session();
@@ -290,7 +363,7 @@ describe("PostgreSQL persistence", () => {
     const b = batch(run, ["a"]);
     await run.delivery.prepare(b, {});
     await run.delivery.acknowledge(b.batchId, outcomes(b, "staged"), {});
-    expect(await count("retl.activation")).toBe(0);
+    expect(await count("newjitsu.reverse_sync_activation")).toBe(0);
     await run.delivery.prepareFinish(1, {});
     await run.delivery.acknowledgeFinish({ delivery: "pending", remoteJobIds: ["job"] }, {});
     await expect(run.delivery.commitCheckpoint({ sourceSequence: 1, cursor: b.cursor }, {}, true)).rejects.toThrow();
@@ -303,8 +376,8 @@ describe("PostgreSQL persistence", () => {
       { at: new Date(), period: runInput.billingPeriod }
     );
     await recovered.delivery.commitCheckpoint({ sourceSequence: 1, cursor: b.cursor }, {}, true);
-    expect(await count("retl.membership")).toBe(1);
-    expect(await count("retl.activation")).toBe(1);
+    expect(await count("newjitsu.reverse_sync_membership")).toBe(1);
+    expect(await count("newjitsu.reverse_sync_activation")).toBe(1);
   });
   it("rejects gaps, invented cursors and terminal receipt downgrades", async () => {
     const run = await session();
@@ -337,8 +410,8 @@ describe("PostgreSQL persistence", () => {
     await next.delivery.prepare(b2, {});
     await next.delivery.acknowledge(b2.batchId, outcomes(b2), {});
     await expect(next.delivery.commitCheckpoint({ sourceSequence: 1, cursor: b2.cursor }, {}, false)).rejects.toThrow();
-    expect(await count("retl.operation")).toBe(2);
-    expect(await count("retl.membership")).toBe(2);
+    expect(await count("newjitsu.reverse_sync_operation")).toBe(2);
+    expect(await count("newjitsu.reverse_sync_membership")).toBe(2);
   });
   it("runs the merged lifecycle with the PostgreSQL journal", async () => {
     const run = await session({ extraction: "full" });
@@ -383,23 +456,26 @@ describe("PostgreSQL persistence", () => {
       },
     });
     expect(result).toEqual({ delivery: "accepted", sourceSequence: 2 });
-    expect(await count("retl.membership")).toBe(2);
+    expect(await count("newjitsu.reverse_sync_membership")).toBe(2);
   });
 });
 
 describe("recovery and operational boundaries", () => {
   it("does not renew ownership if the old lease expires inside the renewal transaction", async () => {
     const run = await openPersistence(db, runInput, project, 200);
-    await admin.query(`CREATE FUNCTION retl.delay_renew() RETURNS trigger LANGUAGE plpgsql AS $$
+    await admin.query(`CREATE FUNCTION newjitsu.reverse_sync_delay_renew() RETURNS trigger LANGUAGE plpgsql AS $$
       BEGIN IF NEW.lease_until>OLD.lease_until THEN PERFORM pg_sleep(0.3); END IF; RETURN NEW; END $$;
-      CREATE TRIGGER delay_renew BEFORE UPDATE ON retl.control FOR EACH ROW EXECUTE FUNCTION retl.delay_renew()`);
+      CREATE TRIGGER delay_renew BEFORE UPDATE ON newjitsu.reverse_sync_control FOR EACH ROW EXECUTE FUNCTION newjitsu.reverse_sync_delay_renew()`);
     try {
       await expect(renew(db, run.scope)).rejects.toThrow(/ownership/);
     } finally {
-      await admin.query("DROP TRIGGER delay_renew ON retl.control; DROP FUNCTION retl.delay_renew()");
+      await admin.query(
+        "DROP TRIGGER delay_renew ON newjitsu.reverse_sync_control; DROP FUNCTION newjitsu.reverse_sync_delay_renew()"
+      );
     }
     expect(
-      (await admin.query("SELECT lease_until<clock_timestamp() AS expired FROM retl.control")).rows[0].expired
+      (await admin.query("SELECT lease_until<clock_timestamp() AS expired FROM newjitsu.reverse_sync_control")).rows[0]
+        .expired
     ).toBe(true);
   });
   it("detaches billing period dates before any asynchronous admission work", async () => {
@@ -409,7 +485,9 @@ describe("recovery and operational boundaries", () => {
     runInput.billingPeriod.start.setTime(originalStart + 3600000);
     runInput.billingPeriod.end.setTime(originalEnd + 3600000);
     const run = await opening;
-    const stored = (await admin.query("SELECT billing_period_start,billing_period_end FROM retl.control")).rows[0];
+    const stored = (
+      await admin.query("SELECT billing_period_start,billing_period_end FROM newjitsu.reverse_sync_control")
+    ).rows[0];
     expect(+stored.billing_period_start).toBe(originalStart);
     expect(+stored.billing_period_end).toBe(originalEnd);
     expect(+run.scope.billingPeriod.start).toBe(originalStart);
@@ -449,7 +527,9 @@ describe("recovery and operational boundaries", () => {
         { at: new Date(), period: runInput.billingPeriod }
       );
       expect(
-        Number((await admin.query("SELECT membership_bytes FROM retl.control")).rows[0].membership_bytes)
+        Number(
+          (await admin.query("SELECT membership_bytes FROM newjitsu.reverse_sync_control")).rows[0].membership_bytes
+        )
       ).toBeLessThanOrEqual(capacity);
     } finally {
       await oldDb.close();
@@ -505,14 +585,14 @@ describe("recovery and operational boundaries", () => {
     await run.delivery.acknowledge(b.batchId, outcomes(b, "staged"), {});
     await run.delivery.prepareFinish(105, {});
     await admin.query(
-      "ALTER TABLE retl.operation ADD CONSTRAINT interrupt_finish CHECK (sequence<=100 OR status<>'accepted') NOT VALID"
+      "ALTER TABLE newjitsu.reverse_sync_operation ADD CONSTRAINT interrupt_finish CHECK (sequence<=100 OR status<>'accepted') NOT VALID"
     );
     try {
       await expect(run.delivery.acknowledgeFinish({ delivery: "accepted" }, {})).rejects.toThrow();
     } finally {
-      await admin.query("ALTER TABLE retl.operation DROP CONSTRAINT interrupt_finish");
+      await admin.query("ALTER TABLE newjitsu.reverse_sync_operation DROP CONSTRAINT interrupt_finish");
     }
-    expect(await count("retl.membership")).toBe(100);
+    expect(await count("newjitsu.reverse_sync_membership")).toBe(100);
     expect((await run.core.recoveryStatus()).phase).toBe("finish_resolving");
     expect(await count("newjitsu.source_state")).toBe(0);
     await db.close();
@@ -521,9 +601,9 @@ describe("recovery and operational boundaries", () => {
     const recovered = await session({ taskId: "recovery" });
     await recovered.core.acknowledgeRecoveredFinish({ delivery: "accepted" }, {});
     await recovered.delivery.commitCheckpoint({ sourceSequence: 105, cursor: b.cursor }, {}, true);
-    expect(await count("retl.membership")).toBe(105);
-    expect(await count("retl.activation")).toBe(1);
-    expect(await count("retl.outbox")).toBe(106);
+    expect(await count("newjitsu.reverse_sync_membership")).toBe(105);
+    expect(await count("newjitsu.reverse_sync_activation")).toBe(1);
+    expect(await count("newjitsu.reverse_sync_outbox")).toBe(106);
   }, 15000);
   it("keeps unknown outcomes blocked across billing-period boundaries until verified", async () => {
     const oldPeriod = { start: new Date(Date.now() - 3 * 86400000), end: new Date(Date.now() - 2 * 86400000) };
@@ -532,16 +612,16 @@ describe("recovery and operational boundaries", () => {
     const b = batch(run, ["a"]);
     await run.delivery.prepare(b, {});
     await expect(run.delivery.acknowledge(b.batchId, outcomes(b), {})).rejects.toThrow(/billing period/);
-    expect(await count("retl.activation")).toBe(0);
+    expect(await count("newjitsu.reverse_sync_activation")).toBe(0);
     await run.core.acknowledgeRecovered(
       b.batchId,
       outcomes(b),
       {},
       { at: new Date(+oldPeriod.start + 1000), period: oldPeriod }
     );
-    expect((await admin.query("SELECT period_start FROM retl.activation")).rows[0].period_start).toEqual(
-      oldPeriod.start
-    );
+    expect(
+      (await admin.query("SELECT period_start FROM newjitsu.reverse_sync_activation")).rows[0].period_start
+    ).toEqual(oldPeriod.start);
   });
   it("reserves membership capacity before submission and rolls back rejected snapshot batches", async () => {
     const limited = new Database(runtimeConfig, cipher, { limits: { snapshotEntries: 1 } });
@@ -555,10 +635,10 @@ describe("recovery and operational boundaries", () => {
           { key: contentHash(["b"]), identities: project("upsert", { id: "b" }) },
         ])
       ).rejects.toThrow(/budget/);
-      expect(await count("retl.source_key")).toBe(0);
+      expect(await count("newjitsu.reverse_sync_source_key")).toBe(0);
       await expect(run.delivery.prepare(batch(run, ["a", "b"]), {})).rejects.toThrow(/budget/);
-      expect(await count("retl.batch")).toBe(0);
-      expect(await count("retl.operation")).toBe(0);
+      expect(await count("newjitsu.reverse_sync_batch")).toBe(0);
+      expect(await count("newjitsu.reverse_sync_operation")).toBe(0);
     } finally {
       await limited.close();
     }
@@ -571,22 +651,24 @@ describe("recovery and operational boundaries", () => {
     await run.delivery.acknowledge(b.batchId, outcomes(b), {});
     await finish(run, b);
     await release(db, run.scope);
-    await admin.query("UPDATE retl.batch SET created_at=clock_timestamp()-interval '60 days'");
+    await admin.query("UPDATE newjitsu.reverse_sync_batch SET created_at=clock_timestamp()-interval '60 days'");
     const next = await session({ logicalRunId: "next", taskId: "next", extraction: "full" });
     await init(next);
     const current = batch(next, ["b"]);
     await next.delivery.prepare(current, {});
     const removed = await prune(db, next.scope, new Date(Date.now() - 30 * 86400000));
     expect(removed.batches).toBe(1);
-    expect(await count("retl.batch")).toBe(1);
-    expect(await count("retl.membership")).toBe(1);
-    expect(await count("retl.activation")).toBe(1);
+    expect(await count("newjitsu.reverse_sync_batch")).toBe(1);
+    expect(await count("newjitsu.reverse_sync_membership")).toBe(1);
+    expect(await count("newjitsu.reverse_sync_activation")).toBe(1);
     const expected = (
       await admin.query(
-        "SELECT (SELECT sum(octet_length(manifest)+result_bytes) FROM retl.batch)+(SELECT sum(octet_length(effects)) FROM retl.operation) AS bytes"
+        "SELECT (SELECT sum(octet_length(manifest)+result_bytes) FROM newjitsu.reverse_sync_batch)+(SELECT sum(octet_length(effects)) FROM newjitsu.reverse_sync_operation) AS bytes"
       )
     ).rows[0].bytes;
-    expect((await admin.query("SELECT journal_bytes FROM retl.control")).rows[0].journal_bytes).toBe(expected);
+    expect((await admin.query("SELECT journal_bytes FROM newjitsu.reverse_sync_control")).rows[0].journal_bytes).toBe(
+      expected
+    );
     expect((await next.core.recoveryBatch(current.batchId)).operations[0].status).toBe("prepared");
   });
   it("publishes outbox events at least once without losing failed publications", async () => {
@@ -602,9 +684,10 @@ describe("recovery and operational boundaries", () => {
         throw new Error("publisher unavailable");
       })
     ).rejects.toThrow();
-    expect((await admin.query("SELECT count(*) AS n FROM retl.outbox WHERE published_at IS NOT NULL")).rows[0].n).toBe(
-      "0"
-    );
+    expect(
+      (await admin.query("SELECT count(*) AS n FROM newjitsu.reverse_sync_outbox WHERE published_at IS NOT NULL"))
+        .rows[0].n
+    ).toBe("0");
     expect(
       await publishOutbox(db, "workspace", async event => {
         delivered.push(event.id);
@@ -657,8 +740,8 @@ describe("core snapshot storage", () => {
   it("separately validates source keys and shared identities, with rollback on conflicting payloads", async () => {
     const run = await mirror();
     await run.snapshots.append([desired("key1", "shared"), desired("key2", "shared")]);
-    expect(await count("retl.desired")).toBe(1);
-    expect(await count("retl.association")).toBe(2);
+    expect(await count("newjitsu.reverse_sync_desired")).toBe(1);
+    expect(await count("newjitsu.reverse_sync_association")).toBe(2);
     await expect(run.snapshots.append([desired("key1", "different")])).rejects.toThrow();
     await expect(
       run.snapshots.append([
@@ -668,7 +751,7 @@ describe("core snapshot storage", () => {
         },
       ])
     ).rejects.toThrow(/Conflicting/);
-    expect(await count("retl.source_key")).toBe(2);
+    expect(await count("newjitsu.reverse_sync_source_key")).toBe(2);
   });
   it("requires sealed full source and accepted additions before any removal", async () => {
     const run = await mirror();
@@ -701,10 +784,10 @@ describe("core snapshot storage", () => {
     await next.delivery.prepare(removal, {});
     await next.delivery.acknowledge(removal.batchId, outcomes(removal), {});
     await finish(next, removal);
-    expect((await admin.query("SELECT committed_generation FROM retl.control")).rows[0].committed_generation).toBe(
-      "next"
-    );
-    expect(await count("retl.membership")).toBe(0);
+    expect(
+      (await admin.query("SELECT committed_generation FROM newjitsu.reverse_sync_control")).rows[0].committed_generation
+    ).toBe("next");
+    expect(await count("newjitsu.reverse_sync_membership")).toBe(0);
   });
   it("keeps shared desired identities and paginates additions by identity hash", async () => {
     const run = await mirror();

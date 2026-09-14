@@ -13,6 +13,7 @@
     "@jitsu/common-config": "workspace:*",
     "@types/node": "catalog:",
     "@types/pg": "^8.16.0",
+    "prisma": "^6.5.0",
     "testcontainers": "^11.14.0",
     "typescript": "catalog:",
     "vitest": "catalog:"

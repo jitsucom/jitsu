@@ -41,7 +41,7 @@ export class Journal implements DeliveryJournal {
     return this.db.cipher.open<T>(value, this.db.aad(this.scope, purpose));
   }
   private async saveStore(client: PoolClient, store: JsonObject) {
-    await client.query("UPDATE retl.control SET store=$3 WHERE workspace_id=$1 AND sync_id=$2", [
+    await client.query("UPDATE reverse_sync_control SET store=$3 WHERE workspace_id=$1 AND sync_id=$2", [
       ...this.key.slice(0, 2),
       this.seal(store, "store"),
     ]);
@@ -56,7 +56,7 @@ export class Journal implements DeliveryJournal {
     return this.db.owned(this.scope, async (client, control) => {
       ensure(control.phase === "new", "Recover previous lifecycle before extraction");
       const unresolved = await client.query(
-        "SELECT 1 FROM retl.operation WHERE workspace_id=$1 AND sync_id=$2 AND status IN ('prepared','unknown','staged') LIMIT 1",
+        "SELECT 1 FROM reverse_sync_operation WHERE workspace_id=$1 AND sync_id=$2 AND status IN ('prepared','unknown','staged') LIMIT 1",
         this.key.slice(0, 2)
       );
       ensure(!unresolved.rowCount, "Unresolved operations require recovery");
@@ -74,7 +74,7 @@ export class Journal implements DeliveryJournal {
       ensure(control.phase === "new", "Init is already prepared or run has ended");
       await this.saveStore(client, store);
       await client.query(
-        "UPDATE retl.control SET phase='init_prepared' WHERE workspace_id=$1 AND sync_id=$2",
+        "UPDATE reverse_sync_control SET phase='init_prepared' WHERE workspace_id=$1 AND sync_id=$2",
         this.key.slice(0, 2)
       );
     });
@@ -84,7 +84,7 @@ export class Journal implements DeliveryJournal {
       ensure(control.phase === "init_prepared", "Init is not prepared");
       await this.saveStore(client, store);
       await client.query(
-        "UPDATE retl.control SET phase='running' WHERE workspace_id=$1 AND sync_id=$2",
+        "UPDATE reverse_sync_control SET phase='running' WHERE workspace_id=$1 AND sync_id=$2",
         this.key.slice(0, 2)
       );
     });
@@ -92,7 +92,7 @@ export class Journal implements DeliveryJournal {
   async saveProviderState(state: JsonObject) {
     await this.db.owned(this.scope, async (client, control) => {
       ensure(!["new", "complete", "aborted"].includes(control.phase), "No active provider lifecycle");
-      await client.query("UPDATE retl.control SET provider_state=$3 WHERE workspace_id=$1 AND sync_id=$2", [
+      await client.query("UPDATE reverse_sync_control SET provider_state=$3 WHERE workspace_id=$1 AND sync_id=$2", [
         ...this.key.slice(0, 2),
         this.seal(state, "provider"),
       ]);
@@ -122,7 +122,7 @@ export class Journal implements DeliveryJournal {
     await this.db.owned(this.scope, async (client, control) => {
       ensure(control.phase === "running", "Cannot prepare delivery in this phase");
       const unresolved = await client.query(
-        "SELECT 1 FROM retl.operation WHERE workspace_id=$1 AND sync_id=$2 AND run_id=$3 AND status IN ('prepared','unknown','rejected') LIMIT 1",
+        "SELECT 1 FROM reverse_sync_operation WHERE workspace_id=$1 AND sync_id=$2 AND run_id=$3 AND status IN ('prepared','unknown','rejected') LIMIT 1",
         this.key
       );
       ensure(!unresolved.rowCount, "Outstanding or rejected operation blocks new delivery");
@@ -131,7 +131,7 @@ export class Journal implements DeliveryJournal {
         for (const projection of projected)
           for (const effect of projection) {
             const desired = await client.query(
-              "SELECT 1 FROM retl.desired WHERE workspace_id=$1 AND sync_id=$2 AND generation=$3 AND identity_hash=$4",
+              "SELECT 1 FROM reverse_sync_desired WHERE workspace_id=$1 AND sync_id=$2 AND generation=$3 AND identity_hash=$4",
               [...this.key, effect.identityHash]
             );
             ensure(!desired.rowCount, "Cannot remove a desired shared identity");
@@ -175,7 +175,7 @@ export class Journal implements DeliveryJournal {
         "Recovery journal budget exceeded; retention is required"
       );
       await client.query(
-        "INSERT INTO retl.batch (workspace_id,sync_id,run_id,batch_id,manifest,manifest_hash,result_bytes) VALUES ($1,$2,$3,$4,$5,$6,$7)",
+        "INSERT INTO reverse_sync_batch (workspace_id,sync_id,run_id,batch_id,manifest,manifest_hash,result_bytes) VALUES ($1,$2,$3,$4,$5,$6,$7)",
         [...this.key, prepared.batchId, manifest, contentHash(prepared), resultBytes]
       );
       let sequence = Number(control.next_sequence);
@@ -201,7 +201,7 @@ export class Journal implements DeliveryJournal {
           "Operation identity mismatch"
         );
         await client.query(
-          "INSERT INTO retl.operation (workspace_id,sync_id,run_id,operation_id,batch_id,sequence,action,effects,reserved_entries,reserved_bytes) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)",
+          "INSERT INTO reverse_sync_operation (workspace_id,sync_id,run_id,operation_id,batch_id,sequence,action,effects,reserved_entries,reserved_bytes) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)",
           [
             ...this.key,
             record.operationId,
@@ -216,7 +216,7 @@ export class Journal implements DeliveryJournal {
       }
       await this.saveStore(client, store);
       await client.query(
-        "UPDATE retl.control SET next_sequence=$3,journal_bytes=journal_bytes+$4,reserved_entries=reserved_entries+$5,reserved_bytes=reserved_bytes+$6 WHERE workspace_id=$1 AND sync_id=$2",
+        "UPDATE reverse_sync_control SET next_sequence=$3,journal_bytes=journal_bytes+$4,reserved_entries=reserved_entries+$5,reserved_bytes=reserved_bytes+$6 WHERE workspace_id=$1 AND sync_id=$2",
         [...this.key.slice(0, 2), sequence, journalBytes, reservedEntries, reservedBytes]
       );
     });
@@ -239,11 +239,11 @@ export class Journal implements DeliveryJournal {
     return this.db.owned(this.scope, async client => {
       const batch = await this.batch(client, batchId);
       const saved = await client.query(
-        "SELECT result FROM retl.batch WHERE workspace_id=$1 AND sync_id=$2 AND run_id=$3 AND batch_id=$4",
+        "SELECT result FROM reverse_sync_batch WHERE workspace_id=$1 AND sync_id=$2 AND run_id=$3 AND batch_id=$4",
         [...this.key, batchId]
       );
       const operations = await client.query(
-        "SELECT operation_id,status,accepted_at FROM retl.operation WHERE workspace_id=$1 AND sync_id=$2 AND run_id=$3 AND batch_id=$4 ORDER BY sequence",
+        "SELECT operation_id,status,accepted_at FROM reverse_sync_operation WHERE workspace_id=$1 AND sync_id=$2 AND run_id=$3 AND batch_id=$4 ORDER BY sequence",
         [...this.key, batchId]
       );
       return {
@@ -261,7 +261,7 @@ export class Journal implements DeliveryJournal {
   }
   private async batch(client: PoolClient, batchId: string): Promise<PreparedBatch<unknown>> {
     const result = await client.query(
-      "SELECT manifest FROM retl.batch WHERE workspace_id=$1 AND sync_id=$2 AND run_id=$3 AND batch_id=$4",
+      "SELECT manifest FROM reverse_sync_batch WHERE workspace_id=$1 AND sync_id=$2 AND run_id=$3 AND batch_id=$4",
       [...this.key, batchId]
     );
     ensure(result.rowCount, "Prepared batch not found");
@@ -271,7 +271,7 @@ export class Journal implements DeliveryJournal {
     ensure(Number.isSafeInteger(limit) && limit > 0 && limit <= 1000 && after.length <= 512, "Invalid recovery page");
     return this.db.owned(this.scope, async client => {
       const result = await client.query(
-        "SELECT batch_id,status FROM retl.batch WHERE workspace_id=$1 AND sync_id=$2 AND run_id=$3 AND batch_id>$4 ORDER BY batch_id LIMIT $5",
+        "SELECT batch_id,status FROM reverse_sync_batch WHERE workspace_id=$1 AND sync_id=$2 AND run_id=$3 AND batch_id>$4 ORDER BY batch_id LIMIT $5",
         [...this.key, after, limit]
       );
       return result.rows.map(row => ({ batchId: row.batch_id, status: row.status }));
@@ -282,11 +282,11 @@ export class Journal implements DeliveryJournal {
       ensure(control.phase === "running", "Cannot mark unknown in this phase");
       await this.batch(client, batchId);
       await client.query(
-        "UPDATE retl.operation SET status='unknown' WHERE workspace_id=$1 AND sync_id=$2 AND run_id=$3 AND batch_id=$4 AND status='prepared'",
+        "UPDATE reverse_sync_operation SET status='unknown' WHERE workspace_id=$1 AND sync_id=$2 AND run_id=$3 AND batch_id=$4 AND status='prepared'",
         [...this.key, batchId]
       );
       await client.query(
-        "UPDATE retl.batch SET status='unknown' WHERE workspace_id=$1 AND sync_id=$2 AND run_id=$3 AND batch_id=$4 AND status='prepared'",
+        "UPDATE reverse_sync_batch SET status='unknown' WHERE workspace_id=$1 AND sync_id=$2 AND run_id=$3 AND batch_id=$4 AND status='prepared'",
         [...this.key, batchId]
       );
     });
@@ -323,7 +323,7 @@ export class Journal implements DeliveryJournal {
         const {
           rows: [operation],
         } = await client.query(
-          "SELECT * FROM retl.operation WHERE workspace_id=$1 AND sync_id=$2 AND run_id=$3 AND operation_id=$4",
+          "SELECT * FROM reverse_sync_operation WHERE workspace_id=$1 AND sync_id=$2 AND run_id=$3 AND operation_id=$4",
           [...this.key, outcome.operationId]
         );
         ensure(
@@ -336,7 +336,7 @@ export class Journal implements DeliveryJournal {
         } else if (operation.status !== "accepted") {
           if (outcome.status === "rejected") await this.releaseReservation(client, operation);
           await client.query(
-            "UPDATE retl.operation SET status=$5 WHERE workspace_id=$1 AND sync_id=$2 AND run_id=$3 AND operation_id=$4",
+            "UPDATE reverse_sync_operation SET status=$5 WHERE workspace_id=$1 AND sync_id=$2 AND run_id=$3 AND operation_id=$4",
             [...this.key, outcome.operationId, outcome.status]
           );
         }
@@ -347,18 +347,18 @@ export class Journal implements DeliveryJournal {
         batch.records.length * 8192 + 512 * 1024
       );
       const previousResult = await client.query(
-        "SELECT result_bytes FROM retl.batch WHERE workspace_id=$1 AND sync_id=$2 AND run_id=$3 AND batch_id=$4",
+        "SELECT result_bytes FROM reverse_sync_batch WHERE workspace_id=$1 AND sync_id=$2 AND run_id=$3 AND batch_id=$4",
         [...this.key, batchId]
       );
       const journalBytes =
         Number(control.journal_bytes) - Number(previousResult.rows[0].result_bytes) + encryptedResult.length;
       ensure(journalBytes <= this.db.limits.journalBytes, "Recovery journal result budget exceeded");
-      await client.query("UPDATE retl.control SET journal_bytes=$3 WHERE workspace_id=$1 AND sync_id=$2", [
+      await client.query("UPDATE reverse_sync_control SET journal_bytes=$3 WHERE workspace_id=$1 AND sync_id=$2", [
         ...this.key.slice(0, 2),
         journalBytes,
       ]);
       await client.query(
-        "UPDATE retl.batch SET status='acknowledged',result=$5,result_bytes=$6 WHERE workspace_id=$1 AND sync_id=$2 AND run_id=$3 AND batch_id=$4",
+        "UPDATE reverse_sync_batch SET status='acknowledged',result=$5,result_bytes=$6 WHERE workspace_id=$1 AND sync_id=$2 AND run_id=$3 AND batch_id=$4",
         [...this.key, batchId, encryptedResult, encryptedResult.length]
       );
       await this.saveStore(client, store);
@@ -371,34 +371,34 @@ export class Journal implements DeliveryJournal {
     );
     for (const effect of projected) {
       const previous = await client.query(
-        "SELECT octet_length(value) AS bytes FROM retl.membership WHERE workspace_id=$1 AND sync_id=$2 AND identity_hash=$3",
+        "SELECT octet_length(value) AS bytes FROM reverse_sync_membership WHERE workspace_id=$1 AND sync_id=$2 AND identity_hash=$3",
         [...this.key.slice(0, 2), effect.identityHash]
       );
       const value = this.seal(effect, `identity:${effect.identityHash}`, this.db.limits.batchBytes);
       if (operation.action === "remove")
-        await client.query("DELETE FROM retl.membership WHERE workspace_id=$1 AND sync_id=$2 AND identity_hash=$3", [
-          ...this.key.slice(0, 2),
-          effect.identityHash,
-        ]);
+        await client.query(
+          "DELETE FROM reverse_sync_membership WHERE workspace_id=$1 AND sync_id=$2 AND identity_hash=$3",
+          [...this.key.slice(0, 2), effect.identityHash]
+        );
       else
         await client.query(
-          `INSERT INTO retl.membership VALUES ($1,$2,$3,$4,$5) ON CONFLICT (workspace_id,sync_id,identity_hash) DO UPDATE SET payload_hash=EXCLUDED.payload_hash,value=EXCLUDED.value`,
+          `INSERT INTO reverse_sync_membership (workspace_id,sync_id,identity_hash,payload_hash,value) VALUES ($1,$2,$3,$4,$5) ON CONFLICT (workspace_id,sync_id,identity_hash) DO UPDATE SET payload_hash=EXCLUDED.payload_hash,value=EXCLUDED.value`,
           [...this.key.slice(0, 2), effect.identityHash, effect.payloadHash, value]
         );
       const entryDelta = (operation.action === "upsert" ? 1 : 0) - (previous.rowCount ? 1 : 0);
       const byteDelta = (operation.action === "upsert" ? value.length : 0) - (previous.rows[0]?.bytes ?? 0);
       await client.query(
-        "UPDATE retl.control SET membership_entries=membership_entries+$3,membership_bytes=membership_bytes+$4 WHERE workspace_id=$1 AND sync_id=$2",
+        "UPDATE reverse_sync_control SET membership_entries=membership_entries+$3,membership_bytes=membership_bytes+$4 WHERE workspace_id=$1 AND sync_id=$2",
         [...this.key.slice(0, 2), entryDelta, byteDelta]
       );
     }
     await this.releaseReservation(client, operation);
     await client.query(
-      "UPDATE retl.operation SET status='accepted',accepted_at=$5 WHERE workspace_id=$1 AND sync_id=$2 AND run_id=$3 AND operation_id=$4",
+      "UPDATE reverse_sync_operation SET status='accepted',accepted_at=$5 WHERE workspace_id=$1 AND sync_id=$2 AND run_id=$3 AND operation_id=$4",
       [...this.key, operation.operation_id, proof.at]
     );
     const activation = await client.query(
-      "INSERT INTO retl.activation VALUES ($1,$2,$3,$4,$5) ON CONFLICT DO NOTHING RETURNING 1",
+      "INSERT INTO reverse_sync_activation (workspace_id,sync_id,period_start,period_end,accepted_at) VALUES ($1,$2,$3,$4,$5) ON CONFLICT DO NOTHING RETURNING 1",
       [...this.key.slice(0, 2), proof.period.start, proof.period.end, proof.at]
     );
     const event = {
@@ -407,12 +407,12 @@ export class Journal implements DeliveryJournal {
       acceptedAt: proof.at.toISOString(),
     };
     await client.query(
-      "INSERT INTO retl.outbox (id,workspace_id,sync_id,kind,payload) VALUES ($1,$2,$3,'operation_accepted',$4) ON CONFLICT DO NOTHING",
+      "INSERT INTO reverse_sync_outbox (id,workspace_id,sync_id,kind,payload) VALUES ($1,$2,$3,'operation_accepted',$4) ON CONFLICT DO NOTHING",
       [contentHash([...this.key, operation.operation_id]), ...this.key.slice(0, 2), event]
     );
     if (activation.rowCount)
       await client.query(
-        "INSERT INTO retl.outbox (id,workspace_id,sync_id,kind,payload) VALUES ($1,$2,$3,'sync_activated',$4) ON CONFLICT DO NOTHING",
+        "INSERT INTO reverse_sync_outbox (id,workspace_id,sync_id,kind,payload) VALUES ($1,$2,$3,'sync_activated',$4) ON CONFLICT DO NOTHING",
         [
           contentHash([this.scope.workspaceId, this.scope.syncId, proof.period.start.toISOString()]),
           ...this.key.slice(0, 2),
@@ -422,11 +422,11 @@ export class Journal implements DeliveryJournal {
   }
   private async releaseReservation(client: PoolClient, operation: any) {
     await client.query(
-      "UPDATE retl.control SET reserved_entries=reserved_entries-$3,reserved_bytes=reserved_bytes-$4 WHERE workspace_id=$1 AND sync_id=$2",
+      "UPDATE reverse_sync_control SET reserved_entries=reserved_entries-$3,reserved_bytes=reserved_bytes-$4 WHERE workspace_id=$1 AND sync_id=$2",
       [...this.key.slice(0, 2), operation.reserved_entries, operation.reserved_bytes]
     );
     await client.query(
-      "UPDATE retl.operation SET reserved_entries=0,reserved_bytes=0 WHERE workspace_id=$1 AND sync_id=$2 AND run_id=$3 AND operation_id=$4",
+      "UPDATE reverse_sync_operation SET reserved_entries=0,reserved_bytes=0 WHERE workspace_id=$1 AND sync_id=$2 AND run_id=$3 AND operation_id=$4",
       [...this.key, operation.operation_id]
     );
   }
@@ -434,12 +434,12 @@ export class Journal implements DeliveryJournal {
     await this.db.owned(this.scope, async (client, control) => {
       ensure(control.phase === "running", "Cleanup is unsafe in this phase");
       const pending = await client.query(
-        "SELECT 1 FROM retl.operation WHERE workspace_id=$1 AND sync_id=$2 AND run_id=$3 AND status IN ('prepared','unknown') LIMIT 1",
+        "SELECT 1 FROM reverse_sync_operation WHERE workspace_id=$1 AND sync_id=$2 AND run_id=$3 AND status IN ('prepared','unknown') LIMIT 1",
         this.key
       );
       ensure(!pending.rowCount, "Unacknowledged operations require reconciliation before cleanup");
       await client.query(
-        "UPDATE retl.control SET phase='abort_prepared' WHERE workspace_id=$1 AND sync_id=$2",
+        "UPDATE reverse_sync_control SET phase='abort_prepared' WHERE workspace_id=$1 AND sync_id=$2",
         this.key.slice(0, 2)
       );
     });
@@ -448,23 +448,23 @@ export class Journal implements DeliveryJournal {
     await this.db.owned(this.scope, async (client, control) => {
       ensure(control.phase === "abort_prepared", "Cleanup is not prepared");
       const reservations = await client.query(
-        "SELECT COALESCE(sum(reserved_entries),0) AS entries,COALESCE(sum(reserved_bytes),0) AS bytes FROM retl.operation WHERE workspace_id=$1 AND sync_id=$2 AND run_id=$3 AND status='staged'",
+        "SELECT COALESCE(sum(reserved_entries),0) AS entries,COALESCE(sum(reserved_bytes),0) AS bytes FROM reverse_sync_operation WHERE workspace_id=$1 AND sync_id=$2 AND run_id=$3 AND status='staged'",
         this.key
       );
       await client.query(
-        "UPDATE retl.control SET reserved_entries=reserved_entries-$3,reserved_bytes=reserved_bytes-$4 WHERE workspace_id=$1 AND sync_id=$2",
+        "UPDATE reverse_sync_control SET reserved_entries=reserved_entries-$3,reserved_bytes=reserved_bytes-$4 WHERE workspace_id=$1 AND sync_id=$2",
         [...this.key.slice(0, 2), reservations.rows[0].entries, reservations.rows[0].bytes]
       );
       await client.query(
-        "UPDATE retl.operation SET reserved_entries=0,reserved_bytes=0 WHERE workspace_id=$1 AND sync_id=$2 AND run_id=$3 AND status='staged'",
+        "UPDATE reverse_sync_operation SET reserved_entries=0,reserved_bytes=0 WHERE workspace_id=$1 AND sync_id=$2 AND run_id=$3 AND status='staged'",
         this.key
       );
       await client.query(
-        "UPDATE retl.operation SET status='cancelled' WHERE workspace_id=$1 AND sync_id=$2 AND run_id=$3 AND status='staged'",
+        "UPDATE reverse_sync_operation SET status='cancelled' WHERE workspace_id=$1 AND sync_id=$2 AND run_id=$3 AND status='staged'",
         this.key
       );
       await client.query(
-        "UPDATE retl.control SET phase='aborted' WHERE workspace_id=$1 AND sync_id=$2",
+        "UPDATE reverse_sync_control SET phase='aborted' WHERE workspace_id=$1 AND sync_id=$2",
         this.key.slice(0, 2)
       );
     });
@@ -478,14 +478,14 @@ export class Journal implements DeliveryJournal {
         "Invalid finish boundary"
       );
       const pending = await client.query(
-        "SELECT 1 FROM retl.operation WHERE workspace_id=$1 AND sync_id=$2 AND run_id=$3 AND status NOT IN ('accepted','staged') LIMIT 1",
+        "SELECT 1 FROM reverse_sync_operation WHERE workspace_id=$1 AND sync_id=$2 AND run_id=$3 AND status NOT IN ('accepted','staged') LIMIT 1",
         this.key
       );
       ensure(!pending.rowCount, "Unresolved/rejected operations prohibit finish");
       if (control.mode === "mirror") await this.snapshots.assertPromotable(client);
       await this.saveStore(client, store);
       await client.query(
-        "UPDATE retl.control SET phase='finish_prepared',finish_sequence=$3 WHERE workspace_id=$1 AND sync_id=$2",
+        "UPDATE reverse_sync_control SET phase='finish_prepared',finish_sequence=$3 WHERE workspace_id=$1 AND sync_id=$2",
         [...this.key.slice(0, 2), throughSequence]
       );
     });
@@ -505,7 +505,7 @@ export class Journal implements DeliveryJournal {
         return;
       }
       const staged = await client.query(
-        "SELECT 1 FROM retl.operation WHERE workspace_id=$1 AND sync_id=$2 AND run_id=$3 AND status='staged' LIMIT 1",
+        "SELECT 1 FROM reverse_sync_operation WHERE workspace_id=$1 AND sync_id=$2 AND run_id=$3 AND status='staged' LIMIT 1",
         this.key
       );
       const accepted =
@@ -523,11 +523,14 @@ export class Journal implements DeliveryJournal {
           : {}),
       };
       await this.saveStore(client, store);
-      await client.query("UPDATE retl.control SET phase=$3,finish_result=$4 WHERE workspace_id=$1 AND sync_id=$2", [
-        ...this.key.slice(0, 2),
-        result.delivery === "pending" ? "finish_pending" : "finish_resolving",
-        this.seal(saved, "finish", 384 * 1024),
-      ]);
+      await client.query(
+        "UPDATE reverse_sync_control SET phase=$3,finish_result=$4 WHERE workspace_id=$1 AND sync_id=$2",
+        [
+          ...this.key.slice(0, 2),
+          result.delivery === "pending" ? "finish_pending" : "finish_resolving",
+          this.seal(saved, "finish", 384 * 1024),
+        ]
+      );
     });
     if (result.delivery === "pending") return;
     // A crash between chunks leaves finish_resolving + its verified acceptance context.
@@ -537,12 +540,12 @@ export class Journal implements DeliveryJournal {
       done = await this.db.owned(this.scope, async (client, control) => {
         ensure(control.phase === "finish_resolving", "Finish resolution ownership changed");
         const pending = await client.query(
-          "SELECT * FROM retl.operation WHERE workspace_id=$1 AND sync_id=$2 AND run_id=$3 AND status='staged' ORDER BY sequence LIMIT 100",
+          "SELECT * FROM reverse_sync_operation WHERE workspace_id=$1 AND sync_id=$2 AND run_id=$3 AND status='staged' ORDER BY sequence LIMIT 100",
           this.key
         );
         if (!pending.rowCount) {
           await client.query(
-            "UPDATE retl.control SET phase='finish_accepted' WHERE workspace_id=$1 AND sync_id=$2",
+            "UPDATE reverse_sync_control SET phase='finish_accepted' WHERE workspace_id=$1 AND sync_id=$2",
             this.key.slice(0, 2)
           );
           return true;
@@ -594,7 +597,7 @@ export class Journal implements DeliveryJournal {
           "Completion must cover all prepared operations"
         );
       const prefix = await client.query(
-        "SELECT count(*) AS n FROM retl.operation WHERE workspace_id=$1 AND sync_id=$2 AND run_id=$3 AND sequence>$4 AND sequence<=$5 AND status='accepted'",
+        "SELECT count(*) AS n FROM reverse_sync_operation WHERE workspace_id=$1 AND sync_id=$2 AND run_id=$3 AND sequence>$4 AND sequence<=$5 AND status='accepted'",
         [...this.key, control.base_sequence, n]
       );
       ensure(
@@ -603,7 +606,7 @@ export class Journal implements DeliveryJournal {
       );
       if (n > Number(control.base_sequence)) {
         const last = await client.query(
-          "SELECT batch_id FROM retl.operation WHERE workspace_id=$1 AND sync_id=$2 AND run_id=$3 AND sequence=$4",
+          "SELECT batch_id FROM reverse_sync_operation WHERE workspace_id=$1 AND sync_id=$2 AND run_id=$3 AND sequence=$4",
           [...this.key, n]
         );
         const batch = await this.batch(client, last.rows[0].batch_id);
@@ -642,7 +645,7 @@ export class Journal implements DeliveryJournal {
       );
       await this.saveStore(client, store);
       await client.query(
-        "UPDATE retl.control SET checkpoint_sequence=$3,phase=$4,committed_generation=$5 WHERE workspace_id=$1 AND sync_id=$2",
+        "UPDATE reverse_sync_control SET checkpoint_sequence=$3,phase=$4,committed_generation=$5 WHERE workspace_id=$1 AND sync_id=$2",
         [...this.key.slice(0, 2), n, complete ? "complete" : control.phase, generation]
       );
     });

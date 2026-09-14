@@ -47,7 +47,7 @@ export async function acquire(
     // Serialize target admission too: an upsert cannot race exclusive mirror ownership.
     await client.query("SELECT pg_advisory_xact_lock(hashtextextended($1,0))", [target]);
     await client.query(
-      `INSERT INTO retl.control (workspace_id,sync_id,run_id,task_id,revision,target_hash,lease_until,mode,extraction,billing_period_start,billing_period_end)
+      `INSERT INTO reverse_sync_control (workspace_id,sync_id,run_id,task_id,revision,target_hash,lease_until,mode,extraction,billing_period_start,billing_period_end)
       VALUES ($1,$2,$3,$4,$5,$6,clock_timestamp(),$7,$8,$9,$10) ON CONFLICT (workspace_id,sync_id) DO NOTHING`,
       [
         run.workspaceId,
@@ -65,7 +65,7 @@ export async function acquire(
     const {
       rows: [control],
     } = await client.query(
-      "SELECT *, lease_until > clock_timestamp() AS active FROM retl.control WHERE workspace_id=$1 AND sync_id=$2 FOR UPDATE",
+      "SELECT *, lease_until > clock_timestamp() AS active FROM reverse_sync_control WHERE workspace_id=$1 AND sync_id=$2 FOR UPDATE",
       [run.workspaceId, run.syncId]
     );
     ensure(!control.active, "Sync already has an active owner");
@@ -86,23 +86,24 @@ export async function acquire(
     }
     if (run.mode === "mirror") {
       const other = await client.query(
-        "SELECT 1 FROM retl.control WHERE target_hash=$1 AND (workspace_id<>$2 OR sync_id<>$3) LIMIT 1",
+        "SELECT 1 FROM reverse_sync_control WHERE target_hash=$1 AND (workspace_id<>$2 OR sync_id<>$3) LIMIT 1",
         [target, run.workspaceId, run.syncId]
       );
       ensure(!other.rowCount, "Audience already belongs to another mirror or upsert sync");
       await client.query(
-        "INSERT INTO retl.target_owner (target_hash,workspace_id,sync_id) VALUES ($1,$2,$3) ON CONFLICT DO NOTHING",
+        "INSERT INTO reverse_sync_target_owner (target_hash,workspace_id,sync_id) VALUES ($1,$2,$3) ON CONFLICT DO NOTHING",
         [target, run.workspaceId, run.syncId]
       );
-      const owner = await client.query("SELECT workspace_id,sync_id FROM retl.target_owner WHERE target_hash=$1", [
-        target,
-      ]);
+      const owner = await client.query(
+        "SELECT workspace_id,sync_id FROM reverse_sync_target_owner WHERE target_hash=$1",
+        [target]
+      );
       ensure(
         owner.rows[0]?.workspace_id === run.workspaceId && owner.rows[0]?.sync_id === run.syncId,
         "Audience already belongs to another mirror sync"
       );
     } else {
-      const owner = await client.query("SELECT 1 FROM retl.target_owner WHERE target_hash=$1", [target]);
+      const owner = await client.query("SELECT 1 FROM reverse_sync_target_owner WHERE target_hash=$1", [target]);
       ensure(!owner.rowCount, "Audience is exclusively managed by a mirror sync");
     }
     let base = 0;
@@ -124,7 +125,7 @@ export async function acquire(
       }
     }
     const updated = await client.query(
-      `UPDATE retl.control SET epoch=epoch+1, task_id=$3, lease_until=clock_timestamp()+($4 * interval '1 millisecond'),
+      `UPDATE reverse_sync_control SET epoch=epoch+1, task_id=$3, lease_until=clock_timestamp()+($4 * interval '1 millisecond'),
       run_id=$5, extraction=$6, billing_period_start=$7,billing_period_end=$8,
       phase=CASE WHEN $9 THEN phase ELSE 'new' END,
       base_sequence=CASE WHEN $9 AND phase <> 'new' THEN base_sequence ELSE $10 END,
@@ -146,7 +147,7 @@ export async function renew(db: Database, scope: Scope, leaseMs = 60_000) {
   ensure(Number.isSafeInteger(leaseMs) && leaseMs >= 100 && leaseMs <= 60_000, "Invalid lease duration");
   await db.owned(scope, async client => {
     const result = await client.query(
-      "UPDATE retl.control SET lease_until=clock_timestamp()+($3 * interval '1 millisecond') WHERE workspace_id=$1 AND sync_id=$2 AND lease_until>clock_timestamp() RETURNING 1",
+      "UPDATE reverse_sync_control SET lease_until=clock_timestamp()+($3 * interval '1 millisecond') WHERE workspace_id=$1 AND sync_id=$2 AND lease_until>clock_timestamp() RETURNING 1",
       [scope.workspaceId, scope.syncId, leaseMs]
     );
     ensure(result.rowCount, "Run ownership lost");
@@ -156,7 +157,7 @@ export async function renew(db: Database, scope: Scope, leaseMs = 60_000) {
 export async function release(db: Database, scope: Scope) {
   await db.transaction(async client => {
     const result = await client.query(
-      `UPDATE retl.control SET epoch=epoch+1,task_id='',lease_until=clock_timestamp()
+      `UPDATE reverse_sync_control SET epoch=epoch+1,task_id='',lease_until=clock_timestamp()
       WHERE workspace_id=$1 AND sync_id=$2 AND run_id=$3 AND task_id=$4 AND epoch=$5 AND revision=$6 AND target_hash=$7 AND lease_until>clock_timestamp() RETURNING 1`,
       [
         scope.workspaceId,

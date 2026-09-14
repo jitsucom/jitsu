@@ -734,6 +734,9 @@ importers:
       '@types/pg':
         specifier: ^8.16.0
         version: 8.20.0
+      prisma:
+        specifier: ^6.5.0
+        version: 6.19.3(typescript@5.6.3)
       testcontainers:
         specifier: ^11.14.0
         version: 11.14.0

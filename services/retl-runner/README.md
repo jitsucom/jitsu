@@ -6,21 +6,41 @@ in the lifecycle library. The closed ClickHouse failover PR #1512 is not include
 
 ## Setup and boundaries
 
-Apply `migrations/001-persistence.sql` **once**, with separate migration credentials,
-to the configuration PostgreSQL database. The transaction creates an isolated
-`retl` schema; console Prisma continues to own `source_state` and must not manage
-these journal tables. No migration runs on module import or runner startup.
+All `reverse_sync_*` tables are defined in `webapps/console/prisma/schema.prisma`
+alongside `source_state`. They use the same configuration database schema. Apply
+them through the existing console `db:update-schema` command with schema-owner
+credentials; do not give the runner DDL access. The command runs Prisma `db push`
+and automatically preserves the billing-period ordering CHECK, which Prisma 6
+cannot represent. There is no separate Reverse ETL migration or `retl` schema, and
+no DDL runs on module import or runner startup. Use this command rather than bare
+`prisma db push` when provisioning a fresh database so the CHECK is installed too.
+
+The enums, keys, foreign key and indexes are Prisma-managed. The former partial
+outbox index is replaced by a Prisma-managed composite index matching workspace,
+publication status, creation time and event ID. `pg` still handles runtime locking,
+fencing and transactions; schema ownership does not require Prisma Client at runtime.
 
 Provision a restricted runtime login outside this package, then grant:
 
 ```sql
-GRANT USAGE ON SCHEMA retl, newjitsu TO retl_runtime;
-GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA retl TO retl_runtime;
+GRANT USAGE ON SCHEMA newjitsu TO retl_runtime;
+GRANT SELECT, INSERT, UPDATE, DELETE ON
+  newjitsu.reverse_sync_control, newjitsu.reverse_sync_target_owner,
+  newjitsu.reverse_sync_batch, newjitsu.reverse_sync_operation,
+  newjitsu.reverse_sync_generation, newjitsu.reverse_sync_source_key,
+  newjitsu.reverse_sync_desired, newjitsu.reverse_sync_association,
+  newjitsu.reverse_sync_membership, newjitsu.reverse_sync_activation,
+  newjitsu.reverse_sync_outbox TO retl_runtime;
 GRANT SELECT, INSERT, UPDATE ON newjitsu.source_state TO retl_runtime;
 ```
 
-Change `newjitsu` and the `Database` option `sourceSchema` together if the config
-database uses another schema. Never give runtime credentials migration ownership
+Change `newjitsu` in these grants if the config database uses another schema.
+`Database` reads the connection URL's `schema` parameter (default `public` for a
+URL without one); structured pg options default to `newjitsu`. `sourceSchema`
+explicitly overrides either. Every transaction sets a validated local search path
+with `pg_catalog` first and `pg_temp` last; pooled session state cannot redirect
+reads or writes. Do not grant access to unrelated console tables.
+Never give runtime credentials schema ownership
 or DDL rights. The module caps its pool at four connections, acquisition at 5s,
 statements/idle transactions at 10s, and lock waits at 3s. SQL errors are redacted.
 
@@ -132,6 +152,8 @@ retention policy and invoke maintenance; this library runs no background sweeper
 ## Validation
 
 `pnpm --filter @jitsu-internal/retl-runner test` starts an isolated PostgreSQL 18
-container and applies the actual migration. Docker is required; there is no
+container and applies the canonical console Prisma schema through the shared
+schema-update helper. It also checks repeated schema updates, database constraints,
+configured-schema routing and scoped runtime grants. Docker is required; there is no
 in-memory substitute or silent integration-test skip. No external credentials,
 production database, advertising API, or deployment is used.

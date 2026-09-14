@@ -29,11 +29,14 @@ export class Snapshots {
         "Cannot start a snapshot in this phase"
       );
       const old = await client.query(
-        "SELECT 1 FROM retl.generation WHERE workspace_id=$1 AND sync_id=$2 AND generation IS DISTINCT FROM $3 LIMIT 1",
+        "SELECT 1 FROM reverse_sync_generation WHERE workspace_id=$1 AND sync_id=$2 AND generation IS DISTINCT FROM $3 LIMIT 1",
         [this.scope.workspaceId, this.scope.syncId, control.committed_generation]
       );
       ensure(!old.rowCount, "Prune abandoned/superseded snapshot generations before starting another");
-      await client.query("INSERT INTO retl.generation (workspace_id,sync_id,generation) VALUES ($1,$2,$3)", this.key);
+      await client.query(
+        "INSERT INTO reverse_sync_generation (workspace_id,sync_id,generation) VALUES ($1,$2,$3)",
+        this.key
+      );
     });
   }
   /** Each source key appears once; distinct source keys can share a consistent identity. */
@@ -50,7 +53,7 @@ export class Snapshots {
         "Cannot append snapshot in this phase"
       );
       const generation = await client.query(
-        "SELECT * FROM retl.generation WHERE workspace_id=$1 AND sync_id=$2 AND generation=$3",
+        "SELECT * FROM reverse_sync_generation WHERE workspace_id=$1 AND sync_id=$2 AND generation=$3",
         this.key
       );
       ensure(generation.rowCount && !generation.rows[0].sealed, "Snapshot is absent or sealed");
@@ -58,7 +61,10 @@ export class Snapshots {
       let bytes = Number(generation.rows[0].byte_count);
       for (const row of projected) {
         ensure(/^[a-f0-9]{64}$/.test(row.key), "Invalid source key");
-        await client.query("INSERT INTO retl.source_key VALUES ($1,$2,$3,$4)", [...this.key, row.key]);
+        await client.query(
+          "INSERT INTO reverse_sync_source_key (workspace_id,sync_id,generation,key_hash) VALUES ($1,$2,$3,$4)",
+          [...this.key, row.key]
+        );
         for (const effect of row.effects) {
           const value = this.db.cipher.seal(
             effect,
@@ -66,12 +72,12 @@ export class Snapshots {
             this.db.limits.batchBytes
           );
           const inserted = await client.query(
-            `INSERT INTO retl.desired VALUES ($1,$2,$3,$4,$5,$6) ON CONFLICT DO NOTHING RETURNING 1`,
+            `INSERT INTO reverse_sync_desired (workspace_id,sync_id,generation,identity_hash,payload_hash,value) VALUES ($1,$2,$3,$4,$5,$6) ON CONFLICT DO NOTHING RETURNING 1`,
             [...this.key, effect.identityHash, effect.payloadHash, value]
           );
           if (!inserted.rowCount) {
             const existing = await client.query(
-              "SELECT payload_hash,value FROM retl.desired WHERE workspace_id=$1 AND sync_id=$2 AND generation=$3 AND identity_hash=$4",
+              "SELECT payload_hash,value FROM reverse_sync_desired WHERE workspace_id=$1 AND sync_id=$2 AND generation=$3 AND identity_hash=$4",
               [...this.key, effect.identityHash]
             );
             const previous = this.db.cipher.open<Effect>(
@@ -80,11 +86,10 @@ export class Snapshots {
             );
             ensure(canonicalJson(previous) === canonicalJson(effect), "Conflicting payloads for shared identity");
           } else bytes += value.length;
-          await client.query("INSERT INTO retl.association VALUES ($1,$2,$3,$4,$5)", [
-            ...this.key,
-            row.key,
-            effect.identityHash,
-          ]);
+          await client.query(
+            "INSERT INTO reverse_sync_association (workspace_id,sync_id,generation,key_hash,identity_hash) VALUES ($1,$2,$3,$4,$5)",
+            [...this.key, row.key, effect.identityHash]
+          );
           entries++;
           bytes += 128;
         }
@@ -94,7 +99,7 @@ export class Snapshots {
         "Snapshot storage budget exceeded"
       );
       await client.query(
-        "UPDATE retl.generation SET entry_count=$4,byte_count=$5,key_count=key_count+$6 WHERE workspace_id=$1 AND sync_id=$2 AND generation=$3",
+        "UPDATE reverse_sync_generation SET entry_count=$4,byte_count=$5,key_count=key_count+$6 WHERE workspace_id=$1 AND sync_id=$2 AND generation=$3",
         [...this.key, entries, bytes, rows.length]
       );
     });
@@ -103,7 +108,7 @@ export class Snapshots {
     await this.db.owned(this.scope, async (client, control) => {
       ensure(control.mode === "mirror" && control.phase === "running", "Cannot seal snapshot in this phase");
       const result = await client.query(
-        "UPDATE retl.generation SET sealed=true WHERE workspace_id=$1 AND sync_id=$2 AND generation=$3 RETURNING 1",
+        "UPDATE reverse_sync_generation SET sealed=true WHERE workspace_id=$1 AND sync_id=$2 AND generation=$3 RETURNING 1",
         this.key
       );
       ensure(result.rowCount, "Snapshot is absent");
@@ -119,15 +124,15 @@ export class Snapshots {
       const result =
         kind === "additions"
           ? await client.query(
-              `SELECT d.identity_hash,d.value FROM retl.desired d LEFT JOIN retl.membership m
+              `SELECT d.identity_hash,d.value FROM reverse_sync_desired d LEFT JOIN reverse_sync_membership m
           ON m.workspace_id=d.workspace_id AND m.sync_id=d.sync_id AND m.identity_hash=d.identity_hash
           WHERE d.workspace_id=$1 AND d.sync_id=$2 AND d.generation=$3 AND d.identity_hash>$4
           AND (m.identity_hash IS NULL OR m.payload_hash<>d.payload_hash) ORDER BY d.identity_hash LIMIT $5`,
               [...this.key, after, limit]
             )
           : await client.query(
-              `SELECT m.identity_hash,m.value FROM retl.membership m WHERE m.workspace_id=$1 AND m.sync_id=$2 AND m.identity_hash>$4
-          AND NOT EXISTS (SELECT 1 FROM retl.desired d WHERE d.workspace_id=m.workspace_id AND d.sync_id=m.sync_id AND d.generation=$3 AND d.identity_hash=m.identity_hash)
+              `SELECT m.identity_hash,m.value FROM reverse_sync_membership m WHERE m.workspace_id=$1 AND m.sync_id=$2 AND m.identity_hash>$4
+          AND NOT EXISTS (SELECT 1 FROM reverse_sync_desired d WHERE d.workspace_id=m.workspace_id AND d.sync_id=m.sync_id AND d.generation=$3 AND d.identity_hash=m.identity_hash)
           ORDER BY m.identity_hash LIMIT $5`,
               [...this.key, after, limit]
             );
@@ -138,17 +143,17 @@ export class Snapshots {
   }
   async assertRemovalsAllowed(client: PoolClient) {
     const sealed = await client.query(
-      "SELECT sealed FROM retl.generation WHERE workspace_id=$1 AND sync_id=$2 AND generation=$3",
+      "SELECT sealed FROM reverse_sync_generation WHERE workspace_id=$1 AND sync_id=$2 AND generation=$3",
       this.key
     );
     ensure(sealed.rows[0]?.sealed, "Full source must be sealed before removals");
     const pending = await client.query(
-      `SELECT 1 FROM retl.operation WHERE workspace_id=$1 AND sync_id=$2 AND run_id=$3 AND action='upsert' AND status<>'accepted' LIMIT 1`,
+      `SELECT 1 FROM reverse_sync_operation WHERE workspace_id=$1 AND sync_id=$2 AND run_id=$3 AND action='upsert' AND status<>'accepted' LIMIT 1`,
       this.key
     );
     ensure(!pending.rowCount, "Unaccepted additions prohibit removals");
     const missing = await client.query(
-      `SELECT 1 FROM retl.desired d LEFT JOIN retl.membership m
+      `SELECT 1 FROM reverse_sync_desired d LEFT JOIN reverse_sync_membership m
       ON m.workspace_id=d.workspace_id AND m.sync_id=d.sync_id AND m.identity_hash=d.identity_hash
       WHERE d.workspace_id=$1 AND d.sync_id=$2 AND d.generation=$3 AND (m.identity_hash IS NULL OR m.payload_hash<>d.payload_hash) LIMIT 1`,
       this.key
@@ -159,8 +164,8 @@ export class Snapshots {
   async assertPromotable(client: PoolClient) {
     await this.assertRemovalsAllowed(client);
     const extra = await client.query(
-      `SELECT 1 FROM retl.membership m WHERE m.workspace_id=$1 AND m.sync_id=$2
-      AND NOT EXISTS (SELECT 1 FROM retl.desired d WHERE d.workspace_id=m.workspace_id AND d.sync_id=m.sync_id AND d.generation=$3 AND d.identity_hash=m.identity_hash) LIMIT 1`,
+      `SELECT 1 FROM reverse_sync_membership m WHERE m.workspace_id=$1 AND m.sync_id=$2
+      AND NOT EXISTS (SELECT 1 FROM reverse_sync_desired d WHERE d.workspace_id=m.workspace_id AND d.sync_id=m.sync_id AND d.generation=$3 AND d.identity_hash=m.identity_hash) LIMIT 1`,
       this.key
     );
     ensure(!extra.rowCount, "Unremoved effective memberships prohibit promotion");

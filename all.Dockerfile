@@ -126,6 +126,7 @@ RUN npm -g install prisma@$(jq -r '.dependencies.prisma' /tmp/console-package.js
 # schema.prisma: Needed for Prisma CLI commands at runtime
 COPY --from=builder /app/docker-start-console.sh ./
 COPY --from=builder /app/webapps/console/prisma/schema.prisma ./
+COPY --from=builder /app/webapps/console/build/update-schema.mjs ./
 
 # Copy Next.js standalone build output
 # Next.js standalone mode creates a minimal, self-contained server with only necessary files
