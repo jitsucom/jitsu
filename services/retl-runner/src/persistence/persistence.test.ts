@@ -1,0 +1,733 @@
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { GenericContainer, Wait, type StartedTestContainer } from "testcontainers";
+import { Client, type PoolConfig } from "pg";
+import { readFileSync } from "node:fs";
+import { randomBytes } from "node:crypto";
+import { contentHash, createBufferedSyncStore } from "@jitsu/destination-functions/src/reverse-etl/identity";
+import { runReverseEtl } from "@jitsu/destination-functions/src/reverse-etl/run";
+import type { BatchResult, PreparedBatch } from "@jitsu/protocols/reverse-etl";
+import { z } from "zod";
+import { effects } from "./snapshots";
+import { encryptedByteBudget } from "./crypto";
+import {
+  Cipher,
+  Database,
+  openPersistence,
+  release,
+  renew,
+  prune,
+  publishOutbox,
+  type RunInput,
+  type Project,
+} from "./index";
+
+let container: StartedTestContainer;
+let admin: Client;
+let db: Database;
+let runtimeConfig: PoolConfig;
+const cipher = new Cipher("test", { test: randomBytes(32) });
+const project: Project = (_, row: any) => [{ identity: row.id, upsert: row, remove: { id: row.id } }];
+const input = (extra: Partial<RunInput> = {}): RunInput => ({
+  workspaceId: "workspace",
+  syncId: "sync",
+  taskId: "task",
+  logicalRunId: "run",
+  configRevision: "revision",
+  targetIdentity: "provider/account/audience",
+  mode: "upsert",
+  extraction: "cursor",
+  billingPeriod: { start: new Date(Date.now() - 86400000), end: new Date(Date.now() + 86400000) },
+  ...extra,
+});
+let runInput: RunInput;
+type Session = Awaited<ReturnType<typeof openPersistence>>;
+async function session(extra: Partial<RunInput> = {}): Promise<Session> {
+  return openPersistence(db, { ...runInput, ...extra }, project);
+}
+async function init(run: Session) {
+  await run.delivery.assertReady();
+  await run.delivery.prepareInit({});
+  await run.delivery.acknowledgeInit({});
+}
+function batch(
+  run: Session,
+  ids: string[],
+  start = 1,
+  action: "upsert" | "remove" = "upsert",
+  cursor = true
+): PreparedBatch<any> {
+  const records = ids.map((id, index) => {
+    const row = { id };
+    const key = contentHash([id]);
+    return {
+      key,
+      row,
+      sourceSequence: start + index,
+      operationId: contentHash([
+        run.scope.syncId,
+        run.scope.logicalRunId,
+        run.scope.configRevision,
+        run.scope.targetIdentity,
+        action,
+        key,
+        contentHash(row),
+      ]),
+    };
+  });
+  return {
+    action,
+    records,
+    batchId: contentHash([run.scope.logicalRunId, action, records.map(r => r.operationId)]),
+    payloadHash: contentHash(records.map(r => r.row)),
+    ...(cursor ? { cursor: { value: String(start + ids.length - 1), primaryKeyValues: [ids[ids.length - 1]] } } : {}),
+  };
+}
+function outcomes(b: PreparedBatch<unknown>, status: "accepted" | "staged" = "accepted"): BatchResult {
+  return { outcomes: b.records.map(r => ({ operationId: r.operationId, status })) };
+}
+async function count(table: string) {
+  return Number((await admin.query(`SELECT count(*) AS n FROM ${table}`)).rows[0].n);
+}
+async function expire() {
+  await admin.query("UPDATE retl.control SET lease_until=clock_timestamp()-interval '1 second'");
+}
+async function finish(run: Session, b?: PreparedBatch<unknown>) {
+  const point = b
+    ? { sourceSequence: b.records.at(-1)!.sourceSequence, ...(b.cursor ? { cursor: b.cursor } : {}) }
+    : { sourceSequence: 0 };
+  await run.delivery.prepareFinish(point.sourceSequence, {});
+  await run.delivery.acknowledgeFinish({ delivery: "accepted" }, {});
+  await run.delivery.commitCheckpoint(point, {}, true);
+}
+
+beforeAll(async () => {
+  container = await new GenericContainer("postgres:18-alpine")
+    .withEnvironment({ POSTGRES_PASSWORD: "test", POSTGRES_DB: "retl_test" })
+    .withExposedPorts(5432)
+    .withWaitStrategy(Wait.forLogMessage(/database system is ready to accept connections/, 2))
+    .start();
+  const config = {
+    host: container.getHost(),
+    port: container.getMappedPort(5432),
+    database: "retl_test",
+    user: "postgres",
+    password: "test",
+  };
+  admin = new Client(config);
+  await admin.connect();
+  await admin.query(
+    "CREATE SCHEMA newjitsu; CREATE TABLE newjitsu.source_state (sync_id text,stream text,state jsonb NOT NULL,timestamp timestamptz NOT NULL,PRIMARY KEY(sync_id,stream))"
+  );
+  await admin.query(readFileSync(new URL("../../migrations/001-persistence.sql", import.meta.url), "utf8"));
+  await admin.query(
+    "CREATE ROLE retl_runtime LOGIN PASSWORD 'runtime'; GRANT USAGE ON SCHEMA retl,newjitsu TO retl_runtime; GRANT SELECT,INSERT,UPDATE,DELETE ON ALL TABLES IN SCHEMA retl TO retl_runtime; GRANT SELECT,INSERT,UPDATE ON newjitsu.source_state TO retl_runtime"
+  );
+  runtimeConfig = { ...config, user: "retl_runtime", password: "runtime" };
+  db = new Database(runtimeConfig, cipher);
+}, 120000);
+beforeEach(async () => {
+  runInput = input();
+  await admin.query(
+    "TRUNCATE retl.operation,retl.batch,retl.control,retl.target_owner,retl.generation,retl.source_key,retl.desired,retl.association,retl.membership,retl.activation,retl.outbox,newjitsu.source_state"
+  );
+});
+afterAll(async () => {
+  await db?.close();
+  await admin?.end();
+  await container?.stop();
+});
+
+describe("PostgreSQL persistence", () => {
+  it("uses a restricted runtime role and a provider facade without database or snapshot access", async () => {
+    const run = await session();
+    expect(Object.keys(run.delivery)).not.toContain("db");
+    expect(Object.keys(run.delivery)).not.toContain("snapshots");
+    await expect(db.pool.query("CREATE TABLE retl.forbidden (id int)")).rejects.toThrow(/permission denied/);
+  });
+  it("allows only one concurrent owner, and fences every old owner after takeover", async () => {
+    const competing = await Promise.allSettled([session(), session({ taskId: "other" })]);
+    expect(competing.filter(r => r.status === "fulfilled")).toHaveLength(1);
+    const old = (competing.find(r => r.status === "fulfilled") as PromiseFulfilledResult<Session>).value;
+    await expire();
+    const next = await session({ taskId: "recovery" });
+    expect(BigInt(next.scope.fencingEpoch)).toBeGreaterThan(BigInt(old.scope.fencingEpoch));
+    await expect(old.delivery.prepareInit({})).rejects.toThrow(/ownership/);
+    await expect(renew(db, old.scope)).rejects.toThrow(/ownership/);
+    await expect(release(db, old.scope)).rejects.toThrow(/ownership/);
+    await init(next);
+  });
+  it("rolls back a transaction that crosses lease expiry", async () => {
+    const run = await openPersistence(db, runInput, project, 100);
+    await expect(
+      db.owned(run.scope, async client => {
+        await client.query("UPDATE retl.control SET phase='running'");
+        await client.query("SELECT pg_sleep(0.15)");
+      })
+    ).rejects.toThrow(/ownership/);
+    expect((await admin.query("SELECT phase FROM retl.control")).rows[0].phase).toBe("new");
+  });
+  it("isolates workspaces and binds ciphertext to its scope", async () => {
+    const run = await session();
+    await init(run);
+    await expect(session({ workspaceId: "foreign" })).rejects.toThrow();
+    const b = batch(run, ["private@example.com"]);
+    await run.delivery.prepare(b, { token: "secret" });
+    const saved = (await admin.query("SELECT manifest FROM retl.batch")).rows[0].manifest;
+    expect(saved.toString()).not.toContain("private@example.com");
+    expect((await admin.query("SELECT store FROM retl.control")).rows[0].store.toString()).not.toContain("secret");
+    expect(() =>
+      cipher.open(saved, db.aad({ workspaceId: "foreign", syncId: "sync" }, `batch:run:${b.batchId}`))
+    ).toThrow(/decrypt/);
+    expect(await run.core.loadBatch(b.batchId)).toEqual(b);
+  });
+  it("persists preparation across process recreation and blocks blind new extraction", async () => {
+    const run = await session();
+    await init(run);
+    const b = batch(run, ["a"]);
+    await run.delivery.prepare(b, {});
+    await db.close();
+    db = new Database(runtimeConfig, cipher);
+    await expire();
+    await expect(session({ logicalRunId: "new-run" })).rejects.toThrow(/requires recovery/);
+    const recovered = await session({ taskId: "recovery" });
+    expect(recovered.recovery).toBe(true);
+    await expect(recovered.delivery.assertReady()).rejects.toThrow(/Recover/);
+    expect(await recovered.core.loadBatch(b.batchId)).toEqual(b);
+    await expect(recovered.delivery.acknowledge(b.batchId, outcomes(b), {})).rejects.toThrow(/verified time/);
+    await recovered.core.acknowledgeRecovered(
+      b.batchId,
+      outcomes(b),
+      {},
+      { at: new Date(), period: runInput.billingPeriod }
+    );
+    await finish(recovered, b);
+  });
+  it("acknowledges membership, receipt and activation atomically, including accepted-then-failed runs", async () => {
+    const run = await session();
+    await init(run);
+    const b = batch(run, ["a", "b"]);
+    await run.delivery.prepare(b, {});
+    await run.delivery.acknowledge(
+      b.batchId,
+      {
+        outcomes: [
+          { operationId: b.records[0].operationId, status: "accepted" },
+          { operationId: b.records[1].operationId, status: "rejected", code: "invalid", safeReason: "Invalid row" },
+        ],
+      },
+      {}
+    );
+    expect(await count("retl.membership")).toBe(1);
+    expect(await count("retl.activation")).toBe(1);
+    expect(await count("retl.outbox")).toBe(2);
+    await expect(run.delivery.commitCheckpoint({ sourceSequence: 2, cursor: b.cursor }, {}, false)).rejects.toThrow(
+      /unaccepted/
+    );
+    await run.delivery.prepareAbort();
+    await run.delivery.acknowledgeAbort();
+    expect(await count("retl.membership")).toBe(1);
+    expect(await count("retl.activation")).toBe(1);
+  });
+  it("rolls back all acceptance writes when the outbox insert fails", async () => {
+    const run = await session();
+    await init(run);
+    const b = batch(run, ["a"]);
+    await run.delivery.prepare(b, {});
+    await admin.query("ALTER TABLE retl.outbox ADD CONSTRAINT injected_failure CHECK (false) NOT VALID");
+    try {
+      await expect(run.delivery.acknowledge(b.batchId, outcomes(b), {})).rejects.toThrow();
+    } finally {
+      await admin.query("ALTER TABLE retl.outbox DROP CONSTRAINT injected_failure");
+    }
+    expect(await count("retl.membership")).toBe(0);
+    expect(await count("retl.activation")).toBe(0);
+    expect((await admin.query("SELECT status FROM retl.operation")).rows[0].status).toBe("prepared");
+    await run.delivery.acknowledge(b.batchId, outcomes(b), {});
+    expect(await count("retl.membership")).toBe(1);
+  });
+  it("deduplicates accepted receipts and monthly sync activation", async () => {
+    const run = await session();
+    await init(run);
+    const b = batch(run, ["a"]);
+    await run.delivery.prepare(b, {});
+    await run.delivery.acknowledge(b.batchId, outcomes(b), {});
+    await run.delivery.acknowledge(b.batchId, outcomes(b), {});
+    await run.delivery.markUnknown(b.batchId);
+    expect((await admin.query("SELECT status FROM retl.operation")).rows[0].status).toBe("accepted");
+    await finish(run, b);
+    await expire();
+    const next = await session({ logicalRunId: "run2", taskId: "task2" });
+    await init(next);
+    const b2 = batch(next, ["b"], 2);
+    await next.delivery.prepare(b2, {});
+    await next.delivery.acknowledge(b2.batchId, outcomes(b2), {});
+    expect(await count("retl.activation")).toBe(1);
+    expect(await count("retl.outbox")).toBe(3);
+  });
+  it("does not activate an empty run", async () => {
+    const run = await session();
+    await init(run);
+    await finish(run);
+    expect(await count("retl.activation")).toBe(0);
+  });
+  it("blocks a checkpoint past a staged delete even if a later upsert is accepted", async () => {
+    const run = await session();
+    await init(run);
+    const a = batch(run, ["a"], 1, "remove");
+    await run.delivery.prepare(a, {});
+    await run.delivery.acknowledge(a.batchId, outcomes(a, "staged"), {});
+    const b = batch(run, ["b"], 2);
+    await run.delivery.prepare(b, {});
+    await run.delivery.acknowledge(b.batchId, outcomes(b), {});
+    await expect(run.delivery.commitCheckpoint({ sourceSequence: 2, cursor: b.cursor }, {}, false)).rejects.toThrow(
+      /unaccepted/
+    );
+    expect(await count("newjitsu.source_state")).toBe(0);
+  });
+  it("resolves pending finish before checkpointing or activating staged work", async () => {
+    const run = await session();
+    await init(run);
+    const b = batch(run, ["a"]);
+    await run.delivery.prepare(b, {});
+    await run.delivery.acknowledge(b.batchId, outcomes(b, "staged"), {});
+    expect(await count("retl.activation")).toBe(0);
+    await run.delivery.prepareFinish(1, {});
+    await run.delivery.acknowledgeFinish({ delivery: "pending", remoteJobIds: ["job"] }, {});
+    await expect(run.delivery.commitCheckpoint({ sourceSequence: 1, cursor: b.cursor }, {}, true)).rejects.toThrow();
+    await expect(run.delivery.prepareAbort()).rejects.toThrow();
+    await expire();
+    const recovered = await session({ taskId: "recovery" });
+    await recovered.core.acknowledgeRecoveredFinish(
+      { delivery: "accepted" },
+      {},
+      { at: new Date(), period: runInput.billingPeriod }
+    );
+    await recovered.delivery.commitCheckpoint({ sourceSequence: 1, cursor: b.cursor }, {}, true);
+    expect(await count("retl.membership")).toBe(1);
+    expect(await count("retl.activation")).toBe(1);
+  });
+  it("rejects gaps, invented cursors and terminal receipt downgrades", async () => {
+    const run = await session();
+    await init(run);
+    await expect(run.delivery.prepare(batch(run, ["gap"], 2), {})).rejects.toThrow(/contiguous/);
+    const b = batch(run, ["a"]);
+    await run.delivery.prepare(b, {});
+    await run.delivery.acknowledge(b.batchId, outcomes(b), {});
+    await expect(run.delivery.acknowledge(b.batchId, outcomes(b, "staged"), {})).rejects.toThrow(/terminal/);
+    await expect(
+      run.delivery.commitCheckpoint(
+        { sourceSequence: 1, cursor: { value: "invention", primaryKeyValues: ["a"] } },
+        {},
+        false
+      )
+    ).rejects.toThrow(/cursor/);
+  });
+  it("preserves receipts during full refresh and disallows intermediate full-query checkpoints", async () => {
+    const run = await session();
+    await init(run);
+    const b = batch(run, ["a"]);
+    await run.delivery.prepare(b, {});
+    await run.delivery.acknowledge(b.batchId, outcomes(b), {});
+    await finish(run, b);
+    await expire();
+    const next = await session({ taskId: "task2", logicalRunId: "run2", extraction: "full" });
+    expect(await next.delivery.assertReady()).toEqual({ sourceSequence: 0 });
+    await init(next);
+    const b2 = batch(next, ["b"]);
+    await next.delivery.prepare(b2, {});
+    await next.delivery.acknowledge(b2.batchId, outcomes(b2), {});
+    await expect(next.delivery.commitCheckpoint({ sourceSequence: 1, cursor: b2.cursor }, {}, false)).rejects.toThrow();
+    expect(await count("retl.operation")).toBe(2);
+    expect(await count("retl.membership")).toBe(2);
+  });
+  it("runs the merged lifecycle with the PostgreSQL journal", async () => {
+    const run = await session({ extraction: "full" });
+    const stream: any = {
+      name: "test",
+      displayName: "Test",
+      rowType: z.object({ id: z.string() }),
+      options: z.object({}),
+      batchSize: 2,
+      capabilities: {
+        supportsUpsert: true,
+        supportsExplicitRemove: false,
+        mirror: "none",
+        replay: "idempotent-operation",
+      },
+      createWriter: async () => ({
+        init: async () => {},
+        upsert: async (b: any) => outcomes(b),
+        finish: async () => ({ delivery: "accepted" }),
+        abort: async () => {},
+      }),
+    };
+    const result = await runReverseEtl({
+      stream,
+      context: {
+        ...run.scope,
+        mode: "upsert",
+        fullRefresh: false,
+        credentials: {},
+        options: {},
+        signal: new AbortController().signal,
+        log: {} as any,
+        fetch: fetch as any,
+        store: createBufferedSyncStore(),
+        delivery: run.delivery,
+      },
+      mapping: { id: "id" },
+      checkpointEvery: 1,
+      source: async function* () {
+        yield { key: contentHash(["a"]), row: { id: "a" }, deleted: false };
+        yield { key: contentHash(["b"]), row: { id: "b" }, deleted: false };
+      },
+    });
+    expect(result).toEqual({ delivery: "accepted", sourceSequence: 2 });
+    expect(await count("retl.membership")).toBe(2);
+  });
+});
+
+describe("recovery and operational boundaries", () => {
+  it("does not renew ownership if the old lease expires inside the renewal transaction", async () => {
+    const run = await openPersistence(db, runInput, project, 200);
+    await admin.query(`CREATE FUNCTION retl.delay_renew() RETURNS trigger LANGUAGE plpgsql AS $$
+      BEGIN IF NEW.lease_until>OLD.lease_until THEN PERFORM pg_sleep(0.3); END IF; RETURN NEW; END $$;
+      CREATE TRIGGER delay_renew BEFORE UPDATE ON retl.control FOR EACH ROW EXECUTE FUNCTION retl.delay_renew()`);
+    try {
+      await expect(renew(db, run.scope)).rejects.toThrow(/ownership/);
+    } finally {
+      await admin.query("DROP TRIGGER delay_renew ON retl.control; DROP FUNCTION retl.delay_renew()");
+    }
+    expect(
+      (await admin.query("SELECT lease_until<clock_timestamp() AS expired FROM retl.control")).rows[0].expired
+    ).toBe(true);
+  });
+  it("detaches billing period dates before any asynchronous admission work", async () => {
+    const originalStart = +runInput.billingPeriod.start,
+      originalEnd = +runInput.billingPeriod.end;
+    const opening = session();
+    runInput.billingPeriod.start.setTime(originalStart + 3600000);
+    runInput.billingPeriod.end.setTime(originalEnd + 3600000);
+    const run = await opening;
+    const stored = (await admin.query("SELECT billing_period_start,billing_period_end FROM retl.control")).rows[0];
+    expect(+stored.billing_period_start).toBe(originalStart);
+    expect(+stored.billing_period_end).toBe(originalEnd);
+    expect(+run.scope.billingPeriod.start).toBe(originalStart);
+  });
+  it("reserves key-rotation envelope headroom before delivery", async () => {
+    const oldKey = randomBytes(32),
+      nextKey = randomBytes(32),
+      longId = "b".repeat(64);
+    const oldCipher = new Cipher("a", { a: oldKey });
+    const projected = effects(project("upsert", { id: "a" }))[0];
+    const purpose = db.aad(runInput, `identity:${projected.identityHash}`);
+    const oldBytes = oldCipher.seal(projected, purpose, 10000).length;
+    const tooSmall = new Database(runtimeConfig, oldCipher, { limits: { snapshotBytes: oldBytes } });
+    try {
+      const run = await openPersistence(tooSmall, runInput, project);
+      await init(run);
+      await expect(run.delivery.prepare(batch(run, ["a"]), {})).rejects.toThrow(/reservation budget/);
+    } finally {
+      await tooSmall.close();
+    }
+    await expire();
+    const capacity = encryptedByteBudget(Buffer.byteLength(JSON.stringify(projected)));
+    const oldDb = new Database(runtimeConfig, oldCipher, { limits: { snapshotBytes: capacity } });
+    const rotatedDb = new Database(runtimeConfig, new Cipher(longId, { a: oldKey, [longId]: nextKey }), {
+      limits: { snapshotBytes: capacity },
+    });
+    try {
+      const run = await openPersistence(oldDb, { ...runInput, taskId: "prepare" }, project);
+      const b = batch(run, ["a"]);
+      await run.delivery.prepare(b, {});
+      await expire();
+      const recovered = await openPersistence(rotatedDb, { ...runInput, taskId: "recovery" }, project);
+      await recovered.core.acknowledgeRecovered(
+        b.batchId,
+        outcomes(b),
+        {},
+        { at: new Date(), period: runInput.billingPeriod }
+      );
+      expect(
+        Number((await admin.query("SELECT membership_bytes FROM retl.control")).rows[0].membership_bytes)
+      ).toBeLessThanOrEqual(capacity);
+    } finally {
+      await oldDb.close();
+      await rotatedDb.close();
+    }
+  });
+  it("persists protocol-maximum finish metadata and combined maximum cursor/store envelopes", async () => {
+    const store = { x: "x".repeat(65528) };
+    const cursor = { value: "", primaryKeyValues: ["a"] };
+    cursor.value = "x".repeat(65536 - Buffer.byteLength(JSON.stringify(cursor)));
+    const run = await session();
+    await init(run);
+    const b = batch(run, ["a"]);
+    b.cursor = cursor;
+    await run.delivery.prepare(b, store);
+    await run.delivery.acknowledge(b.batchId, outcomes(b), store);
+    await run.delivery.prepareFinish(1, store);
+    const pending = {
+      delivery: "pending" as const,
+      providerCheckpoint: store,
+      remoteJobIds: Array.from({ length: 100 }, () => "\u0000".repeat(512)),
+    };
+    await run.delivery.acknowledgeFinish(pending, store);
+    expect((await run.core.recoveryStatus()).finish).toEqual(pending);
+    await run.delivery.acknowledgeFinish({ delivery: "accepted", providerCheckpoint: store }, store);
+    await run.delivery.commitCheckpoint({ sourceSequence: 1, cursor }, store, true);
+    expect(await count("newjitsu.source_state")).toBe(1);
+  });
+  it("releases an owner immediately without forgetting prepared init or provider IDs", async () => {
+    const run = await session();
+    await run.delivery.prepareInit({});
+    await run.delivery.saveProviderState({ session: "remote-secret" });
+    await release(db, run.scope);
+    const next = await session({ taskId: "next" });
+    expect(await next.core.recoveryStatus()).toMatchObject({
+      phase: "init_prepared",
+      providerState: { session: "remote-secret" },
+    });
+    await expect(next.delivery.assertReady()).rejects.toThrow();
+    await expect(run.delivery.acknowledgeInit({})).rejects.toThrow(/ownership/);
+    await next.delivery.acknowledgeInit({});
+    await next.delivery.prepareAbort();
+    await next.delivery.acknowledgeAbort();
+  });
+  it("resumes local finish resolution after a committed chunk and process loss", async () => {
+    const run = await session();
+    await init(run);
+    const b = batch(
+      run,
+      Array.from({ length: 105 }, (_, i) => String(i))
+    );
+    await run.delivery.prepare(b, {});
+    await run.delivery.acknowledge(b.batchId, outcomes(b, "staged"), {});
+    await run.delivery.prepareFinish(105, {});
+    await admin.query(
+      "ALTER TABLE retl.operation ADD CONSTRAINT interrupt_finish CHECK (sequence<=100 OR status<>'accepted') NOT VALID"
+    );
+    try {
+      await expect(run.delivery.acknowledgeFinish({ delivery: "accepted" }, {})).rejects.toThrow();
+    } finally {
+      await admin.query("ALTER TABLE retl.operation DROP CONSTRAINT interrupt_finish");
+    }
+    expect(await count("retl.membership")).toBe(100);
+    expect((await run.core.recoveryStatus()).phase).toBe("finish_resolving");
+    expect(await count("newjitsu.source_state")).toBe(0);
+    await db.close();
+    db = new Database(runtimeConfig, cipher);
+    await expire();
+    const recovered = await session({ taskId: "recovery" });
+    await recovered.core.acknowledgeRecoveredFinish({ delivery: "accepted" }, {});
+    await recovered.delivery.commitCheckpoint({ sourceSequence: 105, cursor: b.cursor }, {}, true);
+    expect(await count("retl.membership")).toBe(105);
+    expect(await count("retl.activation")).toBe(1);
+    expect(await count("retl.outbox")).toBe(106);
+  }, 15000);
+  it("keeps unknown outcomes blocked across billing-period boundaries until verified", async () => {
+    const oldPeriod = { start: new Date(Date.now() - 3 * 86400000), end: new Date(Date.now() - 2 * 86400000) };
+    const run = await session({ billingPeriod: oldPeriod });
+    await init(run);
+    const b = batch(run, ["a"]);
+    await run.delivery.prepare(b, {});
+    await expect(run.delivery.acknowledge(b.batchId, outcomes(b), {})).rejects.toThrow(/billing period/);
+    expect(await count("retl.activation")).toBe(0);
+    await run.core.acknowledgeRecovered(
+      b.batchId,
+      outcomes(b),
+      {},
+      { at: new Date(+oldPeriod.start + 1000), period: oldPeriod }
+    );
+    expect((await admin.query("SELECT period_start FROM retl.activation")).rows[0].period_start).toEqual(
+      oldPeriod.start
+    );
+  });
+  it("reserves membership capacity before submission and rolls back rejected snapshot batches", async () => {
+    const limited = new Database(runtimeConfig, cipher, { limits: { snapshotEntries: 1 } });
+    try {
+      const run = await openPersistence(limited, { ...runInput, mode: "mirror", extraction: "full" }, project);
+      await init(run);
+      await run.snapshots.start();
+      await expect(
+        run.snapshots.append([
+          { key: contentHash(["a"]), identities: project("upsert", { id: "a" }) },
+          { key: contentHash(["b"]), identities: project("upsert", { id: "b" }) },
+        ])
+      ).rejects.toThrow(/budget/);
+      expect(await count("retl.source_key")).toBe(0);
+      await expect(run.delivery.prepare(batch(run, ["a", "b"]), {})).rejects.toThrow(/budget/);
+      expect(await count("retl.batch")).toBe(0);
+      expect(await count("retl.operation")).toBe(0);
+    } finally {
+      await limited.close();
+    }
+  });
+  it("keeps journal accounting exact and prunes only old terminal recovery data", async () => {
+    const run = await session();
+    await init(run);
+    const b = batch(run, ["private@example.com"]);
+    await run.delivery.prepare(b, {});
+    await run.delivery.acknowledge(b.batchId, outcomes(b), {});
+    await finish(run, b);
+    await release(db, run.scope);
+    await admin.query("UPDATE retl.batch SET created_at=clock_timestamp()-interval '60 days'");
+    const next = await session({ logicalRunId: "next", taskId: "next", extraction: "full" });
+    await init(next);
+    const current = batch(next, ["b"]);
+    await next.delivery.prepare(current, {});
+    const removed = await prune(db, next.scope, new Date(Date.now() - 30 * 86400000));
+    expect(removed.batches).toBe(1);
+    expect(await count("retl.batch")).toBe(1);
+    expect(await count("retl.membership")).toBe(1);
+    expect(await count("retl.activation")).toBe(1);
+    const expected = (
+      await admin.query(
+        "SELECT (SELECT sum(octet_length(manifest)+result_bytes) FROM retl.batch)+(SELECT sum(octet_length(effects)) FROM retl.operation) AS bytes"
+      )
+    ).rows[0].bytes;
+    expect((await admin.query("SELECT journal_bytes FROM retl.control")).rows[0].journal_bytes).toBe(expected);
+    expect((await next.core.recoveryBatch(current.batchId)).operations[0].status).toBe("prepared");
+  });
+  it("publishes outbox events at least once without losing failed publications", async () => {
+    const run = await session();
+    await init(run);
+    const b = batch(run, ["a"]);
+    await run.delivery.prepare(b, {});
+    await run.delivery.acknowledge(b.batchId, outcomes(b), {});
+    const delivered: string[] = [];
+    await expect(
+      publishOutbox(db, "workspace", async event => {
+        delivered.push(event.id);
+        throw new Error("publisher unavailable");
+      })
+    ).rejects.toThrow();
+    expect((await admin.query("SELECT count(*) AS n FROM retl.outbox WHERE published_at IS NOT NULL")).rows[0].n).toBe(
+      "0"
+    );
+    expect(
+      await publishOutbox(db, "workspace", async event => {
+        delivered.push(event.id);
+      })
+    ).toBe(2);
+    expect(delivered[0]).toBe(delivered[1]);
+    expect(await publishOutbox(db, "workspace", async () => {})).toBe(0);
+    expect(
+      await publishOutbox(db, "other", async () => {
+        throw new Error("foreign event");
+      })
+    ).toBe(0);
+  });
+  it("requires the empty cursor run to retain its actual starting checkpoint", async () => {
+    const run = await session();
+    await init(run);
+    await run.delivery.prepareFinish(0, {});
+    await run.delivery.acknowledgeFinish({ delivery: "accepted" }, {});
+    await expect(
+      run.delivery.commitCheckpoint(
+        { sourceSequence: 0, cursor: { value: "made-up", primaryKeyValues: ["a"] } },
+        {},
+        true
+      )
+    ).rejects.toThrow(/starting cursor/);
+    expect(await count("newjitsu.source_state")).toBe(0);
+  });
+  it("supports encryption-key rotation and rejects tampering", () => {
+    const oldKey = randomBytes(32),
+      newKey = randomBytes(32);
+    const old = new Cipher("old", { old: oldKey });
+    const rotated = new Cipher("new", { old: oldKey, new: newKey });
+    const encrypted = old.seal({ secret: "value" }, "scope", 100);
+    expect(rotated.open(encrypted, "scope")).toEqual({ secret: "value" });
+    expect(old.seal({ secret: "value" }, "scope", 100)).not.toEqual(encrypted);
+    const damaged = Buffer.from(encrypted);
+    damaged[damaged.length - 10] ^= 1;
+    expect(() => rotated.open(damaged, "scope")).toThrow(/decrypt/);
+  });
+});
+
+describe("core snapshot storage", () => {
+  async function mirror() {
+    const run = await session({ mode: "mirror", extraction: "full" });
+    await init(run);
+    await run.snapshots.start();
+    return run;
+  }
+  const desired = (key: string, id: string) => ({ key: contentHash([key]), identities: project("upsert", { id }) });
+  it("separately validates source keys and shared identities, with rollback on conflicting payloads", async () => {
+    const run = await mirror();
+    await run.snapshots.append([desired("key1", "shared"), desired("key2", "shared")]);
+    expect(await count("retl.desired")).toBe(1);
+    expect(await count("retl.association")).toBe(2);
+    await expect(run.snapshots.append([desired("key1", "different")])).rejects.toThrow();
+    await expect(
+      run.snapshots.append([
+        {
+          key: contentHash(["key3"]),
+          identities: [{ identity: "shared", upsert: { id: "conflict" }, remove: { id: "shared" } }],
+        },
+      ])
+    ).rejects.toThrow(/Conflicting/);
+    expect(await count("retl.source_key")).toBe(2);
+  });
+  it("requires sealed full source and accepted additions before any removal", async () => {
+    const run = await mirror();
+    await run.snapshots.append([desired("key1", "a")]);
+    await expect(run.snapshots.page("removals")).rejects.toThrow(/sealed/);
+    await run.snapshots.seal();
+    await expect(run.snapshots.page("removals")).rejects.toThrow(/accepted/);
+    const b = batch(run, ["a"], 1, "upsert", false);
+    await run.delivery.prepare(b, {});
+    await run.delivery.acknowledge(b.batchId, outcomes(b, "staged"), {});
+    await expect(run.snapshots.page("removals")).rejects.toThrow(/Unaccepted/);
+    await expect(run.delivery.prepareFinish(1, {})).rejects.toThrow();
+  });
+  it("retains failed-run additions and promotes an empty later snapshot only after accepted removal", async () => {
+    const first = await mirror();
+    const b = batch(first, ["a"], 1, "upsert", false);
+    await first.delivery.prepare(b, {});
+    await first.delivery.acknowledge(b.batchId, outcomes(b), {});
+    await first.delivery.prepareAbort();
+    await first.delivery.acknowledgeAbort();
+    await expire();
+    const next = await session({ mode: "mirror", extraction: "full", taskId: "next", logicalRunId: "next" });
+    await init(next);
+    await prune(db, next.scope, new Date(Date.now() - 30 * 86400000));
+    await next.snapshots.start();
+    await next.snapshots.seal();
+    expect((await next.snapshots.page("removals"))[0].remove).toEqual({ id: "a" });
+    await expect(next.delivery.prepareFinish(0, {})).rejects.toThrow(/Unremoved/);
+    const removal = batch(next, ["a"], 1, "remove", false);
+    await next.delivery.prepare(removal, {});
+    await next.delivery.acknowledge(removal.batchId, outcomes(removal), {});
+    await finish(next, removal);
+    expect((await admin.query("SELECT committed_generation FROM retl.control")).rows[0].committed_generation).toBe(
+      "next"
+    );
+    expect(await count("retl.membership")).toBe(0);
+  });
+  it("keeps shared desired identities and paginates additions by identity hash", async () => {
+    const run = await mirror();
+    await run.snapshots.append([desired("key1", "a"), desired("key2", "a"), desired("key3", "b")]);
+    await run.snapshots.seal();
+    const page = await run.snapshots.page("additions", "", 1);
+    const second = await run.snapshots.page("additions", page[0].identityHash, 1);
+    expect(page[0].identityHash).not.toBe(second[0].identityHash);
+    expect(await run.snapshots.page("additions", second[0].identityHash, 1)).toEqual([]);
+    const b = batch(run, ["a", "b"], 1, "upsert", false);
+    await run.delivery.prepare(b, {});
+    await run.delivery.acknowledge(b.batchId, outcomes(b), {});
+    expect(await run.snapshots.page("additions")).toEqual([]);
+    expect(await run.snapshots.page("removals")).toEqual([]);
+    await expect(run.delivery.prepare(batch(run, ["a"], 3, "remove", false), {})).rejects.toThrow(/shared identity/);
+    await finish(run, b);
+  });
+  it("guards exclusive audience ownership across workspaces and lease expiry", async () => {
+    await mirror();
+    await expire();
+    await expect(
+      session({ workspaceId: "other", syncId: "other", mode: "mirror", extraction: "full" })
+    ).rejects.toThrow(/another mirror/);
+    await expect(session({ workspaceId: "other", syncId: "other" })).rejects.toThrow(/exclusively/);
+  });
+});
