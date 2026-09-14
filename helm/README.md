@@ -126,6 +126,61 @@ Then access:
 - ClickHouse: http://localhost:8123 (`default` / `helm-deps/values.yaml clickhouse.password`)
 - MongoDB: localhost:27017 (`admin` / `helm-deps/values.yaml mongodb.password`)
 
+## Developing the console
+
+There are three ways to run the console, and they are for different jobs.
+
+| | How | Use it for |
+|---|---|---|
+| **Host** | `scaling.console.replicas: 0` in your values, then `pnpm console:dev` on your machine | **UI iteration.** Hot-reload, fastest, lightest |
+| **Dev chart** | the default — built from your source into a production dist | Testing your console changes against a real in-cluster backend |
+| Published image | not yet — see JITSU-48 | Self-hosting |
+
+### Host UI + Minikube backend
+
+For anything that involves editing console UI, run the console on your host
+against the cluster's backend:
+
+```yaml
+# values-custom.yaml
+scaling:
+  console:
+    replicas: 0
+```
+
+```bash
+./dev-deploy.sh deploy      # brings up everything except the console
+pnpm console:dev            # console on the host, hot-reloading
+```
+
+This is the hot-reload path. It is faster and uses far less memory than any
+in-cluster dev server, and the console Deployment is not rendered at all when
+replicas is 0, so nothing is built for it either.
+
+### In-cluster console
+
+The chart builds the console from your mounted source with `next build` in an
+init container and serves it with `next start`, the same model as bulker and
+rotor: compile in an init container, run the output in the main container.
+
+**There is no live reload in-cluster.** Changes are picked up on redeploy:
+
+```bash
+./dev-deploy.sh restart console
+```
+
+`.next` persists on the `node-cache` PVC, so rebuilds are incremental. A
+`pnpm-lock.yaml` change clears the workspace and forces a cold build.
+
+Running a production build in-cluster also gives prod parity — it surfaces
+build, RSC and type errors that a dev server hides. The trade is that a build
+failure fails the init container, so the pod will not start rather than showing
+you the error in the browser. Check the build logs:
+
+```bash
+kubectl logs -l app.kubernetes.io/name=console -c build
+```
+
 ## Architecture
 
 ```

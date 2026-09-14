@@ -20,6 +20,52 @@ spec:
         app.kubernetes.io/name: console
         app.kubernetes.io/instance: {{ .Release.Name }}
     spec:
+      initContainers:
+        # Build the console from the mounted source into a production dist,
+        # the same model as bulker/rotor/etc: compile in an init container,
+        # run the output in the main container. Replaces the previous in-pod
+        # `next dev` + rsync hot-reload, which was the largest memory consumer
+        # in the dev stack (JITSU-108).
+        #
+        # For console UI iteration use `pnpm console:dev` on the host with
+        # `scaling.console.replicas: 0` — faster and lighter than any
+        # in-cluster dev server. This path exists so you can test your local
+        # console source in a real cluster, rebuilt on redeploy.
+        #
+        # Ordering is guaranteed: install-job is a pre-install/pre-upgrade
+        # helm hook (weight -5), so pnpm install and prisma generate have
+        # completed before this pod is created.
+        #
+        # `.next` persists on the node-cache PVC between deploys, so this is
+        # incremental. The install job's source sync excludes dotfiles, so a
+        # stale `.next` from the host is never copied over the cached one; a
+        # pnpm-lock.yaml change wipes the workspace and forces a cold build.
+        - name: build
+          image: node:24-bookworm
+          workingDir: /cache/workspace/webapps/console
+          command:
+            - sh
+            - -c
+            - |
+              echo "Building console (next build)..."
+              npx next build
+              echo "Build complete"
+          envFrom:
+            - secretRef:
+                name: jitsu-secrets
+            - secretRef:
+                name: jitsu-deps-urls
+                optional: true
+          env:
+            {{- include "jitsu-dev.env" (dict "ctx" . "service" "console"
+                  "extra" (dict
+                    "BULKER_PORT" ""
+                    "ROTOR_PORT" ""
+                    "SYNCCTL_PORT" ""
+                    "INGMGR_PORT" "")) | nindent 12 }}
+          volumeMounts:
+            - name: node-cache
+              mountPath: /cache
       containers:
         - name: console
           image: node:24-bookworm
@@ -28,23 +74,6 @@ spec:
             - sh
             - -c
             - |
-              apt-get update -qq && apt-get install -y -qq rsync > /dev/null 2>&1
-
-              # Background rsync: every 2s, sync only actually changed files
-              (while true; do
-                sleep 2
-                rsync -a --checksum \
-                  --exclude='node_modules' --exclude='.next' --exclude='.turbo' \
-                  --exclude='docker/data' --exclude='*.log' \
-                  /project/webapps/ /cache/workspace/webapps/
-                rsync -a --checksum \
-                  --exclude='node_modules' \
-                  /project/libs/ /cache/workspace/libs/
-                rsync -a --checksum \
-                  --exclude='node_modules' \
-                  /project/types/ /cache/workspace/types/
-              done) &
-
               cd /cache/workspace/webapps/console
               # On a fresh install the db-push job may still be applying the
               # schema — retry seed until it succeeds instead of silently
@@ -63,7 +92,7 @@ spec:
                 echo "events-log-init failed (clickhouse not ready yet?), retry $i/12 in 5s..."
                 sleep 5
               done
-              exec npx next dev -H 0.0.0.0 -p 3000
+              exec npx next start -H 0.0.0.0 -p 3000
           ports:
             - name: http
               containerPort: 3000
@@ -92,9 +121,6 @@ spec:
                     "INGMGR_PORT" ""
                     "MAINTENANCE_CONFIG_FILE" "/etc/jitsu/maintenance/maintenance.json")) | nindent 12 }}
           volumeMounts:
-            - name: project
-              mountPath: /project
-              readOnly: true
             - name: node-cache
               mountPath: /cache
             - name: maintenance
@@ -123,10 +149,6 @@ spec:
             timeoutSeconds: 10
             failureThreshold: 30
       volumes:
-        - name: project
-          hostPath:
-            path: {{ include "jitsu-dev.projectRoot" . }}
-            type: Directory
         - name: node-cache
           persistentVolumeClaim:
             claimName: node-cache
