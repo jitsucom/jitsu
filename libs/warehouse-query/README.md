@@ -52,3 +52,20 @@ do not include ClickHouse. This is a compatibility limit, not full ClickHouse SQ
 support. A native parser can be evaluated separately. Never execute an unparsed
 fallback. Parser checks are defense in depth; database read-only settings and
 least-privilege warehouse credentials remain necessary.
+
+ClickHouse readers validate all configured hosts and try each distinct endpoint
+in configuration order on recognized transport failures. Metadata and data reads are pinned
+to the same host per attempt; switching hosts reprobes metadata and recompiles the
+query. With multiple hosts, each metadata probe has a deadline of at most five
+seconds (30 seconds divided by host count for larger lists), leaving time for
+backup hosts within the console request deadline. Single-host metadata and data
+queries retain their 30-second limits; caller cancellation always takes priority.
+
+Buffered previews may restart before returning their result. Streaming failover
+is allowed only before the first emitted row: once a row is delivered, errors
+propagate for checkpoint-based recovery rather than mixing replicas or replaying
+a delivered prefix. SQL, authentication, TLS, validation and result-limit errors
+are never retried on another host; unclassified client errors also fail closed
+rather than being identified by error-message text. Reader close cancels active requests and closes
+all allocated clients. Hosts must serve the same logical dataset; this does not
+provide cross-replica snapshot consistency or compensate for replication lag.
