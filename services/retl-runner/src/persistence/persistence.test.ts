@@ -412,6 +412,95 @@ describe("PostgreSQL persistence", () => {
       )
     ).toBe(2);
   });
+  it.each([false, true].flatMap(recovery => [false, true].map(rejected => ({ recovery, rejected }))))(
+    "keeps terminal receipts immutable and ignores duplicate store snapshots (recovery=$recovery, rejected=$rejected)",
+    async ({ recovery, rejected }) => {
+      const run = await session();
+      await init(run);
+      const b = batch(run, ["accepted", "rejected"]);
+      await run.delivery.prepare(b, {});
+      const result: BatchResult = {
+        outcomes: [
+          { operationId: b.records[0].operationId, status: "accepted" },
+          rejected
+            ? { operationId: b.records[1].operationId, status: "rejected", code: "invalid", safeReason: "Invalid row" }
+            : { operationId: b.records[1].operationId, status: "accepted" },
+        ],
+        remoteJobIds: ["original-job"],
+        providerCheckpoint: { cursor: "original" },
+      };
+      await run.delivery.acknowledge(b.batchId, result, { version: 1 });
+      if (!rejected) {
+        const later = batch(run, ["later"], 3);
+        await run.delivery.prepare(later, {});
+        await run.delivery.acknowledge(later.batchId, outcomes(later), { version: 2 });
+      }
+      let active = run;
+      if (recovery) {
+        await release(db, run.scope);
+        active = await session({ taskId: "recovery" });
+      }
+      const snapshot = async () => ({
+        receipt: (
+          await admin.query("SELECT result,result_bytes FROM newjitsu.reverse_sync_batch WHERE batch_id=$1", [
+            b.batchId,
+          ])
+        ).rows[0],
+        control: (
+          await admin.query(
+            "SELECT store,journal_bytes,reserved_entries,reserved_bytes,membership_entries,membership_bytes FROM newjitsu.reverse_sync_control"
+          )
+        ).rows[0],
+        operations: (await active.core.recoveryBatch(b.batchId)).operations,
+      });
+      const before = await snapshot();
+      // Outcome ordering and object key ordering are not changes to a receipt.
+      const duplicate = {
+        providerCheckpoint: result.providerCheckpoint,
+        remoteJobIds: result.remoteJobIds,
+        outcomes: [...result.outcomes].reverse(),
+      };
+      await active.delivery.acknowledge(b.batchId, duplicate, { version: 1 });
+      await active.core.acknowledgeRecovered(b.batchId, duplicate, { version: 0 });
+      expect(await snapshot()).toEqual(before);
+      expect((await active.core.state()).store).toEqual({ version: rejected ? 1 : 2 });
+      for (const changed of [
+        { ...result, remoteJobIds: ["different-job"] },
+        { ...result, providerCheckpoint: { cursor: "different" } },
+        { outcomes: result.outcomes },
+        {
+          ...result,
+          outcomes: [
+            result.outcomes[0],
+            { ...result.outcomes[1], status: "rejected" as const, code: "different", safeReason: "Different reason" },
+          ],
+        },
+      ]) {
+        await expect(active.delivery.acknowledge(b.batchId, changed, { version: 0 })).rejects.toThrow(
+          /terminal batch receipt/
+        );
+        await expect(active.core.acknowledgeRecovered(b.batchId, changed, { version: 0 })).rejects.toThrow(
+          /terminal batch receipt/
+        );
+        expect(await snapshot()).toEqual(before);
+      }
+    }
+  );
+  it("permits staged receipt reconciliation and freezes its final result", async () => {
+    const run = await session();
+    await init(run);
+    const b = batch(run, ["a"]);
+    await run.delivery.prepare(b, {});
+    await run.delivery.acknowledge(b.batchId, { ...outcomes(b, "staged"), remoteJobIds: ["pending"] }, { version: 1 });
+    await release(db, run.scope);
+    const recovered = await session({ taskId: "recovery" });
+    const final = { ...outcomes(b), remoteJobIds: ["completed"], providerCheckpoint: { cursor: "final" } };
+    await recovered.core.acknowledgeRecovered(b.batchId, final, { version: 2 });
+    expect((await recovered.core.recoveryBatch(b.batchId)).result).toEqual(final);
+    expect(await count("newjitsu.reverse_sync_membership")).toBe(1);
+    await recovered.core.acknowledgeRecovered(b.batchId, final, { version: 1 });
+    expect((await recovered.core.state()).store).toEqual({ version: 2 });
+  });
   it("completes an empty run without creating delivery receipts", async () => {
     const run = await session();
     await init(run);

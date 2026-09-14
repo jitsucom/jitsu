@@ -15,6 +15,14 @@ import { statePurpose, stateStream, type SavedState } from "./ownership";
 import { effects, Snapshots } from "./snapshots";
 import { ensure, type Effect, type Project, type Scope } from "./types";
 
+// Outcome array order is not significant; compare every outcome and metadata field.
+function canonicalReceipt(result: BatchResult) {
+  return canonicalJson({
+    ...result,
+    outcomes: Object.fromEntries(result.outcomes.map(outcome => [outcome.operationId, outcome])),
+  });
+}
+
 export class Journal implements DeliveryJournal {
   readonly snapshots: Snapshots;
   constructor(
@@ -305,6 +313,21 @@ export class Journal implements DeliveryJournal {
       ensure(control.phase === "running", "Cannot acknowledge batch in this phase");
       const batch = await this.batch(client, batchId);
       const result = validateBatchResult(batch, input);
+      const previousResult = await client.query(
+        "SELECT result,result_bytes FROM reverse_sync_batch WHERE workspace_id=$1 AND sync_id=$2 AND run_id=$3 AND batch_id=$4",
+        [...this.key, batchId]
+      );
+      if (previousResult.rows[0].result) {
+        const saved = validateBatchResult(
+          batch,
+          this.open<BatchResult>(previousResult.rows[0].result, `result:${this.scope.logicalRunId}:${batchId}`)
+        );
+        if (saved.outcomes.every(outcome => outcome.status === "accepted" || outcome.status === "rejected")) {
+          ensure(canonicalReceipt(saved) === canonicalReceipt(result), "Cannot overwrite a terminal batch receipt");
+          // A duplicate is read-only: the run store may already belong to a later batch.
+          return;
+        }
+      }
       let acceptance: Date | undefined;
       for (const outcome of result.outcomes) {
         const {
@@ -338,10 +361,6 @@ export class Journal implements DeliveryJournal {
         result,
         `result:${this.scope.logicalRunId}:${batchId}`,
         batch.records.length * 8192 + 512 * 1024
-      );
-      const previousResult = await client.query(
-        "SELECT result_bytes FROM reverse_sync_batch WHERE workspace_id=$1 AND sync_id=$2 AND run_id=$3 AND batch_id=$4",
-        [...this.key, batchId]
       );
       const journalBytes =
         Number(control.journal_bytes) - Number(previousResult.rows[0].result_bytes) + encryptedResult.length;

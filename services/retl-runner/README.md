@@ -84,6 +84,9 @@ Prepared manifests are encrypted and durable before returning. Recovery uses
 an uncertain request from a changed warehouse query. Verify provider outcomes or
 safe replay before acknowledgement. There is no automatic replay or blanket
 "clear unknown" operation. Accepted/rejected receipts cannot be downgraded.
+Once a batch result is fully terminal, its complete receipt is immutable. Matching
+retries are read-only and never overwrite a newer run store; conflicting metadata
+is rejected. Staged results may still progress through verified reconciliation.
 
 `acknowledgeRecovered` and `acknowledgeRecoveredFinish` are explicit core-only
 reconciliation methods. Call them only after verifying provider outcomes; recovered
