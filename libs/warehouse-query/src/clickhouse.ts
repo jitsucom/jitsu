@@ -96,7 +96,7 @@ function endpoint(protocol: string, host: string): string {
   return url.toString();
 }
 
-class HostProbeTimeout extends Error {}
+class HostRequestTimeout extends Error {}
 
 function releaseOnAbort(result: { close(): void }, signal: AbortSignal): () => void {
   // The client detaches its abort listener once response headers arrive. Keep
@@ -114,7 +114,7 @@ function canFailOver(error: unknown): boolean {
   // Only transport failures, never database/HTTP errors, invalid rows, or TLS
   // validation failures. ClickHouse server error codes are numeric strings.
   return (
-    error instanceof HostProbeTimeout ||
+    error instanceof HostRequestTimeout ||
     [
       "ECONNREFUSED",
       "ECONNRESET",
@@ -137,6 +137,7 @@ export function createClickHouseReader(input: Record<string, any>): WarehouseRea
   type Client = ReturnType<typeof createClient>;
   const clients = new Map<string, Client>();
   const closed = new AbortController();
+  const attemptTimeout = urls.length > 1 ? Math.min(5_000, 30_000 / urls.length) : 30_000;
   function getClient(url: string): Client {
     let client = clients.get(url);
     if (client) return client;
@@ -197,10 +198,9 @@ export function createClickHouseReader(input: Record<string, any>): WarehouseRea
 
   async function columns(client: Client, query: string, signal: AbortSignal) {
     signal.throwIfAborted();
-    // Metadata probes must not spend the entire console request deadline on a
-    // dead first host. Actual data queries retain their existing 30s timeout.
+    // Leave time for another host within the console's request deadline.
     const timeout = new AbortController();
-    const timer = setTimeout(() => timeout.abort(), urls.length > 1 ? Math.min(5_000, 30_000 / urls.length) : 30_000);
+    const timer = setTimeout(() => timeout.abort(), attemptTimeout);
     const probeSignal = AbortSignal.any([signal, timeout.signal]);
     try {
       const result = await client.query({
@@ -220,12 +220,51 @@ export function createClickHouseReader(input: Record<string, any>): WarehouseRea
       }
     } catch (error) {
       signal.throwIfAborted();
-      if (timeout.signal.aborted) throw new HostProbeTimeout("ClickHouse metadata probe timed out");
+      if (timeout.signal.aborted) throw new HostRequestTimeout("ClickHouse metadata probe timed out");
       throw error;
     } finally {
       clearTimeout(timer);
     }
   }
+
+  async function* dataRows(
+    client: Client,
+    params: Parameters<Client["query"]>[0],
+    signal: AbortSignal,
+    buffered: boolean
+  ): AsyncGenerator<Record<string, unknown>> {
+    signal.throwIfAborted();
+    // The SDK reports a socket timeout as a generic Error, indistinguishable
+    // from some HTTP error bodies. Own the deadline instead of matching text.
+    const timeout = new AbortController();
+    const timer = setTimeout(() => timeout.abort(), attemptTimeout);
+    const requestSignal = AbortSignal.any([signal, timeout.signal]);
+    let release: (() => void) | undefined;
+    try {
+      const result = await client.query({ ...params, format: "JSONEachRow", abort_signal: requestSignal });
+      release = releaseOnAbort(result, requestSignal);
+      requestSignal.throwIfAborted();
+      for await (const chunk of result.stream<Record<string, unknown>>()) {
+        for (const item of chunk) {
+          requestSignal.throwIfAborted();
+          // Streaming has no total-duration limit: once delivery starts, only
+          // caller cancellation and the SDK's existing idle timeout apply.
+          // A buffered preview keeps its deadline until the entire body ends.
+          if (!buffered) clearTimeout(timer);
+          yield item.json();
+        }
+      }
+      requestSignal.throwIfAborted();
+    } catch (error) {
+      signal.throwIfAborted();
+      if (timeout.signal.aborted) throw new HostRequestTimeout("ClickHouse data request timed out");
+      throw error;
+    } finally {
+      clearTimeout(timer);
+      release?.();
+    }
+  }
+
   return {
     sql: clickhouseSql,
     columns(query, signal) {
@@ -236,27 +275,20 @@ export function createClickHouseReader(input: Record<string, any>): WarehouseRea
       const sql = clickhouseSql.validateQuery(query);
       return withFailoverResult(async (client, signal) => {
         const cols = await columns(client, sql, signal);
-        signal.throwIfAborted();
-        const result = await client.query({
-          query: `SELECT * FROM (${sql}\n) AS model LIMIT 101`,
-          format: "JSONEachRow",
-          abort_signal: signal,
-          clickhouse_settings: { max_result_bytes: "2000000", result_overflow_mode: "throw" },
-        });
-        const release = releaseOnAbort(result, signal);
-        try {
-          signal.throwIfAborted();
-          const rows: Record<string, unknown>[] = [];
-          for await (const chunk of result.stream<Record<string, unknown>>()) {
-            for (const item of chunk) {
-              rows.push(item.json());
-              boundedPreview(cols, rows);
-            }
-          }
-          return boundedPreview(cols, rows);
-        } finally {
-          release();
+        const rows: Record<string, unknown>[] = [];
+        for await (const row of dataRows(
+          client,
+          {
+            query: `SELECT * FROM (${sql}\n) AS model LIMIT 101`,
+            clickhouse_settings: { max_result_bytes: "2000000", result_overflow_mode: "throw" },
+          },
+          signal,
+          true
+        )) {
+          rows.push(row);
+          boundedPreview(cols, rows);
         }
+        return boundedPreview(cols, rows);
       }, signal);
     },
     async *stream(input, after, signal) {
@@ -265,25 +297,17 @@ export function createClickHouseReader(input: Record<string, any>): WarehouseRea
       yield* withFailover(async function* (client, signal) {
         const cols = await columns(client, sql, signal);
         const compiled = clickhouseSql.compileModel(model, cols, after);
-        signal?.throwIfAborted();
-        const result = await client.query({
-          query: compiled.query,
-          query_params: compiled.queryParams,
-          format: "JSONEachRow",
-          abort_signal: signal,
-          clickhouse_settings: { max_block_size: String(model.pageSize) },
-        });
-        const release = releaseOnAbort(result, signal);
-        try {
-          signal.throwIfAborted();
-          for await (const chunk of result.stream<Record<string, unknown>>()) {
-            for (const item of chunk) {
-              signal?.throwIfAborted();
-              yield decodeRecord(model, item.json());
-            }
-          }
-        } finally {
-          release();
+        for await (const row of dataRows(
+          client,
+          {
+            query: compiled.query,
+            query_params: compiled.queryParams,
+            clickhouse_settings: { max_block_size: String(model.pageSize) },
+          },
+          signal,
+          false
+        )) {
+          yield decodeRecord(model, row);
         }
       }, signal);
     },

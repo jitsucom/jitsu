@@ -56,10 +56,14 @@ least-privilege warehouse credentials remain necessary.
 ClickHouse readers validate all configured hosts and try each distinct endpoint
 in configuration order on recognized transport failures. Metadata and data reads are pinned
 to the same host per attempt; switching hosts reprobes metadata and recompiles the
-query. With multiple hosts, each metadata probe has a deadline of at most five
-seconds (30 seconds divided by host count for larger lists), leaving time for
-backup hosts within the console request deadline. Single-host metadata and data
-queries retain their 30-second limits; caller cancellation always takes priority.
+query. With multiple hosts, each metadata probe and each data request's startup
+has a deadline of at most five seconds (30 seconds divided by host count for
+larger lists), leaving time for backup hosts within the console request deadline.
+These reader-owned deadlines cover stalls both before and after response headers;
+they are 30 seconds for a single host. Buffered previews keep the data deadline
+until completion; streams clear it before delivering their first row, retaining
+the SDK's existing 30-second idle timeout afterwards. Caller cancellation always
+takes priority.
 
 Buffered previews may restart before returning their result. Streaming failover
 is allowed only before the first emitted row: once a row is delivered, errors

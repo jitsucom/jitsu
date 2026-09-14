@@ -133,7 +133,7 @@ describe("ClickHouse host failover with the real HTTP client", () => {
     expect(second.requests).toHaveLength(0);
   });
 
-  it.each(["syntax", "auth", "invalid row", "malformed metadata", "preview limit"])(
+  it.each(["syntax", "auth", "invalid row", "malformed metadata", "preview limit", "timeout error body"])(
     "does not retry %s failures",
     async failure => {
       const first = await host((sql, response) => {
@@ -147,6 +147,10 @@ describe("ClickHouse host failover with the real HTTP client", () => {
         }
         if (failure === "malformed metadata") return void response.end("not json");
         if (sql.includes("LIMIT 0")) return healthy(sql, response);
+        if (failure === "timeout error body") {
+          response.statusCode = 500;
+          return void response.end("Timeout error.");
+        }
         response.end(
           JSON.stringify(
             failure === "preview limit" ? { id: "x".repeat(2_000_001) } : { ...row, __jitsu_retl_key_count: "2" }
@@ -211,6 +215,107 @@ describe("ClickHouse host failover with the real HTTP client", () => {
     if (action === "cancel") abort.abort();
     else await input.close();
     await pending;
+    expect(second.requests).toHaveLength(0);
+  });
+
+  it.each([
+    ["preview", false],
+    ["preview", true],
+    ["stream", false],
+    ["stream", true],
+  ] as const)(
+    "%s fails over a stalled data request, including after headers (%s)",
+    async (operation, headers) => {
+      const first = await host((sql, response) => {
+        if (sql.includes("LIMIT 0")) return healthy(sql, response);
+        if (headers) response.flushHeaders();
+      });
+      const second = await host(healthy);
+      const input = reader([first.address, second.address]);
+      const signal = AbortSignal.timeout(8_000);
+      const result =
+        operation === "preview"
+          ? await input.preview(query, signal)
+          : await collect(input.stream(model, undefined, signal));
+      if (operation === "preview") expect(result).toMatchObject({ rows: [row] });
+      else expect(result).toHaveLength(1);
+      expect(first.requests).toHaveLength(2);
+      expect(second.requests).toHaveLength(2);
+      expect(second.requests[0].sql).toContain("LIMIT 0");
+    },
+    10_000
+  );
+
+  it("discards a timed-out partial preview", async () => {
+    const first = await host((sql, response) => {
+      if (sql.includes("LIMIT 0")) return healthy(sql, response);
+      response.write(JSON.stringify({ id: "old" }) + "\n");
+    });
+    const second = await host(healthy);
+    expect(await reader([first.address, second.address]).preview(query, AbortSignal.timeout(8_000))).toMatchObject({
+      rows: [row],
+    });
+    expect(second.requests).toHaveLength(2);
+  }, 10_000);
+
+  it("clears the startup deadline after delivering a stream row", async () => {
+    const first = await host((sql, response) => {
+      if (sql.includes("LIMIT 0")) return healthy(sql, response);
+      response.write(JSON.stringify(row) + "\n");
+      const timer = setTimeout(() => response.end(JSON.stringify({ ...row, id: "2" }) + "\n"), 5_500);
+      response.once("close", () => clearTimeout(timer));
+    });
+    const second = await host(healthy);
+    const result = await collect(
+      reader([first.address, second.address]).stream(model, undefined, AbortSignal.timeout(8_000))
+    );
+    expect(result).toHaveLength(2);
+    expect(second.requests).toHaveLength(0);
+  }, 10_000);
+
+  it.each(["preview", "stream"] as const)("%s accepts an empty data result without fallback", async operation => {
+    const first = await host((sql, response) => {
+      if (sql.includes("LIMIT 0")) return healthy(sql, response);
+      response.end();
+    });
+    const second = await host(healthy);
+    const input = reader([first.address, second.address]);
+    const rows = operation === "preview" ? (await input.preview(query)).rows : await collect(input.stream(model));
+    expect(rows).toEqual([]);
+    expect(second.requests).toHaveLength(0);
+  });
+
+  it.each([
+    ["preview", "cancel", false],
+    ["preview", "cancel", true],
+    ["preview", "close", false],
+    ["preview", "close", true],
+    ["stream", "cancel", false],
+    ["stream", "cancel", true],
+    ["stream", "close", false],
+    ["stream", "close", true],
+  ] as const)("%s: %s interrupts data startup, including after headers (%s)", async (operation, action, headers) => {
+    let started!: () => void;
+    const pending = new Promise<void>(resolve => {
+      started = resolve;
+    });
+    const first = await host((sql, response) => {
+      if (sql.includes("LIMIT 0")) return healthy(sql, response);
+      if (headers) response.flushHeaders();
+      started();
+    });
+    const second = await host(healthy);
+    const input = reader([first.address, second.address]);
+    const abort = new AbortController();
+    const result = expect(
+      operation === "preview"
+        ? input.preview(query, abort.signal)
+        : collect(input.stream(model, undefined, abort.signal))
+    ).rejects.toThrow(action === "cancel" ? "Caller cancelled" : "Reader is closed");
+    await pending;
+    if (action === "cancel") abort.abort(new Error("Caller cancelled"));
+    else await input.close();
+    await result;
     expect(second.requests).toHaveLength(0);
   });
 
