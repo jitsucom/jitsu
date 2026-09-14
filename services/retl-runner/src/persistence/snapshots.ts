@@ -29,24 +29,52 @@ export class Snapshots {
         "Cannot start a snapshot in this phase"
       );
       const old = await client.query(
-        "SELECT 1 FROM reverse_sync_generation WHERE workspace_id=$1 AND sync_id=$2 AND generation IS DISTINCT FROM $3 LIMIT 1",
-        [this.scope.workspaceId, this.scope.syncId, control.committed_generation]
+        "SELECT 1 FROM reverse_sync_generation WHERE workspace_id=$1 AND sync_id=$2 AND generation IS DISTINCT FROM $3 AND generation<>$4 LIMIT 1",
+        [this.scope.workspaceId, this.scope.syncId, control.committed_generation, this.scope.logicalRunId]
       );
       ensure(!old.rowCount, "Prune abandoned/superseded snapshot generations before starting another");
+      const current = await client.query(
+        "SELECT sealed FROM reverse_sync_generation WHERE workspace_id=$1 AND sync_id=$2 AND generation=$3",
+        this.key
+      );
+      if (current.rowCount) {
+        ensure(!current.rows[0].sealed, "Snapshot is sealed");
+        return;
+      }
       await client.query(
         "INSERT INTO reverse_sync_generation (workspace_id,sync_id,generation) VALUES ($1,$2,$3)",
         this.key
       );
     });
   }
-  /** Each source key appears once; distinct source keys can share a consistent identity. */
-  async append(rows: { key: string; identities: Identity[] }[]) {
+  /** Recovery can distinguish absent, partially extracted and sealed snapshots. */
+  async status(): Promise<{ sealed: boolean; lastPageSequence: number; sourceKeyCount: number } | undefined> {
+    return this.db.owned(this.scope, async (client, control) => {
+      ensure(control.mode === "mirror", "Snapshot status requires mirror mode");
+      const result = await client.query(
+        "SELECT sealed,last_page_sequence,key_count FROM reverse_sync_generation WHERE workspace_id=$1 AND sync_id=$2 AND generation=$3",
+        this.key
+      );
+      const row = result.rows[0];
+      return row
+        ? {
+            sealed: row.sealed,
+            lastPageSequence: Number(row.last_page_sequence),
+            sourceKeyCount: Number(row.key_count),
+          }
+        : undefined;
+    });
+  }
+  /** Sequential source pages start at 1. Only an exact retry of the latest page is a no-op. */
+  async append(rows: { key: string; identities: Identity[] }[], pageSequence: number) {
+    ensure(Number.isSafeInteger(pageSequence) && pageSequence > 0, "Invalid snapshot page sequence");
     ensure(rows.length > 0 && rows.length <= this.db.limits.batchRecords, "Snapshot batch exceeds its entry budget");
-    ensure(
-      Buffer.byteLength(canonicalJson(rows)) <= this.db.limits.batchBytes,
-      "Snapshot batch exceeds its byte budget"
-    );
-    const projected = rows.map(row => ({ key: row.key, effects: effects(row.identities) }));
+    const serialized = canonicalJson(rows);
+    ensure(Buffer.byteLength(serialized) <= this.db.limits.batchBytes, "Snapshot batch exceeds its byte budget");
+    // Own the input before awaiting the transaction so the receipt and inserted values cannot diverge.
+    const copied: typeof rows = JSON.parse(serialized);
+    const projected = copied.map(row => ({ key: row.key, effects: effects(row.identities) }));
+    const pageHash = contentHash(projected);
     await this.db.owned(this.scope, async (client, control) => {
       ensure(
         control.mode === "mirror" && ["new", "running"].includes(control.phase),
@@ -57,6 +85,12 @@ export class Snapshots {
         this.key
       );
       ensure(generation.rowCount && !generation.rows[0].sealed, "Snapshot is absent or sealed");
+      const lastPageSequence = Number(generation.rows[0].last_page_sequence);
+      if (pageSequence === lastPageSequence) {
+        ensure(generation.rows[0].last_page_hash === pageHash, "Snapshot page retry differs from the saved page");
+        return;
+      }
+      ensure(pageSequence === lastPageSequence + 1, "Snapshot page sequence must be contiguous");
       let entries = Number(generation.rows[0].entry_count);
       let bytes = Number(generation.rows[0].byte_count);
       for (const row of projected) {
@@ -96,8 +130,8 @@ export class Snapshots {
         "Snapshot storage budget exceeded"
       );
       await client.query(
-        "UPDATE reverse_sync_generation SET entry_count=$4,byte_count=$5,key_count=key_count+$6 WHERE workspace_id=$1 AND sync_id=$2 AND generation=$3",
-        [...this.key, entries, bytes, rows.length]
+        "UPDATE reverse_sync_generation SET entry_count=$4,byte_count=$5,key_count=key_count+$6,last_page_sequence=$7,last_page_hash=$8 WHERE workspace_id=$1 AND sync_id=$2 AND generation=$3",
+        [...this.key, entries, bytes, copied.length, pageSequence, pageHash]
       );
     });
   }

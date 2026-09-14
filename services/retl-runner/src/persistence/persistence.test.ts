@@ -855,10 +855,13 @@ describe("recovery and operational boundaries", () => {
       await init(run);
       await run.snapshots.start();
       await expect(
-        run.snapshots.append([
-          { key: contentHash(["a"]), identities: project("upsert", { id: "a" }) },
-          { key: contentHash(["b"]), identities: project("upsert", { id: "b" }) },
-        ])
+        run.snapshots.append(
+          [
+            { key: contentHash(["a"]), identities: project("upsert", { id: "a" }) },
+            { key: contentHash(["b"]), identities: project("upsert", { id: "b" }) },
+          ],
+          1
+        )
       ).rejects.toThrow(/budget/);
       expect(await count("newjitsu.reverse_sync_source_key")).toBe(0);
       await expect(run.delivery.prepare(batch(run, ["a", "b"]), {})).rejects.toThrow(/budget/);
@@ -931,9 +934,136 @@ describe("core snapshot storage", () => {
     return run;
   }
   const desired = (key: string, id: string) => ({ key: contentHash([key]), identities: project("upsert", { id }) });
+  it("serializes concurrent duplicate page retries and ignores object-key ordering", async () => {
+    const run = await mirror();
+    const row = desired("key1", "a");
+    const reordered = {
+      identities: row.identities.map(value => ({
+        remove: value.remove,
+        upsert: value.upsert,
+        identity: value.identity,
+      })),
+      key: row.key,
+    };
+    await Promise.all([run.snapshots.append([row], 1), run.snapshots.append([reordered], 1)]);
+    expect(await run.snapshots.status()).toEqual({ sealed: false, lastPageSequence: 1, sourceKeyCount: 1 });
+    expect(await count("newjitsu.reverse_sync_source_key")).toBe(1);
+    expect(await count("newjitsu.reverse_sync_desired")).toBe(1);
+    expect((await admin.query("SELECT entry_count FROM newjitsu.reverse_sync_generation")).rows[0].entry_count).toBe(
+      "1"
+    );
+  });
+  it("keeps abandoned generation and stale-owner guards on retryable snapshot APIs", async () => {
+    const first = await mirror();
+    await first.snapshots.append([desired("key1", "a")], 1);
+    await first.delivery.prepareAbort();
+    await first.delivery.acknowledgeAbort();
+    await release(db, first.scope);
+    const next = await session({ mode: "mirror", extraction: "full", taskId: "next", logicalRunId: "next" });
+    await init(next);
+    expect(await next.snapshots.status()).toBeUndefined();
+    await expect(next.snapshots.start()).rejects.toThrow(/Prune abandoned/);
+    await expect(first.snapshots.start()).rejects.toThrow(/ownership/);
+    await expect(first.snapshots.append([desired("key1", "a")], 1)).rejects.toThrow(/ownership/);
+    await expect(first.snapshots.status()).rejects.toThrow(/ownership/);
+    await prune(db, next.scope, new Date(Date.now() - 30 * 86400000));
+    await next.snapshots.start();
+    expect(await next.snapshots.status()).toEqual({ sealed: false, lastPageSequence: 0, sourceKeyCount: 0 });
+  });
+  it("rolls back a snapshot page and its receipt together, then permits retry after takeover", async () => {
+    const run = await mirror();
+    const rows = [desired("key1", "a")];
+    for (const sequence of [0, -1, 1.5, Number.MAX_SAFE_INTEGER + 1]) {
+      await expect(run.snapshots.append(rows, sequence)).rejects.toThrow(/sequence/);
+    }
+    await expect(run.snapshots.append([rows[0], rows[0]], 1)).rejects.toThrow();
+    await admin.query(
+      "ALTER TABLE newjitsu.reverse_sync_generation ADD CONSTRAINT injected_page_failure CHECK (key_count = 0) NOT VALID"
+    );
+    try {
+      await expect(run.snapshots.append(rows, 1)).rejects.toThrow();
+    } finally {
+      await admin.query("ALTER TABLE newjitsu.reverse_sync_generation DROP CONSTRAINT injected_page_failure");
+    }
+    expect(await run.snapshots.status()).toEqual({ sealed: false, lastPageSequence: 0, sourceKeyCount: 0 });
+    expect(await count("newjitsu.reverse_sync_desired")).toBe(0);
+    expect(await count("newjitsu.reverse_sync_source_key")).toBe(0);
+    expect(
+      (await admin.query("SELECT last_page_hash FROM newjitsu.reverse_sync_generation")).rows[0].last_page_hash
+    ).toBeNull();
+    await release(db, run.scope);
+    const recovered = await session({ mode: "mirror", extraction: "full", taskId: "recovery" });
+    await recovered.snapshots.start();
+    await recovered.snapshots.append(rows, 1);
+    expect(await recovered.snapshots.status()).toEqual({ sealed: false, lastPageSequence: 1, sourceKeyCount: 1 });
+  });
+  it.each([false, true])("retries snapshot creation after takeover (committed=%s)", async committed => {
+    const run = await session({ mode: "mirror", extraction: "full" });
+    await init(run);
+    if (committed) await run.snapshots.start();
+    await release(db, run.scope);
+    const recovered = await session({ mode: "mirror", extraction: "full", taskId: "recovery" });
+    await recovered.snapshots.start();
+    await recovered.snapshots.start();
+    expect(await count("newjitsu.reverse_sync_generation")).toBe(1);
+    await recovered.snapshots.append([desired("key1", "a")], 1);
+    await recovered.snapshots.start();
+    expect(await count("newjitsu.reverse_sync_source_key")).toBe(1);
+  });
+  it.each([false, true])("retries the last snapshot page without changing data (recovery=%s)", async recovery => {
+    const run = await mirror();
+    const rows = [desired("key1", "a"), desired("key2", "a")];
+    await run.snapshots.append(rows, 1);
+    let active = run;
+    let recoveredDb: Database | undefined;
+    try {
+      if (recovery) {
+        await release(db, run.scope);
+        recoveredDb = new Database(runtimeConfig, cipher);
+        active = await openPersistence(
+          recoveredDb,
+          { ...runInput, mode: "mirror", extraction: "full", taskId: "recovery" },
+          project
+        );
+      }
+      const snapshot = async () => ({
+        generation: (await admin.query("SELECT * FROM newjitsu.reverse_sync_generation")).rows,
+        keys: (await admin.query("SELECT * FROM newjitsu.reverse_sync_source_key ORDER BY key_hash")).rows,
+        desired: (await admin.query("SELECT * FROM newjitsu.reverse_sync_desired ORDER BY identity_hash")).rows,
+      });
+      const before = await snapshot();
+      await active.snapshots.append(rows, 1);
+      expect(await snapshot()).toEqual(before);
+      for (const changed of [
+        [desired("key1", "different"), rows[1]],
+        [rows[0]],
+        [rows[1], rows[0]],
+        [rows[0], { ...rows[1], identities: [{ ...rows[1].identities[0], remove: { id: "different" } }] }],
+      ]) {
+        await expect(active.snapshots.append(changed, 1)).rejects.toThrow(/Snapshot page retry differs/);
+        expect(await snapshot()).toEqual(before);
+      }
+      await expect(active.snapshots.append([desired("key3", "b")], 3)).rejects.toThrow(/sequence/);
+      // A duplicate source row in a NEW page must still fail, even with identical payload.
+      await expect(active.snapshots.append([desired("key3", "b"), rows[0]], 2)).rejects.toThrow();
+      expect(await snapshot()).toEqual(before);
+      await active.snapshots.append([desired("key3", "a")], 2);
+      await active.snapshots.append([desired("key3", "a")], 2);
+      await expect(active.snapshots.append(rows, 1)).rejects.toThrow(/sequence/);
+      expect(await active.snapshots.status()).toEqual({ sealed: false, lastPageSequence: 2, sourceKeyCount: 3 });
+      expect(await count("newjitsu.reverse_sync_desired")).toBe(1);
+      await active.snapshots.seal();
+      await active.snapshots.seal();
+      expect(await active.snapshots.status()).toEqual({ sealed: true, lastPageSequence: 2, sourceKeyCount: 3 });
+      await expect(active.snapshots.start()).rejects.toThrow(/sealed/);
+      await expect(active.snapshots.append([desired("key3", "a")], 2)).rejects.toThrow(/sealed/);
+    } finally {
+      await recoveredDb?.close();
+    }
+  });
   it("separately validates source keys and shared identities, with rollback on conflicting payloads", async () => {
     const run = await mirror();
-    await run.snapshots.append([desired("key1", "shared"), desired("key2", "shared")]);
+    await run.snapshots.append([desired("key1", "shared"), desired("key2", "shared")], 1);
     expect(await count("newjitsu.reverse_sync_desired")).toBe(1);
     expect(await count("newjitsu.reverse_sync_source_key")).toBe(2);
     const size = (await admin.query("SELECT sum(octet_length(value)) AS n FROM newjitsu.reverse_sync_desired")).rows[0]
@@ -942,14 +1072,17 @@ describe("core snapshot storage", () => {
       await admin.query("SELECT key_count,entry_count,byte_count FROM newjitsu.reverse_sync_generation")
     ).rows[0];
     expect(accounting).toEqual({ key_count: "2", entry_count: "2", byte_count: String(Number(size) + 2 * 64) });
-    await expect(run.snapshots.append([desired("key1", "different")])).rejects.toThrow();
+    await expect(run.snapshots.append([desired("key1", "different")], 2)).rejects.toThrow();
     await expect(
-      run.snapshots.append([
-        {
-          key: contentHash(["key3"]),
-          identities: [{ identity: "shared", upsert: { id: "conflict" }, remove: { id: "shared" } }],
-        },
-      ])
+      run.snapshots.append(
+        [
+          {
+            key: contentHash(["key3"]),
+            identities: [{ identity: "shared", upsert: { id: "conflict" }, remove: { id: "shared" } }],
+          },
+        ],
+        2
+      )
     ).rejects.toThrow(/Conflicting/);
     expect(await count("newjitsu.reverse_sync_source_key")).toBe(2);
     expect(
@@ -958,7 +1091,7 @@ describe("core snapshot storage", () => {
   });
   it("keeps a shared identity until its last source row disappears from a full snapshot", async () => {
     const first = await mirror();
-    await first.snapshots.append([desired("key1", "shared"), desired("key2", "shared")]);
+    await first.snapshots.append([desired("key1", "shared"), desired("key2", "shared")], 1);
     await first.snapshots.seal();
     const addition = batch(first, ["shared"], 1, "upsert", false);
     await first.delivery.prepare(addition, {});
@@ -969,7 +1102,7 @@ describe("core snapshot storage", () => {
     const second = await session({ mode: "mirror", extraction: "full", taskId: "second", logicalRunId: "second" });
     await init(second);
     await second.snapshots.start();
-    await second.snapshots.append([desired("key2", "shared")]);
+    await second.snapshots.append([desired("key2", "shared")], 1);
     await second.snapshots.seal();
     expect(await second.snapshots.page("additions")).toEqual([]);
     expect(await second.snapshots.page("removals")).toEqual([]);
@@ -993,7 +1126,7 @@ describe("core snapshot storage", () => {
   });
   it("requires sealed full source and accepted additions before any removal", async () => {
     const run = await mirror();
-    await run.snapshots.append([desired("key1", "a")]);
+    await run.snapshots.append([desired("key1", "a")], 1);
     await expect(run.snapshots.page("removals")).rejects.toThrow(/sealed/);
     await run.snapshots.seal();
     await expect(run.snapshots.page("removals")).rejects.toThrow(/accepted/);
@@ -1029,7 +1162,7 @@ describe("core snapshot storage", () => {
   });
   it("keeps shared desired identities and paginates additions by identity hash", async () => {
     const run = await mirror();
-    await run.snapshots.append([desired("key1", "a"), desired("key2", "a"), desired("key3", "b")]);
+    await run.snapshots.append([desired("key1", "a"), desired("key2", "a"), desired("key3", "b")], 1);
     await run.snapshots.seal();
     const page = await run.snapshots.page("additions", "", 1);
     const second = await run.snapshots.page("additions", page[0].identityHash, 1);

@@ -430,6 +430,10 @@ model reverse_sync_generation {
   entry_count  BigInt  @default(0)
   byte_count   BigInt  @default(0)
 
+  // Atomic receipt for the latest source page; no per-source identity association.
+  last_page_sequence BigInt  @default(0)
+  last_page_hash     String?
+
   @@id([workspace_id, sync_id, generation])
 }
 

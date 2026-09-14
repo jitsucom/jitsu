@@ -109,6 +109,19 @@ Abort acknowledges cleanup of unaccepted staging only and preserves accepted wor
 
 ## Snapshot and delivery guarantees
 
+`snapshots.start()` is idempotent for the current run's unsealed candidate, including
+after takeover. Other abandoned generations still require pruning. Core-only
+`snapshots.status()` returns absence or `{ sealed, lastPageSequence, sourceKeyCount }`.
+Append source pages serially with `snapshots.append(rows, pageSequence)`, starting at
+1. The generation stores only the latest page sequence and canonical content hash,
+atomically with its rows and counters. An identical retry of that page is read-only;
+changed/reordered content, older pages, sequence gaps and duplicate source keys in a
+new page fail closed. Object-key ordering does not change the hash. Sealed snapshots
+cannot be restarted or appended to; inspect status to resume planning instead.
+The caller must reproduce the same page after an ambiguous write and must not submit
+the next page until the previous one is acknowledged. These sequence numbers are not
+warehouse cursors: resuming extraction still requires a stable/replayable source.
+
 Desired generations store unique source keys and deduplicated provider-ready
 identities. Full-snapshot diffs need no stored source-to-identity associations:
 an identity remains desired while any source row produces it. Conflicting shared-identity payloads are rejected. Effective
