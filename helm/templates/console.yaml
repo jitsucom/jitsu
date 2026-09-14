@@ -37,9 +37,16 @@ spec:
         # completed before this pod is created.
         #
         # `.next` persists on the node-cache PVC between deploys, so this is
-        # incremental. The install job's source sync excludes dotfiles, so a
-        # stale `.next` from the host is never copied over the cached one; a
-        # pnpm-lock.yaml change wipes the workspace and forces a cold build.
+        # incremental. The dotfile exclusion below means a stale `.next` from the
+        # host is never copied over the cached one; a pnpm-lock.yaml change makes
+        # the install job wipe the workspace and forces a cold build.
+        #
+        # The source is re-synced here, not just by the install job: that job is
+        # a helm hook, so it only runs on deploy/upgrade. `dev-deploy.sh restart
+        # console` is a plain rollout restart, and without this sync it would
+        # rebuild whatever source was last copied — silently shipping stale code.
+        # Same reason bulker's init container copies from /project before it
+        # compiles.
         - name: build
           image: node:24-bookworm
           workingDir: /cache/workspace/webapps/console
@@ -47,6 +54,11 @@ spec:
             - sh
             - -c
             - |
+              echo "Syncing console source from /project..."
+              cd /project && tar \
+                --exclude='node_modules' --exclude='.[^/]*' --exclude='*.log' \
+                -cf - webapps libs types | tar -xf - -C /cache/workspace
+              cd /cache/workspace/webapps/console
               echo "Building console (next build)..."
               npx next build
               echo "Build complete"
@@ -64,6 +76,9 @@ spec:
                     "SYNCCTL_PORT" ""
                     "INGMGR_PORT" "")) | nindent 12 }}
           volumeMounts:
+            - name: project
+              mountPath: /project
+              readOnly: true
             - name: node-cache
               mountPath: /cache
       containers:
@@ -149,6 +164,10 @@ spec:
             timeoutSeconds: 10
             failureThreshold: 30
       volumes:
+        - name: project
+          hostPath:
+            path: {{ include "jitsu-dev.projectRoot" . }}
+            type: Directory
         - name: node-cache
           persistentVolumeClaim:
             claimName: node-cache
