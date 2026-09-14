@@ -7,7 +7,7 @@ import { fileURLToPath } from "node:url";
 import { randomBytes } from "node:crypto";
 import { contentHash, createBufferedSyncStore } from "@jitsu/destination-functions/src/reverse-etl/identity";
 import { runReverseEtl } from "@jitsu/destination-functions/src/reverse-etl/run";
-import type { BatchResult, PreparedBatch } from "@jitsu/protocols/reverse-etl";
+import type { BatchResult, FinishResult, PreparedBatch } from "@jitsu/protocols/reverse-etl";
 import { z } from "zod";
 import { effects } from "./snapshots";
 import { encryptedByteBudget } from "./crypto";
@@ -543,6 +543,69 @@ describe("PostgreSQL persistence", () => {
     await recovered.delivery.commitCheckpoint({ sourceSequence: 1, cursor: b.cursor }, {}, true);
     expect(await count("newjitsu.reverse_sync_membership")).toBe(1);
   });
+  it.each([false, true].flatMap(recovery => [false, true].map(staged => ({ recovery, staged }))))(
+    "preserves pending finish receipts until accepted (recovery=$recovery, staged=$staged)",
+    async ({ recovery, staged }) => {
+      const run = await session();
+      await init(run);
+      const b = staged ? batch(run, ["a"]) : undefined;
+      if (b) {
+        await run.delivery.prepare(b, {});
+        await run.delivery.acknowledge(b.batchId, outcomes(b, "staged"), {});
+      }
+      const point = { sourceSequence: staged ? 1 : 0, ...(b ? { cursor: b.cursor } : {}) };
+      await run.delivery.prepareFinish(point.sourceSequence, {});
+      const result: FinishResult = {
+        delivery: "pending",
+        remoteJobIds: ["original-job"],
+        providerCheckpoint: { cursor: "original", version: 1 },
+      };
+      await run.delivery.acknowledgeFinish(result, { version: 1 });
+      let active = run;
+      if (recovery) {
+        await release(db, run.scope);
+        active = await session({ taskId: "recovery" });
+      }
+      const snapshot = async () =>
+        (
+          await admin.query(
+            "SELECT phase,finish_result,store,journal_bytes,reserved_entries,reserved_bytes FROM newjitsu.reverse_sync_control"
+          )
+        ).rows[0];
+      const before = await snapshot();
+      for (const changed of [
+        { ...result, remoteJobIds: ["different-job"] },
+        { ...result, providerCheckpoint: { cursor: "different" } },
+        { delivery: "pending" as const, remoteJobIds: result.remoteJobIds },
+      ]) {
+        await expect(active.delivery.acknowledgeFinish(changed, { version: 0 })).rejects.toThrow(
+          /pending finish receipt/
+        );
+        await expect(active.core.acknowledgeRecoveredFinish(changed, { version: 0 })).rejects.toThrow(
+          /pending finish receipt/
+        );
+        expect(await snapshot()).toEqual(before);
+      }
+      const duplicate = { ...result, providerCheckpoint: { version: 1, cursor: "original" } };
+      await active.delivery.acknowledgeFinish(duplicate, { version: 0 });
+      await active.core.acknowledgeRecoveredFinish(duplicate, { version: 2 });
+      expect(await snapshot()).toEqual(before);
+      expect((await active.core.recoveryStatus()).finish).toEqual(result);
+      expect((await active.core.state()).store).toEqual({ version: 1 });
+      expect(await count("newjitsu.reverse_sync_membership")).toBe(0);
+      if (recovery) {
+        await expect(active.delivery.acknowledgeFinish({ delivery: "accepted" }, {})).rejects.toThrow(
+          /explicit reconciliation/
+        );
+        await active.core.acknowledgeRecoveredFinish({ delivery: "accepted" }, {});
+      } else {
+        await active.delivery.acknowledgeFinish({ delivery: "accepted" }, {});
+      }
+      await active.delivery.commitCheckpoint(point, {}, true);
+      expect(await count("newjitsu.reverse_sync_membership")).toBe(staged ? 1 : 0);
+      expect(await count("newjitsu.source_state")).toBe(1);
+    }
+  );
   it("rejects gaps, invented cursors and terminal receipt downgrades", async () => {
     const run = await session();
     await init(run);

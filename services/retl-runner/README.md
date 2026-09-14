@@ -93,7 +93,10 @@ reconciliation methods. Call them only after verifying provider outcomes; recove
 acceptance cannot be acknowledged through the writer facade. No billing period or
 provider acceptance timestamp is required. Receipt `accepted_at` records the
 database-clock time when Jitsu acknowledged the outcome, not remote delivery time.
-Pending finish retains remote job IDs. Accepted finish resolves staged operations
+Pending finish receipts are immutable until accepted, preserving the original remote
+job IDs and provider checkpoint. Matching retries are read-only, including their store
+snapshot; conflicting pending receipts are rejected even through core recovery.
+Accepted finish resolves staged operations
 in bounded transactions; a crash leaves `finish_resolving`, whose saved result and
 acknowledgement timestamp allow local resolution to resume without submitting
 provider finish again.

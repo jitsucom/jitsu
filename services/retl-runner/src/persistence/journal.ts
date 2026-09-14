@@ -498,6 +498,12 @@ export class Journal implements DeliveryJournal {
         ensure(result.delivery === "accepted", "Accepted finish cannot become pending");
         return;
       }
+      if (control.phase === "finish_pending" && result.delivery === "pending") {
+        const saved = this.open<{ result: FinishResult }>(control.finish_result, "finish");
+        ensure(canonicalJson(saved.result) === canonicalJson(result), "Cannot overwrite a pending finish receipt");
+        // Keep the original jobs recoverable; duplicate receipts must not rewind the store either.
+        return;
+      }
       // Finish itself is a remote operation even for empty/already-accepted batches.
       ensure(
         !this.recovery || reconciled || result.delivery !== "accepted",
