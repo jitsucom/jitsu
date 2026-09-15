@@ -329,6 +329,147 @@ model source_catalog {
   @@id([package, version, key])
 }
 
+// Reverse ETL tables share the config database schema and its update workflow.
+// The Node runner uses pg for fenced transactions; these remain the DDL source of truth.
+enum reverse_sync_mode {
+  upsert
+  mirror
+}
+
+enum reverse_sync_extraction {
+  cursor
+  full
+}
+
+enum reverse_sync_action {
+  upsert
+  remove
+}
+
+model reverse_sync_control {
+  workspace_id         String
+  sync_id              String                  @unique
+  run_id               String
+  task_id              String
+  revision             String
+  target_hash          String
+  epoch                BigInt                  @default(1)
+  lease_until          DateTime                @db.Timestamptz(6)
+  phase                String                  @default("new")
+  mode                 reverse_sync_mode
+  extraction           reverse_sync_extraction
+  base_sequence        BigInt                  @default(0)
+  next_sequence        BigInt                  @default(0)
+  checkpoint_sequence  BigInt                  @default(0)
+  finish_sequence      BigInt?
+  store                Bytes?
+  provider_state       Bytes?
+  finish_result        Bytes?
+  committed_generation String?
+  membership_entries   BigInt                  @default(0)
+  membership_bytes     BigInt                  @default(0)
+  journal_bytes        BigInt                  @default(0)
+  reserved_entries     BigInt                  @default(0)
+  reserved_bytes       BigInt                  @default(0)
+
+  @@id([workspace_id, sync_id])
+}
+
+model reverse_sync_target_owner {
+  target_hash  String @id
+  workspace_id String
+  sync_id      String
+
+  @@unique([workspace_id, sync_id])
+}
+
+model reverse_sync_batch {
+  workspace_id  String
+  sync_id       String
+  run_id        String
+  batch_id      String
+  manifest      Bytes
+  manifest_hash String
+  result        Bytes?
+  result_bytes  BigInt
+  status        String                   @default("prepared")
+  created_at    DateTime                 @default(dbgenerated("clock_timestamp()")) @db.Timestamptz(6)
+  operations    reverse_sync_operation[]
+
+  @@id([workspace_id, sync_id, run_id, batch_id])
+  @@index([workspace_id, sync_id, created_at, batch_id], map: "reverse_sync_batch_retention")
+}
+
+model reverse_sync_operation {
+  workspace_id     String
+  sync_id          String
+  run_id           String
+  operation_id     String
+  batch_id         String
+  sequence         BigInt
+  action           reverse_sync_action
+  status           String              @default("prepared")
+  effects          Bytes
+  // Core-projected hashes support source-order membership updates without decrypting the run journal.
+  identity_hashes  String[]
+  reserved_entries BigInt
+  reserved_bytes   BigInt
+  // Local acknowledgement time, not a provider delivery timestamp or billing attribution.
+  accepted_at      DateTime?           @db.Timestamptz(6)
+  batch            reverse_sync_batch  @relation(fields: [workspace_id, sync_id, run_id, batch_id], references: [workspace_id, sync_id, run_id, batch_id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@id([workspace_id, sync_id, run_id, operation_id])
+  @@unique([workspace_id, sync_id, run_id, sequence])
+  @@index([workspace_id, sync_id, run_id, status, sequence], map: "reverse_sync_operation_pending")
+  @@index([identity_hashes], type: Gin, map: "reverse_sync_operation_identities")
+}
+
+model reverse_sync_generation {
+  workspace_id String
+  sync_id      String
+  generation   String
+  sealed       Boolean @default(false)
+  key_count    BigInt  @default(0)
+  entry_count  BigInt  @default(0)
+  byte_count   BigInt  @default(0)
+
+  // Atomic receipt for the latest source page; no per-source identity association.
+  last_page_sequence BigInt  @default(0)
+  last_page_hash     String?
+
+  @@id([workspace_id, sync_id, generation])
+}
+
+model reverse_sync_source_key {
+  workspace_id String
+  sync_id      String
+  generation   String
+  key_hash     String
+
+  @@id([workspace_id, sync_id, generation, key_hash])
+}
+
+model reverse_sync_desired {
+  workspace_id  String
+  sync_id       String
+  generation    String
+  identity_hash String
+  payload_hash  String
+  value         Bytes
+
+  @@id([workspace_id, sync_id, generation, identity_hash])
+}
+
+model reverse_sync_membership {
+  workspace_id  String
+  sync_id       String
+  identity_hash String
+  payload_hash  String
+  value         Bytes
+
+  @@id([workspace_id, sync_id, identity_hash])
+}
+
 model source_state {
   sync_id   String
   stream    String
