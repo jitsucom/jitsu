@@ -212,3 +212,29 @@ Callers wrap it so the field is omitted entirely when empty:
 {{- $ctx.Values.image.pullPolicy -}}
 {{- end -}}
 {{- end }}
+
+{{/*
+Image for the functions-server pods.
+
+Deliberately NOT part of `images:`. Helm does not create these pods — the
+operator does, at runtime, one deployment per workspace
+(bulker/operator/operator.go:1681), reading the image from its own
+FUNCTIONS_SERVER_IMAGE config (bulker/operator/config.go:40). So it is an env
+var on the operator, not a container image in this chart, and putting it in
+`images:` would imply a pod template that does not exist.
+
+It still has to follow the chart's registry and tag in prod: without this, a
+prod install running `latest` everywhere would silently launch function servers
+from the `beta` channel, because that is what the dev default pins. Dev keeps
+`beta` unchanged.
+
+`env.operator.FUNCTIONS_SERVER_IMAGE` overrides this, as it does any template
+default — see the precedence rule on jitsu.env.
+*/}}
+{{- define "jitsu.functionsServerImage" -}}
+{{- if eq (include "jitsu.mode" .) "prod" -}}
+{{- printf "%s/functions-server:%s" .Values.image.registry .Values.image.tag -}}
+{{- else -}}
+{{- "jitsucom/functions-server:beta" -}}
+{{- end -}}
+{{- end }}
