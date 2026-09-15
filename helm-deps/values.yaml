@@ -1,4 +1,17 @@
 # Jitsu Dev Dependencies Helm Chart Values
+
+# How the datastores are exposed.
+#
+# ClusterIP by default, deliberately. These are single-node instances carrying
+# the dev credentials below, and `type: LoadBalancer` on a cloud provider gives
+# each one a public IP — Postgres 5432, Kafka 9092, ClickHouse 8123/9000 and
+# MongoDB 27017 reachable from the internet with those credentials.
+#
+# dev-deploy.sh passes LoadBalancer explicitly, which is what `minikube tunnel`
+# publishes. The default is the safe direction: getting it wrong this way breaks
+# a tunnel and is obvious; getting it wrong the other way is silent.
+service:
+  type: ClusterIP
 #
 # Single-node in-cluster dependencies for the Jitsu dev chart (../helm).
 # dev-deploy.sh deploys this chart first with --wait, so the main services

@@ -1,3 +1,4 @@
+{{- include "jitsu.checkProdSecrets" . }}
 {{- if gt (int .Values.scaling.console.replicas) 0 }}
 apiVersion: apps/v1
 kind: Deployment
@@ -22,7 +23,11 @@ spec:
     spec:
       containers:
         - name: console
-          image: node:24-bookworm
+          image: {{ include "jitsu.image" (dict "ctx" . "service" "console" "dev" "node:24-bookworm" "prod" "console") }}
+          {{- with (include "jitsu.imagePullPolicy" (dict "ctx" . "service" "console")) }}
+          imagePullPolicy: {{ . }}
+          {{- end }}
+{{- if include "jitsu.isDev" . }}
           workingDir: /cache/workspace/webapps/console
           command:
             - sh
@@ -64,6 +69,7 @@ spec:
                 sleep 5
               done
               exec npx next dev -H 0.0.0.0 -p 3000
+{{- end }}
           ports:
             - name: http
               containerPort: 3000
@@ -86,17 +92,21 @@ spec:
             # webapps/console/scripts/maintenance-mode.sh.
             {{- include "jitsu.env" (dict "ctx" . "service" "console"
                   "extra" (dict
+                    "NEXTAUTH_URL" (include "jitsu.consolePublicUrl" .)
+                    "JITSU_PUBLIC_URL" (include "jitsu.consolePublicUrl" .)
                     "BULKER_PORT" ""
                     "ROTOR_PORT" ""
                     "SYNCCTL_PORT" ""
                     "INGMGR_PORT" ""
                     "MAINTENANCE_CONFIG_FILE" "/etc/jitsu/maintenance/maintenance.json")) | nindent 12 }}
           volumeMounts:
+{{- if include "jitsu.isDev" . }}
             - name: project
               mountPath: /project
               readOnly: true
             - name: node-cache
               mountPath: /cache
+{{- end }}
             - name: maintenance
               mountPath: /etc/jitsu/maintenance
               readOnly: true
@@ -123,6 +133,7 @@ spec:
             timeoutSeconds: 10
             failureThreshold: 30
       volumes:
+{{- if include "jitsu.isDev" . }}
         - name: project
           hostPath:
             path: {{ include "jitsu.projectRoot" . }}
@@ -130,6 +141,7 @@ spec:
         - name: node-cache
           persistentVolumeClaim:
             claimName: node-cache
+{{- end }}
         # `optional: true` so the pod boots cleanly when no maintenance window
         # is configured (the volume mounts as an empty dir; missing config
         # file → load() returns "no maintenance"). Create the CM via
@@ -149,7 +161,7 @@ metadata:
     {{- include "jitsu.labels" . | nindent 4 }}
     app.kubernetes.io/name: console
 spec:
-  type: LoadBalancer
+  type: {{ include "jitsu.serviceType" (dict "ctx" . "service" "console" "dev" "LoadBalancer") }}
   ports:
     - port: 3000
       targetPort: http

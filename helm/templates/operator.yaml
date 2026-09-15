@@ -19,6 +19,7 @@ spec:
         app.kubernetes.io/instance: {{ .Release.Name }}
     spec:
       serviceAccountName: operator
+{{- if include "jitsu.isDev" . }}
       initContainers:
         - name: build
           image: golang:1.26-bookworm
@@ -60,10 +61,16 @@ spec:
             limits:
               cpu: "3"
               memory: 3Gi
+{{- end }}
       containers:
         - name: operator
-          image: debian:bookworm-slim
+          image: {{ include "jitsu.image" (dict "ctx" . "service" "operator" "dev" "debian:bookworm-slim" "prod" "operator") }}
+          {{- with (include "jitsu.imagePullPolicy" (dict "ctx" . "service" "operator")) }}
+          imagePullPolicy: {{ . }}
+          {{- end }}
+{{- if include "jitsu.isDev" . }}
           command: ["/build/operator"]
+{{- end }}
           ports:
             - name: http
               containerPort: 3052
@@ -82,11 +89,14 @@ spec:
                 optional: true
           env:
             {{- include "jitsu.env" (dict "ctx" . "service" "operator"
-                  "extra" (dict "HTTP_PORT" "3052")) | nindent 12 }}
+                  "extra" (dict "HTTP_PORT" "3052"
+                    "FUNCTIONS_SERVER_IMAGE" (include "jitsu.functionsServerImage" .))) | nindent 12 }}
+{{- if include "jitsu.isDev" . }}
           volumeMounts:
             - name: build
               mountPath: /build
               readOnly: true
+{{- end }}
           livenessProbe:
             httpGet:
               path: /health
@@ -99,6 +109,7 @@ spec:
               port: http
             initialDelaySeconds: 5
             periodSeconds: 10
+{{- if include "jitsu.isDev" . }}
       volumes:
         - name: project
           hostPath:
@@ -111,6 +122,7 @@ spec:
         - name: go-cache
           persistentVolumeClaim:
             claimName: go-cache
+{{- end }}
 ---
 apiVersion: v1
 kind: Service
@@ -120,7 +132,7 @@ metadata:
     {{- include "jitsu.labels" . | nindent 4 }}
     app.kubernetes.io/name: operator
 spec:
-  type: ClusterIP
+  type: {{ include "jitsu.serviceType" (dict "ctx" . "service" "operator" "dev" "ClusterIP") }}
   ports:
     - port: 3052
       targetPort: http

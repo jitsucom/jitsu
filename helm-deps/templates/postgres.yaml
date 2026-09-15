@@ -70,7 +70,7 @@ metadata:
 spec:
   # LoadBalancer so host-side tools (psql, IDE) can reach the database on
   # localhost:5432 through `dev-deploy.sh tunnel`
-  type: LoadBalancer
+  type: {{ .Values.service.type | default "ClusterIP" }}
   ports:
     - port: 5432
       targetPort: postgres

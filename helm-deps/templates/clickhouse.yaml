@@ -75,7 +75,7 @@ metadata:
 spec:
   # LoadBalancer so host-side tools can reach ClickHouse on localhost through
   # `dev-deploy.sh tunnel` (8123 HTTP, 9000 native)
-  type: LoadBalancer
+  type: {{ .Values.service.type | default "ClusterIP" }}
   ports:
     - port: 8123
       targetPort: http

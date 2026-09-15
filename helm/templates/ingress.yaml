@@ -1,0 +1,62 @@
+{{/*
+External entry point for a prod install.
+
+Scope is console + ingest, which is what the ticket asks for and what
+production does: console on its own hostname, ingest on the event-collection
+hostname, while bulker and rotor stay internal (in production bulker is
+ClusterIP and rotor appears in no gateway config).
+
+Disabled by default. A self-hoster opts in by setting ingress.enabled and at
+least one host; with none set the template renders nothing rather than emitting
+an Ingress with no rules, which would be silently useless.
+
+Not created in dev: minikube tunnel already publishes the LoadBalancer services,
+and an Ingress there would need an addon that dev-deploy.sh does not enable.
+*/}}
+{{- if and (include "jitsu.isDev" . | not) .Values.ingress.enabled }}
+{{- $hosts := .Values.ingress.hosts | default dict }}
+{{- $rules := list }}
+{{- if $hosts.console }}{{ $rules = append $rules (dict "host" $hosts.console "svc" "console" "port" 3000) }}{{ end }}
+{{- if $hosts.ingest }}{{ $rules = append $rules (dict "host" $hosts.ingest "svc" "ingest" "port" 3049) }}{{ end }}
+{{- if not $rules }}
+{{- fail "ingress.enabled is set but no hosts given — set ingress.hosts.console and/or ingress.hosts.ingest" }}
+{{- end }}
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: jitsu
+  labels:
+    {{- include "jitsu.labels" . | nindent 4 }}
+    app.kubernetes.io/name: ingress
+  {{- with .Values.ingress.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  {{- with .Values.ingress.className }}
+  ingressClassName: {{ . }}
+  {{- end }}
+  {{- if .Values.ingress.tls.enabled }}
+  tls:
+    - hosts:
+        {{- range $rules }}
+        - {{ .host | quote }}
+        {{- end }}
+      {{- with $.Values.ingress.tls.secretName }}
+      secretName: {{ . }}
+      {{- end }}
+  {{- end }}
+  rules:
+    {{- range $rules }}
+    - host: {{ .host | quote }}
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ .svc }}
+                port:
+                  number: {{ .port }}
+    {{- end }}
+{{- end }}

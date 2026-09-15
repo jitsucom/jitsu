@@ -1,9 +1,58 @@
-# Jitsu Dev Helm Chart Values
-# This chart deploys services using local binaries mounted via hostPath
+# Jitsu Helm Chart Values
+
+# Deployment mode.
+#
+#   dev  — services are built from source inside init containers against a
+#          hostPath-mounted checkout, and run from generic base images
+#          (golang / node / debian). Requires projectRoot. This is what the
+#          chart has always done and remains the default.
+#   prod — services run published jitsucom/* images; no source build, no
+#          hostPath, projectRoot unused.
+#
+# `prod` is not complete yet (JITSU-48): this release adds only the image
+# resolution below. Until per-service templating lands, setting mode=prod
+# changes which image is pulled but not the init containers or volumes, so it
+# will not produce a working deployment. Leave it on dev.
+mode: dev
+
+# Container images.
+#
+# Defaults apply in prod mode; in dev mode the base images are used instead
+# and these are ignored unless a per-service `repository` is set explicitly.
+image:
+  # Registry / org that publishes the service images.
+  registry: jitsucom
+  # Tag used for every service without its own. The release workflow tags the
+  # stable channel as both `latest` and `stable`; other channels are tagged
+  # with the channel name.
+  tag: latest
+  pullPolicy: IfNotPresent
+
+# Per-service image overrides. Empty by default — a service falls back to the
+# mode default. Setting `repository` pins that service in BOTH modes, which is
+# how a single service is run from an image while the rest build from source.
+#
+#   images:
+#     rotor:
+#       repository: jitsucom/rotor
+#       tag: my-branch.abc1234
+#       pullPolicy: Always
+# NOTE: `rotor` and `profiles` run the SAME image (profiles is rotor with
+# ROTOR_MODE=profiles) but are separate keys here. Pinning one and not the other
+# gives you a split-version deployment — set both, or neither.
+images:
+  ingest: {}
+  bulker: {}
+  rotor: {}
+  profiles: {}
+  syncctl: {}
+  operator: {}
+  console: {}
 
 # Path to the project root on the host machine, mounted into containers.
-# Required — no default. dev-deploy.sh sets it automatically; for direct
-# helm invocations pass --set projectRoot=<absolute path to your checkout>.
+# Required in dev mode — no default. dev-deploy.sh sets it automatically; for
+# direct helm invocations pass --set projectRoot=<absolute path to your
+# checkout>. Unused in prod mode.
 projectRoot: ""
 
 # Environment variables
@@ -18,14 +67,21 @@ env:
   rotor: {}
   profiles: {}
   syncctl: {}
-  operator:
-    FUNCTIONS_SERVER_IMAGE: jitsucom/functions-server:beta
+  # FUNCTIONS_SERVER_IMAGE is a template default (jitsu.functionsServerImage):
+  # beta in dev, image.registry/image.tag in prod. Set it here to override.
+  operator: {}
   console:
-    NEXTAUTH_URL: "http://localhost:3000"
     ENABLE_CREDENTIALS_LOGIN: true
     SEED_USER_EMAIL: admin@example.com
     SEED_USER_PASSWORD: changeme
-    JITSU_PUBLIC_URL: "http://localhost:3000"
+    # NEXTAUTH_URL and JITSU_PUBLIC_URL are template defaults
+    # (jitsu.consolePublicUrl): http://localhost:3000 in dev, and the Ingress
+    # host in prod when one is configured.
+    #
+    # Set them here when the chart cannot know the public URL: a prod install
+    # with no Ingress (exposed by an external load balancer or service mesh)
+    # falls back to http://localhost:3000, which will break sign-in redirects
+    # and the tracking snippet.
     JWT_SECRET: "dev-jwt-secret-change-in-production"
     SYNCS_ENABLED: true
 
@@ -36,6 +92,47 @@ env:
 # external instance, disable it in helm-deps/values.yaml and set the matching
 # env.common.KAFKA_BOOTSTRAP_SERVERS / DATABASE_URL / CLICKHOUSE_URL /
 # MONGODB_URL here (explicit env wins over envFrom).
+
+# Inter-service authentication (prod mode; in dev, dev-deploy.sh manages the
+# jitsu-secrets Secret). Leave empty to generate a token on first install and
+# reuse it on every upgrade — the chart reads the live value back rather than
+# rotating it, because rotating mid-upgrade breaks every service until the last
+# pod restarts. Set it to manage the value yourself.
+auth:
+  token: ""
+
+# Service type overrides. Empty by default: dev keeps the LoadBalancers that
+# `minikube tunnel` publishes, prod forces ClusterIP for every service so no
+# service gets its own billed cloud load balancer. Set a type here to override
+# both.
+#
+#   service:
+#     console:
+#       type: LoadBalancer
+service: {}
+
+# External entry point. Prod only — in dev, `minikube tunnel` already publishes
+# the LoadBalancer services.
+#
+# Scoped to console + ingest deliberately: bulker and rotor are internal in
+# production and are not exposed here. Enabling without a host fails the render
+# rather than producing an Ingress with no rules.
+ingress:
+  enabled: false
+  # Ingress controller class, e.g. nginx, traefik, or gce on GKE.
+  className: ""
+  # Controller- and issuer-specific annotations, e.g. cert-manager.io/cluster-issuer.
+  annotations: {}
+  hosts:
+    # Console UI, e.g. jitsu.example.com
+    console: ""
+    # Event collection endpoint, e.g. events.example.com
+    ingest: ""
+  tls:
+    enabled: false
+    # Existing TLS Secret. Leave empty when the controller or cert-manager
+    # provisions the certificate from the host list.
+    secretName: ""
 
 # Service scaling (set replicas to 0 to disable)
 scaling:

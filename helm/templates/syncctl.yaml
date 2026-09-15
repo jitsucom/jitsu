@@ -19,6 +19,7 @@ spec:
         app.kubernetes.io/instance: {{ .Release.Name }}
     spec:
       serviceAccountName: syncctl
+{{- if include "jitsu.isDev" . }}
       initContainers:
         - name: build
           image: golang:1.26-bookworm
@@ -60,10 +61,16 @@ spec:
             limits:
               cpu: "3"
               memory: 3Gi
+{{- end }}
       containers:
         - name: syncctl
-          image: debian:bookworm-slim
+          image: {{ include "jitsu.image" (dict "ctx" . "service" "syncctl" "dev" "debian:bookworm-slim" "prod" "syncctl") }}
+          {{- with (include "jitsu.imagePullPolicy" (dict "ctx" . "service" "syncctl")) }}
+          imagePullPolicy: {{ . }}
+          {{- end }}
+{{- if include "jitsu.isDev" . }}
           command: ["/build/syncctl"]
+{{- end }}
           ports:
             - name: http
               containerPort: 3043
@@ -89,15 +96,19 @@ spec:
             # least-privilege SA bound only to coordination.k8s.io/leases.
             # Separating it from syncctl's own SA keeps the pod-side blast
             # radius tiny (no pod create/delete, no Secret read, no log access).
+            {{- $extra := dict "HTTP_PORT" "3043" "PODS_SERVICE_ACCOUNT" "sync-pod" }}
+            {{- with (include "jitsu.sidecarImage" .) }}
+            {{- $_ := set $extra "SIDECAR_IMAGE" . }}
+            {{- end }}
             {{- include "jitsu.env" (dict "ctx" . "service" "syncctl"
-                  "extra" (dict
-                    "HTTP_PORT" "3043"
-                    "PODS_SERVICE_ACCOUNT" "sync-pod")
+                  "extra" $extra
                   "exclude" (list "KUBERNETES_NAMESPACE")) | nindent 12 }}
+{{- if include "jitsu.isDev" . }}
           volumeMounts:
             - name: build
               mountPath: /build
               readOnly: true
+{{- end }}
           livenessProbe:
             httpGet:
               path: /health
@@ -110,6 +121,7 @@ spec:
               port: http
             initialDelaySeconds: 5
             periodSeconds: 10
+{{- if include "jitsu.isDev" . }}
       volumes:
         - name: project
           hostPath:
@@ -122,6 +134,7 @@ spec:
         - name: go-cache
           persistentVolumeClaim:
             claimName: go-cache
+{{- end }}
 ---
 apiVersion: v1
 kind: Service
@@ -131,7 +144,7 @@ metadata:
     {{- include "jitsu.labels" . | nindent 4 }}
     app.kubernetes.io/name: syncctl
 spec:
-  type: ClusterIP
+  type: {{ include "jitsu.serviceType" (dict "ctx" . "service" "syncctl" "dev" "ClusterIP") }}
   ports:
     - port: 3043
       targetPort: http

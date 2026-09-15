@@ -20,9 +20,14 @@ spec:
     spec:
       containers:
         - name: rotor
-          image: node:24-bookworm
+          image: {{ include "jitsu.image" (dict "ctx" . "service" "rotor" "dev" "node:24-bookworm" "prod" "rotor") }}
+          {{- with (include "jitsu.imagePullPolicy" (dict "ctx" . "service" "rotor")) }}
+          imagePullPolicy: {{ . }}
+          {{- end }}
+{{- if include "jitsu.isDev" . }}
           workingDir: /cache/workspace/services/rotor
           command: ["npx", "tsx", "--no-node-snapshot", "--max-old-space-size=2048", "src/index.ts"]
+{{- end }}
           ports:
             - name: http
               containerPort: 3401
@@ -41,9 +46,11 @@ spec:
                 optional: true
           env:
             {{- include "jitsu.env" (dict "ctx" . "service" "rotor") | nindent 12 }}
+{{- if include "jitsu.isDev" . }}
           volumeMounts:
             - name: node-cache
               mountPath: /cache
+{{- end }}
           livenessProbe:
             httpGet:
               path: /health
@@ -56,10 +63,12 @@ spec:
               port: http
             initialDelaySeconds: 30
             periodSeconds: 10
+{{- if include "jitsu.isDev" . }}
       volumes:
         - name: node-cache
           persistentVolumeClaim:
             claimName: node-cache
+{{- end }}
 ---
 apiVersion: v1
 kind: Service
@@ -69,7 +78,7 @@ metadata:
     {{- include "jitsu.labels" . | nindent 4 }}
     app.kubernetes.io/name: rotor
 spec:
-  type: LoadBalancer
+  type: {{ include "jitsu.serviceType" (dict "ctx" . "service" "rotor" "dev" "LoadBalancer") }}
   ports:
     - port: 3401
       targetPort: http
