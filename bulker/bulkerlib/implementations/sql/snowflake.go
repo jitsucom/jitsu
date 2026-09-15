@@ -45,7 +45,7 @@ const (
 	// stages 2 and 3 read a much smaller, pre-deduped relation. Each stage
 	// emits its own WarehouseState so timing for dedup/update/insert is
 	// visible in the run report.
-	sfDedupStatement       = `CREATE OR REPLACE TEMPORARY TABLE {{.NamespaceFrom}}{{.DedupTable}} AS SELECT {{.Columns}} FROM (SELECT {{.Columns}}, ROW_NUMBER() OVER (PARTITION BY {{.PrimaryKeyColumns}}{{.Discriminator}}) rn FROM {{.NamespaceFrom}}{{.TableFrom}}) QUALIFY rn = MAX(rn) OVER (PARTITION BY {{.PrimaryKeyColumns}})`
+	sfDedupStatement       = `CREATE OR REPLACE TEMPORARY TABLE {{.NamespaceFrom}}{{.DedupTable}} AS SELECT {{.Columns}} FROM (SELECT {{.Columns}}, ROW_NUMBER() OVER (PARTITION BY {{.PrimaryKeyColumns}}{{.Discriminator}}) rn FROM {{.NamespaceFrom}}{{.TableFrom}}) QUALIFY rn = MAX(rn) OVER (PARTITION BY {{.PrimaryKeyColumns}}){{if .DedupOrderBy}} ORDER BY {{.DedupOrderBy}}{{end}}`
 	sfMergeUpdateStatement = `UPDATE {{.Namespace}}{{.TableTo}} T SET {{.UpdateSet}} FROM {{.NamespaceFrom}}{{.DedupTable}} S WHERE {{.JoinConditions}}`
 	sfMergeInsertStatement = `INSERT INTO {{.Namespace}}{{.TableTo}} ({{.Columns}}) SELECT {{.SourceColumns}} FROM {{.NamespaceFrom}}{{.DedupTable}} S WHERE NOT EXISTS (SELECT 1 FROM {{.Namespace}}{{.TableTo}} T WHERE {{.JoinConditions}})`
 	sfDropDedupStatement   = `DROP TABLE IF EXISTS {{.NamespaceFrom}}{{.DedupTable}}`
@@ -562,12 +562,25 @@ func (s *Snowflake) copyOrMergeSplit(ctx context.Context, targetTable *Table, so
 	})
 	pkColumns := utils.ArrayMap(targetTable.GetPKFields(), s.quotedColumnName)
 
+	// Pre-sort the dedup CTAS by the target's timestamp column so the
+	// later INSERT writes new T micro-partitions whose TO_DATE(ts) min/max
+	// are tight along T's CLUSTER BY (TO_DATE(timestamp)) key. This
+	// minimises the work auto-clustering has to do to re-partition new
+	// data. UPDATE rewrites preserve clustering on their own, so this is
+	// strictly an INSERT-side optimisation; no benefit (and no harm)
+	// when there is no timestamp column.
+	var dedupOrderBy string
+	if targetTable.TimestampColumn != "" {
+		dedupOrderBy = s.quotedColumnName(targetTable.TimestampColumn)
+	}
+
 	payload := QueryPayload{
 		Namespace:         s.namespacePrefix(targetTable.Namespace),
 		NamespaceFrom:     s.namespacePrefix(sourceTable.Namespace),
 		TableTo:           s.quotedTableName(targetTable.Name),
 		TableFrom:         s.quotedTableName(sourceTable.Name),
 		DedupTable:        s.quotedTableName(sourceTable.Name + "_DEDUP"),
+		DedupOrderBy:      dedupOrderBy,
 		Columns:           strings.Join(columnNames, ","),
 		PrimaryKeyName:    targetTable.PrimaryKeyName,
 		PrimaryKeyColumns: strings.Join(pkColumns, ","),
