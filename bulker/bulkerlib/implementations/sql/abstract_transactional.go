@@ -3,7 +3,6 @@ package sql
 import (
 	"bufio"
 	"bytes"
-	"compress/gzip"
 	"context"
 	"errors"
 	"fmt"
@@ -22,6 +21,9 @@ import (
 	"github.com/jitsucom/bulker/jitsubase/logging"
 	types2 "github.com/jitsucom/bulker/jitsubase/types"
 	"github.com/jitsucom/bulker/jitsubase/utils"
+	// Drop-in for compress/gzip: emits standard gzip, so the batch files the
+	// warehouse COPY commands consume are unchanged in format.
+	"github.com/klauspost/compress/gzip"
 )
 
 type AbstractTransactionalSQLStream struct {
