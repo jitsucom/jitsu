@@ -16,7 +16,7 @@ import {
 } from "../shared/data-retention";
 import { workspaceAuditLog } from "./audit-log";
 import { withProductAnalytics } from "./telemetry";
-import { eeAuthHeadersOrServiceToken, getEeConnection, isEEAvailable, serviceTokenHeaders } from "./ee";
+import { eeAuthHeadersOrServiceToken, getEeServerConnection, isEEAvailable, serviceTokenHeaders } from "./ee";
 
 const log = getLog("backup-retention");
 
@@ -47,7 +47,7 @@ export async function verifyCapDaysViaEe(
   // that fails the BillingSettings parse — is the same outcome for the
   // caller: the plan is unverified, 503.
   try {
-    const settings: any = await rpc(`${getEeConnection().host}api/billing/settings`, {
+    const settings: any = await rpc(`${getEeServerConnection().host}api/billing/settings`, {
       method: "GET",
       query: { workspaceId, email: user.email },
       headers: {
@@ -78,7 +78,7 @@ export async function applyRetentionNowViaEe(workspaceId: string): Promise<void>
     return;
   }
   try {
-    await rpc(`${getEeConnection().host}api/s3-init?workspaceId=${encodeURIComponent(workspaceId)}`, {
+    await rpc(`${getEeServerConnection().host}api/s3-init?workspaceId=${encodeURIComponent(workspaceId)}`, {
       method: "GET",
       headers: { "Content-Type": "application/json", ...serviceTokenHeaders() },
       signal: AbortSignal.timeout(5_000),
