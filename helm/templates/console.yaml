@@ -4,7 +4,7 @@ kind: Deployment
 metadata:
   name: console
   labels:
-    {{- include "jitsu-dev.labels" . | nindent 4 }}
+    {{- include "jitsu.labels" . | nindent 4 }}
     app.kubernetes.io/name: console
 spec:
   replicas: {{ .Values.scaling.console.replicas }}
@@ -54,7 +54,7 @@ spec:
                 sleep 5
               done
               # Create the events-log ClickHouse tables (powers Live Events).
-              # Nothing else runs this in the dev chart — in prod the
+              # Nothing else runs this in dev mode — in prod the
               # admin/events-log-init route does. Best-effort: retry a few times
               # for a not-yet-ready ClickHouse, then continue so a disabled or
               # broken ClickHouse can't wedge console startup.
@@ -84,7 +84,7 @@ spec:
             # `jitsu-console-maintenance` (optional ConfigMap, key
             # `maintenance.json`). Manage via
             # webapps/console/scripts/maintenance-mode.sh.
-            {{- include "jitsu-dev.env" (dict "ctx" . "service" "console"
+            {{- include "jitsu.env" (dict "ctx" . "service" "console"
                   "extra" (dict
                     "BULKER_PORT" ""
                     "ROTOR_PORT" ""
@@ -125,7 +125,7 @@ spec:
       volumes:
         - name: project
           hostPath:
-            path: {{ include "jitsu-dev.projectRoot" . }}
+            path: {{ include "jitsu.projectRoot" . }}
             type: Directory
         - name: node-cache
           persistentVolumeClaim:
@@ -146,7 +146,7 @@ kind: Service
 metadata:
   name: console
   labels:
-    {{- include "jitsu-dev.labels" . | nindent 4 }}
+    {{- include "jitsu.labels" . | nindent 4 }}
     app.kubernetes.io/name: console
 spec:
   type: LoadBalancer

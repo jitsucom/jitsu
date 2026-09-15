@@ -4,7 +4,7 @@ kind: Deployment
 metadata:
   name: bulker
   labels:
-    {{- include "jitsu-dev.labels" . | nindent 4 }}
+    {{- include "jitsu.labels" . | nindent 4 }}
     app.kubernetes.io/name: bulker
 spec:
   replicas: {{ .Values.scaling.bulker.replicas }}
@@ -85,7 +85,7 @@ spec:
                 name: jitsu-deps-urls
                 optional: true
           env:
-            {{- include "jitsu-dev.env" (dict "ctx" . "service" "bulker"
+            {{- include "jitsu.env" (dict "ctx" . "service" "bulker"
                   "extra" (dict "HTTP_PORT" "3042")) | nindent 12 }}
           volumeMounts:
             - name: build
@@ -106,7 +106,7 @@ spec:
       volumes:
         - name: project
           hostPath:
-            path: {{ include "jitsu-dev.projectRoot" . }}
+            path: {{ include "jitsu.projectRoot" . }}
             type: Directory
         - name: build
           emptyDir: {}
@@ -121,7 +121,7 @@ kind: Service
 metadata:
   name: bulker
   labels:
-    {{- include "jitsu-dev.labels" . | nindent 4 }}
+    {{- include "jitsu.labels" . | nindent 4 }}
     app.kubernetes.io/name: bulker
 spec:
   type: LoadBalancer
