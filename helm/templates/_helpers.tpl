@@ -287,3 +287,82 @@ binary and defines its own entrypoint.
 {{- define "jitsu.isDev" -}}
 {{- if eq (include "jitsu.mode" .) "dev" }}true{{ end -}}
 {{- end }}
+
+{{/*
+Service type for a service.
+
+Dev keeps whatever the template declares — four LoadBalancers reached through
+`minikube tunnel`, which is how the dev workflow has always worked.
+
+Prod forces ClusterIP for everything. Nothing should get its own cloud load
+balancer: the four dev LoadBalancers would provision four of them, billed, with
+no TLS and no hostname. External traffic goes through the Ingress instead, which
+the ticket scopes to console + ingest — matching production, where bulker is
+ClusterIP and rotor is in no gateway config at all.
+
+`service.<name>.type` overrides both, for a self-hoster who genuinely wants a
+load balancer per service.
+
+  type: {{ include "jitsu.serviceType" (dict "ctx" . "service" "console" "dev" "LoadBalancer") }}
+*/}}
+{{- define "jitsu.serviceType" -}}
+{{- $ctx := .ctx -}}
+{{- $o := (get ($ctx.Values.service | default dict) .service) | default dict -}}
+{{- if $o.type -}}
+{{- $o.type -}}
+{{- else if eq (include "jitsu.mode" $ctx) "prod" -}}
+{{- "ClusterIP" -}}
+{{- else -}}
+{{- .dev -}}
+{{- end -}}
+{{- end }}
+
+{{/*
+The console's PUBLIC url — what a browser types, and what the console hands out
+in auth redirects and the tracking snippet. Distinct from jitsu.consoleUrl,
+which is the in-cluster address other services call (http://console:3000).
+
+Derived from the Ingress host when there is one, because otherwise a prod
+install behind an Ingress still advertises http://localhost:3000: NextAuth
+would redirect users there after sign-in, and the tracking snippet would point
+browsers at their own machine. Scheme follows ingress.tls.enabled.
+
+Falls back to the dev default. `env.console.NEXTAUTH_URL` /
+`env.console.JITSU_PUBLIC_URL` override it, as template defaults always allow —
+which is how a self-hoster terminating TLS somewhere else sets it explicitly.
+*/}}
+{{- define "jitsu.consolePublicUrl" -}}
+{{- $ing := .Values.ingress | default dict -}}
+{{- $host := (($ing.hosts | default dict).console) -}}
+{{- if and (eq (include "jitsu.mode" .) "prod") $ing.enabled $host -}}
+{{- $scheme := ternary "https" "http" (($ing.tls | default dict).enabled | default false) -}}
+{{- printf "%s://%s" $scheme $host -}}
+{{- else -}}
+{{- "http://localhost:3000" -}}
+{{- end -}}
+{{- end }}
+
+{{/*
+Refuse to render a prod install that still carries the dev credentials.
+
+values.yaml ships a working dev login — JWT_SECRET
+"dev-jwt-secret-change-in-production" and SEED_USER_PASSWORD "changeme" — which
+is right for Minikube and a serious hole anywhere else. Nothing in Kubernetes
+would flag it, and a self-hoster following the quick start has no reason to
+look, so the chart fails the render instead. The value names are in the error so
+the fix is obvious.
+
+Only these two: they are credentials that grant access. The other console
+defaults are configuration, not secrets.
+*/}}
+{{- define "jitsu.checkProdSecrets" -}}
+{{- if eq (include "jitsu.mode" .) "prod" -}}
+{{- $console := .Values.env.console | default dict -}}
+{{- if eq ($console.JWT_SECRET | default "") "dev-jwt-secret-change-in-production" -}}
+{{- fail "mode=prod with the development JWT_SECRET. Set env.console.JWT_SECRET to a generated secret before deploying." -}}
+{{- end -}}
+{{- if and $console.ENABLE_CREDENTIALS_LOGIN (eq ($console.SEED_USER_PASSWORD | default "") "changeme") -}}
+{{- fail "mode=prod with the development SEED_USER_PASSWORD (\"changeme\") and credentials login enabled. Set env.console.SEED_USER_PASSWORD, or disable env.console.ENABLE_CREDENTIALS_LOGIN." -}}
+{{- end -}}
+{{- end -}}
+{{- end }}

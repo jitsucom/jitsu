@@ -2,11 +2,46 @@
 
 Helm chart for deploying Jitsu services to Kubernetes.
 
-**Today this chart targets local development on Minikube**: services are built
-inside containers via init containers from a hostPath-mounted checkout, so no
-local build step is required. A production mode — published images instead of
-source builds, no hostPath — is tracked in `JITSU-48`; until it lands, do not
-deploy this chart to a shared or production cluster.
+The chart has two modes, selected by `mode` in `values.yaml`:
+
+- **`dev`** (default) — services are built from source inside init containers
+  against a hostPath-mounted checkout, so no local build step is required. This
+  is what the rest of this README describes, and it targets Minikube.
+- **`prod`** — services run published `jitsucom/*` images. No source build, no
+  hostPath, `projectRoot` unused, every Service `ClusterIP`, and an optional
+  Ingress for console and ingest.
+
+## Production mode
+
+```bash
+helm install jitsu ./helm \
+  --set mode=prod \
+  --set env.console.JWT_SECRET="$(openssl rand -hex 32)" \
+  --set env.console.SEED_USER_PASSWORD='<a real password>' \
+  --set ingress.enabled=true \
+  --set ingress.className=nginx \
+  --set ingress.tls.enabled=true \
+  --set ingress.hosts.console=jitsu.example.com \
+  --set ingress.hosts.ingest=events.example.com
+```
+
+The chart refuses to render in prod mode while the development `JWT_SECRET` or
+`SEED_USER_PASSWORD` are still in place — those ship in `values.yaml` so the dev
+quick start works, and they would otherwise be easy to deploy unnoticed.
+
+Dependencies are still the `../helm-deps` chart's single-node Kafka, Postgres,
+ClickHouse and MongoDB, which are **not** production-grade. Point a prod install
+at managed instances by disabling them there and setting the matching
+`env.common` connection URLs.
+
+`ingress.hosts.console` also determines the console's public URL (NextAuth
+redirects, tracking snippet). Without an Ingress, set
+`env.console.NEXTAUTH_URL` and `env.console.JITSU_PUBLIC_URL` explicitly.
+
+Prod mode has not yet been verified end to end on a real cluster — that is the
+remaining work in `JITSU-48`.
+
+## Development mode
 
 ## Prerequisites
 

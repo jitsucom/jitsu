@@ -163,7 +163,7 @@ metadata:
     app.kubernetes.io/name: syncctl
 spec:
   # Controller authentication is optional; never expose its control plane by default.
-  type: ClusterIP
+  type: {{ include "jitsu.serviceType" (dict "ctx" . "service" "syncctl" "dev" "ClusterIP") }}
   ports:
     - port: 3043
       targetPort: http
