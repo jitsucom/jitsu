@@ -4,7 +4,7 @@ kind: Deployment
 metadata:
   name: operator
   labels:
-    {{- include "jitsu-dev.labels" . | nindent 4 }}
+    {{- include "jitsu.labels" . | nindent 4 }}
     app.kubernetes.io/name: operator
 spec:
   replicas: {{ .Values.scaling.operator.replicas }}
@@ -81,7 +81,7 @@ spec:
                 name: jitsu-deps-urls
                 optional: true
           env:
-            {{- include "jitsu-dev.env" (dict "ctx" . "service" "operator"
+            {{- include "jitsu.env" (dict "ctx" . "service" "operator"
                   "extra" (dict "HTTP_PORT" "3052")) | nindent 12 }}
           volumeMounts:
             - name: build
@@ -102,7 +102,7 @@ spec:
       volumes:
         - name: project
           hostPath:
-            path: {{ include "jitsu-dev.projectRoot" . }}
+            path: {{ include "jitsu.projectRoot" . }}
             type: Directory
         - name: build
           emptyDir: {}
@@ -117,7 +117,7 @@ kind: Service
 metadata:
   name: operator
   labels:
-    {{- include "jitsu-dev.labels" . | nindent 4 }}
+    {{- include "jitsu.labels" . | nindent 4 }}
     app.kubernetes.io/name: operator
 spec:
   type: ClusterIP
@@ -139,14 +139,14 @@ kind: ServiceAccount
 metadata:
   name: operator
   labels:
-    {{- include "jitsu-dev.labels" . | nindent 4 }}
+    {{- include "jitsu.labels" . | nindent 4 }}
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
   name: {{ .Release.Name }}-operator
   labels:
-    {{- include "jitsu-dev.labels" . | nindent 4 }}
+    {{- include "jitsu.labels" . | nindent 4 }}
 rules:
   - apiGroups: [""]
     resources: ["pods", "services", "configmaps", "secrets"]
@@ -166,7 +166,7 @@ kind: ClusterRoleBinding
 metadata:
   name: {{ .Release.Name }}-operator
   labels:
-    {{- include "jitsu-dev.labels" . | nindent 4 }}
+    {{- include "jitsu.labels" . | nindent 4 }}
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: ClusterRole
