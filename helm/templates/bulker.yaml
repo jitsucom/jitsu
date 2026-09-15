@@ -18,6 +18,7 @@ spec:
         app.kubernetes.io/name: bulker
         app.kubernetes.io/instance: {{ .Release.Name }}
     spec:
+{{- if include "jitsu.isDev" . }}
       initContainers:
         - name: build
           image: golang:1.26-bookworm
@@ -59,18 +60,21 @@ spec:
             limits:
               cpu: "3"
               memory: 3Gi
+{{- end }}
       containers:
         - name: bulker
           image: {{ include "jitsu.image" (dict "ctx" . "service" "bulker" "dev" "debian:bookworm-slim" "prod" "bulker") }}
           {{- with (include "jitsu.imagePullPolicy" (dict "ctx" . "service" "bulker")) }}
           imagePullPolicy: {{ . }}
           {{- end }}
+{{- if include "jitsu.isDev" . }}
           command:
             - sh
             - -c
             - |
               apt-get update && apt-get install -y --no-install-recommends ca-certificates && rm -rf /var/lib/apt/lists/*
               exec /build/bulker
+{{- end }}
           ports:
             - name: http
               containerPort: 3042
@@ -90,10 +94,12 @@ spec:
           env:
             {{- include "jitsu.env" (dict "ctx" . "service" "bulker"
                   "extra" (dict "HTTP_PORT" "3042")) | nindent 12 }}
+{{- if include "jitsu.isDev" . }}
           volumeMounts:
             - name: build
               mountPath: /build
               readOnly: true
+{{- end }}
           livenessProbe:
             httpGet:
               path: /health
@@ -106,6 +112,7 @@ spec:
               port: http
             initialDelaySeconds: 5
             periodSeconds: 10
+{{- if include "jitsu.isDev" . }}
       volumes:
         - name: project
           hostPath:
@@ -118,6 +125,7 @@ spec:
         - name: go-cache
           persistentVolumeClaim:
             claimName: go-cache
+{{- end }}
 ---
 apiVersion: v1
 kind: Service

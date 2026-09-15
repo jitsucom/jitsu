@@ -18,6 +18,7 @@ spec:
         app.kubernetes.io/name: ingest
         app.kubernetes.io/instance: {{ .Release.Name }}
     spec:
+{{- if include "jitsu.isDev" . }}
       initContainers:
         - name: build
           image: golang:1.26-bookworm
@@ -59,13 +60,16 @@ spec:
             limits:
               cpu: "3"
               memory: 3Gi
+{{- end }}
       containers:
         - name: ingest
           image: {{ include "jitsu.image" (dict "ctx" . "service" "ingest" "dev" "debian:bookworm-slim" "prod" "ingest") }}
           {{- with (include "jitsu.imagePullPolicy" (dict "ctx" . "service" "ingest")) }}
           imagePullPolicy: {{ . }}
           {{- end }}
+{{- if include "jitsu.isDev" . }}
           command: ["/build/ingest"]
+{{- end }}
           ports:
             - name: http
               containerPort: 3049
@@ -85,10 +89,12 @@ spec:
           env:
             {{- include "jitsu.env" (dict "ctx" . "service" "ingest"
                   "extra" (dict "HTTP_PORT" "3049")) | nindent 12 }}
+{{- if include "jitsu.isDev" . }}
           volumeMounts:
             - name: build
               mountPath: /build
               readOnly: true
+{{- end }}
           livenessProbe:
             httpGet:
               path: /health
@@ -101,6 +107,7 @@ spec:
               port: http
             initialDelaySeconds: 5
             periodSeconds: 10
+{{- if include "jitsu.isDev" . }}
       volumes:
         - name: project
           hostPath:
@@ -113,6 +120,7 @@ spec:
         - name: go-cache
           persistentVolumeClaim:
             claimName: go-cache
+{{- end }}
 ---
 apiVersion: v1
 kind: Service

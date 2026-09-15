@@ -1,3 +1,10 @@
+{{/*
+Dev only. This job exists to populate the node-cache PVC from the hostPath
+checkout — pnpm install, prisma generate, source sync. In prod the published
+images ship their own node_modules and generated client, so there is nothing
+for it to do.
+*/}}
+{{- if include "jitsu.isDev" . }}
 apiVersion: batch/v1
 kind: Job
 metadata:
@@ -86,3 +93,4 @@ spec:
         - name: node-cache
           persistentVolumeClaim:
             claimName: node-cache
+{{- end }}
