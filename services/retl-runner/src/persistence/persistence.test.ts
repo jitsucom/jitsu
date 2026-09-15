@@ -808,6 +808,125 @@ describe("PostgreSQL persistence", () => {
     expect(await count("newjitsu.reverse_sync_operation")).toBe(2);
     expect(await count("newjitsu.reverse_sync_membership")).toBe(2);
   });
+  it.each([false, true])(
+    "recovers interrupted init before running the normal lifecycle (hasSession=%s)",
+    async hasSession => {
+      const first = await session({ extraction: "full" });
+      await first.delivery.prepareInit({ saved: true });
+      if (hasSession) await first.delivery.saveProviderState({ session: "old-session" });
+      await release(db, first.scope);
+      const recovered = await session({ extraction: "full", taskId: "recovery" });
+      const before = await recovered.core.state();
+      await expect(recovered.delivery.acknowledgeInit({ invented: true })).rejects.toThrow(/reconciliation/);
+      expect(await recovered.core.state()).toEqual(before);
+      expect(Object.keys(recovered.delivery)).not.toContain("resetInitAfterReconciliation");
+      let writerCalls = 0;
+      let initCalls = 0;
+      let sourceCalls = 0;
+      const stream: any = {
+        name: "test",
+        displayName: "Test",
+        rowType: z.object({ id: z.string() }),
+        options: z.object({}),
+        batchSize: 2,
+        capabilities: {
+          supportsUpsert: true,
+          supportsExplicitRemove: false,
+          mirror: "none",
+          replay: "idempotent-operation",
+        },
+        createWriter: async () => {
+          writerCalls++;
+          return {
+            init: async () => {
+              initCalls++;
+            },
+            upsert: async (b: any) => outcomes(b),
+            finish: async () => ({ delivery: "accepted" }),
+            abort: async () => {},
+          };
+        },
+      };
+      const execute = async (run: Session) =>
+        runReverseEtl({
+          stream,
+          context: {
+            ...run.scope,
+            mode: "upsert",
+            fullRefresh: true,
+            credentials: {},
+            options: {},
+            signal: new AbortController().signal,
+            log: {} as any,
+            fetch: fetch as any,
+            store: createBufferedSyncStore((await run.core.state()).store),
+            delivery: run.delivery,
+          },
+          mapping: { id: "id" },
+          checkpointEvery: 1,
+          source: async function* () {
+            sourceCalls++;
+            yield { key: contentHash(["a"]), row: { id: "a" }, deleted: false };
+          },
+        });
+      await expect(execute(recovered)).rejects.toThrow(/Recovery admission/);
+      expect([writerCalls, initCalls, sourceCalls]).toEqual([0, 0, 0]);
+      await expect(recovered.core.resetInitAfterReconciliation("unknown" as any, {})).rejects.toThrow(/resolution/);
+      expect(await recovered.core.state()).toEqual(before);
+      // The provider-specific recovery caller must verify absence or finish cleanup first.
+      await recovered.core.resetInitAfterReconciliation(hasSession ? "cleaned-up" : "absent", { saved: true });
+      const reset = await recovered.core.state();
+      expect(reset).toEqual({ store: { saved: true }, providerState: {} });
+      await recovered.core.resetInitAfterReconciliation("absent", { stale: true });
+      expect(await recovered.core.state()).toEqual(reset);
+      await expect(execute(recovered)).rejects.toThrow(/Recovery admission/);
+      await expect(recovered.delivery.prepareInit({})).rejects.toThrow(/Reacquire/);
+      expect([writerCalls, initCalls, sourceCalls]).toEqual([0, 0, 0]);
+      // A new epoch consumes the durable retry admission, including after a lost reset response.
+      await expire();
+      const nextDb = new Database(runtimeConfig, cipher);
+      try {
+        const next = await openPersistence(nextDb, { ...runInput, extraction: "full", taskId: "retry" }, project);
+        expect(next.recovery).toBe(false);
+        await expect(recovered.core.resetInitAfterReconciliation("absent", {})).rejects.toThrow(/ownership/);
+        expect(await execute(next)).toEqual({ delivery: "accepted", sourceSequence: 1 });
+        expect([writerCalls, initCalls, sourceCalls]).toEqual([1, 1, 1]);
+        expect(await count("newjitsu.reverse_sync_membership")).toBe(1);
+      } finally {
+        await nextDb.close();
+      }
+    }
+  );
+  it("rolls back init recovery admission together with provider state and store", async () => {
+    const run = await session();
+    await run.delivery.prepareInit({ original: true });
+    await run.delivery.saveProviderState({ session: "original" });
+    await release(db, run.scope);
+    const recovered = await session({ taskId: "recovery" });
+    const before = (await admin.query("SELECT phase,store,provider_state FROM newjitsu.reverse_sync_control")).rows;
+    await admin.query(
+      "ALTER TABLE newjitsu.reverse_sync_control ADD CONSTRAINT injected_init_reset_failure CHECK (phase <> 'new') NOT VALID"
+    );
+    try {
+      await expect(recovered.core.resetInitAfterReconciliation("cleaned-up", {})).rejects.toThrow();
+    } finally {
+      await admin.query("ALTER TABLE newjitsu.reverse_sync_control DROP CONSTRAINT injected_init_reset_failure");
+    }
+    expect((await admin.query("SELECT phase,store,provider_state FROM newjitsu.reverse_sync_control")).rows).toEqual(
+      before
+    );
+    await recovered.core.resetInitAfterReconciliation("cleaned-up", {});
+    expect((await recovered.core.recoveryStatus()).phase).toBe("new");
+  });
+  it("refuses init recovery for a fresh owner or an already initialized lifecycle", async () => {
+    const run = await session();
+    await expect(run.core.resetInitAfterReconciliation("absent", {})).rejects.toThrow(/recovery owner/);
+    await init(run);
+    await release(db, run.scope);
+    const recovered = await session({ taskId: "recovery" });
+    await expect(recovered.core.resetInitAfterReconciliation("cleaned-up", {})).rejects.toThrow(/Only prepared init/);
+    expect((await recovered.core.recoveryStatus()).phase).toBe("running");
+  });
   it("runs the merged lifecycle with the PostgreSQL journal", async () => {
     const run = await session({ extraction: "full" });
     const stream: any = {
@@ -954,9 +1073,13 @@ describe("recovery and operational boundaries", () => {
     });
     await expect(next.delivery.assertReady()).rejects.toThrow();
     await expect(run.delivery.acknowledgeInit({})).rejects.toThrow(/ownership/);
-    await next.delivery.acknowledgeInit({});
-    await next.delivery.prepareAbort();
-    await next.delivery.acknowledgeAbort();
+    await expect(next.delivery.acknowledgeInit({})).rejects.toThrow(/reconciliation/);
+    await next.core.resetInitAfterReconciliation("cleaned-up", {});
+    await release(db, next.scope);
+    const retry = await session({ taskId: "retry" });
+    await init(retry);
+    await retry.delivery.prepareAbort();
+    await retry.delivery.acknowledgeAbort();
   });
   it("resumes local finish resolution after a committed chunk and process loss", async () => {
     const run = await session();

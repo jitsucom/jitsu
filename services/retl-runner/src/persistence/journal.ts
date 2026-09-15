@@ -57,6 +57,7 @@ export class Journal implements DeliveryJournal {
   async assertReady(): Promise<ResumePoint> {
     return this.db.owned(this.scope, async (client, control) => {
       ensure(control.phase === "new", "Recover previous lifecycle before extraction");
+      ensure(!this.recovery, "Reacquire ownership after init recovery before extraction");
       const unresolved = await client.query(
         "SELECT 1 FROM reverse_sync_operation WHERE workspace_id=$1 AND sync_id=$2 AND status IN ('prepared','unknown','staged') LIMIT 1",
         this.key.slice(0, 2)
@@ -74,6 +75,7 @@ export class Journal implements DeliveryJournal {
   async prepareInit(store: JsonObject) {
     await this.db.owned(this.scope, async (client, control) => {
       ensure(control.phase === "new", "Init is already prepared or run has ended");
+      ensure(!this.recovery, "Reacquire ownership after init recovery before initialization");
       await this.saveStore(client, store);
       await client.query(
         "UPDATE reverse_sync_control SET phase='init_prepared' WHERE workspace_id=$1 AND sync_id=$2",
@@ -84,9 +86,29 @@ export class Journal implements DeliveryJournal {
   async acknowledgeInit(store: JsonObject) {
     await this.db.owned(this.scope, async (client, control) => {
       ensure(control.phase === "init_prepared", "Init is not prepared");
+      ensure(!this.recovery, "Recovered init requires explicit reconciliation");
       await this.saveStore(client, store);
       await client.query(
         "UPDATE reverse_sync_control SET phase='running' WHERE workspace_id=$1 AND sync_id=$2",
+        this.key.slice(0, 2)
+      );
+    });
+  }
+  /**
+   * Core only: verify the previous init/session is absent or safely cleaned up before
+   * authorizing a fresh attempt. Unknown/in-flight initialization is never retryable.
+   * Release/reacquire ownership afterwards; the recovery epoch cannot run fresh init.
+   */
+  async resetInitAfterReconciliation(resolution: "absent" | "cleaned-up", store: JsonObject) {
+    ensure(["absent", "cleaned-up"].includes(resolution), "Invalid init recovery resolution");
+    await this.db.owned(this.scope, async (client, control) => {
+      ensure(this.recovery, "Init recovery requires a recovery owner");
+      // The reset may have committed without its response reaching the caller.
+      if (control.phase === "new") return;
+      ensure(control.phase === "init_prepared", "Only prepared init can be reset");
+      await this.saveStore(client, store);
+      await client.query(
+        "UPDATE reverse_sync_control SET phase='new',provider_state=NULL WHERE workspace_id=$1 AND sync_id=$2",
         this.key.slice(0, 2)
       );
     });

@@ -97,6 +97,20 @@ reconciliation methods. Call them only after verifying provider outcomes; recove
 acceptance cannot be acknowledged through the writer facade. No billing period or
 provider acceptance timestamp is required. Receipt `accepted_at` records the
 database-clock time when Jitsu acknowledged the outcome, not remote delivery time.
+
+Initialization recovery uses a separate core-only transition. If takeover finds
+`init_prepared`, inspect the saved store/provider state and verify that the old
+initialization cannot still create a session: confirm absence, or safely finish
+cleanup of the old session. Only then call
+`core.resetInitAfterReconciliation("absent" | "cleaned-up", reconciledStore)`.
+This atomically returns the lifecycle to `new`, clears obsolete provider state and
+saves the reconciled store. An exact phase-`new` retry is read-only. Unknown/in-flight
+initialization must remain blocked; this library does not infer remote absence from
+missing IDs. A recovered owner cannot directly acknowledge init or run fresh init.
+Release/reacquire the same logical run to obtain a new epoch, reload the durable store,
+and invoke the ordinary `runReverseEtl` lifecycle. This also works if the reset committed
+but its response was lost. Already-initialized lifecycles cannot use this reset.
+
 Pending finish receipts are immutable until accepted, preserving the original remote
 job IDs and provider checkpoint. Matching retries are read-only, including their store
 snapshot; conflicting pending receipts are rejected even through core recovery.
