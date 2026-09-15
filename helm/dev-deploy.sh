@@ -344,8 +344,11 @@ deploy_deps() {
         helm_args+=("-f" "$DEPS_CHART_DIR/values-custom.yaml")
     fi
 
+    # LoadBalancer is what `minikube tunnel` publishes; the chart defaults to
+    # ClusterIP so a self-hosted install does not expose the datastores.
     helm upgrade --install "$DEPS_RELEASE_NAME" "$DEPS_CHART_DIR" \
         --namespace "$NAMESPACE" \
+        --set service.type=LoadBalancer \
         --wait --timeout 10m \
         "${helm_args[@]}"
 
