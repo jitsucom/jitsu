@@ -20,7 +20,10 @@ spec:
     spec:
       containers:
         - name: profiles
-          image: node:24-bookworm
+          image: {{ include "jitsu.image" (dict "ctx" . "service" "profiles" "dev" "node:24-bookworm" "prod" "rotor") }}
+          {{- with (include "jitsu.imagePullPolicy" (dict "ctx" . "service" "profiles")) }}
+          imagePullPolicy: {{ . }}
+          {{- end }}
           workingDir: /cache/workspace/services/rotor
           command: ["npx", "tsx", "--no-node-snapshot", "--max-old-space-size=2048", "src/index.ts"]
           ports:

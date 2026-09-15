@@ -61,7 +61,10 @@ spec:
               memory: 3Gi
       containers:
         - name: bulker
-          image: debian:bookworm-slim
+          image: {{ include "jitsu.image" (dict "ctx" . "service" "bulker" "dev" "debian:bookworm-slim" "prod" "bulker") }}
+          {{- with (include "jitsu.imagePullPolicy" (dict "ctx" . "service" "bulker")) }}
+          imagePullPolicy: {{ . }}
+          {{- end }}
           command:
             - sh
             - -c

@@ -181,3 +181,71 @@ Args (dict):
 {{- end }}
 {{- end }}
 {{- end }}
+
+{{/*
+Validate the deployment mode. Called once from every service so a typo fails
+the render instead of silently taking the dev branch everywhere.
+*/}}
+{{- define "jitsu.mode" -}}
+{{- $mode := .Values.mode | default "dev" -}}
+{{- if not (has $mode (list "dev" "prod")) -}}
+{{- fail (printf "mode must be \"dev\" or \"prod\", got %q" $mode) -}}
+{{- end -}}
+{{- $mode -}}
+{{- end }}
+
+{{/*
+Resolve a service's runtime container image.
+
+Precedence, highest first:
+  1. images.<service>.repository — an explicit pin, honoured in BOTH modes, so
+     one service can run from an image while the rest build from source.
+  2. prod mode — {{ image.registry }}/<prod repository>:<tag>
+  3. dev mode  — the base image the service builds against.
+
+The tag falls back to the chart-wide image.tag; a per-service tag overrides it.
+Callers pass the two defaults because they differ per service and per language:
+  dev  — golang:1.26-bookworm builds, debian:bookworm-slim runs, node runs tsx
+  prod — jitsucom/<name>, which is not always the service name (profiles runs
+         the rotor image with ROTOR_MODE=profiles)
+
+Usage:
+  image: {{ include "jitsu.image" (dict "ctx" . "service" "ingest"
+             "dev" "debian:bookworm-slim" "prod" "ingest") }}
+*/}}
+{{- define "jitsu.image" -}}
+{{- $ctx := .ctx -}}
+{{- $images := $ctx.Values.images | default dict -}}
+{{- $o := (get $images .service) | default dict -}}
+{{- $tag := $o.tag | default $ctx.Values.image.tag -}}
+{{- if $o.repository -}}
+{{- printf "%s:%s" $o.repository $tag -}}
+{{- else if eq (include "jitsu.mode" $ctx) "prod" -}}
+{{- printf "%s/%s:%s" $ctx.Values.image.registry .prod $tag -}}
+{{- else -}}
+{{- .dev -}}
+{{- end -}}
+{{- end }}
+
+{{/*
+imagePullPolicy for a service, or empty when none applies.
+
+Returns the per-service override if set; otherwise the chart default, but only
+in prod mode. Dev mode runs public base images where the Kubernetes default is
+already right, and emitting nothing there keeps dev renders byte-identical to
+what the chart produced before image support existed.
+
+Callers wrap it so the field is omitted entirely when empty:
+  {{- with (include "jitsu.imagePullPolicy" (dict "ctx" . "service" "ingest")) }}
+  imagePullPolicy: {{ . }}
+  {{- end }}
+*/}}
+{{- define "jitsu.imagePullPolicy" -}}
+{{- $ctx := .ctx -}}
+{{- $o := (get ($ctx.Values.images | default dict) .service) | default dict -}}
+{{- if $o.pullPolicy -}}
+{{- $o.pullPolicy -}}
+{{- else if eq (include "jitsu.mode" $ctx) "prod" -}}
+{{- $ctx.Values.image.pullPolicy -}}
+{{- end -}}
+{{- end }}

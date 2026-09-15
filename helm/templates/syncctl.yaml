@@ -64,7 +64,10 @@ spec:
               memory: 3Gi
       containers:
         - name: syncctl
-          image: debian:bookworm-slim
+          image: {{ include "jitsu.image" (dict "ctx" . "service" "syncctl" "dev" "debian:bookworm-slim" "prod" "syncctl") }}
+          {{- with (include "jitsu.imagePullPolicy" (dict "ctx" . "service" "syncctl")) }}
+          imagePullPolicy: {{ . }}
+          {{- end }}
           command: ["/build/syncctl"]
           ports:
             - name: http

@@ -62,7 +62,10 @@ spec:
               memory: 3Gi
       containers:
         - name: operator
-          image: debian:bookworm-slim
+          image: {{ include "jitsu.image" (dict "ctx" . "service" "operator" "dev" "debian:bookworm-slim" "prod" "operator") }}
+          {{- with (include "jitsu.imagePullPolicy" (dict "ctx" . "service" "operator")) }}
+          imagePullPolicy: {{ . }}
+          {{- end }}
           command: ["/build/operator"]
           ports:
             - name: http
