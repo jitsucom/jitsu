@@ -66,7 +66,7 @@ metadata:
 spec:
   # LoadBalancer so host-side tools can reach MongoDB on localhost:27017
   # through `dev-deploy.sh tunnel`
-  type: LoadBalancer
+  type: {{ .Values.service.type | default "ClusterIP" }}
   ports:
     - port: 27017
       targetPort: mongodb

@@ -78,7 +78,7 @@ metadata:
     {{- include "jitsu-deps.labels" . | nindent 4 }}
     app.kubernetes.io/name: kafka
 spec:
-  type: LoadBalancer
+  type: {{ .Values.service.type | default "ClusterIP" }}
   ports:
     - port: 9092
       targetPort: kafka
