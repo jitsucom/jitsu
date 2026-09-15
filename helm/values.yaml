@@ -93,6 +93,14 @@ env:
 # env.common.KAFKA_BOOTSTRAP_SERVERS / DATABASE_URL / CLICKHOUSE_URL /
 # MONGODB_URL here (explicit env wins over envFrom).
 
+# Inter-service authentication (prod mode; in dev, dev-deploy.sh manages the
+# jitsu-secrets Secret). Leave empty to generate a token on first install and
+# reuse it on every upgrade — the chart reads the live value back rather than
+# rotating it, because rotating mid-upgrade breaks every service until the last
+# pod restarts. Set it to manage the value yourself.
+auth:
+  token: ""
+
 # Service type overrides. Empty by default: dev keeps the LoadBalancers that
 # `minikube tunnel` publishes, prod forces ClusterIP for every service so no
 # service gets its own billed cloud load balancer. Set a type here to override
