@@ -346,11 +346,30 @@ deploy_deps() {
 
     # LoadBalancer is what `minikube tunnel` publishes; the chart defaults to
     # ClusterIP so a self-hosted install does not expose the datastores.
+    #
+    # Deliberately no --wait. Helm's readiness check for a type: LoadBalancer
+    # Service requires status.loadBalancer.ingress to be populated, and minikube
+    # only assigns that while `minikube tunnel` is running — a separate command
+    # the developer starts in another terminal, and not during `deploy`. With
+    # four LoadBalancer Services in helm-deps, --wait therefore timed out after
+    # 10m with every dependency pod healthy, which broke `deploy` outright.
+    # Wait on the Deployments instead: that is what "dependencies are healthy"
+    # actually means here, and it does not depend on the tunnel.
     helm upgrade --install "$DEPS_RELEASE_NAME" "$DEPS_CHART_DIR" \
         --namespace "$NAMESPACE" \
         --set service.type=LoadBalancer \
-        --wait --timeout 10m \
         "${helm_args[@]}"
+
+    # Names come from the rendered release rather than a hardcoded list, so
+    # disabling a dependency in values removes it from the wait automatically.
+    local deps_deployments
+    deps_deployments=$(helm get manifest "$DEPS_RELEASE_NAME" --namespace "$NAMESPACE" \
+        | awk '/^kind: Deployment/{d=1} d && /^  name: /{print $2; d=0}')
+
+    for dep in $deps_deployments; do
+        log_info "Waiting for $dep to become available..."
+        kubectl rollout status "deployment/$dep" --namespace "$NAMESPACE" --timeout=10m
+    done
 
     log_success "Dependencies are healthy"
 }
