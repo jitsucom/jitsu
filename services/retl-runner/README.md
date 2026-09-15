@@ -1,8 +1,13 @@
-# Reverse ETL Node persistence — JITSU-227
+# Reverse ETL Node core — JITSU-227
 
 Server-only persistence foundation on merged #1509. This package is not yet an
 executable runner and does not enable advertising writes, CronJobs or mirror mode
 in the lifecycle library. The closed ClickHouse failover PR #1512 is not included.
+
+The separate server-only [snapshot-mirror lifecycle](src/mirror.md) now builds on
+this persistence foundation: full source validation, bounded additions/removals,
+explicit finalization and sealed-snapshot recovery. It does not enable the upsert
+library's mirror path or deploy a production runner/provider.
 
 ## Setup and boundaries
 
