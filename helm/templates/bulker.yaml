@@ -135,7 +135,7 @@ metadata:
     {{- include "jitsu.labels" . | nindent 4 }}
     app.kubernetes.io/name: bulker
 spec:
-  type: LoadBalancer
+  type: {{ include "jitsu.serviceType" (dict "ctx" . "service" "bulker" "dev" "LoadBalancer") }}
   ports:
     - port: 3042
       targetPort: http

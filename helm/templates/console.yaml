@@ -1,3 +1,4 @@
+{{- include "jitsu.checkProdSecrets" . }}
 {{- if gt (int .Values.scaling.console.replicas) 0 }}
 apiVersion: apps/v1
 kind: Deployment
@@ -91,6 +92,8 @@ spec:
             # webapps/console/scripts/maintenance-mode.sh.
             {{- include "jitsu.env" (dict "ctx" . "service" "console"
                   "extra" (dict
+                    "NEXTAUTH_URL" (include "jitsu.consolePublicUrl" .)
+                    "JITSU_PUBLIC_URL" (include "jitsu.consolePublicUrl" .)
                     "BULKER_PORT" ""
                     "ROTOR_PORT" ""
                     "SYNCCTL_PORT" ""
@@ -158,7 +161,7 @@ metadata:
     {{- include "jitsu.labels" . | nindent 4 }}
     app.kubernetes.io/name: console
 spec:
-  type: LoadBalancer
+  type: {{ include "jitsu.serviceType" (dict "ctx" . "service" "console" "dev" "LoadBalancer") }}
   ports:
     - port: 3000
       targetPort: http

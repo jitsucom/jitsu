@@ -83,7 +83,7 @@ metadata:
     {{- include "jitsu.labels" . | nindent 4 }}
     app.kubernetes.io/name: profiles
 spec:
-  type: ClusterIP
+  type: {{ include "jitsu.serviceType" (dict "ctx" . "service" "profiles" "dev" "ClusterIP") }}
   ports:
     - port: 3401
       targetPort: http

@@ -132,7 +132,7 @@ metadata:
     {{- include "jitsu.labels" . | nindent 4 }}
     app.kubernetes.io/name: operator
 spec:
-  type: ClusterIP
+  type: {{ include "jitsu.serviceType" (dict "ctx" . "service" "operator" "dev" "ClusterIP") }}
   ports:
     - port: 3052
       targetPort: http

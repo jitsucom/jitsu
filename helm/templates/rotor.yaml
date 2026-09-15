@@ -78,7 +78,7 @@ metadata:
     {{- include "jitsu.labels" . | nindent 4 }}
     app.kubernetes.io/name: rotor
 spec:
-  type: LoadBalancer
+  type: {{ include "jitsu.serviceType" (dict "ctx" . "service" "rotor" "dev" "LoadBalancer") }}
   ports:
     - port: 3401
       targetPort: http

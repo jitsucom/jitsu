@@ -130,7 +130,7 @@ metadata:
     {{- include "jitsu.labels" . | nindent 4 }}
     app.kubernetes.io/name: ingest
 spec:
-  type: LoadBalancer
+  type: {{ include "jitsu.serviceType" (dict "ctx" . "service" "ingest" "dev" "LoadBalancer") }}
   ports:
     - port: 3049
       targetPort: http

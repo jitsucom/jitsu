@@ -71,11 +71,17 @@ env:
   # beta in dev, image.registry/image.tag in prod. Set it here to override.
   operator: {}
   console:
-    NEXTAUTH_URL: "http://localhost:3000"
     ENABLE_CREDENTIALS_LOGIN: true
     SEED_USER_EMAIL: admin@example.com
     SEED_USER_PASSWORD: changeme
-    JITSU_PUBLIC_URL: "http://localhost:3000"
+    # NEXTAUTH_URL and JITSU_PUBLIC_URL are template defaults
+    # (jitsu.consolePublicUrl): http://localhost:3000 in dev, and the Ingress
+    # host in prod when one is configured.
+    #
+    # Set them here when the chart cannot know the public URL: a prod install
+    # with no Ingress (exposed by an external load balancer or service mesh)
+    # falls back to http://localhost:3000, which will break sign-in redirects
+    # and the tracking snippet.
     JWT_SECRET: "dev-jwt-secret-change-in-production"
     SYNCS_ENABLED: true
 
@@ -86,6 +92,39 @@ env:
 # external instance, disable it in helm-deps/values.yaml and set the matching
 # env.common.KAFKA_BOOTSTRAP_SERVERS / DATABASE_URL / CLICKHOUSE_URL /
 # MONGODB_URL here (explicit env wins over envFrom).
+
+# Service type overrides. Empty by default: dev keeps the LoadBalancers that
+# `minikube tunnel` publishes, prod forces ClusterIP for every service so no
+# service gets its own billed cloud load balancer. Set a type here to override
+# both.
+#
+#   service:
+#     console:
+#       type: LoadBalancer
+service: {}
+
+# External entry point. Prod only — in dev, `minikube tunnel` already publishes
+# the LoadBalancer services.
+#
+# Scoped to console + ingest deliberately: bulker and rotor are internal in
+# production and are not exposed here. Enabling without a host fails the render
+# rather than producing an Ingress with no rules.
+ingress:
+  enabled: false
+  # Ingress controller class, e.g. nginx, traefik, or gce on GKE.
+  className: ""
+  # Controller- and issuer-specific annotations, e.g. cert-manager.io/cluster-issuer.
+  annotations: {}
+  hosts:
+    # Console UI, e.g. jitsu.example.com
+    console: ""
+    # Event collection endpoint, e.g. events.example.com
+    ingest: ""
+  tls:
+    enabled: false
+    # Existing TLS Secret. Leave empty when the controller or cert-manager
+    # provisions the certificate from the host list.
+    secretName: ""
 
 # Service scaling (set replicas to 0 to disable)
 scaling:
