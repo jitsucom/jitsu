@@ -41,7 +41,19 @@ func NewMinioContainer(ctx context.Context, bucketName string) (*MinioContainer,
 
 	container, err := testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
 		ContainerRequest: testcontainers.ContainerRequest{
-			Image:        "minio/minio:latest",
+			// docker.io/minio/minio is no longer publicly pullable: an anonymous
+			// pull token is rejected with UNAUTHORIZED, which Docker surfaces as
+			// "repository does not exist or may require 'docker login'". MinIO
+			// also publish to quay.io, which is public.
+			//
+			// Pinned on purpose. The previous reference was :latest, so this broke
+			// with no commit in the repo and went unnoticed for six days — the
+			// bulker shard skips whenever a PR does not touch bulker/, and none did.
+			//
+			// This tag is multi-arch (amd64/arm64/ppc64le) and its manifest list is
+			// byte-identical to quay's :latest today, so pinning costs nothing and
+			// keeps the tests runnable on Apple Silicon.
+			Image:        "quay.io/minio/minio:RELEASE.2025-09-07T16-13-09Z",
 			Cmd:          []string{"server", "/data"},
 			ExposedPorts: []string{"9000/tcp"},
 			HostConfigModifier: func(hc *container.HostConfig) {
