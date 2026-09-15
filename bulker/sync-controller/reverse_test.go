@@ -13,8 +13,10 @@ import (
 	"github.com/jitsucom/bulker/jitsubase/types"
 	batchv1 "k8s.io/api/batch/v1"
 	v1 "k8s.io/api/core/v1"
+	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/kubernetes/fake"
 	ktesting "k8s.io/client-go/testing"
 )
@@ -190,5 +192,68 @@ func TestReverseTerminationRetriesTransientFailure(t *testing.T) {
 	}
 	if _, err := client.CoreV1().Pods("default").Get(context.Background(), pod.Name, metav1.GetOptions{}); err == nil {
 		t.Fatal("running Pod was not deleted on retry")
+	}
+}
+
+func TestReverseRejectedPodSecretCleanup(t *testing.T) {
+	pods := schema.GroupResource{Resource: "pods"}
+	rejected := kerrors.NewForbidden(pods, "reverse-pod", errors.New("quota exceeded"))
+	for _, tc := range []struct {
+		name       string
+		createErr  error
+		podExists  bool
+		getErr     error
+		deleteErr  error
+		missingUID bool
+		wantDelete bool
+	}{
+		{name: "quota rejection", createErr: rejected, wantDelete: true},
+		{name: "invalid spec", createErr: kerrors.NewInvalid(schema.GroupKind{Kind: "Pod"}, "reverse-pod", nil), wantDelete: true},
+		{name: "timeout remains ambiguous", createErr: kerrors.NewTimeoutError("timeout", 1)},
+		{name: "transport remains ambiguous", createErr: errors.New("connection reset")},
+		{name: "server error remains ambiguous", createErr: kerrors.NewInternalError(errors.New("server error"))},
+		{name: "already exists", createErr: kerrors.NewAlreadyExists(pods, "reverse-pod")},
+		{name: "existing pod", createErr: rejected, podExists: true},
+		{name: "absence check failed", createErr: rejected, getErr: errors.New("unavailable")},
+		{name: "delete failed", createErr: rejected, deleteErr: errors.New("unavailable")},
+		{name: "replacement secret protected", createErr: rejected, deleteErr: kerrors.NewConflict(schema.GroupResource{Resource: "secrets"}, "reverse-config", errors.New("UID precondition failed"))},
+		{name: "missing UID", createErr: rejected, missingUID: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			secret := &v1.Secret{ObjectMeta: metav1.ObjectMeta{Name: "reverse-config", Namespace: "default", UID: "original-secret"}}
+			client := fake.NewClientset(secret)
+			if tc.missingUID {
+				secret.UID = ""
+			}
+			if tc.podExists {
+				_, err := client.CoreV1().Pods("default").Create(context.Background(), &v1.Pod{ObjectMeta: metav1.ObjectMeta{Name: "reverse-pod"}}, metav1.CreateOptions{})
+				if err != nil {
+					t.Fatal(err)
+				}
+			}
+			if tc.getErr != nil {
+				client.PrependReactor("get", "pods", func(ktesting.Action) (bool, runtime.Object, error) {
+					return true, nil, tc.getErr
+				})
+			}
+			client.PrependReactor("delete", "secrets", func(action ktesting.Action) (bool, runtime.Object, error) {
+				deletion := action.(ktesting.DeleteAction)
+				options := deletion.GetDeleteOptions()
+				if deletion.GetName() != secret.Name || action.GetNamespace() != secret.Namespace || options.Preconditions == nil || options.Preconditions.UID == nil || *options.Preconditions.UID != secret.UID {
+					t.Fatal("cleanup must target the exact created Secret UID")
+				}
+				return tc.deleteErr != nil, nil, tc.deleteErr
+			})
+			j := &JobRunner{clientset: client}
+			if cleaned := j.cleanupRejectedReversePod("reverse-pod", secret, tc.createErr); cleaned != tc.wantDelete {
+				t.Fatalf("cleanup returned %v, want %v", cleaned, tc.wantDelete)
+			}
+			_, err := client.CoreV1().Secrets("default").Get(context.Background(), secret.Name, metav1.GetOptions{})
+			if tc.wantDelete && !kerrors.IsNotFound(err) {
+				t.Fatalf("orphaned Secret retained: %v", err)
+			} else if !tc.wantDelete && err != nil {
+				t.Fatalf("credentials removed without safe cleanup: %v", err)
+			}
+		})
 	}
 }

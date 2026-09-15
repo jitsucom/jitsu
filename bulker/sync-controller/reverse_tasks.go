@@ -74,14 +74,38 @@ func (t *TaskManager) ReverseReadHandler(c *gin.Context) {
 	template.Spec.ActiveDeadlineSeconds = ptr.To(int64(t.config.JobActiveDeadlineSeconds))
 	pod, err := client.CoreV1().Pods(t.config.KubernetesNamespace).Create(ctx, &v1.Pod{ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: t.config.KubernetesNamespace, Labels: template.Labels, Annotations: template.Annotations}, Spec: template.Spec}, metav1.CreateOptions{})
 	if err != nil {
-		// Keep the Secret on an ambiguous create response: the Pod might exist.
-		// A subsequent watcher cleanup removes it with the terminal Pod.
+		if t.jobRunner.cleanupRejectedReversePod(name, secret, err) {
+			c.JSON(http.StatusServiceUnavailable, gin.H{"ok": false, "error": "Reverse job creation rejected", "taskId": taskID})
+			return
+		}
+		// Keep credentials when creation or cleanup is uncertain. A Pod may still
+		// be starting; its eventual watcher cleanup also removes the Secret.
 		c.JSON(http.StatusServiceUnavailable, gin.H{"ok": false, "error": "Reverse job creation uncertain", "taskId": taskID})
 		return
 	}
 	secret.OwnerReferences = []metav1.OwnerReference{{APIVersion: "v1", Kind: "Pod", Name: pod.Name, UID: pod.UID}}
 	_, _ = client.CoreV1().Secrets(t.config.KubernetesNamespace).Update(ctx, secret, metav1.UpdateOptions{})
 	c.JSON(http.StatusOK, gin.H{"ok": true, "taskId": taskID, "podName": name})
+}
+
+// cleanupRejectedReversePod only removes credentials after a definite API
+// rejection and an independent absence check. A timeout/transport failure can
+// still commit the Pod after a GET returns NotFound, so it must retain the Secret.
+func (j *JobRunner) cleanupRejectedReversePod(name string, secret *v1.Secret, createErr error) bool {
+	if !(kerrors.IsInvalid(createErr) || kerrors.IsForbidden(createErr) || kerrors.IsUnauthorized(createErr) || kerrors.IsBadRequest(createErr) || kerrors.IsNotFound(createErr)) {
+		return false
+	}
+	if secret.UID == "" {
+		return false
+	}
+	// The request context may already be cancelled; cleanup has its own budget.
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	if _, err := j.clientset.CoreV1().Pods(secret.Namespace).Get(ctx, name, metav1.GetOptions{}); !kerrors.IsNotFound(err) {
+		return false
+	}
+	err := j.clientset.CoreV1().Secrets(secret.Namespace).Delete(ctx, secret.Name, metav1.DeleteOptions{Preconditions: &metav1.Preconditions{UID: &secret.UID}})
+	return err == nil || kerrors.IsNotFound(err)
 }
 
 func (t *TaskManager) ReverseCancelHandler(c *gin.Context) {
