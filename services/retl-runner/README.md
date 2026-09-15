@@ -1,8 +1,9 @@
 # Reverse ETL Node core — JITSU-227
 
-Server-only persistence foundation on merged #1509. This package is not yet an
-executable runner and does not enable advertising writes, CronJobs or mirror mode
-in the lifecycle library. The closed ClickHouse failover PR #1512 is not included.
+Server-only persistence, core snapshot mirroring and an executable Node runner.
+See [runtime integration](src/runtime.md) for syncctl/CronJobs, admission, leases,
+task logs, recovery and deployment prerequisites. No live advertising adapters
+are registered yet; this foundation does not enable production advertising writes.
 
 The separate server-only [snapshot-mirror lifecycle](src/mirror.md) now builds on
 this persistence foundation: full source validation, bounded additions/removals,
@@ -30,7 +31,8 @@ GRANT SELECT, INSERT, UPDATE, DELETE ON
   newjitsu.reverse_sync_generation, newjitsu.reverse_sync_source_key,
   newjitsu.reverse_sync_desired,
   newjitsu.reverse_sync_membership TO retl_runtime;
-GRANT SELECT, INSERT, UPDATE ON newjitsu.source_state TO retl_runtime;
+GRANT SELECT, INSERT, UPDATE ON newjitsu.source_state, newjitsu.source_task TO retl_runtime;
+GRANT INSERT ON newjitsu.task_log TO retl_runtime;
 ```
 
 Change `newjitsu` in these grants if the config database uses another schema.
@@ -60,16 +62,16 @@ sensitive; the runtime role is trusted, not a tenant-facing database account.
 
 The pure `project(action, row)` callback is supplied by the core and yields bounded
 provider-ready identity/upsert/removal values. This module hashes canonical JSON,
-not identifiers according to vendor rules. Provider normalization and the core
-mirror planner are the next slice. Explicit remove projection must yield the same
+not identifiers according to vendor rules. The core mirror planner is implemented;
+provider-specific normalization follows with adapters. Explicit remove projection must yield the same
 canonical identity as upsert; never hash stored removal identifiers again.
 
 ## Ownership and recovery
 
 The caller must hold the matching Kubernetes per-sync lease **before** opening or
-renewing this database owner. Wiring this admission check, renewal loop, task/log
-updates and signal handling belongs to the executable runner/syncctl slice. This
-module supplies the database half of fencing, not a replacement scheduler/lease.
+renewing this database owner. The executable runner now wires admission, renewal,
+task/log updates and signal handling. This module supplies the database half of
+fencing, not a replacement scheduler/lease.
 
 Every run transaction locks and validates workspace, sync, logical run, task,
 revision, target and epoch against the database clock. It checks expiry again

@@ -1,0 +1,240 @@
+import { randomUUID } from "node:crypto";
+import type { JsonObject, ReverseEtlContext } from "@jitsu/protocols/reverse-etl";
+import type { WarehouseReader, CompositeCursor } from "@jitsu/warehouse-query";
+import { ReverseRunConfig } from "@jitsu/warehouse-query/src/runtime";
+import { createBufferedSyncStore, recordKey } from "@jitsu/destination-functions/src/reverse-etl/identity";
+import { runReverseEtl } from "@jitsu/destination-functions/src/reverse-etl/run";
+import { Database, openPersistence, renew, release, prune, type Scope } from "./persistence";
+import { ensure } from "./persistence/types";
+import { openMirrorPersistence, runSnapshotMirror, resumeSnapshotMirror } from "./mirror";
+import type { AdapterRegistry } from "./adapters";
+import type { RunLease } from "./lease";
+import { Tasks } from "./tasks";
+import { recoverRun } from "./recovery";
+
+export interface ExecuteOptions {
+  config: ReverseRunConfig;
+  taskId: string;
+  trigger: "manual" | "scheduled";
+  db: Database;
+  lease: RunLease;
+  adapters: AdapterRegistry;
+  controller: AbortController;
+  /** Fresh console admission. No cached config fallback on errors. */
+  admit(): Promise<ReverseRunConfig>;
+  reader(config: Record<string, unknown>): WarehouseReader;
+  heartbeatMs?: number;
+}
+
+export async function execute(input: ExecuteOptions): Promise<"SUCCESS" | "FAILED" | "CANCELLED"> {
+  const { db, lease, controller } = input;
+  const tasks = new Tasks(db, input.config.id, input.taskId);
+  let scope: Scope | undefined;
+  let reader: WarehouseReader | undefined;
+  let started = false;
+  let held = false;
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  let renewing: Promise<void> | undefined;
+  let stopped = false;
+  let ownershipLost = false;
+  const signal = controller.signal;
+  const tick = async () => {
+    try {
+      await lease.renew();
+      if (scope) await renew(db, scope);
+      await tasks.heartbeat(scope);
+    } catch {
+      ownershipLost = true;
+      controller.abort();
+    }
+    if (!stopped && !signal.aborted)
+      timer = setTimeout(() => {
+        renewing = tick();
+      }, input.heartbeatMs ?? 10_000);
+  };
+  try {
+    signal.throwIfAborted();
+    await lease.acquire();
+    held = true;
+    await tasks.start(input.trigger);
+    started = true;
+    const config = ReverseRunConfig.parse(await input.admit());
+    ensure(
+      config.id === input.config.id &&
+        config.workspaceId === input.config.workspaceId &&
+        config.configRevision === input.config.configRevision,
+      "Reverse configuration changed before admission"
+    );
+    signal.throwIfAborted();
+    const bind = input.adapters.get(String(config.destination.destinationType));
+    ensure(bind, "Reverse destination is not enabled in this runner");
+    const adapter = bind(config);
+    ensure(adapter.stream.name === config.options.stream, "Reverse stream does not match adapter");
+    if (config.options.mode === "mirror")
+      ensure(
+        adapter.mirror && adapter.mirror.stream === adapter.stream && adapter.verifyMirrorBaseline,
+        "Mirror adapter not verified"
+      );
+    const logicalRunId = await db.transaction(async client => {
+      const result = await client.query(
+        "SELECT run_id,phase FROM reverse_sync_control WHERE workspace_id=$1 AND sync_id=$2",
+        [config.workspaceId, config.id]
+      );
+      const previous = result.rows[0];
+      return previous && !["complete", "aborted"].includes(previous.phase) ? (previous.run_id as string) : randomUUID();
+    });
+    // Both owners must be live at acquisition; the durable DB check rejects old
+    // revision/target/mode even when console configuration changed meanwhile.
+    await lease.renew();
+    signal.throwIfAborted();
+    const runInput = {
+      workspaceId: config.workspaceId,
+      syncId: config.id,
+      taskId: input.taskId,
+      logicalRunId,
+      targetIdentity: adapter.targetIdentity,
+      configRevision: config.configRevision,
+      mode: config.options.mode,
+      extraction: config.model.cursor ? ("cursor" as const) : ("full" as const),
+    };
+    const mirror = config.options.mode === "mirror";
+    const run = mirror
+      ? await openMirrorPersistence(db, runInput)
+      : await openPersistence(db, runInput, adapter.project);
+    scope = run.scope;
+    timer = setTimeout(() => {
+      renewing = tick();
+    }, input.heartbeatMs ?? 10_000);
+    await tasks.heartbeat(scope);
+    for (;;) {
+      signal.throwIfAborted();
+      const removed = await prune(db, scope, new Date(Date.now() - 30 * 86400000));
+      if (!removed.batches && !removed.snapshotRows) break;
+    }
+    const saved = await run.core.state();
+    await tasks.progress(
+      run.recovery ? "Reconciling interrupted Reverse ETL delivery" : "Starting Reverse ETL extraction and delivery",
+      scope
+    );
+    const context: ReverseEtlContext<JsonObject, JsonObject> = {
+      ...run.scope,
+      mode: config.options.mode,
+      fullRefresh: !config.model.cursor,
+      credentials: adapter.credentials,
+      options: config.options.streamOptions as JsonObject,
+      signal,
+      store: createBufferedSyncStore(saved.store),
+      delivery: run.delivery,
+      // Provider messages can contain identifiers/tokens. Persist core-owned
+      // lifecycle messages only until a structured redacted logging contract exists.
+      log: { info() {}, warn() {}, debug() {}, error() {} },
+      fetch: (url, opts) => fetch(url, { ...opts, signal: AbortSignal.any([signal, AbortSignal.timeout(30_000)]) }),
+    };
+    const source = async function* (after: CompositeCursor | undefined, sourceSignal: AbortSignal) {
+      sourceSignal.throwIfAborted();
+      reader = input.reader(config.warehouse);
+      for await (const row of reader.stream(config.model, after, sourceSignal)) {
+        yield {
+          ...row,
+          key: recordKey(config.model.primaryKey.map(column => row.row[column] as string | number | boolean)),
+        };
+      }
+    };
+    const hooks = adapter.recovery?.(saved.providerState);
+    let result: string;
+    if (mirror) {
+      const targetBaseline = await adapter.verifyMirrorBaseline!(signal);
+      const options = {
+        persistence: run as Awaited<ReturnType<typeof openMirrorPersistence>>,
+        adapter: adapter.mirror!,
+        context,
+        targetBaseline,
+      };
+      const phase = (await run.core.recoveryStatus()).phase;
+      const rejected = run.recovery
+        ? await db.owned(
+            run.scope,
+            async client =>
+              (
+                await client.query(
+                  "SELECT 1 FROM reverse_sync_operation WHERE workspace_id=$1 AND sync_id=$2 AND run_id=$3 AND status='rejected' LIMIT 1",
+                  [run.scope.workspaceId, run.scope.syncId, run.scope.logicalRunId]
+                )
+              ).rowCount! > 0
+          )
+        : false;
+      if (run.recovery && phase !== "abort_prepared" && !rejected && (await run.snapshots.status())?.sealed) {
+        // Local finish recovery needs no provider hooks; attachment is fail-closed.
+        result = (
+          await resumeSnapshotMirror(
+            options,
+            hooks ?? {
+              attachWriter: async () => {
+                throw new Error("Provider reconciliation required");
+              },
+            }
+          )
+        ).delivery;
+      } else if (run.recovery) result = await recoverRun(run, context, hooks);
+      else
+        result = (
+          await runSnapshotMirror({
+            ...options,
+            mapping: config.options.mapping,
+            source: sig => source(undefined, sig),
+          })
+        ).delivery;
+    } else if (run.recovery) result = await recoverRun(run, context, hooks);
+    else
+      result = (
+        await runReverseEtl({
+          stream: { ...adapter.stream, batchSize: Math.min(adapter.stream.batchSize, db.limits.batchRecords) },
+          context,
+          mapping: config.options.mapping,
+          source,
+          checkpointEvery: config.options.checkpointEvery,
+        })
+      ).delivery;
+    // Stop renewal before terminal task status; never let a late heartbeat read
+    // our own SUCCESS as cancellation. Still hold both leases until finally.
+    stopped = true;
+    clearTimeout(timer);
+    await renewing;
+    signal.throwIfAborted();
+    const success = result === "accepted";
+    const changed = await tasks.finish(
+      success ? "SUCCESS" : "FAILED",
+      success
+        ? "Reverse ETL delivery committed"
+        : result === "pending"
+        ? "Provider delivery pending; next run will reconcile"
+        : "Recovery completed cleanup; next run will restart extraction",
+      scope
+    );
+    return changed && success ? "SUCCESS" : "FAILED";
+  } catch {
+    stopped = true;
+    clearTimeout(timer);
+    await renewing;
+    const status = signal.aborted && !ownershipLost ? "CANCELLED" : "FAILED";
+    if (started)
+      await tasks
+        .finish(
+          status,
+          ownershipLost
+            ? "Reverse ETL ownership or task heartbeat lost; recovery required"
+            : signal.aborted
+            ? "Reverse ETL cancelled; unresolved delivery retained"
+            : "Reverse ETL failed; inspect configuration and durable recovery state"
+        )
+        .catch(() => undefined);
+    return status;
+  } finally {
+    stopped = true;
+    clearTimeout(timer);
+    await renewing;
+    await reader?.close().catch(() => undefined);
+    if (scope) await release(db, scope).catch(() => undefined);
+    if (held) await lease.release().catch(() => undefined);
+  }
+}

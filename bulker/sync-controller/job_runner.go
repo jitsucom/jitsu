@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"regexp"
 	"strconv"
 	"strings"
@@ -45,7 +46,8 @@ type JobRunner struct {
 	config        *Config
 	namespace     string
 	clientConfig  *rest.Config
-	clientset     *kubernetes.Clientset
+	clientset     kubernetes.Interface
+	dbpool        *pgxpool.Pool
 	closeCh       chan struct{}
 	taskStatusCh  chan *TaskStatus
 	runningPods   map[string]time.Time
@@ -62,6 +64,7 @@ func NewJobRunner(appContext *Context) (*JobRunner, error) {
 		return nil, err
 	}
 	j := &JobRunner{Service: base, config: appContext.config, clientset: clientset, clientConfig: clientConfig, namespace: appContext.config.KubernetesNamespace,
+		dbpool:        appContext.dbpool,
 		closeCh:       make(chan struct{}),
 		taskStatusCh:  make(chan *TaskStatus, 100),
 		runningPods:   map[string]time.Time{},
@@ -86,6 +89,7 @@ func (j *JobRunner) watchPodStatuses() {
 			}
 			activePods := types.NewSet[string]()
 			activeSyncs := types.NewSet[string]()
+			endedReverse := j.endedReverseTasks(list.Items)
 			for _, pod := range list.Items {
 				activePods.Put(pod.Name)
 				if j.cleanedUpPods.Contains(pod.Name) {
@@ -118,6 +122,21 @@ func (j *JobRunner) watchPodStatuses() {
 				}
 				taskStatus.PodName = pod.Name
 				status := pod.Status
+				if taskStatus.TaskType == "reverse" {
+					if endedReverse[taskStatus.SyncID+":"+taskStatus.TaskID] {
+						j.cleanupReversePod(&pod)
+						continue
+					}
+					// Node owns its heartbeat and committed success. Do not inspect
+					// connector/sidecar logs, which can expose credentials/row values.
+					taskStatus.Status, taskStatus.Error = reversePodStatus(&pod, j.config)
+					if taskStatus.Status == StatusRunning || taskStatus.Status == StatusPending {
+						continue
+					}
+					j.sendStatus(&taskStatus)
+					j.cleanupReversePod(&pod)
+					continue
+				}
 				bytes, _ := json.Marshal(status)
 				j.Debugf("Pod %s Status %s:\n%s", pod.Name, status.Phase, string(bytes))
 				switch status.Phase {
@@ -535,7 +554,6 @@ func (j *JobRunner) buildPodSecret(name string, pc PodCtx) (*v1.Secret, error) {
 	}, nil
 }
 
-
 func (j *JobRunner) TerminatePod(podName string) {
 	_ = j.clientset.CoreV1().Pods(j.namespace).Delete(context.Background(), podName, metav1.DeleteOptions{})
 	_ = j.clientset.CoreV1().Secrets(j.namespace).Delete(context.Background(), podName+"-config", metav1.DeleteOptions{})
@@ -606,4 +624,3 @@ func (j *JobRunner) Close() {
 		j.waitGroup.Wait()
 	}
 }
-

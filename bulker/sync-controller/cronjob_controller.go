@@ -73,10 +73,43 @@ func cronSecretName(syncID string) string { return "sync-" + k8sName(syncID) + "
 type CronJobController struct {
 	appbase.Service
 	config    *Config
-	clientset *kubernetes.Clientset
+	clientset kubernetes.Interface
+	reverse   bool
 	repo      appbase.Repository[SyncsData]
 	jobRunner *JobRunner
 	closed    chan struct{}
+}
+
+func NewReverseCronJobController(ctx *Context) *CronJobController {
+	c := NewCronJobController(ctx)
+	c.repo = ctx.reverseRepo
+	c.reverse = true
+	return c
+}
+func (c *CronJobController) resourceName(id string) string {
+	if c.reverse {
+		return reverseResourceName(id)
+	}
+	return cronJobName(id)
+}
+func (c *CronJobController) secretName(id string) string {
+	if c.reverse {
+		return reverseResourceName(id) + "-cfg"
+	}
+	return cronSecretName(id)
+}
+func (c *CronJobController) kind() string {
+	if c.reverse {
+		return "reverse"
+	}
+	return "connector"
+}
+func (c *CronJobController) selector() string {
+	selector := fmt.Sprintf("%s=%s", labelManagedBy, managedByValue)
+	if c.reverse {
+		return selector + "," + labelSyncKind + "=reverse"
+	}
+	return selector + "," + labelSyncKind + "!=reverse"
 }
 
 func NewCronJobController(ctx *Context) *CronJobController {
@@ -140,7 +173,7 @@ func (c *CronJobController) reconcile() {
 
 	// List currently-managed CronJobs.
 	current, err := c.clientset.BatchV1().CronJobs(c.config.KubernetesNamespace).List(context.Background(), metav1.ListOptions{
-		LabelSelector: fmt.Sprintf("%s=%s", labelManagedBy, managedByValue),
+		LabelSelector: c.selector(),
 	})
 	if err != nil {
 		c.Errorf("failed to list CronJobs: %v", err)
@@ -227,6 +260,7 @@ func (c *CronJobController) configHash(entry *SyncEntry) string {
 		SrcCfg      json.RawMessage `json:"sc"`
 		DestCfg     json.RawMessage `json:"dc"`
 		Options     json.RawMessage `json:"o"`
+		Reverse     *ReverseConfig  `json:"reverse,omitempty"`
 		PodTemplate json.RawMessage `json:"pt"`
 		TmplRev     int             `json:"tr"`
 	}{
@@ -238,6 +272,7 @@ func (c *CronJobController) configHash(entry *SyncEntry) string {
 		SrcCfg:      entry.Source.Credentials,
 		DestCfg:     entry.Destination,
 		Options:     entry.Options,
+		Reverse:     entry.Reverse,
 		PodTemplate: podTmpl,
 		TmplRev:     c.effectiveCronTemplateRevision(),
 	})
@@ -294,14 +329,14 @@ func (c *CronJobController) updateCronJobIfDrifted(existing *batchv1.CronJob, en
 }
 
 func (c *CronJobController) deleteCronJob(syncID string) error {
-	name := cronJobName(syncID)
+	name := c.resourceName(syncID)
 	policy := metav1.DeletePropagationBackground
 	err := c.clientset.BatchV1().CronJobs(c.config.KubernetesNamespace).Delete(context.Background(), name, metav1.DeleteOptions{PropagationPolicy: &policy})
 	if err != nil && !errors.IsNotFound(err) {
 		return err
 	}
 	// Best-effort delete of the per-CronJob Secret. Ignore NotFound.
-	_ = c.clientset.CoreV1().Secrets(c.config.KubernetesNamespace).Delete(context.Background(), cronSecretName(syncID), metav1.DeleteOptions{})
+	_ = c.clientset.CoreV1().Secrets(c.config.KubernetesNamespace).Delete(context.Background(), c.secretName(syncID), metav1.DeleteOptions{})
 	c.Infof("deleted CronJob %s (sync %s)", name, syncID)
 	return nil
 }
@@ -311,7 +346,7 @@ func (c *CronJobController) deleteCronJob(syncID string) error {
 // File names match what sync-sidecar's ReadSideCar.loadDestinationConfig
 // expects at /config/destinationConfig.json.
 func (c *CronJobController) upsertSecret(entry *SyncEntry) error {
-	name := cronSecretName(entry.ID)
+	name := c.secretName(entry.ID)
 	// /config/serviceConfig.json holds the Jitsu service config wrapper
 	// (package, version, authorized, credentials). oauth-refresh init reads
 	// cfg["authorized"] and cfg["credentials"] from it, then writes the
@@ -327,12 +362,20 @@ func (c *CronJobController) upsertSecret(entry *SyncEntry) error {
 		"serviceConfig.json":     sourceJSON,
 		"destinationConfig.json": entry.Destination,
 	}
+	if c.reverse {
+		payload, err := json.Marshal(entry.Reverse)
+		if err != nil {
+			return err
+		}
+		data = map[string][]byte{"reverse.json": payload}
+	}
 	desired := &v1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
 			Namespace: c.config.KubernetesNamespace,
 			Labels: map[string]string{
 				labelManagedBy:   managedByValue,
+				labelSyncKind:    c.kind(),
 				labelSyncID:      entry.ID,
 				labelWorkspaceID: entry.WorkspaceID,
 			},
@@ -372,15 +415,19 @@ func (c *CronJobController) buildCronJob(entry *SyncEntry) *batchv1.CronJob {
 		ActiveDeadlineSeconds: ptr.To(int64(c.config.JobActiveDeadlineSeconds)),
 		Template:              c.buildCronPodTemplate(entry),
 	}
+	if c.reverse {
+		jobSpec.BackoffLimit = ptr.To(int32(0))
+	}
 
 	return &batchv1.CronJob{
 		TypeMeta: metav1.TypeMeta{Kind: "CronJob", APIVersion: "batch/v1"},
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      cronJobName(entry.ID),
+			Name:      c.resourceName(entry.ID),
 			Namespace: c.config.KubernetesNamespace,
 			Labels: map[string]string{
 				labelManagedBy:   managedByValue,
 				labelAppName:     cronJobAppValue,
+				labelSyncKind:    c.kind(),
 				labelSyncID:      entry.ID,
 				labelWorkspaceID: entry.WorkspaceID,
 			},
@@ -400,6 +447,7 @@ func (c *CronJobController) buildCronJob(entry *SyncEntry) *batchv1.CronJob {
 					Labels: map[string]string{
 						labelManagedBy:   managedByValue,
 						labelAppName:     cronJobAppValue,
+						labelSyncKind:    c.kind(),
 						labelSyncID:      entry.ID,
 						labelWorkspaceID: entry.WorkspaceID,
 					},
@@ -415,6 +463,9 @@ func (c *CronJobController) buildCronJob(entry *SyncEntry) *batchv1.CronJob {
 // Cron-specific bits: Cron=true (enables admission jitter) and the cron
 // Secret name (one stable Secret per CronJob, keyed by syncID).
 func (c *CronJobController) buildCronPodTemplate(entry *SyncEntry) v1.PodTemplateSpec {
+	if c.reverse {
+		return buildReversePodTemplate(c.config, entry, c.secretName(entry.ID), "")
+	}
 	pc := PodCtx{
 		TaskType:    "read",
 		WorkspaceID: entry.WorkspaceID,

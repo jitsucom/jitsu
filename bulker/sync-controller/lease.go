@@ -25,7 +25,7 @@ import (
 // runs slipped through. `k8sName` here matches `LeaseNameForSync` in the
 // sidecar character-for-character; keep them in sync (TODO: extract to a
 // shared `jitsubase/k8sname` package).
-func IsSyncLeaseHeld(clientset *kubernetes.Clientset, namespace, syncID string) (bool, error) {
+func IsSyncLeaseHeld(clientset kubernetes.Interface, namespace, syncID string) (bool, error) {
 	if clientset == nil || syncID == "" {
 		return false, nil
 	}
