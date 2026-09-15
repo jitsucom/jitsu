@@ -68,6 +68,10 @@ const s3Regions = [
   "us-gov-west-1",
 ] as const;
 
+// Allowed S3 URL addressing styles. "auto" preserves the historical behavior:
+// path-style for custom endpoints, virtual-hosted-style for AWS.
+const s3AddressingStyles = ["auto", "virtual-hosted", "path"] as const;
+
 export const MASKED_SECRET = "__MASKED_BY_JITSU__";
 
 /**
@@ -888,7 +892,13 @@ export const coreDestinations: DestinationType<any>[] = [
           .describe(
             "Authentication Method::S3 authentication method: <a target='_blank' rel='noopener noreferrer' href='https://docs.jitsu.com/destinations/block-storage/s3#advanced-iam-role-for-jitsu'>IAM Role based</a> or Access Key"
           ),
-        region: z.enum(s3Regions).default(s3Regions[0]).describe("S3 Region::S3 Region"),
+        region: z
+          .string()
+          .min(1)
+          .default(s3Regions[0])
+          .describe(
+            "S3 Region::S3 Region. Any AWS region (e.g. us-east-1, eu-central-1) or custom region for S3-compatible storage."
+          ),
         roleARN: z
           .string()
           .optional()
@@ -905,6 +915,13 @@ export const coreDestinations: DestinationType<any>[] = [
         secretAccessKey: z.string().optional().describe("S3 Secret Access Key::S3 Secret Access Key"),
         bucket: z.string().describe("S3 Bucket Name::S3 Bucket Name"),
         endpoint: z.string().optional().describe("Custom endpoint of S3-compatible server"),
+        addressingStyle: z
+          .enum(s3AddressingStyles)
+          .optional()
+          .default("auto")
+          .describe(
+            "S3 Addressing Style::S3 URL addressing style: auto (path-style for custom endpoint, virtual-hosted otherwise), virtual-hosted, or path"
+          ),
       })
       .merge(blockStorageSettings),
     credentialsUi: {
