@@ -3,7 +3,7 @@ kind: Job
 metadata:
   name: install-{{ .Release.Revision }}
   labels:
-    {{- include "jitsu-dev.labels" . | nindent 4 }}
+    {{- include "jitsu.labels" . | nindent 4 }}
     app.kubernetes.io/name: install
   annotations:
     "helm.sh/hook": pre-install,pre-upgrade
@@ -80,7 +80,7 @@ spec:
       volumes:
         - name: project
           hostPath:
-            path: {{ include "jitsu-dev.projectRoot" . }}
+            path: {{ include "jitsu.projectRoot" . }}
             type: Directory
         - name: node-cache
           persistentVolumeClaim:
