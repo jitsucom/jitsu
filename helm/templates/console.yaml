@@ -26,6 +26,7 @@ spec:
           {{- with (include "jitsu.imagePullPolicy" (dict "ctx" . "service" "console")) }}
           imagePullPolicy: {{ . }}
           {{- end }}
+{{- if include "jitsu.isDev" . }}
           workingDir: /cache/workspace/webapps/console
           command:
             - sh
@@ -67,6 +68,7 @@ spec:
                 sleep 5
               done
               exec npx next dev -H 0.0.0.0 -p 3000
+{{- end }}
           ports:
             - name: http
               containerPort: 3000
@@ -95,11 +97,13 @@ spec:
                     "INGMGR_PORT" ""
                     "MAINTENANCE_CONFIG_FILE" "/etc/jitsu/maintenance/maintenance.json")) | nindent 12 }}
           volumeMounts:
+{{- if include "jitsu.isDev" . }}
             - name: project
               mountPath: /project
               readOnly: true
             - name: node-cache
               mountPath: /cache
+{{- end }}
             - name: maintenance
               mountPath: /etc/jitsu/maintenance
               readOnly: true
@@ -126,6 +130,7 @@ spec:
             timeoutSeconds: 10
             failureThreshold: 30
       volumes:
+{{- if include "jitsu.isDev" . }}
         - name: project
           hostPath:
             path: {{ include "jitsu.projectRoot" . }}
@@ -133,6 +138,7 @@ spec:
         - name: node-cache
           persistentVolumeClaim:
             claimName: node-cache
+{{- end }}
         # `optional: true` so the pod boots cleanly when no maintenance window
         # is configured (the volume mounts as an empty dir; missing config
         # file → load() returns "no maintenance"). Create the CM via

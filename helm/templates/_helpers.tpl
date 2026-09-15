@@ -238,3 +238,15 @@ default — see the precedence rule on jitsu.env.
 {{- "jitsucom/functions-server:beta" -}}
 {{- end -}}
 {{- end }}
+
+{{/*
+Truthy only in dev mode. Wraps the source-build scaffolding — init containers,
+hostPath/cache volumes and the explicit `command` that runs a locally built
+binary — none of which exist in prod, where the published image ships the
+binary and defines its own entrypoint.
+
+  {{- if include "jitsu.isDev" . }}
+*/}}
+{{- define "jitsu.isDev" -}}
+{{- if eq (include "jitsu.mode" .) "dev" }}true{{ end -}}
+{{- end }}

@@ -37,6 +37,9 @@ image:
 #       repository: jitsucom/rotor
 #       tag: my-branch.abc1234
 #       pullPolicy: Always
+# NOTE: `rotor` and `profiles` run the SAME image (profiles is rotor with
+# ROTOR_MODE=profiles) but are separate keys here. Pinning one and not the other
+# gives you a split-version deployment — set both, or neither.
 images:
   ingest: {}
   bulker: {}
