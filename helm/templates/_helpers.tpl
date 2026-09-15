@@ -329,3 +329,24 @@ defaults are configuration, not secrets.
 {{- end -}}
 {{- end -}}
 {{- end }}
+
+{{/*
+Image for the sync sidecar pods, or empty in dev.
+
+Same shape as jitsu.functionsServerImage and the same reason for not living in
+`images:`: Helm does not create these pods. syncctl does, as CronJobs, reading
+SIDECAR_IMAGE from its own config (bulker/sync-controller/config.go:37).
+
+JITSU-48 splits sidecar's *dev* mode out into its own task but requires prod
+mode to cover it via images, which is this. Without it a prod install pinned to
+a version would still launch sync pods from `jitsucom/sidecar:latest` — the Go
+default — silently mixing versions.
+
+Empty in dev, where that Go default is what the chart has always relied on and
+emitting the variable would change nothing except the rendered output.
+*/}}
+{{- define "jitsu.sidecarImage" -}}
+{{- if eq (include "jitsu.mode" .) "prod" -}}
+{{- printf "%s/sidecar:%s" .Values.image.registry .Values.image.tag -}}
+{{- end -}}
+{{- end }}

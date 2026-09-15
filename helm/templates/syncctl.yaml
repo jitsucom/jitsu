@@ -96,10 +96,12 @@ spec:
             # least-privilege SA bound only to coordination.k8s.io/leases.
             # Separating it from syncctl's own SA keeps the pod-side blast
             # radius tiny (no pod create/delete, no Secret read, no log access).
+            {{- $extra := dict "HTTP_PORT" "3043" "PODS_SERVICE_ACCOUNT" "sync-pod" }}
+            {{- with (include "jitsu.sidecarImage" .) }}
+            {{- $_ := set $extra "SIDECAR_IMAGE" . }}
+            {{- end }}
             {{- include "jitsu.env" (dict "ctx" . "service" "syncctl"
-                  "extra" (dict
-                    "HTTP_PORT" "3043"
-                    "PODS_SERVICE_ACCOUNT" "sync-pod")
+                  "extra" $extra
                   "exclude" (list "KUBERNETES_NAMESPACE")) | nindent 12 }}
 {{- if include "jitsu.isDev" . }}
           volumeMounts:
