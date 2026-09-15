@@ -95,8 +95,9 @@ env:
   rotor: {}
   profiles: {}
   syncctl: {}
-  operator:
-    FUNCTIONS_SERVER_IMAGE: jitsucom/functions-server:beta
+  # FUNCTIONS_SERVER_IMAGE is a template default (jitsu.functionsServerImage):
+  # beta in dev, image.registry/image.tag in prod. Set it here to override.
+  operator: {}
   console:
     NEXTAUTH_URL: "http://localhost:3000"
     ENABLE_CREDENTIALS_LOGIN: true

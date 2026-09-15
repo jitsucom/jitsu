@@ -85,7 +85,8 @@ spec:
                 optional: true
           env:
             {{- include "jitsu.env" (dict "ctx" . "service" "operator"
-                  "extra" (dict "HTTP_PORT" "3052")) | nindent 12 }}
+                  "extra" (dict "HTTP_PORT" "3052"
+                    "FUNCTIONS_SERVER_IMAGE" (include "jitsu.functionsServerImage" .))) | nindent 12 }}
           volumeMounts:
             - name: build
               mountPath: /build
