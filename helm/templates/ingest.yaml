@@ -61,7 +61,10 @@ spec:
               memory: 3Gi
       containers:
         - name: ingest
-          image: debian:bookworm-slim
+          image: {{ include "jitsu.image" (dict "ctx" . "service" "ingest" "dev" "debian:bookworm-slim" "prod" "ingest") }}
+          {{- with (include "jitsu.imagePullPolicy" (dict "ctx" . "service" "ingest")) }}
+          imagePullPolicy: {{ . }}
+          {{- end }}
           command: ["/build/ingest"]
           ports:
             - name: http

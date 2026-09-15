@@ -1,9 +1,55 @@
-# Jitsu Dev Helm Chart Values
-# This chart deploys services using local binaries mounted via hostPath
+# Jitsu Helm Chart Values
+
+# Deployment mode.
+#
+#   dev  — services are built from source inside init containers against a
+#          hostPath-mounted checkout, and run from generic base images
+#          (golang / node / debian). Requires projectRoot. This is what the
+#          chart has always done and remains the default.
+#   prod — services run published jitsucom/* images; no source build, no
+#          hostPath, projectRoot unused.
+#
+# `prod` is not complete yet (JITSU-48): this release adds only the image
+# resolution below. Until per-service templating lands, setting mode=prod
+# changes which image is pulled but not the init containers or volumes, so it
+# will not produce a working deployment. Leave it on dev.
+mode: dev
+
+# Container images.
+#
+# Defaults apply in prod mode; in dev mode the base images are used instead
+# and these are ignored unless a per-service `repository` is set explicitly.
+image:
+  # Registry / org that publishes the service images.
+  registry: jitsucom
+  # Tag used for every service without its own. The release workflow tags the
+  # stable channel as both `latest` and `stable`; other channels are tagged
+  # with the channel name.
+  tag: latest
+  pullPolicy: IfNotPresent
+
+# Per-service image overrides. Empty by default — a service falls back to the
+# mode default. Setting `repository` pins that service in BOTH modes, which is
+# how a single service is run from an image while the rest build from source.
+#
+#   images:
+#     rotor:
+#       repository: jitsucom/rotor
+#       tag: my-branch.abc1234
+#       pullPolicy: Always
+images:
+  ingest: {}
+  bulker: {}
+  rotor: {}
+  profiles: {}
+  syncctl: {}
+  operator: {}
+  console: {}
 
 # Path to the project root on the host machine, mounted into containers.
-# Required — no default. dev-deploy.sh sets it automatically; for direct
-# helm invocations pass --set projectRoot=<absolute path to your checkout>.
+# Required in dev mode — no default. dev-deploy.sh sets it automatically; for
+# direct helm invocations pass --set projectRoot=<absolute path to your
+# checkout>. Unused in prod mode.
 projectRoot: ""
 
 # Environment variables

@@ -22,7 +22,10 @@ spec:
     spec:
       containers:
         - name: console
-          image: node:24-bookworm
+          image: {{ include "jitsu.image" (dict "ctx" . "service" "console" "dev" "node:24-bookworm" "prod" "console") }}
+          {{- with (include "jitsu.imagePullPolicy" (dict "ctx" . "service" "console")) }}
+          imagePullPolicy: {{ . }}
+          {{- end }}
           workingDir: /cache/workspace/webapps/console
           command:
             - sh
