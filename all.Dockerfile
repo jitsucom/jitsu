@@ -100,6 +100,11 @@ RUN pnpm build
 # CONSOLE STAGE - Next.js web application with Prisma ORM
 # ============================================================================
 # The admin console for managing Jitsu (Next.js + Prisma)
+FROM base AS retl-runner
+COPY --from=builder --chown=node:node /app/services/retl-runner/dist/main.cjs /app/main.cjs
+USER node
+CMD ["node", "/app/main.cjs"]
+
 FROM base AS console
 
 # Build arguments passed from CI/CD or docker build command
