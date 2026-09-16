@@ -57,6 +57,11 @@ spec:
         # command does not. Without this gate `manage.js seed` can run against a
         # database with no tables and burn its small backoff before the console
         # is up. /api/healthcheck returns 200 only once prisma has connected, so
+        # this gate is what stops `manage.js seed` racing the migration. The URL
+        # comes from jitsu.consoleUrl, not a hardcoded Service name: with
+        # scaling.console.replicas=0 there is no `console` Service, and polling
+        # one that does not exist made every install fail after the 5-minute
+        # timeout.
         # waiting on it waits for exactly the right thing.
         - name: wait-for-console
           image: {{ .Values.tokenGenerator.image | quote }}
@@ -66,7 +71,7 @@ spec:
             - |
               set -eu
               i=0
-              until wget -q -O /dev/null "http://console:3000/api/healthcheck"; do
+              until wget -q -O /dev/null "{{ include "jitsu.consoleUrl" . }}/api/healthcheck"; do
                 i=$((i+1))
                 if [ "$i" -ge 60 ]; then
                   echo "console did not become healthy after 5 minutes"
