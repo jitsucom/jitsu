@@ -130,7 +130,22 @@ env:
 # rotating it, because rotating mid-upgrade breaks every service until the last
 # pod restarts. Set it to manage the value yourself.
 auth:
+  # Leave empty and the token-generator Job creates jitsu-secrets on first
+  # install, then leaves it alone on every later upgrade. Set it to supply the
+  # token yourself (external secret manager, SealedSecret, GitOps) — the Job is
+  # then not created at all.
   token: ""
+
+# Image for the token-generator Job. Needs `kubectl` and a shell; nothing else.
+tokenGenerator:
+  image: bitnami/kubectl:1.31
+
+# Creates the first admin user and workspace on a fresh prod install, from
+# env.console.SEED_USER_EMAIL / SEED_USER_PASSWORD. Without it a prod install
+# has a migrated database and no user, so nobody can log in. Idempotent — it
+# does nothing once any user exists. Disable if you provision users another way.
+seed:
+  enabled: true
 
 # Service type overrides. Empty by default: dev keeps the LoadBalancers that
 # `minikube tunnel` publishes, prod forces ClusterIP for every service so no

@@ -1,0 +1,113 @@
+{{/*
+Generates the inter-service auth tokens into the `jitsu-secrets` Secret.
+
+Prod only — in dev, dev-deploy.sh creates that Secret before deploying.
+
+Why a Job rather than generating the Secret in a template: a template can only
+reach existing cluster state through `lookup`, and `lookup` returns nothing
+during `helm template`, `--dry-run`, and Argo CD repo-server rendering. A chart
+that relies on it emits a *fresh random token on every reconciliation*, and
+because updating a Secret does not restart pods atomically, some pods keep the
+old token and inter-service calls start failing. Doing the stateful part in the
+cluster keeps rendering pure and the token stable.
+
+Idempotent by construction: the Job creates the Secret only if absent, so a
+re-install or a resync leaves an existing token alone. Set `auth.token` to
+manage the value yourself instead — then this Job is not created at all.
+
+Pattern borrowed from the community chart at github.com/stafftastic/jitsu-chart.
+*/}}
+{{- if and (eq (include "jitsu.mode" .) "prod") (not .Values.auth.token) }}
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: jitsu-token-generator
+  labels:
+    {{- include "jitsu.labels" . | nindent 4 }}
+    app.kubernetes.io/name: token-generator
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: jitsu-token-generator
+  labels:
+    {{- include "jitsu.labels" . | nindent 4 }}
+    app.kubernetes.io/name: token-generator
+rules:
+  # `get` is scoped to the one Secret this Job owns — it must read it back to
+  # stay idempotent, but it has no business reading any other Secret.
+  - apiGroups: [""]
+    resources: ["secrets"]
+    verbs: ["get"]
+    resourceNames: ["jitsu-secrets"]
+  - apiGroups: [""]
+    resources: ["secrets"]
+    verbs: ["create"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: jitsu-token-generator
+  labels:
+    {{- include "jitsu.labels" . | nindent 4 }}
+    app.kubernetes.io/name: token-generator
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: jitsu-token-generator
+subjects:
+  - kind: ServiceAccount
+    name: jitsu-token-generator
+    namespace: {{ .Release.Namespace }}
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: token-generator-{{ .Release.Revision }}
+  labels:
+    {{- include "jitsu.labels" . | nindent 4 }}
+    app.kubernetes.io/name: token-generator
+  annotations:
+    # Before everything else: every service mounts jitsu-secrets via envFrom and
+    # will not start without it.
+    "helm.sh/hook": pre-install,pre-upgrade
+    "helm.sh/hook-weight": "-10"
+    "helm.sh/hook-delete-policy": before-hook-creation
+spec:
+  backoffLimit: 2
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: token-generator
+        app.kubernetes.io/instance: {{ .Release.Name }}
+    spec:
+      restartPolicy: Never
+      serviceAccountName: jitsu-token-generator
+      containers:
+        - name: token-generator
+          image: {{ .Values.tokenGenerator.image | quote }}
+          command:
+            - sh
+            - -c
+            - |
+              set -eu
+              if kubectl get secret jitsu-secrets >/dev/null 2>&1; then
+                echo "jitsu-secrets already exists — leaving it alone"
+                exit 0
+              fi
+              # `tr -dc` on /dev/urandom: no openssl in the kubectl image.
+              TOKEN=$(head -c 256 /dev/urandom | tr -dc 'a-zA-Z0-9' | head -c 32)
+              # The three keyId:secret pairs use the same service-admin-account
+              # prefix the console expects; the rest are the bare token. Mirrors
+              # dev-deploy.sh's ensure_secrets() exactly.
+              kubectl create secret generic jitsu-secrets \
+                --from-literal="RAW_AUTH_TOKENS=$TOKEN" \
+                --from-literal="BULKER_AUTH_KEY=$TOKEN" \
+                --from-literal="ROTOR_AUTH_KEY=$TOKEN" \
+                --from-literal="SYNCCTL_AUTH_KEY=$TOKEN" \
+                --from-literal="CONSOLE_RAW_AUTH_TOKENS=$TOKEN" \
+                --from-literal="REPOSITORY_AUTH_TOKEN=service-admin-account:$TOKEN" \
+                --from-literal="CONSOLE_TOKEN=service-admin-account:$TOKEN" \
+                --from-literal="CONFIG_SOURCE_HTTP_AUTH_TOKEN=service-admin-account:$TOKEN"
+              echo "jitsu-secrets created"
+{{- end }}
