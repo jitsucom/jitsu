@@ -1,7 +1,9 @@
 import type { JsonObject, ResumePoint } from "@jitsu/protocols/reverse-etl";
+import type { PoolClient } from "pg";
 import { contentHash } from "@jitsu/destination-functions/src/reverse-etl/identity";
 import { Database } from "./database";
 import { decodeJson } from "./serialization";
+import type { ControlRow, StateRow, TargetOwnerRow } from "./rows";
 import { ensure, type RunInput, type Scope } from "./types";
 
 export interface SavedState {
@@ -11,7 +13,9 @@ export interface SavedState {
 }
 export const stateStream = "_REVERSE_ETL_";
 /** JSON text inside jsonb preserves NUL/unpaired-surrogate strings supported by the protocol. */
-export function readSavedState(envelope: any, scope: RunInput): SavedState {
+export function readSavedState(value: unknown, scope: RunInput): SavedState {
+  ensure(value !== null && typeof value === "object" && !Array.isArray(value), "Unsupported saved state format");
+  const envelope = value as Record<string, unknown>;
   ensure(envelope?.version === 2 && typeof envelope.value === "string", "Unsupported saved state format");
   ensure(
     envelope.workspaceId === scope.workspaceId &&
@@ -22,12 +26,18 @@ export function readSavedState(envelope: any, scope: RunInput): SavedState {
   return decodeJson<SavedState>(Buffer.from(envelope.value, "utf8"));
 }
 
-/** Caller must already hold the matching Kubernetes sync lease. This is the DB fence, not admission. */
-export async function acquire(
-  db: Database,
-  input: RunInput,
-  leaseMs = 60_000
-): Promise<{ scope: Scope; recovery: boolean }> {
+/** Lock lifecycle state for atomic updates, not worker ownership. Caller holds the Kubernetes lease. */
+export async function readControl(client: PoolClient, scope: Scope) {
+  const { rows } = await client.query<ControlRow>(
+    "SELECT * FROM reverse_sync_control WHERE workspace_id=$1 AND sync_id=$2 AND run_id=$3 FOR UPDATE",
+    [scope.workspaceId, scope.syncId, scope.logicalRunId]
+  );
+  ensure(rows[0], "Run state missing or changed");
+  return rows[0];
+}
+
+/** Open durable lifecycle state after Kubernetes admission; this does not acquire a database lease. */
+export async function openRun(db: Database, input: RunInput): Promise<{ scope: Scope; recovery: boolean }> {
   for (const value of [
     input.workspaceId,
     input.syncId,
@@ -42,7 +52,6 @@ export async function acquire(
     "Invalid extraction mode"
   );
   ensure(input.mode !== "mirror" || input.extraction === "full", "Mirror requires full extraction");
-  ensure(Number.isSafeInteger(leaseMs) && leaseMs >= 100 && leaseMs <= 60_000, "Invalid lease duration");
   // Capture caller-owned fields before any await.
   const run = { ...input };
   return db.transaction(async client => {
@@ -50,17 +59,16 @@ export async function acquire(
     // Serialize target admission too: an upsert cannot race exclusive mirror ownership.
     await client.query("SELECT pg_advisory_xact_lock(hashtextextended($1,0))", [target]);
     await client.query(
-      `INSERT INTO reverse_sync_control (workspace_id,sync_id,run_id,task_id,revision,target_hash,lease_until,mode,extraction)
-      VALUES ($1,$2,$3,$4,$5,$6,clock_timestamp(),$7,$8) ON CONFLICT (workspace_id,sync_id) DO NOTHING`,
-      [run.workspaceId, run.syncId, run.logicalRunId, run.taskId, run.configRevision, target, run.mode, run.extraction]
+      `INSERT INTO reverse_sync_control (workspace_id,sync_id,run_id,revision,target_hash,mode,extraction)
+      VALUES ($1,$2,$3,$4,$5,$6,$7) ON CONFLICT (workspace_id,sync_id) DO NOTHING`,
+      [run.workspaceId, run.syncId, run.logicalRunId, run.configRevision, target, run.mode, run.extraction]
     );
     const {
       rows: [control],
-    } = await client.query(
-      "SELECT *, lease_until > clock_timestamp() AS active FROM reverse_sync_control WHERE workspace_id=$1 AND sync_id=$2 FOR UPDATE",
+    } = await client.query<ControlRow>(
+      "SELECT * FROM reverse_sync_control WHERE workspace_id=$1 AND sync_id=$2 FOR UPDATE",
       [run.workspaceId, run.syncId]
     );
-    ensure(!control.active, "Sync already has an active owner");
     ensure(
       control.target_hash === target && control.revision === run.configRevision && control.mode === run.mode,
       "Target/config changes require controlled reset"
@@ -81,7 +89,7 @@ export async function acquire(
         "INSERT INTO reverse_sync_target_owner (target_hash,workspace_id,sync_id) VALUES ($1,$2,$3) ON CONFLICT DO NOTHING",
         [target, run.workspaceId, run.syncId]
       );
-      const owner = await client.query(
+      const owner = await client.query<Pick<TargetOwnerRow, "workspace_id" | "sync_id">>(
         "SELECT workspace_id,sync_id FROM reverse_sync_target_owner WHERE target_hash=$1",
         [target]
       );
@@ -95,60 +103,29 @@ export async function acquire(
     }
     let base = 0;
     if (!sameRun || control.phase === "new") {
-      const saved = await client.query(`SELECT state FROM ${db.stateTable} WHERE sync_id=$1 AND stream=$2`, [
-        run.syncId,
-        stateStream,
-      ]);
+      const saved = await client.query<Pick<StateRow, "state">>(
+        `SELECT state FROM ${db.stateTable} WHERE sync_id=$1 AND stream=$2`,
+        [run.syncId, stateStream]
+      );
       if (saved.rows[0]) {
         const value = readSavedState(saved.rows[0].state, run);
         base = run.extraction === "cursor" && value.point.cursor ? value.point.sourceSequence : 0;
       }
     }
-    const updated = await client.query(
-      `UPDATE reverse_sync_control SET epoch=epoch+1, task_id=$3, lease_until=clock_timestamp()+($4 * interval '1 millisecond'),
-      run_id=$5, extraction=$6,
-      phase=CASE WHEN $7 THEN phase ELSE 'new' END,
-      base_sequence=CASE WHEN $7 AND phase <> 'new' THEN base_sequence ELSE $8 END,
-      next_sequence=CASE WHEN $7 AND phase <> 'new' THEN next_sequence ELSE $8 END,
-      checkpoint_sequence=CASE WHEN $7 AND phase <> 'new' THEN checkpoint_sequence ELSE $8 END,
-      finish_sequence=CASE WHEN $7 THEN finish_sequence ELSE NULL END,
-      finish_result=CASE WHEN $7 THEN finish_result ELSE NULL END
-      WHERE workspace_id=$1 AND sync_id=$2 RETURNING epoch`,
-      [run.workspaceId, run.syncId, run.taskId, leaseMs, run.logicalRunId, run.extraction, sameRun, base]
+    await client.query(
+      `UPDATE reverse_sync_control SET run_id=$3, extraction=$4,
+      phase=CASE WHEN $5 THEN phase ELSE 'new' END,
+      base_sequence=CASE WHEN $5 AND phase <> 'new' THEN base_sequence ELSE $6 END,
+      next_sequence=CASE WHEN $5 AND phase <> 'new' THEN next_sequence ELSE $6 END,
+      checkpoint_sequence=CASE WHEN $5 AND phase <> 'new' THEN checkpoint_sequence ELSE $6 END,
+      finish_sequence=CASE WHEN $5 THEN finish_sequence ELSE NULL END,
+      finish_result=CASE WHEN $5 THEN finish_result ELSE NULL END
+      WHERE workspace_id=$1 AND sync_id=$2`,
+      [run.workspaceId, run.syncId, run.logicalRunId, run.extraction, sameRun, base]
     );
     return {
-      scope: Object.freeze({ ...run, fencingEpoch: updated.rows[0].epoch }),
+      scope: Object.freeze(run),
       recovery: sameRun && control.phase !== "new",
     };
-  });
-}
-
-export async function renew(db: Database, scope: Scope, leaseMs = 60_000) {
-  ensure(Number.isSafeInteger(leaseMs) && leaseMs >= 100 && leaseMs <= 60_000, "Invalid lease duration");
-  await db.owned(scope, async client => {
-    const result = await client.query(
-      "UPDATE reverse_sync_control SET lease_until=clock_timestamp()+($3 * interval '1 millisecond') WHERE workspace_id=$1 AND sync_id=$2 AND lease_until>clock_timestamp() RETURNING 1",
-      [scope.workspaceId, scope.syncId, leaseMs]
-    );
-    ensure(result.rowCount, "Run ownership lost");
-  });
-}
-/** Release does not mark success, clear a pending submission, or abandon mirror ownership. */
-export async function release(db: Database, scope: Scope) {
-  await db.transaction(async client => {
-    const result = await client.query(
-      `UPDATE reverse_sync_control SET epoch=epoch+1,task_id='',lease_until=clock_timestamp()
-      WHERE workspace_id=$1 AND sync_id=$2 AND run_id=$3 AND task_id=$4 AND epoch=$5 AND revision=$6 AND target_hash=$7 AND lease_until>clock_timestamp() RETURNING 1`,
-      [
-        scope.workspaceId,
-        scope.syncId,
-        scope.logicalRunId,
-        scope.taskId,
-        scope.fencingEpoch,
-        scope.configRevision,
-        contentHash(scope.targetIdentity),
-      ]
-    );
-    ensure(result.rowCount, "Run ownership lost");
   });
 }

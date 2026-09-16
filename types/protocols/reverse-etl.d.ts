@@ -55,13 +55,12 @@ export interface BufferedSyncStore {
   /** A bounded copy, committed atomically with receipts/checkpoints by the persistence module. */
   snapshot(): JsonObject;
 }
-/** Bound to one immutable target/revision/logical run and its fencing epoch. */
+/** Bound to one immutable target/revision/logical run; execution ownership is external. */
 export interface ReverseEtlRunScope {
   syncId: string;
   taskId: string;
   logicalRunId: string;
   configRevision: string;
-  fencingEpoch: string;
   targetIdentity: string;
 }
 export interface PreparedBatch<Row> extends WriteBatch<Row> {

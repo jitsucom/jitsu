@@ -11,6 +11,7 @@
   },
   "devDependencies": {
     "@jitsu/common-config": "workspace:*",
+    "@prisma/client": "^6.5.0",
     "@types/node": "catalog:",
     "@types/pg": "^8.16.0",
     "prisma": "^6.5.0",

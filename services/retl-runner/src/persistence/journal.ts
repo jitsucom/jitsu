@@ -11,9 +11,19 @@ import { canonicalJson, contentHash } from "@jitsu/destination-functions/src/rev
 import { validateBatchResult, validateFinishResult } from "@jitsu/destination-functions/src/reverse-etl/meta";
 import { Database } from "./database";
 import { decodeJson, encodeJson, jsonByteBudget } from "./serialization";
-import { readSavedState, stateStream, type SavedState } from "./ownership";
+import { readControl, readSavedState, stateStream, type SavedState } from "./run-state";
 import { effects, Snapshots } from "./snapshots";
 import { ensure, type Effect, type Project, type Scope } from "./types";
+import type { BatchRow, OperationRow, StateRow } from "./rows";
+
+interface SavedFinish {
+  result: FinishResult;
+  acceptance?: { at: string };
+}
+function readFinish(value: Buffer | null): SavedFinish {
+  ensure(value, "Missing finish receipt");
+  return decodeJson<SavedFinish>(value);
+}
 
 // Outcome array order is not significant; compare every outcome and metadata field.
 function canonicalReceipt(result: BatchResult) {
@@ -43,33 +53,38 @@ export class Journal implements DeliveryJournal {
     ]);
   }
   async state(): Promise<{ store: JsonObject; providerState: JsonObject }> {
-    return this.db.owned(this.scope, async (_, control) => ({
-      store: control.store ? decodeJson<JsonObject>(control.store) : {},
-      providerState: control.provider_state ? decodeJson<JsonObject>(control.provider_state) : {},
-    }));
+    return this.db.transaction(async client => {
+      const control = await readControl(client, this.scope);
+      return {
+        store: control.store ? decodeJson<JsonObject>(control.store) : {},
+        providerState: control.provider_state ? decodeJson<JsonObject>(control.provider_state) : {},
+      };
+    });
   }
   async assertReady(): Promise<ResumePoint> {
-    return this.db.owned(this.scope, async (client, control) => {
+    return this.db.transaction(async client => {
+      const control = await readControl(client, this.scope);
       ensure(control.phase === "new", "Recover previous lifecycle before extraction");
-      ensure(!this.recovery, "Reacquire ownership after init recovery before extraction");
+      ensure(!this.recovery, "Reopen persistence after init recovery before extraction");
       const unresolved = await client.query(
         "SELECT 1 FROM reverse_sync_operation WHERE workspace_id=$1 AND sync_id=$2 AND status IN ('prepared','unknown','staged') LIMIT 1",
         this.key.slice(0, 2)
       );
       ensure(!unresolved.rowCount, "Unresolved operations require recovery");
-      const saved = await client.query(`SELECT state FROM ${this.db.stateTable} WHERE sync_id=$1 AND stream=$2`, [
-        this.scope.syncId,
-        stateStream,
-      ]);
+      const saved = await client.query<Pick<StateRow, "state">>(
+        `SELECT state FROM ${this.db.stateTable} WHERE sync_id=$1 AND stream=$2`,
+        [this.scope.syncId, stateStream]
+      );
       if (!saved.rowCount || this.scope.extraction === "full") return { sourceSequence: 0 };
       const state = readSavedState(saved.rows[0].state, this.scope);
       return state.point.cursor ? state.point : { sourceSequence: 0 };
     });
   }
   async prepareInit(store: JsonObject) {
-    await this.db.owned(this.scope, async (client, control) => {
+    await this.db.transaction(async client => {
+      const control = await readControl(client, this.scope);
       ensure(control.phase === "new", "Init is already prepared or run has ended");
-      ensure(!this.recovery, "Reacquire ownership after init recovery before initialization");
+      ensure(!this.recovery, "Reopen persistence after init recovery before initialization");
       await this.saveStore(client, store);
       await client.query(
         "UPDATE reverse_sync_control SET phase='init_prepared' WHERE workspace_id=$1 AND sync_id=$2",
@@ -78,7 +93,8 @@ export class Journal implements DeliveryJournal {
     });
   }
   async acknowledgeInit(store: JsonObject) {
-    await this.db.owned(this.scope, async (client, control) => {
+    await this.db.transaction(async client => {
+      const control = await readControl(client, this.scope);
       ensure(control.phase === "init_prepared", "Init is not prepared");
       ensure(!this.recovery, "Recovered init requires explicit reconciliation");
       await this.saveStore(client, store);
@@ -91,12 +107,13 @@ export class Journal implements DeliveryJournal {
   /**
    * Core only: verify the previous init/session is absent or safely cleaned up before
    * authorizing a fresh attempt. Unknown/in-flight initialization is never retryable.
-   * Release/reacquire ownership afterwards; the recovery epoch cannot run fresh init.
+   * Reopen persistence afterwards; the recovery session cannot run fresh init.
    */
   async resetInitAfterReconciliation(resolution: "absent" | "cleaned-up", store: JsonObject) {
     ensure(["absent", "cleaned-up"].includes(resolution), "Invalid init recovery resolution");
-    await this.db.owned(this.scope, async (client, control) => {
-      ensure(this.recovery, "Init recovery requires a recovery owner");
+    await this.db.transaction(async client => {
+      const control = await readControl(client, this.scope);
+      ensure(this.recovery, "Init recovery requires a recovery session");
       // The reset may have committed without its response reaching the caller.
       if (control.phase === "new") return;
       ensure(control.phase === "init_prepared", "Only prepared init can be reset");
@@ -108,7 +125,8 @@ export class Journal implements DeliveryJournal {
     });
   }
   async saveProviderState(state: JsonObject) {
-    await this.db.owned(this.scope, async (client, control) => {
+    await this.db.transaction(async client => {
+      const control = await readControl(client, this.scope);
       ensure(!["new", "complete", "aborted"].includes(control.phase), "No active provider lifecycle");
       await client.query("UPDATE reverse_sync_control SET provider_state=$3 WHERE workspace_id=$1 AND sync_id=$2", [
         ...this.key.slice(0, 2),
@@ -137,7 +155,8 @@ export class Journal implements DeliveryJournal {
       Buffer.byteLength(canonicalJson(projected)) <= this.db.limits.batchBytes,
       "Projected effects exceed byte budget"
     );
-    await this.db.owned(this.scope, async (client, control) => {
+    await this.db.transaction(async client => {
+      const control = await readControl(client, this.scope);
       ensure(control.phase === "running", "Cannot prepare delivery in this phase");
       const unresolved = await client.query(
         "SELECT 1 FROM reverse_sync_operation WHERE workspace_id=$1 AND sync_id=$2 AND run_id=$3 AND status IN ('prepared','unknown','rejected') LIMIT 1",
@@ -231,25 +250,28 @@ export class Journal implements DeliveryJournal {
     });
   }
   async loadBatch(batchId: string): Promise<PreparedBatch<unknown>> {
-    return this.db.owned(this.scope, async client => this.batch(client, batchId));
+    return this.db.transaction(async client => this.batch(client, batchId));
   }
   async recoveryStatus() {
-    return this.db.owned(this.scope, async (_, control) => ({
-      phase: control.phase as string,
-      nextSequence: Number(control.next_sequence),
-      finishSequence: control.finish_sequence === null ? undefined : Number(control.finish_sequence),
-      finish: control.finish_result ? decodeJson<{ result: FinishResult }>(control.finish_result).result : undefined,
-      providerState: control.provider_state ? decodeJson<JsonObject>(control.provider_state) : {},
-    }));
+    return this.db.transaction(async client => {
+      const control = await readControl(client, this.scope);
+      return {
+        phase: control.phase,
+        nextSequence: Number(control.next_sequence),
+        finishSequence: control.finish_sequence === null ? undefined : Number(control.finish_sequence),
+        finish: control.finish_result ? readFinish(control.finish_result).result : undefined,
+        providerState: control.provider_state ? decodeJson<JsonObject>(control.provider_state) : {},
+      };
+    });
   }
   async recoveryBatch(batchId: string) {
-    return this.db.owned(this.scope, async client => {
+    return this.db.transaction(async client => {
       const batch = await this.batch(client, batchId);
-      const saved = await client.query(
+      const saved = await client.query<Pick<BatchRow, "result">>(
         "SELECT result FROM reverse_sync_batch WHERE workspace_id=$1 AND sync_id=$2 AND run_id=$3 AND batch_id=$4",
         [...this.key, batchId]
       );
-      const operations = await client.query(
+      const operations = await client.query<Pick<OperationRow, "operation_id" | "status" | "accepted_at">>(
         "SELECT operation_id,status,accepted_at FROM reverse_sync_operation WHERE workspace_id=$1 AND sync_id=$2 AND run_id=$3 AND batch_id=$4 ORDER BY sequence",
         [...this.key, batchId]
       );
@@ -257,15 +279,15 @@ export class Journal implements DeliveryJournal {
         batch,
         result: saved.rows[0].result ? decodeJson<BatchResult>(saved.rows[0].result) : undefined,
         operations: operations.rows.map(row => ({
-          operationId: row.operation_id as string,
-          status: row.status as string,
-          acceptedAt: row.accepted_at as Date | null,
+          operationId: row.operation_id,
+          status: row.status,
+          acceptedAt: row.accepted_at,
         })),
       };
     });
   }
   private async batch(client: PoolClient, batchId: string): Promise<PreparedBatch<unknown>> {
-    const result = await client.query(
+    const result = await client.query<Pick<BatchRow, "manifest">>(
       "SELECT manifest FROM reverse_sync_batch WHERE workspace_id=$1 AND sync_id=$2 AND run_id=$3 AND batch_id=$4",
       [...this.key, batchId]
     );
@@ -274,8 +296,8 @@ export class Journal implements DeliveryJournal {
   }
   async recoveryPage(after = "", limit = 100): Promise<{ batchId: string; status: string }[]> {
     ensure(Number.isSafeInteger(limit) && limit > 0 && limit <= 1000 && after.length <= 512, "Invalid recovery page");
-    return this.db.owned(this.scope, async client => {
-      const result = await client.query(
+    return this.db.transaction(async client => {
+      const result = await client.query<Pick<BatchRow, "batch_id" | "status">>(
         "SELECT batch_id,status FROM reverse_sync_batch WHERE workspace_id=$1 AND sync_id=$2 AND run_id=$3 AND batch_id>$4 ORDER BY batch_id LIMIT $5",
         [...this.key, after, limit]
       );
@@ -283,7 +305,8 @@ export class Journal implements DeliveryJournal {
     });
   }
   async markUnknown(batchId: string) {
-    await this.db.owned(this.scope, async (client, control) => {
+    await this.db.transaction(async client => {
+      const control = await readControl(client, this.scope);
       ensure(control.phase === "running", "Cannot mark unknown in this phase");
       await this.batch(client, batchId);
       await client.query(
@@ -301,7 +324,7 @@ export class Journal implements DeliveryJournal {
     ensure(!this.recovery || reconciled, "Recovered acceptance requires explicit reconciliation");
     const {
       rows: [clock],
-    } = await client.query("SELECT clock_timestamp() AS now");
+    } = await client.query<{ now: Date }>("SELECT clock_timestamp() AS now");
     return clock.now;
   }
   async acknowledge(batchId: string, result: BatchResult, store: JsonObject) {
@@ -312,11 +335,12 @@ export class Journal implements DeliveryJournal {
     return this.acknowledgeBatch(batchId, input, store, true);
   }
   private async acknowledgeBatch(batchId: string, input: BatchResult, store: JsonObject, reconciled: boolean) {
-    await this.db.owned(this.scope, async (client, control) => {
+    await this.db.transaction(async client => {
+      const control = await readControl(client, this.scope);
       ensure(control.phase === "running", "Cannot acknowledge batch in this phase");
       const batch = await this.batch(client, batchId);
       const result = validateBatchResult(batch, input);
-      const previousResult = await client.query(
+      const previousResult = await client.query<Pick<BatchRow, "result" | "result_bytes">>(
         "SELECT result,result_bytes FROM reverse_sync_batch WHERE workspace_id=$1 AND sync_id=$2 AND run_id=$3 AND batch_id=$4",
         [...this.key, batchId]
       );
@@ -352,7 +376,7 @@ export class Journal implements DeliveryJournal {
       for (const outcome of result.outcomes) {
         const {
           rows: [operation],
-        } = await client.query(
+        } = await client.query<OperationRow>(
           "SELECT * FROM reverse_sync_operation WHERE workspace_id=$1 AND sync_id=$2 AND run_id=$3 AND operation_id=$4",
           [...this.key, outcome.operationId]
         );
@@ -392,7 +416,7 @@ export class Journal implements DeliveryJournal {
       await this.saveStore(client, store);
     });
   }
-  private async accept(client: PoolClient, operation: any, acceptedAt: Date) {
+  private async accept(client: PoolClient, operation: OperationRow, acceptedAt: Date) {
     const projected = decodeJson<Effect[]>(operation.effects);
     for (const effect of projected) {
       const later = await client.query(
@@ -403,7 +427,7 @@ export class Journal implements DeliveryJournal {
       // A delayed acceptance still gets a receipt and releases its reservation, but cannot
       // overwrite a later accepted upsert or resurrect a later accepted removal.
       if (later.rowCount) continue;
-      const previous = await client.query(
+      const previous = await client.query<{ bytes: number }>(
         "SELECT octet_length(value) AS bytes FROM reverse_sync_membership WHERE workspace_id=$1 AND sync_id=$2 AND identity_hash=$3",
         [...this.key.slice(0, 2), effect.identityHash]
       );
@@ -431,7 +455,7 @@ export class Journal implements DeliveryJournal {
       [...this.key, operation.operation_id, acceptedAt]
     );
   }
-  private async releaseReservation(client: PoolClient, operation: any) {
+  private async releaseReservation(client: PoolClient, operation: OperationRow) {
     await client.query(
       "UPDATE reverse_sync_control SET reserved_entries=reserved_entries-$3,reserved_bytes=reserved_bytes-$4 WHERE workspace_id=$1 AND sync_id=$2",
       [...this.key.slice(0, 2), operation.reserved_entries, operation.reserved_bytes]
@@ -442,7 +466,8 @@ export class Journal implements DeliveryJournal {
     );
   }
   async prepareAbort() {
-    await this.db.owned(this.scope, async (client, control) => {
+    await this.db.transaction(async client => {
+      const control = await readControl(client, this.scope);
       ensure(control.phase === "running", "Cleanup is unsafe in this phase");
       const pending = await client.query(
         "SELECT 1 FROM reverse_sync_operation WHERE workspace_id=$1 AND sync_id=$2 AND run_id=$3 AND status IN ('prepared','unknown') LIMIT 1",
@@ -456,9 +481,10 @@ export class Journal implements DeliveryJournal {
     });
   }
   async acknowledgeAbort() {
-    await this.db.owned(this.scope, async (client, control) => {
+    await this.db.transaction(async client => {
+      const control = await readControl(client, this.scope);
       ensure(control.phase === "abort_prepared", "Cleanup is not prepared");
-      const reservations = await client.query(
+      const reservations = await client.query<{ entries: string; bytes: string }>(
         "SELECT COALESCE(sum(reserved_entries),0) AS entries,COALESCE(sum(reserved_bytes),0) AS bytes FROM reverse_sync_operation WHERE workspace_id=$1 AND sync_id=$2 AND run_id=$3 AND status='staged'",
         this.key
       );
@@ -481,7 +507,8 @@ export class Journal implements DeliveryJournal {
     });
   }
   async prepareFinish(throughSequence: number, store: JsonObject) {
-    await this.db.owned(this.scope, async (client, control) => {
+    await this.db.transaction(async client => {
+      const control = await readControl(client, this.scope);
       ensure(
         control.phase === "running" &&
           Number.isSafeInteger(throughSequence) &&
@@ -510,7 +537,8 @@ export class Journal implements DeliveryJournal {
   }
   private async acknowledgeFinishResult(input: FinishResult, store: JsonObject, reconciled: boolean) {
     const result = validateFinishResult(input);
-    await this.db.owned(this.scope, async (client, control) => {
+    await this.db.transaction(async client => {
+      const control = await readControl(client, this.scope);
       ensure(
         ["finish_prepared", "finish_pending", "finish_resolving"].includes(control.phase),
         "Finish is not prepared"
@@ -520,7 +548,7 @@ export class Journal implements DeliveryJournal {
         return;
       }
       if (control.phase === "finish_pending" && result.delivery === "pending") {
-        const saved = decodeJson<{ result: FinishResult }>(control.finish_result);
+        const saved = readFinish(control.finish_result);
         ensure(canonicalJson(saved.result) === canonicalJson(result), "Cannot overwrite a pending finish receipt");
         // Keep the original jobs recoverable; duplicate receipts must not rewind the store either.
         return;
@@ -558,12 +586,13 @@ export class Journal implements DeliveryJournal {
     });
     if (result.delivery === "pending") return;
     // A crash between chunks leaves finish_resolving + its recorded acknowledgement time.
-    // Retry this local resolution, not provider.finish(), after acquiring a new epoch.
+    // Retry this local resolution, not provider.finish(), after opening a recovery session.
     let done = false;
     while (!done)
-      done = await this.db.owned(this.scope, async (client, control) => {
-        ensure(control.phase === "finish_resolving", "Finish resolution ownership changed");
-        const pending = await client.query(
+      done = await this.db.transaction(async client => {
+        const control = await readControl(client, this.scope);
+        ensure(control.phase === "finish_resolving", "Finish resolution phase changed");
+        const pending = await client.query<OperationRow>(
           "SELECT * FROM reverse_sync_operation WHERE workspace_id=$1 AND sync_id=$2 AND run_id=$3 AND status='staged' ORDER BY sequence LIMIT 100",
           this.key
         );
@@ -574,7 +603,7 @@ export class Journal implements DeliveryJournal {
           );
           return true;
         }
-        const saved = decodeJson<any>(control.finish_result).acceptance;
+        const saved = readFinish(control.finish_result).acceptance;
         ensure(saved, "Missing finish acceptance evidence");
         const acceptance = new Date(saved.at);
         for (const operation of pending.rows) await this.accept(client, operation, acceptance);
@@ -600,7 +629,8 @@ export class Journal implements DeliveryJournal {
       );
       ensure(Buffer.byteLength(canonicalJson(copied.cursor)) <= 65536, "Checkpoint cursor exceeds byte budget");
     }
-    await this.db.owned(this.scope, async (client, control) => {
+    await this.db.transaction(async client => {
+      const control = await readControl(client, this.scope);
       ensure(
         complete
           ? control.phase === "finish_accepted"
@@ -617,7 +647,7 @@ export class Journal implements DeliveryJournal {
           n === Number(control.finish_sequence) && n === Number(control.next_sequence),
           "Completion must cover all prepared operations"
         );
-      const prefix = await client.query(
+      const prefix = await client.query<{ n: string }>(
         "SELECT count(*) AS n FROM reverse_sync_operation WHERE workspace_id=$1 AND sync_id=$2 AND run_id=$3 AND sequence>$4 AND sequence<=$5 AND status='accepted'",
         [...this.key, control.base_sequence, n]
       );
@@ -626,7 +656,7 @@ export class Journal implements DeliveryJournal {
         "Checkpoint crosses an unaccepted operation"
       );
       if (n > Number(control.base_sequence)) {
-        const last = await client.query(
+        const last = await client.query<Pick<OperationRow, "batch_id">>(
           "SELECT batch_id FROM reverse_sync_operation WHERE workspace_id=$1 AND sync_id=$2 AND run_id=$3 AND sequence=$4",
           [...this.key, n]
         );
@@ -637,10 +667,10 @@ export class Journal implements DeliveryJournal {
           "Checkpoint cursor does not match its prepared boundary"
         );
       } else {
-        const previous = await client.query(`SELECT state FROM ${this.db.stateTable} WHERE sync_id=$1 AND stream=$2`, [
-          this.scope.syncId,
-          stateStream,
-        ]);
+        const previous = await client.query<Pick<StateRow, "state">>(
+          `SELECT state FROM ${this.db.stateTable} WHERE sync_id=$1 AND stream=$2`,
+          [this.scope.syncId, stateStream]
+        );
         const saved = previous.rowCount ? readSavedState(previous.rows[0].state, this.scope) : undefined;
         const cursor = control.extraction === "cursor" ? saved?.point.cursor : undefined;
         ensure(
