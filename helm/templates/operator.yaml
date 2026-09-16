@@ -14,6 +14,8 @@ spec:
       app.kubernetes.io/instance: {{ .Release.Name }}
   template:
     metadata:
+      annotations:
+        {{- include "jitsu.credentialChecksum" . | nindent 8 }}
       labels:
         app.kubernetes.io/name: operator
         app.kubernetes.io/instance: {{ .Release.Name }}

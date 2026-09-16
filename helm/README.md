@@ -34,10 +34,28 @@ helm install jitsu ./helm \
   --set mode=prod \
   --set ingress.enabled=true \
   --set ingress.className=nginx \
-  --set ingress.tls.enabled=true \
   --set ingress.hosts.console=jitsu.example.com \
   --set ingress.hosts.ingest=events.example.com
 ```
+
+**TLS is off in that command on purpose.** Turning `ingress.tls.enabled=true` on
+without also giving the certificate a source leaves you worse off than plain
+HTTP: ingress-nginx falls back to its own self-signed certificate, the chart
+still derives `https://…` for the console's NextAuth URL, and the browser rejects
+the certificate — so nobody can log in. Enable TLS together with one of:
+
+```bash
+# a) you already hold a certificate, in a TLS Secret in the release namespace
+  --set ingress.tls.enabled=true \
+  --set ingress.tls.secretName=jitsu-tls
+
+# b) cert-manager issues it — leave secretName empty and point at your issuer
+  --set ingress.tls.enabled=true \
+  --set ingress.annotations."cert-manager\.io/cluster-issuer"=letsencrypt-prod
+```
+
+For (b) both hostnames must already resolve to the ingress controller, or the
+ACME HTTP-01 challenge cannot complete.
 
 No secrets on the command line, deliberately. A pre-install Job generates the
 inter-service tokens, the console's `JWT_SECRET` and the initial admin password
