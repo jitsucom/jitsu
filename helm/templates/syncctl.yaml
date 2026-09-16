@@ -23,7 +23,7 @@ spec:
         app.kubernetes.io/instance: {{ .Release.Name }}
     spec:
       serviceAccountName: syncctl
-{{- if include "jitsu.isDev" . }}
+{{- if include "jitsu.devScaffold" (dict "ctx" . "service" "syncctl") }}
       initContainers:
         - name: build
           image: golang:1.26-bookworm
@@ -72,7 +72,7 @@ spec:
           {{- with (include "jitsu.imagePullPolicy" (dict "ctx" . "service" "syncctl")) }}
           imagePullPolicy: {{ . }}
           {{- end }}
-{{- if include "jitsu.isDev" . }}
+{{- if include "jitsu.devScaffold" (dict "ctx" . "service" "syncctl") }}
           command: ["/build/syncctl"]
 {{- end }}
           ports:
@@ -107,7 +107,7 @@ spec:
             {{- include "jitsu.env" (dict "ctx" . "service" "syncctl"
                   "extra" $extra
                   "exclude" (list "KUBERNETES_NAMESPACE")) | nindent 12 }}
-{{- if include "jitsu.isDev" . }}
+{{- if include "jitsu.devScaffold" (dict "ctx" . "service" "syncctl") }}
           volumeMounts:
             - name: build
               mountPath: /build
@@ -125,7 +125,7 @@ spec:
               port: http
             initialDelaySeconds: 5
             periodSeconds: 10
-{{- if include "jitsu.isDev" . }}
+{{- if include "jitsu.devScaffold" (dict "ctx" . "service" "syncctl") }}
       volumes:
         - name: project
           hostPath:

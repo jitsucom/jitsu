@@ -22,7 +22,7 @@ spec:
         app.kubernetes.io/name: bulker
         app.kubernetes.io/instance: {{ .Release.Name }}
     spec:
-{{- if include "jitsu.isDev" . }}
+{{- if include "jitsu.devScaffold" (dict "ctx" . "service" "bulker") }}
       initContainers:
         - name: build
           image: golang:1.26-bookworm
@@ -71,7 +71,7 @@ spec:
           {{- with (include "jitsu.imagePullPolicy" (dict "ctx" . "service" "bulker")) }}
           imagePullPolicy: {{ . }}
           {{- end }}
-{{- if include "jitsu.isDev" . }}
+{{- if include "jitsu.devScaffold" (dict "ctx" . "service" "bulker") }}
           command:
             - sh
             - -c
@@ -98,7 +98,7 @@ spec:
           env:
             {{- include "jitsu.env" (dict "ctx" . "service" "bulker"
                   "extra" (dict "HTTP_PORT" "3042")) | nindent 12 }}
-{{- if include "jitsu.isDev" . }}
+{{- if include "jitsu.devScaffold" (dict "ctx" . "service" "bulker") }}
           volumeMounts:
             - name: build
               mountPath: /build
@@ -116,7 +116,7 @@ spec:
               port: http
             initialDelaySeconds: 5
             periodSeconds: 10
-{{- if include "jitsu.isDev" . }}
+{{- if include "jitsu.devScaffold" (dict "ctx" . "service" "bulker") }}
       volumes:
         - name: project
           hostPath:

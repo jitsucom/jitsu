@@ -393,3 +393,35 @@ Emitted in prod only, so the dev render stays byte-identical.
 {{- define "jitsu.credentialChecksum" -}}
 checksum/credentials: {{ include (print .Template.BasePath "/secrets.yaml") . | sha256sum }}
 {{- end -}}
+
+{{/*
+Whether a service should get the dev build scaffolding: the `build` init
+container that compiles from the mounted checkout, the command override that
+runs its output, and the volumes behind both.
+
+True in dev *unless* the service carries an explicit `images.<service>.repository`
+pin. The ticket asks for two things that look contradictory —
+
+  "per-service image override wins — used regardless of mode"
+  "the existing Minikube dev flow must keep working unchanged"
+
+— but they only collide if "the dev flow" means every possible dev render. It
+means the *default* one. Pinning a repository is an explicit opt-in by someone
+choosing a published build for that one service, and honouring it changes nothing
+for anyone who does not set it. Without this, a pin in dev sets the base image
+while the command override keeps the service running local source — the image is
+used, the build in it is not, which is not what "used" means.
+
+The invariant to check after touching this: `helm template` with no pins must
+stay byte-identical, and a pinned service must render with no init container and
+no command override.
+
+  {{- if include "jitsu.devScaffold" (dict "ctx" . "service" "ingest") }}
+*/}}
+{{- define "jitsu.devScaffold" -}}
+{{- $ctx := .ctx -}}
+{{- if eq (include "jitsu.mode" $ctx) "dev" -}}
+{{- $o := (get ($ctx.Values.images | default dict) .service) | default dict -}}
+{{- if not $o.repository -}}true{{- end -}}
+{{- end -}}
+{{- end }}
