@@ -411,3 +411,24 @@ ingest is exposed somewhere the chart does not know about.
 {{- printf "%s://%s" $scheme $host -}}
 {{- end -}}
 {{- end }}
+
+{{/*
+Pod annotations that force a coordinated restart when the credentials change.
+
+Only meaningful in prod with an explicit `auth.token`: that path renders
+secrets.yaml, and changing the value rewrites `jitsu-secrets`. The Deployments'
+`envFrom` reference is textually identical either way, so without this Helm sees
+no change and never rolls them — running pods keep the old keys while any pod
+that restarts for an unrelated reason picks up the new ones and can no longer
+authenticate to the others. JWT_SECRET moving also invalidates live sessions.
+
+On the generated path secrets.yaml renders nothing and the Job creates the Secret
+only when absent, so the digest is constant and nothing rolls.
+
+Emitted in prod only, so the dev render stays byte-identical.
+*/}}
+{{- define "jitsu.credentialChecksum" -}}
+{{- if eq (include "jitsu.mode" .) "prod" }}
+checksum/credentials: {{ include (print .Template.BasePath "/secrets.yaml") . | sha256sum }}
+{{- end }}
+{{- end -}}
