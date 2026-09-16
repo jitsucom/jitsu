@@ -55,6 +55,12 @@ rules:
   - apiGroups: [""]
     resources: ["secrets"]
     verbs: ["create"]
+  # `patch` is how missing keys are backfilled into an existing Secret — scoped
+  # to the same single resource as `get`, so this Job can never modify another.
+  - apiGroups: [""]
+    resources: ["secrets"]
+    verbs: ["patch"]
+    resourceNames: ["jitsu-secrets"]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
@@ -108,22 +114,65 @@ spec:
             - -c
             - |
               set -eu
+              # `tr -dc` on /dev/urandom: no openssl in the kubectl image.
+              gen() { head -c 256 /dev/urandom | tr -dc 'a-zA-Z0-9' | head -c "$1"; }
+
+              # Value of a key in the existing Secret, empty if absent.
+              key() { kubectl get secret jitsu-secrets -o "jsonpath={.data.$1}" 2>/dev/null | base64 -d 2>/dev/null || true; }
+
               if kubectl get secret jitsu-secrets >/dev/null 2>&1; then
-                echo "jitsu-secrets already exists — leaving it alone"
+                # Do NOT exit here. The key set grows over time — and an existing
+                # Secret may predate it. dev-deploy.sh creates only the eight
+                # inter-service keys, so a dev release upgraded to mode=prod
+                # arrives with no JWT_SECRET (console then fails its required env
+                # validation), no SEED_USER_PASSWORD (the seed Job creates no
+                # admin) and no ROTOR_RAW_AUTH_TOKENS (rotor stays open to
+                # everyone). Backfill what is missing; never touch what is there,
+                # because rotating a live token breaks every service until the
+                # last pod restarts.
+                TOKEN=$(key RAW_AUTH_TOKENS)
+                [ -n "$TOKEN" ] || TOKEN=$(gen 32)
+                # No subshell: `add` has to mutate MISSING and PATCH in place.
+                MISSING=""
+                PATCH=""
+                add() {
+                  if [ -z "$(key "$1")" ]; then
+                    MISSING="$MISSING $1"
+                    if [ -n "$PATCH" ]; then PATCH="$PATCH,"; fi
+                    PATCH="$PATCH\"$1\":\"$2\""
+                  fi
+                }
+                add RAW_AUTH_TOKENS "$TOKEN"
+                add BULKER_AUTH_KEY "$TOKEN"
+                add ROTOR_AUTH_KEY "$TOKEN"
+                add ROTOR_RAW_AUTH_TOKENS "$TOKEN"
+                add SYNCCTL_AUTH_KEY "$TOKEN"
+                add CONSOLE_RAW_AUTH_TOKENS "$TOKEN"
+                add REPOSITORY_AUTH_TOKEN "service-admin-account:$TOKEN"
+                add CONSOLE_TOKEN "service-admin-account:$TOKEN"
+                add CONFIG_SOURCE_HTTP_AUTH_TOKEN "service-admin-account:$TOKEN"
+                add JWT_SECRET "$(gen 48)"
+                add SEED_USER_PASSWORD "$(gen 24)"
+                if [ -z "$PATCH" ]; then
+                  echo "jitsu-secrets already complete — nothing to do"
+                  exit 0
+                fi
+                kubectl patch secret jitsu-secrets -p "{\"stringData\":{$PATCH}}"
+                echo "jitsu-secrets backfilled:$(printf '%s' "$MISSING")"
                 exit 0
               fi
-              # `tr -dc` on /dev/urandom: no openssl in the kubectl image.
-              TOKEN=$(head -c 256 /dev/urandom | tr -dc 'a-zA-Z0-9' | head -c 32)
+
+              TOKEN=$(gen 32)
               # Console's session-signing secret. Generated here rather than
               # passed on the command line so it never reaches a pod spec, Helm
               # release metadata, or shell history.
-              JWT=$(head -c 256 /dev/urandom | tr -dc 'a-zA-Z0-9' | head -c 48)
+              JWT=$(gen 48)
               # Initial admin password. Generated rather than supplied so it is
               # never typed on a command line; seed.ts sets changeAtNextLogin,
               # so it is a one-time value. Retrieve it with:
               #   kubectl get secret jitsu-secrets \
               #     -o jsonpath='{.data.SEED_USER_PASSWORD}' | base64 -d
-              SEEDPW=$(head -c 256 /dev/urandom | tr -dc 'a-zA-Z0-9' | head -c 24)
+              SEEDPW=$(gen 24)
               # The three keyId:secret pairs use the same service-admin-account
               # prefix the console expects; the rest are the bare token. Mirrors
               # dev-deploy.sh's ensure_secrets() exactly.
