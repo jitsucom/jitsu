@@ -306,27 +306,24 @@ which is how a self-hoster terminating TLS somewhere else sets it explicitly.
 {{- end }}
 
 {{/*
-Refuse to render a prod install that still carries the dev credentials.
+Dev-only credential defaults.
 
-values.yaml ships a working dev login — JWT_SECRET
-"dev-jwt-secret-change-in-production" and SEED_USER_PASSWORD "changeme" — which
-is right for Minikube and a serious hole anywhere else. Nothing in Kubernetes
-would flag it, and a self-hoster following the quick start has no reason to
-look, so the chart fails the render instead. The value names are in the error so
-the fix is obvious.
+values.yaml deliberately does not carry JWT_SECRET or SEED_USER_PASSWORD. In
+prod the token-generator Job mints them into `jitsu-secrets`, which every
+service already mounts via envFrom — so they never appear in a pod spec, in
+Helm release metadata (`helm get values`), or in shell history. An explicit
+`env.console.*` would override envFrom, which is exactly what we do not want.
 
-Only these two: they are credentials that grant access. The other console
-defaults are configuration, not secrets.
+Dev has no such Job: dev-deploy.sh's ensure_secrets() writes only the eight
+inter-service keys. So dev gets its long-standing literals from here instead,
+keeping the Minikube quick start a single command.
+
+  {{- with (include "jitsu.devCredential" (dict "ctx" . "key" "JWT_SECRET")) }}
 */}}
-{{- define "jitsu.checkProdSecrets" -}}
-{{- if eq (include "jitsu.mode" .) "prod" -}}
-{{- $console := .Values.env.console | default dict -}}
-{{- if eq ($console.JWT_SECRET | default "") "dev-jwt-secret-change-in-production" -}}
-{{- fail "mode=prod with the development JWT_SECRET. Set env.console.JWT_SECRET to a generated secret before deploying." -}}
-{{- end -}}
-{{- if and $console.ENABLE_CREDENTIALS_LOGIN (eq ($console.SEED_USER_PASSWORD | default "") "changeme") -}}
-{{- fail "mode=prod with the development SEED_USER_PASSWORD (\"changeme\") and credentials login enabled. Set env.console.SEED_USER_PASSWORD, or disable env.console.ENABLE_CREDENTIALS_LOGIN." -}}
-{{- end -}}
+{{- define "jitsu.devCredential" -}}
+{{- if eq (include "jitsu.mode" .ctx) "dev" -}}
+{{- if eq .key "JWT_SECRET" }}dev-jwt-secret-change-in-production{{ end -}}
+{{- if eq .key "SEED_USER_PASSWORD" }}changeme{{ end -}}
 {{- end -}}
 {{- end }}
 
