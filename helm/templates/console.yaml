@@ -30,7 +30,7 @@ spec:
           {{- with (include "jitsu.imagePullPolicy" (dict "ctx" . "service" "console")) }}
           imagePullPolicy: {{ . }}
           {{- end }}
-{{- if include "jitsu.isDev" . }}
+{{- if include "jitsu.devScaffold" (dict "ctx" . "service" "console") }}
           workingDir: /cache/workspace/webapps/console
           command:
             - sh
@@ -113,7 +113,7 @@ spec:
             {{- include "jitsu.env" (dict "ctx" . "service" "console"
                   "extra" $consoleExtra) | nindent 12 }}
           volumeMounts:
-{{- if include "jitsu.isDev" . }}
+{{- if include "jitsu.devScaffold" (dict "ctx" . "service" "console") }}
             - name: project
               mountPath: /project
               readOnly: true
@@ -146,7 +146,7 @@ spec:
             timeoutSeconds: 10
             failureThreshold: 30
       volumes:
-{{- if include "jitsu.isDev" . }}
+{{- if include "jitsu.devScaffold" (dict "ctx" . "service" "console") }}
         - name: project
           hostPath:
             path: {{ include "jitsu.projectRoot" . }}
