@@ -93,6 +93,15 @@ Unfinished control records retain their logical run ID, revision, mode and targe
 each attempt gets a fresh task ID. Recovery never opens changed source SQL.
 
 - Sealed mirrors resume core planning with exact persisted provider requests.
+- Streams declaring `batchDelivery: "asynchronous"` resolve batches independently
+  of finish. Completed upsert extraction is sealed in `batches_pending`; subsequent
+  attempts poll the bounded journal, then attach the existing writer and finalize
+  only when every batch is accepted. No source is reopened and no checkpoint crosses
+  staged work. This phase uses the existing control table; no migration is needed.
+- Independent upsert jobs require distinct projected member identities within one
+  extraction (including removes). Overlaps are rejected before the conflicting
+  request, because independent provider jobs may complete out of source order.
+  Mirror shared-identity deduplication remains unchanged.
 - Pending/unknown finish requires verified provider reconciliation. Accepted
   finish retries commit the persisted cursor locally without another remote call.
 - Unknown initialization needs explicit absence/cleanup proof before reset.

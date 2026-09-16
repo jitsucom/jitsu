@@ -60,6 +60,7 @@ export async function runReverseEtl<C, R, O>(
   sourceSequence: number;
 }> {
   const { stream, source, mapping, checkpointEvery } = input;
+  const asynchronous = stream.batchDelivery === "asynchronous";
   const maxBatchBytes = input.maxBatchBytes ?? 1_000_000;
   validateStream(stream);
   const options = stream.options.safeParse(input.context.options);
@@ -117,7 +118,7 @@ export async function runReverseEtl<C, R, O>(
       payloadHash: contentHash(batch.map(row => row.row)),
       ...(point.cursor ? { cursor: point.cursor } : {}),
     };
-    await journal.prepare(prepared, store());
+    await journal.prepare(prepared, store(), asynchronous);
     ctx.signal.throwIfAborted();
     let result;
     providerCallUnacknowledged = true;
@@ -133,11 +134,15 @@ export async function runReverseEtl<C, R, O>(
     // Persist known outcomes even if cancellation arrived during the request, or
     // one row was rejected. Only the journal records durable acceptance/billing.
     await journal.acknowledge(prepared.batchId, result, store());
-    providerCallUnacknowledged = false;
+    const pending = result.outcomes.some(outcome => outcome.status === "staged");
+    // Independent jobs cannot be cleaned up merely because submission was acknowledged.
+    providerCallUnacknowledged = asynchronous && (staged || pending);
+    if (asynchronous && pending && !result.remoteJobIds?.length)
+      throw new ReverseEtlProtocolError("Asynchronous batches require recoverable remote job IDs");
     if (result.outcomes.some(outcome => outcome.status === "rejected")) {
       throw new ReverseEtlProtocolError("Destination rejected a row; the run stopped without skipping it");
     }
-    staged ||= result.outcomes.some(outcome => outcome.status === "staged");
+    staged ||= pending;
     batch = [];
     bytes = 0;
     ctx.signal.throwIfAborted();
@@ -216,6 +221,10 @@ export async function runReverseEtl<C, R, O>(
     }
     await flush();
     ctx.signal.throwIfAborted();
+    if (asynchronous) {
+      await journal.sealExtraction(point.sourceSequence, store());
+      if (staged) return { delivery: "pending", sourceSequence: point.sourceSequence };
+    }
     await journal.prepareFinish(point.sourceSequence, store());
     ctx.signal.throwIfAborted();
     // An uncertain finish remains a prepared manifest for recovery. Never call

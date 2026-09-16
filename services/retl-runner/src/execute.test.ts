@@ -5,9 +5,9 @@ import { createRequire } from "node:module";
 import { fileURLToPath } from "node:url";
 import { execFileSync } from "node:child_process";
 import { z } from "zod";
-import type { ReverseEtlContext, JsonObject, WriteBatch } from "@jitsu/protocols/reverse-etl";
+import type { BatchResult, ReverseEtlContext, JsonObject, WriteBatch } from "@jitsu/protocols/reverse-etl";
 import { ReverseRunConfig } from "@jitsu/warehouse-query/src/runtime";
-import { Database } from "./persistence";
+import { Database, openPersistence } from "./persistence";
 import { execute, type ExecuteOptions } from "./execute";
 import type { RuntimeAdapter } from "./adapters";
 import { Tasks } from "./tasks";
@@ -244,7 +244,146 @@ async function control() {
   return (await admin.query("SELECT * FROM newjitsu.reverse_sync_control")).rows[0];
 }
 
+function asynchronousFixture() {
+  const f = fixture();
+  const receipts = new Map<string, BatchResult>();
+  f.adapter.stream.batchDelivery = "asynchronous";
+  const create = f.adapter.stream.createWriter;
+  f.adapter.stream.createWriter = async ctx => ({
+    ...(await create(ctx)),
+    upsert: async batch => {
+      f.calls.push("upsert");
+      f.writes.push(batch);
+      const result: BatchResult = {
+        outcomes: batch.records.map(row => ({ operationId: row.operationId, status: "staged" })),
+        remoteJobIds: [batch.batchId],
+      };
+      receipts.set(batch.batchId, result);
+      return result;
+    },
+  });
+  const recovery = f.adapter.recovery!;
+  f.adapter.recovery = state => ({
+    ...recovery(state),
+    reconcileBatch: async batch => {
+      f.calls.push("reconcile");
+      return receipts.get(batch.batchId)!;
+    },
+  });
+  return { ...f, receipts };
+}
+
 describe("executable runner", () => {
+  it("still cleans up incomplete legacy finish-staged sessions through verified abort", async () => {
+    const f = asynchronousFixture();
+    f.adapter.stream.batchDelivery = undefined;
+    const create = f.adapter.stream.createWriter;
+    f.adapter.stream.createWriter = async ctx => {
+      const writer = await create(ctx);
+      return {
+        ...writer,
+        upsert: async batch => {
+          await writer.upsert(batch);
+          throw new Error("lost staged response");
+        },
+      };
+    };
+    expect(await execute(f.input)).toBe("FAILED");
+    expect((await control()).phase).toBe("running");
+    f.input.taskId = "legacy-cleanup";
+    f.calls.length = 0;
+    expect(await execute(f.input)).toBe("FAILED");
+    expect(f.calls).toEqual(["lease", "renew", "reconcile", "reconcileAbort", "release"]);
+    expect((await control()).phase).toBe("aborted");
+    expect((await admin.query("SELECT DISTINCT status FROM newjitsu.reverse_sync_operation")).rows).toEqual([
+      { status: "cancelled" },
+    ]);
+  });
+  it("blocks direct batch acknowledgement, cleanup and finish while sealed jobs remain pending", async () => {
+    const f = asynchronousFixture();
+    await execute(f.input);
+    const run = await openPersistence(
+      db,
+      {
+        workspaceId: "workspace",
+        syncId: "sync",
+        logicalRunId: (await control()).run_id,
+        taskId: "probe",
+        configRevision: f.input.config.configRevision,
+        targetIdentity: f.adapter.targetIdentity,
+        mode: "upsert",
+        extraction: "full",
+      },
+      f.adapter.project
+    );
+    await expect(run.delivery.prepareFinish(2, {})).rejects.toThrow();
+    await expect(run.delivery.prepareAbort()).rejects.toThrow();
+    await expect(run.delivery.acknowledge(f.writes[0].batchId, accepted(f.writes[0]), {})).rejects.toThrow();
+    expect((await control()).phase).toBe("batches_pending");
+  });
+  it.each([false, true])("settles independent batches without re-extraction (cursor=%s)", async cursor => {
+    const f = asynchronousFixture();
+    if (cursor) f.input.config.model.cursor = { column: "id", type: "string" };
+    f.setRows([{ id: "a" }, { id: "b" }, { id: "c" }]);
+    expect(await execute(f.input)).toBe("FAILED");
+    expect((await control()).phase).toBe("batches_pending");
+    expect(f.calls).not.toContain("finish");
+    expect((await admin.query("SELECT count(*) FROM newjitsu.source_state")).rows[0].count).toBe("0");
+
+    f.input.taskId = "poll";
+    f.calls.length = 0;
+    expect(await execute(f.input)).toBe("FAILED");
+    expect(f.calls).toEqual(["lease", "renew", "reconcile", "reconcile", "release"]);
+    expect((await control()).phase).toBe("batches_pending");
+
+    for (const batch of f.writes) f.receipts.set(batch.batchId, accepted(batch));
+    f.input.taskId = "complete";
+    f.calls.length = 0;
+    expect(await execute(f.input)).toBe("SUCCESS");
+    expect(f.calls).toEqual(["lease", "renew", "reconcile", "reconcile", "attach", "finish", "release"]);
+    expect((await control()).phase).toBe("complete");
+    const state = (await admin.query("SELECT state FROM newjitsu.source_state")).rows[0].state;
+    expect(JSON.parse(state.value).value.point).toEqual({
+      sourceSequence: 3,
+      ...(cursor ? { cursor: { value: "c", primaryKeyValues: ["c"] } } : {}),
+    });
+    expect(f.writes).toHaveLength(2);
+  });
+  it("retains partial accepted effects after independent jobs reject rows, without finalizing", async () => {
+    const f = asynchronousFixture();
+    await execute(f.input);
+    const batch = f.writes[0];
+    f.receipts.set(batch.batchId, {
+      outcomes: [
+        { operationId: batch.records[0].operationId, status: "accepted" },
+        { operationId: batch.records[1].operationId, status: "rejected", code: "invalid", safeReason: "Invalid" },
+      ],
+    });
+    f.input.taskId = "rejected";
+    f.calls.length = 0;
+    expect(await execute(f.input)).toBe("FAILED");
+    expect(f.calls).toEqual(["lease", "renew", "reconcile", "release"]);
+    expect((await control()).phase).toBe("batches_pending");
+    expect((await admin.query("SELECT count(*) FROM newjitsu.reverse_sync_membership")).rows[0].count).toBe("1");
+    f.input.taskId = "cleanup";
+    expect(await execute(f.input)).toBe("FAILED");
+    expect((await control()).phase).toBe("aborted");
+    expect(f.calls).not.toContain("finish");
+  });
+  it("rejects overlapping async identities before the conflicting provider request", async () => {
+    const f = asynchronousFixture();
+    f.adapter.stream.batchSize = 1;
+    f.adapter.project = () => [{ identity: "shared", upsert: { id: "shared" }, remove: { id: "shared" } }];
+    expect(await execute(f.input)).toBe("FAILED");
+    expect(f.writes).toHaveLength(1);
+    expect((await control()).phase).toBe("running");
+    expect(f.calls).not.toContain("abort");
+    f.input.taskId = "still-pending";
+    f.calls.length = 0;
+    expect(await execute(f.input)).toBe("FAILED");
+    expect(f.calls).toEqual(["lease", "renew", "reconcile", "release"]);
+    expect((await control()).phase).toBe("running");
+  });
   it("does not open persistence or start a task when Kubernetes admission is denied", async () => {
     const f = fixture();
     f.input.lease.acquire = async () => {

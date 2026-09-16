@@ -135,7 +135,7 @@ export class Journal implements DeliveryJournal {
       this.control.remember(result.rows[0]);
     });
   }
-  async prepare<Row>(batch: PreparedBatch<Row>, store: JsonObject) {
+  async prepare<Row>(batch: PreparedBatch<Row>, store: JsonObject, independent = false) {
     const text = canonicalJson(batch);
     ensure(Buffer.byteLength(text) <= this.db.limits.batchBytes, "Prepared manifest exceeds byte budget");
     const prepared = JSON.parse(text) as PreparedBatch<unknown>;
@@ -164,6 +164,17 @@ export class Journal implements DeliveryJournal {
         this.key
       );
       ensure(!unresolved.rowCount, "Outstanding or rejected operation blocks new delivery");
+      if (independent) {
+        // Independent provider jobs need not complete in source order. Reject
+        // overlapping identities instead of letting a late addition undo removal.
+        const identities = projected.flatMap(values => values.map(effect => effect.identityHash));
+        ensure(new Set(identities).size === identities.length, "Async batches require distinct member identities");
+        const overlap = await client.query(
+          "SELECT 1 FROM reverse_sync_operation WHERE workspace_id=$1 AND sync_id=$2 AND run_id=$3 AND identity_hashes && $4::text[] LIMIT 1",
+          [...this.key, identities]
+        );
+        ensure(!overlap.rowCount, "Async extraction requires distinct member identities");
+      }
       if (control.mode === "mirror" && prepared.action === "remove") {
         await this.snapshots.assertRemovalsAllowed(client);
         for (const projection of projected)
@@ -335,7 +346,10 @@ export class Journal implements DeliveryJournal {
   private async acknowledgeBatch(batchId: string, input: BatchResult, store: JsonObject, reconciled: boolean) {
     await this.control.transaction(async client => {
       const control = await this.control.lock(client);
-      ensure(control.phase === "running", "Cannot acknowledge batch in this phase");
+      ensure(
+        control.phase === "running" || (reconciled && control.phase === "batches_pending"),
+        "Cannot acknowledge batch in this phase"
+      );
       const batch = await this.batch(client, batchId);
       const result = validateBatchResult(batch, input);
       const previousResult = await client.query<Pick<BatchRow, "result" | "result_bytes">>(
@@ -467,7 +481,10 @@ export class Journal implements DeliveryJournal {
     await this.control.transaction(async client => {
       const result = await client.query<ControlRow>(
         `UPDATE reverse_sync_control SET phase='abort_prepared'
-         WHERE workspace_id=$1 AND sync_id=$2 AND run_id=$3 AND phase='running' RETURNING *`,
+         WHERE workspace_id=$1 AND sync_id=$2 AND run_id=$3
+           AND (phase='running' OR (phase='batches_pending' AND NOT EXISTS (
+             SELECT 1 FROM reverse_sync_operation WHERE workspace_id=$1 AND sync_id=$2 AND run_id=$3 AND status='staged'
+           ))) RETURNING *`,
         this.key
       );
       ensure(result.rowCount, "Cleanup is unsafe in this phase");
@@ -512,7 +529,10 @@ export class Journal implements DeliveryJournal {
       // failures roll back this phase/store change with the whole transaction.
       const result = await client.query<ControlRow>(
         `UPDATE reverse_sync_control SET phase='finish_prepared',finish_sequence=$4,store=$5
-         WHERE workspace_id=$1 AND sync_id=$2 AND run_id=$3 AND phase='running' AND next_sequence=$4 RETURNING *`,
+         WHERE workspace_id=$1 AND sync_id=$2 AND run_id=$3 AND next_sequence=$4
+           AND (phase='running' OR (phase='batches_pending' AND NOT EXISTS (
+             SELECT 1 FROM reverse_sync_operation WHERE workspace_id=$1 AND sync_id=$2 AND run_id=$3 AND status<>'accepted'
+           ))) RETURNING *`,
         [...this.key, throughSequence, encodeJson(store)]
       );
       ensure(result.rows[0], "Invalid finish boundary");
@@ -522,6 +542,22 @@ export class Journal implements DeliveryJournal {
       );
       ensure(!pending.rowCount, "Unresolved/rejected operations prohibit finish");
       if (result.rows[0].mode === "mirror") await this.snapshots.assertPromotable(client);
+      this.control.remember(result.rows[0]);
+    });
+  }
+  async sealExtraction(throughSequence: number, store: JsonObject) {
+    ensure(Number.isSafeInteger(throughSequence), "Invalid extraction boundary");
+    await this.control.transaction(async client => {
+      const result = await client.query<ControlRow>(
+        `UPDATE reverse_sync_control SET phase='batches_pending',store=$5
+         WHERE workspace_id=$1 AND sync_id=$2 AND run_id=$3 AND mode='upsert'
+           AND phase='running' AND next_sequence=$4
+           AND NOT EXISTS (SELECT 1 FROM reverse_sync_operation
+             WHERE workspace_id=$1 AND sync_id=$2 AND run_id=$3 AND status NOT IN ('accepted','staged'))
+         RETURNING *`,
+        [...this.key, throughSequence, encodeJson(store)]
+      );
+      ensure(result.rowCount, "Cannot seal incomplete or rejected extraction");
       this.control.remember(result.rows[0]);
     });
   }

@@ -70,6 +70,9 @@ function fixture(count = 3) {
       calls.push("unknown");
     }),
     saveProviderState: vi.fn(async () => {}),
+    sealExtraction: vi.fn(async () => {
+      calls.push("seal-extraction");
+    }),
     prepareFinish: vi.fn(async () => {
       calls.push("prepare-finish");
     }),
@@ -126,6 +129,44 @@ function fixture(count = 3) {
 }
 
 describe("Reverse ETL lifecycle", () => {
+  it("seals independent async extraction without finishing or checkpointing staged batches", async () => {
+    const f = fixture();
+    f.stream.batchDelivery = "asynchronous";
+    vi.mocked(f.writer.upsert).mockImplementation(async batch => ({
+      outcomes: batch.records.map(row => ({ operationId: row.operationId, status: "staged" })),
+      remoteJobIds: [batch.batchId],
+    }));
+    expect(await f.run()).toEqual({ delivery: "pending", sourceSequence: 3 });
+    expect(f.journal.sealExtraction).toHaveBeenCalledWith(3, {});
+    expect(f.writer.finish).not.toHaveBeenCalled();
+    expect(f.journal.commitCheckpoint).not.toHaveBeenCalled();
+    expect(f.writer.abort).not.toHaveBeenCalled();
+    expect(f.journal.prepare).toHaveBeenCalledTimes(2);
+    expect(vi.mocked(f.journal.prepare).mock.calls.every(call => call[2] === true)).toBe(true);
+  });
+  it("does not abort independent jobs when source extraction fails after a staged batch", async () => {
+    const f = fixture();
+    f.stream.batchDelivery = "asynchronous";
+    vi.mocked(f.writer.upsert).mockImplementation(async batch => ({
+      outcomes: batch.records.map(row => ({ operationId: row.operationId, status: "staged" })),
+      remoteJobIds: [batch.batchId],
+    }));
+    f.rows[2].row.address = "invalid";
+    await expect(f.run()).rejects.toThrow();
+    expect(f.journal.sealExtraction).not.toHaveBeenCalled();
+    expect(f.writer.abort).not.toHaveBeenCalled();
+  });
+  it("blocks independent staging without recoverable IDs after journaling the result", async () => {
+    const f = fixture(1);
+    f.stream.batchDelivery = "asynchronous";
+    vi.mocked(f.writer.upsert).mockImplementation(async batch => ({
+      outcomes: batch.records.map(row => ({ operationId: row.operationId, status: "staged" })),
+    }));
+    await expect(f.run()).rejects.toThrow("recoverable remote job IDs");
+    expect(f.journal.acknowledge).toHaveBeenCalled();
+    expect(f.journal.sealExtraction).not.toHaveBeenCalled();
+    expect(f.writer.abort).not.toHaveBeenCalled();
+  });
   it("prepares init before entering an awaited writer factory", async () => {
     const f = fixture(0);
     vi.mocked(f.stream.createWriter).mockImplementation(async ctx => {
