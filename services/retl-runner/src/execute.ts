@@ -4,7 +4,8 @@ import type { WarehouseReader, CompositeCursor } from "@jitsu/warehouse-query";
 import { ReverseRunConfig } from "@jitsu/warehouse-query/src/runtime";
 import { createBufferedSyncStore, recordKey } from "@jitsu/destination-functions/src/reverse-etl/identity";
 import { runReverseEtl } from "@jitsu/destination-functions/src/reverse-etl/run";
-import { Database, openPersistence, renew, release, prune, type Scope } from "./persistence";
+import { Database, openPersistence, prune } from "./persistence";
+import type { ControlRow } from "./persistence/rows";
 import { ensure } from "./persistence/types";
 import { openMirrorPersistence, runSnapshotMirror, resumeSnapshotMirror } from "./mirror";
 import type { AdapterRegistry } from "./adapters";
@@ -29,7 +30,6 @@ export interface ExecuteOptions {
 export async function execute(input: ExecuteOptions): Promise<"SUCCESS" | "FAILED" | "CANCELLED"> {
   const { db, lease, controller } = input;
   const tasks = new Tasks(db, input.config.id, input.taskId);
-  let scope: Scope | undefined;
   let reader: WarehouseReader | undefined;
   let started = false;
   let held = false;
@@ -41,8 +41,7 @@ export async function execute(input: ExecuteOptions): Promise<"SUCCESS" | "FAILE
   const tick = async () => {
     try {
       await lease.renew();
-      if (scope) await renew(db, scope);
-      await tasks.heartbeat(scope);
+      await tasks.heartbeat();
     } catch {
       ownershipLost = true;
       controller.abort();
@@ -76,15 +75,15 @@ export async function execute(input: ExecuteOptions): Promise<"SUCCESS" | "FAILE
         "Mirror adapter not verified"
       );
     const logicalRunId = await db.transaction(async client => {
-      const result = await client.query(
+      const result = await client.query<Pick<ControlRow, "run_id" | "phase">>(
         "SELECT run_id,phase FROM reverse_sync_control WHERE workspace_id=$1 AND sync_id=$2",
         [config.workspaceId, config.id]
       );
       const previous = result.rows[0];
-      return previous && !["complete", "aborted"].includes(previous.phase) ? (previous.run_id as string) : randomUUID();
+      return previous && !["complete", "aborted"].includes(previous.phase) ? previous.run_id : randomUUID();
     });
-    // Both owners must be live at acquisition; the durable DB check rejects old
-    // revision/target/mode even when console configuration changed meanwhile.
+    // Recheck the Kubernetes lease before opening persistence. Durable state still
+    // rejects changed revision/target/mode, but does not authorize worker ownership.
     await lease.renew();
     signal.throwIfAborted();
     const runInput = {
@@ -101,11 +100,11 @@ export async function execute(input: ExecuteOptions): Promise<"SUCCESS" | "FAILE
     const run = mirror
       ? await openMirrorPersistence(db, runInput)
       : await openPersistence(db, runInput, adapter.project);
-    scope = run.scope;
+    const scope = run.scope;
     timer = setTimeout(() => {
       renewing = tick();
     }, input.heartbeatMs ?? 10_000);
-    await tasks.heartbeat(scope);
+    await tasks.heartbeat();
     for (;;) {
       signal.throwIfAborted();
       const removed = await prune(db, scope, new Date(Date.now() - 30 * 86400000));
@@ -113,8 +112,7 @@ export async function execute(input: ExecuteOptions): Promise<"SUCCESS" | "FAILE
     }
     const saved = await run.core.state();
     await tasks.progress(
-      run.recovery ? "Reconciling interrupted Reverse ETL delivery" : "Starting Reverse ETL extraction and delivery",
-      scope
+      run.recovery ? "Reconciling interrupted Reverse ETL delivery" : "Starting Reverse ETL extraction and delivery"
     );
     const context: ReverseEtlContext<JsonObject, JsonObject> = {
       ...run.scope,
@@ -152,8 +150,7 @@ export async function execute(input: ExecuteOptions): Promise<"SUCCESS" | "FAILE
       };
       const phase = (await run.core.recoveryStatus()).phase;
       const rejected = run.recovery
-        ? await db.owned(
-            run.scope,
+        ? await db.transaction(
             async client =>
               (
                 await client.query(
@@ -196,7 +193,7 @@ export async function execute(input: ExecuteOptions): Promise<"SUCCESS" | "FAILE
         })
       ).delivery;
     // Stop renewal before terminal task status; never let a late heartbeat read
-    // our own SUCCESS as cancellation. Still hold both leases until finally.
+    // our own SUCCESS as cancellation. Still hold the Kubernetes lease until finally.
     stopped = true;
     clearTimeout(timer);
     await renewing;
@@ -208,8 +205,7 @@ export async function execute(input: ExecuteOptions): Promise<"SUCCESS" | "FAILE
         ? "Reverse ETL delivery committed"
         : result === "pending"
         ? "Provider delivery pending; next run will reconcile"
-        : "Recovery completed cleanup; next run will restart extraction",
-      scope
+        : "Recovery completed cleanup; next run will restart extraction"
     );
     return changed && success ? "SUCCESS" : "FAILED";
   } catch {
@@ -234,7 +230,6 @@ export async function execute(input: ExecuteOptions): Promise<"SUCCESS" | "FAILE
     clearTimeout(timer);
     await renewing;
     await reader?.close().catch(() => undefined);
-    if (scope) await release(db, scope).catch(() => undefined);
     if (held) await lease.release().catch(() => undefined);
   }
 }

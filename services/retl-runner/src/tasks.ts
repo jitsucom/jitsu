@@ -1,6 +1,5 @@
 import { randomUUID } from "node:crypto";
-import type { PoolClient } from "pg";
-import { Database, type Scope } from "./persistence";
+import { Database } from "./persistence";
 import { ensure } from "./persistence/types";
 
 export class Tasks {
@@ -15,19 +14,17 @@ export class Tasks {
       ensure(result.rowCount, "Task already exists");
     });
   }
-  async heartbeat(scope?: Scope) {
-    const work = async (client: PoolClient) => {
+  async heartbeat() {
+    await this.db.transaction(async client => {
       const result = await client.query(
         "UPDATE source_task SET updated_at=clock_timestamp() WHERE sync_id=$1 AND task_id=$2 AND status='RUNNING' RETURNING 1",
         [this.syncId, this.taskId]
       );
       ensure(result.rowCount, "Task cancelled or ended");
-    };
-    if (scope) await this.db.owned(scope, work);
-    else await this.db.transaction(work);
+    });
   }
-  async progress(message: string, scope: Scope) {
-    await this.db.owned(scope, async client => {
+  async progress(message: string) {
+    await this.db.transaction(async client => {
       const result = await client.query(
         "UPDATE source_task SET description=$3 WHERE sync_id=$1 AND task_id=$2 AND status='RUNNING' RETURNING 1",
         [this.syncId, this.taskId, message]
@@ -39,8 +36,8 @@ export class Tasks {
       );
     });
   }
-  async finish(status: "SUCCESS" | "FAILED" | "CANCELLED", message: string, scope?: Scope) {
-    const work = async (client: PoolClient) => {
+  async finish(status: "SUCCESS" | "FAILED" | "CANCELLED", message: string) {
+    return this.db.transaction(async client => {
       const changed = await client.query(
         "UPDATE source_task SET status=$3,description=$4,error=$5,updated_at=clock_timestamp() WHERE sync_id=$1 AND task_id=$2 AND status='RUNNING' RETURNING 1",
         [this.syncId, this.taskId, status, message, status === "FAILED" ? message : null]
@@ -51,7 +48,6 @@ export class Tasks {
           [randomUUID(), status === "FAILED" ? "ERROR" : "INFO", message, this.syncId, this.taskId]
         );
       return !!changed.rowCount;
-    };
-    return scope ? this.db.owned(scope, work) : this.db.transaction(work);
+    });
   }
 }

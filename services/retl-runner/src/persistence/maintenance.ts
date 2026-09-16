@@ -1,13 +1,16 @@
 import { Database } from "./database";
+import { readControl } from "./run-state";
 import { ensure, type Scope } from "./types";
+import type { BatchRow } from "./rows";
 
-/** Bounded, lease-fenced retention. Never erase current recovery or the committed snapshot. */
+/** Bounded retention under the caller-held Kubernetes lease. Never erase current recovery or the committed snapshot. */
 export async function prune(db: Database, scope: Scope, receiptsBefore: Date) {
   ensure(
     Number.isFinite(+receiptsBefore) && +receiptsBefore <= Date.now() - 86400000,
     "Receipt retention must preserve at least 24 hours"
   );
-  return db.owned(scope, async (client, control) => {
+  return db.transaction(async client => {
+    const control = await readControl(client, scope);
     const key = [scope.workspaceId, scope.syncId, scope.logicalRunId];
     let snapshotRows = 0;
     // Table names are a closed, code-owned list, never caller input.
@@ -26,7 +29,7 @@ export async function prune(db: Database, scope: Scope, receiptsBefore: Date) {
       AND NOT EXISTS (SELECT 1 FROM reverse_sync_desired d WHERE d.workspace_id=g.workspace_id AND d.sync_id=g.sync_id AND d.generation=g.generation)`,
       [...key, control.committed_generation]
     );
-    const batches = await client.query(
+    const batches = await client.query<Pick<BatchRow, "run_id" | "batch_id"> & { bytes: string }>(
       `SELECT b.run_id,b.batch_id,octet_length(b.manifest)+b.result_bytes AS bytes FROM reverse_sync_batch b
       WHERE b.workspace_id=$1 AND b.sync_id=$2 AND b.run_id<>$3 AND b.created_at<$4
       AND NOT EXISTS (SELECT 1 FROM reverse_sync_operation o WHERE o.workspace_id=b.workspace_id AND o.sync_id=b.sync_id AND o.run_id=b.run_id AND o.batch_id=b.batch_id AND o.status IN ('prepared','unknown','staged'))
@@ -35,7 +38,7 @@ export async function prune(db: Database, scope: Scope, receiptsBefore: Date) {
     );
     let freed = 0;
     for (const batch of batches.rows) {
-      const rows = await client.query(
+      const rows = await client.query<{ bytes: number }>(
         "DELETE FROM reverse_sync_operation WHERE workspace_id=$1 AND sync_id=$2 AND run_id=$3 AND batch_id=$4 RETURNING octet_length(effects) AS bytes",
         [...key.slice(0, 2), batch.run_id, batch.batch_id]
       );

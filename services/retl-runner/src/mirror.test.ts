@@ -13,7 +13,7 @@ import type {
   WriteBatch,
 } from "@jitsu/protocols/reverse-etl";
 import { contentHash } from "@jitsu/destination-functions/src/reverse-etl/identity";
-import { Database, release, prune } from "./persistence";
+import { Database, prune } from "./persistence";
 import { decodeJson, encodeJson } from "./persistence/serialization";
 import {
   openMirrorPersistence,
@@ -111,7 +111,6 @@ async function session(id = "run", taskId = id, database = db) {
   });
 }
 async function takeover(run: Session) {
-  await release(db, run.scope);
   return session(run.scope.logicalRunId, "recovery");
 }
 async function phase() {
@@ -278,7 +277,6 @@ describe("core snapshot mirror lifecycle", () => {
     expect(f.requests.flatMap(r => r.batch.records.map(row => row.row.member)).sort()).toEqual(
       [member("shared"), member("old")].sort()
     );
-    await release(db, first.scope);
     const second = await session("second");
     f.calls.length = 0;
     f.requests.length = 0;
@@ -288,7 +286,6 @@ describe("core snapshot mirror lifecycle", () => {
       ["remove", [member("old")]],
     ]);
     expect(await membership()).toHaveLength(2);
-    await release(db, second.scope);
     const third = await session("third");
     await prune(db, third.scope, new Date(Date.now() - 30 * 86400000));
     f.requests.length = 0;
@@ -302,10 +299,8 @@ describe("core snapshot mirror lifecycle", () => {
       first = await session();
     await runSnapshotMirror(f.options(first, []));
     expect(f.calls).toEqual(["create", "init", "source", "finish"]);
-    await release(db, first.scope);
     const second = await session("second");
     await runSnapshotMirror(f.options(second, [record("a")]));
-    await release(db, second.scope);
     const third = await session("third");
     await prune(db, third.scope, new Date(Date.now() - 30 * 86400000));
     f.calls.length = 0;
@@ -350,7 +345,6 @@ describe("core snapshot mirror lifecycle", () => {
       const f = fixture(),
         first = await session();
       await runSnapshotMirror(f.options(first, [record("old")]));
-      await release(db, first.scope);
       const run = await session("next");
       f.calls.length = 0;
       f.setBatch((_action, batch) =>
@@ -389,7 +383,6 @@ describe("core snapshot mirror lifecycle", () => {
     );
     await expect(runSnapshotMirror(f.options(first, [record("a"), record("b")]))).rejects.toThrow();
     expect(await membership()).toHaveLength(1);
-    await release(db, first.scope);
     const next = await session("next");
     await prune(db, next.scope, new Date(Date.now() - 30 * 86400000));
     f.setBatch(undefined);
@@ -419,7 +412,7 @@ describe("core snapshot mirror lifecycle", () => {
     expect((await recovered.core.state()).store).toMatchObject({ reconciled: true });
     expect(f.requests[0].batch.records[0].row.member).toMatch(/^[a-f0-9]{64}$/);
   });
-  it("keeps unknown work blocked without reconciliation and rejects stale recovery", async () => {
+  it("keeps unknown work blocked without reconciliation and rejects non-recovery sessions", async () => {
     const f = fixture(),
       run = await session();
     f.setAfterBatch(() => {
@@ -482,7 +475,6 @@ describe("core snapshot mirror lifecycle", () => {
     const f = fixture(),
       first = await session();
     await runSnapshotMirror(f.options(first, [record("old")]));
-    await release(db, first.scope);
     const next = await session("next");
     f.calls.length = 0;
     f.setAfterBatch(() => {
@@ -517,7 +509,6 @@ describe("core snapshot mirror lifecycle", () => {
     const f = fixture(),
       first = await session();
     await runSnapshotMirror(f.options(first, [record("a"), record("b"), record("c")]));
-    await release(db, first.scope);
     const next = await session("next");
     f.calls.length = 0;
     f.setBatch((_action, batch) =>
@@ -541,7 +532,6 @@ describe("core snapshot mirror lifecycle", () => {
     const f = fixture(),
       first = await session();
     await runSnapshotMirror(f.options(first, [record("a")]));
-    await release(db, first.scope);
     const next = await session("next");
     f.setAfterBatch(() => {
       throw new Error("lost removal response");
@@ -566,17 +556,17 @@ describe("core snapshot mirror lifecycle", () => {
     expect(f.calls).toEqual([]);
     expect(await phase()).toBe("running");
   });
-  it("does not initialize a writer after ownership changes during construction", async () => {
+  it("does not initialize a writer after cancellation during construction", async () => {
     const f = fixture(),
       run = await session();
     const createWriter = f.adapter.stream.createWriter;
     f.adapter.stream.createWriter = async ctx => {
       const writer = await createWriter(ctx);
-      await takeover(run);
+      f.controller.abort();
       return writer;
     };
     await expect(runSnapshotMirror(f.options(run, [record("a")]))).rejects.toThrow();
-    expect(f.controller.signal.aborted).toBe(false);
+    expect(f.controller.signal.aborted).toBe(true);
     expect(f.calls).toEqual(["create"]);
     expect(await phase()).toBe("init_prepared");
     expect(await membership()).toEqual([]);

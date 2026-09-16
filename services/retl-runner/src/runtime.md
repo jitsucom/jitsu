@@ -65,15 +65,17 @@ explicitly define its refresh/credential-revision policy.
 
 ## Supervision and task state
 
-Node acquires a 60-second Kubernetes lease before PostgreSQL ownership. Every
-10 seconds it renews Kubernetes, PostgreSQL, then the `source_task` heartbeat.
-Any failure cancels execution. CAS resource versions protect Kubernetes ownership;
-database epochs fence durable effects. Already-started remote calls cannot be fenced.
+Node acquires a 60-second Kubernetes lease before opening PostgreSQL persistence.
+Every 10 seconds it renews that lease, then the `source_task` heartbeat. Any failure
+cancels execution. Kubernetes leases and syncctl are the sole worker coordination
+mechanism; CAS resource versions protect Kubernetes ownership. PostgreSQL provides
+atomic state transactions, not worker leases or epochs. A paused worker or an
+already-started remote call is not forcibly fenced after lease expiry.
 
 Signals, lease loss and runtime deadlines share an AbortSignal. Node waits for
-callbacks and reader cleanup before releasing leases, with a 45-second hard
+callbacks and reader cleanup before releasing the lease, with a 45-second hard
 shutdown watchdog (Pod grace: 60 seconds). Forced exit retains prepared evidence
-and lets leases expire instead of pretending remote changes were rolled back.
+and lets the lease expire instead of pretending remote changes were rolled back.
 
 `source_task`/`task_log` store core lifecycle messages and status. Provider strings
 and raw SDK errors are suppressed because they can contain tokens or row values;

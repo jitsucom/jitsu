@@ -350,11 +350,8 @@ model reverse_sync_control {
   workspace_id         String
   sync_id              String                  @unique
   run_id               String
-  task_id              String
   revision             String
   target_hash          String
-  epoch                BigInt                  @default(1)
-  lease_until          DateTime                @db.Timestamptz(6)
   phase                String                  @default("new")
   mode                 reverse_sync_mode
   extraction           reverse_sync_extraction

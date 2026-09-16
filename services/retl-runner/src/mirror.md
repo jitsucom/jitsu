@@ -26,7 +26,8 @@ Use `openMirrorPersistence` to bind the journal to normalized effect envelopes.
 Do not pass an ordinary row-projecting persistence session: it could normalize/hash
 an identifier twice. A private session marker rejects that accidental combination.
 
-The caller must hold and renew the Kubernetes and PostgreSQL leases. It must verify
+The caller must hold and renew the Kubernetes per-sync lease. PostgreSQL provides
+atomic persistence, not a second worker lease or stale-worker fencing. The caller must verify
 `targetBaseline`: `new-empty` means a new empty target; `tracked` means an exclusively
 managed target whose complete baseline has been tracked/imported. An arbitrary
 pre-existing audience is not valid. This library cannot discover/import remote
@@ -34,7 +35,7 @@ membership or verify account permissions itself.
 
 ## New run
 
-1. Build a mirror/full `RunInput` and acquire `openMirrorPersistence`.
+1. Build a mirror/full `RunInput` and open `openMirrorPersistence` after Kubernetes admission.
 2. Supply `runSnapshotMirror` with the session, adapter, runtime context,
    verified baseline, mapping and a lazy complete cursorless `source`.
 3. The core initializes the writer, collects/validates the full desired snapshot,
@@ -59,14 +60,14 @@ not trigger cleanup that could erase recovery evidence.
 
 ## Recovery
 
-`resumeSnapshotMirror` requires a recovery epoch and a sealed candidate. It has no
+`resumeSnapshotMirror` requires a recovery session and a sealed candidate. It has no
 source argument and never invokes projection or `stream.createWriter`.
 
 - `reconcileBatch` receives the exact persisted provider request, action, prior
   receipt and current context/store. Return verified outcomes or perform a
   provider-proven safe idempotent replay; missing IDs do not prove absence.
   State changes use explicit core reconciliation methods.
-- `attachWriter(context)` reattaches the verified existing session using this epoch
+- `attachWriter(context)` reattaches the verified existing session using the recovered context
   and buffered store. It must not blindly create a new remote session and is only
   invoked when further delivery is needed.
 - `reconcileFinish` handles prepared/pending finalization. Already accepted/local
@@ -77,7 +78,7 @@ source argument and never invokes projection or `stream.createWriter`.
 - Incomplete extraction cannot resume from changed SQL. Reconcile/abort the old
   session, acquire a new logical run, prune its abandoned candidate and collect a
   new full source. Interrupted initialization uses persistence's explicit init
-  reset/reacquisition path. Unknown remote state remains blocked.
+  reset/reopen path. Unknown remote state remains blocked.
 
 The caller owns maintenance, task/log state, timeouts, lease renewal, cancellation
 and provider reconciliation policy. These remain executable-runner work, not

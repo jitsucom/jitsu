@@ -18,8 +18,10 @@ them through the existing console `db:update-schema` command with schema-owner
 credentials; do not give the runner DDL access. The existing Prisma `db push`
 workflow manages all tables, enums, keys and indexes. There is no separate Reverse
 ETL migration, `retl` schema, supplementary SQL, or custom schema-update command.
-No DDL runs on module import or runner startup. `pg` still handles runtime locking,
-fencing and transactions; the runner does not need Prisma Client.
+No DDL runs on module import or runner startup. `pg` handles runtime queries and
+transactions. Prisma-generated model types describe database rows through a small
+mapping for `pg`'s bigint strings and byte buffers; Prisma Client is a development
+dependency only, not a runtime client. Run `pnpm codegen` before typechecking.
 
 Provision a restricted runtime login outside this package, then grant:
 
@@ -61,7 +63,7 @@ redacted; application encryption no longer protects database dumps or read acces
 
 `openPersistence(db, run, project)` returns:
 
-- `scope`: immutable run/target/revision/epoch binding.
+- `scope`: immutable workspace/sync/run/task/target/revision binding.
 - `delivery`: the existing `DeliveryJournal` facade, suitable for `ctx.delivery`;
   no database client, snapshot or core-recovery method.
 - `core`: bounded recovery reads and acknowledgements; never pass this to writers.
@@ -75,23 +77,23 @@ canonical identity as upsert; never hash stored removal identifiers again.
 
 ## Ownership and recovery
 
-The caller must hold the matching Kubernetes per-sync lease **before** opening or
-renewing this database owner. The executable runner now wires admission, renewal,
-task/log updates and signal handling. This module supplies the database half of
-fencing, not a replacement scheduler/lease.
+The caller must hold and renew the matching Kubernetes per-sync lease **before**
+opening persistence and throughout execution and maintenance. Kubernetes leases
+and syncctl are the sole worker coordination mechanism. The caller must stop work
+on lease loss. There are no database worker leases, epochs, or acquire/renew/release
+APIs. A paused worker or an in-flight request is not forcibly fenced by this design.
 
-Every run transaction locks and validates workspace, sync, logical run, task,
-revision, target and epoch against the database clock. It checks expiry again
-before commit. `renew` cannot resurrect an expired owner; `release` invalidates
-ownership without inferring delivery success. An expired unfinished run can only
-be acquired for recovery under its original logical run/configuration. New runs
-are admitted only after complete or acknowledged abort. Config/target/mode changes
-fail closed until the controlled-reset workflow is implemented.
+Ordinary transactions and short control-row locks keep lifecycle transitions,
+counters, receipts and checkpoints atomic. `readControl` checks workspace, sync and
+logical run; it does not authorize a worker. An unfinished run must be reopened for
+recovery under its original logical run/configuration. New runs are admitted only
+after complete or acknowledged abort. Config/target/mode changes fail closed until
+the controlled-reset workflow is implemented.
 
-Mirror target ownership persists beyond lease expiry. Other mirror/upsert syncs
-cannot claim that audience. Conversion of an existing upsert target into exclusive
-mirror ownership requires the later controlled-transfer workflow. Database fencing
-cannot fence an already-authorized request inside a remote advertising API.
+Persistent mirror-target ownership is separate from worker coordination: different
+syncs must not manage the same audience. Other mirror/upsert syncs cannot claim that
+audience. Conversion of an existing upsert target into exclusive mirror ownership
+requires the later controlled-transfer workflow.
 
 Prepared manifests are durable before returning. Recovery uses
 `recoveryStatus`, `recoveryPage`, `recoveryBatch` and `loadBatch`; it does not rebuild
@@ -120,8 +122,8 @@ cleanup of the old session. Only then call
 This atomically returns the lifecycle to `new`, clears obsolete provider state and
 saves the reconciled store. An exact phase-`new` retry is read-only. Unknown/in-flight
 initialization must remain blocked; this library does not infer remote absence from
-missing IDs. A recovered owner cannot directly acknowledge init or run fresh init.
-Release/reacquire the same logical run to obtain a new epoch, reload the durable store,
+missing IDs. A recovery session cannot directly acknowledge init or run fresh init.
+Reopen persistence for the same logical run to reload the durable store,
 and invoke the ordinary `runReverseEtl` lifecycle. This also works if the reset committed
 but its response was lost. Already-initialized lifecycles cannot use this reset.
 
@@ -197,7 +199,7 @@ finish metadata is capped at 384 KiB and combined checkpoint state at 192 KiB,
 without reducing the protocol's individual 64-KiB cursor/store allowances.
 
 At most committed + candidate desired generations may be retained before another
-candidate starts. Call fenced `prune` repeatedly to remove superseded/abandoned
+candidate starts. Call `prune` under the Kubernetes lease repeatedly to remove superseded/abandoned
 snapshot data in bounded pages. Current candidate and committed generation are
 never pruned. Receipt pruning takes an explicit retention cutoff (at least 24h),
 deletes only old-run terminal receipts and manifests, and preserves

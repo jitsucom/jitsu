@@ -10,7 +10,8 @@ import type { BatchResult, FinishResult, PreparedBatch } from "@jitsu/protocols/
 import { z } from "zod";
 import { effects } from "./snapshots";
 import { encodeJson, decodeJson } from "./serialization";
-import { Database, openPersistence, release, renew, prune, type RunInput, type Project } from "./index";
+import { Database, openPersistence, prune, type RunInput, type Project } from "./index";
+import { readControl } from "./run-state";
 
 let container: StartedTestContainer;
 let admin: Client;
@@ -87,9 +88,6 @@ function outcomes(b: PreparedBatch<unknown>, status: "accepted" | "staged" = "ac
 }
 async function count(table: string) {
   return Number((await admin.query(`SELECT count(*) AS n FROM ${table}`)).rows[0].n);
-}
-async function expire() {
-  await admin.query("UPDATE newjitsu.reverse_sync_control SET lease_until=clock_timestamp()-interval '1 second'");
 }
 async function finish(run: Session, b?: PreparedBatch<unknown>) {
   const point = b
@@ -218,29 +216,30 @@ describe("PostgreSQL persistence", () => {
     );
     await expect(db.pool.query('SELECT * FROM newjitsu."Workspace"')).rejects.toThrow(/permission denied/);
   });
-  it("allows only one concurrent owner, and fences every old owner after takeover", async () => {
-    const competing = await Promise.allSettled([session(), session({ taskId: "other" })]);
-    expect(competing.filter(r => r.status === "fulfilled")).toHaveLength(1);
-    const old = (competing.find(r => r.status === "fulfilled") as PromiseFulfilledResult<Session>).value;
-    await expire();
-    const next = await session({ taskId: "recovery" });
-    expect(BigInt(next.scope.fencingEpoch)).toBeGreaterThan(BigInt(old.scope.fencingEpoch));
-    await expect(old.delivery.prepareInit({})).rejects.toThrow(/ownership/);
-    await expect(renew(db, old.scope)).rejects.toThrow(/ownership/);
-    await expect(release(db, old.scope)).rejects.toThrow(/ownership/);
-    await init(next);
+  it("opens recovery without database lease bookkeeping after external admission", async () => {
+    const run = await session();
+    await init(run);
+    const recovered = await session({ taskId: "recovery" });
+    expect(recovered.recovery).toBe(true);
+    expect(recovered.scope).not.toHaveProperty("fencingEpoch");
+    const columns = (
+      await admin.query(
+        "SELECT column_name FROM information_schema.columns WHERE table_schema='newjitsu' AND table_name='reverse_sync_control'"
+      )
+    ).rows.map(row => row.column_name);
+    for (const removed of ["epoch", "lease_until", "task_id"]) expect(columns).not.toContain(removed);
   });
-  it("rolls back a transaction that crosses lease expiry", async () => {
-    const run = await openPersistence(db, runInput, project, 100);
+  it("rolls back an ordinary transaction on failure", async () => {
+    await session();
     await expect(
-      db.owned(run.scope, async client => {
+      db.transaction(async client => {
         await client.query("UPDATE newjitsu.reverse_sync_control SET phase='running'");
-        await client.query("SELECT pg_sleep(0.15)");
+        throw new Error("injected failure");
       })
-    ).rejects.toThrow(/ownership/);
+    ).rejects.toThrow(/transaction failed/);
     expect((await admin.query("SELECT phase FROM newjitsu.reverse_sync_control")).rows[0].phase).toBe("new");
   });
-  it("stores readable JSON while keeping workspace ownership checks", async () => {
+  it("stores readable JSON while keeping workspace state scoping", async () => {
     const run = await session();
     await init(run);
     await expect(session({ workspaceId: "foreign" })).rejects.toThrow();
@@ -251,9 +250,9 @@ describe("PostgreSQL persistence", () => {
     expect(decodeJson((await admin.query("SELECT store FROM newjitsu.reverse_sync_control")).rows[0].store)).toEqual({
       token: "secret",
     });
-    await expect(db.owned({ ...run.scope, workspaceId: "foreign" }, async () => undefined)).rejects.toThrow(
-      /ownership/
-    );
+    await expect(
+      db.transaction(client => readControl(client, { ...run.scope, workspaceId: "foreign" }))
+    ).rejects.toThrow(/Run state/);
     expect(await run.core.loadBatch(b.batchId)).toEqual(b);
   });
   it("persists preparation across process recreation and blocks blind new extraction", async () => {
@@ -263,7 +262,6 @@ describe("PostgreSQL persistence", () => {
     await run.delivery.prepare(b, {});
     await db.close();
     db = new Database(runtimeConfig);
-    await expire();
     await expect(session({ logicalRunId: "new-run" })).rejects.toThrow(/requires recovery/);
     const recovered = await session({ taskId: "recovery" });
     expect(recovered.recovery).toBe(true);
@@ -284,7 +282,6 @@ describe("PostgreSQL persistence", () => {
     await run.delivery.prepare(b, { saved: true });
     if (initial === "unknown") await run.delivery.markUnknown(b.batchId);
     if (initial === "staged") await run.delivery.acknowledge(b.batchId, outcomes(b, "staged"), { saved: true });
-    await release(db, run.scope);
     const recovered = await session({ taskId: "recovery" });
     const before = await recovered.core.recoveryBatch(b.batchId);
     const counters = (
@@ -334,7 +331,6 @@ describe("PostgreSQL persistence", () => {
       await run.delivery.prepareFinish(hasRows ? 1 : 0, { saved: true });
       if (pending)
         await run.delivery.acknowledgeFinish({ delivery: "pending", remoteJobIds: ["job"] }, { saved: true });
-      await release(db, run.scope);
       const recovered = await session({ taskId: "recovery" });
       const before = await recovered.core.recoveryStatus();
       await expect(recovered.delivery.acknowledgeFinish({ delivery: "accepted" }, { changed: true })).rejects.toThrow(
@@ -401,7 +397,6 @@ describe("PostgreSQL persistence", () => {
     await run.delivery.markUnknown(b.batchId);
     expect((await admin.query("SELECT status FROM newjitsu.reverse_sync_operation")).rows[0].status).toBe("accepted");
     await finish(run, b);
-    await expire();
     const next = await session({ logicalRunId: "run2", taskId: "task2" });
     await init(next);
     const b2 = batch(next, ["b"], 2);
@@ -440,7 +435,6 @@ describe("PostgreSQL persistence", () => {
       }
       let active = run;
       if (recovery) {
-        await release(db, run.scope);
         active = await session({ taskId: "recovery" });
       }
       const snapshot = async () => ({
@@ -495,7 +489,6 @@ describe("PostgreSQL persistence", () => {
     const b = batch(run, ["a"]);
     await run.delivery.prepare(b, {});
     await run.delivery.acknowledge(b.batchId, { ...outcomes(b, "staged"), remoteJobIds: ["pending"] }, { version: 1 });
-    await release(db, run.scope);
     const recovered = await session({ taskId: "recovery" });
     const final = { ...outcomes(b), remoteJobIds: ["completed"], providerCheckpoint: { cursor: "final" } };
     await recovered.core.acknowledgeRecovered(b.batchId, final, { version: 2 });
@@ -527,7 +520,6 @@ describe("PostgreSQL persistence", () => {
       const before = (await admin.query("SELECT * FROM newjitsu.reverse_sync_membership")).rows;
       let active = run;
       if (recovery) {
-        await release(db, run.scope);
         active = await openPersistence(db, { ...runInput, taskId: "recovery" }, shared);
         await active.core.acknowledgeRecovered(earlier.batchId, outcomes(earlier), {});
       }
@@ -614,7 +606,6 @@ describe("PostgreSQL persistence", () => {
       await run.delivery.acknowledge(b.batchId, result, { version: 1 });
       let active = run;
       if (recovery) {
-        await release(db, run.scope);
         active = await session({ taskId: "recovery" });
       }
       const snapshot = async () => ({
@@ -699,7 +690,6 @@ describe("PostgreSQL persistence", () => {
     await run.delivery.acknowledgeFinish({ delivery: "pending", remoteJobIds: ["job"] }, {});
     await expect(run.delivery.commitCheckpoint({ sourceSequence: 1, cursor: b.cursor }, {}, true)).rejects.toThrow();
     await expect(run.delivery.prepareAbort()).rejects.toThrow();
-    await expire();
     const recovered = await session({ taskId: "recovery" });
     await expect(recovered.delivery.acknowledgeFinish({ delivery: "accepted" }, {})).rejects.toThrow(
       /explicit reconciliation/
@@ -729,7 +719,6 @@ describe("PostgreSQL persistence", () => {
       await run.delivery.acknowledgeFinish(result, { version: 1 });
       let active = run;
       if (recovery) {
-        await release(db, run.scope);
         active = await session({ taskId: "recovery" });
       }
       const snapshot = async () =>
@@ -795,7 +784,6 @@ describe("PostgreSQL persistence", () => {
     await run.delivery.prepare(b, {});
     await run.delivery.acknowledge(b.batchId, outcomes(b), {});
     await finish(run, b);
-    await expire();
     const next = await session({ taskId: "task2", logicalRunId: "run2", extraction: "full" });
     expect(await next.delivery.assertReady()).toEqual({ sourceSequence: 0 });
     await init(next);
@@ -812,7 +800,6 @@ describe("PostgreSQL persistence", () => {
       const first = await session({ extraction: "full" });
       await first.delivery.prepareInit({ saved: true });
       if (hasSession) await first.delivery.saveProviderState({ session: "old-session" });
-      await release(db, first.scope);
       const recovered = await session({ extraction: "full", taskId: "recovery" });
       const before = await recovered.core.state();
       await expect(recovered.delivery.acknowledgeInit({ invented: true })).rejects.toThrow(/reconciliation/);
@@ -878,15 +865,13 @@ describe("PostgreSQL persistence", () => {
       await recovered.core.resetInitAfterReconciliation("absent", { stale: true });
       expect(await recovered.core.state()).toEqual(reset);
       await expect(execute(recovered)).rejects.toThrow(/Recovery admission/);
-      await expect(recovered.delivery.prepareInit({})).rejects.toThrow(/Reacquire/);
+      await expect(recovered.delivery.prepareInit({})).rejects.toThrow(/Reopen/);
       expect([writerCalls, initCalls, sourceCalls]).toEqual([0, 0, 0]);
-      // A new epoch consumes the durable retry admission, including after a lost reset response.
-      await expire();
+      // A reopened session consumes the durable retry admission, including after a lost reset response.
       const nextDb = new Database(runtimeConfig);
       try {
         const next = await openPersistence(nextDb, { ...runInput, extraction: "full", taskId: "retry" }, project);
         expect(next.recovery).toBe(false);
-        await expect(recovered.core.resetInitAfterReconciliation("absent", {})).rejects.toThrow(/ownership/);
         expect(await execute(next)).toEqual({ delivery: "accepted", sourceSequence: 1 });
         expect([writerCalls, initCalls, sourceCalls]).toEqual([1, 1, 1]);
         expect(await count("newjitsu.reverse_sync_membership")).toBe(1);
@@ -899,7 +884,6 @@ describe("PostgreSQL persistence", () => {
     const run = await session();
     await run.delivery.prepareInit({ original: true });
     await run.delivery.saveProviderState({ session: "original" });
-    await release(db, run.scope);
     const recovered = await session({ taskId: "recovery" });
     const before = (await admin.query("SELECT phase,store,provider_state FROM newjitsu.reverse_sync_control")).rows;
     await admin.query(
@@ -916,11 +900,10 @@ describe("PostgreSQL persistence", () => {
     await recovered.core.resetInitAfterReconciliation("cleaned-up", {});
     expect((await recovered.core.recoveryStatus()).phase).toBe("new");
   });
-  it("refuses init recovery for a fresh owner or an already initialized lifecycle", async () => {
+  it("refuses init recovery for a fresh session or an already initialized lifecycle", async () => {
     const run = await session();
-    await expect(run.core.resetInitAfterReconciliation("absent", {})).rejects.toThrow(/recovery owner/);
+    await expect(run.core.resetInitAfterReconciliation("absent", {})).rejects.toThrow(/recovery session/);
     await init(run);
-    await release(db, run.scope);
     const recovered = await session({ taskId: "recovery" });
     await expect(recovered.core.resetInitAfterReconciliation("cleaned-up", {})).rejects.toThrow(/Only prepared init/);
     expect((await recovered.core.recoveryStatus()).phase).toBe("running");
@@ -973,23 +956,6 @@ describe("PostgreSQL persistence", () => {
 });
 
 describe("recovery and operational boundaries", () => {
-  it("does not renew ownership if the old lease expires inside the renewal transaction", async () => {
-    const run = await openPersistence(db, runInput, project, 200);
-    await admin.query(`CREATE FUNCTION newjitsu.reverse_sync_delay_renew() RETURNS trigger LANGUAGE plpgsql AS $$
-      BEGIN IF NEW.lease_until>OLD.lease_until THEN PERFORM pg_sleep(0.3); END IF; RETURN NEW; END $$;
-      CREATE TRIGGER delay_renew BEFORE UPDATE ON newjitsu.reverse_sync_control FOR EACH ROW EXECUTE FUNCTION newjitsu.reverse_sync_delay_renew()`);
-    try {
-      await expect(renew(db, run.scope)).rejects.toThrow(/ownership/);
-    } finally {
-      await admin.query(
-        "DROP TRIGGER delay_renew ON newjitsu.reverse_sync_control; DROP FUNCTION newjitsu.reverse_sync_delay_renew()"
-      );
-    }
-    expect(
-      (await admin.query("SELECT lease_until<clock_timestamp() AS expired FROM newjitsu.reverse_sync_control")).rows[0]
-        .expired
-    ).toBe(true);
-  });
   it("captures run configuration before asynchronous admission work", async () => {
     const opening = openPersistence(db, runInput, project);
     runInput.configRevision = "mutated";
@@ -1009,14 +975,12 @@ describe("recovery and operational boundaries", () => {
     } finally {
       await tooSmall.close();
     }
-    await expire();
     const oldDb = new Database(runtimeConfig, { limits: { snapshotBytes: capacity } });
     const recoveredDb = new Database(runtimeConfig, { limits: { snapshotBytes: capacity } });
     try {
       const run = await openPersistence(oldDb, { ...runInput, taskId: "prepare" }, project);
       const b = batch(run, ["a"]);
       await run.delivery.prepare(b, {});
-      await expire();
       const recovered = await openPersistence(recoveredDb, { ...runInput, taskId: "recovery" }, project);
       await recovered.core.acknowledgeRecovered(b.batchId, outcomes(b), {});
       expect(
@@ -1053,7 +1017,6 @@ describe("recovery and operational boundaries", () => {
     const saved = (await admin.query("SELECT state FROM newjitsu.source_state")).rows[0].state;
     expect(saved.version).toBe(2);
     expect(JSON.parse(saved.value)).toEqual({ version: 1, value: { point: { sourceSequence: 1, cursor }, store } });
-    await release(db, run.scope);
     const next = await session({ logicalRunId: "next", taskId: "next" });
     expect(await next.delivery.assertReady()).toEqual({ sourceSequence: 1, cursor });
   });
@@ -1063,7 +1026,6 @@ describe("recovery and operational boundaries", () => {
       const run = await session();
       await init(run);
       await finish(run);
-      await release(db, run.scope);
       const saved = (await admin.query("SELECT state FROM newjitsu.source_state")).rows[0].state;
       if (mismatch === "legacy") {
         saved.version = 1;
@@ -1093,25 +1055,21 @@ describe("recovery and operational boundaries", () => {
     await run.delivery.commitCheckpoint({ sourceSequence: 1, cursor }, store, true);
     const saved = (await admin.query("SELECT state FROM newjitsu.source_state")).rows[0].state;
     expect(decodeJson(Buffer.from(saved.value))).toEqual({ point: { sourceSequence: 1, cursor }, store });
-    await release(db, run.scope);
     const next = await session({ logicalRunId: "next", taskId: "next" });
     expect(await next.delivery.assertReady()).toEqual({ sourceSequence: 1, cursor });
   });
-  it("releases an owner immediately without forgetting prepared init or provider IDs", async () => {
+  it("reopens interrupted initialization without forgetting prepared init or provider IDs", async () => {
     const run = await session();
     await run.delivery.prepareInit({});
     await run.delivery.saveProviderState({ session: "remote-secret" });
-    await release(db, run.scope);
     const next = await session({ taskId: "next" });
     expect(await next.core.recoveryStatus()).toMatchObject({
       phase: "init_prepared",
       providerState: { session: "remote-secret" },
     });
     await expect(next.delivery.assertReady()).rejects.toThrow();
-    await expect(run.delivery.acknowledgeInit({})).rejects.toThrow(/ownership/);
     await expect(next.delivery.acknowledgeInit({})).rejects.toThrow(/reconciliation/);
     await next.core.resetInitAfterReconciliation("cleaned-up", {});
-    await release(db, next.scope);
     const retry = await session({ taskId: "retry" });
     await init(retry);
     await retry.delivery.prepareAbort();
@@ -1140,7 +1098,6 @@ describe("recovery and operational boundaries", () => {
     expect(await count("newjitsu.source_state")).toBe(0);
     await db.close();
     db = new Database(runtimeConfig);
-    await expire();
     const recovered = await session({ taskId: "recovery" });
     // Acceptance was recorded before the crash; only local resolution remains.
     await recovered.delivery.acknowledgeFinish({ delivery: "accepted" }, {});
@@ -1160,7 +1117,6 @@ describe("recovery and operational boundaries", () => {
     const b = batch(run, ["a"]);
     await run.delivery.prepare(b, {});
     await run.delivery.markUnknown(b.batchId);
-    await expire();
     const recovered = await session({ taskId: "recovery" });
     await expect(recovered.delivery.acknowledge(b.batchId, outcomes(b), {})).rejects.toThrow(/explicit reconciliation/);
     expect((await recovered.core.recoveryBatch(b.batchId)).operations[0]).toMatchObject({
@@ -1205,7 +1161,6 @@ describe("recovery and operational boundaries", () => {
     await run.delivery.prepare(b, {});
     await run.delivery.acknowledge(b.batchId, outcomes(b), {});
     await finish(run, b);
-    await release(db, run.scope);
     await admin.query("UPDATE newjitsu.reverse_sync_batch SET created_at=clock_timestamp()-interval '60 days'");
     const next = await session({ logicalRunId: "next", taskId: "next", extraction: "full" });
     await init(next);
@@ -1268,19 +1223,18 @@ describe("core snapshot storage", () => {
       "1"
     );
   });
-  it("keeps abandoned generation and stale-owner guards on retryable snapshot APIs", async () => {
+  it("keeps abandoned generation and changed-run guards on retryable snapshot APIs", async () => {
     const first = await mirror();
     await first.snapshots.append([desired("key1", "a")], 1);
     await first.delivery.prepareAbort();
     await first.delivery.acknowledgeAbort();
-    await release(db, first.scope);
     const next = await session({ mode: "mirror", extraction: "full", taskId: "next", logicalRunId: "next" });
     await init(next);
     expect(await next.snapshots.status()).toBeUndefined();
     await expect(next.snapshots.start()).rejects.toThrow(/Prune abandoned/);
-    await expect(first.snapshots.start()).rejects.toThrow(/ownership/);
-    await expect(first.snapshots.append([desired("key1", "a")], 1)).rejects.toThrow(/ownership/);
-    await expect(first.snapshots.status()).rejects.toThrow(/ownership/);
+    await expect(first.snapshots.start()).rejects.toThrow(/Run state/);
+    await expect(first.snapshots.append([desired("key1", "a")], 1)).rejects.toThrow(/Run state/);
+    await expect(first.snapshots.status()).rejects.toThrow(/Run state/);
     await prune(db, next.scope, new Date(Date.now() - 30 * 86400000));
     await next.snapshots.start();
     expect(await next.snapshots.status()).toEqual({ sealed: false, lastPageSequence: 0, sourceKeyCount: 0 });
@@ -1306,7 +1260,6 @@ describe("core snapshot storage", () => {
     expect(
       (await admin.query("SELECT last_page_hash FROM newjitsu.reverse_sync_generation")).rows[0].last_page_hash
     ).toBeNull();
-    await release(db, run.scope);
     const recovered = await session({ mode: "mirror", extraction: "full", taskId: "recovery" });
     await recovered.snapshots.start();
     await recovered.snapshots.append(rows, 1);
@@ -1316,7 +1269,6 @@ describe("core snapshot storage", () => {
     const run = await session({ mode: "mirror", extraction: "full" });
     await init(run);
     if (committed) await run.snapshots.start();
-    await release(db, run.scope);
     const recovered = await session({ mode: "mirror", extraction: "full", taskId: "recovery" });
     await recovered.snapshots.start();
     await recovered.snapshots.start();
@@ -1333,7 +1285,6 @@ describe("core snapshot storage", () => {
     let recoveredDb: Database | undefined;
     try {
       if (recovery) {
-        await release(db, run.scope);
         recoveredDb = new Database(runtimeConfig);
         active = await openPersistence(
           recoveredDb,
@@ -1412,7 +1363,6 @@ describe("core snapshot storage", () => {
     await first.delivery.prepare(addition, {});
     await first.delivery.acknowledge(addition.batchId, outcomes(addition), {});
     await finish(first, addition);
-    await release(db, first.scope);
 
     const second = await session({ mode: "mirror", extraction: "full", taskId: "second", logicalRunId: "second" });
     await init(second);
@@ -1422,7 +1372,6 @@ describe("core snapshot storage", () => {
     expect(await second.snapshots.page("additions")).toEqual([]);
     expect(await second.snapshots.page("removals")).toEqual([]);
     await finish(second);
-    await release(db, second.scope);
 
     const third = await session({ mode: "mirror", extraction: "full", taskId: "third", logicalRunId: "third" });
     await init(third);
@@ -1458,7 +1407,6 @@ describe("core snapshot storage", () => {
     await first.delivery.acknowledge(b.batchId, outcomes(b), {});
     await first.delivery.prepareAbort();
     await first.delivery.acknowledgeAbort();
-    await expire();
     const next = await session({ mode: "mirror", extraction: "full", taskId: "next", logicalRunId: "next" });
     await init(next);
     await prune(db, next.scope, new Date(Date.now() - 30 * 86400000));
@@ -1491,9 +1439,8 @@ describe("core snapshot storage", () => {
     await expect(run.delivery.prepare(batch(run, ["a"], 3, "remove", false), {})).rejects.toThrow(/shared identity/);
     await finish(run, b);
   });
-  it("guards exclusive audience ownership across workspaces and lease expiry", async () => {
+  it("guards exclusive audience ownership across workspaces and tasks", async () => {
     await mirror();
-    await expire();
     await expect(
       session({ workspaceId: "other", syncId: "other", mode: "mirror", extraction: "full" })
     ).rejects.toThrow(/another mirror/);

@@ -1,6 +1,5 @@
 import { Pool, type PoolClient, type PoolConfig } from "pg";
-import { contentHash } from "@jitsu/destination-functions/src/reverse-etl/identity";
-import { defaultLimits, ensure, PersistenceError, type Limits, type Scope } from "./types";
+import { defaultLimits, ensure, PersistenceError, type Limits } from "./types";
 
 export class Database {
   readonly pool: Pool;
@@ -47,38 +46,6 @@ export class Database {
     } finally {
       client.release();
     }
-  }
-  async owned<T>(scope: Scope, work: (client: PoolClient, control: any) => Promise<T>): Promise<T> {
-    return this.transaction(async client => {
-      const { rows } = await client.query(
-        "SELECT * FROM reverse_sync_control WHERE workspace_id=$1 AND sync_id=$2 FOR UPDATE",
-        [scope.workspaceId, scope.syncId]
-      );
-      const control = rows[0];
-      ensure(control, "Run ownership lost");
-      const valid = await client.query(
-        "SELECT lease_until > clock_timestamp() AS valid FROM reverse_sync_control WHERE workspace_id=$1 AND sync_id=$2",
-        [scope.workspaceId, scope.syncId]
-      );
-      ensure(
-        control &&
-          valid.rows[0]?.valid &&
-          control.epoch === scope.fencingEpoch &&
-          control.task_id === scope.taskId &&
-          control.run_id === scope.logicalRunId &&
-          control.revision === scope.configRevision &&
-          control.target_hash === contentHash(scope.targetIdentity),
-        "Run ownership lost"
-      );
-      const result = await work(client, control);
-      // Check the original deadline too: renewal must not hide expiry during its transaction.
-      const check = await client.query(
-        "SELECT lease_until > clock_timestamp() AND $3::timestamptz > clock_timestamp() AS valid FROM reverse_sync_control WHERE workspace_id=$1 AND sync_id=$2",
-        [scope.workspaceId, scope.syncId, control.lease_until]
-      );
-      ensure(check.rows[0]?.valid, "Run ownership lost");
-      return result;
-    });
   }
   close() {
     return this.pool.end();

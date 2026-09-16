@@ -44,17 +44,12 @@ function projectedEnvelope(row: unknown): Effect {
 const mirrorSession = Symbol("mirror-persistence");
 
 /** Bind the journal to already-normalized Effect envelopes, not an adapter that might hash twice. */
-export async function openMirrorPersistence(db: Database, input: RunInput, leaseMs?: number) {
+export async function openMirrorPersistence(db: Database, input: RunInput) {
   ensure(input.mode === "mirror" && input.extraction === "full", "Snapshot mirror requires full extraction");
-  const run = await openPersistence(
-    db,
-    input,
-    (_, row) => {
-      const { identity, upsert, remove } = projectedEnvelope(row);
-      return [{ identity, upsert, remove }];
-    },
-    leaseMs
-  );
+  const run = await openPersistence(db, input, (_, row) => {
+    const { identity, upsert, remove } = projectedEnvelope(row);
+    return [{ identity, upsert, remove }];
+  });
   return { ...run, [mirrorSession]: true as const };
 }
 type MirrorPersistence = Awaited<ReturnType<typeof openMirrorPersistence>>;
@@ -73,12 +68,12 @@ export interface MirrorSourceRecord {
 }
 export interface NewMirrorOptions<C, Row, O> extends MirrorOptions<C, Row, O> {
   mapping: Record<string, string>;
-  /** A complete cursorless source. Opens only after fenced admission and writer initialization. */
+  /** A complete cursorless source. Opens only after Kubernetes admission and writer initialization. */
   source(signal: AbortSignal): AsyncIterable<MirrorSourceRecord>;
   sourcePageSize?: number;
 }
 export interface MirrorRecovery<C, O> {
-  /** Reattach the verified existing session using this epoch/store; never blindly create a second session. */
+  /** Reattach the verified existing session using the recovered context/store; never blindly create a second session. */
   attachWriter(context: ReverseEtlContext<C, O>): Promise<ReverseEtlWriter<JsonObject>>;
   /** Verify outcomes or perform a provider-proven safe replay of this exact persisted request. */
   reconcileBatch?(
@@ -258,7 +253,7 @@ export async function resumeSnapshotMirror<C, Row, O>(input: MirrorOptions<C, Ro
   const { run, ctx } = env;
   try {
     ctx.signal.throwIfAborted();
-    ensure(run.recovery, "Mirror resume requires recovery ownership");
+    ensure(run.recovery, "Mirror resume requires a recovery session");
     const status = await run.core.recoveryStatus();
     ensure((await run.snapshots.status())?.sealed, "Incomplete source requires reconciled abort and a new full run");
     if (
@@ -298,7 +293,7 @@ export async function resumeSnapshotMirror<C, Row, O>(input: MirrorOptions<C, Ro
       }
     }
     ctx.signal.throwIfAborted();
-    // Recheck ownership after callbacks and before authorizing provider-session attachment.
+    // Recheck lifecycle state after callbacks and before authorizing provider-session attachment.
     await run.core.recoveryStatus();
     const writer = await recovery.attachWriter(ctx);
     validateWriter(writer);

@@ -1,14 +1,12 @@
 import type { Json, JsonObject, PreparedBatch, ReverseEtlRunScope } from "@jitsu/protocols/reverse-etl";
 
-export interface RunInput extends Omit<ReverseEtlRunScope, "fencingEpoch"> {
+export interface RunInput extends ReverseEtlRunScope {
   workspaceId: string;
   mode: "upsert" | "mirror";
   /** Full includes cursorless models and explicit full refresh. */
   extraction: "cursor" | "full";
 }
-export interface Scope extends RunInput {
-  fencingEpoch: string;
-}
+export type Scope = Readonly<RunInput>;
 
 /** Core-only, provider-ready projection; no warehouse row or snapshot API in writer context. */
 export interface Identity {

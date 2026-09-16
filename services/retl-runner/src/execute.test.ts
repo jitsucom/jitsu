@@ -245,7 +245,17 @@ async function control() {
 }
 
 describe("executable runner", () => {
-  it("runs upsert with restricted DB grants, task logs and both lease boundaries", async () => {
+  it("does not open persistence or start a task when Kubernetes admission is denied", async () => {
+    const f = fixture();
+    f.input.lease.acquire = async () => {
+      throw new Error("Another worker holds the lease");
+    };
+    expect(await execute(f.input)).toBe("FAILED");
+    expect(await control()).toBeUndefined();
+    expect(await task()).toBeUndefined();
+    expect(f.calls).toEqual([]);
+  });
+  it("runs upsert with restricted DB grants, task logs and Kubernetes admission", async () => {
     const f = fixture();
     expect(await execute(f.input)).toBe("SUCCESS");
     expect((await task()).status).toBe("SUCCESS");
@@ -417,7 +427,7 @@ describe("executable runner", () => {
     await enteredPromise;
     f.input.controller.abort();
     expect(f.calls).not.toContain("release");
-    expect((await control()).task_id).toBe("task");
+    expect((await task()).status).toBe("RUNNING");
     unblock();
     expect(await running).toBe("CANCELLED");
     expect(f.calls.at(-1)).toBe("release");
