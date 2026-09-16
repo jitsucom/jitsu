@@ -17,7 +17,7 @@ manage the value yourself instead — then this Job is not created at all.
 
 Pattern borrowed from the community chart at github.com/stafftastic/jitsu-chart.
 */}}
-{{- if and (eq (include "jitsu.mode" .) "prod") (not .Values.auth.token) }}
+{{- if and (eq (include "jitsu.mode" .) "prod") (not .Values.auth.token) .Values.tokenGenerator.enabled }}
 apiVersion: v1
 kind: ServiceAccount
 metadata:
@@ -86,7 +86,13 @@ subjects:
 apiVersion: batch/v1
 kind: Job
 metadata:
-  name: token-generator-{{ .Release.Revision }}
+  # Stable name, deliberately. A `{{ .Release.Revision }}` suffix gives every
+  # upgrade a distinct Job, and `before-hook-creation` only deletes a hook of the
+  # same name — so completed Jobs and their Pods accumulate for the life of the
+  # release, and Helm does not remove hook resources on uninstall either. With a
+  # stable name exactly one generation survives: the previous run is deleted just
+  # before the next is created, which also keeps its logs available until then.
+  name: token-generator
   labels:
     {{- include "jitsu.labels" . | nindent 4 }}
     app.kubernetes.io/name: token-generator
