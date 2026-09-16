@@ -60,7 +60,7 @@ func buildReversePodTemplate(c *Config, entry *SyncEntry, secret, taskID string)
 		{Name: "POD_UID", ValueFrom: &v1.EnvVarSource{FieldRef: &v1.ObjectFieldSelector{FieldPath: "metadata.uid"}}},
 		{Name: "KUBE_NAMESPACE", ValueFrom: &v1.EnvVarSource{FieldRef: &v1.ObjectFieldSelector{FieldPath: "metadata.namespace"}}},
 	}
-	for _, key := range []string{"RETL_DATABASE_URL", "RETL_ACTIVE_KEY", "RETL_KEYS", "RETL_CONSOLE_URL", "RETL_CONSOLE_TOKEN"} {
+	for _, key := range []string{"RETL_DATABASE_URL", "RETL_CONSOLE_URL", "RETL_CONSOLE_TOKEN"} {
 		env = append(env, v1.EnvVar{Name: key, ValueFrom: &v1.EnvVarSource{SecretKeyRef: &v1.SecretKeySelector{LocalObjectReference: v1.LocalObjectReference{Name: c.ReverseRuntimeSecret}, Key: key}}})
 	}
 	return v1.PodTemplateSpec{ObjectMeta: metav1.ObjectMeta{Labels: map[string]string{k8sCreatorLabel: k8sCreatorLabelValue, labelManagedBy: managedByValue, labelSyncID: entry.ID, labelWorkspaceID: entry.WorkspaceID, labelSyncKind: "reverse", labelAppName: cronJobAppValue}, Annotations: td.ExtractAnnotations()}, Spec: v1.PodSpec{

@@ -19,10 +19,12 @@ The pre-provisioned runtime Secret must contain:
 | Key | Purpose |
 | --- | --- |
 | `RETL_DATABASE_URL` | Restricted DB login, including `?schema=newjitsu` (or configured schema). Never migration credentials. |
-| `RETL_ACTIVE_KEY` | Active encryption key ID. |
-| `RETL_KEYS` | JSON mapping retained key IDs to base64-encoded 32-byte keys. No fallback. |
 | `RETL_CONSOLE_URL` | Reachable console origin. |
 | `RETL_CONSOLE_TOKEN` | Console `SYNCCTL_AUTH_KEY` for per-run admission. |
+
+No payload-encryption key is required. Recovery payloads and checkpoint state are
+stored as readable JSON; protect database and backup access as described in the
+package README. DB and admission credentials still belong in Kubernetes Secrets.
 
 Use the database grants in the package README. The service account needs
 namespace-scoped `get`, `create`, `update`, `delete` on `coordination.k8s.io/leases`.

@@ -37,8 +37,8 @@ type Config struct {
 	SidecarImage       string `mapstructure:"SIDECAR_IMAGE" default:"jitsucom/sidecar:latest"`
 	ReverseEnabled     bool   `mapstructure:"REVERSE_ENABLED" default:"false"`
 	ReverseRunnerImage string `mapstructure:"REVERSE_RUNNER_IMAGE" default:"jitsucom/retl-runner:latest"`
-	// Pre-provisioned runtime-only Secret: RETL_DATABASE_URL, RETL_ACTIVE_KEY,
-	// RETL_KEYS, RETL_CONSOLE_URL, RETL_CONSOLE_TOKEN. Never use schema-owner credentials.
+	// Pre-provisioned runtime-only Secret: RETL_DATABASE_URL, RETL_CONSOLE_URL,
+	// RETL_CONSOLE_TOKEN. Never use schema-owner credentials.
 	ReverseRuntimeSecret string `mapstructure:"REVERSE_RUNTIME_SECRET"`
 	PodsServiceAccount   string `mapstructure:"PODS_SERVICE_ACCOUNT"`
 

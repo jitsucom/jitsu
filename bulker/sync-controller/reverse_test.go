@@ -72,6 +72,7 @@ func TestReversePodContract(t *testing.T) {
 	if strings.Contains(string(encoded), "private") {
 		t.Fatal("credentials leaked into pod")
 	}
+	runtimeKeys := map[string]bool{}
 	for _, env := range pod.Spec.Containers[0].Env {
 		if env.Name == "TASK_ID" && (env.ValueFrom == nil || env.ValueFrom.FieldRef.FieldPath != "metadata.name") {
 			t.Fatal("cron task id is not per-fire")
@@ -79,6 +80,12 @@ func TestReversePodContract(t *testing.T) {
 		if env.Name == "RETL_DATABASE_URL" && env.ValueFrom.SecretKeyRef.Name != "retl-runtime" {
 			t.Fatal("runtime DB secret not referenced")
 		}
+		if env.ValueFrom != nil && env.ValueFrom.SecretKeyRef != nil {
+			runtimeKeys[env.ValueFrom.SecretKeyRef.Key] = true
+		}
+	}
+	if len(runtimeKeys) != 3 || !runtimeKeys["RETL_DATABASE_URL"] || !runtimeKeys["RETL_CONSOLE_URL"] || !runtimeKeys["RETL_CONSOLE_TOKEN"] {
+		t.Fatal("runner must require only DB and admission Secret keys, not encryption keys")
 	}
 	manual := buildReversePodTemplate(cfg, entry, "config", "manual-task")
 	if manual.Annotations["TaskID"] != "manual-task" {

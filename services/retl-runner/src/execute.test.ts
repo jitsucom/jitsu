@@ -1,14 +1,13 @@
 import { beforeAll, afterAll, beforeEach, describe, it, expect } from "vitest";
 import { GenericContainer, Wait, type StartedTestContainer } from "testcontainers";
 import { Client } from "pg";
-import { randomBytes } from "node:crypto";
 import { createRequire } from "node:module";
 import { fileURLToPath } from "node:url";
 import { execFileSync } from "node:child_process";
 import { z } from "zod";
 import type { ReverseEtlContext, JsonObject, WriteBatch } from "@jitsu/protocols/reverse-etl";
 import { ReverseRunConfig } from "@jitsu/warehouse-query/src/runtime";
-import { Database, Cipher } from "./persistence";
+import { Database } from "./persistence";
 import { execute, type ExecuteOptions } from "./execute";
 import type { RuntimeAdapter } from "./adapters";
 import { Tasks } from "./tasks";
@@ -66,10 +65,7 @@ beforeAll(async () => {
   await admin.query(
     "GRANT SELECT,INSERT,UPDATE ON newjitsu.source_state,newjitsu.source_task TO runner_runtime; GRANT INSERT ON newjitsu.task_log TO runner_runtime"
   );
-  db = new Database(
-    { ...config, user: "runner_runtime", password: "runtime" },
-    new Cipher("test", { test: randomBytes(32) })
-  );
+  db = new Database({ ...config, user: "runner_runtime", password: "runtime" });
 }, 60_000);
 afterAll(async () => {
   await db?.close();
@@ -291,7 +287,6 @@ describe("executable runner", () => {
         user: "runner_runtime",
         password: "runtime",
       },
-      db.cipher,
       { limits: { batchRecords: 2 } }
     );
     f.input.db = bounded;
@@ -345,6 +340,27 @@ describe("executable runner", () => {
     f.input.taskId = "recovery";
     expect(await execute(f.input)).toBe("SUCCESS");
     expect((await control()).checkpoint_sequence).toBe("2");
+  });
+  it("recovers an empty cursor run from its plain JSON checkpoint without keys", async () => {
+    const f = fixture();
+    f.input.config.model.cursor = { column: "id", type: "string" };
+    f.setRows([{ id: "a\u0000b" }]);
+    expect(await execute(f.input)).toBe("SUCCESS");
+    const saved = (await admin.query("SELECT state FROM newjitsu.source_state")).rows[0].state;
+    expect(saved.version).toBe(2);
+    const point = JSON.parse(saved.value).value.point;
+    expect(point.cursor).toEqual({ value: "a\u0000b", primaryKeyValues: ["a\u0000b"] });
+
+    f.setRows([]);
+    f.setPending();
+    f.input.taskId = "empty";
+    expect(await execute(f.input)).toBe("FAILED");
+    f.input.taskId = "recovery";
+    f.calls.length = 0;
+    expect(await execute(f.input)).toBe("SUCCESS");
+    expect(f.calls).toEqual(["lease", "renew", "reconcileFinish", "release"]);
+    const recovered = (await admin.query("SELECT state FROM newjitsu.source_state")).rows[0].state;
+    expect(JSON.parse(recovered.value).value.point).toEqual(point);
   });
   it("blocks unknown initialization without proof, then resets with explicit reconciliation", async () => {
     const f = fixture();

@@ -2,7 +2,7 @@ import { readFile } from "node:fs/promises";
 import { z } from "zod";
 import { createWarehouseReader } from "@jitsu/warehouse-query";
 import { ReverseRunConfig } from "@jitsu/warehouse-query/src/runtime";
-import { Cipher, Database } from "./persistence";
+import { Database } from "./persistence";
 import { execute } from "./execute";
 import { adapters } from "./adapters";
 import { KubernetesLease, inClusterLeaseRequest } from "./lease";
@@ -10,8 +10,6 @@ import { KubernetesLease, inClusterLeaseRequest } from "./lease";
 const Env = z.object({
   RETL_CONFIG_PATH: z.string().default("/config/reverse.json"),
   RETL_DATABASE_URL: z.string().url(),
-  RETL_ACTIVE_KEY: z.string().min(1),
-  RETL_KEYS: z.string(),
   RETL_CONSOLE_URL: z.string().url(),
   RETL_CONSOLE_TOKEN: z.string().min(1),
   TASK_ID: z.string().min(1).max(512),
@@ -29,14 +27,7 @@ async function main() {
   const raw = await readFile(env.RETL_CONFIG_PATH);
   if (raw.length > 1_000_000) throw new Error("Run configuration too large");
   const config = ReverseRunConfig.parse(JSON.parse(raw.toString()));
-  const keys = z.record(z.string().regex(/^[A-Za-z0-9+/]{43}=$/)).parse(JSON.parse(env.RETL_KEYS));
-  const db = new Database(
-    { connectionString: env.RETL_DATABASE_URL },
-    new Cipher(
-      env.RETL_ACTIVE_KEY,
-      Object.fromEntries(Object.entries(keys).map(([id, value]) => [id, Buffer.from(value, "base64")]))
-    )
-  );
+  const db = new Database({ connectionString: env.RETL_DATABASE_URL });
   const controller = new AbortController();
   const stop = () => controller.abort();
   process.once("SIGTERM", stop);

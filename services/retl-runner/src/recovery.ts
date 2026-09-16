@@ -1,7 +1,7 @@
 import type { JsonObject, ReverseEtlContext, ResumePoint } from "@jitsu/protocols/reverse-etl";
 import { validateBatchResult, validateFinishResult } from "@jitsu/destination-functions/src/reverse-etl/meta";
 import type { openPersistence } from "./persistence";
-import { statePurpose, stateStream, type SavedState } from "./persistence/ownership";
+import { readSavedState, stateStream } from "./persistence/ownership";
 import { ensure } from "./persistence/types";
 import type { RuntimeRecovery } from "./adapters";
 import { mirrorDeliveryBatch } from "./mirror";
@@ -89,12 +89,7 @@ async function finalPoint(run: Session, sequence: number): Promise<ResumePoint> 
         stateStream,
       ]);
       const saved = result.rows[0]?.state;
-      const value = saved
-        ? run.core.db.cipher.open<SavedState>(
-            Buffer.from(saved.value, "base64"),
-            run.core.db.aad(run.scope, statePurpose(run.scope))
-          )
-        : undefined;
+      const value = saved ? readSavedState(saved, run.scope) : undefined;
       return {
         sourceSequence: sequence,
         ...(run.scope.extraction === "cursor" && value?.point.cursor ? { cursor: value.point.cursor } : {}),
