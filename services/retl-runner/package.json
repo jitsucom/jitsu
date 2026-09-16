@@ -1,0 +1,22 @@
+{
+  "name": "@jitsu-internal/retl-runner",
+  "version": "0.0.0",
+  "private": true,
+  "scripts": { "typecheck": "tsc --noEmit", "test": "vitest run", "build": "exit 0" },
+  "dependencies": {
+    "@jitsu/destination-functions": "workspace:*",
+    "@jitsu/protocols": "workspace:*",
+    "pg": "^8.18.0",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@jitsu/common-config": "workspace:*",
+    "@prisma/client": "^6.5.0",
+    "@types/node": "catalog:",
+    "@types/pg": "^8.16.0",
+    "prisma": "^6.5.0",
+    "testcontainers": "^11.14.0",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  }
+}

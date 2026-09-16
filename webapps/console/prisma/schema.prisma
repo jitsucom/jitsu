@@ -329,6 +329,176 @@ model source_catalog {
   @@id([package, version, key])
 }
 
+// Reverse ETL tables share the config database schema and its update workflow.
+// Prisma defines their schema/types; the Node runner uses pg for atomic transactions.
+// Worker coordination belongs to Kubernetes leases and syncctl, not these tables.
+enum reverse_sync_mode {
+  upsert
+  mirror
+}
+
+enum reverse_sync_extraction {
+  cursor
+  full
+}
+
+enum reverse_sync_action {
+  upsert
+  remove
+}
+
+// One durable lifecycle record per sync: current logical run, immutable config/target
+// binding, phase, in-progress provider state, sequence boundaries and storage budgets.
+// Unlike source_task (one execution attempt), this survives retries of the same run.
+// source_state holds committed checkpoints; this row also tracks unfinished work.
+model reverse_sync_control {
+  workspace_id         String
+  sync_id              String                  @unique
+  run_id               String
+  revision             String
+  target_hash          String
+  phase                String                  @default("new")
+  mode                 reverse_sync_mode
+  extraction           reverse_sync_extraction
+  base_sequence        BigInt                  @default(0)
+  next_sequence        BigInt                  @default(0)
+  checkpoint_sequence  BigInt                  @default(0)
+  finish_sequence      BigInt?
+  store                Bytes?
+  provider_state       Bytes?
+  finish_result        Bytes?
+  committed_generation String?
+  membership_entries   BigInt                  @default(0)
+  membership_bytes     BigInt                  @default(0)
+  journal_bytes        BigInt                  @default(0)
+  reserved_entries     BigInt                  @default(0)
+  reserved_bytes       BigInt                  @default(0)
+
+  @@id([workspace_id, sync_id])
+}
+
+// Persistent exclusive claim of a destination audience by a mirror sync. Prevents
+// other mirror/upsert syncs from managing that same target across runs/workspaces.
+// This is audience ownership, not a worker lease; it survives completion/failure.
+model reverse_sync_target_owner {
+  target_hash  String @id
+  workspace_id String
+  sync_id      String
+
+  @@unique([workspace_id, sync_id])
+}
+
+// Delivery journal entry for a batch: exact prepared request plus its saved receipt.
+// Written before the provider call so recovery can reconcile/replay the original
+// request without rerunning changed source SQL. Groups the operations below.
+model reverse_sync_batch {
+  workspace_id  String
+  sync_id       String
+  run_id        String
+  batch_id      String
+  manifest      Bytes
+  manifest_hash String
+  result        Bytes?
+  result_bytes  BigInt
+  status        String                   @default("prepared")
+  created_at    DateTime                 @default(dbgenerated("clock_timestamp()")) @db.Timestamptz(6)
+  operations    reverse_sync_operation[]
+
+  @@id([workspace_id, sync_id, run_id, batch_id])
+  @@index([workspace_id, sync_id, created_at, batch_id], map: "reverse_sync_batch_retention")
+}
+
+// Per-operation delivery outcome and projected audience effects within a batch.
+// Tracks unresolved/accepted/rejected work, source ordering and reserved capacity.
+// Accepted receipts drive membership changes and checkpoint eligibility atomically;
+// these are recovery records, not billing events or task-log messages.
+model reverse_sync_operation {
+  workspace_id     String
+  sync_id          String
+  run_id           String
+  operation_id     String
+  batch_id         String
+  sequence         BigInt
+  action           reverse_sync_action
+  status           String              @default("prepared")
+  effects          Bytes
+  // Core-projected hashes support source-order membership updates without decoding the run journal.
+  identity_hashes  String[]
+  reserved_entries BigInt
+  reserved_bytes   BigInt
+  // Local acknowledgement time, not a provider delivery timestamp or billing attribution.
+  accepted_at      DateTime?           @db.Timestamptz(6)
+  batch            reverse_sync_batch  @relation(fields: [workspace_id, sync_id, run_id, batch_id], references: [workspace_id, sync_id, run_id, batch_id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@id([workspace_id, sync_id, run_id, operation_id])
+  @@unique([workspace_id, sync_id, run_id, sequence])
+  @@index([workspace_id, sync_id, run_id, status, sequence], map: "reverse_sync_operation_pending")
+  @@index([identity_hashes], type: Gin, map: "reverse_sync_operation_identities")
+}
+
+// Metadata for one full desired-audience snapshot (generation = logical run ID).
+// Tracks extraction size and retryable page progress; sealing marks complete input.
+// Final accepted delivery promotes the generation via reverse_sync_control;
+// abandoned/superseded generations are later pruned.
+model reverse_sync_generation {
+  workspace_id String
+  sync_id      String
+  generation   String
+  sealed       Boolean @default(false)
+  key_count    BigInt  @default(0)
+  entry_count  BigInt  @default(0)
+  byte_count   BigInt  @default(0)
+
+  // Atomic receipt for the latest source page; no per-source identity association.
+  last_page_sequence BigInt  @default(0)
+  last_page_hash     String?
+
+  @@id([workspace_id, sync_id, generation])
+}
+
+// Unique source primary-key hashes seen in a snapshot, including deliberately
+// excluded rows. Detects duplicate source rows across pages without retaining raw
+// warehouse rows or a source-row-to-destination-identity association table.
+model reverse_sync_source_key {
+  workspace_id String
+  sync_id      String
+  generation   String
+  key_hash     String
+
+  @@id([workspace_id, sync_id, generation, key_hash])
+}
+
+// Deduplicated destination identities and provider-ready payloads desired by one
+// snapshot. Multiple source rows can produce the same identity. Comparing these
+// rows with reverse_sync_membership produces bounded addition/removal pages.
+model reverse_sync_desired {
+  workspace_id  String
+  sync_id       String
+  generation    String
+  identity_hash String
+  payload_hash  String
+  value         Bytes
+
+  @@id([workspace_id, sync_id, generation, identity_hash])
+}
+
+// Effective audience membership durably acknowledged by Jitsu, across all runs.
+// Updated on every accepted effect, including partial success in a failed run;
+// later snapshot diffs therefore retain accepted work instead of using only the
+// last successful snapshot. Stores payloads needed for comparison and removal.
+model reverse_sync_membership {
+  workspace_id  String
+  sync_id       String
+  identity_hash String
+  payload_hash  String
+  value         Bytes
+
+  @@id([workspace_id, sync_id, identity_hash])
+}
+
+// Shared committed checkpoint storage for connector syncs and Reverse ETL.
+// Reverse ETL uses the _REVERSE_ETL_ stream for scoped cursor/sequence, provider
+// store and generation state; detailed unfinished delivery stays in its journal.
 model source_state {
   sync_id   String
   stream    String
@@ -338,6 +508,9 @@ model source_state {
   @@id([sync_id, stream])
 }
 
+// Shared execution-attempt status and heartbeat for syncctl-managed syncs.
+// Each Reverse ETL attempt gets a task ID; multiple attempts may recover the same
+// logical run in reverse_sync_control. Task success is not a per-row receipt.
 model source_task {
   sync_id     String
   task_id     String   @id
@@ -359,6 +532,9 @@ model source_task {
   @@index([sync_id, started_at(sort: Desc)])
 }
 
+// Diagnostic messages attached to a sync/task execution attempt. Reverse ETL writes
+// core-owned lifecycle messages here; delivery receipts and recovery evidence live
+// in reverse_sync_batch/reverse_sync_operation instead of being inferred from logs.
 model task_log {
   id        String   @id @default(uuid()) @db.Uuid
   level     String

@@ -85,7 +85,6 @@ function fixture(count = 3) {
     taskId: "task",
     logicalRunId: "logical-run",
     configRevision: "revision",
-    fencingEpoch: "1",
     targetIdentity: "provider:account:audience",
     mode: "upsert",
     fullRefresh: false,
@@ -475,7 +474,6 @@ describe("Reverse ETL lifecycle", () => {
       b = fixture(1),
       c = fixture(1);
     b.ctx.taskId = "retry-task";
-    b.ctx.fencingEpoch = "2";
     c.ctx.logicalRunId = "new-run";
     await a.run();
     await b.run();
