@@ -88,9 +88,20 @@ spec:
                 name: jitsu-deps-urls
                 optional: true
           env:
+            # The operator creates and lists functions-server Deployments and
+            # ConfigMaps in this namespace. Its config defaults to "default"
+            # (operator/config.go:27), so without this a release installed into
+            # any other namespace would manage resources in the wrong one — and
+            # against a ServiceAccount whose RBAC binding lives elsewhere.
+            # Same downward-API approach syncctl already uses.
+            - name: KUBERNETES_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
             {{- include "jitsu.env" (dict "ctx" . "service" "operator"
                   "extra" (dict "HTTP_PORT" "3052"
-                    "FUNCTIONS_SERVER_IMAGE" (include "jitsu.functionsServerImage" .))) | nindent 12 }}
+                    "FUNCTIONS_SERVER_IMAGE" (include "jitsu.functionsServerImage" .))
+                  "exclude" (list "KUBERNETES_NAMESPACE")) | nindent 12 }}
 {{- if include "jitsu.isDev" . }}
           volumeMounts:
             - name: build

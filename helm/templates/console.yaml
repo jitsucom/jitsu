@@ -90,15 +90,19 @@ spec:
             # `jitsu-console-maintenance` (optional ConfigMap, key
             # `maintenance.json`). Manage via
             # webapps/console/scripts/maintenance-mode.sh.
+            {{- $consoleExtra := dict
+                  "NEXTAUTH_URL" (include "jitsu.consolePublicUrl" .)
+                  "JITSU_PUBLIC_URL" (include "jitsu.consolePublicUrl" .)
+                  "BULKER_PORT" ""
+                  "ROTOR_PORT" ""
+                  "SYNCCTL_PORT" ""
+                  "INGMGR_PORT" ""
+                  "MAINTENANCE_CONFIG_FILE" "/etc/jitsu/maintenance/maintenance.json" }}
+            {{- with (include "jitsu.ingestPublicUrl" .) }}
+            {{- $_ := set $consoleExtra "JITSU_INGEST_PUBLIC_URL" . }}
+            {{- end }}
             {{- include "jitsu.env" (dict "ctx" . "service" "console"
-                  "extra" (dict
-                    "NEXTAUTH_URL" (include "jitsu.consolePublicUrl" .)
-                    "JITSU_PUBLIC_URL" (include "jitsu.consolePublicUrl" .)
-                    "BULKER_PORT" ""
-                    "ROTOR_PORT" ""
-                    "SYNCCTL_PORT" ""
-                    "INGMGR_PORT" ""
-                    "MAINTENANCE_CONFIG_FILE" "/etc/jitsu/maintenance/maintenance.json")) | nindent 12 }}
+                  "extra" $consoleExtra) | nindent 12 }}
           volumeMounts:
 {{- if include "jitsu.isDev" . }}
             - name: project
