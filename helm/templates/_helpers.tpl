@@ -391,7 +391,5 @@ only when absent, so the digest is constant and nothing rolls.
 Emitted in prod only, so the dev render stays byte-identical.
 */}}
 {{- define "jitsu.credentialChecksum" -}}
-{{- if eq (include "jitsu.mode" .) "prod" }}
 checksum/credentials: {{ include (print .Template.BasePath "/secrets.yaml") . | sha256sum }}
-{{- end }}
 {{- end -}}
