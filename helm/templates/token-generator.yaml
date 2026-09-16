@@ -25,6 +25,13 @@ metadata:
   labels:
     {{- include "jitsu.labels" . | nindent 4 }}
     app.kubernetes.io/name: token-generator
+  annotations:
+    # These must be hooks too, at a lower weight than the Job. A pre-install hook
+    # runs *before* Helm applies ordinary manifests, so a plain ServiceAccount
+    # here would not exist yet and the Job could never start on a fresh install.
+    "helm.sh/hook": pre-install,pre-upgrade
+    "helm.sh/hook-weight": "-20"
+    "helm.sh/hook-delete-policy": before-hook-creation
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
@@ -33,6 +40,11 @@ metadata:
   labels:
     {{- include "jitsu.labels" . | nindent 4 }}
     app.kubernetes.io/name: token-generator
+  annotations:
+    # Hook, weight -20 — see the ServiceAccount above.
+    "helm.sh/hook": pre-install,pre-upgrade
+    "helm.sh/hook-weight": "-20"
+    "helm.sh/hook-delete-policy": before-hook-creation
 rules:
   # `get` is scoped to the one Secret this Job owns — it must read it back to
   # stay idempotent, but it has no business reading any other Secret.
@@ -51,6 +63,11 @@ metadata:
   labels:
     {{- include "jitsu.labels" . | nindent 4 }}
     app.kubernetes.io/name: token-generator
+  annotations:
+    # Hook, weight -20 — see the ServiceAccount above.
+    "helm.sh/hook": pre-install,pre-upgrade
+    "helm.sh/hook-weight": "-20"
+    "helm.sh/hook-delete-policy": before-hook-creation
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: Role

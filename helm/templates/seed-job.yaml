@@ -41,6 +41,13 @@ spec:
         app.kubernetes.io/instance: {{ .Release.Name }}
     spec:
       restartPolicy: Never
+      # Kubernetes injects a service-link env var per Service in the namespace:
+      # a Service named `bulker` becomes BULKER_PORT=tcp://10.x.x.x:3042. Those
+      # names collide with Jitsu's own BULKER_PORT / ROTOR_PORT / SYNCCTL_PORT,
+      # which console's env schema parses as numbers, so manage.js exits with
+      # "expected number, received nan" before it can seed. The Deployments do
+      # not hit this because they set those vars explicitly; this Job does not.
+      enableServiceLinks: false
       initContainers:
         # The console migrates the schema on its own startup, and this Job is
         # only ordered by hook weight — Helm does not wait for the Deployment to

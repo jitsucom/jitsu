@@ -116,9 +116,18 @@ auth:
   # Job creates no user.
   seedPassword: ""
 
-# Image for the token-generator Job. Needs `kubectl` and a shell; nothing else.
+# Image for the token-generator Job and the seed Job's wait-for-console gate.
+# Needs `kubectl`, a POSIX shell, `wget`, and /dev/urandom; nothing else.
+#
+# Not `bitnami/kubectl`: Bitnami moved their public catalog in 2025 and the
+# version tags are gone from the free namespace — `bitnami/kubectl:1.31` now
+# fails to pull with `not found`, which breaks the default prod install. The
+# surviving `bitnamilegacy/*` images are frozen, so they are not a fix either.
+# `alpine/k8s` is actively tagged and carries a shell, which the official
+# `registry.k8s.io/kubectl` image does not (it is distroless, so the Job's
+# script cannot run there).
 tokenGenerator:
-  image: bitnami/kubectl:1.31
+  image: alpine/k8s:1.31.13
 
 # Creates the first admin user and workspace on a fresh prod install, from
 # env.console.SEED_USER_EMAIL / SEED_USER_PASSWORD. Without it a prod install
