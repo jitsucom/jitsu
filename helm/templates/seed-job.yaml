@@ -22,7 +22,9 @@ level of node_modules. Borrowed from github.com/stafftastic/jitsu-chart.
 apiVersion: batch/v1
 kind: Job
 metadata:
-  name: seed-{{ .Release.Revision }}
+  # Stable name — see the note on token-generator's Job. A per-revision name
+  # leaks a completed Job and Pod on every upgrade.
+  name: seed
   labels:
     {{- include "jitsu.labels" . | nindent 4 }}
     app.kubernetes.io/name: seed

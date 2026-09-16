@@ -63,9 +63,23 @@ into the `jitsu-secrets` Secret, which every service mounts via `envFrom`. Value
 passed with `--set` would instead land in the pod spec, in Helm's release record
 (`helm get values`), and in your shell history.
 
-The Job only creates the Secret when it is absent, so upgrades never rotate the
-tokens. To manage them yourself — external secret manager, SealedSecret, GitOps —
-set `auth.token` and the Job is not created at all.
+The Job never rewrites a key that is already set, so upgrades do not rotate the
+tokens. It does fill in keys that are *missing*, which is what makes a dev
+release upgradable to `mode=prod` and lets an older install pick up keys added by
+a later chart version.
+
+**To manage the secret yourself** — external secret manager, SealedSecret,
+GitOps — create `jitsu-secrets` before installing and leave `auth.token` unset.
+The Job will see it and only backfill absent keys; supply all of them and it does
+nothing at all. To stop the chart touching the Secret under any circumstances,
+also set `tokenGenerator.enabled=false`, and note that every key then becomes
+your responsibility.
+
+`auth.token` is a different thing and is **not** the external-secrets path: it
+renders the value into the Secret template, so it ends up in the rendered
+manifest and in Helm's release record (`helm get values`) — the very exposure the
+generated path avoids. Use it for a throwaway environment, or where you already
+accept the token being in your values file.
 
 **Retrieve the initial login** after installing:
 

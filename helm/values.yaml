@@ -158,6 +158,13 @@ auth:
 # `registry.k8s.io/kubectl` image does not (it is distroless, so the Job's
 # script cannot run there).
 tokenGenerator:
+  # Set false when `jitsu-secrets` is managed entirely outside the chart — an
+  # external secret manager, a SealedSecret, whatever your GitOps flow uses. The
+  # chart then creates and touches nothing, and it is on you to supply every key
+  # the services need (the full list is in the Job's `kubectl create secret`
+  # call). Leaving this true is safe alongside an externally managed Secret: the
+  # Job only fills in keys that are absent and never rewrites one you set.
+  enabled: true
   image: alpine/k8s:1.31.13
 
 # Creates the first admin user and workspace on a fresh prod install, from
