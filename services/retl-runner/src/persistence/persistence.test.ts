@@ -4,14 +4,13 @@ import { Client, type PoolConfig } from "pg";
 import { createRequire } from "node:module";
 import { execFileSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
-import { randomBytes } from "node:crypto";
 import { contentHash, createBufferedSyncStore } from "@jitsu/destination-functions/src/reverse-etl/identity";
 import { runReverseEtl } from "@jitsu/destination-functions/src/reverse-etl/run";
 import type { BatchResult, FinishResult, PreparedBatch } from "@jitsu/protocols/reverse-etl";
 import { z } from "zod";
 import { effects } from "./snapshots";
-import { encryptedByteBudget } from "./crypto";
-import { Cipher, Database, openPersistence, release, renew, prune, type RunInput, type Project } from "./index";
+import { encodeJson, decodeJson } from "./serialization";
+import { Database, openPersistence, release, renew, prune, type RunInput, type Project } from "./index";
 
 let container: StartedTestContainer;
 let admin: Client;
@@ -28,7 +27,6 @@ function pushSchema(databaseUrl: string) {
     stdio: "inherit",
   });
 }
-const cipher = new Cipher("test", { test: randomBytes(32) });
 const project: Project = (_, row: any) => [{ identity: row.id, upsert: row, remove: { id: row.id } }];
 const input = (extra: Partial<RunInput> = {}): RunInput => ({
   workspaceId: "workspace",
@@ -131,7 +129,7 @@ beforeAll(async () => {
   }
   await admin.query("GRANT SELECT,INSERT,UPDATE ON newjitsu.source_state TO retl_runtime");
   runtimeConfig = { ...config, user: "retl_runtime", password: "runtime" };
-  db = new Database(runtimeConfig, cipher);
+  db = new Database(runtimeConfig);
 }, 120000);
 beforeEach(async () => {
   runInput = input();
@@ -193,7 +191,7 @@ describe("PostgreSQL persistence", () => {
     await admin.query(`GRANT SELECT,INSERT,UPDATE ON ${schema}.source_state TO retl_runtime`);
     url.username = "retl_runtime";
     url.password = "runtime";
-    const custom = new Database({ connectionString: url.toString(), options: "-c search_path=public" }, cipher);
+    const custom = new Database({ connectionString: url.toString(), options: "-c search_path=public" });
     try {
       const run = await openPersistence(custom, runInput, project);
       await init(run);
@@ -242,20 +240,20 @@ describe("PostgreSQL persistence", () => {
     ).rejects.toThrow(/ownership/);
     expect((await admin.query("SELECT phase FROM newjitsu.reverse_sync_control")).rows[0].phase).toBe("new");
   });
-  it("isolates workspaces and binds ciphertext to its scope", async () => {
+  it("stores readable JSON while keeping workspace ownership checks", async () => {
     const run = await session();
     await init(run);
     await expect(session({ workspaceId: "foreign" })).rejects.toThrow();
     const b = batch(run, ["private@example.com"]);
     await run.delivery.prepare(b, { token: "secret" });
     const saved = (await admin.query("SELECT manifest FROM newjitsu.reverse_sync_batch")).rows[0].manifest;
-    expect(saved.toString()).not.toContain("private@example.com");
-    expect(
-      (await admin.query("SELECT store FROM newjitsu.reverse_sync_control")).rows[0].store.toString()
-    ).not.toContain("secret");
-    expect(() =>
-      cipher.open(saved, db.aad({ workspaceId: "foreign", syncId: "sync" }, `batch:run:${b.batchId}`))
-    ).toThrow(/decrypt/);
+    expect(JSON.parse(saved.toString())).toEqual({ version: 1, value: b });
+    expect(decodeJson((await admin.query("SELECT store FROM newjitsu.reverse_sync_control")).rows[0].store)).toEqual({
+      token: "secret",
+    });
+    await expect(db.owned({ ...run.scope, workspaceId: "foreign" }, async () => undefined)).rejects.toThrow(
+      /ownership/
+    );
     expect(await run.core.loadBatch(b.batchId)).toEqual(b);
   });
   it("persists preparation across process recreation and blocks blind new extraction", async () => {
@@ -264,7 +262,7 @@ describe("PostgreSQL persistence", () => {
     const b = batch(run, ["a"]);
     await run.delivery.prepare(b, {});
     await db.close();
-    db = new Database(runtimeConfig, cipher);
+    db = new Database(runtimeConfig);
     await expire();
     await expect(session({ logicalRunId: "new-run" })).rejects.toThrow(/requires recovery/);
     const recovered = await session({ taskId: "recovery" });
@@ -884,7 +882,7 @@ describe("PostgreSQL persistence", () => {
       expect([writerCalls, initCalls, sourceCalls]).toEqual([0, 0, 0]);
       // A new epoch consumes the durable retry admission, including after a lost reset response.
       await expire();
-      const nextDb = new Database(runtimeConfig, cipher);
+      const nextDb = new Database(runtimeConfig);
       try {
         const next = await openPersistence(nextDb, { ...runInput, extraction: "full", taskId: "retry" }, project);
         expect(next.recovery).toBe(false);
@@ -1000,15 +998,10 @@ describe("recovery and operational boundaries", () => {
     expect(stored.revision).toBe("revision");
     expect(run.scope.configRevision).toBe("revision");
   });
-  it("reserves key-rotation envelope headroom before delivery", async () => {
-    const oldKey = randomBytes(32),
-      nextKey = randomBytes(32),
-      longId = "b".repeat(64);
-    const oldCipher = new Cipher("a", { a: oldKey });
+  it("reserves exact serialized membership bytes before delivery and through recovery", async () => {
     const projected = effects(project("upsert", { id: "a" }))[0];
-    const purpose = db.aad(runInput, `identity:${projected.identityHash}`);
-    const oldBytes = oldCipher.seal(projected, purpose, 10000).length;
-    const tooSmall = new Database(runtimeConfig, oldCipher, { limits: { snapshotBytes: oldBytes } });
+    const capacity = encodeJson(projected, 10000).length;
+    const tooSmall = new Database(runtimeConfig, { limits: { snapshotBytes: capacity - 1 } });
     try {
       const run = await openPersistence(tooSmall, runInput, project);
       await init(run);
@@ -1017,26 +1010,23 @@ describe("recovery and operational boundaries", () => {
       await tooSmall.close();
     }
     await expire();
-    const capacity = encryptedByteBudget(Buffer.byteLength(JSON.stringify(projected)));
-    const oldDb = new Database(runtimeConfig, oldCipher, { limits: { snapshotBytes: capacity } });
-    const rotatedDb = new Database(runtimeConfig, new Cipher(longId, { a: oldKey, [longId]: nextKey }), {
-      limits: { snapshotBytes: capacity },
-    });
+    const oldDb = new Database(runtimeConfig, { limits: { snapshotBytes: capacity } });
+    const recoveredDb = new Database(runtimeConfig, { limits: { snapshotBytes: capacity } });
     try {
       const run = await openPersistence(oldDb, { ...runInput, taskId: "prepare" }, project);
       const b = batch(run, ["a"]);
       await run.delivery.prepare(b, {});
       await expire();
-      const recovered = await openPersistence(rotatedDb, { ...runInput, taskId: "recovery" }, project);
+      const recovered = await openPersistence(recoveredDb, { ...runInput, taskId: "recovery" }, project);
       await recovered.core.acknowledgeRecovered(b.batchId, outcomes(b), {});
       expect(
         Number(
           (await admin.query("SELECT membership_bytes FROM newjitsu.reverse_sync_control")).rows[0].membership_bytes
         )
-      ).toBeLessThanOrEqual(capacity);
+      ).toBe(capacity);
     } finally {
       await oldDb.close();
-      await rotatedDb.close();
+      await recoveredDb.close();
     }
   });
   it("persists protocol-maximum finish metadata and combined maximum cursor/store envelopes", async () => {
@@ -1060,6 +1050,52 @@ describe("recovery and operational boundaries", () => {
     await run.delivery.acknowledgeFinish({ delivery: "accepted", providerCheckpoint: store }, store);
     await run.delivery.commitCheckpoint({ sourceSequence: 1, cursor }, store, true);
     expect(await count("newjitsu.source_state")).toBe(1);
+    const saved = (await admin.query("SELECT state FROM newjitsu.source_state")).rows[0].state;
+    expect(saved.version).toBe(2);
+    expect(JSON.parse(saved.value)).toEqual({ version: 1, value: { point: { sourceSequence: 1, cursor }, store } });
+    await release(db, run.scope);
+    const next = await session({ logicalRunId: "next", taskId: "next" });
+    expect(await next.delivery.assertReady()).toEqual({ sourceSequence: 1, cursor });
+  });
+  it.each(["legacy", "foreign-workspace", "foreign-revision", "foreign-target"])(
+    "rejects unsupported or mismatched saved checkpoint state: %s",
+    async mismatch => {
+      const run = await session();
+      await init(run);
+      await finish(run);
+      await release(db, run.scope);
+      const saved = (await admin.query("SELECT state FROM newjitsu.source_state")).rows[0].state;
+      if (mismatch === "legacy") {
+        saved.version = 1;
+        saved.value = "old-encrypted-state";
+      } else if (mismatch === "foreign-workspace") saved.workspaceId = "foreign";
+      else if (mismatch === "foreign-revision") saved.revision = "foreign";
+      else saved.targetHash = "foreign";
+      await admin.query("UPDATE newjitsu.source_state SET state=$1", [saved]);
+      await expect(session({ logicalRunId: "next", taskId: "next" })).rejects.toThrow(
+        mismatch === "legacy" ? /format/ : /scope mismatch/
+      );
+      expect((await admin.query("SELECT state FROM newjitsu.source_state")).rows[0].state).toEqual(saved);
+      expect((await admin.query("SELECT run_id FROM newjitsu.reverse_sync_control")).rows[0].run_id).toBe("run");
+    }
+  );
+  it.each(["a\u0000b", "a\ud800b"])("preserves all protocol JSON strings in checkpoint state (%#)", async value => {
+    const run = await session();
+    await init(run);
+    const b = batch(run, ["a"]);
+    const cursor = { value, primaryKeyValues: [value] };
+    const store = { token: value };
+    b.cursor = cursor;
+    await run.delivery.prepare(b, store);
+    await run.delivery.acknowledge(b.batchId, outcomes(b), store);
+    await run.delivery.prepareFinish(1, store);
+    await run.delivery.acknowledgeFinish({ delivery: "accepted" }, store);
+    await run.delivery.commitCheckpoint({ sourceSequence: 1, cursor }, store, true);
+    const saved = (await admin.query("SELECT state FROM newjitsu.source_state")).rows[0].state;
+    expect(decodeJson(Buffer.from(saved.value))).toEqual({ point: { sourceSequence: 1, cursor }, store });
+    await release(db, run.scope);
+    const next = await session({ logicalRunId: "next", taskId: "next" });
+    expect(await next.delivery.assertReady()).toEqual({ sourceSequence: 1, cursor });
   });
   it("releases an owner immediately without forgetting prepared init or provider IDs", async () => {
     const run = await session();
@@ -1103,7 +1139,7 @@ describe("recovery and operational boundaries", () => {
     expect((await run.core.recoveryStatus()).phase).toBe("finish_resolving");
     expect(await count("newjitsu.source_state")).toBe(0);
     await db.close();
-    db = new Database(runtimeConfig, cipher);
+    db = new Database(runtimeConfig);
     await expire();
     const recovered = await session({ taskId: "recovery" });
     // Acceptance was recorded before the crash; only local resolution remains.
@@ -1140,7 +1176,7 @@ describe("recovery and operational boundaries", () => {
     expect((await recovered.core.recoveryBatch(b.batchId)).operations[0].acceptedAt).toEqual(accepted.acceptedAt);
   });
   it("reserves membership capacity before submission and rolls back rejected snapshot batches", async () => {
-    const limited = new Database(runtimeConfig, cipher, { limits: { snapshotEntries: 1 } });
+    const limited = new Database(runtimeConfig, { limits: { snapshotEntries: 1 } });
     try {
       const run = await openPersistence(limited, { ...runInput, mode: "mirror", extraction: "full" }, project);
       await init(run);
@@ -1202,18 +1238,6 @@ describe("recovery and operational boundaries", () => {
       )
     ).rejects.toThrow(/starting cursor/);
     expect(await count("newjitsu.source_state")).toBe(0);
-  });
-  it("supports encryption-key rotation and rejects tampering", () => {
-    const oldKey = randomBytes(32),
-      newKey = randomBytes(32);
-    const old = new Cipher("old", { old: oldKey });
-    const rotated = new Cipher("new", { old: oldKey, new: newKey });
-    const encrypted = old.seal({ secret: "value" }, "scope", 100);
-    expect(rotated.open(encrypted, "scope")).toEqual({ secret: "value" });
-    expect(old.seal({ secret: "value" }, "scope", 100)).not.toEqual(encrypted);
-    const damaged = Buffer.from(encrypted);
-    damaged[damaged.length - 10] ^= 1;
-    expect(() => rotated.open(damaged, "scope")).toThrow(/decrypt/);
   });
 });
 
@@ -1310,7 +1334,7 @@ describe("core snapshot storage", () => {
     try {
       if (recovery) {
         await release(db, run.scope);
-        recoveredDb = new Database(runtimeConfig, cipher);
+        recoveredDb = new Database(runtimeConfig);
         active = await openPersistence(
           recoveredDb,
           { ...runInput, mode: "mirror", extraction: "full", taskId: "recovery" },

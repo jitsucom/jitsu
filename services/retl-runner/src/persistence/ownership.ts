@@ -1,6 +1,7 @@
 import type { JsonObject, ResumePoint } from "@jitsu/protocols/reverse-etl";
 import { contentHash } from "@jitsu/destination-functions/src/reverse-etl/identity";
 import { Database } from "./database";
+import { decodeJson } from "./serialization";
 import { ensure, type RunInput, type Scope } from "./types";
 
 export interface SavedState {
@@ -9,8 +10,16 @@ export interface SavedState {
   generation?: string;
 }
 export const stateStream = "_REVERSE_ETL_";
-export function statePurpose(scope: RunInput) {
-  return `state:${contentHash(scope.targetIdentity)}:${scope.configRevision}`;
+/** JSON text inside jsonb preserves NUL/unpaired-surrogate strings supported by the protocol. */
+export function readSavedState(envelope: any, scope: RunInput): SavedState {
+  ensure(envelope?.version === 2 && typeof envelope.value === "string", "Unsupported saved state format");
+  ensure(
+    envelope.workspaceId === scope.workspaceId &&
+      envelope.revision === scope.configRevision &&
+      envelope.targetHash === contentHash(scope.targetIdentity),
+    "Saved state scope mismatch"
+  );
+  return decodeJson<SavedState>(Buffer.from(envelope.value, "utf8"));
 }
 
 /** Caller must already hold the matching Kubernetes sync lease. This is the DB fence, not admission. */
@@ -91,14 +100,7 @@ export async function acquire(
         stateStream,
       ]);
       if (saved.rows[0]) {
-        const envelope = saved.rows[0].state;
-        ensure(
-          envelope.workspaceId === run.workspaceId &&
-            envelope.revision === run.configRevision &&
-            envelope.targetHash === target,
-          "Saved state scope mismatch"
-        );
-        const value = db.cipher.open<SavedState>(Buffer.from(envelope.value, "base64"), db.aad(run, statePurpose(run)));
+        const value = readSavedState(saved.rows[0].state, run);
         base = run.extraction === "cursor" && value.point.cursor ? value.point.sourceSequence : 0;
       }
     }

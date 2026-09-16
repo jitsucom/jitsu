@@ -88,5 +88,5 @@ background loops silently started by this library.
 From `services/retl-runner`, run `pnpm test` against disposable PostgreSQL with
 restricted runtime roles. `RETL_MIRROR_SCALE_TEST=1 pnpm test` also seeds one million
 synthetic desired SQL rows and checks bounded diff pages. This validates pagination,
-not million-row encryption/extraction or provider throughput. No production database
+not million-row serialization/extraction or provider throughput. No production database
 or advertising API is touched.

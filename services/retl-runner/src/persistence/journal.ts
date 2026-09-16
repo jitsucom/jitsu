@@ -10,8 +10,8 @@ import type {
 import { canonicalJson, contentHash } from "@jitsu/destination-functions/src/reverse-etl/identity";
 import { validateBatchResult, validateFinishResult } from "@jitsu/destination-functions/src/reverse-etl/meta";
 import { Database } from "./database";
-import { encryptedByteBudget } from "./crypto";
-import { statePurpose, stateStream, type SavedState } from "./ownership";
+import { decodeJson, encodeJson, jsonByteBudget } from "./serialization";
+import { readSavedState, stateStream, type SavedState } from "./ownership";
 import { effects, Snapshots } from "./snapshots";
 import { ensure, type Effect, type Project, type Scope } from "./types";
 
@@ -36,22 +36,16 @@ export class Journal implements DeliveryJournal {
   private get key() {
     return [this.scope.workspaceId, this.scope.syncId, this.scope.logicalRunId];
   }
-  private seal(value: unknown, purpose: string, bytes = 65536) {
-    return this.db.cipher.seal(value, this.db.aad(this.scope, purpose), bytes);
-  }
-  private open<T>(value: Buffer, purpose: string) {
-    return this.db.cipher.open<T>(value, this.db.aad(this.scope, purpose));
-  }
   private async saveStore(client: PoolClient, store: JsonObject) {
     await client.query("UPDATE reverse_sync_control SET store=$3 WHERE workspace_id=$1 AND sync_id=$2", [
       ...this.key.slice(0, 2),
-      this.seal(store, "store"),
+      encodeJson(store),
     ]);
   }
   async state(): Promise<{ store: JsonObject; providerState: JsonObject }> {
     return this.db.owned(this.scope, async (_, control) => ({
-      store: control.store ? this.open(control.store, "store") : {},
-      providerState: control.provider_state ? this.open(control.provider_state, "provider") : {},
+      store: control.store ? decodeJson<JsonObject>(control.store) : {},
+      providerState: control.provider_state ? decodeJson<JsonObject>(control.provider_state) : {},
     }));
   }
   async assertReady(): Promise<ResumePoint> {
@@ -68,7 +62,7 @@ export class Journal implements DeliveryJournal {
         stateStream,
       ]);
       if (!saved.rowCount || this.scope.extraction === "full") return { sourceSequence: 0 };
-      const state = this.open<SavedState>(Buffer.from(saved.rows[0].state.value, "base64"), statePurpose(this.scope));
+      const state = readSavedState(saved.rows[0].state, this.scope);
       return state.point.cursor ? state.point : { sourceSequence: 0 };
     });
   }
@@ -118,7 +112,7 @@ export class Journal implements DeliveryJournal {
       ensure(!["new", "complete", "aborted"].includes(control.phase), "No active provider lifecycle");
       await client.query("UPDATE reverse_sync_control SET provider_state=$3 WHERE workspace_id=$1 AND sync_id=$2", [
         ...this.key.slice(0, 2),
-        this.seal(state, "provider"),
+        encodeJson(state),
       ]);
     });
   }
@@ -161,25 +155,15 @@ export class Journal implements DeliveryJournal {
             ensure(!desired.rowCount, "Cannot remove a desired shared identity");
           }
       }
-      const manifest = this.seal(
-        prepared,
-        `batch:${this.scope.logicalRunId}:${prepared.batchId}`,
-        this.db.limits.batchBytes
-      );
-      const encryptedEffects = projected.map((values, index) =>
-        this.seal(
-          values,
-          `effects:${this.scope.logicalRunId}:${prepared.records[index].operationId}`,
-          this.db.limits.batchBytes
-        )
-      );
+      const manifest = encodeJson(prepared, this.db.limits.batchBytes);
+      const encodedEffects = projected.map(values => encodeJson(values, this.db.limits.batchBytes));
       // Reserve worst-case membership growth BEFORE remote submission, including
       // earlier staged batches. Counters avoid rescanning a million-member table.
       const reservations = projected.map(values => ({
         entries: prepared.action === "upsert" ? values.length : 0,
         bytes:
           prepared.action === "upsert"
-            ? values.reduce((n, effect) => n + encryptedByteBudget(Buffer.byteLength(canonicalJson(effect))), 0)
+            ? values.reduce((n, effect) => n + jsonByteBudget(Buffer.byteLength(canonicalJson(effect))), 0)
             : 0,
       }));
       const reservedEntries = reservations.reduce((n, r) => n + r.entries, 0);
@@ -191,9 +175,9 @@ export class Journal implements DeliveryJournal {
             this.db.limits.snapshotBytes,
         "Effective membership reservation budget exceeded"
       );
-      // Reserve bounded result storage as well; rejected reasons/job IDs remain encrypted.
-      const resultBytes = encryptedByteBudget(prepared.records.length * 8192 + 512 * 1024);
-      const journalBytes = manifest.length + encryptedEffects.reduce((n, value) => n + value.length, 0) + resultBytes;
+      // Reserve bounded result storage as well, including rejected reasons/job IDs.
+      const resultBytes = jsonByteBudget(prepared.records.length * 8192 + 512 * 1024);
+      const journalBytes = manifest.length + encodedEffects.reduce((n, value) => n + value.length, 0) + resultBytes;
       ensure(
         Number(control.journal_bytes) + journalBytes <= this.db.limits.journalBytes,
         "Recovery journal budget exceeded; retention is required"
@@ -232,7 +216,7 @@ export class Journal implements DeliveryJournal {
             prepared.batchId,
             sequence,
             prepared.action,
-            encryptedEffects[index],
+            encodedEffects[index],
             reservations[index].entries,
             reservations[index].bytes,
             projected[index].map(effect => effect.identityHash),
@@ -254,10 +238,8 @@ export class Journal implements DeliveryJournal {
       phase: control.phase as string,
       nextSequence: Number(control.next_sequence),
       finishSequence: control.finish_sequence === null ? undefined : Number(control.finish_sequence),
-      finish: control.finish_result
-        ? this.open<{ result: FinishResult }>(control.finish_result, "finish").result
-        : undefined,
-      providerState: control.provider_state ? this.open<JsonObject>(control.provider_state, "provider") : {},
+      finish: control.finish_result ? decodeJson<{ result: FinishResult }>(control.finish_result).result : undefined,
+      providerState: control.provider_state ? decodeJson<JsonObject>(control.provider_state) : {},
     }));
   }
   async recoveryBatch(batchId: string) {
@@ -273,9 +255,7 @@ export class Journal implements DeliveryJournal {
       );
       return {
         batch,
-        result: saved.rows[0].result
-          ? this.open<BatchResult>(saved.rows[0].result, `result:${this.scope.logicalRunId}:${batchId}`)
-          : undefined,
+        result: saved.rows[0].result ? decodeJson<BatchResult>(saved.rows[0].result) : undefined,
         operations: operations.rows.map(row => ({
           operationId: row.operation_id as string,
           status: row.status as string,
@@ -290,7 +270,7 @@ export class Journal implements DeliveryJournal {
       [...this.key, batchId]
     );
     ensure(result.rowCount, "Prepared batch not found");
-    return this.open(result.rows[0].manifest, `batch:${this.scope.logicalRunId}:${batchId}`);
+    return decodeJson(result.rows[0].manifest);
   }
   async recoveryPage(after = "", limit = 100): Promise<{ batchId: string; status: string }[]> {
     ensure(Number.isSafeInteger(limit) && limit > 0 && limit <= 1000 && after.length <= 512, "Invalid recovery page");
@@ -341,10 +321,7 @@ export class Journal implements DeliveryJournal {
         [...this.key, batchId]
       );
       if (previousResult.rows[0].result) {
-        const saved = validateBatchResult(
-          batch,
-          this.open<BatchResult>(previousResult.rows[0].result, `result:${this.scope.logicalRunId}:${batchId}`)
-        );
+        const saved = validateBatchResult(batch, decodeJson<BatchResult>(previousResult.rows[0].result));
         if (saved.outcomes.every(outcome => outcome.status === "accepted" || outcome.status === "rejected")) {
           ensure(canonicalReceipt(saved) === canonicalReceipt(result), "Cannot overwrite a terminal batch receipt");
           // A duplicate is read-only: the run store may already belong to a later batch.
@@ -400,13 +377,9 @@ export class Journal implements DeliveryJournal {
           );
         }
       }
-      const encryptedResult = this.seal(
-        result,
-        `result:${this.scope.logicalRunId}:${batchId}`,
-        batch.records.length * 8192 + 512 * 1024
-      );
+      const encodedResult = encodeJson(result, batch.records.length * 8192 + 512 * 1024);
       const journalBytes =
-        Number(control.journal_bytes) - Number(previousResult.rows[0].result_bytes) + encryptedResult.length;
+        Number(control.journal_bytes) - Number(previousResult.rows[0].result_bytes) + encodedResult.length;
       ensure(journalBytes <= this.db.limits.journalBytes, "Recovery journal result budget exceeded");
       await client.query("UPDATE reverse_sync_control SET journal_bytes=$3 WHERE workspace_id=$1 AND sync_id=$2", [
         ...this.key.slice(0, 2),
@@ -414,16 +387,13 @@ export class Journal implements DeliveryJournal {
       ]);
       await client.query(
         "UPDATE reverse_sync_batch SET status='acknowledged',result=$5,result_bytes=$6 WHERE workspace_id=$1 AND sync_id=$2 AND run_id=$3 AND batch_id=$4",
-        [...this.key, batchId, encryptedResult, encryptedResult.length]
+        [...this.key, batchId, encodedResult, encodedResult.length]
       );
       await this.saveStore(client, store);
     });
   }
   private async accept(client: PoolClient, operation: any, acceptedAt: Date) {
-    const projected = this.open<Effect[]>(
-      operation.effects,
-      `effects:${this.scope.logicalRunId}:${operation.operation_id}`
-    );
+    const projected = decodeJson<Effect[]>(operation.effects);
     for (const effect of projected) {
       const later = await client.query(
         `SELECT 1 FROM reverse_sync_operation WHERE workspace_id=$1 AND sync_id=$2 AND run_id=$3
@@ -437,7 +407,7 @@ export class Journal implements DeliveryJournal {
         "SELECT octet_length(value) AS bytes FROM reverse_sync_membership WHERE workspace_id=$1 AND sync_id=$2 AND identity_hash=$3",
         [...this.key.slice(0, 2), effect.identityHash]
       );
-      const value = this.seal(effect, `identity:${effect.identityHash}`, this.db.limits.batchBytes);
+      const value = encodeJson(effect, this.db.limits.batchBytes);
       if (operation.action === "remove")
         await client.query(
           "DELETE FROM reverse_sync_membership WHERE workspace_id=$1 AND sync_id=$2 AND identity_hash=$3",
@@ -550,7 +520,7 @@ export class Journal implements DeliveryJournal {
         return;
       }
       if (control.phase === "finish_pending" && result.delivery === "pending") {
-        const saved = this.open<{ result: FinishResult }>(control.finish_result, "finish");
+        const saved = decodeJson<{ result: FinishResult }>(control.finish_result);
         ensure(canonicalJson(saved.result) === canonicalJson(result), "Cannot overwrite a pending finish receipt");
         // Keep the original jobs recoverable; duplicate receipts must not rewind the store either.
         return;
@@ -582,7 +552,7 @@ export class Journal implements DeliveryJournal {
         [
           ...this.key.slice(0, 2),
           result.delivery === "pending" ? "finish_pending" : "finish_resolving",
-          this.seal(saved, "finish", 384 * 1024),
+          encodeJson(saved, 384 * 1024),
         ]
       );
     });
@@ -604,7 +574,7 @@ export class Journal implements DeliveryJournal {
           );
           return true;
         }
-        const saved = this.open<any>(control.finish_result, "finish").acceptance;
+        const saved = decodeJson<any>(control.finish_result).acceptance;
         ensure(saved, "Missing finish acceptance evidence");
         const acceptance = new Date(saved.at);
         for (const operation of pending.rows) await this.accept(client, operation, acceptance);
@@ -671,9 +641,7 @@ export class Journal implements DeliveryJournal {
           this.scope.syncId,
           stateStream,
         ]);
-        const saved = previous.rowCount
-          ? this.open<SavedState>(Buffer.from(previous.rows[0].state.value, "base64"), statePurpose(this.scope))
-          : undefined;
+        const saved = previous.rowCount ? readSavedState(previous.rows[0].state, this.scope) : undefined;
         const cursor = control.extraction === "cursor" ? saved?.point.cursor : undefined;
         ensure(
           canonicalJson(cursor ?? null) === canonicalJson(copied.cursor ?? null),
@@ -684,11 +652,13 @@ export class Journal implements DeliveryJournal {
       const generation = control.mode === "mirror" ? this.scope.logicalRunId : control.committed_generation;
       const state: SavedState = { point: copied, store, ...(generation ? { generation } : {}) };
       const envelope = {
-        version: 1,
+        version: 2,
         workspaceId: this.scope.workspaceId,
         revision: this.scope.configRevision,
         targetHash: contentHash(this.scope.targetIdentity),
-        value: this.seal(state, statePurpose(this.scope), 192 * 1024).toString("base64"),
+        // jsonb cannot represent every protocol string (e.g. NUL). JSON text
+        // preserves these values losslessly without encryption or base64.
+        value: encodeJson(state, 192 * 1024).toString("utf8"),
       };
       await client.query(
         `INSERT INTO ${this.db.stateTable} (sync_id,stream,state,timestamp) VALUES ($1,$2,$3,clock_timestamp()) ON CONFLICT (sync_id,stream) DO UPDATE SET state=EXCLUDED.state,timestamp=EXCLUDED.timestamp`,
