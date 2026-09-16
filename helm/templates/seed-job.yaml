@@ -41,6 +41,32 @@ spec:
         app.kubernetes.io/instance: {{ .Release.Name }}
     spec:
       restartPolicy: Never
+      initContainers:
+        # The console migrates the schema on its own startup, and this Job is
+        # only ordered by hook weight — Helm does not wait for the Deployment to
+        # become ready unless the install passes --wait, which the documented
+        # command does not. Without this gate `manage.js seed` can run against a
+        # database with no tables and burn its small backoff before the console
+        # is up. /api/healthcheck returns 200 only once prisma has connected, so
+        # waiting on it waits for exactly the right thing.
+        - name: wait-for-console
+          image: {{ .Values.tokenGenerator.image | quote }}
+          command:
+            - sh
+            - -c
+            - |
+              set -eu
+              i=0
+              until wget -q -O /dev/null "http://console:3000/api/healthcheck"; do
+                i=$((i+1))
+                if [ "$i" -ge 60 ]; then
+                  echo "console did not become healthy after 5 minutes"
+                  exit 1
+                fi
+                echo "waiting for console to be ready and the schema to be applied..."
+                sleep 5
+              done
+              echo "console is ready"
       containers:
         - name: seed
           image: {{ include "jitsu.image" (dict "ctx" . "service" "console" "dev" "node:24-bookworm" "prod" "console") }}

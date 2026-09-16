@@ -13,6 +13,22 @@ The chart has two modes, selected by `mode` in `values.yaml`:
 
 ## Production mode
 
+Dependencies first. The main chart does not install them, so on a fresh cluster
+there is no Postgres, Kafka, ClickHouse or MongoDB, no `jitsu-deps-urls` Secret,
+and the console crashes without `DATABASE_URL`:
+
+```bash
+helm install jitsu-deps ./helm-deps
+```
+
+`helm-deps` runs **single-node** instances and is not production-grade — see the
+caveat below. For a real deployment, point the services at managed instances
+instead: disable each component in `helm-deps/values.yaml` and set the matching
+`env.common.DATABASE_URL` / `KAFKA_BOOTSTRAP_SERVERS` / `CLICKHOUSE_URL` /
+`MONGODB_URL` here.
+
+Then the chart itself:
+
 ```bash
 helm install jitsu ./helm \
   --set mode=prod \
