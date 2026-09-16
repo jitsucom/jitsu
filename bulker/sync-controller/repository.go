@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -24,6 +25,7 @@ import (
 //     options.disabledStreams, and options.schemaChanges to apply the
 //     selectStreamsFromCatalog port.
 type SyncEntry struct {
+	Reverse       *ReverseConfig   `json:"-"`
 	ID            string           `json:"id"`
 	WorkspaceID   string           `json:"workspaceId"`
 	WorkspaceSlug string           `json:"workspaceSlug"`
@@ -53,13 +55,14 @@ type SyncsData struct {
 }
 
 type SyncsRepositoryData struct {
-	data atomic.Pointer[SyncsData]
+	data    atomic.Pointer[SyncsData]
+	reverse bool
 }
 
 // Init parses the JSON array streamed by the export endpoint.
 func (s *SyncsRepositoryData) Init(reader io.Reader, tag any) error {
 	dec := json.NewDecoder(reader)
-	if _, err := dec.Token(); err != nil {
+	if token, err := dec.Token(); err != nil || token != json.Delim('[') {
 		return fmt.Errorf("error reading open bracket: %w", err)
 	}
 
@@ -68,8 +71,21 @@ func (s *SyncsRepositoryData) Init(reader io.Reader, tag any) error {
 
 	for dec.More() {
 		entry := &SyncEntry{}
-		if err := dec.Decode(entry); err != nil {
+		var raw json.RawMessage
+		if err := dec.Decode(&raw); err != nil {
 			return fmt.Errorf("error decoding sync entry: %w", err)
+		}
+		if s.reverse {
+			var config ReverseConfig
+			if err := json.Unmarshal(raw, &config); err != nil || !config.valid() {
+				return fmt.Errorf("invalid reverse sync entry")
+			}
+			entry = config.entry()
+		} else if err := json.Unmarshal(raw, entry); err != nil {
+			return err
+		}
+		if _, exists := bySyncID[entry.ID]; exists {
+			return fmt.Errorf("duplicate sync id")
 		}
 		if entry.Timezone == "" {
 			entry.Timezone = "Etc/UTC"
@@ -78,8 +94,12 @@ func (s *SyncsRepositoryData) Init(reader io.Reader, tag any) error {
 		bySyncID[entry.ID] = entry
 	}
 
-	if _, err := dec.Token(); err != nil {
+	if token, err := dec.Token(); err != nil || token != json.Delim(']') {
 		return fmt.Errorf("error reading close bracket: %w", err)
+	}
+	var extra json.RawMessage
+	if err := dec.Decode(&extra); err != io.EOF {
+		return fmt.Errorf("trailing sync export data")
 	}
 
 	data := &SyncsData{
@@ -104,7 +124,23 @@ func (s *SyncsRepositoryData) Store(writer io.Writer) error {
 	if d == nil {
 		return nil
 	}
+	if s.reverse {
+		var buffer bytes.Buffer
+		configs := make([]*ReverseConfig, 0, len(d.Syncs))
+		for _, entry := range d.Syncs {
+			configs = append(configs, entry.Reverse)
+		}
+		if err := json.NewEncoder(&buffer).Encode(configs); err != nil {
+			return err
+		}
+		_, err := writer.Write(buffer.Bytes())
+		return err
+	}
 	return json.NewEncoder(writer).Encode(d.Syncs)
+}
+
+func NewReverseSyncsRepository(baseURL, token string, refreshPeriodSec int, cacheDir string) appbase.Repository[SyncsData] {
+	return appbase.NewHTTPRepository[SyncsData]("reverse-syncs", fmt.Sprintf("%s/reverse-syncs", baseURL), token, appbase.HTTPTagLastModified, &SyncsRepositoryData{reverse: true}, 1, refreshPeriodSec, cacheDir)
 }
 
 // NewSyncsRepository wires the syncs export polling repository.

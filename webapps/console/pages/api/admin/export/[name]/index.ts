@@ -1,5 +1,6 @@
 import { createRoute, verifyAdmin } from "../../../../../lib/api";
 import { db } from "../../../../../lib/server/db";
+import { exportReverseSyncs } from "../../../../../lib/server/reverse-sync-export";
 import { getErrorMessage, getLog, hash as juavaHash, isTruish, requireDefined, rpc } from "juava";
 import { z } from "zod";
 import { getCoreDestinationTypeNonStrict } from "../../../../../lib/schema/destinations";
@@ -1528,6 +1529,11 @@ const exports: Export[] = [
     name: "syncs",
     lastModified: getLastUpdated,
     data: exportSyncs,
+  },
+  {
+    name: "reverse-syncs",
+    lastModified: getLastUpdated,
+    data: writer => exportReverseSyncs(db.prisma(), writer),
   },
 ];
 

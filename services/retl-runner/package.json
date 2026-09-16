@@ -2,10 +2,11 @@
   "name": "@jitsu-internal/retl-runner",
   "version": "0.0.0",
   "private": true,
-  "scripts": { "typecheck": "tsc --noEmit", "test": "vitest run", "build": "exit 0" },
+  "scripts": { "typecheck": "tsc --noEmit", "test": "vitest run", "build": "node build.mjs", "start": "node dist/main.cjs" },
   "dependencies": {
     "@jitsu/destination-functions": "workspace:*",
     "@jitsu/protocols": "workspace:*",
+    "@jitsu/warehouse-query": "workspace:*",
     "pg": "^8.18.0",
     "zod": "^3.23.8"
   },
@@ -17,6 +18,7 @@
     "prisma": "^6.5.0",
     "testcontainers": "^11.14.0",
     "typescript": "catalog:",
+    "esbuild": "catalog:",
     "vitest": "catalog:"
   }
 }
