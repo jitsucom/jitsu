@@ -161,8 +161,13 @@ the render instead of silently taking the dev branch everywhere.
 Resolve a service's runtime container image.
 
 Precedence, highest first:
-  1. images.<service>.repository — an explicit pin, honoured in BOTH modes, so
-     one service can run from an image while the rest build from source.
+  1. images.<service>.repository — an explicit pin, honoured in both modes.
+     Note what that does NOT give you in dev: the dev templates still mount the
+     checkout and override the container command (`/build/ingest`,
+     `npx tsx src/index.ts`), so pinning a repository there changes the base
+     image while the service keeps running from local source. Pinning is only
+     meaningful in prod; in dev it is useful for the base image itself (a
+     different node or debian tag), not for running a published build.
   2. prod mode — {{ image.registry }}/<prod repository>:<tag>
   3. dev mode  — the base image the service builds against.
 
