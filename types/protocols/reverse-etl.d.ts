@@ -1,5 +1,5 @@
 import type { ZodType } from "zod";
-import type { FetchType, FunctionLogger } from "./functions";
+import type { FetchOpts, FetchType, FunctionLogger } from "./functions";
 
 export type RecordKey = string;
 export type OperationId = string;
@@ -122,7 +122,8 @@ export interface ReverseEtlContext<Credentials, Options> extends ReverseEtlRunSc
   options: Options;
   signal: AbortSignal;
   log: FunctionLogger;
-  fetch: FetchType;
+  /** Runner-native fetch; provider credentials must never follow redirects. */
+  fetch: (url: string, opts?: FetchOpts & { signal?: AbortSignal; redirect?: "error" }) => ReturnType<FetchType>;
   store: BufferedSyncStore;
   delivery: DeliveryJournal;
 }

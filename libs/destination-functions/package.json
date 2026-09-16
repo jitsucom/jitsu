@@ -10,7 +10,8 @@
   },
   "files": [
     "src/meta.ts",
-    "src/reverse-etl/**"
+    "src/reverse-etl/**",
+    "src/functions/google-ads-reverse/**"
   ],
   "license": "MIT",
   "private": false,

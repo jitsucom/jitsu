@@ -4,7 +4,8 @@ import { createWarehouseReader } from "@jitsu/warehouse-query";
 import { ReverseRunConfig } from "@jitsu/warehouse-query/src/runtime";
 import { Database } from "./persistence";
 import { execute } from "./execute";
-import { adapters } from "./adapters";
+import { createAdapterRegistry } from "./adapters";
+import { createConsoleClient } from "./console-client";
 import { KubernetesLease, inClusterLeaseRequest } from "./lease";
 
 const Env = z.object({
@@ -29,6 +30,8 @@ async function main() {
   const config = ReverseRunConfig.parse(JSON.parse(raw.toString()));
   const db = new Database({ connectionString: env.RETL_DATABASE_URL });
   const controller = new AbortController();
+  const consoleClient = createConsoleClient(env.RETL_CONSOLE_URL, env.RETL_CONSOLE_TOKEN, config);
+  const adapters = createAdapterRegistry((_, signal) => consoleClient.accessToken(signal));
   const stop = () => controller.abort();
   process.once("SIGTERM", stop);
   process.once("SIGINT", stop);
@@ -58,17 +61,7 @@ async function main() {
         env.POD_UID
       ),
       reader: createWarehouseReader,
-      admit: async () => {
-        const url = new URL(`/api/admin/reverse-syncs/${encodeURIComponent(config.id)}`, env.RETL_CONSOLE_URL);
-        url.searchParams.set("workspaceId", config.workspaceId);
-        const response = await fetch(url, {
-          redirect: "error",
-          signal: AbortSignal.any([controller.signal, AbortSignal.timeout(15_000)]),
-          headers: { Authorization: `Bearer ${env.RETL_CONSOLE_TOKEN}` },
-        });
-        if (!response.ok) throw new Error("Reverse admission denied");
-        return ReverseRunConfig.parse(await response.json());
-      },
+      admit: () => consoleClient.admit(controller.signal),
     });
     process.exitCode = result === "SUCCESS" ? 0 : 1;
   } finally {

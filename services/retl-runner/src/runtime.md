@@ -1,10 +1,12 @@
 # Executable runner and syncctl
 
 The existing PostgreSQL and mirror libraries now run in one Node application
-container. No long-running Go sidecar is used. The compiled-in adapter registry
-is deliberately empty: live providers, OAuth refresh, the Reverse sync editor
-and production enablement follow separately. The existing API guard against
-creating Reverse sync links remains in place. Tests supply fake bindings.
+container. No long-running Go sidecar is used. The compiled-in registry includes
+Google Data Manager Customer Match additions/explicit removals, with scoped OAuth
+and durable request polling. Audience provisioning, the Reverse sync editor and
+production enablement follow separately. The existing API guard against creating
+Reverse sync links remains in place. Google snapshot mirror is deliberately disabled
+until managed-audience baseline verification and unchanged-member refresh are ready.
 
 ## Deployment prerequisites
 
@@ -60,8 +62,21 @@ even when the controller option is disabled.
 Schedules and checkpoint cadence are not delivery revisions. Model, warehouse,
 destination credentials and delivery settings are: changing them with retained
 state requires the existing controlled-reset workflow, not implemented here.
-Never edit raw SQL state to bypass that guard. The first OAuth provider must
-explicitly define its refresh/credential-revision policy.
+Never edit raw SQL state to bypass that guard. Google OAuth refresh does not change
+the delivery revision: only a connection reference, not its token, is in the config.
+Changing the connection reference/account/audience remains revision-bound.
+
+Google tokens are resolved through `/api/admin/reverse-sync-oauth/:syncId` using the
+same service bearer token, plus workspace and immutable delivery revision. Console
+checks current admission before and after Nango retrieval, verifies the connection
+is `destination.<toId>` and uses only the code-owned Google integration. The runner
+receives only an access token/expiry, cached in memory for at most four minutes and
+never beyond expiry minus the safety margin. The shared Nango secret and refresh
+token never reach the runner. Redirects are forbidden. Disabling the sync stops new
+token issuance; an already cached/in-flight token is not instantly revoked.
+
+See the [Google adapter contract](../../../libs/destination-functions/src/functions/google-ads-reverse/README.md)
+for OAuth scopes, mapping/consent, and unrecoverable ambiguous-request limitations.
 
 ## Supervision and task state
 

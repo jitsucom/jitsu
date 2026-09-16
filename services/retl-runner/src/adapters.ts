@@ -2,6 +2,13 @@ import type { JsonObject, ReverseEtlStream, ReverseEtlContext } from "@jitsu/pro
 import type { ReverseRunConfig } from "@jitsu/warehouse-query/src/runtime";
 import type { Project } from "./persistence";
 import type { MirrorRecovery, SnapshotMirrorAdapter } from "./mirror";
+import { createReverseEtlRegistry } from "@jitsu/destination-functions/src/reverse-etl";
+import {
+  createGoogleDataManager,
+  googleAudienceTargetIdentity,
+  projectGoogleAudience,
+} from "@jitsu/destination-functions/src/functions/google-ads-reverse";
+import { GoogleAudienceCredentials } from "@jitsu/destination-functions/src/functions/google-ads-reverse/meta";
 
 /** Trusted, compiled-in provider bindings. Implementations live in destination-functions. */
 export interface RuntimeRecovery extends MirrorRecovery<JsonObject, JsonObject> {
@@ -21,6 +28,27 @@ export interface RuntimeAdapter {
 }
 export type AdapterRegistry = ReadonlyMap<string, (config: ReverseRunConfig) => RuntimeAdapter>;
 
-// Intentionally empty until each provider's API/recovery contract is verified.
-// Never resolve modules or execute code from configuration or environment values.
-export const adapters: AdapterRegistry = new Map();
+/** Code-owned registry: never resolve modules/functions from user configuration. */
+export function createAdapterRegistry(
+  accessToken: (config: ReverseRunConfig, signal: AbortSignal) => Promise<string>
+): AdapterRegistry {
+  return new Map([
+    [
+      "google-ads",
+      config => {
+        const credentials = GoogleAudienceCredentials.safeParse(config.destination);
+        if (!credentials.success || credentials.data.oauthConnectionId !== `destination.${config.toId}`)
+          throw new Error("Invalid Google audience OAuth binding");
+        const google = createGoogleDataManager(signal => accessToken(config, signal));
+        const registry = createReverseEtlRegistry({ "builtin.reverse.google-ads": google.destination });
+        return {
+          stream: registry.get("builtin.reverse.google-ads")!.streams[0],
+          credentials: credentials.data,
+          targetIdentity: googleAudienceTargetIdentity(credentials.data, config.options.streamOptions),
+          project: projectGoogleAudience,
+          recovery: () => google.recovery,
+        };
+      },
+    ],
+  ]);
+}
