@@ -32,8 +32,8 @@ export interface MirrorProjection<Row> {
 export interface SnapshotMirrorAdapter<Credentials, Row, Options> {
   stream: ReverseEtlStream<Credentials, JsonObject, Options>;
   projection: MirrorProjection<Row>;
-  /** Snapshot-diff cannot remove safely when additions require finish() to become accepted. */
-  batchDelivery: "accepted";
+  /** Async batches must resolve independently of finish(); finish-staged delivery is unsafe. */
+  batchDelivery: "accepted" | "asynchronous";
 }
 
 function projectedEnvelope(row: unknown): Effect {
@@ -108,7 +108,7 @@ async function setup<C, Row, O>(input: MirrorOptions<C, Row, O>) {
   ensure(["new-empty", "tracked"].includes(input.targetBaseline), "Verified target baseline is required");
   validateStream(stream);
   ensure(
-    input.adapter.batchDelivery === "accepted" &&
+    ["accepted", "asynchronous"].includes(input.adapter.batchDelivery) &&
       stream.capabilities.mirror === "snapshot-diff" &&
       stream.capabilities.supportsUpsert &&
       stream.capabilities.supportsExplicitRemove &&
@@ -132,7 +132,14 @@ async function setup<C, Row, O>(input: MirrorOptions<C, Row, O>) {
     store,
     delivery: run.delivery,
   };
-  return { run, stream, ctx, maxBytes, batchSize: Math.min(stream.batchSize, run.core.db.limits.batchRecords) };
+  return {
+    run,
+    stream,
+    ctx,
+    maxBytes,
+    asynchronous: input.adapter.batchDelivery === "asynchronous",
+    batchSize: Math.min(stream.batchSize, run.core.db.limits.batchRecords),
+  };
 }
 
 function validatePayloads(effect: Effect, stream: ReverseEtlStream<any, JsonObject, any>) {
@@ -154,12 +161,12 @@ function validateWriter(writer: ReverseEtlWriter<JsonObject>) {
     "Incomplete snapshot mirror writer"
   );
 }
-function requireAccepted(result: BatchResult) {
+function hasPending(result: BatchResult, asynchronous: boolean) {
   ensure(!result.outcomes.some(outcome => outcome.status === "rejected"), "Destination rejected a row; mirror stopped");
-  ensure(
-    result.outcomes.every(outcome => outcome.status === "accepted"),
-    "Staged mirror batches require reconciliation before planning"
-  );
+  const pending = result.outcomes.some(outcome => outcome.status === "staged");
+  ensure(!pending || asynchronous, "Staged mirror batches require reconciliation before planning");
+  ensure(!pending || result.remoteJobIds?.length, "Asynchronous batches require recoverable remote job IDs");
+  return pending;
 }
 function safeError(): PersistenceError {
   return new PersistenceError("Snapshot mirror stopped; inspect durable recovery state before retrying");
@@ -274,6 +281,7 @@ export async function resumeSnapshotMirror<C, Row, O>(input: MirrorOptions<C, Ro
     }
     ensure(status.phase === "running", "Recover provider initialization before mirror delivery");
     let after = "";
+    let pending = false;
     for (;;) {
       const page = await run.core.recoveryPage(after);
       if (!page.length) break;
@@ -288,12 +296,13 @@ export async function resumeSnapshotMirror<C, Row, O>(input: MirrorOptions<C, Ro
             await recovery.reconcileBatch(mirrorDeliveryBatch(saved.batch), saved.batch.action, saved.result, ctx)
           );
           await run.core.acknowledgeRecovered(entry.batchId, result, ctx.store.snapshot());
-          requireAccepted(result);
+          pending = hasPending(result, env.asynchronous) || pending;
         }
         after = entry.batchId;
       }
     }
     ctx.signal.throwIfAborted();
+    if (pending) return { delivery: "pending" as const, sourceSequence: status.nextSequence };
     // Recheck lifecycle state after callbacks and before authorizing provider-session attachment.
     await run.core.recoveryStatus();
     const writer = await recovery.attachWriter(ctx);
@@ -310,11 +319,12 @@ async function deliver<C, Row, O>(
   uncertain: (value: boolean) => void,
   recovered = false
 ) {
-  const { run, stream, ctx, maxBytes, batchSize } = env;
+  const { run, stream, ctx, maxBytes, batchSize, asynchronous } = env;
   let sequence = (await run.core.recoveryStatus()).nextSequence;
   for (const kind of ["additions", "removals"] as const) {
     const action = kind === "additions" ? "upsert" : "remove";
     let after = "";
+    let pending = false;
     for (;;) {
       ctx.signal.throwIfAborted();
       const page = await run.snapshots.page(kind, after, Math.min(batchSize, 1000));
@@ -347,8 +357,10 @@ async function deliver<C, Row, O>(
         }
         if (recovered) await run.core.acknowledgeRecovered(batch.batchId, result, ctx.store.snapshot());
         else await run.delivery.acknowledge(batch.batchId, result, ctx.store.snapshot());
-        uncertain(false);
-        requireAccepted(result);
+        // Independently processing jobs cannot be cancelled by generic abort.
+        // Preserve that protection even if a later batch is accepted or rejected.
+        uncertain(asynchronous && (pending || result.outcomes.some(outcome => outcome.status === "staged")));
+        pending = hasPending(result, asynchronous) || pending;
         records = [];
       };
       for (const effect of page) {
@@ -376,6 +388,10 @@ async function deliver<C, Row, O>(
       }
       await flush();
     }
+    // Finish and the next phase must not turn enqueued work into accepted delivery.
+    // Keep the sealed snapshot and receipts; a later attempt polls the saved jobs.
+    ctx.signal.throwIfAborted();
+    if (pending) return { delivery: "pending" as const, sourceSequence: sequence };
   }
   ctx.signal.throwIfAborted();
   await run.delivery.prepareFinish(sequence, ctx.store.snapshot());

@@ -25,9 +25,11 @@ The canonical identity must include everything needed to identify a removable
 remote member; its removal payload must depend only on that identity and immutable
 configuration, not mutable source attributes.
 
-Adapters must declare `batchDelivery: "accepted"`, snapshot-diff capability and
-explicit removal support. Finish-staged/native replacement strategies are rejected.
-Unexpected staged outcomes are journaled but cannot authorize removals.
+Adapters must declare `batchDelivery: "accepted"` or `"asynchronous"`, snapshot-diff
+capability and explicit removal support. Asynchronous batches must resolve independently
+of `finish()` and return recoverable remote job IDs with staged outcomes. Finish-staged/
+native replacement strategies are rejected. Unexpected staged outcomes from an
+`"accepted"` adapter are journaled but cannot authorize removals.
 
 Use `openMirrorPersistence` to bind the journal to normalized effect envelopes.
 Do not pass an ordinary row-projecting persistence session: it could normalize/hash
@@ -49,6 +51,9 @@ membership or verify account permissions itself.
    then seals it before sending any additions/removals.
 4. Bounded additions must all be durably accepted before removal planning starts.
    Requests obey both provider row limits and the configured manifest byte limit.
+   Asynchronous adapters may stage multiple batches in the current phase. The core
+   then returns `delivery: "pending"` without starting removals or finalization.
+   Pending additions and removals are not accepted membership changes.
 5. Explicit `finish()` handles empty/unchanged snapshots too. Only accepted finish
    can atomically commit state and promote the generation; pending finish cannot.
 
@@ -82,6 +87,12 @@ source argument and never invokes projection or `stream.createWriter`.
   attachment. Reconciled store changes share the receipt/checkpoint transaction.
 - Diff reads restart from acknowledged membership, skipping accepted effects
   without a mutable diff cursor or warehouse re-extraction.
+- For asynchronous delivery, reconcile every unresolved journal batch once per
+  attempt. If any remain staged, return pending without attaching a writer or
+  planning more changes. Only after all additions resolve can removals start;
+  only after all removals resolve can finalization start. Provider polling cadence
+  belongs to the adapter/scheduler, not a long-running loop in the core. Missing
+  remote IDs or unresolvable outcomes block recovery rather than permit replay.
 - Incomplete extraction cannot resume from changed SQL. Reconcile/abort the old
   session, acquire a new logical run, prune its abandoned candidate and collect a
   new full source. Interrupted initialization uses persistence's explicit init
