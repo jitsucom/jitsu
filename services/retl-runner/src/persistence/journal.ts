@@ -11,10 +11,11 @@ import { canonicalJson, contentHash } from "@jitsu/destination-functions/src/rev
 import { validateBatchResult, validateFinishResult } from "@jitsu/destination-functions/src/reverse-etl/meta";
 import { Database } from "./database";
 import { decodeJson, encodeJson, jsonByteBudget } from "./serialization";
-import { readControl, readSavedState, stateStream, type SavedState } from "./run-state";
+import { readSavedState, stateStream, type SavedState } from "./run-state";
+import { controlFor, type ControlCache } from "./control-cache";
 import { effects, Snapshots } from "./snapshots";
 import { ensure, type Effect, type Project, type Scope } from "./types";
-import type { BatchRow, OperationRow, StateRow } from "./rows";
+import type { BatchRow, ControlRow, OperationRow, StateRow } from "./rows";
 
 interface SavedFinish {
   result: FinishResult;
@@ -35,12 +36,14 @@ function canonicalReceipt(result: BatchResult) {
 
 export class Journal implements DeliveryJournal {
   readonly snapshots: Snapshots;
+  private readonly control: ControlCache;
   constructor(
     readonly db: Database,
     readonly scope: Scope,
     private readonly project: Project,
     private readonly recovery: boolean
   ) {
+    this.control = controlFor(db, scope);
     this.snapshots = new Snapshots(db, scope);
   }
   private get key() {
@@ -53,17 +56,14 @@ export class Journal implements DeliveryJournal {
     ]);
   }
   async state(): Promise<{ store: JsonObject; providerState: JsonObject }> {
-    return this.db.transaction(async client => {
-      const control = await readControl(client, this.scope);
-      return {
-        store: control.store ? decodeJson<JsonObject>(control.store) : {},
-        providerState: control.provider_state ? decodeJson<JsonObject>(control.provider_state) : {},
-      };
-    });
+    return this.control.observe(control => ({
+      store: control.store ? decodeJson<JsonObject>(control.store) : {},
+      providerState: control.provider_state ? decodeJson<JsonObject>(control.provider_state) : {},
+    }));
   }
   async assertReady(): Promise<ResumePoint> {
-    return this.db.transaction(async client => {
-      const control = await readControl(client, this.scope);
+    return this.control.transaction(async client => {
+      const control = await this.control.read(client);
       ensure(control.phase === "new", "Recover previous lifecycle before extraction");
       ensure(!this.recovery, "Reopen persistence after init recovery before extraction");
       const unresolved = await client.query(
@@ -81,27 +81,27 @@ export class Journal implements DeliveryJournal {
     });
   }
   async prepareInit(store: JsonObject) {
-    await this.db.transaction(async client => {
-      const control = await readControl(client, this.scope);
-      ensure(control.phase === "new", "Init is already prepared or run has ended");
-      ensure(!this.recovery, "Reopen persistence after init recovery before initialization");
-      await this.saveStore(client, store);
-      await client.query(
-        "UPDATE reverse_sync_control SET phase='init_prepared' WHERE workspace_id=$1 AND sync_id=$2",
-        this.key.slice(0, 2)
+    ensure(!this.recovery, "Reopen persistence after init recovery before initialization");
+    await this.control.transaction(async client => {
+      const result = await client.query<ControlRow>(
+        `UPDATE reverse_sync_control SET phase='init_prepared',store=$4
+         WHERE workspace_id=$1 AND sync_id=$2 AND run_id=$3 AND phase='new' RETURNING *`,
+        [...this.key, encodeJson(store)]
       );
+      ensure(result.rowCount, "Init is already prepared or run has ended");
+      this.control.remember(result.rows[0]);
     });
   }
   async acknowledgeInit(store: JsonObject) {
-    await this.db.transaction(async client => {
-      const control = await readControl(client, this.scope);
-      ensure(control.phase === "init_prepared", "Init is not prepared");
-      ensure(!this.recovery, "Recovered init requires explicit reconciliation");
-      await this.saveStore(client, store);
-      await client.query(
-        "UPDATE reverse_sync_control SET phase='running' WHERE workspace_id=$1 AND sync_id=$2",
-        this.key.slice(0, 2)
+    ensure(!this.recovery, "Recovered init requires explicit reconciliation");
+    await this.control.transaction(async client => {
+      const result = await client.query<ControlRow>(
+        `UPDATE reverse_sync_control SET phase='running',store=$4
+         WHERE workspace_id=$1 AND sync_id=$2 AND run_id=$3 AND phase='init_prepared' RETURNING *`,
+        [...this.key, encodeJson(store)]
       );
+      ensure(result.rowCount, "Init is not prepared");
+      this.control.remember(result.rows[0]);
     });
   }
   /**
@@ -111,8 +111,8 @@ export class Journal implements DeliveryJournal {
    */
   async resetInitAfterReconciliation(resolution: "absent" | "cleaned-up", store: JsonObject) {
     ensure(["absent", "cleaned-up"].includes(resolution), "Invalid init recovery resolution");
-    await this.db.transaction(async client => {
-      const control = await readControl(client, this.scope);
+    await this.control.transaction(async client => {
+      const control = await this.control.lock(client);
       ensure(this.recovery, "Init recovery requires a recovery session");
       // The reset may have committed without its response reaching the caller.
       if (control.phase === "new") return;
@@ -125,13 +125,14 @@ export class Journal implements DeliveryJournal {
     });
   }
   async saveProviderState(state: JsonObject) {
-    await this.db.transaction(async client => {
-      const control = await readControl(client, this.scope);
-      ensure(!["new", "complete", "aborted"].includes(control.phase), "No active provider lifecycle");
-      await client.query("UPDATE reverse_sync_control SET provider_state=$3 WHERE workspace_id=$1 AND sync_id=$2", [
-        ...this.key.slice(0, 2),
-        encodeJson(state),
-      ]);
+    await this.control.transaction(async client => {
+      const result = await client.query<ControlRow>(
+        `UPDATE reverse_sync_control SET provider_state=$4
+         WHERE workspace_id=$1 AND sync_id=$2 AND run_id=$3 AND phase NOT IN ('new','complete','aborted') RETURNING *`,
+        [...this.key, encodeJson(state)]
+      );
+      ensure(result.rowCount, "No active provider lifecycle");
+      this.control.remember(result.rows[0]);
     });
   }
   async prepare<Row>(batch: PreparedBatch<Row>, store: JsonObject) {
@@ -155,8 +156,8 @@ export class Journal implements DeliveryJournal {
       Buffer.byteLength(canonicalJson(projected)) <= this.db.limits.batchBytes,
       "Projected effects exceed byte budget"
     );
-    await this.db.transaction(async client => {
-      const control = await readControl(client, this.scope);
+    await this.control.transaction(async client => {
+      const control = await this.control.lock(client);
       ensure(control.phase === "running", "Cannot prepare delivery in this phase");
       const unresolved = await client.query(
         "SELECT 1 FROM reverse_sync_operation WHERE workspace_id=$1 AND sync_id=$2 AND run_id=$3 AND status IN ('prepared','unknown','rejected') LIMIT 1",
@@ -250,22 +251,19 @@ export class Journal implements DeliveryJournal {
     });
   }
   async loadBatch(batchId: string): Promise<PreparedBatch<unknown>> {
-    return this.db.transaction(async client => this.batch(client, batchId));
+    return this.control.transaction(async client => this.batch(client, batchId));
   }
   async recoveryStatus() {
-    return this.db.transaction(async client => {
-      const control = await readControl(client, this.scope);
-      return {
-        phase: control.phase,
-        nextSequence: Number(control.next_sequence),
-        finishSequence: control.finish_sequence === null ? undefined : Number(control.finish_sequence),
-        finish: control.finish_result ? readFinish(control.finish_result).result : undefined,
-        providerState: control.provider_state ? decodeJson<JsonObject>(control.provider_state) : {},
-      };
-    });
+    return this.control.observe(control => ({
+      phase: control.phase,
+      nextSequence: Number(control.next_sequence),
+      finishSequence: control.finish_sequence === null ? undefined : Number(control.finish_sequence),
+      finish: control.finish_result ? readFinish(control.finish_result).result : undefined,
+      providerState: control.provider_state ? decodeJson<JsonObject>(control.provider_state) : {},
+    }));
   }
   async recoveryBatch(batchId: string) {
-    return this.db.transaction(async client => {
+    return this.control.transaction(async client => {
       const batch = await this.batch(client, batchId);
       const saved = await client.query<Pick<BatchRow, "result">>(
         "SELECT result FROM reverse_sync_batch WHERE workspace_id=$1 AND sync_id=$2 AND run_id=$3 AND batch_id=$4",
@@ -296,7 +294,7 @@ export class Journal implements DeliveryJournal {
   }
   async recoveryPage(after = "", limit = 100): Promise<{ batchId: string; status: string }[]> {
     ensure(Number.isSafeInteger(limit) && limit > 0 && limit <= 1000 && after.length <= 512, "Invalid recovery page");
-    return this.db.transaction(async client => {
+    return this.control.transaction(async client => {
       const result = await client.query<Pick<BatchRow, "batch_id" | "status">>(
         "SELECT batch_id,status FROM reverse_sync_batch WHERE workspace_id=$1 AND sync_id=$2 AND run_id=$3 AND batch_id>$4 ORDER BY batch_id LIMIT $5",
         [...this.key, after, limit]
@@ -305,8 +303,8 @@ export class Journal implements DeliveryJournal {
     });
   }
   async markUnknown(batchId: string) {
-    await this.db.transaction(async client => {
-      const control = await readControl(client, this.scope);
+    await this.control.transaction(async client => {
+      const control = await this.control.lock(client);
       ensure(control.phase === "running", "Cannot mark unknown in this phase");
       await this.batch(client, batchId);
       await client.query(
@@ -335,8 +333,8 @@ export class Journal implements DeliveryJournal {
     return this.acknowledgeBatch(batchId, input, store, true);
   }
   private async acknowledgeBatch(batchId: string, input: BatchResult, store: JsonObject, reconciled: boolean) {
-    await this.db.transaction(async client => {
-      const control = await readControl(client, this.scope);
+    await this.control.transaction(async client => {
+      const control = await this.control.lock(client);
       ensure(control.phase === "running", "Cannot acknowledge batch in this phase");
       const batch = await this.batch(client, batchId);
       const result = validateBatchResult(batch, input);
@@ -466,23 +464,24 @@ export class Journal implements DeliveryJournal {
     );
   }
   async prepareAbort() {
-    await this.db.transaction(async client => {
-      const control = await readControl(client, this.scope);
-      ensure(control.phase === "running", "Cleanup is unsafe in this phase");
+    await this.control.transaction(async client => {
+      const result = await client.query<ControlRow>(
+        `UPDATE reverse_sync_control SET phase='abort_prepared'
+         WHERE workspace_id=$1 AND sync_id=$2 AND run_id=$3 AND phase='running' RETURNING *`,
+        this.key
+      );
+      ensure(result.rowCount, "Cleanup is unsafe in this phase");
       const pending = await client.query(
         "SELECT 1 FROM reverse_sync_operation WHERE workspace_id=$1 AND sync_id=$2 AND run_id=$3 AND status IN ('prepared','unknown') LIMIT 1",
         this.key
       );
       ensure(!pending.rowCount, "Unacknowledged operations require reconciliation before cleanup");
-      await client.query(
-        "UPDATE reverse_sync_control SET phase='abort_prepared' WHERE workspace_id=$1 AND sync_id=$2",
-        this.key.slice(0, 2)
-      );
+      this.control.remember(result.rows[0]);
     });
   }
   async acknowledgeAbort() {
-    await this.db.transaction(async client => {
-      const control = await readControl(client, this.scope);
+    await this.control.transaction(async client => {
+      const control = await this.control.lock(client);
       ensure(control.phase === "abort_prepared", "Cleanup is not prepared");
       const reservations = await client.query<{ entries: string; bytes: string }>(
         "SELECT COALESCE(sum(reserved_entries),0) AS entries,COALESCE(sum(reserved_bytes),0) AS bytes FROM reverse_sync_operation WHERE workspace_id=$1 AND sync_id=$2 AND run_id=$3 AND status='staged'",
@@ -507,25 +506,23 @@ export class Journal implements DeliveryJournal {
     });
   }
   async prepareFinish(throughSequence: number, store: JsonObject) {
-    await this.db.transaction(async client => {
-      const control = await readControl(client, this.scope);
-      ensure(
-        control.phase === "running" &&
-          Number.isSafeInteger(throughSequence) &&
-          throughSequence === Number(control.next_sequence),
-        "Invalid finish boundary"
+    ensure(Number.isSafeInteger(throughSequence), "Invalid finish boundary");
+    await this.control.transaction(async client => {
+      // The conditional write acquires the control-row lock; later validation
+      // failures roll back this phase/store change with the whole transaction.
+      const result = await client.query<ControlRow>(
+        `UPDATE reverse_sync_control SET phase='finish_prepared',finish_sequence=$4,store=$5
+         WHERE workspace_id=$1 AND sync_id=$2 AND run_id=$3 AND phase='running' AND next_sequence=$4 RETURNING *`,
+        [...this.key, throughSequence, encodeJson(store)]
       );
+      ensure(result.rows[0], "Invalid finish boundary");
       const pending = await client.query(
         "SELECT 1 FROM reverse_sync_operation WHERE workspace_id=$1 AND sync_id=$2 AND run_id=$3 AND status NOT IN ('accepted','staged') LIMIT 1",
         this.key
       );
       ensure(!pending.rowCount, "Unresolved/rejected operations prohibit finish");
-      if (control.mode === "mirror") await this.snapshots.assertPromotable(client);
-      await this.saveStore(client, store);
-      await client.query(
-        "UPDATE reverse_sync_control SET phase='finish_prepared',finish_sequence=$3 WHERE workspace_id=$1 AND sync_id=$2",
-        [...this.key.slice(0, 2), throughSequence]
-      );
+      if (result.rows[0].mode === "mirror") await this.snapshots.assertPromotable(client);
+      this.control.remember(result.rows[0]);
     });
   }
   async acknowledgeFinish(result: FinishResult, store: JsonObject) {
@@ -537,8 +534,8 @@ export class Journal implements DeliveryJournal {
   }
   private async acknowledgeFinishResult(input: FinishResult, store: JsonObject, reconciled: boolean) {
     const result = validateFinishResult(input);
-    await this.db.transaction(async client => {
-      const control = await readControl(client, this.scope);
+    await this.control.transaction(async client => {
+      const control = await this.control.lock(client);
       ensure(
         ["finish_prepared", "finish_pending", "finish_resolving"].includes(control.phase),
         "Finish is not prepared"
@@ -589,8 +586,8 @@ export class Journal implements DeliveryJournal {
     // Retry this local resolution, not provider.finish(), after opening a recovery session.
     let done = false;
     while (!done)
-      done = await this.db.transaction(async client => {
-        const control = await readControl(client, this.scope);
+      done = await this.control.transaction(async client => {
+        const control = await this.control.lock(client);
         ensure(control.phase === "finish_resolving", "Finish resolution phase changed");
         const pending = await client.query<OperationRow>(
           "SELECT * FROM reverse_sync_operation WHERE workspace_id=$1 AND sync_id=$2 AND run_id=$3 AND status='staged' ORDER BY sequence LIMIT 100",
@@ -629,8 +626,8 @@ export class Journal implements DeliveryJournal {
       );
       ensure(Buffer.byteLength(canonicalJson(copied.cursor)) <= 65536, "Checkpoint cursor exceeds byte budget");
     }
-    await this.db.transaction(async client => {
-      const control = await readControl(client, this.scope);
+    await this.control.transaction(async client => {
+      const control = await this.control.lock(client);
       ensure(
         complete
           ? control.phase === "finish_accepted"

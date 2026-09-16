@@ -1,7 +1,7 @@
 import type { PoolClient } from "pg";
 import { canonicalJson, contentHash } from "@jitsu/destination-functions/src/reverse-etl/identity";
 import { Database } from "./database";
-import { readControl } from "./run-state";
+import { controlFor, type ControlCache } from "./control-cache";
 import { decodeJson, encodeJson } from "./serialization";
 import { ensure, type Effect, type Identity, type Scope } from "./types";
 import type { DesiredRow, GenerationRow, MembershipRow } from "./rows";
@@ -22,13 +22,16 @@ export function effects(identities: Identity[], { allowEmpty = false }: { allowE
 
 /** Only the runner core owns this object. No method is exported in the writer context. */
 export class Snapshots {
-  constructor(readonly db: Database, readonly scope: Scope) {}
+  private readonly control: ControlCache;
+  constructor(readonly db: Database, readonly scope: Scope) {
+    this.control = controlFor(db, scope);
+  }
   private get key() {
     return [this.scope.workspaceId, this.scope.syncId, this.scope.logicalRunId];
   }
   async start() {
-    await this.db.transaction(async client => {
-      const control = await readControl(client, this.scope);
+    await this.control.transaction(async client => {
+      const control = await this.control.lock(client);
       ensure(
         control.mode === "mirror" && ["new", "running"].includes(control.phase),
         "Cannot start a snapshot in this phase"
@@ -54,8 +57,8 @@ export class Snapshots {
   }
   /** Recovery can distinguish absent, partially extracted and sealed snapshots. */
   async status(): Promise<{ sealed: boolean; lastPageSequence: number; sourceKeyCount: number } | undefined> {
-    return this.db.transaction(async client => {
-      const control = await readControl(client, this.scope);
+    return this.control.transaction(async client => {
+      const control = await this.control.read(client);
       ensure(control.mode === "mirror", "Snapshot status requires mirror mode");
       const result = await client.query<Pick<GenerationRow, "sealed" | "last_page_sequence" | "key_count">>(
         "SELECT sealed,last_page_sequence,key_count FROM reverse_sync_generation WHERE workspace_id=$1 AND sync_id=$2 AND generation=$3",
@@ -81,8 +84,8 @@ export class Snapshots {
     const copied: typeof rows = JSON.parse(serialized);
     const projected = copied.map(row => ({ key: row.key, effects: effects(row.identities, { allowEmpty: true }) }));
     const pageHash = contentHash(projected);
-    await this.db.transaction(async client => {
-      const control = await readControl(client, this.scope);
+    await this.control.transaction(async client => {
+      const control = await this.control.lock(client);
       ensure(
         control.mode === "mirror" && ["new", "running"].includes(control.phase),
         "Cannot append snapshot in this phase"
@@ -138,8 +141,8 @@ export class Snapshots {
     });
   }
   async seal() {
-    await this.db.transaction(async client => {
-      const control = await readControl(client, this.scope);
+    await this.control.transaction(async client => {
+      const control = await this.control.lock(client);
       ensure(control.mode === "mirror" && control.phase === "running", "Cannot seal snapshot in this phase");
       const result = await client.query(
         "UPDATE reverse_sync_generation SET sealed=true WHERE workspace_id=$1 AND sync_id=$2 AND generation=$3 RETURNING 1",
@@ -152,8 +155,8 @@ export class Snapshots {
   async page(kind: "additions" | "removals", after = "", limit = 1000): Promise<Effect[]> {
     ensure(Number.isSafeInteger(limit) && limit >= 1 && limit <= 1000, "Invalid diff page size");
     ensure(after === "" || /^[a-f0-9]{64}$/.test(after), "Invalid diff cursor");
-    return this.db.transaction(async client => {
-      const control = await readControl(client, this.scope);
+    return this.control.transaction(async client => {
+      const control = await this.control.read(client);
       ensure(control.mode === "mirror" && control.phase === "running", "Cannot plan snapshot in this phase");
       if (kind === "removals") await this.assertRemovalsAllowed(client);
       const result =

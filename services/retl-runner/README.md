@@ -81,9 +81,21 @@ and syncctl are the sole worker coordination mechanism. The caller must stop wor
 on lease loss. There are no database worker leases, epochs, or acquire/renew/release
 APIs. A paused worker or an in-flight request is not forcibly fenced by this design.
 
-Ordinary transactions and short control-row locks keep lifecycle transitions,
-counters, receipts and checkpoints atomic. `readControl` checks workspace, sync and
-logical run; it does not authorize a worker. An unfinished run must be reopened for
+Read-only state/status/readiness/diff observations use a per-sync in-memory control
+cache, loaded without row locks on a miss. Simple lifecycle transitions use conditional `UPDATE … RETURNING`, scoped
+to workspace, sync, logical run and expected phase. Finish/abort preparation keeps
+subsequent journal/snapshot validation in that same transaction, rolling back the
+transition on failure. Multi-statement mutations of counters, receipts, checkpoints,
+snapshots and retention still use explicit `lockControl` row locks for atomicity.
+These mechanisms do not authorize a worker, and read-only observations do not authorize later
+writes. Within one `Database`, lifecycle, snapshot and maintenance sessions share
+a per-sync queue. Cache changes publish only after acknowledged commit. SQL-returned
+rows refresh simple transitions; multi-statement locked mutations invalidate the cache
+instead of duplicating counter/receipt bookkeeping. Any failed/uncertain transaction
+invalidates it too. Reopening a run refreshes durable state, and a different logical run
+cannot use the old run's cached row. No process-shared cache or database worker lease
+is introduced; direct out-of-band database edits require reopening persistence.
+An unfinished run must be reopened for
 recovery under its original logical run/configuration. New runs are admitted only
 after complete or acknowledged abort. Config/target/mode changes fail closed until
 the controlled-reset workflow is implemented.
