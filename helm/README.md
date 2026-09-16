@@ -16,8 +16,6 @@ The chart has two modes, selected by `mode` in `values.yaml`:
 ```bash
 helm install jitsu ./helm \
   --set mode=prod \
-  --set env.console.JWT_SECRET="$(openssl rand -hex 32)" \
-  --set env.console.SEED_USER_PASSWORD='<a real password>' \
   --set ingress.enabled=true \
   --set ingress.className=nginx \
   --set ingress.tls.enabled=true \
@@ -25,9 +23,27 @@ helm install jitsu ./helm \
   --set ingress.hosts.ingest=events.example.com
 ```
 
-The chart refuses to render in prod mode while the development `JWT_SECRET` or
-`SEED_USER_PASSWORD` are still in place — those ship in `values.yaml` so the dev
-quick start works, and they would otherwise be easy to deploy unnoticed.
+No secrets on the command line, deliberately. A pre-install Job generates the
+inter-service tokens, the console's `JWT_SECRET` and the initial admin password
+into the `jitsu-secrets` Secret, which every service mounts via `envFrom`. Values
+passed with `--set` would instead land in the pod spec, in Helm's release record
+(`helm get values`), and in your shell history.
+
+The Job only creates the Secret when it is absent, so upgrades never rotate the
+tokens. To manage them yourself — external secret manager, SealedSecret, GitOps —
+set `auth.token` and the Job is not created at all.
+
+**Retrieve the initial login** after installing:
+
+```bash
+kubectl get secret jitsu-secrets -o jsonpath='{.data.SEED_USER_PASSWORD}' | base64 -d
+```
+
+The user is `env.console.SEED_USER_EMAIL` (default `admin@example.com`), created
+by a post-install Job, and the password must be changed at first login. Without
+that Job a fresh install has a migrated database and no user at all — the
+published console image only seeds when `SEED_DEMO_CONFIGURATION` is set, which
+also creates demo connections.
 
 Dependencies are still the `../helm-deps` chart's single-node Kafka, Postgres,
 ClickHouse and MongoDB, which are **not** production-grade. Point a prod install

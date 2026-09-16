@@ -1,4 +1,3 @@
-{{- include "jitsu.checkProdSecrets" . }}
 {{- if gt (int .Values.scaling.console.replicas) 0 }}
 apiVersion: apps/v1
 kind: Deployment
@@ -100,6 +99,12 @@ spec:
                   "MAINTENANCE_CONFIG_FILE" "/etc/jitsu/maintenance/maintenance.json" }}
             {{- with (include "jitsu.ingestPublicUrl" .) }}
             {{- $_ := set $consoleExtra "JITSU_INGEST_PUBLIC_URL" . }}
+            {{- end }}
+            {{- with (include "jitsu.devCredential" (dict "ctx" . "key" "JWT_SECRET")) }}
+            {{- $_ := set $consoleExtra "JWT_SECRET" . }}
+            {{- end }}
+            {{- with (include "jitsu.devCredential" (dict "ctx" . "key" "SEED_USER_PASSWORD")) }}
+            {{- $_ := set $consoleExtra "SEED_USER_PASSWORD" . }}
             {{- end }}
             {{- include "jitsu.env" (dict "ctx" . "service" "console"
                   "extra" $consoleExtra) | nindent 12 }}

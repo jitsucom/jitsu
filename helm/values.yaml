@@ -104,7 +104,6 @@ env:
   console:
     ENABLE_CREDENTIALS_LOGIN: true
     SEED_USER_EMAIL: admin@example.com
-    SEED_USER_PASSWORD: changeme
     # NEXTAUTH_URL and JITSU_PUBLIC_URL are template defaults
     # (jitsu.consolePublicUrl): http://localhost:3000 in dev, and the Ingress
     # host in prod when one is configured.
@@ -113,7 +112,11 @@ env:
     # with no Ingress (exposed by an external load balancer or service mesh)
     # falls back to http://localhost:3000, which will break sign-in redirects
     # and the tracking snippet.
-    JWT_SECRET: "dev-jwt-secret-change-in-production"
+    # JWT_SECRET and SEED_USER_PASSWORD are deliberately absent. In dev they are
+    # template defaults (jitsu.devCredential); in prod the token-generator Job
+    # mints them into jitsu-secrets, which every service already mounts via
+    # envFrom — so they never appear in a pod spec, in Helm release metadata, or
+    # in shell history. Set either here to supply your own.
     SYNCS_ENABLED: true
 
 # Dependencies (Kafka, PostgreSQL, ClickHouse, MongoDB) are deployed by the

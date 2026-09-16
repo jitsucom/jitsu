@@ -97,6 +97,16 @@ spec:
               fi
               # `tr -dc` on /dev/urandom: no openssl in the kubectl image.
               TOKEN=$(head -c 256 /dev/urandom | tr -dc 'a-zA-Z0-9' | head -c 32)
+              # Console's session-signing secret. Generated here rather than
+              # passed on the command line so it never reaches a pod spec, Helm
+              # release metadata, or shell history.
+              JWT=$(head -c 256 /dev/urandom | tr -dc 'a-zA-Z0-9' | head -c 48)
+              # Initial admin password. Generated rather than supplied so it is
+              # never typed on a command line; seed.ts sets changeAtNextLogin,
+              # so it is a one-time value. Retrieve it with:
+              #   kubectl get secret jitsu-secrets \
+              #     -o jsonpath='{.data.SEED_USER_PASSWORD}' | base64 -d
+              SEEDPW=$(head -c 256 /dev/urandom | tr -dc 'a-zA-Z0-9' | head -c 24)
               # The three keyId:secret pairs use the same service-admin-account
               # prefix the console expects; the rest are the bare token. Mirrors
               # dev-deploy.sh's ensure_secrets() exactly.
@@ -108,6 +118,8 @@ spec:
                 --from-literal="CONSOLE_RAW_AUTH_TOKENS=$TOKEN" \
                 --from-literal="REPOSITORY_AUTH_TOKEN=service-admin-account:$TOKEN" \
                 --from-literal="CONSOLE_TOKEN=service-admin-account:$TOKEN" \
-                --from-literal="CONFIG_SOURCE_HTTP_AUTH_TOKEN=service-admin-account:$TOKEN"
+                --from-literal="CONFIG_SOURCE_HTTP_AUTH_TOKEN=service-admin-account:$TOKEN" \
+                --from-literal="JWT_SECRET=$JWT" \
+                --from-literal="SEED_USER_PASSWORD=$SEEDPW"
               echo "jitsu-secrets created"
 {{- end }}
