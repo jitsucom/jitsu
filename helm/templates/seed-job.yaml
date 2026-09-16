@@ -1,0 +1,65 @@
+{{/*
+Creates the first admin user and workspace on a fresh prod install.
+
+Without this, prod comes up with a migrated database and no UserProfile, so
+nobody can log in. The published console image only runs the seed when
+SEED_DEMO_CONFIGURATION is set — which also creates demo connections — so
+setting SEED_USER_EMAIL/SEED_USER_PASSWORD alone does nothing. This Job calls
+the same code path directly instead.
+
+Idempotent: seedUserAndWorkspace() is a no-op unless the profile table is empty
+(webapps/console/lib/server/seed.ts:88), so re-running on upgrade never creates
+a second user or resets a password.
+
+Dev does not need it — the dev console runs `next dev` against source, and
+dev-deploy.sh already seeds through the normal boot path.
+
+The NODE_PATH dance is required by the image layout: manage.js needs
+@prisma/client, which ships only inside the pnpm store rather than at the top
+level of node_modules. Borrowed from github.com/stafftastic/jitsu-chart.
+*/}}
+{{- if and (eq (include "jitsu.mode" .) "prod") .Values.seed.enabled }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: seed-{{ .Release.Revision }}
+  labels:
+    {{- include "jitsu.labels" . | nindent 4 }}
+    app.kubernetes.io/name: seed
+  annotations:
+    # post-install/post-upgrade: the console image migrates the schema on its own
+    # startup, so the tables have to exist before this runs.
+    "helm.sh/hook": post-install,post-upgrade
+    "helm.sh/hook-weight": "5"
+    "helm.sh/hook-delete-policy": before-hook-creation
+spec:
+  backoffLimit: 3
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: seed
+        app.kubernetes.io/instance: {{ .Release.Name }}
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: seed
+          image: {{ include "jitsu.image" (dict "ctx" . "service" "console" "dev" "node:24-bookworm" "prod" "console") }}
+          {{- with (include "jitsu.imagePullPolicy" (dict "ctx" . "service" "console")) }}
+          imagePullPolicy: {{ . }}
+          {{- end }}
+          command:
+            - sh
+            - -c
+            - |
+              set -eu
+              export NODE_PATH="$(ls -d /app/node_modules/.pnpm/@prisma+client*/node_modules | head -n 1)"
+              exec node /app/webapps/console/build/manage.js seed
+          envFrom:
+            - secretRef:
+                name: jitsu-secrets
+            - secretRef:
+                name: jitsu-deps-urls
+                optional: true
+          env:
+            {{- include "jitsu.env" (dict "ctx" . "service" "console") | nindent 12 }}
+{{- end }}
