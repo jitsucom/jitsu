@@ -163,7 +163,20 @@ spec:
                   echo "jitsu-secrets already complete — nothing to do"
                   exit 0
                 fi
-                kubectl patch secret jitsu-secrets -p "{\"stringData\":{$PATCH}}"
+                # Output suppressed on BOTH streams, deliberately. `kubectl patch`
+                # echoes the patched resource by default, and that includes the
+                # whole `data` map — every token, JWT_SECRET, SEED_USER_PASSWORD,
+                # base64 but trivially reversible. Anyone able to read this Job's
+                # logs could then recover credentials without any access to the
+                # Secret itself. stderr is suppressed for the same reason: a
+                # malformed patch makes kubectl echo the request body back, and
+                # that body carries the values in plaintext under `stringData`.
+                # The line below reports the key *names*, which is what is
+                # actually useful, and never a value.
+                if ! kubectl patch secret jitsu-secrets -p "{\"stringData\":{$PATCH}}" >/dev/null 2>&1; then
+                  echo "failed to patch jitsu-secrets — error text withheld because kubectl can echo the patch body, which contains credentials"
+                  exit 1
+                fi
                 echo "jitsu-secrets backfilled:$(printf '%s' "$MISSING")"
                 exit 0
               fi
@@ -193,6 +206,9 @@ spec:
                 --from-literal="CONSOLE_TOKEN=service-admin-account:$TOKEN" \
                 --from-literal="CONFIG_SOURCE_HTTP_AUTH_TOKEN=service-admin-account:$TOKEN" \
                 --from-literal="JWT_SECRET=$JWT" \
-                --from-literal="SEED_USER_PASSWORD=$SEEDPW"
+                --from-literal="SEED_USER_PASSWORD=$SEEDPW" >/dev/null 2>&1 || {
+                echo "failed to create jitsu-secrets — error text withheld because kubectl can echo the literals, which are the credentials"
+                exit 1
+              }
               echo "jitsu-secrets created"
 {{- end }}
