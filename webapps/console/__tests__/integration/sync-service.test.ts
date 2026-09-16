@@ -43,6 +43,22 @@ const mkLog = (taskId: string, syncId: string, timestamp: string | Date, message
 });
 
 describe("SyncService", () => {
+  it.each(["sync", "reverse-sync"])("dispatches cancellation with the correct kind for %s", async type => {
+    const { user, workspace } = await seedWorkspace();
+    const sync = await seedSync(workspace.id);
+    await deps().prisma.configurationObjectLink.update({ where: { id: sync.id }, data: { type } });
+    let query: URLSearchParams | undefined;
+    server.use(
+      http.get("http://syncctl.test.local/cancel", ({ request }) => {
+        query = new URL(request.url).searchParams;
+        return HttpResponse.json({ ok: true });
+      })
+    );
+    expect((await svc().cancelSync(user, workspace.id, { syncId: sync.id, taskId: "waiting-task" })).ok).toBe(true);
+    expect(query?.get("kind")).toBe(type === "reverse-sync" ? "reverse" : null);
+    expect(query?.get("workspaceId")).toBe(workspace.id);
+    expect(query?.get("taskId")).toBe("waiting-task");
+  });
   it("runSync posts to syncctl and records a RUNNING source_task through the prisma singleton", async () => {
     const { user, workspace } = await seedWorkspace();
     const sync = await seedSync(workspace.id);

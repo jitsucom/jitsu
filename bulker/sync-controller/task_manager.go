@@ -287,7 +287,8 @@ func (t *TaskManager) listenTaskStatus() {
 			var err error
 			switch st.TaskType {
 			case "reverse":
-				// Even exit 0 is failure unless Node already committed SUCCESS.
+				// Even exit 0 cannot infer success: Node must commit a terminal
+				// attempt status (including WAITING for pending provider work).
 				// UpsertRunningTask cannot overwrite a terminal task.
 				if st.Status != StatusRunning && st.Status != StatusPending && st.Status != StatusCreated {
 					err = db.UpsertRunningTask(t.dbpool, st.SyncID, st.TaskID, "jitsu/retl-runner", "1", st.StartedAtTime(), "FAILED", "Reverse runner stopped without committed task success; recovery required", st.StartedBy)

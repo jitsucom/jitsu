@@ -275,6 +275,112 @@ function asynchronousFixture() {
 }
 
 describe("executable runner", () => {
+  const makeDue = () =>
+    admin.query(
+      `UPDATE newjitsu.source_task SET metrics=jsonb_set(metrics,'{reverseRecovery,nextCheckAt}',to_jsonb('2000-01-01T00:00:00.000Z'::text)) WHERE status='WAITING'`
+    );
+  it("persists WAITING without errors, and a separate recovery trigger polls without opening SQL", async () => {
+    const f = asynchronousFixture();
+    const before = Date.now();
+    expect(await execute(f.input)).toBe("WAITING");
+    const waiting = await task();
+    expect(waiting.error).toBeNull();
+    expect(waiting.started_by.workspaceId).toBe("workspace");
+    expect(waiting.metrics.reverseRecovery).toMatchObject({
+      runId: (await control()).run_id,
+      revision: f.input.config.configRevision,
+      attempt: 0,
+    });
+    expect(Date.parse(waiting.metrics.reverseRecovery.nextCheckAt)).toBeGreaterThanOrEqual(before + 30 * 60_000);
+    expect((await admin.query("SELECT 1 FROM newjitsu.task_log WHERE level='ERROR'")).rowCount).toBe(0);
+    await makeDue();
+    f.input = { ...f.input, taskId: "automatic-check", trigger: "recovery", recoveryOf: "task" };
+    f.calls.length = 0;
+    expect(await execute(f.input)).toBe("WAITING");
+    expect(f.calls).toEqual(["lease", "renew", "reconcile", "release"]);
+    expect((await task()).status).toBe("RESUMED");
+    const polled = await task("automatic-check");
+    expect(polled.started_by).toMatchObject({ trigger: "recovery", recoveryOf: "task" });
+    expect(polled.metrics.reverseRecovery.attempt).toBe(1);
+    expect(polled.metrics.reverseRecovery.deadline).toBe(waiting.metrics.reverseRecovery.deadline);
+    for (const batch of f.writes) f.receipts.set(batch.batchId, accepted(batch));
+    await makeDue();
+    f.input.taskId = "automatic-complete";
+    f.input.recoveryOf = "automatic-check";
+    expect(await execute(f.input)).toBe("SUCCESS");
+    expect((await task("automatic-complete")).status).toBe("SUCCESS");
+    expect((await control()).phase).toBe("complete");
+    expect(f.calls).not.toContain("reader");
+  });
+  it.each(["early", "cancelled", "revision", "run", "complete", "foreign", "duplicate"])(
+    "does not start an obsolete or unauthorized recovery (%s)",
+    async reason => {
+      const f = asynchronousFixture();
+      await execute(f.input);
+      if (reason !== "early") await makeDue();
+      if (reason === "cancelled") await admin.query("UPDATE newjitsu.source_task SET status='CANCELLED'");
+      if (reason === "revision") f.input.config.configRevision = "b".repeat(64);
+      if (reason === "run") await admin.query("UPDATE newjitsu.reverse_sync_control SET run_id='new-run'");
+      if (reason === "complete") await admin.query("UPDATE newjitsu.reverse_sync_control SET phase='complete'");
+      if (reason === "foreign") f.input.config.workspaceId = "foreign";
+      f.input.trigger = "recovery";
+      f.input.recoveryOf = "task";
+      f.input.taskId = "automatic";
+      if (reason === "duplicate") {
+        expect(await execute(f.input)).toBe("WAITING");
+        f.input.taskId = "duplicate";
+      }
+      f.calls.length = 0;
+      expect(await execute(f.input)).toBe("FAILED");
+      expect(f.calls).toEqual(["lease", "release"]);
+      expect(await task(f.input.taskId)).toBeUndefined();
+      if (reason === "cancelled") expect((await task()).status).toBe("CANCELLED");
+      else if (reason !== "duplicate") expect((await task()).status).toBe("WAITING");
+    }
+  );
+  it("keeps real provider rejection FAILED without scheduling another check", async () => {
+    const f = asynchronousFixture();
+    await execute(f.input);
+    await makeDue();
+    const batch = f.writes[0];
+    f.receipts.set(batch.batchId, {
+      outcomes: batch.records.map(row => ({
+        operationId: row.operationId,
+        status: "rejected",
+        code: "invalid",
+        safeReason: "Invalid",
+      })),
+    });
+    f.input.trigger = "recovery";
+    f.input.recoveryOf = "task";
+    f.input.taskId = "rejected-check";
+    expect(await execute(f.input)).toBe("FAILED");
+    expect((await task("rejected-check")).metrics).toBeNull();
+    expect((await admin.query("SELECT 1 FROM newjitsu.source_task WHERE status='WAITING'")).rowCount).toBe(0);
+    expect((await control()).phase).toBe("batches_pending");
+  });
+  it("stops automatic polling at its original deadline without losing receipts", async () => {
+    const f = asynchronousFixture();
+    await execute(f.input);
+    await makeDue();
+    await admin.query(
+      `UPDATE newjitsu.source_task SET metrics=jsonb_set(metrics,'{reverseRecovery,deadline}',to_jsonb('2000-01-02T00:00:00.000Z'::text))`
+    );
+    f.input.trigger = "recovery";
+    f.input.recoveryOf = "task";
+    f.input.taskId = "last-check";
+    expect(await execute(f.input)).toBe("FAILED");
+    expect((await task("last-check")).error).toContain("after 24 hours");
+    expect((await control()).phase).toBe("batches_pending");
+    expect((await admin.query("SELECT 1 FROM newjitsu.reverse_sync_batch")).rowCount).toBe(1);
+    expect((await admin.query("SELECT 1 FROM newjitsu.source_task WHERE status='WAITING'")).rowCount).toBe(0);
+    // Even a subsequent manual attempt must not silently extend the same window.
+    f.input.trigger = "manual";
+    f.input.taskId = "manual-after-timeout";
+    delete f.input.recoveryOf;
+    expect(await execute(f.input)).toBe("FAILED");
+    expect((await task("manual-after-timeout")).error).toContain("after 24 hours");
+  });
   it("still cleans up incomplete legacy finish-staged sessions through verified abort", async () => {
     const f = asynchronousFixture();
     f.adapter.stream.batchDelivery = undefined;
@@ -326,14 +432,14 @@ describe("executable runner", () => {
     const f = asynchronousFixture();
     if (cursor) f.input.config.model.cursor = { column: "id", type: "string" };
     f.setRows([{ id: "a" }, { id: "b" }, { id: "c" }]);
-    expect(await execute(f.input)).toBe("FAILED");
+    expect(await execute(f.input)).toBe("WAITING");
     expect((await control()).phase).toBe("batches_pending");
     expect(f.calls).not.toContain("finish");
     expect((await admin.query("SELECT count(*) FROM newjitsu.source_state")).rows[0].count).toBe("0");
 
     f.input.taskId = "poll";
     f.calls.length = 0;
-    expect(await execute(f.input)).toBe("FAILED");
+    expect(await execute(f.input)).toBe("WAITING");
     expect(f.calls).toEqual(["lease", "renew", "reconcile", "reconcile", "release"]);
     expect((await control()).phase).toBe("batches_pending");
 
@@ -381,7 +487,7 @@ describe("executable runner", () => {
     expect(f.calls).not.toContain("abort");
     f.input.taskId = "still-pending";
     f.calls.length = 0;
-    expect(await execute(f.input)).toBe("FAILED");
+    expect(await execute(f.input)).toBe("WAITING");
     expect(f.calls).toEqual(["lease", "renew", "reconcile", "release"]);
     expect((await control()).phase).toBe("running");
   });
@@ -473,14 +579,14 @@ describe("executable runner", () => {
   it("reconciles pending finish without a fresh source or session", async () => {
     const f = fixture();
     f.setPending();
-    expect(await execute(f.input)).toBe("FAILED");
+    expect(await execute(f.input)).toBe("WAITING");
     const logical = (await control()).run_id;
     f.input.taskId = "recovery";
     f.calls.length = 0;
     expect(await execute(f.input)).toBe("SUCCESS");
     expect(f.calls).toEqual(["lease", "renew", "reconcileFinish", "release"]);
     expect((await control()).run_id).toBe(logical);
-    expect((await task()).status).toBe("FAILED");
+    expect((await task()).status).toBe("RESUMED");
   });
   it("recovers a Google request after restart using the durable normalized receipt, without source replay", async () => {
     const f = fixture();
@@ -526,7 +632,7 @@ describe("executable runner", () => {
     });
     try {
       f.input.adapters = createAdapterRegistry(async () => "access-token");
-      expect(await execute(f.input)).toBe("FAILED");
+      expect(await execute(f.input)).toBe("WAITING");
       expect((await control()).phase).toBe("batches_pending");
       const logicalRun = (await control()).run_id;
       const saved = await admin.query<{ manifest: Buffer; result: Buffer }>(
@@ -540,7 +646,7 @@ describe("executable runner", () => {
       // New registry/client instances simulate a different worker process.
       f.input.adapters = createAdapterRegistry(async () => "access-token");
       f.input.taskId = "google-pending";
-      expect(await execute(f.input)).toBe("FAILED");
+      expect(await execute(f.input)).toBe("WAITING");
       f.input.adapters = createAdapterRegistry(async () => "access-token");
       f.input.taskId = "google-accepted";
       expect(await execute(f.input)).toBe("SUCCESS");
@@ -557,7 +663,7 @@ describe("executable runner", () => {
     const f = fixture();
     f.input.config.model.cursor = { column: "id", type: "string" };
     f.setPending();
-    expect(await execute(f.input)).toBe("FAILED");
+    expect(await execute(f.input)).toBe("WAITING");
     f.input.taskId = "recovery";
     expect(await execute(f.input)).toBe("SUCCESS");
     expect((await control()).checkpoint_sequence).toBe("2");
@@ -575,7 +681,7 @@ describe("executable runner", () => {
     f.setRows([]);
     f.setPending();
     f.input.taskId = "empty";
-    expect(await execute(f.input)).toBe("FAILED");
+    expect(await execute(f.input)).toBe("WAITING");
     f.input.taskId = "recovery";
     f.calls.length = 0;
     expect(await execute(f.input)).toBe("SUCCESS");

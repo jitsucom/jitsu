@@ -18,7 +18,8 @@ const Env = z.object({
   KUBE_NAMESPACE: z.string().min(1),
   KUBERNETES_SERVICE_HOST: z.string().min(1),
   KUBERNETES_SERVICE_PORT: z.string().default("443"),
-  RETL_TRIGGER: z.enum(["manual", "scheduled"]).default("scheduled"),
+  RETL_TRIGGER: z.enum(["manual", "scheduled", "recovery"]).default("scheduled"),
+  RETL_RECOVERY_OF: z.string().min(1).optional(),
   RETL_MAX_RUN_SECONDS: z.coerce.number().int().min(60).max(172800).default(172800),
 });
 
@@ -54,6 +55,7 @@ async function main() {
       controller,
       taskId: env.TASK_ID,
       trigger: env.RETL_TRIGGER,
+      recoveryOf: env.RETL_RECOVERY_OF,
       lease: new KubernetesLease(
         inClusterLeaseRequest(env.KUBERNETES_SERVICE_HOST, env.KUBERNETES_SERVICE_PORT),
         env.KUBE_NAMESPACE,
@@ -63,7 +65,7 @@ async function main() {
       reader: createWarehouseReader,
       admit: () => consoleClient.admit(controller.signal),
     });
-    process.exitCode = result === "SUCCESS" ? 0 : 1;
+    process.exitCode = result === "SUCCESS" || result === "WAITING" ? 0 : 1;
   } finally {
     // Retain the hard-stop watchdog while closing outstanding resources.
     await db.close();
