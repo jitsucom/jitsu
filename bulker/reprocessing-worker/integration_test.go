@@ -7,6 +7,9 @@ import (
 	"path/filepath"
 	"testing"
 	"time"
+
+	"github.com/jitsucom/bulker/jitsubase/compression"
+	"github.com/klauspost/compress/zstd"
 )
 
 // producedMessage is one message the worker would have sent to Kafka
@@ -77,7 +80,10 @@ func writeLogFile(t *testing.T, dir, name string, events []string) FileItem {
 	for _, e := range events {
 		body = append(body, []byte(e+"\n")...)
 	}
-	if filepath.Ext(name) == ".gz" {
+	// The archive holds every codec side by side indefinitely, so the writer here
+	// follows the file name exactly as the real one does.
+	switch filepath.Ext(name) {
+	case ".gz":
 		gz := gzip.NewWriter(file)
 		if _, err := gz.Write(body); err != nil {
 			t.Fatalf("gzip write: %v", err)
@@ -85,8 +91,21 @@ func writeLogFile(t *testing.T, dir, name string, events []string) FileItem {
 		if err := gz.Close(); err != nil {
 			t.Fatalf("gzip close: %v", err)
 		}
-	} else if _, err := file.Write(body); err != nil {
-		t.Fatalf("write: %v", err)
+	case ".zst":
+		zw, err := zstd.NewWriter(file, zstd.WithEncoderLevel(zstd.SpeedBetterCompression))
+		if err != nil {
+			t.Fatalf("zstd writer: %v", err)
+		}
+		if _, err := zw.Write(body); err != nil {
+			t.Fatalf("zstd write: %v", err)
+		}
+		if err := zw.Close(); err != nil {
+			t.Fatalf("zstd close: %v", err)
+		}
+	default:
+		if _, err := file.Write(body); err != nil {
+			t.Fatalf("write: %v", err)
+		}
 	}
 
 	info, err := file.Stat()
@@ -415,5 +434,87 @@ func TestAccountUndelivered(t *testing.T) {
 				t.Errorf("SuccessCount went negative: %d", status.SuccessCount)
 			}
 		})
+	}
+}
+
+// Replay through the real reprocessing path, once per codec the archive can hold.
+//
+// This is the check the ticket's prerequisite exists for: the archive keeps .gz
+// objects for their full retention window while new ones arrive as .zst, so the
+// same file content must replay identically whatever it is wrapped in. A codec the
+// reader does not recognise is fed to the line scanner as raw compressed bytes -
+// no error, just zero events replayed - so "same events out" is the assertion that
+// matters, not "no error".
+func TestReprocessIsIdenticalAcrossCodecs(t *testing.T) {
+	dir := t.TempDir()
+	events := []string{
+		event("e1", "s1", "2026-07-30T10:00:00Z"),
+		event("e2", "s2", "2026-07-30T11:00:00Z"),
+		event("e3", "s3", "2026-07-30T12:00:00Z"),
+		event("e4", "s1", "2026-07-30T13:00:00Z"),
+	}
+	streams := testStreams(map[string][]string{
+		"s1": {"m1", "m2"},
+		"s2": {"m3"},
+		"s3": {"m4"},
+	})
+
+	// Names cover the uncompressed form plus every suffix the writers can produce.
+	names := []string{"failover-2026_07_30T09_00_00.ndjson"}
+	for _, suffix := range compression.Suffixes {
+		names = append(names, "failover-2026_07_30T09_00_00.ndjson"+suffix)
+	}
+
+	type result struct {
+		ids   []string
+		conns map[string]string
+		total int64
+		ok    int64
+	}
+	results := map[string]result{}
+
+	for _, name := range names {
+		t.Run(name, func(t *testing.T) {
+			file := writeLogFile(t, dir, name, events)
+			producer := &fakeProducer{}
+			status := runFile(t, file, `{"batch_size": 2}`, streams, producer)
+
+			if status.TotalLines != 4 {
+				t.Fatalf("TotalLines = %d, want 4 - the file was probably not decompressed",
+					status.TotalLines)
+			}
+			if status.ErrorCount != 0 {
+				t.Fatalf("ErrorCount = %d, want 0", status.ErrorCount)
+			}
+			conns := map[string]string{}
+			for _, m := range producer.sent {
+				conns[m.messageId] = m.connectionIds
+			}
+			results[name] = result{
+				ids: sentIds(producer), conns: conns,
+				total: status.TotalLines, ok: status.SuccessCount,
+			}
+		})
+	}
+
+	// Every codec must give the same answer as the uncompressed file.
+	base := results[names[0]]
+	if len(base.ids) != 4 {
+		t.Fatalf("baseline replayed %d events, want 4", len(base.ids))
+	}
+	for _, name := range names[1:] {
+		got := results[name]
+		if !sameIds(got.ids, base.ids) {
+			t.Errorf("%s replayed %v, want %v", name, got.ids, base.ids)
+		}
+		if got.total != base.total || got.ok != base.ok {
+			t.Errorf("%s: %d lines / %d ok, want %d / %d",
+				name, got.total, got.ok, base.total, base.ok)
+		}
+		for id, want := range base.conns {
+			if got.conns[id] != want {
+				t.Errorf("%s: %s connection_ids = %q, want %q", name, id, got.conns[id], want)
+			}
+		}
 	}
 }

@@ -9,6 +9,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.103.3
 	github.com/confluentinc/confluent-kafka-go/v2 v2.15.0
 	github.com/jackc/pgx/v5 v5.9.2
+	github.com/klauspost/compress v1.19.1
 )
 
 require (

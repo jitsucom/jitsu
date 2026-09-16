@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { GenericContainer, Wait, type StartedTestContainer } from "testcontainers";
 import { Client, type PoolConfig } from "pg";
 import { createRequire } from "node:module";
@@ -12,6 +12,9 @@ import { effects } from "./snapshots";
 import { encodeJson, decodeJson } from "./serialization";
 import { Database, openPersistence, prune, type RunInput, type Project } from "./index";
 import { readControl } from "./run-state";
+import { Journal } from "./journal";
+import { controlFor } from "./control-cache";
+import type { ControlRow } from "./rows";
 
 let container: StartedTestContainer;
 let admin: Client;
@@ -1196,6 +1199,196 @@ describe("recovery and operational boundaries", () => {
   });
 });
 
+describe("control observations and conditional transitions", () => {
+  it("serves repeated state/status observations without database round trips after simple transitions", async () => {
+    const run = await session();
+    await run.delivery.prepareInit({ prepared: true });
+    await run.delivery.acknowledgeInit({ initialized: true });
+    await run.delivery.saveProviderState({ session: "remote" });
+    const transaction = vi.spyOn(db, "transaction");
+    try {
+      for (let i = 0; i < 3; i++) {
+        expect(await run.core.state()).toEqual({ store: { initialized: true }, providerState: { session: "remote" } });
+        expect((await run.core.recoveryStatus()).phase).toBe("running");
+      }
+      expect(transaction).not.toHaveBeenCalled();
+    } finally {
+      transaction.mockRestore();
+    }
+  });
+  it("invalidates after complex writes and refreshes the cache once", async () => {
+    const run = await session();
+    await init(run);
+    await run.delivery.prepare(batch(run, ["a"]), { prepared: true });
+    const transaction = vi.spyOn(db, "transaction");
+    try {
+      expect((await run.core.recoveryStatus()).nextSequence).toBe(1);
+      expect((await run.core.state()).store).toEqual({ prepared: true });
+      expect(transaction).toHaveBeenCalledTimes(1);
+    } finally {
+      transaction.mockRestore();
+    }
+  });
+  it("reloads committed state after a lost commit acknowledgement", async () => {
+    const run = await session();
+    const original = db.transaction.bind(db);
+    const transaction = vi.spyOn(db, "transaction").mockImplementationOnce(async work => {
+      await original(work);
+      throw new Error("Simulated lost commit response");
+    });
+    try {
+      await expect(run.delivery.prepareInit({ committed: true })).rejects.toThrow(/lost commit/);
+    } finally {
+      transaction.mockRestore();
+    }
+    expect((await run.core.recoveryStatus()).phase).toBe("init_prepared");
+    expect((await run.core.state()).store).toEqual({ committed: true });
+    await expect(run.delivery.prepareInit({ repeat: true })).rejects.toThrow(/already prepared/);
+  });
+  it("shares queued observations across sessions and never publishes a rolled-back row", async () => {
+    const run = await session();
+    const cache = controlFor(db, run.scope);
+    let entered!: () => void, unblock!: () => void;
+    const started = new Promise<void>(resolve => {
+      entered = resolve;
+    });
+    const barrier = new Promise<void>(resolve => {
+      unblock = resolve;
+    });
+    const writing = cache.transaction(async client => {
+      const result = await client.query<ControlRow>(
+        "UPDATE reverse_sync_control SET phase='init_prepared' RETURNING *"
+      );
+      cache.remember(result.rows[0]);
+      entered();
+      await barrier;
+      throw new Error("Rollback after caching a pending row");
+    });
+    const failed = expect(writing).rejects.toThrow();
+    await started;
+    let observed = false;
+    const reading = run.core.recoveryStatus().then(status => {
+      observed = true;
+      return status;
+    });
+    try {
+      await Promise.resolve();
+      await Promise.resolve();
+      expect(observed).toBe(false);
+    } finally {
+      unblock();
+    }
+    await failed;
+    expect((await reading).phase).toBe("new");
+  });
+  it("refreshes on recovery and rejects an old logical run's cached state", async () => {
+    const run = await session();
+    await init(run);
+    const recovered = await session({ taskId: "recovery" });
+    await recovered.delivery.prepareAbort();
+    await recovered.delivery.acknowledgeAbort();
+    expect((await run.core.recoveryStatus()).phase).toBe("aborted");
+    const next = await session({ taskId: "next", logicalRunId: "next" });
+    expect((await next.core.recoveryStatus()).phase).toBe("new");
+    await expect(run.core.recoveryStatus()).rejects.toThrow(/Run state/);
+    expect((await next.core.recoveryStatus()).phase).toBe("new");
+  });
+  it("reads committed state and readiness without waiting on a control-row writer", async () => {
+    const run = await session();
+    const cache = controlFor(db, run.scope);
+    await cache.transaction(async () => cache.invalidate());
+    await admin.query("BEGIN");
+    try {
+      await admin.query("UPDATE newjitsu.reverse_sync_control SET phase='init_prepared'");
+      const [state, status, ready] = await Promise.all([
+        run.core.state(),
+        run.core.recoveryStatus(),
+        run.delivery.assertReady(),
+      ]);
+      expect(state).toEqual({ store: {}, providerState: {} });
+      expect(status.phase).toBe("new");
+      expect(ready).toEqual({ sourceSequence: 0 });
+    } finally {
+      await admin.query("ROLLBACK");
+    }
+  });
+  it("reads snapshot status and diff pages without locking control", async () => {
+    const run = await session({ mode: "mirror", extraction: "full" });
+    await init(run);
+    await run.snapshots.start();
+    await run.snapshots.seal();
+    await admin.query("BEGIN");
+    try {
+      await admin.query("SELECT 1 FROM newjitsu.reverse_sync_control FOR UPDATE");
+      const [status, additions, removals] = await Promise.all([
+        run.snapshots.status(),
+        run.snapshots.page("additions"),
+        run.snapshots.page("removals"),
+      ]);
+      expect(status).toEqual({ sealed: true, lastPageSequence: 0, sourceKeyCount: 0 });
+      expect(additions).toEqual([]);
+      expect(removals).toEqual([]);
+    } finally {
+      await admin.query("ROLLBACK");
+    }
+  });
+  it("conditionally transitions init once without a losing attempt overwriting its store", async () => {
+    const run = await session();
+    for (const transition of [run.delivery.prepareInit, run.delivery.acknowledgeInit]) {
+      const attempts = await Promise.allSettled([transition({ attempt: 0 }), transition({ attempt: 1 })]);
+      expect(attempts.filter(r => r.status === "fulfilled")).toHaveLength(1);
+      expect((await run.core.state()).store).toEqual({ attempt: attempts.findIndex(r => r.status === "fulfilled") });
+    }
+    expect((await run.core.recoveryStatus()).phase).toBe("running");
+  });
+  it("admits only one competing finish or abort preparation", async () => {
+    const run = await session();
+    await init(run);
+    const attempts = await Promise.allSettled([
+      run.delivery.prepareFinish(0, { finish: true }),
+      run.delivery.prepareAbort(),
+    ]);
+    expect(attempts.filter(r => r.status === "fulfilled")).toHaveLength(1);
+    expect((await run.core.recoveryStatus()).phase).toBe(
+      attempts[0].status === "fulfilled" ? "finish_prepared" : "abort_prepared"
+    );
+  });
+  it("rolls back phase and store when journal or snapshot guards reject a transition", async () => {
+    const run = await session({ mode: "mirror", extraction: "full" });
+    await init(run);
+    await run.snapshots.start();
+    const before = (await admin.query("SELECT * FROM newjitsu.reverse_sync_control")).rows;
+    await expect(run.delivery.prepareFinish(0, { changed: true })).rejects.toThrow(/sealed/);
+    expect((await admin.query("SELECT * FROM newjitsu.reverse_sync_control")).rows).toEqual(before);
+    const b = batch(run, ["a"], 1, "upsert", false);
+    await run.delivery.prepare(b, { original: true });
+    const prepared = (await admin.query("SELECT * FROM newjitsu.reverse_sync_control")).rows;
+    await expect(run.delivery.prepareFinish(1, { changed: true })).rejects.toThrow(/Unresolved/);
+    await expect(run.delivery.prepareAbort()).rejects.toThrow(/reconciliation/);
+    await expect(run.delivery.prepareFinish(0, { changed: true })).rejects.toThrow(/boundary/);
+    expect((await admin.query("SELECT * FROM newjitsu.reverse_sync_control")).rows).toEqual(prepared);
+  });
+  const transitions = [
+    { name: "prepareInit", phase: "new", call: (j: Journal) => j.prepareInit({ changed: true }) },
+    { name: "acknowledgeInit", phase: "init_prepared", call: (j: Journal) => j.acknowledgeInit({ changed: true }) },
+    { name: "saveProviderState", phase: "running", call: (j: Journal) => j.saveProviderState({ changed: true }) },
+    { name: "prepareAbort", phase: "running", call: (j: Journal) => j.prepareAbort() },
+    { name: "prepareFinish", phase: "running", call: (j: Journal) => j.prepareFinish(0, { changed: true }) },
+  ];
+  it.each(transitions)("scopes $name to the current workspace, sync, run and phase", async ({ phase, call }) => {
+    const run = await session();
+    await admin.query("UPDATE newjitsu.reverse_sync_control SET phase=$1", [phase]);
+    const before = (await admin.query("SELECT * FROM newjitsu.reverse_sync_control")).rows;
+    for (const field of ["workspaceId", "syncId", "logicalRunId"])
+      await expect(call(new Journal(db, { ...run.scope, [field]: "other" }, project, false))).rejects.toThrow();
+    expect((await admin.query("SELECT * FROM newjitsu.reverse_sync_control")).rows).toEqual(before);
+    await admin.query("UPDATE newjitsu.reverse_sync_control SET phase='complete'");
+    const terminal = (await admin.query("SELECT * FROM newjitsu.reverse_sync_control")).rows;
+    await expect(call(run.core)).rejects.toThrow();
+    expect((await admin.query("SELECT * FROM newjitsu.reverse_sync_control")).rows).toEqual(terminal);
+  });
+});
+
 describe("core snapshot storage", () => {
   async function mirror() {
     const run = await session({ mode: "mirror", extraction: "full" });
@@ -1204,6 +1397,42 @@ describe("core snapshot storage", () => {
     return run;
   }
   const desired = (key: string, id: string) => ({ key: contentHash([key]), identities: project("upsert", { id }) });
+  it("retains excluded keys and accounting through retries and recovery", async () => {
+    const run = await mirror();
+    const row = { key: contentHash(["excluded"]), identities: [] };
+    await run.snapshots.append([row], 1);
+    const snapshot = async () => (await admin.query("SELECT * FROM newjitsu.reverse_sync_generation")).rows[0];
+    const before = await snapshot();
+    expect(before).toMatchObject({ key_count: "1", entry_count: "1", byte_count: "64", last_page_sequence: "1" });
+    const recovered = await session({ mode: "mirror", extraction: "full", taskId: "recovery" });
+    await recovered.snapshots.append([row], 1);
+    expect(await snapshot()).toEqual(before);
+    await expect(recovered.snapshots.append([desired("excluded", "now-included")], 1)).rejects.toThrow(/retry differs/);
+    await expect(recovered.snapshots.append([desired("other", "a"), row], 2)).rejects.toThrow();
+    expect(await snapshot()).toEqual(before);
+    expect(await count("newjitsu.reverse_sync_source_key")).toBe(1);
+    expect(await count("newjitsu.reverse_sync_desired")).toBe(0);
+  });
+  it.each([{ snapshotEntries: 1 }, { snapshotBytes: 127 }])("bounds excluded rows with %j", async limits => {
+    const limited = new Database(runtimeConfig, { limits });
+    try {
+      const run = await openPersistence(limited, { ...runInput, mode: "mirror", extraction: "full" }, project);
+      await init(run);
+      await run.snapshots.start();
+      await run.snapshots.append([{ key: contentHash("a"), identities: [] }], 1);
+      await expect(run.snapshots.append([{ key: contentHash("b"), identities: [] }], 2)).rejects.toThrow(/budget/);
+      expect(await run.snapshots.status()).toEqual({ sealed: false, lastPageSequence: 1, sourceKeyCount: 1 });
+      expect(await count("newjitsu.reverse_sync_source_key")).toBe(1);
+    } finally {
+      await limited.close();
+    }
+  });
+  it("still rejects empty projections in prepared provider delivery", async () => {
+    const run = await openPersistence(db, runInput, () => []);
+    await init(run);
+    await expect(run.delivery.prepare(batch(run, ["a"]), {})).rejects.toThrow(/projection size/);
+    expect(await count("newjitsu.reverse_sync_batch")).toBe(0);
+  });
   it("serializes concurrent duplicate page retries and ignores object-key ordering", async () => {
     const run = await mirror();
     const row = desired("key1", "a");

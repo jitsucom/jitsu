@@ -158,8 +158,8 @@ func (gcs *GoogleCloudStorage) Upload(fileName string, fileReader io.ReadSeeker)
 			})
 	}
 	metadata := storage.ObjectAttrsToUpdate{}
-	if gcs.config.Compression == types2.FileCompressionGZIP {
-		metadata.ContentType = "application/gzip"
+	if ct := types2.CompressionContentType(gcs.config.Compression); ct != "" {
+		metadata.ContentType = ct
 	} else {
 		if gcs.config.Format == types2.FileFormatCSV {
 			metadata.ContentType = "text/csv"

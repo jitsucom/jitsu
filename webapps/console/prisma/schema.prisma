@@ -330,7 +330,8 @@ model source_catalog {
 }
 
 // Reverse ETL tables share the config database schema and its update workflow.
-// The Node runner uses pg for fenced transactions; these remain the DDL source of truth.
+// Prisma defines their schema/types; the Node runner uses pg for atomic transactions.
+// Worker coordination belongs to Kubernetes leases and syncctl, not these tables.
 enum reverse_sync_mode {
   upsert
   mirror
@@ -346,6 +347,10 @@ enum reverse_sync_action {
   remove
 }
 
+// One durable lifecycle record per sync: current logical run, immutable config/target
+// binding, phase, in-progress provider state, sequence boundaries and storage budgets.
+// Unlike source_task (one execution attempt), this survives retries of the same run.
+// source_state holds committed checkpoints; this row also tracks unfinished work.
 model reverse_sync_control {
   workspace_id         String
   sync_id              String                  @unique
@@ -372,6 +377,9 @@ model reverse_sync_control {
   @@id([workspace_id, sync_id])
 }
 
+// Persistent exclusive claim of a destination audience by a mirror sync. Prevents
+// other mirror/upsert syncs from managing that same target across runs/workspaces.
+// This is audience ownership, not a worker lease; it survives completion/failure.
 model reverse_sync_target_owner {
   target_hash  String @id
   workspace_id String
@@ -380,6 +388,9 @@ model reverse_sync_target_owner {
   @@unique([workspace_id, sync_id])
 }
 
+// Delivery journal entry for a batch: exact prepared request plus its saved receipt.
+// Written before the provider call so recovery can reconcile/replay the original
+// request without rerunning changed source SQL. Groups the operations below.
 model reverse_sync_batch {
   workspace_id  String
   sync_id       String
@@ -397,6 +408,10 @@ model reverse_sync_batch {
   @@index([workspace_id, sync_id, created_at, batch_id], map: "reverse_sync_batch_retention")
 }
 
+// Per-operation delivery outcome and projected audience effects within a batch.
+// Tracks unresolved/accepted/rejected work, source ordering and reserved capacity.
+// Accepted receipts drive membership changes and checkpoint eligibility atomically;
+// these are recovery records, not billing events or task-log messages.
 model reverse_sync_operation {
   workspace_id     String
   sync_id          String
@@ -421,6 +436,10 @@ model reverse_sync_operation {
   @@index([identity_hashes], type: Gin, map: "reverse_sync_operation_identities")
 }
 
+// Metadata for one full desired-audience snapshot (generation = logical run ID).
+// Tracks extraction size and retryable page progress; sealing marks complete input.
+// Final accepted delivery promotes the generation via reverse_sync_control;
+// abandoned/superseded generations are later pruned.
 model reverse_sync_generation {
   workspace_id String
   sync_id      String
@@ -437,6 +456,9 @@ model reverse_sync_generation {
   @@id([workspace_id, sync_id, generation])
 }
 
+// Unique source primary-key hashes seen in a snapshot, including deliberately
+// excluded rows. Detects duplicate source rows across pages without retaining raw
+// warehouse rows or a source-row-to-destination-identity association table.
 model reverse_sync_source_key {
   workspace_id String
   sync_id      String
@@ -446,6 +468,9 @@ model reverse_sync_source_key {
   @@id([workspace_id, sync_id, generation, key_hash])
 }
 
+// Deduplicated destination identities and provider-ready payloads desired by one
+// snapshot. Multiple source rows can produce the same identity. Comparing these
+// rows with reverse_sync_membership produces bounded addition/removal pages.
 model reverse_sync_desired {
   workspace_id  String
   sync_id       String
@@ -457,6 +482,10 @@ model reverse_sync_desired {
   @@id([workspace_id, sync_id, generation, identity_hash])
 }
 
+// Effective audience membership durably acknowledged by Jitsu, across all runs.
+// Updated on every accepted effect, including partial success in a failed run;
+// later snapshot diffs therefore retain accepted work instead of using only the
+// last successful snapshot. Stores payloads needed for comparison and removal.
 model reverse_sync_membership {
   workspace_id  String
   sync_id       String
@@ -467,6 +496,9 @@ model reverse_sync_membership {
   @@id([workspace_id, sync_id, identity_hash])
 }
 
+// Shared committed checkpoint storage for connector syncs and Reverse ETL.
+// Reverse ETL uses the _REVERSE_ETL_ stream for scoped cursor/sequence, provider
+// store and generation state; detailed unfinished delivery stays in its journal.
 model source_state {
   sync_id   String
   stream    String
@@ -476,6 +508,9 @@ model source_state {
   @@id([sync_id, stream])
 }
 
+// Shared execution-attempt status and heartbeat for syncctl-managed syncs.
+// Each Reverse ETL attempt gets a task ID; multiple attempts may recover the same
+// logical run in reverse_sync_control. Task success is not a per-row receipt.
 model source_task {
   sync_id     String
   task_id     String   @id
@@ -497,6 +532,9 @@ model source_task {
   @@index([sync_id, started_at(sort: Desc)])
 }
 
+// Diagnostic messages attached to a sync/task execution attempt. Reverse ETL writes
+// core-owned lifecycle messages here; delivery receipts and recovery evidence live
+// in reverse_sync_batch/reverse_sync_operation instead of being inferred from logs.
 model task_log {
   id        String   @id @default(uuid()) @db.Uuid
   level     String

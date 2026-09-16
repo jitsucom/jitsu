@@ -202,8 +202,8 @@ func (a *S3) Upload(fileName string, fileReader io.ReadSeeker) error {
 	params := &s3.PutObjectInput{
 		Bucket: aws.String(a.config.Bucket),
 	}
-	if a.config.Compression == types2.FileCompressionGZIP {
-		params.ContentType = aws.String("application/gzip")
+	if ct := types2.CompressionContentType(a.config.Compression); ct != "" {
+		params.ContentType = aws.String(ct)
 	} else {
 		switch a.config.Format {
 		case types2.FileFormatCSV:

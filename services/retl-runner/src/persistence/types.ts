@@ -18,7 +18,7 @@ export interface Effect extends Identity {
   identityHash: string;
   payloadHash: string;
 }
-/** Pure core adapter. Explicit removes must project to the same canonical identity as upserts. */
+/** Pure delivery adapter; returns 1–100 identities. Removes must project to the same canonical identity as upserts. */
 export type Project = (action: PreparedBatch<unknown>["action"], row: unknown) => Identity[];
 export interface Limits {
   batchRecords: number;

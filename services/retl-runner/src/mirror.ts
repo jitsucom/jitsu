@@ -26,6 +26,7 @@ import { ensure, PersistenceError } from "./persistence/types";
 /** Pure, deterministic normalization, invoked once per source row, never during delivery/recovery. */
 export interface MirrorProjection<Row> {
   rowType: ZodType<Row>;
+  /** [] deliberately excludes a valid source row; invalid input/projection must throw, never return []. */
   project(row: Row): Identity[];
 }
 export interface SnapshotMirrorAdapter<Credentials, Row, Options> {
@@ -213,7 +214,7 @@ export async function runSnapshotMirror<C, Row, O>(input: NewMirrorOptions<C, Ro
       );
       const parsed = input.adapter.projection.rowType.safeParse(mapped);
       ensure(parsed.success, "Source row failed mirror validation");
-      const projected = effects(input.adapter.projection.project(parsed.data));
+      const projected = effects(input.adapter.projection.project(parsed.data), { allowEmpty: true });
       for (const value of projected) validatePayloads(value, stream);
       const serialized = canonicalJson({
         key: record.key,

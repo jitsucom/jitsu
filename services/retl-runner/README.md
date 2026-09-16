@@ -83,9 +83,21 @@ and syncctl are the sole worker coordination mechanism. The caller must stop wor
 on lease loss. There are no database worker leases, epochs, or acquire/renew/release
 APIs. A paused worker or an in-flight request is not forcibly fenced by this design.
 
-Ordinary transactions and short control-row locks keep lifecycle transitions,
-counters, receipts and checkpoints atomic. `readControl` checks workspace, sync and
-logical run; it does not authorize a worker. An unfinished run must be reopened for
+Read-only state/status/readiness/diff observations use a per-sync in-memory control
+cache, loaded without row locks on a miss. Simple lifecycle transitions use conditional `UPDATE … RETURNING`, scoped
+to workspace, sync, logical run and expected phase. Finish/abort preparation keeps
+subsequent journal/snapshot validation in that same transaction, rolling back the
+transition on failure. Multi-statement mutations of counters, receipts, checkpoints,
+snapshots and retention still use explicit `lockControl` row locks for atomicity.
+These mechanisms do not authorize a worker, and read-only observations do not authorize later
+writes. Within one `Database`, lifecycle, snapshot and maintenance sessions share
+a per-sync queue. Cache changes publish only after acknowledged commit. SQL-returned
+rows refresh simple transitions; multi-statement locked mutations invalidate the cache
+instead of duplicating counter/receipt bookkeeping. Any failed/uncertain transaction
+invalidates it too. Reopening a run refreshes durable state, and a different logical run
+cannot use the old run's cached row. No process-shared cache or database worker lease
+is introduced; direct out-of-band database edits require reopening persistence.
+An unfinished run must be reopened for
 recovery under its original logical run/configuration. New runs are admitted only
 after complete or acknowledged abort. Config/target/mode changes fail closed until
 the controlled-reset workflow is implemented.
@@ -157,8 +169,11 @@ the next page until the previous one is acknowledged. These sequence numbers are
 warehouse cursors: resuming extraction still requires a stable/replayable source.
 
 Desired generations store unique source keys and deduplicated provider-ready
-identities. Full-snapshot diffs need no stored source-to-identity associations:
-an identity remains desired while any source row produces it. Conflicting shared-identity payloads are rejected. Effective
+identities. Full-snapshot diffs need no stored source-to-identity associations.
+An empty mirror source projection deliberately excludes a valid row but retains
+its source key and duplicate checks; invalid rows/projections still fail. Previously
+tracked identities become removable only when no source row projects them.
+Shared identities remain desired while any source row produces them. Conflicting shared-identity payloads are rejected. Effective
 membership is updated on **every durable acceptance**, including failed runs.
 For each identity, the latest accepted source-sequence operation wins, regardless
 of acknowledgement order. An indexed hash list on each operation lets delayed staged
@@ -186,7 +201,7 @@ Defaults: 1,000 records / 10 MB per batch, 100 identities per source row, 1 mill
 projected identity occurrences / 256 MB per desired generation, 1 million effective identities /
 256 MB effective membership, and 256 MB serialized journal storage per sync.
 The generation entry budget counts shared identities once per source occurrence
-to bound projection work; its logical byte budget counts source-key hashes and
+and charges one entry for each excluded row to bound projection work; its logical byte budget counts source-key hashes and
 unique serialized desired values, not PostgreSQL table/index overhead.
 Provider state is limited to 64 KiB. These operational limits are unrelated to
 billing; smaller limits can be supplied. Membership growth is conservatively

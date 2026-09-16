@@ -54,7 +54,6 @@ func (a *AbstractFileAdapter) Compression() types.FileCompression {
 }
 
 func (a *AbstractFileAdapter) AddFileExtension(fileName string) string {
-	gz := ""
 	ext := ""
 	switch a.config.Format {
 	case types.FileFormatCSV:
@@ -62,10 +61,10 @@ func (a *AbstractFileAdapter) AddFileExtension(fileName string) string {
 	case types.FileFormatNDJSON, types.FileFormatNDJSONFLAT:
 		ext = ".ndjson"
 	}
-	switch a.config.Compression {
-	case types.FileCompressionGZIP:
-		gz += ".gz"
-	}
+	// Via the shared helper rather than a local switch: readers here pick their
+	// decompressor from the file name, so a compression this misses produces an
+	// object that is silently unreadable rather than merely misnamed.
+	gz := types.CompressionExtension(a.config.Compression)
 	if strings.HasSuffix(fileName, ext) {
 		return fileName + gz
 	} else if strings.HasSuffix(fileName, ext+gz) {

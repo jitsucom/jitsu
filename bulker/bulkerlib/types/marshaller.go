@@ -2,7 +2,6 @@ package types
 
 import (
 	"bufio"
-	"compress/gzip"
 	"encoding/csv"
 	"encoding/json"
 	"fmt"
@@ -12,6 +11,12 @@ import (
 )
 
 const quotaByteValue = 34
+
+// klauspost/gzip and compress/gzip do not produce the same output at the same
+// nominal level. 6 here is the match for the stdlib level 4 it replaces: 4.4%
+// smaller and 25% cheaper to produce. klauspost at level 4 would be 9.5% *larger*
+// than what we used to emit, so do not "optimise" this back down.
+const gzipLevel = 6
 
 type Marshaller interface {
 	Init(writer io.Writer, header []string) error
@@ -51,18 +56,19 @@ func NewMarshaller(format FileFormat, compression FileCompression) (Marshaller, 
 
 type JSONMarshaller struct {
 	AbstractMarshaller
-	writer    io.Writer
-	bufWriter *bufio.Writer
-	encoder   *jsonorder.Encoder
+	writer     io.Writer
+	compressor io.Closer
+	bufWriter  *bufio.Writer
+	encoder    *jsonorder.Encoder
 }
 
 func (jm *JSONMarshaller) Init(writer io.Writer, _ []string) error {
 	if jm.writer == nil {
-		if jm.compression == FileCompressionGZIP {
-			jm.writer, _ = gzip.NewWriterLevel(writer, 4)
-		} else {
-			jm.writer = writer
+		w, compressor, err := wrapCompression(jm.compression, writer)
+		if err != nil {
+			return err
 		}
+		jm.writer, jm.compressor = w, compressor
 		jm.bufWriter = bufio.NewWriterSize(jm.writer, 100*1024)
 		jm.encoder = jsonorder.NewEncoder(jm.bufWriter)
 		jm.encoder.SetEscapeHTML(false)
@@ -96,8 +102,8 @@ func (jm *JSONMarshaller) Flush() error {
 	if err != nil {
 		return err
 	}
-	if jm.compression == FileCompressionGZIP {
-		return jm.writer.(*gzip.Writer).Close()
+	if jm.compressor != nil {
+		return jm.compressor.Close()
 	}
 	return nil
 }
@@ -115,26 +121,24 @@ func (jm *JSONMarshaller) Compression() FileCompression {
 }
 
 func (jm *JSONMarshaller) FileExtension() string {
-	if jm.compression == FileCompressionGZIP {
-		return ".ndjson.gz"
-	}
-	return ".ndjson"
+	return ".ndjson" + CompressionExtension(jm.compression)
 }
 
 type JSONArrayMarshaller struct {
 	AbstractMarshaller
-	writer    io.Writer
-	bufWriter *bufio.Writer
-	needComma bool
+	writer     io.Writer
+	compressor io.Closer
+	bufWriter  *bufio.Writer
+	needComma  bool
 }
 
 func (ja *JSONArrayMarshaller) Init(writer io.Writer, _ []string) error {
 	if ja.writer == nil {
-		if ja.compression == FileCompressionGZIP {
-			ja.writer, _ = gzip.NewWriterLevel(writer, 4)
-		} else {
-			ja.writer = writer
+		w, compressor, err := wrapCompression(ja.compression, writer)
+		if err != nil {
+			return err
 		}
+		ja.writer, ja.compressor = w, compressor
 		ja.bufWriter = bufio.NewWriterSize(ja.writer, 100*1024)
 		_, _ = ja.bufWriter.WriteString("[")
 	}
@@ -176,8 +180,8 @@ func (ja *JSONArrayMarshaller) Flush() error {
 	if err != nil {
 		return err
 	}
-	if ja.compression == FileCompressionGZIP {
-		return ja.writer.(*gzip.Writer).Close()
+	if ja.compressor != nil {
+		return ja.compressor.Close()
 	}
 	return nil
 }
@@ -195,30 +199,26 @@ func (ja *JSONArrayMarshaller) Compression() FileCompression {
 }
 
 func (ja *JSONArrayMarshaller) FileExtension() string {
-	if ja.compression == FileCompressionGZIP {
-		return ".json.gz"
-	}
-	return ".json"
+	return ".json" + CompressionExtension(ja.compression)
 }
 
 type CSVMarshaller struct {
 	AbstractMarshaller
 	writer     *csv.Writer
-	gzipWriter *gzip.Writer
+	compressor io.Closer
 	fields     []string
 }
 
 func (cm *CSVMarshaller) Init(writer io.Writer, header []string) error {
 	if cm.writer == nil {
-		if cm.compression == FileCompressionGZIP {
-			cm.gzipWriter, _ = gzip.NewWriterLevel(writer, 4)
-			cm.writer = csv.NewWriter(cm.gzipWriter)
-		} else {
-			cm.writer = csv.NewWriter(writer)
-		}
-		cm.fields = header
-		err := cm.writer.Write(header)
+		w, compressor, err := wrapCompression(cm.compression, writer)
 		if err != nil {
+			return err
+		}
+		cm.compressor = compressor
+		cm.writer = csv.NewWriter(w)
+		cm.fields = header
+		if err := cm.writer.Write(header); err != nil {
 			return err
 		}
 	}
@@ -293,17 +293,14 @@ func (cm *CSVMarshaller) Flush() error {
 		return fmt.Errorf("marshaller wasn't initialized. Run Init() first")
 	}
 	cm.writer.Flush()
-	if cm.gzipWriter != nil {
-		return cm.gzipWriter.Close()
+	if cm.compressor != nil {
+		return cm.compressor.Close()
 	}
 	return nil
 }
 
 func (cm *CSVMarshaller) FileExtension() string {
-	if cm.compression == FileCompressionGZIP {
-		return ".csv.gz"
-	}
-	return ".csv"
+	return ".csv" + CompressionExtension(cm.compression)
 }
 
 type FileFormat string
@@ -320,6 +317,7 @@ type FileCompression string
 
 const (
 	FileCompressionGZIP    FileCompression = "gzip"
+	FileCompressionZSTD    FileCompression = "zstd"
 	FileCompressionNONE    FileCompression = "none"
 	FileCompressionUNKNOWN FileCompression = ""
 )

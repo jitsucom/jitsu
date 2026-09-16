@@ -1,5 +1,5 @@
 import { Database } from "./database";
-import { readControl } from "./run-state";
+import { controlFor } from "./control-cache";
 import { ensure, type Scope } from "./types";
 import type { BatchRow } from "./rows";
 
@@ -9,8 +9,9 @@ export async function prune(db: Database, scope: Scope, receiptsBefore: Date) {
     Number.isFinite(+receiptsBefore) && +receiptsBefore <= Date.now() - 86400000,
     "Receipt retention must preserve at least 24 hours"
   );
-  return db.transaction(async client => {
-    const control = await readControl(client, scope);
+  const cache = controlFor(db, scope);
+  return cache.transaction(async client => {
+    const control = await cache.lock(client);
     const key = [scope.workspaceId, scope.syncId, scope.logicalRunId];
     let snapshotRows = 0;
     // Table names are a closed, code-owned list, never caller input.

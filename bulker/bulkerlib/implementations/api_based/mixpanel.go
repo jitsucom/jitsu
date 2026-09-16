@@ -2,7 +2,6 @@ package api_based
 
 import (
 	"bytes"
-	"compress/gzip"
 	"encoding/base64"
 	"errors"
 	"fmt"
@@ -17,6 +16,9 @@ import (
 	"github.com/jitsucom/bulker/jitsubase/appbase"
 	"github.com/jitsucom/bulker/jitsubase/jsoniter"
 	"github.com/jitsucom/bulker/jitsubase/utils"
+	// Drop-in for compress/gzip: identical API, standard gzip output, ~33% cheaper
+	// to decode. Only reads back the request body we sent, on partial failures.
+	"github.com/klauspost/compress/gzip"
 )
 
 const MixpanelBulkerTypeId = "mixpanel"

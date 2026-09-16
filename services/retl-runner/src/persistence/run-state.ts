@@ -1,10 +1,11 @@
 import type { JsonObject, ResumePoint } from "@jitsu/protocols/reverse-etl";
-import type { PoolClient } from "pg";
 import { contentHash } from "@jitsu/destination-functions/src/reverse-etl/identity";
 import { Database } from "./database";
 import { decodeJson } from "./serialization";
 import type { ControlRow, StateRow, TargetOwnerRow } from "./rows";
 import { ensure, type RunInput, type Scope } from "./types";
+import { controlFor } from "./control-cache";
+export { readControl, lockControl } from "./control-cache";
 
 export interface SavedState {
   point: ResumePoint;
@@ -26,16 +27,6 @@ export function readSavedState(value: unknown, scope: RunInput): SavedState {
   return decodeJson<SavedState>(Buffer.from(envelope.value, "utf8"));
 }
 
-/** Lock lifecycle state for atomic updates, not worker ownership. Caller holds the Kubernetes lease. */
-export async function readControl(client: PoolClient, scope: Scope) {
-  const { rows } = await client.query<ControlRow>(
-    "SELECT * FROM reverse_sync_control WHERE workspace_id=$1 AND sync_id=$2 AND run_id=$3 FOR UPDATE",
-    [scope.workspaceId, scope.syncId, scope.logicalRunId]
-  );
-  ensure(rows[0], "Run state missing or changed");
-  return rows[0];
-}
-
 /** Open durable lifecycle state after Kubernetes admission; this does not acquire a database lease. */
 export async function openRun(db: Database, input: RunInput): Promise<{ scope: Scope; recovery: boolean }> {
   for (const value of [
@@ -54,7 +45,9 @@ export async function openRun(db: Database, input: RunInput): Promise<{ scope: S
   ensure(input.mode !== "mirror" || input.extraction === "full", "Mirror requires full extraction");
   // Capture caller-owned fields before any await.
   const run = { ...input };
-  return db.transaction(async client => {
+  const cache = controlFor(db, run);
+  return cache.transaction(async client => {
+    cache.invalidate();
     const target = contentHash(run.targetIdentity);
     // Serialize target admission too: an upsert cannot race exclusive mirror ownership.
     await client.query("SELECT pg_advisory_xact_lock(hashtextextended($1,0))", [target]);
@@ -112,7 +105,7 @@ export async function openRun(db: Database, input: RunInput): Promise<{ scope: S
         base = run.extraction === "cursor" && value.point.cursor ? value.point.sourceSequence : 0;
       }
     }
-    await client.query(
+    const updated = await client.query<ControlRow>(
       `UPDATE reverse_sync_control SET run_id=$3, extraction=$4,
       phase=CASE WHEN $5 THEN phase ELSE 'new' END,
       base_sequence=CASE WHEN $5 AND phase <> 'new' THEN base_sequence ELSE $6 END,
@@ -120,9 +113,10 @@ export async function openRun(db: Database, input: RunInput): Promise<{ scope: S
       checkpoint_sequence=CASE WHEN $5 AND phase <> 'new' THEN checkpoint_sequence ELSE $6 END,
       finish_sequence=CASE WHEN $5 THEN finish_sequence ELSE NULL END,
       finish_result=CASE WHEN $5 THEN finish_result ELSE NULL END
-      WHERE workspace_id=$1 AND sync_id=$2`,
+      WHERE workspace_id=$1 AND sync_id=$2 RETURNING *`,
       [run.workspaceId, run.syncId, run.logicalRunId, run.extraction, sameRun, base]
     );
+    cache.remember(updated.rows[0]);
     return {
       scope: Object.freeze(run),
       recovery: sameRun && control.phase !== "new",

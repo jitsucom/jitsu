@@ -294,6 +294,89 @@ describe("core snapshot mirror lifecycle", () => {
     expect(await membership()).toEqual([]);
     expect(f.remote.size).toBe(0);
   });
+  it("excludes empty projections, retains shared members, and removes them only after their last projection disappears", async () => {
+    const f = fixture();
+    const project = f.adapter.projection.project;
+    f.adapter.projection.project = row => (row.value === "excluded" ? [] : project(row));
+    await runSnapshotMirror(f.options(await session(), [record("a", "shared"), record("b", "SHARED"), record("old")]));
+    f.requests.length = 0;
+    const rows = [
+      record("a", "shared", "excluded"),
+      record("b", "SHARED"),
+      record("old", "old", "excluded"),
+      record("new"),
+    ];
+    expect(await runSnapshotMirror(f.options(await session("second"), rows))).toEqual({
+      delivery: "accepted",
+      sourceSequence: 2,
+    });
+    expect(f.requests.map(r => [r.action, r.batch.records.map(row => row.row.member)])).toEqual([
+      ["upsert", [member("new")]],
+      ["remove", [member("old")]],
+    ]);
+    expect([...f.remote.keys()].sort()).toEqual([member("shared"), member("new")].sort());
+    expect(
+      (await admin.query("SELECT key_count FROM newjitsu.reverse_sync_generation WHERE generation='second'")).rows[0]
+        .key_count
+    ).toBe("4");
+    const third = await session("third");
+    await prune(db, third.scope, new Date(Date.now() - 30 * 86400000));
+    f.requests.length = 0;
+    const excluded = rows.map(row => ({ ...row, row: { ...row.row, value: "excluded" } }));
+    expect(await runSnapshotMirror(f.options(third, excluded))).toEqual({ delivery: "accepted", sourceSequence: 2 });
+    expect(f.requests.map(r => r.action)).toEqual(["remove"]);
+    expect(f.remote.size).toBe(0);
+    expect(await membership()).toEqual([]);
+    expect(await phase()).toBe("complete");
+  });
+  it("finishes an all-excluded initial snapshot without provider batches", async () => {
+    const f = fixture();
+    f.adapter.projection.project = () => [];
+    expect(await runSnapshotMirror(f.options(await session(), [record("a"), record("b")]))).toEqual({
+      delivery: "accepted",
+      sourceSequence: 0,
+    });
+    expect(f.calls).toEqual(["create", "init", "source", "finish"]);
+    expect(f.requests).toEqual([]);
+    expect(await phase()).toBe("complete");
+  });
+  it.each(["invalid-row", "invalid-key", "duplicate-key"])(
+    "does not hide %s behind an empty projection",
+    async failure => {
+      const f = fixture();
+      await runSnapshotMirror(f.options(await session(), [record("old")]));
+      f.requests.length = 0;
+      f.adapter.projection.project = () => [];
+      const bad =
+        failure === "invalid-row"
+          ? { key: contentHash("bad"), row: { id: 42, value: "excluded" } }
+          : failure === "invalid-key"
+          ? { ...record("bad"), key: "invalid" }
+          : record("a");
+      await expect(
+        runSnapshotMirror(f.options(await session("second"), [record("a"), record("b"), bad]))
+      ).rejects.toThrow("Snapshot mirror stopped");
+      expect(f.requests).toEqual([]);
+      expect(f.remote.size).toBe(1);
+      expect(await membership()).toHaveLength(1);
+    }
+  );
+  it.each(["throw", "invalid-payload"])("does not turn a %s projection failure into exclusion", async failure => {
+    const f = fixture();
+    await runSnapshotMirror(f.options(await session(), [record("old")]));
+    f.requests.length = 0;
+    f.adapter.projection.project = row => {
+      if (row.id !== "bad") return [];
+      if (failure === "throw") throw new Error("Invalid source data");
+      return [{ identity: "bad", upsert: { member: 42, value: "v" }, remove: { member: "bad" } }];
+    };
+    await expect(
+      runSnapshotMirror(f.options(await session("second"), [record("a"), record("b"), record("bad")]))
+    ).rejects.toThrow("Snapshot mirror stopped");
+    expect(f.requests).toEqual([]);
+    expect(f.remote.size).toBe(1);
+    expect(await membership()).toHaveLength(1);
+  });
   it("finishes empty and unchanged snapshots explicitly without synthetic batches", async () => {
     const f = fixture(),
       first = await session();
