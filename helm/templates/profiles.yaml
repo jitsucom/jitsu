@@ -14,8 +14,10 @@ spec:
       app.kubernetes.io/instance: {{ .Release.Name }}
   template:
     metadata:
+      {{- if eq (include "jitsu.mode" .) "prod" }}
       annotations:
         {{- include "jitsu.credentialChecksum" . | nindent 8 }}
+      {{- end }}
       labels:
         app.kubernetes.io/name: profiles
         app.kubernetes.io/instance: {{ .Release.Name }}
