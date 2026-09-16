@@ -1204,6 +1204,42 @@ describe("core snapshot storage", () => {
     return run;
   }
   const desired = (key: string, id: string) => ({ key: contentHash([key]), identities: project("upsert", { id }) });
+  it("retains excluded keys and accounting through retries and recovery", async () => {
+    const run = await mirror();
+    const row = { key: contentHash(["excluded"]), identities: [] };
+    await run.snapshots.append([row], 1);
+    const snapshot = async () => (await admin.query("SELECT * FROM newjitsu.reverse_sync_generation")).rows[0];
+    const before = await snapshot();
+    expect(before).toMatchObject({ key_count: "1", entry_count: "1", byte_count: "64", last_page_sequence: "1" });
+    const recovered = await session({ mode: "mirror", extraction: "full", taskId: "recovery" });
+    await recovered.snapshots.append([row], 1);
+    expect(await snapshot()).toEqual(before);
+    await expect(recovered.snapshots.append([desired("excluded", "now-included")], 1)).rejects.toThrow(/retry differs/);
+    await expect(recovered.snapshots.append([desired("other", "a"), row], 2)).rejects.toThrow();
+    expect(await snapshot()).toEqual(before);
+    expect(await count("newjitsu.reverse_sync_source_key")).toBe(1);
+    expect(await count("newjitsu.reverse_sync_desired")).toBe(0);
+  });
+  it.each([{ snapshotEntries: 1 }, { snapshotBytes: 127 }])("bounds excluded rows with %j", async limits => {
+    const limited = new Database(runtimeConfig, { limits });
+    try {
+      const run = await openPersistence(limited, { ...runInput, mode: "mirror", extraction: "full" }, project);
+      await init(run);
+      await run.snapshots.start();
+      await run.snapshots.append([{ key: contentHash("a"), identities: [] }], 1);
+      await expect(run.snapshots.append([{ key: contentHash("b"), identities: [] }], 2)).rejects.toThrow(/budget/);
+      expect(await run.snapshots.status()).toEqual({ sealed: false, lastPageSequence: 1, sourceKeyCount: 1 });
+      expect(await count("newjitsu.reverse_sync_source_key")).toBe(1);
+    } finally {
+      await limited.close();
+    }
+  });
+  it("still rejects empty projections in prepared provider delivery", async () => {
+    const run = await openPersistence(db, runInput, () => []);
+    await init(run);
+    await expect(run.delivery.prepare(batch(run, ["a"]), {})).rejects.toThrow(/projection size/);
+    expect(await count("newjitsu.reverse_sync_batch")).toBe(0);
+  });
   it("serializes concurrent duplicate page retries and ignores object-key ordering", async () => {
     const run = await mirror();
     const row = desired("key1", "a");

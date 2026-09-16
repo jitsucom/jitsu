@@ -12,6 +12,13 @@ separate core lifecycle when wiring the executable runner.
 provider-ready `{ identity, upsert, remove }` values, deterministic for the immutable
 configuration revision. The core validates both output payloads against the stream
 schemas, enforces unique source keys, and rejects conflicting shared identities.
+Returning `[]` deliberately excludes a valid source row from the desired audience.
+Its source key is still validated, stored and checked for duplicates. Invalid rows
+or projections must fail; never convert errors into empty results. A previously
+tracked member becomes removable only when no source row projects it, after the
+full snapshot is sealed and additions are accepted. An all-excluded snapshot is
+a valid empty desired audience and still requires explicit finish and promotion.
+Prepared provider delivery operations remain non-empty.
 Schema transforms must already be applied by the projection; validation cannot
 silently alter the stored provider payload.
 The canonical identity must include everything needed to identify a removable

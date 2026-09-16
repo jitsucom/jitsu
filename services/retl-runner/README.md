@@ -155,8 +155,11 @@ the next page until the previous one is acknowledged. These sequence numbers are
 warehouse cursors: resuming extraction still requires a stable/replayable source.
 
 Desired generations store unique source keys and deduplicated provider-ready
-identities. Full-snapshot diffs need no stored source-to-identity associations:
-an identity remains desired while any source row produces it. Conflicting shared-identity payloads are rejected. Effective
+identities. Full-snapshot diffs need no stored source-to-identity associations.
+An empty mirror source projection deliberately excludes a valid row but retains
+its source key and duplicate checks; invalid rows/projections still fail. Previously
+tracked identities become removable only when no source row projects them.
+Shared identities remain desired while any source row produces them. Conflicting shared-identity payloads are rejected. Effective
 membership is updated on **every durable acceptance**, including failed runs.
 For each identity, the latest accepted source-sequence operation wins, regardless
 of acknowledgement order. An indexed hash list on each operation lets delayed staged
@@ -184,7 +187,7 @@ Defaults: 1,000 records / 10 MB per batch, 100 identities per source row, 1 mill
 projected identity occurrences / 256 MB per desired generation, 1 million effective identities /
 256 MB effective membership, and 256 MB serialized journal storage per sync.
 The generation entry budget counts shared identities once per source occurrence
-to bound projection work; its logical byte budget counts source-key hashes and
+and charges one entry for each excluded row to bound projection work; its logical byte budget counts source-key hashes and
 unique serialized desired values, not PostgreSQL table/index overhead.
 Provider state is limited to 64 KiB. These operational limits are unrelated to
 billing; smaller limits can be supplied. Membership growth is conservatively

@@ -6,9 +6,10 @@ import { decodeJson, encodeJson } from "./serialization";
 import { ensure, type Effect, type Identity, type Scope } from "./types";
 import type { DesiredRow, GenerationRow, MembershipRow } from "./rows";
 
-export function effects(identities: Identity[]): Effect[] {
+/** Only source snapshots may intentionally exclude a row; delivery operations require identities. */
+export function effects(identities: Identity[], { allowEmpty = false }: { allowEmpty?: boolean } = {}): Effect[] {
   ensure(
-    Array.isArray(identities) && identities.length > 0 && identities.length <= 100,
+    Array.isArray(identities) && (allowEmpty || identities.length > 0) && identities.length <= 100,
     "Invalid identity projection size"
   );
   const result = identities.map(value => {
@@ -78,7 +79,7 @@ export class Snapshots {
     ensure(Buffer.byteLength(serialized) <= this.db.limits.batchBytes, "Snapshot batch exceeds its byte budget");
     // Own the input before awaiting the transaction so the receipt and inserted values cannot diverge.
     const copied: typeof rows = JSON.parse(serialized);
-    const projected = copied.map(row => ({ key: row.key, effects: effects(row.identities) }));
+    const projected = copied.map(row => ({ key: row.key, effects: effects(row.identities, { allowEmpty: true }) }));
     const pageHash = contentHash(projected);
     await this.db.transaction(async client => {
       const control = await readControl(client, this.scope);
@@ -106,6 +107,8 @@ export class Snapshots {
           [...this.key, row.key]
         );
         bytes += 64; // Stored source-key hash; no source-to-identity mapping is persisted.
+        // Excluded rows still consume source-key storage and bounded extraction work.
+        if (!row.effects.length) entries++;
         for (const effect of row.effects) {
           const value = encodeJson(effect, this.db.limits.batchBytes);
           const inserted = await client.query(
