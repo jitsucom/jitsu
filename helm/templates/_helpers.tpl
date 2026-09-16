@@ -387,3 +387,25 @@ emitting the variable would change nothing except the rendered output.
 {{- printf "%s/sidecar:%s" .Values.image.registry .Values.image.tag -}}
 {{- end -}}
 {{- end }}
+
+{{/*
+The ingest endpoint's PUBLIC url, or empty when there is none to derive.
+
+The console hands this to the browser via /api/app-config
+(pages/api/app-config.ts:32) — it is what the tracking-installation UI tells
+people to send events to. Configuring an Ingress host for ingest without also
+telling the console about it leaves that UI advertising the wrong endpoint, so
+it is derived from the same value rather than configured twice.
+
+Scheme follows ingress.tls.enabled, as with jitsu.consolePublicUrl.
+`env.console.JITSU_INGEST_PUBLIC_URL` overrides it — the escape hatch when
+ingest is exposed somewhere the chart does not know about.
+*/}}
+{{- define "jitsu.ingestPublicUrl" -}}
+{{- $ing := .Values.ingress | default dict -}}
+{{- $host := (($ing.hosts | default dict).ingest) -}}
+{{- if and (eq (include "jitsu.mode" .) "prod") $ing.enabled $host -}}
+{{- $scheme := ternary "https" "http" (($ing.tls | default dict).enabled | default false) -}}
+{{- printf "%s://%s" $scheme $host -}}
+{{- end -}}
+{{- end }}
