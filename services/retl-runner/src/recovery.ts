@@ -13,7 +13,8 @@ type Session = Awaited<ReturnType<typeof openPersistence>>;
 export async function recoverRun(
   run: Session,
   ctx: ReverseEtlContext<JsonObject, JsonObject>,
-  hooks?: RuntimeRecovery
+  hooks?: RuntimeRecovery,
+  independentBatches = false
 ) {
   const status = await run.core.recoveryStatus();
   const store = () => ctx.store.snapshot();
@@ -36,15 +37,18 @@ export async function recoverRun(
     await run.delivery.commitCheckpoint(point, store(), true);
     return "accepted" as const;
   }
-  ensure(["running", "abort_prepared"].includes(status.phase), "Unsupported recovery phase");
-  if (status.phase === "running") {
+  ensure(["running", "batches_pending", "abort_prepared"].includes(status.phase), "Unsupported recovery phase");
+  if (["running", "batches_pending"].includes(status.phase)) {
     let after = "";
+    let pending = false;
+    let rejected = false;
     for (;;) {
       const page = await run.core.recoveryPage(after);
       if (!page.length) break;
       for (const entry of page) {
         ctx.signal.throwIfAborted();
         const saved = await run.core.recoveryBatch(entry.batchId);
+        rejected ||= saved.operations.some(op => op.status === "rejected");
         if (saved.operations.some(op => ["prepared", "unknown", "staged"].includes(op.status))) {
           ensure(hooks?.reconcileBatch, "Batch requires provider reconciliation");
           // Upsert manifests already contain provider input. Mirror partial-source
@@ -58,9 +62,27 @@ export async function recoverRun(
             await hooks.reconcileBatch(wire, saved.batch.action, saved.result, ctx)
           );
           await run.core.acknowledgeRecovered(entry.batchId, result, store());
+          pending ||= result.outcomes.some(outcome => outcome.status === "staged");
+          // Known outcomes are durable before stopping on a permanent row failure.
+          ensure(!result.outcomes.some(outcome => outcome.status === "rejected"), "Destination rejected a row");
         }
         after = entry.batchId;
       }
+    }
+    // Finish-staged sessions may require verified cleanup to resolve incomplete
+    // extraction. Independent jobs must settle first; abort cannot cancel them.
+    if (pending && (independentBatches || status.phase === "batches_pending")) return "pending" as const;
+    if (status.phase === "batches_pending" && !rejected) {
+      ensure(hooks?.attachWriter, "Finalization requires provider attachment");
+      ctx.signal.throwIfAborted();
+      const writer = await hooks.attachWriter(ctx);
+      await run.delivery.prepareFinish(status.nextSequence, store());
+      ctx.signal.throwIfAborted();
+      const result = validateFinishResult(await writer.finish());
+      await run.core.acknowledgeRecoveredFinish(result, store());
+      if (result.delivery === "pending") return "pending" as const;
+      await run.delivery.commitCheckpoint(await finalPoint(run, status.nextSequence), store(), true);
+      return "accepted" as const;
     }
     ensure(hooks?.reconcileAbort, "Incomplete extraction requires verified cleanup");
     await run.delivery.prepareAbort();

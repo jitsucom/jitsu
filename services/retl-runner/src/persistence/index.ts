@@ -23,6 +23,7 @@ export async function openPersistence(db: Database, input: RunInput, project: Pr
     acknowledge: core.acknowledge.bind(core),
     markUnknown: core.markUnknown.bind(core),
     saveProviderState: core.saveProviderState.bind(core),
+    sealExtraction: core.sealExtraction.bind(core),
     prepareFinish: core.prepareFinish.bind(core),
     acknowledgeFinish: core.acknowledgeFinish.bind(core),
     commitCheckpoint: core.commitCheckpoint.bind(core),

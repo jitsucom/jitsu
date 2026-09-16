@@ -172,7 +172,8 @@ export async function execute(input: ExecuteOptions): Promise<"SUCCESS" | "FAILE
             }
           )
         ).delivery;
-      } else if (run.recovery) result = await recoverRun(run, context, hooks);
+      } else if (run.recovery)
+        result = await recoverRun(run, context, hooks, adapter.mirror!.batchDelivery === "asynchronous");
       else
         result = (
           await runSnapshotMirror({
@@ -181,7 +182,8 @@ export async function execute(input: ExecuteOptions): Promise<"SUCCESS" | "FAILE
             source: sig => source(undefined, sig),
           })
         ).delivery;
-    } else if (run.recovery) result = await recoverRun(run, context, hooks);
+    } else if (run.recovery)
+      result = await recoverRun(run, context, hooks, adapter.stream.batchDelivery === "asynchronous");
     else
       result = (
         await runReverseEtl({

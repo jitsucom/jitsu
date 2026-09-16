@@ -46,6 +46,8 @@ export interface ReverseEtlStreamMetadata<Row, Options> {
   removeRowType?: ZodType<Row>;
   options: ZodType<Options>;
   batchSize: number;
+  /** Batches resolve independently; finish must not turn staging into acceptance. */
+  batchDelivery?: "asynchronous";
   capabilities: ReverseEtlCapabilities;
 }
 export interface BufferedSyncStore {
@@ -74,13 +76,13 @@ export interface ResumePoint {
 }
 
 /**
- * Awaited, fenced persistence boundary; production uses PostgreSQL in the Node runner.
+ * Awaited persistence boundary; production uses PostgreSQL in the Node runner.
  * Provider implementations receive this interface, never a database client.
  * There is no production in-memory fallback or requirement for an RPC transport.
- * Bind scope on construction and validate it on every write. Persist bounded
- * encrypted replay payloads before returning from prepare. Acknowledge writes
- * effective membership, receipts and the usage outbox transactionally. Accepted
- * operations activate a monthly sync once; their count is never an invoice meter.
+ * Bind scope on construction and validate lifecycle transitions. Persist bounded
+ * replay payloads before returning from prepare. Acknowledge writes effective
+ * membership and receipts transactionally. Worker ownership belongs to Kubernetes
+ * leases and syncctl; this interface has no billing or encryption responsibilities.
  */
 export interface DeliveryJournal {
   /**
@@ -96,12 +98,15 @@ export interface DeliveryJournal {
   prepareAbort(): Promise<void>;
   /** Complete cleanup without deleting accepted receipts or unresolved remote IDs. */
   acknowledgeAbort(): Promise<void>;
-  prepare<Row>(batch: PreparedBatch<Row>, store: JsonObject): Promise<void>;
+  /** Independent jobs require distinct projected member identities within the extraction. */
+  prepare<Row>(batch: PreparedBatch<Row>, store: JsonObject, independent?: boolean): Promise<void>;
   acknowledge(batchId: string, result: BatchResult, store: JsonObject): Promise<void>;
   /** Never replace already known accepted/rejected receipts with unknown. */
   markUnknown(batchId: string): Promise<void>;
   /** Persist session/job IDs created by init before relying on them. */
   saveProviderState(state: JsonObject): Promise<void>;
+  /** Seal complete upsert extraction while independently processing batches are pending. */
+  sealExtraction(throughSequence: number, store: JsonObject): Promise<void>;
   /** Persist a finish manifest before final submission, including empty runs. */
   prepareFinish(throughSequence: number, store: JsonObject): Promise<void>;
   /** Resolve this run's staged manifest in bounded transactions before returning accepted. */
