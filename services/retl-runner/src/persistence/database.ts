@@ -1,6 +1,5 @@
 import { Pool, type PoolClient, type PoolConfig } from "pg";
-import { canonicalJson, contentHash } from "@jitsu/destination-functions/src/reverse-etl/identity";
-import { Cipher } from "./crypto";
+import { contentHash } from "@jitsu/destination-functions/src/reverse-etl/identity";
 import { defaultLimits, ensure, PersistenceError, type Limits, type Scope } from "./types";
 
 export class Database {
@@ -8,11 +7,7 @@ export class Database {
   readonly limits: Limits;
   readonly stateTable: string;
   private readonly searchPath: string;
-  constructor(
-    config: PoolConfig,
-    readonly cipher: Cipher,
-    options: { sourceSchema?: string; limits?: Partial<Limits> } = {}
-  ) {
+  constructor(config: PoolConfig, options: { sourceSchema?: string; limits?: Partial<Limits> } = {}) {
     this.limits = { ...defaultLimits, ...options.limits };
     for (const [key, value] of Object.entries(this.limits))
       ensure(Number.isSafeInteger(value) && value > 0 && value <= defaultLimits[key], "Invalid storage limit");
@@ -33,9 +28,6 @@ export class Database {
       idle_in_transaction_session_timeout: 10000,
     });
   }
-  aad(scope: Pick<Scope, "workspaceId" | "syncId">, kind: string): string {
-    return canonicalJson([scope.workspaceId, scope.syncId, kind]);
-  }
   async transaction<T>(work: (client: PoolClient) => Promise<T>): Promise<T> {
     const client = await this.pool.connect().catch(() => {
       throw new PersistenceError("Reverse ETL database connection failed");
@@ -50,7 +42,7 @@ export class Database {
     } catch (error) {
       await client.query("ROLLBACK").catch(() => undefined);
       if (error instanceof PersistenceError) throw error;
-      // PostgreSQL error detail can include identifiers and encrypted payloads.
+      // PostgreSQL error detail can include identifiers and sensitive payloads.
       throw new PersistenceError("Reverse ETL persistence transaction failed");
     } finally {
       client.release();

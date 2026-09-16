@@ -43,18 +43,25 @@ Never give runtime credentials schema ownership
 or DDL rights. The module caps its pool at four connections, acquisition at 5s,
 statements/idle transactions at 10s, and lock waits at 3s. SQL errors are redacted.
 
-Construct a `Cipher` using an explicit 32-byte AES-256-GCM keyring and active key
-ID from runtime secrets; there is no fallback key. Keys never enter SQL. Random
-nonces and authenticated workspace/sync/purpose binding protect manifests,
-provider state, replay data and recoverable identities. Keep old keys available
-until their retained data has been re-encrypted or expired. Hashes are also
-sensitive; the runtime role is trusted, not a tenant-facing database account.
+Construct `Database` with the connection configuration and optional schema/limits.
+Payloads are stored as readable JSON, with no application-level encryption,
+keyring or AAD. Existing `bytea` columns contain versioned UTF-8 JSON; compact
+checkpoint state is stored as JSON text inside the `source_state` envelope. This
+preserves protocol strings (including NUL and unpaired surrogates) that PostgreSQL
+`jsonb` cannot represent directly. There is no base64 encoding. No column migration
+is required. Earlier encrypted development data is unsupported and rejected, not
+silently interpreted as current state; this pre-rollout change provides no data
+migration or automatic reset. Do not discard unresolved delivery evidence.
+Audience identities, provider state and request payloads are sensitive. Protection
+relies on restricted database/backup access, infrastructure encryption and retention.
+The runtime role is trusted, not a tenant-facing database account. SQL errors remain
+redacted; application encryption no longer protects database dumps or read access.
 
 `openPersistence(db, run, project)` returns:
 
 - `scope`: immutable run/target/revision/epoch binding.
 - `delivery`: the existing `DeliveryJournal` facade, suitable for `ctx.delivery`;
-  no database client, encryption keyring, snapshot or core-recovery method.
+  no database client, snapshot or core-recovery method.
 - `core`: bounded recovery reads and acknowledgements; never pass this to writers.
 - `snapshots`: core-only desired/effective storage, diff pages and sealing.
 
@@ -84,7 +91,7 @@ cannot claim that audience. Conversion of an existing upsert target into exclusi
 mirror ownership requires the later controlled-transfer workflow. Database fencing
 cannot fence an already-authorized request inside a remote advertising API.
 
-Prepared manifests are encrypted and durable before returning. Recovery uses
+Prepared manifests are durable before returning. Recovery uses
 `recoveryStatus`, `recoveryPage`, `recoveryBatch` and `loadBatch`; it does not rebuild
 an uncertain request from a changed warehouse query. Verify provider outcomes or
 safe replay before acknowledgement. There is no automatic replay or blanket
@@ -125,7 +132,7 @@ acknowledgement timestamp allow local resolution to resume without submitting
 provider finish again.
 
 Checkpoints verify contiguous accepted receipts and the exact prepared batch-end
-cursor. Full extraction checkpoints only at completion. The compact encrypted
+cursor. Full extraction checkpoints only at completion. The compact JSON
 `source_state` envelope stores cursor, sequence, provider store and generation
 together; it is not a separate `_STORE_` write. Permanent rejections block progress.
 Abort acknowledges cleanup of unaccepted staging only and preserves accepted work.
@@ -152,7 +159,7 @@ membership is updated on **every durable acceptance**, including failed runs.
 For each identity, the latest accepted source-sequence operation wins, regardless
 of acknowledgement order. An indexed hash list on each operation lets delayed staged
 acceptance skip effects superseded by a later accepted upsert or removal, without
-scanning/decrypting the entire journal. The delayed operation still gets its acceptance
+scanning/decoding the entire journal. The delayed operation still gets its acceptance
 receipt and releases its reservation; other identities it affects still apply.
 Current-run operations retain this ordering evidence until the run has ended, including
 accepted removals, so no membership tombstone or extra table is needed. This is local
@@ -173,16 +180,16 @@ delivery receipts exist for recovery and are not a billing ledger.
 
 Defaults: 1,000 records / 10 MB per batch, 100 identities per source row, 1 million
 projected identity occurrences / 256 MB per desired generation, 1 million effective identities /
-256 MB effective membership, and 256 MB encrypted journal storage per sync.
+256 MB effective membership, and 256 MB serialized journal storage per sync.
 The generation entry budget counts shared identities once per source occurrence
 to bound projection work; its logical byte budget counts source-key hashes and
-unique encrypted desired values, not PostgreSQL table/index overhead.
+unique serialized desired values, not PostgreSQL table/index overhead.
 Provider state is limited to 64 KiB. These operational limits are unrelated to
 billing; smaller limits can be supplied. Membership growth is conservatively
 reserved before remote calls, including previously staged batches. Near a storage
 cap even updates may require headroom; acceptance must not discover a predictable
 storage limit after submission. Acknowledgement releases unused result reservations.
-Ciphertext reservations include key-rotation overhead. Protocol responses have a
+Byte reservations include the JSON format envelope. Protocol responses have a
 separate bounded envelope budget (including escaped job IDs/rejection reasons);
 finish metadata is capped at 384 KiB and combined checkpoint state at 192 KiB,
 without reducing the protocol's individual 64-KiB cursor/store allowances.
@@ -191,7 +198,7 @@ At most committed + candidate desired generations may be retained before another
 candidate starts. Call fenced `prune` repeatedly to remove superseded/abandoned
 snapshot data in bounded pages. Current candidate and committed generation are
 never pruned. Receipt pruning takes an explicit retention cutoff (at least 24h),
-deletes only old-run terminal receipts and encrypted manifests, and preserves
+deletes only old-run terminal receipts and manifests, and preserves
 effective membership. The rollout must configure its
 retention policy and invoke maintenance; this library runs no background sweeper.
 

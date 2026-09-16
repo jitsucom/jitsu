@@ -1,6 +1,7 @@
 import type { PoolClient } from "pg";
 import { canonicalJson, contentHash } from "@jitsu/destination-functions/src/reverse-etl/identity";
 import { Database } from "./database";
+import { decodeJson, encodeJson } from "./serialization";
 import { ensure, type Effect, type Identity, type Scope } from "./types";
 
 export function effects(identities: Identity[]): Effect[] {
@@ -101,11 +102,7 @@ export class Snapshots {
         );
         bytes += 64; // Stored source-key hash; no source-to-identity mapping is persisted.
         for (const effect of row.effects) {
-          const value = this.db.cipher.seal(
-            effect,
-            this.db.aad(this.scope, `identity:${effect.identityHash}`),
-            this.db.limits.batchBytes
-          );
+          const value = encodeJson(effect, this.db.limits.batchBytes);
           const inserted = await client.query(
             `INSERT INTO reverse_sync_desired (workspace_id,sync_id,generation,identity_hash,payload_hash,value) VALUES ($1,$2,$3,$4,$5,$6) ON CONFLICT DO NOTHING RETURNING 1`,
             [...this.key, effect.identityHash, effect.payloadHash, value]
@@ -115,10 +112,7 @@ export class Snapshots {
               "SELECT payload_hash,value FROM reverse_sync_desired WHERE workspace_id=$1 AND sync_id=$2 AND generation=$3 AND identity_hash=$4",
               [...this.key, effect.identityHash]
             );
-            const previous = this.db.cipher.open<Effect>(
-              existing.rows[0].value,
-              this.db.aad(this.scope, `identity:${effect.identityHash}`)
-            );
+            const previous = decodeJson<Effect>(existing.rows[0].value);
             ensure(canonicalJson(previous) === canonicalJson(effect), "Conflicting payloads for shared identity");
           } else bytes += value.length;
           // Bound projection work even when many source rows share one desired identity.
@@ -167,9 +161,7 @@ export class Snapshots {
           ORDER BY m.identity_hash LIMIT $5`,
               [...this.key, after, limit]
             );
-      return result.rows.map(row =>
-        this.db.cipher.open<Effect>(row.value, this.db.aad(this.scope, `identity:${row.identity_hash}`))
-      );
+      return result.rows.map(row => decodeJson<Effect>(row.value));
     });
   }
   async assertRemovalsAllowed(client: PoolClient) {

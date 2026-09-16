@@ -5,7 +5,6 @@ import { acquire } from "./ownership";
 import type { Project, RunInput } from "./types";
 
 export { Database } from "./database";
-export { Cipher } from "./crypto";
 export { acquire, renew, release } from "./ownership";
 export { prune } from "./maintenance";
 export type { RunInput, Scope, Identity, Effect, Limits, Project } from "./types";
@@ -13,7 +12,7 @@ export type { RunInput, Scope, Identity, Effect, Limits, Project } from "./types
 export async function openPersistence(db: Database, input: RunInput, project: Project, leaseMs?: number) {
   const { scope, recovery } = await acquire(db, input, leaseMs);
   const core = new Journal(db, scope, project, recovery);
-  // Deliberately return a narrow facade: no database client/keyring/snapshot access
+  // Deliberately return a narrow facade: no database client/snapshot access
   // on the object passed to trusted providers as ctx.delivery.
   const delivery: DeliveryJournal = Object.freeze({
     assertReady: core.assertReady.bind(core),

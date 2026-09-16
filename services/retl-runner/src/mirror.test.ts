@@ -4,7 +4,6 @@ import { Client, type PoolConfig } from "pg";
 import { createRequire } from "node:module";
 import { execFileSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
-import { randomBytes } from "node:crypto";
 import { z } from "zod";
 import type {
   BatchResult,
@@ -14,7 +13,8 @@ import type {
   WriteBatch,
 } from "@jitsu/protocols/reverse-etl";
 import { contentHash } from "@jitsu/destination-functions/src/reverse-etl/identity";
-import { Cipher, Database, release, prune } from "./persistence";
+import { Database, release, prune } from "./persistence";
+import { decodeJson, encodeJson } from "./persistence/serialization";
 import {
   openMirrorPersistence,
   runSnapshotMirror,
@@ -28,7 +28,6 @@ let container: StartedTestContainer;
 let admin: Client;
 let db: Database;
 let runtimeConfig: PoolConfig;
-const cipher = new Cipher("test", { test: randomBytes(32) });
 type Session = Awaited<ReturnType<typeof openMirrorPersistence>>;
 type SourceRow = { id: string; value: string };
 const record = (key: string, id = key, value = "v"): MirrorSourceRecord => ({
@@ -87,7 +86,7 @@ beforeAll(async () => {
     await admin.query(`GRANT SELECT,INSERT,UPDATE,DELETE ON newjitsu.reverse_sync_${table} TO mirror_runtime`);
   await admin.query("GRANT SELECT,INSERT,UPDATE,DELETE ON newjitsu.source_state TO mirror_runtime");
   runtimeConfig = { ...config, user: "mirror_runtime", password: "runtime" };
-  db = new Database(runtimeConfig, cipher);
+  db = new Database(runtimeConfig);
 }, 60_000);
 afterAll(async () => {
   await db?.close();
@@ -121,11 +120,7 @@ async function phase() {
 async function membership() {
   return (
     await admin.query("SELECT identity_hash,value FROM newjitsu.reverse_sync_membership ORDER BY identity_hash")
-  ).rows.map(
-    row =>
-      cipher.open<any>(row.value, db.aad({ workspaceId: "workspace", syncId: "sync" }, `identity:${row.identity_hash}`))
-        .upsert
-  );
+  ).rows.map(row => decodeJson<any>(row.value).upsert);
 }
 
 function fixture() {
@@ -595,7 +590,7 @@ describe("core snapshot mirror lifecycle", () => {
     expect(await phase()).toBe("new");
   });
   it("enforces snapshot storage limits before any delivery", async () => {
-    const limited = new Database(runtimeConfig, cipher, { limits: { snapshotEntries: 1 } });
+    const limited = new Database(runtimeConfig, { limits: { snapshotEntries: 1 } });
     try {
       const f = fixture(),
         run = await session("run", "run", limited);
@@ -626,10 +621,10 @@ describe("core snapshot mirror lifecycle", () => {
         identityHash: contentHash(desired.identity),
         payloadHash: contentHash(desired.upsert),
       };
-      const encrypted = cipher.seal(effect, db.aad(run.scope, `identity:${effect.identityHash}`), 10000);
+      const encoded = encodeJson(effect, 10000);
       await admin.query(
         "INSERT INTO newjitsu.reverse_sync_desired (workspace_id,sync_id,generation,identity_hash,payload_hash,value) VALUES ('workspace','sync','run',$1,$2,$3)",
-        [effect.identityHash, effect.payloadHash, encrypted]
+        [effect.identityHash, effect.payloadHash, encoded]
       );
       await admin.query("ANALYZE newjitsu.reverse_sync_desired; ANALYZE newjitsu.reverse_sync_membership");
       await run.snapshots.seal();
