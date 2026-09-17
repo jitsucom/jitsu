@@ -7,7 +7,7 @@ import { runReverseEtl } from "@jitsu/destination-functions/src/reverse-etl/run"
 import { Database, openPersistence, prune } from "./persistence";
 import type { ControlRow } from "./persistence/rows";
 import { ensure } from "./persistence/types";
-import { openMirrorPersistence, runSnapshotMirror, resumeSnapshotMirror } from "./mirror";
+import { openMirrorPersistence, runSnapshotMirror, resumeSnapshotMirror, MirrorRunError } from "./mirror";
 import type { AdapterRegistry } from "./adapters";
 import type { RunLease } from "./lease";
 import { Tasks, type TaskResult } from "./tasks";
@@ -114,7 +114,11 @@ export async function execute(input: ExecuteOptions): Promise<TaskResult> {
     }
     const saved = await run.core.state();
     await tasks.progress(
-      run.recovery ? "Reconciling interrupted Reverse ETL delivery" : "Starting Reverse ETL extraction and delivery"
+      run.recovery
+        ? "Reconciling interrupted Reverse ETL delivery"
+        : mirror
+        ? "Extracting warehouse snapshot; no audience changes submitted yet"
+        : "Starting Reverse ETL extraction and delivery"
     );
     const context: ReverseEtlContext<JsonObject, JsonObject> = {
       ...run.scope,
@@ -182,6 +186,12 @@ export async function execute(input: ExecuteOptions): Promise<TaskResult> {
             ...options,
             mapping: config.options.mapping,
             source: sig => source(undefined, sig),
+            onSnapshotProgress: (rows, sealed) =>
+              tasks.progress(
+                sealed
+                  ? `Snapshot complete: ${rows} source rows. Comparing audience membership and submitting changes.`
+                  : `Extracted ${rows} source rows into snapshot; no audience changes submitted yet`
+              ),
           })
         ).delivery;
     } else if (run.recovery)
@@ -209,7 +219,7 @@ export async function execute(input: ExecuteOptions): Promise<TaskResult> {
       success ? "Reverse ETL delivery committed" : "Recovery completed cleanup; next run will restart extraction"
     );
     return changed && success ? "SUCCESS" : "FAILED";
-  } catch {
+  } catch (error) {
     stopped = true;
     clearTimeout(timer);
     await renewing;
@@ -222,6 +232,8 @@ export async function execute(input: ExecuteOptions): Promise<TaskResult> {
             ? "Reverse ETL ownership or task heartbeat lost; recovery required"
             : signal.aborted
             ? "Reverse ETL cancelled; unresolved delivery retained"
+            : error instanceof MirrorRunError
+            ? error.message
             : "Reverse ETL failed; inspect configuration and durable recovery state"
         )
         .catch(() => undefined);

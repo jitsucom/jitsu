@@ -88,23 +88,6 @@ export class Snapshots {
     const copied: typeof rows = JSON.parse(serialized);
     const projected = copied.map(row => ({ key: row.key, effects: effects(row.identities, { allowEmpty: true }) }));
     const pageHash = contentHash(projected);
-    const desired = new Map<string, { payloadHash: string; value: Buffer }>();
-    let pageEntries = 0;
-    for (const row of projected) {
-      ensure(/^[a-f0-9]{64}$/.test(row.key), "Invalid source key");
-      pageEntries += Math.max(1, row.effects.length);
-      for (const effect of row.effects) {
-        const value = encodeJson(effect, this.db.limits.batchBytes);
-        const previous = desired.get(effect.identityHash);
-        ensure(!previous || previous.value.equals(value), "Conflicting payloads for shared identity");
-        desired.set(effect.identityHash, { payloadHash: effect.payloadHash, value });
-      }
-    }
-    const keys = projected.map(row => row.key);
-    ensure(new Set(keys).size === keys.length, "Duplicate snapshot source key");
-    const identities = [...desired.keys()];
-    const payloadHashes = [...desired.values()].map(row => row.payloadHash);
-    const values = [...desired.values()].map(row => row.value);
     await this.control.transaction(async client => {
       const control = await this.control.lock(client);
       ensure(
@@ -122,6 +105,23 @@ export class Snapshots {
         return;
       }
       ensure(pageSequence === lastPageSequence + 1, "Snapshot page sequence must be contiguous");
+      const desired = new Map<string, { payloadHash: string; value: Buffer }>();
+      let pageEntries = 0;
+      for (const row of projected) {
+        ensure(/^[a-f0-9]{64}$/.test(row.key), "Invalid source key");
+        pageEntries += Math.max(1, row.effects.length);
+        for (const effect of row.effects) {
+          const value = encodeJson(effect, this.db.limits.batchBytes);
+          const previous = desired.get(effect.identityHash);
+          ensure(!previous || previous.value.equals(value), "Conflicting payloads for shared identity");
+          desired.set(effect.identityHash, { payloadHash: effect.payloadHash, value });
+        }
+      }
+      const keys = projected.map(row => row.key);
+      ensure(new Set(keys).size === keys.length, "Duplicate snapshot source key");
+      const identities = [...desired.keys()];
+      const payloadHashes = [...desired.values()].map(row => row.payloadHash);
+      const values = [...desired.values()].map(row => row.value);
       const entries = Number(generation.rows[0].entry_count) + pageEntries;
       ensure(entries <= this.db.limits.snapshotEntries, "Snapshot storage budget exceeded");
       // A fixed number of round trips per page, even with shared identities.
