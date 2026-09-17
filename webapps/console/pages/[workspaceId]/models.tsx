@@ -341,19 +341,21 @@ function Models() {
               />
             </Form.Item>
             <Form.Item
-              name="query"
               label="SQL query"
-              rules={[{ required: true, whitespace: true }]}
               extra="Use one read-only SELECT, including any primary-key, cursor and delete columns. Incremental filtering is added automatically."
             >
-              <SqlEditor
-                value=""
-                onChange={() => {}}
-                language="sql"
-                height="320px"
-                monacoOptions={{ readOnly: readonly || saving, minimap: { enabled: false }, wordWrap: "on" }}
-                ctrlEnterCallback={() => void doPreview().catch(() => {})}
-              />
+              <div className="border border-textDisabled rounded-lg overflow-hidden">
+                <Form.Item name="query" noStyle rules={[{ required: true, whitespace: true }]}>
+                  <SqlEditor
+                    value=""
+                    onChange={() => {}}
+                    language="sql"
+                    height="320px"
+                    monacoOptions={{ readOnly: readonly || saving, minimap: { enabled: false }, wordWrap: "on" }}
+                    ctrlEnterCallback={() => void doPreview().catch(() => {})}
+                  />
+                </Form.Item>
+              </div>
             </Form.Item>
             <Button
               loading={previewing}
@@ -381,17 +383,18 @@ function Models() {
                             children: (
                               <Table<{ index: number; values: Record<string, unknown> }>
                                 size="small"
-                                scroll={{ x: true }}
+                                scroll={{ x: "max-content" }}
                                 pagination={{ pageSize: 10 }}
                                 rowKey="index"
                                 dataSource={preview.rows.map((values, index) => ({ values, index }))}
                                 columns={preview.columns.map(c => ({
                                   title: c.name,
                                   key: c.name,
+                                  className: "whitespace-nowrap",
                                   render: (_, row) => {
                                     const value = row.values[c.name];
                                     return (
-                                      <span className="font-mono whitespace-pre-wrap break-all">
+                                      <span className="font-mono whitespace-nowrap">
                                         {value == null
                                           ? "NULL"
                                           : typeof value === "object"
