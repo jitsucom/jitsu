@@ -1,6 +1,6 @@
 apiVersion: v2
-name: jitsu-dev
-description: Development Helm chart for Jitsu services with local binaries
+name: jitsu
+description: Helm chart for the Jitsu platform
 type: application
 version: 0.1.0
 appVersion: "dev"

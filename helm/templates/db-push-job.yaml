@@ -15,7 +15,7 @@ kind: Job
 metadata:
   name: db-push-{{ .Release.Revision }}
   labels:
-    {{- include "jitsu-dev.labels" . | nindent 4 }}
+    {{- include "jitsu.labels" . | nindent 4 }}
     app.kubernetes.io/name: db-push
   annotations:
     "helm.sh/hook": pre-install,pre-upgrade

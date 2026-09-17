@@ -4,7 +4,7 @@ kind: Deployment
 metadata:
   name: syncctl
   labels:
-    {{- include "jitsu-dev.labels" . | nindent 4 }}
+    {{- include "jitsu.labels" . | nindent 4 }}
     app.kubernetes.io/name: syncctl
 spec:
   replicas: {{ .Values.scaling.syncctl.replicas }}
@@ -89,7 +89,7 @@ spec:
             # least-privilege SA bound only to coordination.k8s.io/leases.
             # Separating it from syncctl's own SA keeps the pod-side blast
             # radius tiny (no pod create/delete, no Secret read, no log access).
-            {{- include "jitsu-dev.env" (dict "ctx" . "service" "syncctl"
+            {{- include "jitsu.env" (dict "ctx" . "service" "syncctl"
                   "extra" (dict
                     "HTTP_PORT" "3043"
                     "PODS_SERVICE_ACCOUNT" "sync-pod")
@@ -113,7 +113,7 @@ spec:
       volumes:
         - name: project
           hostPath:
-            path: {{ include "jitsu-dev.projectRoot" . }}
+            path: {{ include "jitsu.projectRoot" . }}
             type: Directory
         - name: build
           emptyDir: {}
@@ -128,7 +128,7 @@ kind: Service
 metadata:
   name: syncctl
   labels:
-    {{- include "jitsu-dev.labels" . | nindent 4 }}
+    {{- include "jitsu.labels" . | nindent 4 }}
     app.kubernetes.io/name: syncctl
 spec:
   type: ClusterIP
@@ -150,14 +150,14 @@ kind: ServiceAccount
 metadata:
   name: syncctl
   labels:
-    {{- include "jitsu-dev.labels" . | nindent 4 }}
+    {{- include "jitsu.labels" . | nindent 4 }}
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
   name: {{ .Release.Name }}-syncctl
   labels:
-    {{- include "jitsu-dev.labels" . | nindent 4 }}
+    {{- include "jitsu.labels" . | nindent 4 }}
 rules:
   - apiGroups: [""]
     resources: ["pods", "services", "configmaps", "secrets"]
@@ -185,7 +185,7 @@ kind: ClusterRoleBinding
 metadata:
   name: {{ .Release.Name }}-syncctl
   labels:
-    {{- include "jitsu-dev.labels" . | nindent 4 }}
+    {{- include "jitsu.labels" . | nindent 4 }}
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: ClusterRole
@@ -205,14 +205,14 @@ kind: ServiceAccount
 metadata:
   name: sync-pod
   labels:
-    {{- include "jitsu-dev.labels" . | nindent 4 }}
+    {{- include "jitsu.labels" . | nindent 4 }}
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata:
   name: {{ .Release.Name }}-sync-pod
   labels:
-    {{- include "jitsu-dev.labels" . | nindent 4 }}
+    {{- include "jitsu.labels" . | nindent 4 }}
 rules:
   - apiGroups: ["coordination.k8s.io"]
     resources: ["leases"]
@@ -223,7 +223,7 @@ kind: RoleBinding
 metadata:
   name: {{ .Release.Name }}-sync-pod
   labels:
-    {{- include "jitsu-dev.labels" . | nindent 4 }}
+    {{- include "jitsu.labels" . | nindent 4 }}
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: Role
