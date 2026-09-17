@@ -830,7 +830,9 @@ const DestinationsList: React.FC<{ type?: string }> = ({ type }) => {
                       </>
                     ) : null}
                   </p>
-                  <a href={`/${workspace.slugOrId}/reverse-syncs?destinationId=${obj.id}`}>View audience syncs →</a>
+                  <Link href={`/${workspace.slugOrId}/reverse-syncs?destinationId=${obj.id}`}>
+                    View audience syncs →
+                  </Link>
                   <span className="text-textLight block mt-2">
                     Event conversion settings below are independent from your audience sync mappings and schedules.
                   </span>

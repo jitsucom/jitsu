@@ -1,6 +1,7 @@
 import React from "react";
 import { Alert, Button, Empty, Table, Tag } from "antd";
 import { useRouter } from "next/router";
+import Link from "next/link";
 import { WorkspacePageLayout } from "../../../components/PageLayout/WorkspacePageLayout";
 import { useAppConfig, useWorkspace, useWorkspaceRole } from "../../../lib/context";
 import { ReverseSyncView } from "../../../lib/reverse-etl";
@@ -73,9 +74,9 @@ function ReverseSyncs() {
                 title: "Sync",
                 render: (_, s) => (
                   <div>
-                    <a className="font-medium" href={`/${workspace.slugOrId}/reverse-syncs?id=${s.id}`}>
+                    <Link className="font-medium" href={`/${workspace.slugOrId}/reverse-syncs?id=${s.id}`}>
                       {s.options.name || s.modelName}
-                    </a>
+                    </Link>
                     <p className="text-textLight text-xs mt-1">
                       {s.modelName} → {s.destinationName}
                     </p>

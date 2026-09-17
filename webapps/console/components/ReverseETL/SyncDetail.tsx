@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { Alert, Button, Descriptions, Form, Input, Modal, Table, Tabs, Tag, message } from "antd";
 import { useRouter } from "next/router";
+import Link from "next/link";
 import { rpc } from "juava";
 import { ReverseSyncView } from "../../lib/reverse-etl";
 import { useAppConfig, useWorkspace, useWorkspaceRole } from "../../lib/context";
@@ -48,9 +49,9 @@ export function SyncDetail({ sync, reload }: { sync: ReverseSyncView; reload: ()
           <div className="flex flex-wrap items-center gap-2 mb-6 text-textLight">
             <Tag>{sync.setupPending ? "Setup incomplete" : sync.options.disabled ? "Paused" : "Enabled"}</Tag>
             <Tag color="blue">{sync.options.mode === "mirror" ? "Mirror" : "Add / remove"}</Tag>
-            <a href={`/${workspace.slugOrId}/models?id=${sync.fromId}`}>{sync.modelName}</a>
+            <Link href={`/${workspace.slugOrId}/models?id=${sync.fromId}`}>{sync.modelName}</Link>
             <span>→</span>
-            <a href={`/${workspace.slugOrId}/destinations?id=${sync.toId}`}>{sync.destinationName}</a>
+            <Link href={`/${workspace.slugOrId}/destinations?id=${sync.toId}`}>{sync.destinationName}</Link>
           </div>
         }
         onBack={() => router.push(`/${workspace.slugOrId}/reverse-syncs`)}
@@ -129,9 +130,9 @@ export function SyncDetail({ sync, reload }: { sync: ReverseSyncView; reload: ()
                       <Alert type="error" title="Run stopped" description={sync.latestTask.error} />
                     )}
                     {sync.latestTask && (
-                      <a href={`/${workspace.slugOrId}/reverse-syncs/tasks?taskId=${sync.latestTask.task_id}`}>
+                      <Link href={`/${workspace.slugOrId}/reverse-syncs/tasks?taskId=${sync.latestTask.task_id}`}>
                         View attempt and logs →
-                      </a>
+                      </Link>
                     )}
                   </Panel>
                   <Panel title="Delivery behavior">

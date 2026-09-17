@@ -1,6 +1,7 @@
 import React, { useRef, useState } from "react";
 import { Alert, Button, Checkbox, Descriptions, Form, Input, Radio, Select, Steps, Tag } from "antd";
 import { useRouter } from "next/router";
+import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 import { rpc } from "juava";
 import { PreviewResult } from "@jitsu/warehouse-query/src/schema";
@@ -234,8 +235,8 @@ export function SyncWizard() {
               </p>
             )}
             <div className="flex gap-5 mt-4">
-              <a href={`/${workspace.slugOrId}/models?id=new`}>Create a model</a>
-              <a href={`/${workspace.slugOrId}/destinations`}>Connect Google Ads</a>
+              <Link href={`/${workspace.slugOrId}/models?id=new`}>Create a model</Link>
+              <Link href={`/${workspace.slugOrId}/destinations`}>Connect Google Ads</Link>
             </div>
             <Failure error={models.error} />
           </Panel>

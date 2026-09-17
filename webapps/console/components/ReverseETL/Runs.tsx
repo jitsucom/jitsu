@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { Alert, Button, Descriptions, Input, Modal, Table } from "antd";
 import { useRouter } from "next/router";
+import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 import { rpc } from "juava";
 import { z } from "zod";
@@ -101,7 +102,9 @@ export function ReverseRuns({ syncId, compact = false }: { syncId?: string; comp
                     key: "sync",
                     label: "Sync",
                     children: (
-                      <a href={`/${workspace.slugOrId}/reverse-syncs?id=${task.sync_id}`}>{syncName(task.sync_id)}</a>
+                      <Link href={`/${workspace.slugOrId}/reverse-syncs?id=${task.sync_id}`}>
+                        {syncName(task.sync_id)}
+                      </Link>
                     ),
                   },
                   { key: "start", label: "Started", children: task.started_at.toLocaleString() },
@@ -174,7 +177,9 @@ export function ReverseRuns({ syncId, compact = false }: { syncId?: string; comp
             {
               title: "Sync",
               dataIndex: "sync_id",
-              render: (id: string) => <a href={`/${workspace.slugOrId}/reverse-syncs?id=${id}`}>{syncName(id)}</a>,
+              render: (id: string) => (
+                <Link href={`/${workspace.slugOrId}/reverse-syncs?id=${id}`}>{syncName(id)}</Link>
+              ),
             },
             { title: "Started", dataIndex: "started_at", render: (d: Date) => d.toLocaleString() },
             { title: "Status", dataIndex: "status", render: (status: string) => <RunStatus status={status} /> },
@@ -182,7 +187,7 @@ export function ReverseRuns({ syncId, compact = false }: { syncId?: string; comp
             {
               title: "",
               render: (_, t) => (
-                <a href={`/${workspace.slugOrId}/reverse-syncs/tasks?taskId=${t.task_id}`}>View logs</a>
+                <Link href={`/${workspace.slugOrId}/reverse-syncs/tasks?taskId=${t.task_id}`}>View logs</Link>
               ),
             },
           ]}
