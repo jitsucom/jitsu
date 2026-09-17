@@ -11,7 +11,8 @@ import { ModelConfig } from "../../lib/schema";
 import { ReverseSyncSetup } from "../../lib/reverse-etl";
 import { useUnsavedChanges } from "../../lib/ui";
 import { EditorTitle } from "../ConfigObjectEditor/EditorTitle";
-import { Failure, Panel, schedulePresets } from "./shared";
+import { Failure, Panel } from "./shared";
+import { ScheduleEditor } from "./ScheduleEditor";
 
 export function SyncWizard() {
   const workspace = useWorkspace();
@@ -387,16 +388,13 @@ export function SyncWizard() {
           <>
             <Panel title="Schedule" description="Syncctl manages scheduled runs with Kubernetes CronJobs.">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6">
-                <Form.Item name="schedule" label="Schedule (five-field cron)">
-                  <Select options={schedulePresets} onChange={value => form.setFieldValue("schedule", value)} />
+                <Form.Item name="schedule" label="Schedule">
+                  <ScheduleEditor />
                 </Form.Item>
                 <Form.Item name="timezone" label="Timezone">
                   <Input placeholder="Etc/UTC" />
                 </Form.Item>
               </div>
-              <Form.Item name="schedule" label="Custom cron expression">
-                <Input placeholder="Empty means manual only" />
-              </Form.Item>
             </Panel>
             <Panel
               title="Review your sync"

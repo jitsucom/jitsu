@@ -68,9 +68,3 @@ export function Failure({ error }: { error: unknown }) {
     />
   ) : null;
 }
-export const schedulePresets = [
-  { value: "", label: "Manual only" },
-  { value: "0 * * * *", label: "Every hour" },
-  { value: "0 */6 * * *", label: "Every 6 hours" },
-  { value: "0 0 * * *", label: "Daily at midnight" },
-];

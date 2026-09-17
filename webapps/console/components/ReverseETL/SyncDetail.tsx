@@ -8,6 +8,7 @@ import { EditorTitle } from "../ConfigObjectEditor/EditorTitle";
 import FieldListEditorLayout from "../FieldListEditorLayout/FieldListEditorLayout";
 import { Failure, Panel, RunStatus } from "./shared";
 import { ReverseRuns } from "./Runs";
+import { ScheduleEditor } from "./ScheduleEditor";
 
 export function SyncDetail({ sync, reload }: { sync: ReverseSyncView; reload: () => Promise<unknown> }) {
   const workspace = useWorkspace();
@@ -206,7 +207,7 @@ export function SyncDetail({ sync, reload }: { sync: ReverseSyncView; reload: ()
                             "Five-field cron, or empty for manual only. Removing the schedule still allows manual runs and automatic recovery.",
                           component: (
                             <Form.Item name="schedule">
-                              <Input aria-label="Cron schedule" placeholder="0 0 * * *" />
+                              <ScheduleEditor />
                             </Form.Item>
                           ),
                         },
