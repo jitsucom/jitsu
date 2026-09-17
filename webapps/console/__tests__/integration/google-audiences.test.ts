@@ -125,6 +125,53 @@ async function fixture() {
   };
 }
 describe("managed Google audience provisioning and admission", () => {
+  it.each(["missing", "deleted", "foreign-workspace", "wrong-destination", "wrong-type"])(
+    "rejects a %s sync before storing intent or external I/O",
+    async kind => {
+      const f = await fixture();
+      if (kind === "missing") f.input.syncId = "missing-sync";
+      else {
+        const { workspace: foreign } = await seedWorkspace();
+        await f.prisma.configurationObjectLink.update({
+          where: { id: f.link.id },
+          data: {
+            ...(kind === "deleted" ? { deleted: true } : {}),
+            ...(kind === "foreign-workspace" ? { workspaceId: foreign.id } : {}),
+            ...(kind === "wrong-destination" ? { toId: f.link.fromId } : {}),
+            ...(kind === "wrong-type" ? { type: "push" } : {}),
+          },
+        });
+      }
+      await expect(f.create()).rejects.toThrow("binding");
+      expect(f.request).not.toHaveBeenCalled();
+      expect(
+        await f.prisma.configurationObject.count({
+          where: { workspaceId: f.workspace.id, type: "reverse-google-audience" },
+        })
+      ).toBe(0);
+    }
+  );
+  it("permits provisioning for a disabled but live sync", async () => {
+    const f = await fixture();
+    await f.prisma.configurationObjectLink.update({ where: { id: f.link.id }, data: { data: { disabled: true } } });
+    expect(await f.create()).toMatchObject({ status: "ready", audienceId: "1234" });
+    expect(f.posts()).toHaveLength(1);
+  });
+  it("rechecks the live sync after OAuth before creating an audience", async () => {
+    const f = await fixture();
+    const oauth = f.request.getMockImplementation()!;
+    f.request.mockImplementationOnce(async (url, init) => {
+      await f.prisma.configurationObjectLink.update({ where: { id: f.link.id }, data: { deleted: true } });
+      return oauth(url, init);
+    });
+    await expect(f.create()).rejects.toThrow("binding");
+    expect(f.request).toHaveBeenCalledTimes(1); // OAuth only, no Google request.
+    expect(f.posts()).toHaveLength(0);
+    const intent = await f.prisma.configurationObject.findFirst({
+      where: { workspaceId: f.workspace.id, type: "reverse-google-audience" },
+    });
+    expect(intent!.config).toMatchObject({ phase: "prepared" });
+  });
   it("journals creation once, exports only server evidence and reserves it to one sync", async () => {
     const f = await fixture();
     const created = await f.create();

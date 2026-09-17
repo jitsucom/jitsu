@@ -14,6 +14,10 @@ JITSU-227; stacked on PR #1523. No live provider actions during implementation.
   sync, destination/account and OAuth binding. They are not generic editable
   configuration types. The authenticated export supplies verified evidence;
   caller-supplied destination metadata cannot assert a managed baseline.
+  Provisioning requires an existing non-deleted reverse sync, checked again after
+  OAuth I/O. Disabled links are allowed so the future editor can create a disabled
+  sync first, provision its audience, then configure/enable it. There is no
+  client-chosen future-sync-ID reservation or new transaction around remote I/O.
 - Mirror only Jitsu-created audiences reserved to one sync, with explicit exclusive
   management confirmation. Check current remote identity/type/ownership/marker on
   every attempt. Google account ownership is not an API-enforced Jitsu-only lock;

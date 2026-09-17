@@ -110,14 +110,16 @@ export async function provisionGoogleAudience(
 ) {
   const input = CreateGoogleAudience.parse(rawInput);
   const credentials = await readDestination(prisma, workspaceId, input.destinationId);
-  const existingSync = await prisma.configurationObjectLink.findUnique({ where: { id: input.syncId } });
-  if (
-    existingSync &&
-    (existingSync.workspaceId !== workspaceId ||
-      existingSync.toId !== input.destinationId ||
-      existingSync.type !== "reverse-sync")
-  )
-    throw denied();
+  const requireLiveSync = async () => {
+    const existingSync = await prisma.configurationObjectLink.findFirst({
+      where: { id: input.syncId, workspaceId, toId: input.destinationId, type: "reverse-sync", deleted: false },
+      select: { id: true },
+    });
+    if (!existingSync) throw denied();
+  };
+  // The future editor must create a disabled link first, then provision its audience.
+  // A caller-chosen ID cannot be adopted by normal link creation later.
+  await requireLiveSync();
   const key = createHash("sha256")
     .update(JSON.stringify([workspaceId, input.destinationId, input.syncId, input.requestId]))
     .digest("hex");
@@ -159,6 +161,8 @@ export async function provisionGoogleAudience(
   const token = await readGoogleAudienceConnectionToken(credentials.oauthConnectionId, nango, request, signal);
   if (contentHash(await readDestination(prisma, workspaceId, input.destinationId)) !== intent.configBinding)
     throw denied();
+  // OAuth I/O can outlive a link deletion; recheck before any Google request.
+  await requireLiveSync();
   const api = createGoogleAudienceManagement(credentials, async () => token.accessToken, request);
   if (saved.phase === "ready") {
     await api.verifyManaged(

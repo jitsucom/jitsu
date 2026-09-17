@@ -39,10 +39,12 @@ creation; resolve this in Google Ads before provisioning.
 ### Managed audience provisioning (before delivery)
 
 POST `/api/:workspaceId/reverse-etl/google-audiences` with `destinationId`, the intended
-`syncId`, a stable UUID `requestId`, `displayName`, `exclusiveManagementConfirmed: true`
+`syncId` of an existing, non-deleted reverse sync, a stable UUID `requestId`, `displayName`, `exclusiveManagementConfirmed: true`
 and `customerMatchTermsAccepted: true`. Workspace edit access and the `reverse-etl`
 rollout flag are required. Save the returned internal `id` as `managedAudienceId`
-alongside `audienceId` in stream options. The upcoming editor owns this flow.
+alongside `audienceId` in stream options. The upcoming editor must first create a
+disabled sync, provision its audience using the returned sync ID, then configure
+and enable the sync. Caller-chosen IDs and deleted links cannot be provisioned.
 
 The console durably records intent before creation and only one request may submit
 it. Reuse the **same requestId and input** after a timeout or `pending` response:
