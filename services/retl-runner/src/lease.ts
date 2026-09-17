@@ -18,6 +18,9 @@ export interface RunLease {
   release(): Promise<void>;
 }
 
+// Kubernetes MicroTime requires exactly six fractional digits; JS ISO dates emit only three.
+const microTimeNow = () => new Date().toISOString().replace(/Z$/, "000Z");
+
 /** CAS updates; never renew an expired lease or delete a replacement owner's lease. */
 export class KubernetesLease implements RunLease {
   private readonly collection: string;
@@ -45,7 +48,7 @@ export class KubernetesLease implements RunLease {
         name: this.name,
         ...(current.status === 200 ? { resourceVersion: current.body.metadata.resourceVersion } : {}),
       },
-      spec: { holderIdentity: this.holder, leaseDurationSeconds: 60, renewTime: new Date().toISOString() },
+      spec: { holderIdentity: this.holder, leaseDurationSeconds: 60, renewTime: microTimeNow() },
     };
     const saved = await this.call(
       current.status === 404 ? "POST" : "PUT",
@@ -64,7 +67,7 @@ export class KubernetesLease implements RunLease {
         this.active(current.body),
       "Kubernetes ownership lost"
     );
-    current.body.spec.renewTime = new Date().toISOString();
+    current.body.spec.renewTime = microTimeNow();
     ensure(
       (await this.call("PUT", `${this.collection}/${this.name}`, current.body)).status === 200,
       "Kubernetes lease renewal failed"
