@@ -27,6 +27,7 @@ export function SyncDetail({ sync, reload }: { sync: ReverseSyncView; reload: ()
     setError(undefined);
     try {
       const result = await rpc(endpoint, { method, ...(body ? { body } : {}) });
+      if (method === "POST" && result.status === "started") setTab("runs");
       await reload();
       if (method === "DELETE") await router.push(`/${workspace.slugOrId}/reverse-syncs`);
       else if (result.status === "pending")
