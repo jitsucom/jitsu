@@ -1,4 +1,6 @@
 import { Reader, ReaderModel, City, Isp, Names } from "@maxmind/geoip2-node";
+import * as fs from "fs";
+import * as nodePath from "path";
 import * as zlib from "zlib";
 import * as tar from "tar";
 import { Geo } from "@jitsu/protocols/analytics";
@@ -72,15 +74,18 @@ export async function initMaxMindClient(opts: {
   licenseKey?: string;
   url?: string;
   s3Bucket?: string;
+  path?: string;
 }): Promise<GeoResolver> {
-  const { licenseKey, s3Bucket, url } = opts;
-  if (!licenseKey && !url && !s3Bucket) {
-    log.atWarn().log("licenseKey, url or s3Bucket must be provided. GeoIP resolution will not work.");
+  const { licenseKey, s3Bucket, url, path } = opts;
+  if (!licenseKey && !url && !s3Bucket && !path) {
+    log.atWarn().log("licenseKey, url, s3Bucket or path must be provided. GeoIP resolution will not work.");
     return DummyResolver;
   }
   let loadFunc: LoadFunction;
   let s3client: S3Client = undefined as any as S3Client;
-  if (s3Bucket) {
+  if (path) {
+    loadFunc = (edition: Edition) => loadFromPath(path, edition);
+  } else if (s3Bucket) {
     s3client = createS3Client();
     loadFunc = (edition: Edition) => loadFromS3(s3client, s3Bucket, edition);
   } else {
@@ -252,6 +257,27 @@ export async function initMaxMindClient(opts: {
       },
     };
   }
+}
+
+export async function loadFromPath(localPath: string, edition: Edition): Promise<Buffer> {
+  // path may point to a directory with `<Edition>.mmdb` or `<Edition>.tar.gz` files
+  // (the layout produced by MaxMind's geoipupdate tool) or to a single such file
+  let filePath = localPath;
+  if ((await fs.promises.stat(localPath)).isDirectory()) {
+    const fileName = [`${edition}.mmdb`, `${edition}.tar.gz`].find(name =>
+      fs.existsSync(nodePath.join(localPath, name))
+    );
+    if (!fileName) {
+      throw new Error(`neither ${edition}.mmdb nor ${edition}.tar.gz found in ${localPath}`);
+    }
+    filePath = nodePath.join(localPath, fileName);
+  } else if (nodePath.basename(localPath).replace(/\.(mmdb|tar\.gz|tgz)$/, "") !== edition) {
+    throw new Error(
+      `${localPath} doesn't contain ${edition} edition. Rename the file to ${edition}.mmdb or ${edition}.tar.gz`
+    );
+  }
+  const buffer = await fs.promises.readFile(filePath);
+  return filePath.endsWith(".gz") || filePath.endsWith(".tgz") ? await untar(buffer) : buffer;
 }
 
 async function loadFromS3(client: S3Client, bucket: string, edition: Edition): Promise<Buffer> {
