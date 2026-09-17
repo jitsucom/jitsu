@@ -16,6 +16,20 @@ and an Ingress there would need an addon that dev-deploy.sh does not enable.
 {{- if and (include "jitsu.isDev" . | not) .Values.ingress.enabled }}
 {{- $hosts := .Values.ingress.hosts | default dict }}
 {{- $rules := list }}
+{{/*
+A host for a service that is scaled to zero would route to a Service that does
+not exist: the service templates are gated on their replica count, so nothing is
+created. Ingress controllers accept that happily and serve the route as
+unavailable, so the mistake surfaces as a dead hostname in production rather than
+an error. Fail at render time instead, naming both values, the same way the
+no-hosts case below does.
+*/}}
+{{- if and $hosts.console (le (int .Values.scaling.console.replicas) 0) }}
+{{- fail "ingress.hosts.console is set but scaling.console.replicas is 0 — there is no console Service to route to. Remove the host, or give console a replica." }}
+{{- end }}
+{{- if and $hosts.ingest (le (int .Values.scaling.ingest.replicas) 0) }}
+{{- fail "ingress.hosts.ingest is set but scaling.ingest.replicas is 0 — there is no ingest Service to route to. Remove the host, or give ingest a replica." }}
+{{- end }}
 {{- if $hosts.console }}{{ $rules = append $rules (dict "host" $hosts.console "svc" "console" "port" 3000) }}{{ end }}
 {{- if $hosts.ingest }}{{ $rules = append $rules (dict "host" $hosts.ingest "svc" "ingest" "port" 3049) }}{{ end }}
 {{- if not $rules }}
