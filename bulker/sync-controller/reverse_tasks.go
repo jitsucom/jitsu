@@ -17,7 +17,7 @@ import (
 
 func reversePodStatus(pod *v1.Pod, config *Config) (Status, string) {
 	if pod.Status.Phase == v1.PodSucceeded || pod.Status.Phase == v1.PodFailed {
-		return StatusFailed, "Runner exited; delivery status must be committed by Node"
+		return StatusFailed, "Runner exited; task status must be committed by Node"
 	}
 	started := pod.CreationTimestamp.Time
 	if pod.Status.StartTime != nil {
@@ -114,6 +114,19 @@ func (t *TaskManager) ReverseCancelHandler(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"ok": false, "error": "Scoped syncId, taskId and workspaceId required"})
 		return
 	}
+	// WAITING has no live Pod. Cancel RUNNING here too, so a concurrent
+	// RUNNING -> WAITING transition cannot slip between this write and Pod lookup.
+	// The workspace binding remains valid after the entity/rollout is disabled.
+	ctx, cancel := context.WithTimeout(c.Request.Context(), 5*time.Second)
+	_, err := t.dbpool.Exec(ctx, `UPDATE source_task SET status='CANCELLED',updated_at=clock_timestamp(),
+ description='Automatic recovery cancelled; unresolved delivery retained'
+ WHERE sync_id=$1 AND task_id=$2 AND package='jitsu/retl-runner' AND status IN ('RUNNING','WAITING')
+ AND started_by->>'workspaceId'=$3`, syncID, taskID, workspaceID)
+	cancel()
+	if err != nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{"ok": false})
+		return
+	}
 	// Cancellation remains available after the rollout flag is disabled or the
 	// entity is removed from the feed. Scope the Pod, not the current desired set.
 	selector := labelManagedBy + "=" + managedByValue + "," + labelSyncKind + "=reverse," + labelSyncID + "=" + syncID
@@ -131,7 +144,7 @@ func (t *TaskManager) ReverseCancelHandler(c *gin.Context) {
 		// The runner's INSERT DO NOTHING gate then prohibits starting this task.
 		ctx, cancel := context.WithTimeout(c.Request.Context(), 5*time.Second)
 		_, err = t.dbpool.Exec(ctx, `INSERT INTO source_task(sync_id,task_id,package,version,status) VALUES($1,$2,'jitsu/retl-runner','1','CANCELLED')
-   ON CONFLICT(task_id) DO UPDATE SET status='CANCELLED',updated_at=clock_timestamp() WHERE source_task.sync_id=$1 AND source_task.status='RUNNING'`, syncID, taskID)
+   ON CONFLICT(task_id) DO UPDATE SET status='CANCELLED',updated_at=clock_timestamp() WHERE source_task.sync_id=$1 AND source_task.status IN ('RUNNING','WAITING')`, syncID, taskID)
 		cancel()
 		if err != nil {
 			c.JSON(http.StatusServiceUnavailable, gin.H{"ok": false})
@@ -178,7 +191,7 @@ func (j *JobRunner) endedReverseTasks(pods []v1.Pod) map[string]bool {
 			end = len(ids)
 		}
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		rows, err := j.dbpool.Query(ctx, `SELECT sync_id,task_id FROM source_task WHERE package='jitsu/retl-runner' AND status IN ('SUCCESS','FAILED','CANCELLED') AND task_id=ANY($1)`, ids[offset:end])
+		rows, err := j.dbpool.Query(ctx, `SELECT sync_id,task_id FROM source_task WHERE package='jitsu/retl-runner' AND status IN ('SUCCESS','FAILED','CANCELLED','WAITING','RESUMED') AND task_id=ANY($1)`, ids[offset:end])
 		if err != nil {
 			cancel()
 			continue

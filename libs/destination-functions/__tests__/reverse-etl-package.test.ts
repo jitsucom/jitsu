@@ -29,6 +29,8 @@ it("includes the Reverse ETL entry points and their runtime modules in the npm p
         "src/reverse-etl/run.ts",
         "src/reverse-etl/identity.ts",
         "src/reverse-etl/README.md",
+        "src/functions/google-ads-reverse/index.ts",
+        "src/functions/google-ads-reverse/meta.ts",
       ])
     );
     expect(files.some(file => file.startsWith("__tests__/"))).toBe(false);

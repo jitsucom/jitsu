@@ -1,10 +1,12 @@
 # Executable runner and syncctl
 
 The existing PostgreSQL and mirror libraries now run in one Node application
-container. No long-running Go sidecar is used. The compiled-in adapter registry
-is deliberately empty: live providers, OAuth refresh, the Reverse sync editor
-and production enablement follow separately. The existing API guard against
-creating Reverse sync links remains in place. Tests supply fake bindings.
+container. No long-running Go sidecar is used. The compiled-in registry includes
+Google Data Manager Customer Match additions/explicit removals, with scoped OAuth
+and durable request polling. Audience provisioning, the Reverse sync editor and
+production enablement follow separately. The existing API guard against creating
+Reverse sync links remains in place. Google snapshot mirror is deliberately disabled
+until managed-audience baseline verification and unchanged-member refresh are ready.
 
 ## Deployment prerequisites
 
@@ -60,8 +62,21 @@ even when the controller option is disabled.
 Schedules and checkpoint cadence are not delivery revisions. Model, warehouse,
 destination credentials and delivery settings are: changing them with retained
 state requires the existing controlled-reset workflow, not implemented here.
-Never edit raw SQL state to bypass that guard. The first OAuth provider must
-explicitly define its refresh/credential-revision policy.
+Never edit raw SQL state to bypass that guard. Google OAuth refresh does not change
+the delivery revision: only a connection reference, not its token, is in the config.
+Changing the connection reference/account/audience remains revision-bound.
+
+Google tokens are resolved through `/api/admin/reverse-sync-oauth/:syncId` using the
+same service bearer token, plus workspace and immutable delivery revision. Console
+checks current admission before and after Nango retrieval, verifies the connection
+is `destination.<toId>` and uses only the code-owned Google integration. The runner
+receives only an access token/expiry, cached in memory for at most four minutes and
+never beyond expiry minus the safety margin. The shared Nango secret and refresh
+token never reach the runner. Redirects are forbidden. Disabling the sync stops new
+token issuance; an already cached/in-flight token is not instantly revoked.
+
+See the [Google adapter contract](../../../libs/destination-functions/src/functions/google-ads-reverse/README.md)
+for OAuth scopes, mapping/consent, and unrecoverable ambiguous-request limitations.
 
 ## Supervision and task state
 
@@ -81,7 +96,7 @@ and lets the lease expire instead of pretending remote changes were rolled back.
 and raw SDK errors are suppressed because they can contain tokens or row values;
 a structured redacted provider logger can be added separately. Controller updates
 never infer delivery success from exit zero or refresh a heartbeat from PodRunning.
-Terminal SUCCESS/CANCELLED/FAILED survives later controller observations. Every
+Terminal SUCCESS/CANCELLED/FAILED/WAITING/RESUMED survives later controller observations. Every
 30 seconds the controller fails up to 100 reverse tasks with heartbeats older than
 two minutes; the Pod watcher independently retries UID-scoped termination of
 terminal reverse tasks, including after transient API failures. Init/runtime deadlines also cover
@@ -109,8 +124,37 @@ each attempt gets a fresh task ID. Recovery never opens changed source SQL.
   reconcile outstanding work and abort through verified cleanup hooks. That attempt
   ends without a fresh scan; the next attempt starts from committed state.
 - Missing proof/hooks keep recovery blocked. No blind replay/session creation.
-- Pending delivery records FAILED with an explicit pending/recovery message, not
-  SUCCESS. The next scheduled/manual attempt reconciles; there is no tight retry loop.
+- Pending delivery ends its worker attempt as **WAITING**, with no error and a
+  clean process exit. It is not delivery SUCCESS. The console shows provider
+  processing and the next check time; the Pod watcher cleans up the worker.
+- `source_task.metrics.reverseRecovery` stores the logical run/revision, attempt,
+  next check and fixed deadline. No extra table or schema migration is required.
+  The first check is due after 30 minutes; subsequent intervals multiply by 1.3
+  up to one hour. The last interval is shortened to the 24-hour deadline. If that
+  check is still pending, the task becomes FAILED with an explicit timeout; all
+  receipts/checkpoints are retained. Scheduling delays may postpone that final
+  check. A later manual/cron attempt can reconcile again but does not reset the
+  same logical run's automatic polling window.
+- Syncctl scans due checks every 30 seconds on a separate loop, independently of
+  model CronJobs (including manual-only syncs). It launches a bounded, one-shot
+  recovery Pod with a deterministic task name per waiting parent. Repeated scans
+  and controller replicas cannot create different tasks for the same check.
+  The current feed must match workspace/revision; Node then rechecks the durable
+  run and due time under its Kubernetes lease and performs fresh console admission.
+- Starting a recovery/manual/cron attempt atomically marks prior WAITING attempts
+  **RESUMED**. A queued recovery Pod cannot revive a cancelled/superseded parent
+  or start a fresh extraction. Each check gets a fresh task ID; its outcome is
+  separate from the previous waiting attempt. Real provider failures or failed
+  workers remain FAILED rather than being retried automatically forever.
+- WAITING tasks can be cancelled without a live Pod, including after rollout or
+  entity disablement. Cancellation stops that automatic recovery chain, not the
+  model's regular CronJob or provider work already submitted. A later explicit
+  or regularly scheduled run may still reconcile retained delivery state.
+
+Deploy the runner **and syncctl** to enable WAITING and automatic recovery together;
+the controller must recognize WAITING/RESUMED for cleanup. The console label only
+deploys the console, not these services. Syncctl's DB role needs SELECT on
+`reverse_sync_control` alongside its existing `source_task` permissions.
 
 Fenced maintenance prunes abandoned generations and terminal old-run receipts in
 bounded pages before delivery, retaining receipts for 30 days. `source_state`
@@ -123,4 +167,7 @@ Runner tests use disposable PostgreSQL and fake provider bindings. Set
 `RETL_MIRROR_SCALE_TEST=1` to include the existing million-identity SQL pagination
 test. Console integration tests verify scoped export/admission data; controller
 tests use fake Kubernetes clients for templates, feed isolation, malformed inputs
-and terminal Pod policy. No production database, Kubernetes cluster or ads API is used.
+and terminal Pod policy. Setting `SYNCCTL_TEST_DATABASE_URL` to a disposable
+PostgreSQL database also exercises due-check selection, terminal cleanup and scoped
+cancellation; that test creates/drops only its own unique schema. No production
+database, Kubernetes cluster or ads API is used.

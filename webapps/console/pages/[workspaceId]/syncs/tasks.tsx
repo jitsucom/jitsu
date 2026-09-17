@@ -108,7 +108,16 @@ function TaskStatus0({ task, loading }: { task: TasksDbModel & TaskStats; loadin
 
   const SyncStatus: React.FC<
     PropsWithChildren<{
-      status: "PARTIAL" | "CANCELLED" | "TIME_EXCEEDED" | "FAILED" | "SUCCESS" | "RUNNING" | "SKIPPED";
+      status:
+        | "PARTIAL"
+        | "CANCELLED"
+        | "TIME_EXCEEDED"
+        | "FAILED"
+        | "SUCCESS"
+        | "RUNNING"
+        | "SKIPPED"
+        | "WAITING"
+        | "RESUMED";
     }>
   > = props => {
     const [showPopover, setShowPopover] = useState(false);
@@ -165,6 +174,10 @@ function TaskStatus0({ task, loading }: { task: TasksDbModel & TaskStats; loadin
         <AlertCircle style={{ color: "orange" }} />
       ) : props.status === "TIME_EXCEEDED" ? (
         <ClockAlert style={{ color: "volcano" }} />
+      ) : props.status === "WAITING" ? (
+        <ClockAlert style={{ color: "blue" }} />
+      ) : props.status === "RESUMED" ? (
+        <CheckCircle2 style={{ color: "gray" }} />
       ) : props.status === "RUNNING" ? (
         <PlayCircle style={{ color: "blue" }} />
       ) : props.status === "SKIPPED" ? (
@@ -234,6 +247,7 @@ function TaskStatus0({ task, loading }: { task: TasksDbModel & TaskStats; loadin
       );
     case "CANCELLED":
     case "SKIPPED":
+    case "RESUMED":
       return (
         <SyncStatus status={task.status}>
           <Tag style={{ marginRight: 0 }}>
@@ -249,6 +263,15 @@ function TaskStatus0({ task, loading }: { task: TasksDbModel & TaskStats; loadin
             FAILED <FaExternalLinkAlt className={"inline ml-0.5 w-2.5 h-2.5"} />
           </Tag>
           <span className={"text-xxs text-gray-500"}>show details</span>
+        </SyncStatus>
+      );
+    case "WAITING":
+      return (
+        <SyncStatus status={task.status}>
+          <Tag color="blue" style={{ marginRight: 0 }}>
+            WAITING <FaExternalLinkAlt className="inline ml-0.5 w-2.5 h-2.5" />
+          </Tag>
+          <span className="text-xxs text-gray-500">provider processing · show details</span>
         </SyncStatus>
       );
     case "RUNNING":
@@ -436,7 +459,7 @@ function TasksTable({ tasks, loading, linksMap, servicesMap, destinationsMap, re
               <UserIcon className={"w-4 h-4"} />
             </Tooltip>
           ) : (
-            <Tooltip title={"Scheduled run"}>
+            <Tooltip title={trigger === "recovery" ? "Provider recovery check" : "Scheduled run"}>
               <CalendarIcon className={"w-4 h-4"} />
             </Tooltip>
           );
@@ -565,7 +588,7 @@ function TasksTable({ tasks, loading, linksMap, servicesMap, destinationsMap, re
             collapsed: true,
           },
         ];
-        if (task.status === "RUNNING") {
+        if (task.status === "RUNNING" || task.status === "WAITING") {
           items.push({
             icon: <MdOutlineCancel className={"w-5 h-5"} />,
             onClick: async () => {
@@ -754,6 +777,8 @@ function Tasks() {
                 }}
                 options={[
                   { value: "all", label: "All" },
+                  { value: "WAITING", label: <Tag color="blue">WAITING</Tag> },
+                  { value: "RESUMED", label: <Tag>RESUMED</Tag> },
                   {
                     value: "FAILED",
                     label: (

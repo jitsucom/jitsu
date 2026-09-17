@@ -10,13 +10,14 @@ import { ensure } from "./persistence/types";
 import { openMirrorPersistence, runSnapshotMirror, resumeSnapshotMirror } from "./mirror";
 import type { AdapterRegistry } from "./adapters";
 import type { RunLease } from "./lease";
-import { Tasks } from "./tasks";
+import { Tasks, type TaskResult } from "./tasks";
 import { recoverRun } from "./recovery";
 
 export interface ExecuteOptions {
   config: ReverseRunConfig;
   taskId: string;
-  trigger: "manual" | "scheduled";
+  trigger: "manual" | "scheduled" | "recovery";
+  recoveryOf?: string;
   db: Database;
   lease: RunLease;
   adapters: AdapterRegistry;
@@ -27,9 +28,9 @@ export interface ExecuteOptions {
   heartbeatMs?: number;
 }
 
-export async function execute(input: ExecuteOptions): Promise<"SUCCESS" | "FAILED" | "CANCELLED"> {
+export async function execute(input: ExecuteOptions): Promise<TaskResult> {
   const { db, lease, controller } = input;
-  const tasks = new Tasks(db, input.config.id, input.taskId);
+  const tasks = new Tasks(db, input.config.id, input.taskId, input.config.workspaceId);
   let reader: WarehouseReader | undefined;
   let started = false;
   let held = false;
@@ -55,7 +56,7 @@ export async function execute(input: ExecuteOptions): Promise<"SUCCESS" | "FAILE
     signal.throwIfAborted();
     await lease.acquire();
     held = true;
-    await tasks.start(input.trigger);
+    await tasks.start(input.trigger, input.recoveryOf, input.config.configRevision);
     started = true;
     const config = ReverseRunConfig.parse(await input.admit());
     ensure(
@@ -101,6 +102,7 @@ export async function execute(input: ExecuteOptions): Promise<"SUCCESS" | "FAILE
       ? await openMirrorPersistence(db, runInput)
       : await openPersistence(db, runInput, adapter.project);
     const scope = run.scope;
+    ensure(input.trigger !== "recovery" || run.recovery, "Recovery must not start a fresh extraction");
     timer = setTimeout(() => {
       renewing = tick();
     }, input.heartbeatMs ?? 10_000);
@@ -200,14 +202,11 @@ export async function execute(input: ExecuteOptions): Promise<"SUCCESS" | "FAILE
     clearTimeout(timer);
     await renewing;
     signal.throwIfAborted();
+    if (result === "pending") return await tasks.wait(logicalRunId, config.configRevision);
     const success = result === "accepted";
     const changed = await tasks.finish(
       success ? "SUCCESS" : "FAILED",
-      success
-        ? "Reverse ETL delivery committed"
-        : result === "pending"
-        ? "Provider delivery pending; next run will reconcile"
-        : "Recovery completed cleanup; next run will restart extraction"
+      success ? "Reverse ETL delivery committed" : "Recovery completed cleanup; next run will restart extraction"
     );
     return changed && success ? "SUCCESS" : "FAILED";
   } catch {
