@@ -388,18 +388,27 @@ function Models() {
                                 rowKey="index"
                                 dataSource={preview.rows.map((values, index) => ({ values, index }))}
                                 columns={preview.columns.map(c => ({
-                                  title: c.name,
+                                  title: (
+                                    <span className="inline-block max-w-[400px] truncate align-bottom" title={c.name}>
+                                      {c.name}
+                                    </span>
+                                  ),
                                   key: c.name,
                                   className: "whitespace-nowrap",
                                   render: (_, row) => {
                                     const value = row.values[c.name];
+                                    const text =
+                                      value == null
+                                        ? "NULL"
+                                        : typeof value === "object"
+                                        ? JSON.stringify(value)
+                                        : String(value);
                                     return (
-                                      <span className="font-mono whitespace-nowrap">
-                                        {value == null
-                                          ? "NULL"
-                                          : typeof value === "object"
-                                          ? JSON.stringify(value)
-                                          : String(value)}
+                                      <span
+                                        className="inline-block max-w-[400px] truncate align-bottom font-mono"
+                                        title={text}
+                                      >
+                                        {text}
                                       </span>
                                     );
                                   },
