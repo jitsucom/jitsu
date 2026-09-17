@@ -6,6 +6,19 @@
 # helm invocations pass --set projectRoot=<absolute path to your checkout>.
 projectRoot: ""
 
+# Optional syncctl-only source mount, for testing a worktree without replacing
+# the checkout used by the other development services.
+syncctlProjectRoot: ""
+
+# Reverse ETL runs as short-lived Pods/CronJobs created by syncctl, not a Deployment.
+# Provision the runtime Secret separately; never put credentials in Helm values.
+reverseEtl:
+  enabled: false
+  runnerImage: ""
+  runtimeSecret: ""
+  # Optional controller-only credentials (e.g. SYNCCTL_DATABASE_URL and auth tokens).
+  controllerSecret: ""
+
 # Environment variables
 env:
   # Common to all services
