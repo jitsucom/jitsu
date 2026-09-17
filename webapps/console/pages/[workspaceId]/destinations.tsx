@@ -1,5 +1,5 @@
 import { WorkspacePageLayout } from "../../components/PageLayout/WorkspacePageLayout";
-import { Button, Modal, Popover, Skeleton, Table, Tabs, Tooltip } from "antd";
+import { Alert, Button, Modal, Popover, Skeleton, Table, Tabs, Tooltip } from "antd";
 import { ConfigEditor, ConfigEditorProps, FieldDisplay } from "../../components/ConfigObjectEditor/ConfigEditor";
 import { DestinationConfig } from "../../lib/schema";
 import { confirmOp, copyTextToClipboard, feedbackError, feedbackSuccess, serialization } from "../../lib/ui";
@@ -778,29 +778,67 @@ const DestinationsList: React.FC<{ type?: string }> = ({ type }) => {
       }
 
       return (
-        <EditorToolbar
-          items={
-            [
-              {
-                title: "ID: " + obj.id,
-                icon: <Copy className="w-full h-full" />,
-                href: "#",
-                onClick: () => {
-                  copyTextToClipboard(obj.id);
-                  feedbackSuccess("Copied to clipboard");
+        <>
+          <EditorToolbar
+            items={
+              [
+                {
+                  title: "ID: " + obj.id,
+                  icon: <Copy className="w-full h-full" />,
+                  href: "#",
+                  onClick: () => {
+                    copyTextToClipboard(obj.id);
+                    feedbackSuccess("Copied to clipboard");
+                  },
                 },
-              },
-              obj.provisioned || obj.destinationType === "clickhouse"
-                ? {
-                    title: "SQL Query Editor",
-                    icon: <TerminalSquare className="w-full h-full" />,
-                    href: `/${workspace.slugOrId}/sql?destinationId=${obj.id}`,
-                  }
-                : undefined,
-            ].filter(Boolean) as any
-          }
-          className="mb-4"
-        />
+                obj.provisioned || obj.destinationType === "clickhouse"
+                  ? {
+                      title: "SQL Query Editor",
+                      icon: <TerminalSquare className="w-full h-full" />,
+                      href: `/${workspace.slugOrId}/sql?destinationId=${obj.id}`,
+                    }
+                  : undefined,
+                obj.destinationType === "google-ads" && workspace.featuresEnabled.includes("reverse-etl")
+                  ? {
+                      title: "Reverse ETL audiences · Data Manager API",
+                      icon: <TerminalSquare className="w-full h-full" />,
+                      href: `/${workspace.slugOrId}/reverse-syncs?destinationId=${obj.id}`,
+                    }
+                  : undefined,
+              ].filter(Boolean) as any
+            }
+            className="mb-4"
+          />
+          {obj.destinationType === "google-ads" && workspace.featuresEnabled.includes("reverse-etl") && (
+            <Alert
+              className="mb-5"
+              type="info"
+              showIcon
+              title="Customer Match audiences · Reverse ETL"
+              description={
+                <div>
+                  <p>
+                    Use this connection with the Google Data Manager API to sync email and phone audiences. Reconnect
+                    Google OAuth if this connection was authorized before Data Manager access was added.
+                  </p>
+                  <p className="mt-2">
+                    Customer account: <code>{String(obj.customerId || "Not configured")}</code>
+                    {obj.loginCustomerId ? (
+                      <>
+                        {" "}
+                        · Manager account: <code>{String(obj.loginCustomerId)}</code>
+                      </>
+                    ) : null}
+                  </p>
+                  <a href={`/${workspace.slugOrId}/reverse-syncs?destinationId=${obj.id}`}>View audience syncs →</a>
+                  <span className="text-textLight block mt-2">
+                    Event conversion settings below are independent from your audience sync mappings and schedules.
+                  </span>
+                </div>
+              }
+            />
+          )}
+        </>
       );
     },
   };

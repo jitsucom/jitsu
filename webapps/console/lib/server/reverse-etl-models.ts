@@ -147,3 +147,24 @@ export async function guardModelReferences(prisma: ModelDb, workspaceId: string,
     if (links) throw new ApiError("Object is referenced by a reverse sync. Remove that sync first.", { status: 409 });
   }
 }
+
+/** Saved reverse delivery configuration is immutable, including the model's warehouse credentials. */
+export async function guardReverseDeliveryChanges(prisma: ModelDb, workspaceId: string, id: string, type: string) {
+  if (type !== "model" && type !== "destination") return;
+  const links = await prisma.configurationObjectLink.count({
+    where: {
+      workspaceId,
+      type: "reverse-sync",
+      deleted: false,
+      OR:
+        type === "model"
+          ? [{ fromId: id }]
+          : [{ toId: id }, { from: { workspaceId, type: "model", config: { path: ["warehouseId"], equals: id } } }],
+    },
+  });
+  if (links)
+    throw new ApiError(
+      "Configuration is bound to a reverse sync. Remove that sync before changing its delivery configuration.",
+      { status: 409 }
+    );
+}

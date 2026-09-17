@@ -81,6 +81,25 @@ export function createGoogleAudienceManagement(
     return { audienceId: list.id };
   }
   return {
+    // Read-only validation for additions/removals; this does not establish a mirror baseline.
+    // https://developers.google.com/data-manager/api/reference/rest/v1/accountTypes.accounts.userLists
+    async verifyExisting(audienceId: string, signal: AbortSignal) {
+      const targetId = id.parse(audienceId);
+      const parsed = userList.safeParse(await call(`${parent}/userLists/${targetId}`, signal));
+      if (!parsed.success) return fail();
+      const list = parsed.data;
+      if (
+        list.id !== targetId ||
+        list.name !== `${parent}/userLists/${targetId}` ||
+        list.readOnly === true ||
+        list.accessReason !== "OWNED" ||
+        list.membershipStatus !== "OPEN" ||
+        !list.ingestedUserListInfo?.uploadKeyTypes.includes("CONTACT_ID") ||
+        list.ingestedUserListInfo.contactIdInfo?.dataSourceType !== "DATA_SOURCE_TYPE_FIRST_PARTY"
+      )
+        return fail();
+      return { audienceId: list.id, displayName: list.displayName };
+    },
     async create(intent: GoogleAudienceIntent, signal: AbortSignal) {
       return verify(
         await call(`${parent}/userLists`, signal, {

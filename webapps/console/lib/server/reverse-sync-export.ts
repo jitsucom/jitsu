@@ -60,6 +60,7 @@ export async function readReverseSync(
     timezone: _timezone,
     checkpointEvery: _checkpointEvery,
     disabled: _disabled,
+    name: _name,
     ...deliveryOptions
   } = options;
   const revision = createHash("sha256")
