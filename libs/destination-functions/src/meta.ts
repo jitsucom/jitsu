@@ -543,7 +543,15 @@ export const GoogleAdsCredentials = z.object({
   conversionActionId: z
     .string()
     .describe(
-      "Conversion Action ID::The numeric ID of the Google Ads conversion action that receives events with no per-event override. Find it in the URL when you open the conversion action under <b>Goals » Conversions » Summary</b>."
+      "Conversion Action ID::The default conversion action for events without a per-event override." +
+        "<ol>" +
+        "<li>In Google Ads, open <b>Goals » Conversions » Summary</b> in the account that owns the conversion action.</li>" +
+        "<li>Click the conversion action's name to open its details.</li>" +
+        "<li>In your browser's address bar, find <code>ctId=</code> and copy only the number immediately after it. For example, <code>ctId=123456789&amp;</code> means enter <code>123456789</code>.</li>" +
+        "</ol>" +
+        "This is <b>not</b> your Customer ID, the Google tag ID (<code>AW-...</code>), or the conversion label. " +
+        "For Customer Match audience syncs (Reverse ETL), no Conversion Action ID is needed; configure an audience under <b>Reverse ETL » Syncs</b> instead. " +
+        "<a href='https://support.google.com/google-ads/answer/16542291?hl=en' target='_blank' rel='noreferrer noopener'>Google's guide to finding the conversion action ID</a>."
     ),
   conversionActions: z
     .array(z.string())
