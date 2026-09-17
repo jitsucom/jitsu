@@ -6,6 +6,22 @@ const customerId = z
   .string()
   .regex(/^(?:\d{10}|\d{3}-\d{3}-\d{4})$/)
   .transform(s => s.replace(/-/g, ""));
+export const googleAudienceMembershipDays = 540;
+export const googleAudienceRefreshAfterMs = 30 * 86400_000;
+export const managedGoogleAudienceId = z.string().regex(/^retl-google-[a-f0-9]{64}$/);
+/** Supplied by authenticated console export, never accepted as a UI assertion. */
+export const GoogleManagedAudience = z
+  .object({
+    id: managedGoogleAudienceId,
+    syncId: z.string().min(1).max(128),
+    customerId,
+    audienceId: z.string().regex(/^[1-9]\d{0,19}$/),
+    integrationCode: z.string().regex(/^jitsu-retl-[a-f0-9]{64}$/),
+    displayName: z.string().min(1).max(255),
+    membershipDays: z.literal(540),
+  })
+  .strict();
+export type GoogleManagedAudience = z.infer<typeof GoogleManagedAudience>;
 export const GoogleAudienceCredentials = z.object({
   authorized: z.literal(true),
   oauthIntegrationId: z.literal(googleDataManagerOAuthIntegration).default(googleDataManagerOAuthIntegration),
@@ -16,6 +32,7 @@ export const GoogleAudienceCredentials = z.object({
 export const GoogleAudienceOptions = z
   .object({
     audienceId: z.string().regex(/^[1-9]\d{0,19}$/),
+    managedAudienceId: managedGoogleAudienceId.optional(),
     customerMatchTermsAccepted: z.literal(true),
   })
   .strict();
@@ -52,7 +69,7 @@ export const googleAudienceMetadata = {
   capabilities: {
     supportsUpsert: true,
     supportsExplicitRemove: true,
-    mirror: "none" as const,
+    mirror: "snapshot-diff" as const,
     replay: "reconcile-required" as const,
   },
 };

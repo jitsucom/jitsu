@@ -452,6 +452,8 @@ model reverse_sync_generation {
   // Atomic receipt for the latest source page; no per-source identity association.
   last_page_sequence BigInt  @default(0)
   last_page_hash     String?
+  // Fixed at snapshot creation, so recovery never changes which members need refresh.
+  refresh_before     DateTime? @db.Timestamptz(3)
 
   @@id([workspace_id, sync_id, generation])
 }
@@ -492,6 +494,8 @@ model reverse_sync_membership {
   identity_hash String
   payload_hash  String
   value         Bytes
+  // Last provider-confirmed upsert, including unchanged-member expiry refresh.
+  last_accepted_at DateTime @default(now()) @db.Timestamptz(3)
 
   @@id([workspace_id, sync_id, identity_hash])
 }

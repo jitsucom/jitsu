@@ -3,6 +3,7 @@ import { createHash } from "node:crypto";
 import { ModelDefinition, ReverseSyncOptions, supportsWarehouseReader } from "@jitsu/warehouse-query/src/schema";
 import { ReverseRunConfig } from "@jitsu/warehouse-query/src/runtime";
 import { ApiError } from "../shared/errors";
+import { managedGoogleAudienceForSync } from "./google-audiences";
 
 type ReadDb = Pick<Prisma.TransactionClient, "configurationObjectLink" | "configurationObject">;
 
@@ -32,7 +33,25 @@ export async function readReverseSync(
   });
   if (!warehouse || !supportsWarehouseReader(warehouse.config as Record<string, unknown>))
     throw new ApiError("Reverse warehouse is missing or unsupported", { status: 409 });
-  const runtime = { model, warehouse: warehouse.config, destination: link.to.config, options };
+  const destination = { ...(link.to.config as Record<string, unknown>) };
+  // This field is server evidence, never editable destination configuration.
+  delete destination.reverseManagedAudience;
+  if (destination.destinationType === "google-ads") {
+    if (options.mode === "mirror" || options.streamOptions.managedAudienceId !== undefined) {
+      const managed = await managedGoogleAudienceForSync(
+        db,
+        link.workspaceId,
+        link.toId,
+        link.id,
+        options.streamOptions,
+        destination
+      );
+      if (options.mode === "mirror" && !managed)
+        throw new ApiError("Google mirror requires a Jitsu-managed audience", { status: 409 });
+      if (managed) destination.reverseManagedAudience = managed;
+    }
+  }
+  const runtime = { model, warehouse: warehouse.config, destination, options };
   // Credentials are intentionally revision-bound in this first runtime slice.
   // Changes require the existing controlled-reset workflow; never recover an old
   // logical run against a different account/query/normalization configuration.

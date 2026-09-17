@@ -254,6 +254,71 @@ function fixture() {
 }
 
 describe("core snapshot mirror lifecycle", () => {
+  it("refreshes only due unchanged members, using acceptance time rather than source changes", async () => {
+    const f = fixture();
+    f.adapter.refreshAfterMs = 30 * 86400_000;
+    const rows = [record("old"), record("fresh")];
+    await runSnapshotMirror(f.options(await session("baseline"), rows));
+    f.requests.length = 0;
+    await runSnapshotMirror(f.options(await session("unchanged"), rows));
+    expect(f.requests).toHaveLength(0);
+    await admin.query(
+      "UPDATE newjitsu.reverse_sync_membership SET last_accepted_at=clock_timestamp()-interval '31 days' WHERE identity_hash=$1",
+      [contentHash(member("old"))]
+    );
+    const refresh = await session("refresh");
+    await prune(db, refresh.scope, new Date(Date.now() - 30 * 86400_000));
+    await runSnapshotMirror(f.options(refresh, rows));
+    expect(f.requests.map(r => r.action)).toEqual(["upsert"]);
+    expect(f.requests[0].batch.records.map(r => r.row.member)).toEqual([member("old")]);
+    f.requests.length = 0;
+    const next = await session("fresh-again");
+    await prune(db, next.scope, new Date(Date.now() - 30 * 86400_000));
+    await runSnapshotMirror(f.options(next, rows));
+    expect(f.requests).toHaveLength(0);
+  });
+
+  it("waits for refresh acceptance before removals and keeps its cutoff and payload on recovery", async () => {
+    const f = fixture();
+    f.adapter.refreshAfterMs = 30 * 86400_000;
+    await runSnapshotMirror(f.options(await session("baseline"), [record("stay"), record("gone")]));
+    await admin.query(
+      "UPDATE newjitsu.reverse_sync_membership SET last_accepted_at=clock_timestamp()-interval '31 days'"
+    );
+    f.requests.length = 0;
+    f.adapter.batchDelivery = "asynchronous";
+    f.setBatch(async (_action, batch) => ({
+      outcomes: batch.records.map(r => ({ operationId: r.operationId, status: "staged" })),
+      remoteJobIds: [batch.batchId],
+    }));
+    const run = await session("refresh");
+    expect((await runSnapshotMirror(f.options(run, [record("stay")]))).delivery).toBe("pending");
+    const cutoff = (
+      await admin.query("SELECT refresh_before FROM newjitsu.reverse_sync_generation WHERE generation='refresh'")
+    ).rows[0].refresh_before;
+    expect(f.requests.map(r => r.action)).toEqual(["upsert"]);
+    const addition = f.requests[0].batch;
+    // A later recovery must not advance the saved generation cutoff or reproject rows.
+    f.adapter.refreshAfterMs = 1;
+    const resumed = await takeover(run);
+    f.calls.length = 0;
+    expect((await resumeSnapshotMirror(f.options(resumed, []), f.recovery)).delivery).toBe("pending");
+    expect(f.calls).toEqual(["reconcile"]);
+    expect(
+      (await admin.query("SELECT refresh_before FROM newjitsu.reverse_sync_generation WHERE generation='refresh'"))
+        .rows[0].refresh_before
+    ).toEqual(cutoff);
+    expect(f.requests[0].batch).toEqual(addition);
+    f.receipts.set(addition.batchId, accepted(addition));
+    expect((await resumeSnapshotMirror(f.options(await takeover(run), []), f.recovery)).delivery).toBe("pending");
+    expect(f.requests.map(r => r.action)).toEqual(["upsert", "remove"]);
+    const removal = f.requests[1].batch;
+    f.receipts.set(removal.batchId, accepted(removal));
+    expect((await resumeSnapshotMirror(f.options(await takeover(run), []), f.recovery)).delivery).toBe("accepted");
+    expect(f.projections()).toBe(3);
+    expect(await membership()).toHaveLength(1);
+  });
+
   it("reconciles asynchronous additions before removals and removals before finalization", async () => {
     const f = fixture();
     await runSnapshotMirror(f.options(await session("baseline"), [record("old")]));

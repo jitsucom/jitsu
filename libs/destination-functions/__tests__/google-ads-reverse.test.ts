@@ -254,7 +254,7 @@ describe("Google Data Manager audience adapter", () => {
     await expect((await f.stream.createWriter(ctx)).upsert(f.batch)).rejects.toThrow();
     expect(f.fetch).toHaveBeenCalledTimes(1);
   });
-  it("keeps mirror and unknown mappings disabled in browser-safe metadata", () => {
+  it("advertises mirroring but requires managed evidence at runtime", async () => {
     expect(() =>
       validateReverseEtlConfig(googleAudienceMetadata, {
         mode: "mirror",
@@ -262,7 +262,28 @@ describe("Google Data Manager audience adapter", () => {
         columns: ["id", "c"],
         options,
       })
-    ).toThrow("mirror-capable");
+    ).not.toThrow();
     expect(fixture().stream.capabilities.mirror).toBe("none");
+    const f = fixture();
+    await expect(f.stream.createWriter({ ...f.ctx, mode: "mirror" })).rejects.toThrow();
+    const managed = {
+      id: `retl-google-${"a".repeat(64)}`,
+      syncId: "s",
+      customerId: "1234567890",
+      audienceId: "1234",
+      integrationCode: `jitsu-retl-${"a".repeat(64)}`,
+      displayName: "Managed",
+      membershipDays: 540 as const,
+    };
+    const google = createGoogleDataManager(f.token, managed);
+    const writer = await google.mirrorStream.createWriter({
+      ...f.ctx,
+      mode: "mirror",
+      options: { ...options, managedAudienceId: managed.id },
+    });
+    const wire = google.mirrorStream.rowType.parse(f.batch.records[0].row);
+    expect(wire).toEqual(f.batch.records[0].row);
+    await writer.upsert(f.batch);
+    expect(f.fetch).toHaveBeenCalledTimes(1);
   });
 });

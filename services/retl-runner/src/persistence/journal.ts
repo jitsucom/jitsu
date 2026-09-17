@@ -451,7 +451,7 @@ export class Journal implements DeliveryJournal {
         );
       else
         await client.query(
-          `INSERT INTO reverse_sync_membership (workspace_id,sync_id,identity_hash,payload_hash,value) VALUES ($1,$2,$3,$4,$5) ON CONFLICT (workspace_id,sync_id,identity_hash) DO UPDATE SET payload_hash=EXCLUDED.payload_hash,value=EXCLUDED.value`,
+          `INSERT INTO reverse_sync_membership (workspace_id,sync_id,identity_hash,payload_hash,value) VALUES ($1,$2,$3,$4,$5) ON CONFLICT (workspace_id,sync_id,identity_hash) DO UPDATE SET payload_hash=EXCLUDED.payload_hash,value=EXCLUDED.value,last_accepted_at=clock_timestamp()`,
           [...this.key.slice(0, 2), effect.identityHash, effect.payloadHash, value]
         );
       const entryDelta = (operation.action === "upsert" ? 1 : 0) - (previous.rowCount ? 1 : 0);

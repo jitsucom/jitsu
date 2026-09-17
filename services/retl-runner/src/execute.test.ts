@@ -588,6 +588,126 @@ describe("executable runner", () => {
     expect((await control()).run_id).toBe(logical);
     expect((await task()).status).toBe("RESUMED");
   });
+  it("executes managed Google mirror, resumes exact wire payloads and refreshes only when due", async () => {
+    const f = fixture();
+    const managed = {
+      id: `retl-google-${"b".repeat(64)}`,
+      syncId: "sync",
+      customerId: "1234567890",
+      audienceId: "123",
+      integrationCode: `jitsu-retl-${"b".repeat(64)}`,
+      displayName: "Managed",
+      membershipDays: 540,
+    };
+    f.input.config.destination = {
+      destinationType: "google-ads",
+      authorized: true,
+      oauthConnectionId: "destination.destination",
+      customerId: "1234567890",
+      reverseManagedAudience: managed,
+    };
+    f.input.config.options.mode = "mirror";
+    f.input.config.options.mapping = { email: "id", adUserData: "consent", adPersonalization: "consent" };
+    f.input.config.options.streamOptions = {
+      audienceId: "123",
+      customerMatchTermsAccepted: true,
+      managedAudienceId: managed.id,
+    };
+    const originalReader = f.input.reader;
+    f.input.reader = connection => ({
+      ...originalReader(connection),
+      stream: async function* () {
+        f.calls.push("google-source");
+        yield { row: { id: "Private.Person+tag@gmail.com", consent: "GRANTED" }, deleted: false };
+      },
+    });
+    const response = (body: unknown) => new Response(JSON.stringify(body)) as Awaited<ReturnType<typeof fetch>>;
+    let submits = 0;
+    const bodies: unknown[] = [];
+    const wire = vi.spyOn(globalThis, "fetch").mockImplementation(async (url, init) => {
+      if (String(url).endsWith("/userLists/123"))
+        return response({
+          name: "accountTypes/GOOGLE_ADS/accounts/1234567890/userLists/123",
+          id: "123",
+          displayName: managed.displayName,
+          integrationCode: managed.integrationCode,
+          membershipDuration: "46656000s",
+          membershipStatus: "OPEN",
+          accessReason: "OWNED",
+          ingestedUserListInfo: {
+            uploadKeyTypes: ["CONTACT_ID"],
+            contactIdInfo: { dataSourceType: "DATA_SOURCE_TYPE_FIRST_PARTY" },
+          },
+        });
+      if (String(url).includes("audienceMembers:ingest")) {
+        bodies.push(JSON.parse(init!.body as string));
+        return response({ requestId: `job-${++submits}` });
+      }
+      expect(String(url)).toContain("requestStatus:retrieve?requestId=job-");
+      return response({
+        requestStatusPerDestination: [
+          {
+            destination: {
+              operatingAccount: { accountType: "GOOGLE_ADS", accountId: "1234567890" },
+              productDestinationId: "123",
+            },
+            requestStatus: "SUCCESS",
+            audienceMembersIngestionStatus: { userDataIngestionStatus: { recordCount: "1" } },
+          },
+        ],
+      });
+    });
+    try {
+      f.input.adapters = createAdapterRegistry(async () => "access-token");
+      expect(await execute(f.input)).toBe("WAITING");
+      expect(submits).toBe(1);
+      f.input.taskId = "resume";
+      f.input.adapters = createAdapterRegistry(async () => "access-token");
+      expect(await execute(f.input)).toBe("SUCCESS");
+      expect(f.calls.filter(c => c === "google-source")).toHaveLength(1);
+      f.input.taskId = "fresh";
+      expect(await execute(f.input)).toBe("SUCCESS");
+      expect(submits).toBe(1);
+      await admin.query(
+        "UPDATE newjitsu.reverse_sync_membership SET last_accepted_at=clock_timestamp()-interval '31 days'"
+      );
+      f.input.taskId = "refresh";
+      expect(await execute(f.input)).toBe("WAITING");
+      expect(submits).toBe(2);
+      expect(bodies[1]).toEqual(bodies[0]);
+      expect(JSON.stringify(bodies)).not.toContain("Private.Person");
+      f.input.taskId = "refresh-resume";
+      expect(await execute(f.input)).toBe("SUCCESS");
+    } finally {
+      wire.mockRestore();
+    }
+  });
+
+  it("rejects Google mirroring without an exact sync/account/audience binding", () => {
+    const cfg = config();
+    cfg.destination = {
+      destinationType: "google-ads",
+      authorized: true,
+      oauthConnectionId: "destination.destination",
+      customerId: "1234567890",
+    };
+    cfg.options.mode = "mirror";
+    cfg.options.streamOptions = { audienceId: "123", customerMatchTermsAccepted: true };
+    const create = createAdapterRegistry(async () => "token").get("google-ads")!;
+    expect(() => create(cfg)).toThrow("cannot be mirrored");
+    cfg.options.streamOptions.managedAudienceId = `retl-google-${"a".repeat(64)}`;
+    cfg.destination.reverseManagedAudience = {
+      id: cfg.options.streamOptions.managedAudienceId,
+      syncId: "other",
+      customerId: "1234567890",
+      audienceId: "123",
+      integrationCode: `jitsu-retl-${"a".repeat(64)}`,
+      displayName: "Managed",
+      membershipDays: 540,
+    };
+    expect(() => create(cfg)).toThrow("binding mismatch");
+  });
+
   it("recovers a Google request after restart using the durable normalized receipt, without source replay", async () => {
     const f = fixture();
     f.input.config.destination = {

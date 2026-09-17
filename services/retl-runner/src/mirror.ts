@@ -34,6 +34,8 @@ export interface SnapshotMirrorAdapter<Credentials, Row, Options> {
   projection: MirrorProjection<Row>;
   /** Async batches must resolve independently of finish(); finish-staged delivery is unsafe. */
   batchDelivery: "accepted" | "asynchronous";
+  /** Refresh unchanged desired members through the normal journal after this age. */
+  refreshAfterMs?: number;
 }
 
 function projectedEnvelope(row: unknown): Effect {
@@ -191,7 +193,7 @@ export async function runSnapshotMirror<C, Row, O>(input: NewMirrorOptions<C, Ro
   try {
     ctx.signal.throwIfAborted();
     await run.delivery.assertReady();
-    await run.snapshots.start();
+    await run.snapshots.start(input.adapter.refreshAfterMs);
     await run.delivery.prepareInit(ctx.store.snapshot());
     ctx.signal.throwIfAborted();
     uncertain = true;
