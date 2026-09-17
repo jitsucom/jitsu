@@ -9,10 +9,13 @@
 #   prod — services run published jitsucom/* images; no source build, no
 #          hostPath, projectRoot unused.
 #
-# `prod` is not complete yet (JITSU-48): this release adds only the image
-# resolution below. Until per-service templating lands, setting mode=prod
-# changes which image is pulled but not the init containers or volumes, so it
-# will not produce a working deployment. Leave it on dev.
+# A prod install also generates its own inter-service credentials (a pre-install
+# Job) and creates the first admin user (a post-install one), and it needs the
+# dependency chart installed first. helm/README.md is the entry point — start
+# there rather than from this file.
+#
+# `dev` stays the default because it is what the Minikube workflow and
+# dev-deploy.sh expect, and its rendered output is unchanged by prod support.
 mode: dev
 
 # Container images.
