@@ -88,6 +88,23 @@ export class Snapshots {
     const copied: typeof rows = JSON.parse(serialized);
     const projected = copied.map(row => ({ key: row.key, effects: effects(row.identities, { allowEmpty: true }) }));
     const pageHash = contentHash(projected);
+    const desired = new Map<string, { payloadHash: string; value: Buffer }>();
+    let pageEntries = 0;
+    for (const row of projected) {
+      ensure(/^[a-f0-9]{64}$/.test(row.key), "Invalid source key");
+      pageEntries += Math.max(1, row.effects.length);
+      for (const effect of row.effects) {
+        const value = encodeJson(effect, this.db.limits.batchBytes);
+        const previous = desired.get(effect.identityHash);
+        ensure(!previous || previous.value.equals(value), "Conflicting payloads for shared identity");
+        desired.set(effect.identityHash, { payloadHash: effect.payloadHash, value });
+      }
+    }
+    const keys = projected.map(row => row.key);
+    ensure(new Set(keys).size === keys.length, "Duplicate snapshot source key");
+    const identities = [...desired.keys()];
+    const payloadHashes = [...desired.values()].map(row => row.payloadHash);
+    const values = [...desired.values()].map(row => row.value);
     await this.control.transaction(async client => {
       const control = await this.control.lock(client);
       ensure(
@@ -105,35 +122,31 @@ export class Snapshots {
         return;
       }
       ensure(pageSequence === lastPageSequence + 1, "Snapshot page sequence must be contiguous");
-      let entries = Number(generation.rows[0].entry_count);
-      let bytes = Number(generation.rows[0].byte_count);
-      for (const row of projected) {
-        ensure(/^[a-f0-9]{64}$/.test(row.key), "Invalid source key");
-        await client.query(
-          "INSERT INTO reverse_sync_source_key (workspace_id,sync_id,generation,key_hash) VALUES ($1,$2,$3,$4)",
-          [...this.key, row.key]
-        );
-        bytes += 64; // Stored source-key hash; no source-to-identity mapping is persisted.
-        // Excluded rows still consume source-key storage and bounded extraction work.
-        if (!row.effects.length) entries++;
-        for (const effect of row.effects) {
-          const value = encodeJson(effect, this.db.limits.batchBytes);
-          const inserted = await client.query(
-            `INSERT INTO reverse_sync_desired (workspace_id,sync_id,generation,identity_hash,payload_hash,value) VALUES ($1,$2,$3,$4,$5,$6) ON CONFLICT DO NOTHING RETURNING 1`,
-            [...this.key, effect.identityHash, effect.payloadHash, value]
-          );
-          if (!inserted.rowCount) {
-            const existing = await client.query<Pick<DesiredRow, "payload_hash" | "value">>(
-              "SELECT payload_hash,value FROM reverse_sync_desired WHERE workspace_id=$1 AND sync_id=$2 AND generation=$3 AND identity_hash=$4",
-              [...this.key, effect.identityHash]
-            );
-            const previous = decodeJson<Effect>(existing.rows[0].value);
-            ensure(canonicalJson(previous) === canonicalJson(effect), "Conflicting payloads for shared identity");
-          } else bytes += value.length;
-          // Bound projection work even when many source rows share one desired identity.
-          entries++;
-        }
-      }
+      const entries = Number(generation.rows[0].entry_count) + pageEntries;
+      ensure(entries <= this.db.limits.snapshotEntries, "Snapshot storage budget exceeded");
+      // A fixed number of round trips per page, even with shared identities.
+      // Keep keys, desired rows, budgets and retry receipt in one atomic transaction.
+      const insertedKeys = await client.query(
+        `INSERT INTO reverse_sync_source_key (workspace_id,sync_id,generation,key_hash)
+         SELECT $1,$2,$3,key FROM unnest($4::text[]) AS key ON CONFLICT DO NOTHING RETURNING 1`,
+        [...this.key, keys]
+      );
+      ensure(insertedKeys.rowCount === keys.length, "Duplicate snapshot source key");
+      const inserted = await client.query<{ bytes: number }>(
+        `INSERT INTO reverse_sync_desired (workspace_id,sync_id,generation,identity_hash,payload_hash,value)
+         SELECT $1,$2,$3,identity_hash,payload_hash,value FROM unnest($4::text[],$5::text[],$6::bytea[])
+         AS incoming(identity_hash,payload_hash,value) ON CONFLICT DO NOTHING RETURNING octet_length(value) AS bytes`,
+        [...this.key, identities, payloadHashes, values]
+      );
+      const conflicting = await client.query(
+        `SELECT 1 FROM reverse_sync_desired d JOIN unnest($4::text[],$5::bytea[]) AS incoming(identity_hash,value)
+         ON d.identity_hash=incoming.identity_hash
+         WHERE d.workspace_id=$1 AND d.sync_id=$2 AND d.generation=$3 AND d.value<>incoming.value LIMIT 1`,
+        [...this.key, identities, values]
+      );
+      ensure(!conflicting.rowCount, "Conflicting payloads for shared identity");
+      const bytes =
+        Number(generation.rows[0].byte_count) + keys.length * 64 + inserted.rows.reduce((n, row) => n + row.bytes, 0);
       ensure(
         entries <= this.db.limits.snapshotEntries && bytes <= this.db.limits.snapshotBytes,
         "Snapshot storage budget exceeded"
