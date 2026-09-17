@@ -3,10 +3,13 @@
 The existing PostgreSQL and mirror libraries now run in one Node application
 container. No long-running Go sidecar is used. The compiled-in registry includes
 Google Data Manager Customer Match additions/explicit removals, with scoped OAuth
-and durable request polling. Audience provisioning, the Reverse sync editor and
-production enablement follow separately. The existing API guard against creating
-Reverse sync links remains in place. Google snapshot mirror is deliberately disabled
-until managed-audience baseline verification and unchanged-member refresh are ready.
+and durable request polling. Jitsu-managed audiences additionally support core
+snapshot mirroring with 30-day unchanged-member refresh and 540-day membership.
+The console provisions audiences separately and exports server-recorded creation
+evidence bound to one sync; the runner verifies that binding remotely each attempt.
+Existing audiences remain additions/explicit removals only. The Reverse sync editor
+and production enablement follow separately; the API guard against creating Reverse
+sync links remains in place.
 
 ## Deployment prerequisites
 
@@ -15,6 +18,10 @@ Configure `SYNCCTL_REVERSE_ENABLED=true`, `SYNCCTL_REVERSE_RUNNER_IMAGE`,
 repository URL/token/namespace settings still apply. `retl-runner` is a target in
 `all.Dockerfile` and the existing services release workflow. This PR does not bump
 a release version, provision infrastructure, or deploy anything.
+
+Apply the Prisma schema before deploying this runner: membership `last_accepted_at`
+and generation `refresh_before` are additive fields used by snapshot planning.
+The existing restricted table grants cover these columns; no runtime DDL is added.
 
 The pre-provisioned runtime Secret must contain:
 

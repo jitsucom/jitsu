@@ -1,6 +1,6 @@
 # Google Data Manager Reverse ETL — implementation contract
 
-JITSU-227, adapter/OAuth slice. No audience provisioning or UI enablement yet.
+JITSU-227, adapter/OAuth and managed-audience provisioning. UI enablement follows.
 
 - Existing Google Ads Customer Match audiences: additions and explicit tombstone removals.
 - Email and phone, raw or SHA-256 hex. Normalize/hash once before journal preparation;
@@ -18,8 +18,12 @@ JITSU-227, adapter/OAuth slice. No audience provisioning or UI enablement yet.
   finalization or incomplete-extraction cleanup. Pending jobs remain durable between runs.
 - OAuth stays in Nango; console issues only the exact sync/revision's short-lived access
   token. Runner caches briefly in memory. No token/refresh token in provider receipts.
-- Mirror stays disabled until verified managed-audience provisioning and unchanged-member
-  refresh (Google membership expiry) land. An empty reported audience is not a baseline.
+- Mirror requires a Jitsu-created audience reserved to one sync. Console supplies
+  server-recorded evidence; runtime verifies the current remote identity, ownership,
+  contact-list type and marker. An empty reported audience is not a baseline.
+- Managed lists use 540-day membership. Core refreshes unchanged members after 30 days
+  during normal syncs, before removals, using a durable per-generation cutoff and
+  per-member acceptance time. Paused/failed/infrequent syncs can still expire members.
 
 ## Setup / recovery
 
@@ -29,6 +33,30 @@ Create a Google Cloud OAuth app with Data Manager API enabled and the
 `https://www.googleapis.com/auth/adwords`; retain that scope when sharing the app.
 Reconnect the destination after adding scopes. No legacy Google Ads developer token
 is used for this adapter. The account must be eligible for Customer Match.
+Account-level EU political advertising declaration may also be required for user-list
+creation; resolve this in Google Ads before provisioning.
+
+### Managed audience provisioning (before delivery)
+
+POST `/api/:workspaceId/reverse-etl/google-audiences` with `destinationId`, the intended
+`syncId` of an existing, non-deleted reverse sync, a stable UUID `requestId`, `displayName`, `exclusiveManagementConfirmed: true`
+and `customerMatchTermsAccepted: true`. Workspace edit access and the `reverse-etl`
+rollout flag are required. Save the returned internal `id` as `managedAudienceId`
+alongside `audienceId` in stream options. The upcoming editor must first create a
+disabled sync, provision its audience using the returned sync ID, then configure
+and enable the sync. Caller-chosen IDs and deleted links cannot be provisioned.
+
+The console durably records intent before creation and only one request may submit
+it. Reuse the **same requestId and input** after a timeout or `pending` response:
+retries only discover the audience by its saved correlation marker. An absent or
+ambiguous match remains unresolved, never authorizing another POST. There is no
+automatic reset, delete or arbitrary existing-audience adoption. The creation record
+is internal configuration, not editable destination JSON.
+
+Exclusivity is an operational agreement, not a Google API lock: do not upload via
+other tools or the Google UI. Changing remote identity/marker/type/ownership/duration
+blocks delivery. Google account ownership and estimated audience size alone cannot
+prove Jitsu exclusivity. Each managed audience is bound to its intended sync.
 
 Stream `audience`: `audienceId` (numeric user-list ID), `customerMatchTermsAccepted: true`.
 Destination: authorized Google Ads OAuth connection, customer ID and optional manager
@@ -55,6 +83,9 @@ retry after core cleanup; no operator override of an unknown request is necessar
   [status](https://developers.google.com/data-manager/api/reference/rest/v1/requestStatus/retrieve).
 - [Normalization](https://developers.google.com/data-manager/api/devguides/concepts/formatting),
   [diagnostics](https://developers.google.com/data-manager/api/devguides/diagnostics).
+- [Creation](https://developers.google.com/data-manager/api/devguides/audiences/google-ads/customer-match/create-audience),
+  [list discovery](https://developers.google.com/data-manager/api/reference/rest/v1/accountTypes.accounts.userLists/list)
+  and [membership expiry](https://support.google.com/google-ads/answer/6334160) rechecked 2026-09-17.
 - [Hightouch documentation](https://hightouch.com/docs/destinations/google-data-manager)
   describes audience creation/existing audiences, consent, normalization, additions and
   removals. No public native connector implementation was found; this is independent

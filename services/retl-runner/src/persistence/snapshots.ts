@@ -29,7 +29,11 @@ export class Snapshots {
   private get key() {
     return [this.scope.workspaceId, this.scope.syncId, this.scope.logicalRunId];
   }
-  async start() {
+  async start(refreshAfterMs?: number) {
+    ensure(
+      refreshAfterMs === undefined || (Number.isSafeInteger(refreshAfterMs) && refreshAfterMs > 0),
+      "Invalid membership refresh interval"
+    );
     await this.control.transaction(async client => {
       const control = await this.control.lock(client);
       ensure(
@@ -50,8 +54,8 @@ export class Snapshots {
         return;
       }
       await client.query(
-        "INSERT INTO reverse_sync_generation (workspace_id,sync_id,generation) VALUES ($1,$2,$3)",
-        this.key
+        "INSERT INTO reverse_sync_generation (workspace_id,sync_id,generation,refresh_before) VALUES ($1,$2,$3,clock_timestamp()-$4::bigint*interval '1 millisecond')",
+        [...this.key, refreshAfterMs ?? null]
       );
     });
   }
@@ -165,7 +169,9 @@ export class Snapshots {
               `SELECT d.identity_hash,d.value FROM reverse_sync_desired d LEFT JOIN reverse_sync_membership m
           ON m.workspace_id=d.workspace_id AND m.sync_id=d.sync_id AND m.identity_hash=d.identity_hash
           WHERE d.workspace_id=$1 AND d.sync_id=$2 AND d.generation=$3 AND d.identity_hash>$4
-          AND (m.identity_hash IS NULL OR m.payload_hash<>d.payload_hash) ORDER BY d.identity_hash LIMIT $5`,
+          AND (m.identity_hash IS NULL OR m.payload_hash<>d.payload_hash OR m.last_accepted_at<=
+            (SELECT refresh_before FROM reverse_sync_generation WHERE workspace_id=$1 AND sync_id=$2 AND generation=$3))
+          ORDER BY d.identity_hash LIMIT $5`,
               [...this.key, after, limit]
             )
           : await client.query<Pick<MembershipRow, "identity_hash" | "value">>(
@@ -191,7 +197,9 @@ export class Snapshots {
     const missing = await client.query(
       `SELECT 1 FROM reverse_sync_desired d LEFT JOIN reverse_sync_membership m
       ON m.workspace_id=d.workspace_id AND m.sync_id=d.sync_id AND m.identity_hash=d.identity_hash
-      WHERE d.workspace_id=$1 AND d.sync_id=$2 AND d.generation=$3 AND (m.identity_hash IS NULL OR m.payload_hash<>d.payload_hash) LIMIT 1`,
+      WHERE d.workspace_id=$1 AND d.sync_id=$2 AND d.generation=$3 AND
+      (m.identity_hash IS NULL OR m.payload_hash<>d.payload_hash OR m.last_accepted_at<=
+        (SELECT refresh_before FROM reverse_sync_generation WHERE workspace_id=$1 AND sync_id=$2 AND generation=$3)) LIMIT 1`,
       this.key
     );
     ensure(!missing.rowCount, "Desired additions are not durably accepted");

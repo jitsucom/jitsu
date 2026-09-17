@@ -17,6 +17,7 @@ import {
   GoogleAudienceRow,
   GoogleAudienceRemoveRow,
   googleAudienceMetadata,
+  GoogleManagedAudience,
 } from "./meta";
 
 type Context = ReverseEtlContext<JsonObject, JsonObject>;
@@ -141,7 +142,7 @@ const statusResponse = z.object({
 });
 
 /** Provider-only implementation: caller supplies a scoped OAuth resolver, never a Nango secret. */
-export function createGoogleDataManager(getAccessToken: GoogleAccessToken) {
+export function createGoogleDataManager(getAccessToken: GoogleAccessToken, managed?: GoogleManagedAudience) {
   const binding = (ctx: Context, batch: WriteBatch<JsonObject>, action: Action) =>
     contentHash({ target: target(ctx.credentials, ctx.options), revision: ctx.configRevision, batch, action });
   async function request(ctx: Context, path: string, body?: unknown, accessToken?: string): Promise<unknown> {
@@ -264,8 +265,17 @@ export function createGoogleDataManager(getAccessToken: GoogleAccessToken) {
     return { ...saved, outcomes: batch.records.map(({ operationId }) => ({ operationId, status: "accepted" })) };
   }
   async function createWriter(ctx: Context): Promise<ReverseEtlWriter<JsonObject>> {
-    if (ctx.mode !== "upsert" || ctx.targetIdentity !== googleAudienceTargetIdentity(ctx.credentials, ctx.options))
+    if (ctx.targetIdentity !== googleAudienceTargetIdentity(ctx.credentials, ctx.options))
       fail("Google audience target/mode mismatch");
+    if (
+      ctx.mode === "mirror" &&
+      (!managed ||
+        managed.syncId !== ctx.syncId ||
+        managed.id !== ctx.options.managedAudienceId ||
+        managed.audienceId !== ctx.options.audienceId ||
+        managed.customerId !== GoogleAudienceCredentials.parse(ctx.credentials).customerId)
+    )
+      fail("Google mirror requires a verified Jitsu-managed audience");
     return {
       init: async () => {},
       upsert: batch => submit(ctx, batch, "upsert"),
@@ -278,6 +288,7 @@ export function createGoogleDataManager(getAccessToken: GoogleAccessToken) {
   }
   const stream: ReverseEtlStream<JsonObject, JsonObject, JsonObject> = {
     ...googleAudienceMetadata,
+    capabilities: { ...googleAudienceMetadata.capabilities, mirror: managed ? "snapshot-diff" : "none" },
     rowType: GoogleAudienceRow.transform((row, ctx) => {
       try {
         return normalize(row, "upsert");
@@ -304,6 +315,9 @@ export function createGoogleDataManager(getAccessToken: GoogleAccessToken) {
   return {
     destination,
     stream,
+    // Mirror projects source rows once; delivery validates already hashed wire
+    // payloads, so recovery and expiry refresh never normalize/hash twice.
+    mirrorStream: { ...stream, rowType: wireUpsert, removeRowType: wireRemove },
     recovery: {
       attachWriter: createWriter,
       reconcileBatch,
