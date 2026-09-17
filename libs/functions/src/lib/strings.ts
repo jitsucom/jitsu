@@ -22,8 +22,8 @@ export function idToSnakeCaseFast(id: string) {
       concatIndex = i + 1;
     }
     // needUnderscore is used in case next char is a capital latin letter
-    // we add underscore only between latin letters
-    needUnderscore = (c >= aCode && c <= zCode) || (c >= ACode && c <= ZCode);
+    // we add underscore after a latin letter or a digit
+    needUnderscore = (c >= aCode && c <= zCode) || (c >= ACode && c <= ZCode) || (c >= zeroCode && c <= nineCode);
   }
   if (concatIndex == 0) {
     return id;
