@@ -255,6 +255,8 @@ const ServerEnvSchema = ClientEnvSchema.extend({
   // `https://ee${JITSU_BRANCH_SUFFIX}.jitsu.localhost/` to follow the current
   // branch (see lib/server/ee.ts).
   EE_CONNECTION: z.string().optional(),
+  // Server-only billing URL. EE_CONNECTION remains the browser-visible URL.
+  EE_CONNECTION_INTERNAL: z.string().optional(),
 
   // Static service token for console's server-to-server calls to ee-api that
   // have no signed-in user (the scheduled-sync quota check, the bulker
@@ -392,9 +394,6 @@ const ServerEnvSchema = ClientEnvSchema.extend({
 
   // Slack webhook URL for notifications
   SLACK_WEBHOOK_URL: z.string().optional(),
-
-  // Enable full environment diagnostics (dangerous - exposes all env vars!)
-  __DANGEROUS_ENABLE_FULL_DIAGNOSTICS: z.coerce.boolean().default(false),
 
   // ============================================
   // API Rate Limiting (per-minute, sliding window)
