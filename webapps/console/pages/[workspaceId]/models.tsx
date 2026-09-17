@@ -389,7 +389,10 @@ function Models() {
                                 dataSource={preview.rows.map((values, index) => ({ values, index }))}
                                 columns={preview.columns.map(c => ({
                                   title: (
-                                    <span className="inline-block max-w-[400px] truncate align-bottom" title={c.name}>
+                                    <span
+                                      className="inline-block max-w-[400px] overflow-x-auto whitespace-nowrap align-bottom"
+                                      tabIndex={0}
+                                    >
                                       {c.name}
                                     </span>
                                   ),
@@ -405,8 +408,8 @@ function Models() {
                                         : String(value);
                                     return (
                                       <span
-                                        className="inline-block max-w-[400px] truncate align-bottom font-mono"
-                                        title={text}
+                                        className="inline-block max-w-[400px] overflow-x-auto whitespace-nowrap align-bottom font-mono"
+                                        tabIndex={0}
                                       >
                                         {text}
                                       </span>
