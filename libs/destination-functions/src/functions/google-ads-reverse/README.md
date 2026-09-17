@@ -5,8 +5,9 @@ JITSU-227, adapter/OAuth and managed-audience provisioning. UI enablement follow
 - Existing Google Ads Customer Match audiences: additions and explicit tombstone removals.
 - Email and phone, raw or SHA-256 hex. Normalize/hash once before journal preparation;
   recovery sends no raw identifiers and never re-hashes persisted payloads.
-- Ingest requires explicitly mapped GRANTED ad-user-data and ad-personalization consent,
-  plus explicit Customer Match terms acceptance in stream options. No inferred consent.
+- Consent mappings are optional: each unmapped ad-user-data/ad-personalization field
+  assumes GRANTED for ingestion. Mapped fields must contain GRANTED; null, missing values
+  and DENIED fail validation. Customer Match terms still require explicit acceptance.
 - Removal needs identifiers only; denied consent must not prevent removing a member.
 - One target and at most 1,000 source records per independent API request. Core rejects
   overlapping member identifiers within an extraction before submitting the overlap.
@@ -61,7 +62,8 @@ prove Jitsu exclusivity. Each managed audience is bound to its intended sync.
 Stream `audience`: `audienceId` (numeric user-list ID), `customerMatchTermsAccepted: true`.
 Destination: authorized Google Ads OAuth connection, customer ID and optional manager
 login customer ID. Mapping: at least one of email/hashedEmail/phone/hashedPhone; additions
-also map adUserData/adPersonalization, both `GRANTED`. Pre-hashed inputs must already
+may map adUserData/adPersonalization, both `GRANTED` when mapped. Unmapped consent
+defaults to `GRANTED`. Pre-hashed inputs must already
 follow Google's normalization rules. Raw phone numbers require an explicit country code.
 
 Poll once per recovery attempt; schedule/manual execution resumes durable requests.

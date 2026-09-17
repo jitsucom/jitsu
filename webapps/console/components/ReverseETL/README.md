@@ -12,8 +12,9 @@ cleanup after the flag is disabled.
 3. Connect Google Ads with Data Manager OAuth and the customer account ID.
 4. Create a reverse sync. Choose a new Jitsu-managed audience for full-query
    mirroring, or an existing audience ID for additions and explicit removals.
-5. Map email and/or phone (raw or SHA-256). Map both consent fields to source
-   columns containing `GRANTED` for additions. Confirm Customer Match terms;
+5. Map email and/or phone (raw or SHA-256). Consent mappings are optional; each
+   unmapped field assumes `GRANTED`. Mapped columns must contain `GRANTED` for additions;
+   denied, null or missing values fail the run. Confirm Customer Match terms;
    managed audiences also require explicit exclusive-management confirmation.
 6. Validate the mapping and access, then save the disabled sync. For a managed
    audience, complete setup from its detail page. Enable and run when ready.

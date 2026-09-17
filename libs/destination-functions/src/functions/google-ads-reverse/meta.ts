@@ -47,10 +47,18 @@ const identifiers = z.object({ email: identifier, phone: identifier, hashedEmail
 const consent = z.enum(["GRANTED", "DENIED"]);
 export const GoogleAudienceRow = identifiers
   .extend({
-    adUserData: z.literal("GRANTED"),
-    adPersonalization: z.literal("GRANTED"),
+    adUserData: z.literal("GRANTED").optional(),
+    adPersonalization: z.literal("GRANTED").optional(),
   })
-  .strict();
+  .strict()
+  .superRefine((row, ctx) => {
+    // Only unmapped fields assume consent. A mapped column with a missing value must fail,
+    // just like explicit null or DENIED, rather than silently becoming GRANTED.
+    for (const field of ["adUserData", "adPersonalization"] as const) {
+      if (Object.hasOwn(row, field) && row[field] === undefined)
+        ctx.addIssue({ code: "custom", path: [field], message: "Mapped consent must be GRANTED" });
+    }
+  });
 export const GoogleAudienceRemoveRow = identifiers
   .extend({
     adUserData: consent.nullable().optional(),

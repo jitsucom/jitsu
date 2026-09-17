@@ -44,8 +44,8 @@ export function SyncWizard() {
     const mapping: Record<string, string> = {};
     if (values.emailColumn) mapping[values.emailFormat === "hashed" ? "hashedEmail" : "email"] = values.emailColumn;
     if (values.phoneColumn) mapping[values.phoneFormat === "hashed" ? "hashedPhone" : "phone"] = values.phoneColumn;
-    mapping.adUserData = values.adUserData;
-    mapping.adPersonalization = values.adPersonalization;
+    if (values.adUserData) mapping.adUserData = values.adUserData;
+    if (values.adPersonalization) mapping.adPersonalization = values.adPersonalization;
     return ReverseSyncSetup.parse({
       name: values.name,
       modelId: values.modelId,
@@ -365,14 +365,14 @@ export function SyncWizard() {
             </Panel>
             <Panel
               title="Map consent"
-              description="Both source columns must contain GRANTED for additions. Consent is never inferred. Removals need only identifiers."
+              description="Consent mappings are optional. Each unmapped field is sent to Google as GRANTED for all additions. Map columns to use source consent values; mapped values must be GRANTED. Removals need only identifiers."
             >
               <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6">
-                <Form.Item name="adUserData" label="Ad user data consent" rules={[{ required: true }]}>
-                  <Select options={columns} />
+                <Form.Item name="adUserData" label="Ad user data consent">
+                  <Select allowClear options={columns} placeholder="Not mapped — assume GRANTED" />
                 </Form.Item>
-                <Form.Item name="adPersonalization" label="Ad personalization consent" rules={[{ required: true }]}>
-                  <Select options={columns} />
+                <Form.Item name="adPersonalization" label="Ad personalization consent">
+                  <Select allowClear options={columns} placeholder="Not mapped — assume GRANTED" />
                 </Form.Item>
               </div>
               <Alert

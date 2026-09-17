@@ -145,6 +145,21 @@ async function fixture(kind: "managed" | "existing" = "managed") {
   };
 }
 describe("Reverse ETL console lifecycle", () => {
+  it("validates, saves and enables syncs with either or both consent mappings omitted", async () => {
+    const f = await fixture("existing");
+    for (const mapping of [
+      { email: "email" },
+      { email: "email", adUserData: "consent" },
+      { email: "email", adPersonalization: "consent" },
+    ]) {
+      const setup = { ...f.setup, mapping };
+      expect((await validateReverseSetup(f.prisma, f.workspace.id, setup, nango)).sampleRows).toBe(1);
+      const { id } = await f.create(randomUUID(), setup);
+      await updateReverseSync(f.prisma, f.workspace.id, id, { disabled: false }, nango);
+      expect((await readReverseSync(f.prisma, id))?.options.mapping).toEqual(mapping);
+    }
+    expect(f.writes()).toBe(0);
+  });
   it("fences discarded requests and preserves an already saved sync after a lost response", async () => {
     const f = await fixture("existing");
     const key = randomUUID();

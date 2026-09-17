@@ -150,7 +150,7 @@ export async function validateReverseSetup(
         throw new Error(
           `Preview row ${
             index + 1
-          } has invalid identifiers or consent. Additions require both consent fields to be GRANTED.`
+          } has invalid identifiers or consent. Mapped consent fields must contain GRANTED for additions; unmapped consent defaults to GRANTED.`
         );
       }
     });
