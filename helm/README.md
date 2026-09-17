@@ -18,7 +18,7 @@ there is no Postgres, Kafka, ClickHouse or MongoDB, no `jitsu-deps-urls` Secret,
 and the console crashes without `DATABASE_URL`:
 
 ```bash
-helm install jitsu-deps ./helm-deps --wait --timeout 10m
+helm install jitsu-deps ./helm-deps --wait --timeout 5m
 ```
 
 `--wait` matters: without it the command returns as soon as the objects are
@@ -31,6 +31,11 @@ usually recovers by itself — but it crash-loops on the way, and it only recove
 if Postgres is ready before the post-install seed Job exhausts its five-minute
 wait. Every dependency here has a readiness probe (Postgres uses `pg_isready`),
 so `--wait` removes the race rather than just delaying it.
+
+`5m` is Helm's own default and is comfortable on a normal cluster — the four
+images are roughly 600 MB compressed in total and pull in parallel. Raise it on a
+slow link; `kubectl get pods -w` will show you whether it is still pulling or
+genuinely stuck.
 
 `helm-deps` runs **single-node** instances and is not production-grade — see the
 caveat below. For a real deployment, point the services at managed instances
