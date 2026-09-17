@@ -6,7 +6,7 @@ import { createBufferedSyncStore, recordKey } from "@jitsu/destination-functions
 import { runReverseEtl } from "@jitsu/destination-functions/src/reverse-etl/run";
 import { Database, openPersistence, prune } from "./persistence";
 import type { ControlRow } from "./persistence/rows";
-import { ensure } from "./persistence/types";
+import { ensure, PersistenceResetRequiredError } from "./persistence/types";
 import { openMirrorPersistence, runSnapshotMirror, resumeSnapshotMirror, MirrorRunError } from "./mirror";
 import type { AdapterRegistry } from "./adapters";
 import type { RunLease } from "./lease";
@@ -98,16 +98,17 @@ export async function execute(input: ExecuteOptions): Promise<TaskResult> {
       extraction: config.model.cursor ? ("cursor" as const) : ("full" as const),
     };
     const mirror = config.options.mode === "mirror";
+    // Restoring large object-backed baselines must not outlive worker ownership.
+    timer = setTimeout(() => {
+      renewing = tick();
+    }, input.heartbeatMs ?? 10_000);
     const run = mirror
       ? await openMirrorPersistence(db, runInput)
       : await openPersistence(db, runInput, adapter.project);
     const scope = run.scope;
     ensure(input.trigger !== "recovery" || run.recovery, "Recovery must not start a fresh extraction");
-    timer = setTimeout(() => {
-      renewing = tick();
-    }, input.heartbeatMs ?? 10_000);
     await tasks.heartbeat();
-    for (;;) {
+    for (; !db.objectStorage; ) {
       signal.throwIfAborted();
       const removed = await prune(db, scope, new Date(Date.now() - 30 * 86400000));
       if (!removed.batches && !removed.snapshotRows) break;
@@ -155,17 +156,7 @@ export async function execute(input: ExecuteOptions): Promise<TaskResult> {
         targetBaseline,
       };
       const phase = (await run.core.recoveryStatus()).phase;
-      const rejected = run.recovery
-        ? await db.transaction(
-            async client =>
-              (
-                await client.query(
-                  "SELECT 1 FROM reverse_sync_operation WHERE workspace_id=$1 AND sync_id=$2 AND run_id=$3 AND status='rejected' LIMIT 1",
-                  [run.scope.workspaceId, run.scope.syncId, run.scope.logicalRunId]
-                )
-              ).rowCount! > 0
-          )
-        : false;
+      const rejected = run.recovery && (await run.core.hasRejected());
       if (run.recovery && phase !== "abort_prepared" && !rejected && (await run.snapshots.status())?.sealed) {
         // Local finish recovery needs no provider hooks; attachment is fail-closed.
         result = (
@@ -232,7 +223,7 @@ export async function execute(input: ExecuteOptions): Promise<TaskResult> {
             ? "Reverse ETL ownership or task heartbeat lost; recovery required"
             : signal.aborted
             ? "Reverse ETL cancelled; unresolved delivery retained"
-            : error instanceof MirrorRunError
+            : error instanceof MirrorRunError || error instanceof PersistenceResetRequiredError
             ? error.message
             : "Reverse ETL failed; inspect configuration and durable recovery state"
         )

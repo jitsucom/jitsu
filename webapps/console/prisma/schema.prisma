@@ -360,6 +360,9 @@ model reverse_sync_control {
   phase                String                  @default("new")
   mode                 reverse_sync_mode
   extraction           reverse_sync_extraction
+  // Immutable object-storage manifest reference. Non-null selects object-backed
+  // persistence; legacy per-row state requires an explicit operator reset.
+  artifact_head        Bytes?
   base_sequence        BigInt                  @default(0)
   next_sequence        BigInt                  @default(0)
   checkpoint_sequence  BigInt                  @default(0)

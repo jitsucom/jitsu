@@ -63,6 +63,11 @@ func buildReversePodTemplate(c *Config, entry *SyncEntry, secret, taskID string)
 	for _, key := range []string{"RETL_DATABASE_URL", "RETL_CONSOLE_URL", "RETL_CONSOLE_TOKEN"} {
 		env = append(env, v1.EnvVar{Name: key, ValueFrom: &v1.EnvVarSource{SecretKeyRef: &v1.SecretKeySelector{LocalObjectReference: v1.LocalObjectReference{Name: c.ReverseRuntimeSecret}, Key: key}}})
 	}
+	// Object storage is deployment-owned, never part of destination configuration.
+	// GCS uses Workload Identity; S3 may use workload identity or these runtime credentials.
+	for _, key := range []string{"RETL_OBJECT_STORE", "RETL_OBJECT_BUCKET", "RETL_OBJECT_PREFIX", "RETL_S3_ENDPOINT", "RETL_S3_REGION", "AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY", "AWS_SESSION_TOKEN"} {
+		env = append(env, v1.EnvVar{Name: key, ValueFrom: &v1.EnvVarSource{SecretKeyRef: &v1.SecretKeySelector{LocalObjectReference: v1.LocalObjectReference{Name: c.ReverseRuntimeSecret}, Key: key, Optional: ptr.To(true)}}})
+	}
 	return v1.PodTemplateSpec{ObjectMeta: metav1.ObjectMeta{Labels: map[string]string{k8sCreatorLabel: k8sCreatorLabelValue, labelManagedBy: managedByValue, labelSyncID: entry.ID, labelWorkspaceID: entry.WorkspaceID, labelSyncKind: "reverse", labelAppName: cronJobAppValue}, Annotations: td.ExtractAnnotations()}, Spec: v1.PodSpec{
 		RestartPolicy: v1.RestartPolicyNever, ServiceAccountName: c.PodsServiceAccount, TerminationGracePeriodSeconds: ptr.To(int64(60)),
 		NodeSelector: parseNodeSelector(c.KubernetesNodeSelector),

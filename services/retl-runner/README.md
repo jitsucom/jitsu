@@ -1,5 +1,10 @@
 # Reverse ETL Node core — JITSU-227
 
+For the opt-in local SQLite + GCS/S3 persistence backend, see
+[object-backed persistence](src/artifacts/README.md), including explicit test-sync
+reset requirements, schema/deployment order, and retention precautions. The
+PostgreSQL per-row storage described below remains the legacy backend.
+
 Server-only persistence, core snapshot mirroring and an executable Node runner.
 See [runtime integration](src/runtime.md) for syncctl/CronJobs, admission, leases,
 task logs, recovery and deployment prerequisites. No live advertising adapters

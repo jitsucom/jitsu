@@ -1,12 +1,23 @@
 import { Pool, type PoolClient, type PoolConfig } from "pg";
 import { defaultLimits, ensure, PersistenceError, type Limits } from "./types";
+import type { ObjectStore } from "../artifacts/store";
 
 export class Database {
   readonly pool: Pool;
   readonly limits: Limits;
   readonly stateTable: string;
   private readonly searchPath: string;
-  constructor(config: PoolConfig, options: { sourceSchema?: string; limits?: Partial<Limits> } = {}) {
+  readonly objectStorage?: { store: ObjectStore; signal: AbortSignal };
+  private readonly cleanups: Array<() => Promise<void>> = [];
+  constructor(
+    config: PoolConfig,
+    options: {
+      sourceSchema?: string;
+      limits?: Partial<Limits>;
+      objectStorage?: { store: ObjectStore; signal: AbortSignal };
+    } = {}
+  ) {
+    this.objectStorage = options.objectStorage;
     this.limits = { ...defaultLimits, ...options.limits };
     for (const [key, value] of Object.entries(this.limits))
       ensure(Number.isSafeInteger(value) && value > 0 && value <= defaultLimits[key], "Invalid storage limit");
@@ -47,7 +58,14 @@ export class Database {
       client.release();
     }
   }
-  close() {
-    return this.pool.end();
+  onClose(cleanup: () => Promise<void>) {
+    this.cleanups.push(cleanup);
+  }
+  async close() {
+    try {
+      await Promise.all(this.cleanups.splice(0).map(cleanup => cleanup()));
+    } finally {
+      await this.pool.end();
+    }
   }
 }

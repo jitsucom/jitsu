@@ -40,6 +40,12 @@ export class PersistenceError extends Error {
     this.name = "PersistenceError";
   }
 }
+/** Fixed safe message: no database/provider payload is exposed in task errors. */
+export class PersistenceResetRequiredError extends PersistenceError {
+  constructor() {
+    super("Legacy Reverse ETL state requires an explicit test-sync reset before enabling object storage");
+  }
+}
 export function ensure(value: unknown, message: string): asserts value {
   if (!value) throw new PersistenceError(message);
 }

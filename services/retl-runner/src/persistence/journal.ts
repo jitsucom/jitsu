@@ -264,6 +264,45 @@ export class Journal implements DeliveryJournal {
   async loadBatch(batchId: string): Promise<PreparedBatch<unknown>> {
     return this.control.transaction(async client => this.batch(client, batchId));
   }
+  async hasRejected() {
+    return this.db.transaction(
+      async client =>
+        !!(
+          await client.query(
+            "SELECT 1 FROM reverse_sync_operation WHERE workspace_id=$1 AND sync_id=$2 AND run_id=$3 AND status='rejected' LIMIT 1",
+            this.key
+          )
+        ).rowCount
+    );
+  }
+  async finalPoint(sequence: number): Promise<ResumePoint> {
+    const batchId = await this.db.transaction(
+      async client =>
+        (
+          await client.query<Pick<OperationRow, "batch_id">>(
+            "SELECT batch_id FROM reverse_sync_operation WHERE workspace_id=$1 AND sync_id=$2 AND run_id=$3 AND sequence=$4",
+            [...this.key, sequence]
+          )
+        ).rows[0]?.batch_id
+    );
+    if (batchId) {
+      const batch = await this.loadBatch(batchId);
+      return { sourceSequence: sequence, ...(batch.cursor ? { cursor: batch.cursor } : {}) };
+    }
+    return this.db.transaction(async client => {
+      const row = (
+        await client.query<Pick<StateRow, "state">>(
+          `SELECT state FROM ${this.db.stateTable} WHERE sync_id=$1 AND stream=$2`,
+          [this.scope.syncId, stateStream]
+        )
+      ).rows[0];
+      const saved = row ? readSavedState(row.state, this.scope) : undefined;
+      return {
+        sourceSequence: sequence,
+        ...(this.scope.extraction === "cursor" && saved?.point.cursor ? { cursor: saved.point.cursor } : {}),
+      };
+    });
+  }
   async recoveryStatus() {
     return this.control.observe(control => ({
       phase: control.phase,
