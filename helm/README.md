@@ -18,8 +18,19 @@ there is no Postgres, Kafka, ClickHouse or MongoDB, no `jitsu-deps-urls` Secret,
 and the console crashes without `DATABASE_URL`:
 
 ```bash
-helm install jitsu-deps ./helm-deps
+helm install jitsu-deps ./helm-deps --wait --timeout 10m
 ```
+
+`--wait` matters: without it the command returns as soon as the objects are
+created, and the main chart can start while Postgres is still booting. The
+console's entrypoint runs `prisma db push` once and does not check whether it
+succeeded, so on a lost race the schema is missing, `/api/healthcheck` returns
+503 (it does a `workspace.findFirst`), and the entrypoint's healthcheck kills the
+container. Kubernetes restarts it and the migration runs again, so the install
+usually recovers by itself — but it crash-loops on the way, and it only recovers
+if Postgres is ready before the post-install seed Job exhausts its five-minute
+wait. Every dependency here has a readiness probe (Postgres uses `pg_isready`),
+so `--wait` removes the race rather than just delaying it.
 
 `helm-deps` runs **single-node** instances and is not production-grade — see the
 caveat below. For a real deployment, point the services at managed instances
