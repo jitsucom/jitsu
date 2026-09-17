@@ -145,6 +145,29 @@ async function fixture(kind: "managed" | "existing" = "managed") {
   };
 }
 describe("Reverse ETL console lifecycle", () => {
+  it("can enable a sync when database work exceeds Prisma's default five-second transaction timeout", async () => {
+    const f = await fixture("existing");
+    const { id } = await f.create();
+    // Real PostgreSQL delay: the final admission reads must still use a live transaction.
+    await f.prisma.$executeRaw`
+      CREATE FUNCTION delay_reverse_sync_update() RETURNS trigger LANGUAGE plpgsql AS $$
+      BEGIN
+        PERFORM pg_sleep(5.5);
+        RETURN NEW;
+      END;
+      $$`;
+    try {
+      await f.prisma.$executeRaw`
+        CREATE TRIGGER delay_reverse_sync_update BEFORE UPDATE ON "ConfigurationObjectLink"
+        FOR EACH ROW EXECUTE FUNCTION delay_reverse_sync_update()`;
+      await updateReverseSync(f.prisma, f.workspace.id, id, { disabled: false }, nango);
+      expect((await readReverseSync(f.prisma, id))?.options.disabled).toBe(false);
+      expect(f.writes()).toBe(0);
+    } finally {
+      await f.prisma.$executeRaw`DROP TRIGGER IF EXISTS delay_reverse_sync_update ON "ConfigurationObjectLink"`;
+      await f.prisma.$executeRaw`DROP FUNCTION delay_reverse_sync_update()`;
+    }
+  });
   it("validates, saves and enables syncs with either or both consent mappings omitted", async () => {
     const f = await fixture("existing");
     for (const mapping of [

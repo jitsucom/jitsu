@@ -43,11 +43,17 @@ const taskSelect = {
 
 // Same lock as model/destination mutations: references cannot change between validation and commit.
 async function mutation<T>(prisma: PrismaClient, workspaceId: string, write: (tx: ReadDb) => Promise<T>) {
-  return prisma.$transaction(async tx => {
-    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`retl-models:${workspaceId}`}, 0))`;
-    await tx.$queryRaw`SELECT id FROM "Workspace" WHERE id = ${workspaceId} FOR SHARE`;
-    return write(tx);
-  });
+  return prisma.$transaction(
+    async tx => {
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`retl-models:${workspaceId}`}, 0))`;
+      await tx.$queryRaw`SELECT id FROM "Workspace" WHERE id = ${workspaceId} FOR SHARE`;
+      return write(tx);
+    },
+    // Locked reference/admission checks need several DB round trips. Prisma's 5s
+    // default can expire on a remote DB; keep a bounded budget for these writes.
+    // Warehouse previews and Google requests must remain outside this transaction.
+    { timeout: 30_000 }
+  );
 }
 async function linkFor(db: ReadDb, workspaceId: string, id: string) {
   const link = await db.configurationObjectLink.findFirst({
