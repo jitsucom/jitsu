@@ -118,7 +118,7 @@ export function ReverseRuns({ syncId, compact = false }: { syncId?: string; comp
                 className="mb-5"
                 type="warning"
                 title="Waiting for Google"
-                description="Submitted changes are still processing. Automatic recovery checks continue while the sync is enabled."
+                description="Submitted changes are still processing. Status refreshes continue automatically while the sync is enabled."
               />
             )}
             {task.status === "RESUMED" && (
@@ -126,7 +126,7 @@ export function ReverseRuns({ syncId, compact = false }: { syncId?: string; comp
                 className="mb-5"
                 type="info"
                 title="Continued in a later attempt"
-                description="This attempt was superseded by recovery. See this sync’s Runs tab for the latest attempt."
+                description="A later attempt is handling these changes. See this sync’s Runs tab for the latest status."
               />
             )}
             {task.error && <Alert className="mb-5" type="error" title="Run stopped" description={task.error} />}

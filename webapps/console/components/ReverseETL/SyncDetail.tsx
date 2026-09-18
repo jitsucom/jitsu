@@ -73,7 +73,7 @@ export function SyncDetail({ sync, reload }: { sync: ReverseSyncView; reload: ()
               : Modal.confirm({
                   title: "Pause this sync?",
                   content:
-                    "This stops new runs and automatic recovery. In-flight Google requests may still finish. Cancel an active attempt separately if needed.",
+                    "This stops new runs and automatic status refreshes. In-flight Google requests may still finish. Cancel an active attempt separately if needed.",
                   okText: "Pause sync",
                   onOk: () => action("PUT", { disabled: true }),
                 })
@@ -110,7 +110,7 @@ export function SyncDetail({ sync, reload }: { sync: ReverseSyncView; reload: ()
           className="mb-5"
           type="info"
           title="This sync is paused"
-          description="New runs and automatic recovery are stopped. Enable it to resume. In-flight requests may still complete."
+          description="New runs and automatic status refreshes are stopped. Enable it to resume. In-flight requests may still complete."
         />
       )}
       <Tabs
@@ -166,7 +166,7 @@ export function SyncDetail({ sync, reload }: { sync: ReverseSyncView; reload: ()
                     className="mt-4"
                     type="warning"
                     title="Google is processing submitted changes"
-                    description="Syncctl will start a recovery attempt automatically while this sync stays enabled. Do not create another run or reset state."
+                    description="The status of submitted changes will refresh automatically while this sync stays enabled. You do not need to start another run. Do not reset state while changes are processing."
                   />
                 )}
               </>
@@ -206,7 +206,7 @@ export function SyncDetail({ sync, reload }: { sync: ReverseSyncView; reload: ()
                         {
                           name: "Schedule",
                           documentation:
-                            "Five-field cron, or empty for manual only. Removing the schedule still allows manual runs and automatic recovery.",
+                            "Five-field cron, or empty for manual only. Removing the schedule still allows manual runs and automatic status refreshes.",
                           component: (
                             <Form.Item name="schedule">
                               <ScheduleEditor />
