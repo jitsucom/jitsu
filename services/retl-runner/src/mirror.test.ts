@@ -246,7 +246,7 @@ function fixture() {
 }
 
 describe("core snapshot mirror lifecycle", () => {
-  it("persists a full page with fixed query count and exact retry/deduplication budgets", async () => {
+  it("stages a full page with bounded SQL and seals exact retry/deduplication counts", async () => {
     const run = await session();
     await run.delivery.prepareInit({});
     await run.delivery.acknowledgeInit({});
@@ -260,20 +260,20 @@ describe("core snapshot mirror lifecycle", () => {
     } finally {
       query.mockRestore();
     }
-    const before = (await admin.query("SELECT * FROM newjitsu.reverse_sync_generation")).rows[0];
-    expect(before.key_count).toBe("1000");
-    expect(before.entry_count).toBe("1000");
-    expect((await admin.query("SELECT count(*) FROM newjitsu.reverse_sync_desired")).rows[0].count).toBe("1");
+    const before = await run.snapshots.status();
+    expect(before?.sourceKeyCount).toBe(1000);
     await run.snapshots.append(page, 1);
-    expect((await admin.query("SELECT * FROM newjitsu.reverse_sync_generation")).rows[0]).toEqual(before);
+    expect(await run.snapshots.status()).toEqual(before);
     await run.snapshots.append([{ key: contentHash(1000), identities: [identity] }], 2);
-    const after = (await admin.query("SELECT * FROM newjitsu.reverse_sync_generation")).rows[0];
-    expect(BigInt(after.byte_count) - BigInt(before.byte_count)).toBe(64n);
+    const after = await run.snapshots.status();
+    expect(after?.sourceKeyCount).toBe(1001);
     await expect(
       run.snapshots.append([{ key: contentHash(1001), identities: [{ ...identity, remove: { id: "different" } }] }], 3)
     ).rejects.toThrow("Conflicting payloads");
-    expect((await admin.query("SELECT count(*) FROM newjitsu.reverse_sync_source_key")).rows[0].count).toBe("1001");
-    expect((await admin.query("SELECT * FROM newjitsu.reverse_sync_generation")).rows[0]).toEqual(after);
+    expect(await run.snapshots.status()).toEqual(after);
+    await run.snapshots.seal();
+    expect((await durable()).head.snapshot).toMatchObject({ sealed: true, keys: 1001, entries: 1001, page: 2 });
+    expect(await run.snapshots.page("additions")).toHaveLength(1);
   });
   it("refreshes only due unchanged members, using acceptance time rather than source changes", async () => {
     const f = fixture();
