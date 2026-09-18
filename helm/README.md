@@ -46,13 +46,26 @@ instead: disable each component in `helm-deps/values.yaml` and set the matching
 Then the chart itself:
 
 ```bash
-helm install jitsu ./helm \
+helm install jitsu ./helm --wait --timeout 5m \
   --set mode=prod \
   --set ingress.enabled=true \
   --set ingress.className=nginx \
   --set ingress.hosts.console=jitsu.example.com \
   --set ingress.hosts.ingest=events.example.com
 ```
+
+`--wait` here for the same reason as the dependency install above, and it is not
+cosmetic. Without it Helm returns as soon as the objects are created: on a real
+cluster that means **exit 0 while five services are in `CrashLoopBackOff`**.
+Every service that reads its configuration from the console — bulker, ingest,
+operator, profiles, rotor, syncctl — exits rather than retrying when the console
+is not up yet (`Cannot load cached repository. No CACHE_DIR is set.`), so they
+restart a few times until it is. The install recovers on its own, but a bare
+`helm install` reports success in the middle of that, which is the worst moment
+to walk away from it.
+
+`5m` has comfortable headroom: a measured cold start into an empty namespace,
+including a node scale-up, reached all-running in about 2 minutes.
 
 **TLS is off in that command on purpose.** Turning `ingress.tls.enabled=true` on
 without also giving the certificate a source leaves you worse off than plain
