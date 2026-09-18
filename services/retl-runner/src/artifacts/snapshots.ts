@@ -83,10 +83,15 @@ export class ObjectSnapshots {
     const snapshot = this.pending;
     ensure(snapshot && !snapshot.sealed, "Snapshot is absent or sealed");
     const parts: ArtifactRef[] = [];
-    for (const page of this.journal.local.desiredPages()) parts.push(await this.journal.artifacts.put(page));
+    let uniqueMembers = 0;
+    for (const page of this.journal.local.desiredPages()) {
+      parts.push(await this.journal.artifacts.put(page));
+      uniqueMembers += page.length;
+    }
     const sealed = { ...snapshot, parts, sealed: true };
     await this.journal.publish({ ...this.journal.head, snapshot: sealed });
     this.pending = undefined;
+    return { uniqueMembers };
   }
   async page(kind: "additions" | "removals", after = "", limit = 1000) {
     ensure(

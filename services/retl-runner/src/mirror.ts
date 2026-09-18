@@ -75,8 +75,18 @@ export interface NewMirrorOptions<C, Row, O> extends MirrorOptions<C, Row, O> {
   /** A complete cursorless source. Opens only after Kubernetes admission and writer initialization. */
   source(signal: AbortSignal): AsyncIterable<MirrorSourceRecord>;
   sourcePageSize?: number;
-  /** Core-owned progress, emitted only after a page/complete snapshot is durable. */
-  onSnapshotProgress?(savedRows: number, sealed: boolean): Promise<void>;
+  /** Core-owned counts after staging a page or durably sealing the complete snapshot. */
+  onSnapshotProgress?(
+    progress:
+      | { sourceRows: number; sealed: false }
+      | {
+          sourceRows: number;
+          sealed: true;
+          projectedMembers: number;
+          uniqueMembers: number;
+          duplicatesCollapsed: number;
+        }
+  ): Promise<void>;
 }
 
 const mirrorFailureHints = {
@@ -218,6 +228,7 @@ export async function runSnapshotMirror<C, Row, O>(input: NewMirrorOptions<C, Ro
   let stage: keyof typeof mirrorFailureHints = "initialization";
   let readRows = 0;
   let savedRows = 0;
+  let projectedMembers = 0;
   try {
     ctx.signal.throwIfAborted();
     await run.delivery.assertReady();
@@ -243,7 +254,7 @@ export async function runSnapshotMirror<C, Row, O>(input: NewMirrorOptions<C, Ro
       savedRows += page.length;
       page = [];
       pageBytes = 2;
-      await input.onSnapshotProgress?.(savedRows, false);
+      await input.onSnapshotProgress?.({ sourceRows: savedRows, sealed: false });
     };
     ctx.signal.throwIfAborted();
     stage = "extraction";
@@ -258,6 +269,9 @@ export async function runSnapshotMirror<C, Row, O>(input: NewMirrorOptions<C, Ro
       const parsed = input.adapter.projection.rowType.safeParse(mapped);
       ensure(parsed.success, "Source row failed mirror validation");
       const projected = effects(input.adapter.projection.project(parsed.data), { allowEmpty: true });
+      // A source row may produce zero or multiple members, so sourceRows minus
+      // uniqueMembers is not a valid duplicate count.
+      projectedMembers += projected.length;
       for (const value of projected) validatePayloads(value, stream);
       const serialized = canonicalJson({
         key: record.key,
@@ -275,8 +289,14 @@ export async function runSnapshotMirror<C, Row, O>(input: NewMirrorOptions<C, Ro
     await flush();
     stage = "snapshot";
     ctx.signal.throwIfAborted();
-    await run.snapshots.seal();
-    await input.onSnapshotProgress?.(savedRows, true);
+    const { uniqueMembers } = await run.snapshots.seal();
+    await input.onSnapshotProgress?.({
+      sourceRows: savedRows,
+      sealed: true,
+      projectedMembers,
+      uniqueMembers,
+      duplicatesCollapsed: projectedMembers - uniqueMembers,
+    });
     stage = "delivery";
     return await deliver(env, writer, value => {
       uncertain = value;

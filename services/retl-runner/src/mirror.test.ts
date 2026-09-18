@@ -271,7 +271,7 @@ describe("core snapshot mirror lifecycle", () => {
       run.snapshots.append([{ key: contentHash(1001), identities: [{ ...identity, remove: { id: "different" } }] }], 3)
     ).rejects.toThrow("Conflicting payloads");
     expect(await run.snapshots.status()).toEqual(after);
-    await run.snapshots.seal();
+    expect(await run.snapshots.seal()).toEqual({ uniqueMembers: 1 });
     expect((await durable()).head.snapshot).toMatchObject({ sealed: true, keys: 1001, entries: 1001, page: 2 });
     expect(await run.snapshots.page("additions")).toHaveLength(1);
   });

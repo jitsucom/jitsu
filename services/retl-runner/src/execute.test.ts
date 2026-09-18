@@ -569,13 +569,36 @@ describe("executable runner", () => {
       r => r.message
     );
     expect(logs).toContain("Extracted 2 source rows into snapshot; no audience changes submitted yet");
-    expect(logs).toContain("Snapshot complete: 2 source rows. Comparing audience membership and submitting changes.");
+    expect(logs).toContain(
+      "Snapshot complete: 2 source rows, 2 projected audience members, 2 unique audience members, 0 duplicates collapsed. Comparing audience membership and submitting changes."
+    );
     f.input.taskId = "empty";
     f.setRows([]);
     f.calls.length = 0;
     expect(await execute(f.input)).toBe("SUCCESS");
     expect(f.calls).toContain("remove");
     expect(String((await durable()).members.length)).toBe("0");
+    expect((await admin.query("SELECT message FROM newjitsu.task_log WHERE task_id='empty'")).rows).toContainEqual({
+      message:
+        "Snapshot complete: 0 source rows, 0 projected audience members, 0 unique audience members, 0 duplicates collapsed. Comparing audience membership and submitting changes.",
+    });
+  });
+  it("logs deduplication of projected members rather than subtracting source rows", async () => {
+    const f = fixture();
+    f.input.config.options.mode = "mirror";
+    f.setRows([{ id: "a" }, { id: "b" }, { id: "excluded" }]);
+    f.adapter.project = (_action, row: any) =>
+      row.id === "excluded"
+        ? []
+        : ["private-member-1", "private-member-2"].map(id => ({ identity: id, upsert: { id }, remove: { id } }));
+    expect(await execute(f.input)).toBe("SUCCESS");
+    const logs = (await admin.query("SELECT message FROM newjitsu.task_log")).rows;
+    expect(logs).toContainEqual({
+      message:
+        "Snapshot complete: 3 source rows, 4 projected audience members, 2 unique audience members, 2 duplicates collapsed. Comparing audience membership and submitting changes.",
+    });
+    expect(JSON.stringify(logs)).not.toContain("private-member");
+    expect(f.writes.flatMap(batch => batch.records)).toHaveLength(2);
   });
   it("reports the failing mirror stage and counters without exposing warehouse errors", async () => {
     const f = fixture();

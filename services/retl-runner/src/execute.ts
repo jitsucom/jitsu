@@ -177,11 +177,11 @@ export async function execute(input: ExecuteOptions): Promise<TaskResult> {
             ...options,
             mapping: config.options.mapping,
             source: sig => source(undefined, sig),
-            onSnapshotProgress: (rows, sealed) =>
+            onSnapshotProgress: progress =>
               tasks.progress(
-                sealed
-                  ? `Snapshot complete: ${rows} source rows. Comparing audience membership and submitting changes.`
-                  : `Extracted ${rows} source rows into snapshot; no audience changes submitted yet`
+                progress.sealed
+                  ? `Snapshot complete: ${progress.sourceRows} source rows, ${progress.projectedMembers} projected audience members, ${progress.uniqueMembers} unique audience members, ${progress.duplicatesCollapsed} duplicates collapsed. Comparing audience membership and submitting changes.`
+                  : `Extracted ${progress.sourceRows} source rows into snapshot; no audience changes submitted yet`
               ),
           })
         ).delivery;
