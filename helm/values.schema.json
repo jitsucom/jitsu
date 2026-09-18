@@ -10,6 +10,7 @@
         "enabled": { "type": "boolean" },
         "runnerImage": { "type": "string" },
         "runtimeSecret": { "type": "string", "pattern": "^$|^[a-z0-9]([a-z0-9.-]*[a-z0-9])?$", "maxLength": 253 },
+        "controllerSecret": { "type": "string", "pattern": "^$|^[a-z0-9]([a-z0-9.-]*[a-z0-9])?$", "maxLength": 253 },
         "scratchSizeLimit": { "$ref": "#/definitions/quantity" },
         "serviceAccount": {
           "type": "object",

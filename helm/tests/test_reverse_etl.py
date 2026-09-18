@@ -45,6 +45,19 @@ class ReverseEtlChartTest(unittest.TestCase):
         self.assertNotIn(("ServiceAccount", "test-retl-runner"), docs)
         self.assertNotIn(("RoleBinding", "test-retl-runner"), docs)
 
+    def test_controller_override_is_preserved_when_restacked(self):
+        docs = self.manifests({**enabled(controllerSecret="retl-controller"),
+                               "syncctlProjectRoot": "/tmp/retl-worktree"})
+        controller = docs[("Deployment", "syncctl")]["spec"]["template"]["spec"]
+        self.assertEqual(controller["containers"][0]["envFrom"][-1],
+                         {"secretRef": {"name": "retl-controller"}})
+        project = next(volume for volume in controller["volumes"] if volume["name"] == "project")
+        self.assertEqual(project["hostPath"]["path"], "/tmp/retl-worktree")
+        for (kind, name), doc in docs.items():
+            if kind == "Deployment" and name != "syncctl":
+                for container in doc["spec"]["template"]["spec"]["containers"]:
+                    self.assertNotIn({"secretRef": {"name": "retl-controller"}}, container.get("envFrom", []))
+
     def test_syncctl_is_exposed_for_minikube_tunnel(self):
         docs = self.manifests({})
         service = docs[("Service", "syncctl")]["spec"]
