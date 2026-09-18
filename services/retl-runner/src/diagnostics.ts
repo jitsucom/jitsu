@@ -1,3 +1,5 @@
+import { reverseEtlFailure } from "@jitsu/destination-functions/src/reverse-etl/failure";
+
 export type FailureStage = "startup" | "lease_acquire" | "task_start" | "admission" | "execution";
 
 const codes = new Set([
@@ -46,6 +48,7 @@ export function failureDiagnostic(stage: FailureStage, error: unknown) {
   let current = error;
   for (let depth = 0; depth < 5 && current && typeof current === "object"; depth++) {
     const item = current as { message?: unknown; code?: unknown; cause?: unknown };
+    diagnostic.reason ??= reverseEtlFailure(current)?.reason;
     if (typeof item.message === "string" && reasons.has(item.message)) diagnostic.reason ??= item.message;
     if (typeof item.code === "string" && codes.has(item.code)) diagnostic.code ??= item.code;
     if (current instanceof KubernetesHttpError) diagnostic.httpStatus = current.status;
@@ -62,4 +65,12 @@ export class KubernetesHttpError extends Error {
 
 export function reportFailure(stage: FailureStage, error: unknown) {
   process.stderr.write(`${JSON.stringify(failureDiagnostic(stage, error))}\n`);
+}
+
+/** Use the same redacted reason in task details and persisted task logs. */
+export function failureMessage(error: unknown, taskId: string): string {
+  const message =
+    reverseEtlFailure(error)?.message ??
+    "Reverse ETL could not complete. Contact support or your Jitsu administrator. Some changes may already have been submitted; do not reset sync state.";
+  return `${message} Run ID: ${taskId}.`;
 }

@@ -272,6 +272,48 @@ function asynchronousFixture() {
 }
 
 describe("executable runner", () => {
+  it("records actionable duplicate-identity failures in task details and logs without member values", async () => {
+    const f = asynchronousFixture();
+    // Distinct model primary keys can normalize to the same destination identity.
+    f.adapter.project = () => [
+      {
+        identity: "private@example.com",
+        upsert: { email: "private@example.com" },
+        remove: { email: "private@example.com" },
+      },
+    ];
+    expect(await execute(f.input)).toBe("FAILED");
+    const failed = await task();
+    expect(failed.error).toContain("Multiple source rows identify the same audience member");
+    expect(failed.error).toContain("Update the model");
+    expect(failed.error).toContain("Run ID: task");
+    expect(failed.description).toBe(failed.error);
+    expect(failed.error).not.toContain("private@example.com");
+    expect((await admin.query("SELECT message FROM newjitsu.task_log WHERE level='ERROR'")).rows).toEqual([
+      { message: failed.error },
+    ]);
+    expect(f.writes).toHaveLength(0);
+  });
+  it("explains audience ownership conflicts before opening the warehouse", async () => {
+    const mirror = fixture();
+    mirror.input.config.options.mode = "mirror";
+    expect(await execute(mirror.input)).toBe("SUCCESS");
+    const f = fixture();
+    f.input.config.id = "another-sync";
+    f.input.taskId = "another-task";
+    expect(await execute(f.input)).toBe("FAILED");
+    expect((await task("another-task")).error).toContain("This audience is reserved by another sync");
+    expect(f.calls).not.toContain("source");
+  });
+  it("gives a support reference instead of exposing unexpected provider errors", async () => {
+    const f = fixture();
+    f.setFailInit();
+    expect(await execute(f.input)).toBe("FAILED");
+    const failed = await task();
+    expect(failed.error).toContain("Contact support or your Jitsu administrator");
+    expect(failed.error).toContain("Run ID: task");
+    expect(failed.error).not.toMatch(/private-token|inspect.*state/);
+  });
   const makeDue = () =>
     admin.query(
       `UPDATE newjitsu.source_task SET metrics=jsonb_set(metrics,'{reverseRecovery,nextCheckAt}',to_jsonb('2000-01-01T00:00:00.000Z'::text)) WHERE status='WAITING'`

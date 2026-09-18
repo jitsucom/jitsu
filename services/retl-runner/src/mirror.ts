@@ -22,6 +22,7 @@ import {
 import { Database, openPersistence, type Effect, type Identity, type RunInput } from "./persistence";
 import { effects } from "./persistence/effects";
 import { ensure, PersistenceError } from "./persistence/types";
+import { reverseEtlFailure } from "@jitsu/destination-functions/src/reverse-etl/failure";
 
 /** Pure, deterministic normalization, invoked once per source row, never during delivery/recovery. */
 export interface MirrorProjection<Row> {
@@ -79,20 +80,23 @@ export interface NewMirrorOptions<C, Row, O> extends MirrorOptions<C, Row, O> {
 }
 
 const mirrorFailureHints = {
-  initialization: "Check destination authorization and saved recovery state.",
+  initialization:
+    "Check destination authorization. If the problem persists, contact support or your Jitsu administrator.",
   extraction:
     "Check warehouse connectivity and query timeouts, primary keys and temporary disk capacity (ClickHouse limit: 512 MiB per query). No audience changes were submitted.",
   validation: "Check identifier mappings, consent and primary keys. No audience changes were submitted.",
   snapshot:
-    "Check state database connectivity, duplicate keys, conflicting identities and storage limits. No audience changes were submitted.",
+    "Check object storage connectivity and permissions, duplicate keys, conflicting identities and temporary disk capacity. No audience changes were submitted.",
   delivery:
-    "Check destination authorization and durable delivery state before retrying; some changes may have been submitted.",
+    "Check destination authorization. Some changes may have been submitted; contact support or your Jitsu administrator before retrying, and do not reset sync state.",
 };
 /** Only stage names and core counters are exposed, never SDK errors or source values. */
 export class MirrorRunError extends PersistenceError {
-  constructor(stage: keyof typeof mirrorFailureHints, readRows: number, savedRows: number) {
+  constructor(stage: keyof typeof mirrorFailureHints, readRows: number, savedRows: number, error?: unknown) {
     super(
-      `Snapshot mirror stopped during ${stage} (read ${readRows} rows, saved ${savedRows}). ${mirrorFailureHints[stage]}`
+      `Snapshot mirror stopped during ${stage} (read ${readRows} rows, saved ${savedRows}). ${
+        reverseEtlFailure(error)?.message ?? mirrorFailureHints[stage]
+      }`
     );
   }
 }
@@ -277,7 +281,7 @@ export async function runSnapshotMirror<C, Row, O>(input: NewMirrorOptions<C, Ro
     return await deliver(env, writer, value => {
       uncertain = value;
     });
-  } catch {
+  } catch (error) {
     if (writer && !uncertain) {
       try {
         await run.delivery.prepareAbort();
@@ -287,7 +291,7 @@ export async function runSnapshotMirror<C, Row, O>(input: NewMirrorOptions<C, Ro
         /* Preserve original failure and all unresolved evidence. */
       }
     }
-    throw new MirrorRunError(stage, readRows, savedRows);
+    throw new MirrorRunError(stage, readRows, savedRows, error);
   }
 }
 

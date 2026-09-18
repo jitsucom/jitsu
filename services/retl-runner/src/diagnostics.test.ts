@@ -1,8 +1,37 @@
 import { describe, expect, it } from "vitest";
-import { failureDiagnostic, KubernetesHttpError } from "./diagnostics";
+import { failureDiagnostic, failureMessage, KubernetesHttpError } from "./diagnostics";
 import { PersistenceError } from "./persistence/types";
+import { MirrorRunError } from "./mirror";
 
 describe("safe failure diagnostics", () => {
+  it("preserves actionable mirror failure hints and counters without retaining raw causes", () => {
+    const cause = new PersistenceError("Reverse ETL artifact upload failed; no delivery is authorized", {
+      cause: new Error("private-token"),
+    });
+    const error = new MirrorRunError("snapshot", 100, 50, cause);
+    expect(error.message).toContain("during snapshot (read 100 rows, saved 50)");
+    expect(error.message).toContain("check storage connectivity and permissions");
+    expect(error.cause).toBeUndefined();
+    expect(JSON.stringify(error)).not.toContain("private-token");
+  });
+  it.each([
+    ["Async batches require distinct member identities", "Multiple source rows identify the same audience member"],
+    ["Audience is exclusively managed by a mirror sync", "This audience is reserved by another sync"],
+    ["Source row failed destination validation", "Check the model output"],
+    ["Reverse ETL recovery artifact is missing or corrupt; delivery blocked", "Saved sync data is missing"],
+  ])("reports an actionable message for %s", (reason, hint) => {
+    const error = new PersistenceError(reason, { cause: new Error("private-token") });
+    expect(failureMessage(error, "task-123")).toContain(hint);
+    expect(failureMessage(error, "task-123")).toContain("Run ID: task-123");
+    expect(failureDiagnostic("execution", error).reason).toBe(reason);
+    expect(JSON.stringify(failureDiagnostic("execution", error))).not.toContain("private-token");
+  });
+  it("does not disclose unknown errors, even when they contain a known reason", () => {
+    const error = new Error("Async batches require distinct member identities: private@example.com");
+    expect(failureMessage(error, "task-123")).toContain("Contact support or your Jitsu administrator");
+    expect(failureMessage(error, "task-123")).not.toContain("private@example.com");
+    expect(failureDiagnostic("execution", error).reason).toBeUndefined();
+  });
   it("keeps known database codes without leaking driver messages or fields", () => {
     const cause = Object.assign(new Error("password=secret email=private@example.com"), {
       code: "42501",

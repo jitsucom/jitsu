@@ -12,7 +12,7 @@ import type { AdapterRegistry } from "./adapters";
 import type { RunLease } from "./lease";
 import { Tasks, type TaskResult } from "./tasks";
 import { recoverRun } from "./recovery";
-import { reportFailure, type FailureStage } from "./diagnostics";
+import { failureMessage, reportFailure, type FailureStage } from "./diagnostics";
 
 export interface ExecuteOptions {
   config: ReverseRunConfig;
@@ -221,12 +221,12 @@ export async function execute(input: ExecuteOptions): Promise<TaskResult> {
         .finish(
           status,
           ownershipLost
-            ? "Reverse ETL ownership or task heartbeat lost; recovery required"
+            ? "The worker lost ownership or could not report progress. Contact support or your Jitsu administrator; do not reset sync state."
             : signal.aborted
             ? "Reverse ETL cancelled; unresolved delivery retained"
             : error instanceof MirrorRunError || error instanceof PersistenceResetRequiredError
             ? error.message
-            : "Reverse ETL failed; inspect configuration and durable recovery state"
+            : failureMessage(error, input.taskId)
         )
         .catch(() => undefined);
     return status;
