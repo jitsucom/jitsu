@@ -145,6 +145,23 @@ manifest and in Helm's release record (`helm get values`) — the very exposure 
 generated path avoids. Use it for a throwaway environment, or where you already
 accept the token being in your values file.
 
+Setting it requires two more values, and both are deliberate rather than
+bookkeeping:
+
+- **`auth.jwtSecret`** — console signs its session cookies with this. It must be
+  a *different* value from `auth.token`, and not derived from it. Every other key
+  in that path hands `auth.token` to a service as a bearer credential, and those
+  travel on service-to-service requests; if the session-signing secret were the
+  same value, anyone who obtained one of those credentials could sign their own
+  console session and hold an admin one. Hashing `auth.token` would not help —
+  the derivation is in the chart, so the token still yields the secret.
+- **`auth.seedPassword`** — required when `seed.enabled`, because the generated
+  path mints a seed password and this one cannot invent one. Without it the seed
+  Job creates no user and nobody can sign in.
+
+The generated path has neither problem: the Job mints an independent 48-character
+`JWT_SECRET` and its own seed password.
+
 **Retrieve the initial login** after installing:
 
 ```bash

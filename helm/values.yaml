@@ -149,6 +149,13 @@ auth:
   # password, this one cannot. Required if seed.enabled — without it the seed
   # Job creates no user.
   seedPassword: ""
+  # Only used when `token` is set, and REQUIRED there. Console signs its session
+  # cookies with this. It must not be `token`, or any value derived from it:
+  # `token` is handed to services as a bearer credential (ROTOR_RAW_AUTH_TOKENS,
+  # CONSOLE_RAW_AUTH_TOKENS, the service-admin-account: pairs) and travels on
+  # service-to-service requests, so anyone holding one could sign their own
+  # console session and become an admin. Two different values, deliberately.
+  jwtSecret: ""
 
 # Image for the token-generator Job and the seed Job's wait-for-console gate.
 # Needs `kubectl`, a POSIX shell, `wget`, and /dev/urandom; nothing else.
