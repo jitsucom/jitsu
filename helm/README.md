@@ -164,7 +164,9 @@ bookkeeping:
   travel on service-to-service requests; if the session-signing secret were the
   same value, anyone who obtained one of those credentials could sign their own
   console session and hold an admin one. Hashing `auth.token` would not help —
-  the derivation is in the chart, so the token still yields the secret.
+  the derivation is in the chart, so the token still yields the secret. The
+  chart refuses to render if the two are equal — this is enforced, not just
+  asked for.
 - **`auth.seedPassword`** — required when `seed.enabled`, because the generated
   path mints a seed password and this one cannot invent one. Without it the seed
   Job creates no user and nobody can sign in.
