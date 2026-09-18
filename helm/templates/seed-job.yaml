@@ -18,7 +18,14 @@ The NODE_PATH dance is required by the image layout: manage.js needs
 @prisma/client, which ships only inside the pnpm store rather than at the top
 level of node_modules. Borrowed from github.com/stafftastic/jitsu-chart.
 */}}
-{{- if and (eq (include "jitsu.mode" .) "prod") .Values.seed.enabled }}
+{{- /* Gated on whether the console runs from source, NOT on mode. The console's
+       own entrypoint seeds inline, but only in the source-build path; a pinned
+       jitsucom/console image runs docker-start-console.sh, which seeds only when
+       SEED_DEMO_CONFIGURATION is set — and that also creates demo connections,
+       so the dev values deliberately leave it unset. Keying this on mode meant
+       `mode=dev` with images.console.repository set produced a migrated database
+       with no UserProfile and nobody able to sign in. */}}
+{{- if and (not (include "jitsu.devScaffold" (dict "ctx" . "service" "console"))) .Values.seed.enabled }}
 apiVersion: batch/v1
 kind: Job
 metadata:
