@@ -1,6 +1,6 @@
 # Object-backed Reverse ETL persistence — JITSU-227
 
-Opt-in replacement for network-database row storage. Node >=22.13 is required
+The sole persistence backend, replacing network-database row storage. Node >=22.13 is required
 (`node:sqlite`; the runner image should use Node 24). No sidecar or MongoDB service.
 Existing destination interfaces and syncctl recovery scheduling are unchanged.
 
@@ -12,15 +12,14 @@ Existing destination interfaces and syncctl recovery scheduling are unchanged.
 - The referenced immutable manifest contains the baseline parts, sealed desired
   snapshot parts, and batch descriptors. Batch manifests and detailed receipts
   are separate compressed JSON artifacts. There is no per-member or per-operation
-  PostgreSQL write in object mode. Legacy counter columns are not authoritative
-  in this mode; capacity is checked from the local index and artifact manifest.
+  PostgreSQL write. Capacity is checked from the local index and artifact manifest.
 - Local SQLite holds unique source keys, deduplicated desired members, effective
   membership, operation outcomes and touched identities. It is created in a
   private temporary directory, with a 0600 file, a bounded cache and 1 GiB main
   database cap. Provision sufficient ephemeral disk; it is not durable state.
-- `source_state`, `source_task`, `task_log` and target ownership remain shared with
-  the legacy runner. The old per-row tables remain for opt-out deployments; object
-  mode neither writes them nor calls their retention sweeper.
+- PostgreSQL retains only `reverse_sync_control`, `reverse_sync_target_owner`, and
+  shared `source_state`, `source_task`, `task_log`. The six legacy payload tables,
+  old accounting columns, backend fallback and SQL retention sweeper are removed.
 
 Snapshot ingestion performs local indexed writes. Duplicate source primary keys
 fail; shared destination identities collapse only when their entire normalized
@@ -57,8 +56,28 @@ worker lease. The runner renews its Lease while opening artifact persistence.
 
 ## Deployment
 
-Apply the additive Prisma `artifact_head` column before deploying the runner.
-Do not apply schemas to live databases as part of tests/builds.
+This is a **destructive schema cutover**, not an additive rolling deployment.
+Before applying Prisma schema changes:
+
+1. Pause all Reverse ETL schedules and stop/drain old workers. Keep them disabled.
+2. Back up the database and reconcile outstanding provider requests using the old
+   runner/schema. Retire/reset test syncs and audiences explicitly as described below.
+3. With operator approval, apply the console Prisma schema using schema-owner
+   credentials. It adds `artifact_head`, drops the six legacy payload tables
+   (`reverse_sync_batch`, `reverse_sync_operation`, `reverse_sync_generation`,
+   `reverse_sync_source_key`, `reverse_sync_desired`, `reverse_sync_membership`),
+   the unused action enum and five accounting columns. Prisma may require explicit
+   data-loss confirmation; do not bypass it in unattended deployment.
+4. Configure object storage and deploy the new runner. Create/verify a fresh disabled
+   test sync before enabling it. Old control rows without artifact heads remain rejected.
+
+No runtime DDL, automatic reset, or live schema change is part of this PR.
+
+For an existing development checkout, remove the six obsolete generated files
+`webapps/console/prisma/schema/reverse_sync_{batch,operation,generation,source_key,desired,membership}.ts`
+before running `pnpm codegen`. They are ignored build artifacts, not schema source;
+the Zod generator does not remove files for deleted models. Fresh checkouts do not
+need this cleanup. Do not edit or delete the Prisma schema itself.
 
 Configure the existing syncctl `ReverseRuntimeSecret` with:
 
@@ -87,15 +106,18 @@ bucket access or object delete permission is needed. Configure provider encrypti
 at rest, restricted IAM and audit logging. Hashing identifiers does not make these
 files non-sensitive. No application-level encryption is introduced.
 
-Leaving `RETL_OBJECT_STORE` unset selects the legacy backend for legacy/new syncs.
-Once a sync has an artifact head, missing object-storage configuration fails closed
-rather than falling back to legacy state. Keep bucket/prefix stable across workers.
+`RETL_OBJECT_STORE` and `RETL_OBJECT_BUCKET` are required for every runner.
+Missing configuration fails immediately; there is no PostgreSQL payload fallback.
+Keep bucket/prefix stable across workers.
 
 ## Explicit test-sync reset (no migration)
 
 Per the rollout decision, this PR does **not** migrate existing per-row state or
-automatically reset it. Existing initialized legacy syncs are rejected in object
-mode. Merely clearing the artifact pointer is not a supported rollback/reset.
+automatically reset it. Every pre-existing control row without an artifact pointer
+is rejected, including phase `new`. New admission uploads an empty manifest first
+and inserts its pointer atomically with the control row, so interrupted startup
+remains recoverable without being confused with legacy state. Merely clearing the
+artifact pointer is not a supported rollback/reset.
 
 Safest development cutover: pause the old sync, resolve any unknown/pending provider
 requests, retire that test audience, and create a new disabled sync with a **new
@@ -123,8 +145,9 @@ pointing to an empty bucket is not a reset. Database backups require the referen
 artifacts to be retained too.
 
 Legacy workers must not run an artifact-backed sync. Roll back code only after
-pausing those syncs; do not roll back the additive schema or unset storage settings
-and assume an older binary can recover new-format state.
+pausing all Reverse ETL syncs. Older binaries require the removed tables and cannot
+recover new-format state. A rollback requires a coordinated database backup restore
+and provider-side reconciliation, not just unsetting storage settings.
 
 ## Verification
 

@@ -4,7 +4,7 @@ import type { WarehouseReader, CompositeCursor } from "@jitsu/warehouse-query";
 import { ReverseRunConfig } from "@jitsu/warehouse-query/src/runtime";
 import { createBufferedSyncStore, recordKey } from "@jitsu/destination-functions/src/reverse-etl/identity";
 import { runReverseEtl } from "@jitsu/destination-functions/src/reverse-etl/run";
-import { Database, openPersistence, prune } from "./persistence";
+import { Database, openPersistence } from "./persistence";
 import type { ControlRow } from "./persistence/rows";
 import { ensure, PersistenceResetRequiredError } from "./persistence/types";
 import { openMirrorPersistence, runSnapshotMirror, resumeSnapshotMirror, MirrorRunError } from "./mirror";
@@ -108,11 +108,6 @@ export async function execute(input: ExecuteOptions): Promise<TaskResult> {
     const scope = run.scope;
     ensure(input.trigger !== "recovery" || run.recovery, "Recovery must not start a fresh extraction");
     await tasks.heartbeat();
-    for (; !db.objectStorage; ) {
-      signal.throwIfAborted();
-      const removed = await prune(db, scope, new Date(Date.now() - 30 * 86400000));
-      if (!removed.batches && !removed.snapshotRows) break;
-    }
     const saved = await run.core.state();
     await tasks.progress(
       run.recovery

@@ -1,4 +1,4 @@
-import { beforeAll, afterAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeAll, afterAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { GenericContainer, Wait, type StartedTestContainer } from "testcontainers";
 import { Client, type PoolConfig } from "pg";
 import { createRequire } from "node:module";
@@ -13,8 +13,7 @@ import type {
   WriteBatch,
 } from "@jitsu/protocols/reverse-etl";
 import { contentHash } from "@jitsu/destination-functions/src/reverse-etl/identity";
-import { Database, prune } from "./persistence";
-import { decodeJson, encodeJson } from "./persistence/serialization";
+import { Database } from "./persistence";
 import {
   openMirrorPersistence,
   runSnapshotMirror,
@@ -23,6 +22,12 @@ import {
   type MirrorSourceRecord,
   type SnapshotMirrorAdapter,
 } from "./mirror";
+
+import { MemoryObjects, persisted } from "./artifacts/test-support";
+const objects = new MemoryObjects();
+const storage = { objectStorage: { store: objects, signal: new AbortController().signal } };
+const durable = () => persisted(admin, objects);
+afterEach(() => vi.useRealTimers());
 
 let container: StartedTestContainer;
 let admin: Client;
@@ -73,20 +78,11 @@ beforeAll(async () => {
   await admin.query(
     "CREATE ROLE mirror_runtime LOGIN PASSWORD 'runtime'; GRANT USAGE ON SCHEMA newjitsu TO mirror_runtime"
   );
-  for (const table of [
-    "control",
-    "target_owner",
-    "batch",
-    "operation",
-    "generation",
-    "source_key",
-    "desired",
-    "membership",
-  ])
+  for (const table of ["control", "target_owner"])
     await admin.query(`GRANT SELECT,INSERT,UPDATE,DELETE ON newjitsu.reverse_sync_${table} TO mirror_runtime`);
   await admin.query("GRANT SELECT,INSERT,UPDATE,DELETE ON newjitsu.source_state TO mirror_runtime");
   runtimeConfig = { ...config, user: "mirror_runtime", password: "runtime" };
-  db = new Database(runtimeConfig);
+  db = new Database(runtimeConfig, storage);
 }, 60_000);
 afterAll(async () => {
   await db?.close();
@@ -94,9 +90,7 @@ afterAll(async () => {
   await container?.stop();
 });
 beforeEach(async () => {
-  await admin.query(
-    "TRUNCATE newjitsu.reverse_sync_operation,newjitsu.reverse_sync_batch,newjitsu.reverse_sync_control,newjitsu.reverse_sync_target_owner,newjitsu.reverse_sync_generation,newjitsu.reverse_sync_source_key,newjitsu.reverse_sync_desired,newjitsu.reverse_sync_membership,newjitsu.source_state"
-  );
+  await admin.query("TRUNCATE newjitsu.reverse_sync_control,newjitsu.reverse_sync_target_owner,newjitsu.source_state");
 });
 async function session(id = "run", taskId = id, database = db) {
   return openMirrorPersistence(database, {
@@ -117,9 +111,7 @@ async function phase() {
   return (await admin.query("SELECT phase FROM newjitsu.reverse_sync_control")).rows[0].phase;
 }
 async function membership() {
-  return (
-    await admin.query("SELECT identity_hash,value FROM newjitsu.reverse_sync_membership ORDER BY identity_hash")
-  ).rows.map(row => decodeJson<any>(row.value).upsert);
+  return (await durable()).members.map(row => row.effect.upsert);
 }
 
 function fixture() {
@@ -287,22 +279,24 @@ describe("core snapshot mirror lifecycle", () => {
     const f = fixture();
     f.adapter.refreshAfterMs = 30 * 86400_000;
     const rows = [record("old"), record("fresh")];
-    await runSnapshotMirror(f.options(await session("baseline"), rows));
+    const now = Date.now();
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(now - 31 * 86400_000);
+    await runSnapshotMirror(f.options(await session("baseline"), [record("old")]));
+    vi.setSystemTime(now);
+    // Add a fresh member without refreshing the old one yet.
+    f.adapter.refreshAfterMs = 60 * 86400_000;
+    await runSnapshotMirror(f.options(await session("add-fresh"), rows));
     f.requests.length = 0;
     await runSnapshotMirror(f.options(await session("unchanged"), rows));
     expect(f.requests).toHaveLength(0);
-    await admin.query(
-      "UPDATE newjitsu.reverse_sync_membership SET last_accepted_at=clock_timestamp()-interval '31 days' WHERE identity_hash=$1",
-      [contentHash(member("old"))]
-    );
+    f.adapter.refreshAfterMs = 30 * 86400_000;
     const refresh = await session("refresh");
-    await prune(db, refresh.scope, new Date(Date.now() - 30 * 86400_000));
     await runSnapshotMirror(f.options(refresh, rows));
     expect(f.requests.map(r => r.action)).toEqual(["upsert"]);
     expect(f.requests[0].batch.records.map(r => r.row.member)).toEqual([member("old")]);
     f.requests.length = 0;
     const next = await session("fresh-again");
-    await prune(db, next.scope, new Date(Date.now() - 30 * 86400_000));
     await runSnapshotMirror(f.options(next, rows));
     expect(f.requests).toHaveLength(0);
   });
@@ -311,9 +305,8 @@ describe("core snapshot mirror lifecycle", () => {
     const f = fixture();
     f.adapter.refreshAfterMs = 30 * 86400_000;
     await runSnapshotMirror(f.options(await session("baseline"), [record("stay"), record("gone")]));
-    await admin.query(
-      "UPDATE newjitsu.reverse_sync_membership SET last_accepted_at=clock_timestamp()-interval '31 days'"
-    );
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(Date.now() + 31 * 86400_000);
     f.requests.length = 0;
     f.adapter.batchDelivery = "asynchronous";
     f.setBatch(async (_action, batch) => ({
@@ -322,9 +315,7 @@ describe("core snapshot mirror lifecycle", () => {
     }));
     const run = await session("refresh");
     expect((await runSnapshotMirror(f.options(run, [record("stay")]))).delivery).toBe("pending");
-    const cutoff = (
-      await admin.query("SELECT refresh_before FROM newjitsu.reverse_sync_generation WHERE generation='refresh'")
-    ).rows[0].refresh_before;
+    const cutoff = (await durable()).head.snapshot!.refreshBefore;
     expect(f.requests.map(r => r.action)).toEqual(["upsert"]);
     const addition = f.requests[0].batch;
     // A later recovery must not advance the saved generation cutoff or reproject rows.
@@ -333,10 +324,7 @@ describe("core snapshot mirror lifecycle", () => {
     f.calls.length = 0;
     expect((await resumeSnapshotMirror(f.options(resumed, []), f.recovery)).delivery).toBe("pending");
     expect(f.calls).toEqual(["reconcile"]);
-    expect(
-      (await admin.query("SELECT refresh_before FROM newjitsu.reverse_sync_generation WHERE generation='refresh'"))
-        .rows[0].refresh_before
-    ).toEqual(cutoff);
+    expect((await durable()).head.snapshot!.refreshBefore).toEqual(cutoff);
     expect(f.requests[0].batch).toEqual(addition);
     f.receipts.set(addition.batchId, accepted(addition));
     expect((await resumeSnapshotMirror(f.options(await takeover(run), []), f.recovery)).delivery).toBe("pending");
@@ -485,7 +473,6 @@ describe("core snapshot mirror lifecycle", () => {
     ]);
     expect(await membership()).toHaveLength(2);
     const third = await session("third");
-    await prune(db, third.scope, new Date(Date.now() - 30 * 86400000));
     f.requests.length = 0;
     await runSnapshotMirror(f.options(third, []));
     expect(f.requests.map(r => r.action)).toEqual(["remove"]);
@@ -513,12 +500,8 @@ describe("core snapshot mirror lifecycle", () => {
       ["remove", [member("old")]],
     ]);
     expect([...f.remote.keys()].sort()).toEqual([member("shared"), member("new")].sort());
-    expect(
-      (await admin.query("SELECT key_count FROM newjitsu.reverse_sync_generation WHERE generation='second'")).rows[0]
-        .key_count
-    ).toBe("4");
+    expect((await durable()).head.snapshot!.keys).toBe(4);
     const third = await session("third");
-    await prune(db, third.scope, new Date(Date.now() - 30 * 86400000));
     f.requests.length = 0;
     const excluded = rows.map(row => ({ ...row, row: { ...row.row, value: "excluded" } }));
     expect(await runSnapshotMirror(f.options(third, excluded))).toEqual({ delivery: "accepted", sourceSequence: 2 });
@@ -583,7 +566,6 @@ describe("core snapshot mirror lifecycle", () => {
     const second = await session("second");
     await runSnapshotMirror(f.options(second, [record("a")]));
     const third = await session("third");
-    await prune(db, third.scope, new Date(Date.now() - 30 * 86400000));
     f.calls.length = 0;
     f.requests.length = 0;
     expect(await runSnapshotMirror(f.options(third, [record("a")]))).toEqual({
@@ -665,7 +647,6 @@ describe("core snapshot mirror lifecycle", () => {
     await expect(runSnapshotMirror(f.options(first, [record("a"), record("b")]))).rejects.toThrow();
     expect(await membership()).toHaveLength(1);
     const next = await session("next");
-    await prune(db, next.scope, new Date(Date.now() - 30 * 86400000));
     f.setBatch(undefined);
     await runSnapshotMirror(f.options(next, []));
     expect(await membership()).toEqual([]);
@@ -861,7 +842,7 @@ describe("core snapshot mirror lifecycle", () => {
     expect(await phase()).toBe("new");
   });
   it("enforces snapshot storage limits before any delivery", async () => {
-    const limited = new Database(runtimeConfig, { limits: { snapshotEntries: 1 } });
+    const limited = new Database(runtimeConfig, { ...storage, limits: { snapshotEntries: 1 } });
     try {
       const f = fixture(),
         run = await session("run", "run", limited);
@@ -881,10 +862,9 @@ describe("core snapshot mirror lifecycle", () => {
       await run.delivery.prepareInit({});
       await run.delivery.acknowledgeInit({});
       await run.snapshots.start();
-      await admin.query(`INSERT INTO newjitsu.reverse_sync_desired (workspace_id,sync_id,generation,identity_hash,payload_hash,value)
-      SELECT 'workspace','sync','run',lpad(to_hex(n),64,'0'),'unchanged',decode('00','hex') FROM generate_series(1,999999) AS n`);
-      await admin.query(`INSERT INTO newjitsu.reverse_sync_membership (workspace_id,sync_id,identity_hash,payload_hash,value)
-      SELECT workspace_id,sync_id,identity_hash,payload_hash,value FROM newjitsu.reverse_sync_desired`);
+      run.core.local.sql.exec(
+        "WITH RECURSIVE n(x) AS (VALUES(1) UNION ALL SELECT x+1 FROM n WHERE x<999999) INSERT INTO desired SELECT printf('%064x',x),'unchanged','{}' FROM n; INSERT INTO members SELECT identity,payload,value,'2026-01-01T00:00:00.000Z',0 FROM desired;"
+      );
       const f = fixture();
       const desired = f.adapter.projection.project({ id: "last", value: "v" })[0];
       const effect = {
@@ -892,18 +872,14 @@ describe("core snapshot mirror lifecycle", () => {
         identityHash: contentHash(desired.identity),
         payloadHash: contentHash(desired.upsert),
       };
-      const encoded = encodeJson(effect, 10000);
-      await admin.query(
-        "INSERT INTO newjitsu.reverse_sync_desired (workspace_id,sync_id,generation,identity_hash,payload_hash,value) VALUES ('workspace','sync','run',$1,$2,$3)",
-        [effect.identityHash, effect.payloadHash, encoded]
-      );
-      await admin.query("ANALYZE newjitsu.reverse_sync_desired; ANALYZE newjitsu.reverse_sync_membership");
+      run.core.local.sql
+        .prepare("INSERT INTO desired VALUES (?,?,?)")
+        .run(effect.identityHash, effect.payloadHash, JSON.stringify(effect));
+      run.core.local.sql.exec("ANALYZE");
       await run.snapshots.seal();
       expect(await run.snapshots.page("additions", "", 2)).toEqual([effect]);
       expect(await run.snapshots.page("additions", effect.identityHash, 2)).toEqual([]);
-      expect(Number((await admin.query("SELECT count(*) AS n FROM newjitsu.reverse_sync_desired")).rows[0].n)).toBe(
-        1_000_000
-      );
+      expect(Number(run.core.local.sql.prepare("SELECT count(*) AS n FROM desired").get()!.n)).toBe(1_000_000);
     },
     120_000
   );

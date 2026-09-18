@@ -163,15 +163,18 @@ the controller must recognize WAITING/RESUMED for cleanup. The console label onl
 deploys the console, not these services. Syncctl's DB role needs SELECT on
 `reverse_sync_control` alongside its existing `source_task` permissions.
 
-Fenced maintenance prunes abandoned generations and terminal old-run receipts in
-bounded pages before delivery, retaining receipts for 30 days. `source_state`
-continues to hold compact cursor/store state. No billing or association tables.
+Next-run admission compacts accepted membership into durable baseline files and
+discards the abandoned candidate from the new head. No SQL row sweeper remains.
+Object garbage collection is deferred; do not configure age-only bucket deletion.
+`source_state` continues to hold compact cursor/store state. See the mandatory
+[storage cutover](artifacts/README.md) before deploying; old workers must be stopped
+before dropping the legacy payload tables. No billing or association tables.
 
 ## Validation
 
 `pnpm --filter @jitsu-internal/retl-runner build` produces `dist/main.cjs`.
 Runner tests use disposable PostgreSQL and fake provider bindings. Set
-`RETL_MIRROR_SCALE_TEST=1` to include the existing million-identity SQL pagination
+`RETL_MIRROR_SCALE_TEST=1` to include the million-identity SQLite pagination
 test. Console integration tests verify scoped export/admission data; controller
 tests use fake Kubernetes clients for templates, feed isolation, malformed inputs
 and terminal Pod policy. Setting `SYNCCTL_TEST_DATABASE_URL` to a disposable

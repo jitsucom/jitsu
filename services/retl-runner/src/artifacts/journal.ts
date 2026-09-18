@@ -1,14 +1,20 @@
-import type { BatchResult, FinishResult, JsonObject, PreparedBatch, ResumePoint } from "@jitsu/protocols/reverse-etl";
+import type {
+  BatchResult,
+  DeliveryJournal,
+  FinishResult,
+  JsonObject,
+  PreparedBatch,
+  ResumePoint,
+} from "@jitsu/protocols/reverse-etl";
 import { canonicalJson, contentHash } from "@jitsu/destination-functions/src/reverse-etl/identity";
 import { validateBatchResult, validateFinishResult } from "@jitsu/destination-functions/src/reverse-etl/meta";
-import { Journal } from "../persistence/journal";
 import { Database } from "../persistence/database";
 import { controlFor, type ControlCache } from "../persistence/control-cache";
 import { encodeJson, decodeJson } from "../persistence/serialization";
 import { readSavedState, stateStream, type SavedState } from "../persistence/run-state";
 import type { ControlRow, StateRow } from "../persistence/rows";
-import { effects } from "../persistence/snapshots";
-import { ensure, type Project, type Scope, type Effect } from "../persistence/types";
+import { effects } from "../persistence/effects";
+import { ensure, PersistenceError, type Project, type Scope, type Effect } from "../persistence/types";
 import { Artifacts, type ArtifactRef } from "./store";
 import { LocalIndex, type Member } from "./local";
 import { ObjectSnapshots } from "./snapshots";
@@ -17,6 +23,7 @@ import type { ArtifactHead, BatchHead, BatchData, ReceiptData, StoredBatchData }
 const receiptKey = (result: BatchResult) =>
   canonicalJson({ ...result, outcomes: Object.fromEntries(result.outcomes.map(row => [row.operationId, row])) });
 const copy = <T>(value: T): T => JSON.parse(canonicalJson(value));
+class TransitionConflict extends PersistenceError {}
 type Changes = Partial<
   Pick<
     ControlRow,
@@ -32,7 +39,7 @@ type Changes = Partial<
 >;
 
 /** Immutable artifacts + one atomic PostgreSQL head update; SQLite is only a replayable index. */
-export class ObjectJournal extends Journal {
+export class ObjectJournal implements DeliveryJournal {
   readonly snapshots: ObjectSnapshots;
   readonly artifacts: Artifacts;
   head: ArtifactHead;
@@ -40,8 +47,8 @@ export class ObjectJournal extends Journal {
   private broken = false;
   private readonly cache: ControlCache;
   private constructor(
-    db: Database,
-    scope: Scope,
+    readonly db: Database,
+    readonly scope: Scope,
     private readonly projection: Project,
     private readonly recovered: boolean,
     readonly local: LocalIndex,
@@ -49,7 +56,6 @@ export class ObjectJournal extends Journal {
     headBytes: Buffer | null,
     artifacts: Artifacts
   ) {
-    super(db, scope, projection, recovered);
     this.head = head;
     this.headBytes = headBytes;
     this.artifacts = artifacts;
@@ -60,9 +66,8 @@ export class ObjectJournal extends Journal {
     ensure(db.objectStorage, "Object storage is required");
     const artifacts = new Artifacts(db.objectStorage.store, scope, db.objectStorage.signal);
     const control = await controlFor(db, scope).observe(value => value);
-    const head = control.artifact_head
-      ? await artifacts.get<ArtifactHead>(decodeJson(control.artifact_head))
-      : { version: 1 as const, runId: scope.logicalRunId, baseline: [], batches: [] };
+    ensure(control.artifact_head, "Artifact head is required; legacy state requires an explicit test-sync reset");
+    const head = await artifacts.get<ArtifactHead>(decodeJson(control.artifact_head));
     ensure(
       head.version === 1 && Array.isArray(head.baseline) && Array.isArray(head.batches),
       "Invalid artifact manifest"
@@ -83,7 +88,7 @@ export class ObjectJournal extends Journal {
           "DELETE FROM desired; DELETE FROM operations; DELETE FROM touched; DELETE FROM members WHERE value IS NULL; UPDATE members SET sequence=0;"
         );
       }
-      if (!control.artifact_head || head.runId !== scope.logicalRunId) await journal.publish(journal.head);
+      if (head.runId !== scope.logicalRunId) await journal.publish(journal.head);
       db.onClose(() => local.close());
       return journal;
     } catch (error) {
@@ -105,7 +110,7 @@ export class ObjectJournal extends Journal {
     ensure(!this.broken, "Artifact session requires reopening after a failed commit");
     return this.cache.observe(value => value);
   }
-  async publish(head: ArtifactHead, changes: Changes = {}, checkpoint?: SavedState) {
+  async publish(head: ArtifactHead, changes: Changes = {}, checkpoint?: SavedState, expectedPhase?: string) {
     ensure(!this.broken, "Artifact session requires reopening after a failed commit");
     this.artifacts.signal.throwIfAborted();
     const owned = copy(head);
@@ -117,6 +122,8 @@ export class ObjectJournal extends Journal {
     try {
       await this.cache.transaction(async client => {
         const old = await this.cache.lock(client);
+        if (expectedPhase !== undefined && old.phase !== expectedPhase)
+          throw new TransitionConflict("Lifecycle phase changed; transition rejected");
         ensure(
           (old.artifact_head === null && this.headBytes === null) || !!old.artifact_head?.equals(this.headBytes!),
           "Artifact head changed; reopen recovery"
@@ -160,7 +167,7 @@ export class ObjectJournal extends Journal {
       this.head = owned;
       this.headBytes = headBytes;
     } catch (error) {
-      this.broken = true;
+      if (!(error instanceof TransitionConflict)) this.broken = true;
       throw error;
     }
   }
@@ -195,7 +202,8 @@ export class ObjectJournal extends Journal {
     const touch = this.local.sql.prepare("INSERT OR IGNORE INTO touched VALUES(?)");
     this.local.transaction(() => {
       data.batch.records.forEach((record, index) => {
-        const status = outcomes.get(record.operationId)?.status ?? head.status;
+        const outcome = outcomes.get(record.operationId)?.status;
+        const status = outcome === "staged" && head.status === "cancelled" ? "cancelled" : outcome ?? head.status;
         put.run(record.operationId, record.sourceSequence, status, head.id);
         for (const effect of data.effects[index]) {
           touch.run(effect.identityHash);
@@ -237,12 +245,12 @@ export class ObjectJournal extends Journal {
   async prepareInit(store: JsonObject) {
     store = copy(store);
     ensure(!this.recovered && (await this.current()).phase === "new", "Initialization is not allowed");
-    await this.publish(this.head, { phase: "init_prepared", store: encodeJson(store) });
+    await this.publish(this.head, { phase: "init_prepared", store: encodeJson(store) }, undefined, "new");
   }
   async acknowledgeInit(store: JsonObject) {
     store = copy(store);
     ensure(!this.recovered && (await this.current()).phase === "init_prepared", "Initialization is not prepared");
-    await this.publish(this.head, { phase: "running", store: encodeJson(store) });
+    await this.publish(this.head, { phase: "running", store: encodeJson(store) }, undefined, "init_prepared");
   }
   async resetInitAfterReconciliation(resolution: "absent" | "cleaned-up", store: JsonObject) {
     store = copy(store);
@@ -250,7 +258,7 @@ export class ObjectJournal extends Journal {
     const c = await this.current();
     if (c.phase === "new") return;
     ensure(c.phase === "init_prepared", "Only prepared initialization can be reset");
-    await this.publish(this.head, { phase: "new", store: encodeJson(store), provider_state: null });
+    await this.publish(this.head, { phase: "new", store: encodeJson(store), provider_state: null }, undefined, c.phase);
   }
   async saveProviderState(state: JsonObject) {
     state = copy(state);
@@ -418,7 +426,10 @@ export class ObjectJournal extends Journal {
       result: receipt?.result,
       operations: data.batch.records.map(row => ({
         operationId: row.operationId,
-        status: outcomes.get(row.operationId) ?? head.status,
+        status:
+          outcomes.get(row.operationId) === "staged" && head.status === "cancelled"
+            ? "cancelled"
+            : outcomes.get(row.operationId) ?? head.status,
         acceptedAt: receipt?.acceptedAt[row.operationId] ? new Date(receipt.acceptedAt[row.operationId]) : null,
       })),
     };
@@ -506,7 +517,7 @@ export class ObjectJournal extends Journal {
       ),
       "Unacknowledged operations require reconciliation before cleanup"
     );
-    await this.publish(this.head, { phase: "abort_prepared" });
+    await this.publish(this.head, { phase: "abort_prepared" }, undefined, c.phase);
   }
   async acknowledgeAbort() {
     ensure((await this.current()).phase === "abort_prepared", "Cleanup is not prepared");
@@ -517,7 +528,9 @@ export class ObjectJournal extends Journal {
           row.staged ? { ...row, status: "cancelled", staged: 0, reservedEntries: 0, reservedBytes: 0 } : row
         ),
       },
-      { phase: "aborted" }
+      { phase: "aborted" },
+      undefined,
+      "abort_prepared"
     );
   }
   async prepareFinish(sequence: number, store: JsonObject) {
@@ -540,11 +553,16 @@ export class ObjectJournal extends Journal {
       "Unresolved/rejected operations prohibit finish"
     );
     if (this.scope.mode === "mirror") await this.snapshots.assertPromotable();
-    await this.publish(this.head, {
-      phase: "finish_prepared",
-      finish_sequence: String(sequence),
-      store: encodeJson(store),
-    });
+    await this.publish(
+      this.head,
+      {
+        phase: "finish_prepared",
+        finish_sequence: String(sequence),
+        store: encodeJson(store),
+      },
+      undefined,
+      c.phase
+    );
   }
   async sealExtraction(sequence: number, store: JsonObject) {
     store = copy(store);
@@ -557,7 +575,7 @@ export class ObjectJournal extends Journal {
         !this.head.batches.some(row => row.status === "prepared" || row.status === "unknown" || row.rejected > 0),
       "Cannot seal incomplete or rejected extraction"
     );
-    await this.publish(this.head, { phase: "batches_pending", store: encodeJson(store) });
+    await this.publish(this.head, { phase: "batches_pending", store: encodeJson(store) }, undefined, c.phase);
   }
   async acknowledgeFinish(result: FinishResult, store: JsonObject) {
     await this.finish(result, store, false);
@@ -572,7 +590,7 @@ export class ObjectJournal extends Journal {
       c = await this.current();
     ensure(["finish_prepared", "finish_pending", "finish_resolving"].includes(c.phase), "Finish is not prepared");
     ensure(
-      !this.recovered || reconciled || result.delivery !== "accepted",
+      !this.recovered || reconciled || result.delivery !== "accepted" || c.phase === "finish_resolving",
       "Recovered finish requires explicit reconciliation"
     );
     if (c.phase === "finish_pending" && result.delivery === "pending") {
@@ -603,7 +621,7 @@ export class ObjectJournal extends Journal {
           ),
         },
         store,
-        reconciled,
+        true,
         at
       );
     }
@@ -626,7 +644,10 @@ export class ObjectJournal extends Journal {
   }
   async commitCheckpoint(point: ResumePoint, store: JsonObject, complete: boolean) {
     store = copy(store);
-    const copied = copy(point),
+    const copied = copy({
+        sourceSequence: point.sourceSequence,
+        ...(point.cursor === undefined ? {} : { cursor: point.cursor }),
+      }),
       c = await this.current(),
       n = copied.sourceSequence;
     if (copied.cursor)

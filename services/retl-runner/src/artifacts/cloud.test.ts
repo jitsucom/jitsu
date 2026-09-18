@@ -113,7 +113,7 @@ describe("GCS transport", () => {
 });
 it("requires explicit, deployment-owned storage configuration", () => {
   const signal = new AbortController().signal;
-  expect(objectStorageFromEnv({}, signal)).toBeUndefined();
+  expect(() => objectStorageFromEnv({}, signal)).toThrow("RETL_OBJECT_STORE is required");
   expect(() => objectStorageFromEnv({ RETL_OBJECT_BUCKET: "bucket" }, signal)).toThrow("required");
   expect(() => objectStorageFromEnv({ RETL_OBJECT_STORE: "gcs" }, signal)).toThrow("required");
   expect(() =>

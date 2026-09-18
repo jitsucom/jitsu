@@ -77,7 +77,7 @@ export interface ResumePoint {
 
 /**
  * Awaited persistence boundary; the Node runner owns durable storage (PostgreSQL
- * or PostgreSQL metadata plus immutable object-storage artifacts).
+ * metadata plus immutable object-storage artifacts).
  * Provider implementations receive this interface, never a database client.
  * There is no production in-memory fallback or requirement for an RPC transport.
  * Bind scope on construction and validate lifecycle transitions. Persist bounded

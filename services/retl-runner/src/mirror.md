@@ -1,6 +1,6 @@
 # Core snapshot mirroring
 
-This is a server-only library slice, stacked on PostgreSQL persistence. It does not
+This is a server-only library using PostgreSQL control and artifact persistence. It does not
 enable a live adapter, executable job, scheduling, UI, billing or native audience
 replacement. The existing upsert lifecycle still rejects mirror mode; use this
 separate core lifecycle when wiring the executable runner.
@@ -94,7 +94,7 @@ source argument and never invokes projection or `stream.createWriter`.
   belongs to the adapter/scheduler, not a long-running loop in the core. Missing
   remote IDs or unresolvable outcomes block recovery rather than permit replay.
 - Incomplete extraction cannot resume from changed SQL. Reconcile/abort the old
-  session, acquire a new logical run, prune its abandoned candidate and collect a
+  session, acquire a new logical run (discarding its abandoned candidate) and collect a
   new full source. Interrupted initialization uses persistence's explicit init
   reset/reopen path. Unknown remote state remains blocked.
 
@@ -106,6 +106,6 @@ background loops silently started by this library.
 
 From `services/retl-runner`, run `pnpm test` against disposable PostgreSQL with
 restricted runtime roles. `RETL_MIRROR_SCALE_TEST=1 pnpm test` also seeds one million
-synthetic desired SQL rows and checks bounded diff pages. This validates pagination,
+synthetic desired SQLite rows and checks bounded diff pages. This validates pagination,
 not million-row serialization/extraction or provider throughput. No production database
 or advertising API is touched.

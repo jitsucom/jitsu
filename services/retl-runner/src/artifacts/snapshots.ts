@@ -1,15 +1,15 @@
-import type { PoolClient } from "pg";
 import { canonicalJson, contentHash } from "@jitsu/destination-functions/src/reverse-etl/identity";
-import { Snapshots, effects } from "../persistence/snapshots";
+import { effects } from "../persistence/effects";
 import { ensure, type Identity } from "../persistence/types";
 import type { ObjectJournal } from "./journal";
 import type { SnapshotHead } from "./state";
 import type { ArtifactRef } from "./store";
 
-export class ObjectSnapshots extends Snapshots {
+export class ObjectSnapshots {
   private pending?: SnapshotHead;
-  constructor(private readonly journal: ObjectJournal) {
-    super(journal.db, journal.scope);
+  constructor(private readonly journal: ObjectJournal) {}
+  private get db() {
+    return this.journal.db;
   }
   async start(refreshAfterMs?: number) {
     ensure(
@@ -97,7 +97,7 @@ export class ObjectSnapshots extends Snapshots {
     if (kind === "removals") await this.assertRemovalsAllowed();
     return this.journal.local.page(kind, after, limit, this.journal.head.snapshot.refreshBefore);
   }
-  async assertRemovalsAllowed(_client?: PoolClient) {
+  async assertRemovalsAllowed() {
     const snapshot = this.journal.head.snapshot;
     ensure(snapshot?.sealed, "Full source must be sealed before removals");
     ensure(
@@ -111,7 +111,7 @@ export class ObjectSnapshots extends Snapshots {
       "Desired additions are not durably accepted"
     );
   }
-  async assertPromotable(_client?: PoolClient) {
+  async assertPromotable() {
     await this.assertRemovalsAllowed();
     ensure(!this.journal.local.page("removals", "", 1, null).length, "Unremoved memberships prohibit promotion");
   }

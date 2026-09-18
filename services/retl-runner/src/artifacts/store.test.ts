@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import { Artifacts } from "./store";
 import { MemoryObjects } from "./test-support";
 import { LocalIndex } from "./local";
-import { effects } from "../persistence/snapshots";
+import { effects } from "../persistence/effects";
 import { contentHash } from "@jitsu/destination-functions/src/reverse-etl/identity";
 
 const scope = {

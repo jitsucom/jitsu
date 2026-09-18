@@ -1,4 +1,4 @@
-import { beforeAll, afterAll, beforeEach, describe, it, expect, vi } from "vitest";
+import { afterEach, beforeAll, afterAll, beforeEach, describe, it, expect, vi } from "vitest";
 import { GenericContainer, Wait, type StartedTestContainer } from "testcontainers";
 import { Client } from "pg";
 import { createRequire } from "node:module";
@@ -12,6 +12,12 @@ import { execute, type ExecuteOptions } from "./execute";
 import type { RuntimeAdapter } from "./adapters";
 import { createAdapterRegistry } from "./adapters";
 import { Tasks } from "./tasks";
+
+import { MemoryObjects, persisted } from "./artifacts/test-support";
+const objects = new MemoryObjects();
+const storage = { objectStorage: { store: objects, signal: new AbortController().signal } };
+const durable = () => persisted(admin, objects);
+afterEach(() => vi.useRealTimers());
 
 let container: StartedTestContainer;
 let admin: Client;
@@ -52,21 +58,12 @@ beforeAll(async () => {
   await admin.query(
     "CREATE ROLE runner_runtime LOGIN PASSWORD 'runtime'; GRANT USAGE ON SCHEMA newjitsu TO runner_runtime"
   );
-  for (const table of [
-    "control",
-    "target_owner",
-    "batch",
-    "operation",
-    "generation",
-    "source_key",
-    "desired",
-    "membership",
-  ])
+  for (const table of ["control", "target_owner"])
     await admin.query(`GRANT SELECT,INSERT,UPDATE,DELETE ON newjitsu.reverse_sync_${table} TO runner_runtime`);
   await admin.query(
     "GRANT SELECT,INSERT,UPDATE ON newjitsu.source_state,newjitsu.source_task TO runner_runtime; GRANT INSERT ON newjitsu.task_log TO runner_runtime"
   );
-  db = new Database({ ...config, user: "runner_runtime", password: "runtime" });
+  db = new Database({ ...config, user: "runner_runtime", password: "runtime" }, storage);
 }, 60_000);
 afterAll(async () => {
   await db?.close();
@@ -75,7 +72,7 @@ afterAll(async () => {
 });
 beforeEach(async () => {
   await admin.query(
-    "TRUNCATE newjitsu.reverse_sync_operation,newjitsu.reverse_sync_batch,newjitsu.reverse_sync_control,newjitsu.reverse_sync_target_owner,newjitsu.reverse_sync_generation,newjitsu.reverse_sync_source_key,newjitsu.reverse_sync_desired,newjitsu.reverse_sync_membership,newjitsu.source_state,newjitsu.source_task,newjitsu.task_log"
+    "TRUNCATE newjitsu.reverse_sync_control,newjitsu.reverse_sync_target_owner,newjitsu.source_state,newjitsu.source_task,newjitsu.task_log"
   );
 });
 const config = () =>
@@ -372,7 +369,7 @@ describe("executable runner", () => {
     expect(await execute(f.input)).toBe("FAILED");
     expect((await task("last-check")).error).toContain("after 24 hours");
     expect((await control()).phase).toBe("batches_pending");
-    expect((await admin.query("SELECT 1 FROM newjitsu.reverse_sync_batch")).rowCount).toBe(1);
+    expect((await durable()).batches.length).toBe(1);
     expect((await admin.query("SELECT 1 FROM newjitsu.source_task WHERE status='WAITING'")).rowCount).toBe(0);
     // Even a subsequent manual attempt must not silently extend the same window.
     f.input.trigger = "manual";
@@ -402,7 +399,7 @@ describe("executable runner", () => {
     expect(await execute(f.input)).toBe("FAILED");
     expect(f.calls).toEqual(["lease", "renew", "reconcile", "reconcileAbort", "release"]);
     expect((await control()).phase).toBe("aborted");
-    expect((await admin.query("SELECT DISTINCT status FROM newjitsu.reverse_sync_operation")).rows).toEqual([
+    expect([...new Set((await durable()).operations.map(row => row.status))].map(status => ({ status }))).toEqual([
       { status: "cancelled" },
     ]);
   });
@@ -471,7 +468,7 @@ describe("executable runner", () => {
     expect(await execute(f.input)).toBe("FAILED");
     expect(f.calls).toEqual(["lease", "renew", "reconcile", "release"]);
     expect((await control()).phase).toBe("batches_pending");
-    expect((await admin.query("SELECT count(*) FROM newjitsu.reverse_sync_membership")).rows[0].count).toBe("1");
+    expect(String((await durable()).members.length)).toBe("1");
     f.input.taskId = "cleanup";
     expect(await execute(f.input)).toBe("FAILED");
     expect((await control()).phase).toBe("aborted");
@@ -536,7 +533,7 @@ describe("executable runner", () => {
     f.calls.length = 0;
     expect(await execute(f.input)).toBe("SUCCESS");
     expect(f.calls).toContain("remove");
-    expect((await admin.query("SELECT count(*) FROM newjitsu.reverse_sync_membership")).rows[0].count).toBe("0");
+    expect(String((await durable()).members.length)).toBe("0");
   });
   it("reports the failing mirror stage and counters without exposing warehouse errors", async () => {
     const f = fixture();
@@ -566,7 +563,7 @@ describe("executable runner", () => {
         user: "runner_runtime",
         password: "runtime",
       },
-      { limits: { batchRecords: 2 } }
+      { ...storage, limits: { batchRecords: 2 } }
     );
     f.input.db = bounded;
     f.adapter.stream.batchSize = 1000;
@@ -691,9 +688,8 @@ describe("executable runner", () => {
       f.input.taskId = "fresh";
       expect(await execute(f.input)).toBe("SUCCESS");
       expect(submits).toBe(1);
-      await admin.query(
-        "UPDATE newjitsu.reverse_sync_membership SET last_accepted_at=clock_timestamp()-interval '31 days'"
-      );
+      vi.useFakeTimers({ toFake: ["Date"] });
+      vi.setSystemTime(Date.now() + 31 * 86400_000);
       f.input.taskId = "refresh";
       expect(await execute(f.input)).toBe("WAITING");
       expect(submits).toBe(2);
@@ -778,11 +774,9 @@ describe("executable runner", () => {
       expect(await execute(f.input)).toBe("WAITING");
       expect((await control()).phase).toBe("batches_pending");
       const logicalRun = (await control()).run_id;
-      const saved = await admin.query<{ manifest: Buffer; result: Buffer }>(
-        "SELECT manifest,result FROM newjitsu.reverse_sync_batch"
-      );
-      expect(saved.rowCount).toBe(1);
-      const serialized = saved.rows[0].manifest.toString() + saved.rows[0].result.toString();
+      const saved = (await durable()).batches;
+      expect(saved).toHaveLength(1);
+      const serialized = JSON.stringify(saved);
       expect(serialized).toContain("durable-job");
       expect(serialized).not.toContain("Private.Person");
       expect(serialized).not.toContain("access-token");
@@ -797,7 +791,7 @@ describe("executable runner", () => {
       expect((await control()).checkpoint_sequence).toBe("1");
       expect(f.calls.filter(call => call === "google-source")).toHaveLength(1);
       expect(wire.mock.calls.filter(([, init]) => init?.method === "POST")).toHaveLength(1);
-      expect((await admin.query("SELECT count(*) FROM newjitsu.reverse_sync_membership")).rows[0].count).toBe("1");
+      expect(String((await durable()).members.length)).toBe("1");
     } finally {
       wire.mockRestore();
     }
@@ -858,7 +852,7 @@ describe("executable runner", () => {
     expect(await execute(f.input)).toBe("FAILED");
     expect(f.calls).toEqual(["lease", "renew", "reconcile", "reconcileAbort", "release"]);
     expect((await control()).phase).toBe("aborted");
-    expect((await admin.query("SELECT count(*) FROM newjitsu.reverse_sync_membership")).rows[0].count).toBe("2");
+    expect(String((await durable()).members.length)).toBe("2");
   });
   it("does not release ownership until an aborted in-flight callback settles", async () => {
     const f = fixture();

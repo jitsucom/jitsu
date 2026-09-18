@@ -19,10 +19,7 @@ const Config = z.object({
 });
 export function objectStorageFromEnv(input: Record<string, string | undefined>, signal: AbortSignal) {
   const config = Config.parse(input);
-  if (!config.RETL_OBJECT_STORE) {
-    if (config.RETL_OBJECT_BUCKET) throw new Error("RETL_OBJECT_STORE is required when configuring a bucket");
-    return undefined;
-  }
+  if (!config.RETL_OBJECT_STORE) throw new Error("RETL_OBJECT_STORE is required (gcs or s3)");
   if (!config.RETL_OBJECT_BUCKET) throw new Error("RETL_OBJECT_BUCKET is required");
   const prefix = config.RETL_OBJECT_PREFIX.replace(/\/?$/, "/");
   return {

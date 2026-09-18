@@ -7,16 +7,17 @@ export class Database {
   readonly limits: Limits;
   readonly stateTable: string;
   private readonly searchPath: string;
-  readonly objectStorage?: { store: ObjectStore; signal: AbortSignal };
+  readonly objectStorage: { store: ObjectStore; signal: AbortSignal };
   private readonly cleanups: Array<() => Promise<void>> = [];
   constructor(
     config: PoolConfig,
     options: {
       sourceSchema?: string;
       limits?: Partial<Limits>;
-      objectStorage?: { store: ObjectStore; signal: AbortSignal };
-    } = {}
+      objectStorage: { store: ObjectStore; signal: AbortSignal };
+    }
   ) {
+    ensure(options?.objectStorage, "Reverse ETL requires object storage configuration");
     this.objectStorage = options.objectStorage;
     this.limits = { ...defaultLimits, ...options.limits };
     for (const [key, value] of Object.entries(this.limits))

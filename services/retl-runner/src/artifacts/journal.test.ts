@@ -10,7 +10,7 @@ import { Database, openPersistence, type RunInput } from "../persistence";
 import { openMirrorPersistence, runSnapshotMirror, resumeSnapshotMirror, type MirrorOptions } from "../mirror";
 import { z } from "zod";
 import type { JsonObject, ReverseEtlWriter } from "@jitsu/protocols/reverse-etl";
-import { effects } from "../persistence/snapshots";
+import { effects } from "../persistence/effects";
 import { MemoryObjects } from "./test-support";
 import type { ObjectJournal } from "./journal";
 
@@ -98,9 +98,7 @@ beforeAll(async () => {
 }, 120000);
 beforeEach(async () => {
   await Promise.all(databases.splice(0).map(db => db.close()));
-  await admin.query(
-    "TRUNCATE reverse_sync_operation,reverse_sync_batch,reverse_sync_control,reverse_sync_target_owner,reverse_sync_membership,reverse_sync_generation,source_state CASCADE"
-  );
+  await admin.query("TRUNCATE reverse_sync_control,reverse_sync_target_owner,source_state CASCADE");
   objects = new MemoryObjects();
 });
 afterAll(async () => {
@@ -109,6 +107,43 @@ afterAll(async () => {
   await container?.stop();
 });
 describe("object journal", () => {
+  it.each(["new", "running", "complete", "aborted"])(
+    "rejects legacy control in phase %s after removing payload tables",
+    async phase => {
+      await admin.query(
+        "INSERT INTO reverse_sync_control(workspace_id,sync_id,run_id,revision,target_hash,mode,extraction,phase) VALUES ('w','s','r','v',$1,'upsert','full',$2)",
+        [contentHash("target"), phase]
+      );
+      const before = (await admin.query("SELECT * FROM reverse_sync_control")).rows;
+      await expect(session()).rejects.toThrow("explicit test-sync reset");
+      expect((await admin.query("SELECT * FROM reverse_sync_control")).rows).toEqual(before);
+    }
+  );
+  it("admits a new control with its artifact pointer atomically across a lost startup response", async () => {
+    const original = Client.prototype.query;
+    let injected = false;
+    const spy = vi.spyOn(Client.prototype, "query").mockImplementation(function (this: Client, ...args: any[]) {
+      const response = (original as any).apply(this, args);
+      if (args[0] === "COMMIT" && !injected) {
+        injected = true;
+        return response.then(() => {
+          throw new Error("lost startup response");
+        });
+      }
+      return response;
+    });
+    try {
+      await expect(session()).rejects.toThrow("transaction failed");
+    } finally {
+      spy.mockRestore();
+    }
+    const control = (await admin.query("SELECT artifact_head,phase FROM reverse_sync_control")).rows[0];
+    expect(control.artifact_head).toBeInstanceOf(Buffer);
+    expect(control.phase).toBe("new");
+    const resumed = await session();
+    expect(resumed.recovery).toBe(false);
+    await init(resumed);
+  });
   it("rejects duplicate operation IDs before publishing any prepared batch", async () => {
     const run = await session();
     await init(run);
@@ -342,14 +377,13 @@ describe("object journal", () => {
     } finally {
       spy.mockRestore();
     }
-    for (const table of [
-      "reverse_sync_batch",
-      "reverse_sync_operation",
-      "reverse_sync_membership",
-      "reverse_sync_desired",
-      "reverse_sync_source_key",
-    ])
-      expect((await admin.query(`SELECT count(*)::int AS n FROM ${table}`)).rows[0].n).toBe(0);
+    expect(
+      (
+        await admin.query(
+          "SELECT tablename FROM pg_tables WHERE schemaname='newjitsu' AND starts_with(tablename,'reverse_sync_') ORDER BY tablename"
+        )
+      ).rows.map(row => row.tablename)
+    ).toEqual(["reverse_sync_control", "reverse_sync_target_owner"]);
     await run.delivery.prepareFinish(1000, {});
     await run.delivery.acknowledgeFinish({ delivery: "accepted" }, {});
     await run.delivery.commitCheckpoint({ sourceSequence: 1000 }, {}, true);
@@ -424,9 +458,8 @@ describe("object journal", () => {
     await run.delivery.prepare(b, {});
     objects.objects.clear();
     await expect(session()).rejects.toThrow("missing or corrupt");
-    const legacy = new Database({ connectionString: url });
-    databases.push(legacy);
-    await expect(openPersistence(legacy, input(), project)).rejects.toThrow("no PostgreSQL fallback");
+    // No runtime fallback is possible, including for new syncs.
+    expect(() => new Database({ connectionString: url }, {} as any)).toThrow("requires object storage");
     await admin.query("UPDATE reverse_sync_control SET artifact_head=NULL");
     await expect(session()).rejects.toThrow("explicit test-sync reset");
   });
