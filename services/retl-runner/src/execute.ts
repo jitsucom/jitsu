@@ -12,6 +12,7 @@ import type { AdapterRegistry } from "./adapters";
 import type { RunLease } from "./lease";
 import { Tasks, type TaskResult } from "./tasks";
 import { recoverRun } from "./recovery";
+import { reportFailure, type FailureStage } from "./diagnostics";
 
 export interface ExecuteOptions {
   config: ReverseRunConfig;
@@ -38,6 +39,7 @@ export async function execute(input: ExecuteOptions): Promise<TaskResult> {
   let renewing: Promise<void> | undefined;
   let stopped = false;
   let ownershipLost = false;
+  let stage: FailureStage = "lease_acquire";
   const signal = controller.signal;
   const tick = async () => {
     try {
@@ -56,9 +58,12 @@ export async function execute(input: ExecuteOptions): Promise<TaskResult> {
     signal.throwIfAborted();
     await lease.acquire();
     held = true;
+    stage = "task_start";
     await tasks.start(input.trigger, input.recoveryOf, input.config.configRevision);
     started = true;
+    stage = "admission";
     const config = ReverseRunConfig.parse(await input.admit());
+    stage = "execution";
     ensure(
       config.id === input.config.id &&
         config.workspaceId === input.config.workspaceId &&
@@ -206,6 +211,7 @@ export async function execute(input: ExecuteOptions): Promise<TaskResult> {
     );
     return changed && success ? "SUCCESS" : "FAILED";
   } catch (error) {
+    reportFailure(stage, error);
     stopped = true;
     clearTimeout(timer);
     await renewing;

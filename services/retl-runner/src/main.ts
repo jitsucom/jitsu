@@ -8,6 +8,7 @@ import { createAdapterRegistry } from "./adapters";
 import { createConsoleClient } from "./console-client";
 import { KubernetesLease, inClusterLeaseRequest } from "./lease";
 import { objectStorageFromEnv } from "./artifacts/config";
+import { reportFailure } from "./diagnostics";
 
 const Env = z.object({
   RETL_CONFIG_PATH: z.string().default("/config/reverse.json"),
@@ -80,7 +81,8 @@ async function main() {
     process.removeListener("SIGINT", stop);
   }
 }
-main().catch(() => {
+main().catch(error => {
+  reportFailure("startup", error);
   process.stderr.write("Reverse ETL runner failed; check configuration and durable recovery state\n");
   process.exit(1);
 });

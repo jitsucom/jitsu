@@ -40,8 +40,8 @@ export class Database {
     });
   }
   async transaction<T>(work: (client: PoolClient) => Promise<T>): Promise<T> {
-    const client = await this.pool.connect().catch(() => {
-      throw new PersistenceError("Reverse ETL database connection failed");
+    const client = await this.pool.connect().catch(cause => {
+      throw new PersistenceError("Reverse ETL database connection failed", { cause });
     });
     try {
       await client.query("BEGIN");
@@ -54,7 +54,7 @@ export class Database {
       await client.query("ROLLBACK").catch(() => undefined);
       if (error instanceof PersistenceError) throw error;
       // PostgreSQL error detail can include identifiers and sensitive payloads.
-      throw new PersistenceError("Reverse ETL persistence transaction failed");
+      throw new PersistenceError("Reverse ETL persistence transaction failed", { cause: error });
     } finally {
       client.release();
     }

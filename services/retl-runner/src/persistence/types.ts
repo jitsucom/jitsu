@@ -35,8 +35,8 @@ export const defaultLimits: Limits = {
   journalBytes: 256_000_000,
 };
 export class PersistenceError extends Error {
-  constructor(message: string) {
-    super(message);
+  constructor(message: string, options?: ErrorOptions) {
+    super(message, options);
     this.name = "PersistenceError";
   }
 }
