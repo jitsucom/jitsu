@@ -13,6 +13,41 @@ The chart has two modes, selected by `mode` in `values.yaml`:
 
 ## Production mode
 
+### What the cluster must give you
+
+**Permission to create RBAC objects.** The chart creates eight: two ClusterRoles,
+two ClusterRoleBindings, two Roles and two RoleBindings. Two of them are
+cluster-scoped, so namespace-admin is not enough. On GKE, `roles/editor` is not
+enough either — it deliberately excludes RBAC — and the install fails at the
+pre-install hook with `cannot delete resource "roles" ... requires one of
+["container.roles.delete"]`. `roles/container.admin` covers it.
+
+**A default StorageClass**, if you use `helm-deps`. It creates three 5Gi PVCs
+and does not set `storageClassName`, so they bind to whatever the cluster
+defaults to. With no default StorageClass they stay `Pending` and the install
+waits without a useful error.
+
+### What the chart grants, and why
+
+Worth reading before you hand it to a cluster you care about.
+
+| Object | Scope | Grants | Why |
+|---|---|---|---|
+| `jitsu-operator` | Cluster | CRUD on pods, services, configmaps, secrets, deployments, statefulsets, HPAs, PodDisruptionBudgets | it creates and manages the per-workspace functions-server deployments |
+| `jitsu-syncctl` | Cluster | the same, plus `jobs`/`cronjobs`, `pods/log` get, `pods/exec` create | it runs each connector sync as a pod, tails its logs on failure, and samples CPU/memory by exec-ing into the running container |
+| `jitsu-sync-pod` | Namespace | `leases` | leader election between sync pods |
+| `jitsu-token-generator` | Namespace | `secrets` create, and get/patch **restricted to `jitsu-secrets`** | generates the inter-service tokens; `resourceNames` stops it touching any other Secret |
+
+Two are worth flagging explicitly rather than leaving to be discovered:
+
+- **`pods/exec` create** on syncctl is effectively shell access to pods in scope.
+  It is used for resource sampling (`JobRunner.getPodResUsage`), not arbitrarily.
+- **The two ClusterRoles are cluster-scoped**, so their secrets and pods access
+  spans every namespace, not just the release namespace. If that is too broad
+  for your cluster, both are ordinary templates and can be narrowed to Roles in
+  a fork — at the cost of syncs and functions-servers being confined to one
+  namespace.
+
 Dependencies first. The main chart does not install them, so on a fresh cluster
 there is no Postgres, Kafka, ClickHouse or MongoDB, no `jitsu-deps-urls` Secret,
 and the console crashes without `DATABASE_URL`:
