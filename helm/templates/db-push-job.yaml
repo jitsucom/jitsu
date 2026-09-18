@@ -1,3 +1,15 @@
+{{/*
+Dev only. In prod the console image applies the schema itself: its entrypoint
+runs `prisma db push --skip-generate --schema schema.prisma` on startup unless
+UPDATE_DB is disabled (docker-start-console.sh), and that is how the reference
+docker-compose deployment migrates — it runs the image with no command and no
+UPDATE_DB override. Keeping this job in prod would mean two mechanisms racing
+to apply the same schema.
+
+In dev the console container runs `next dev` against source and never reaches
+that entrypoint, so the schema has to be pushed by this hook instead.
+*/}}
+{{- if include "jitsu.isDev" . }}
 # Applies the console Prisma schema to Postgres on every deploy.
 #
 # Runs as a pre-install/pre-upgrade hook after the install-job (weight -5)
@@ -75,3 +87,4 @@ spec:
         - name: node-cache
           persistentVolumeClaim:
             claimName: node-cache
+{{- end }}

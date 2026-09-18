@@ -14,15 +14,24 @@ spec:
       app.kubernetes.io/instance: {{ .Release.Name }}
   template:
     metadata:
+      {{- if eq (include "jitsu.mode" .) "prod" }}
+      annotations:
+        {{- include "jitsu.credentialChecksum" . | nindent 8 }}
+      {{- end }}
       labels:
         app.kubernetes.io/name: profiles
         app.kubernetes.io/instance: {{ .Release.Name }}
     spec:
       containers:
         - name: profiles
-          image: node:24-bookworm
+          image: {{ include "jitsu.image" (dict "ctx" . "service" "profiles" "dev" "node:24-bookworm" "prod" "rotor") }}
+          {{- with (include "jitsu.imagePullPolicy" (dict "ctx" . "service" "profiles")) }}
+          imagePullPolicy: {{ . }}
+          {{- end }}
+{{- if include "jitsu.devScaffold" (dict "ctx" . "service" "profiles") }}
           workingDir: /cache/workspace/services/rotor
           command: ["npx", "tsx", "--no-node-snapshot", "--max-old-space-size=2048", "src/index.ts"]
+{{- end }}
           ports:
             - name: http
               containerPort: 3401
@@ -46,9 +55,11 @@ spec:
                     "MONGODB_TIMEOUT_MS" "120000"
                     "WAREHOUSE_TIMEOUT_MS" "5000"
                     "UDF_TIMEOUT_MS" "300000")) | nindent 12 }}
+{{- if include "jitsu.devScaffold" (dict "ctx" . "service" "profiles") }}
           volumeMounts:
             - name: node-cache
               mountPath: /cache
+{{- end }}
           livenessProbe:
             httpGet:
               path: /health
@@ -61,10 +72,12 @@ spec:
               port: http
             initialDelaySeconds: 30
             periodSeconds: 10
+{{- if include "jitsu.devScaffold" (dict "ctx" . "service" "profiles") }}
       volumes:
         - name: node-cache
           persistentVolumeClaim:
             claimName: node-cache
+{{- end }}
 ---
 apiVersion: v1
 kind: Service
@@ -74,7 +87,7 @@ metadata:
     {{- include "jitsu.labels" . | nindent 4 }}
     app.kubernetes.io/name: profiles
 spec:
-  type: ClusterIP
+  type: {{ include "jitsu.serviceType" (dict "ctx" . "service" "profiles" "dev" "ClusterIP") }}
   ports:
     - port: 3401
       targetPort: http

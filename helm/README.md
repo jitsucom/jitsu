@@ -2,11 +2,203 @@
 
 Helm chart for deploying Jitsu services to Kubernetes.
 
-**Today this chart targets local development on Minikube**: services are built
-inside containers via init containers from a hostPath-mounted checkout, so no
-local build step is required. A production mode — published images instead of
-source builds, no hostPath — is tracked in `JITSU-48`; until it lands, do not
-deploy this chart to a shared or production cluster.
+The chart has two modes, selected by `mode` in `values.yaml`:
+
+- **`dev`** (default) — services are built from source inside init containers
+  against a hostPath-mounted checkout, so no local build step is required. This
+  is what the rest of this README describes, and it targets Minikube.
+- **`prod`** — services run published `jitsucom/*` images. No source build, no
+  hostPath, `projectRoot` unused, every Service `ClusterIP`, and an optional
+  Ingress for console and ingest.
+
+## Production mode
+
+### What the cluster must give you
+
+**Permission to create RBAC objects.** The chart creates eight: two ClusterRoles,
+two ClusterRoleBindings, two Roles and two RoleBindings. Two of them are
+cluster-scoped, so namespace-admin is not enough. On GKE, `roles/editor` is not
+enough either — it deliberately excludes RBAC — and the install fails at the
+pre-install hook with `cannot delete resource "roles" ... requires one of
+["container.roles.delete"]`. `roles/container.admin` covers it.
+
+**A default StorageClass**, if you use `helm-deps`. It creates four 5Gi PVCs
+and does not set `storageClassName`, so they bind to whatever the cluster
+defaults to. With no default StorageClass they stay `Pending` and the install
+waits without a useful error.
+
+### What the chart grants, and why
+
+Worth reading before you hand it to a cluster you care about.
+
+| Object | Scope | Grants | Why |
+|---|---|---|---|
+| `jitsu-operator` | Cluster | CRUD on pods, services, configmaps, secrets, deployments, statefulsets, HPAs, PodDisruptionBudgets | it creates and manages the per-workspace functions-server deployments |
+| `jitsu-syncctl` | Cluster | the same, plus `jobs`/`cronjobs`, `pods/log` get, `pods/exec` create | it runs each connector sync as a pod, tails its logs on failure, and samples CPU/memory by exec-ing into the running container |
+| `jitsu-sync-pod` | Namespace | `leases` | leader election between sync pods |
+| `jitsu-token-generator` | Namespace | `secrets`: get/patch **restricted to `jitsu-secrets`**, plus **unrestricted create** | generates the inter-service tokens; see the note below on why `create` cannot be narrowed |
+
+Two are worth flagging explicitly rather than leaving to be discovered:
+
+- **`pods/exec` create** on syncctl is effectively shell access to pods in scope.
+  It is used for resource sampling (`JobRunner.getPodResUsage`), not arbitrarily.
+- **The token-generator can create Secrets of any name** in the release
+  namespace. `get` and `patch` are pinned to `jitsu-secrets` with
+  `resourceNames`, but Kubernetes cannot apply `resourceNames` to `create` —
+  there is no object yet to authorize against — so that verb is namespace-wide
+  by construction. Pre-creating an empty Secret so the Job needs only `patch`
+  was considered and rejected: `lookup` is empty during `helm template`,
+  `--dry-run` and Argo CD rendering, so a templated Secret would blank the live
+  keys on every upgrade. The grant is therefore deliberate, not an oversight.
+  Set `tokenGenerator.enabled=false` and manage `jitsu-secrets` yourself if it
+  is unacceptable.
+- **The two ClusterRoles are cluster-scoped**, so their secrets and pods access
+  spans every namespace, not just the release namespace. If that is too broad
+  for your cluster, both are ordinary templates and can be narrowed to Roles in
+  a fork — at the cost of syncs and functions-servers being confined to one
+  namespace.
+
+Dependencies first. The main chart does not install them, so on a fresh cluster
+there is no Postgres, Kafka, ClickHouse or MongoDB, no `jitsu-deps-urls` Secret,
+and the console crashes without `DATABASE_URL`:
+
+```bash
+helm install jitsu-deps ./helm-deps --wait --timeout 5m
+```
+
+`--wait` matters: without it the command returns as soon as the objects are
+created, and the main chart can start while Postgres is still booting. The
+console's entrypoint runs `prisma db push` once and does not check whether it
+succeeded, so on a lost race the schema is missing, `/api/healthcheck` returns
+503 (it does a `workspace.findFirst`), and the entrypoint's healthcheck kills the
+container. Kubernetes restarts it and the migration runs again, so the install
+usually recovers by itself — but it crash-loops on the way, and it only recovers
+if Postgres is ready before the post-install seed Job exhausts its five-minute
+wait. Every dependency here has a readiness probe (Postgres uses `pg_isready`),
+so `--wait` removes the race rather than just delaying it.
+
+`5m` is Helm's own default and is comfortable on a normal cluster — the four
+images are roughly 600 MB compressed in total and pull in parallel. Raise it on a
+slow link; `kubectl get pods -w` will show you whether it is still pulling or
+genuinely stuck.
+
+`helm-deps` runs **single-node** instances and is not production-grade — see the
+caveat below. For a real deployment, point the services at managed instances
+instead: disable each component in `helm-deps/values.yaml` and set the matching
+`env.common.DATABASE_URL` / `KAFKA_BOOTSTRAP_SERVERS` / `CLICKHOUSE_URL` /
+`MONGODB_URL` here.
+
+Then the chart itself:
+
+```bash
+helm install jitsu ./helm --wait --timeout 5m \
+  --set mode=prod \
+  --set ingress.enabled=true \
+  --set ingress.className=nginx \
+  --set ingress.hosts.console=jitsu.example.com \
+  --set ingress.hosts.ingest=events.example.com
+```
+
+`--wait` here for the same reason as the dependency install above, and it is not
+cosmetic. Without it Helm returns as soon as the objects are created: on a real
+cluster that means **exit 0 while five services are in `CrashLoopBackOff`**.
+Every service that reads its configuration from the console — bulker, ingest,
+operator, profiles, rotor, syncctl — exits rather than retrying when the console
+is not up yet (`Cannot load cached repository. No CACHE_DIR is set.`), so they
+restart a few times until it is. The install recovers on its own, but a bare
+`helm install` reports success in the middle of that, which is the worst moment
+to walk away from it.
+
+`5m` has comfortable headroom: a measured cold start into an empty namespace,
+including a node scale-up, reached all-running in about 2 minutes.
+
+**TLS is off in that command on purpose.** Turning `ingress.tls.enabled=true` on
+without also giving the certificate a source leaves you worse off than plain
+HTTP: ingress-nginx falls back to its own self-signed certificate, the chart
+still derives `https://…` for the console's NextAuth URL, and the browser rejects
+the certificate — so nobody can log in. Enable TLS together with one of:
+
+```bash
+# a) you already hold a certificate, in a TLS Secret in the release namespace
+  --set ingress.tls.enabled=true \
+  --set ingress.tls.secretName=jitsu-tls
+
+# b) cert-manager issues it — leave secretName empty and point at your issuer
+  --set ingress.tls.enabled=true \
+  --set ingress.annotations."cert-manager\.io/cluster-issuer"=letsencrypt-prod
+```
+
+For (b) both hostnames must already resolve to the ingress controller, or the
+ACME HTTP-01 challenge cannot complete.
+
+No secrets on the command line, deliberately. A pre-install Job generates the
+inter-service tokens, the console's `JWT_SECRET` and the initial admin password
+into the `jitsu-secrets` Secret, which every service mounts via `envFrom`. Values
+passed with `--set` would instead land in the pod spec, in Helm's release record
+(`helm get values`), and in your shell history.
+
+The Job never rewrites a key that is already set, so upgrades do not rotate the
+tokens. It does fill in keys that are *missing*, which is what makes a dev
+release upgradable to `mode=prod` and lets an older install pick up keys added by
+a later chart version.
+
+**To manage the secret yourself** — external secret manager, SealedSecret,
+GitOps — create `jitsu-secrets` before installing and leave `auth.token` unset.
+The Job will see it and only backfill absent keys; supply all of them and it does
+nothing at all. To stop the chart touching the Secret under any circumstances,
+also set `tokenGenerator.enabled=false`, and note that every key then becomes
+your responsibility.
+
+`auth.token` is a different thing and is **not** the external-secrets path: it
+renders the value into the Secret template, so it ends up in the rendered
+manifest and in Helm's release record (`helm get values`) — the very exposure the
+generated path avoids. Use it for a throwaway environment, or where you already
+accept the token being in your values file.
+
+Setting it requires two more values, and both are deliberate rather than
+bookkeeping:
+
+- **`auth.jwtSecret`** — console signs its session cookies with this. It must be
+  a *different* value from `auth.token`, and not derived from it. Every other key
+  in that path hands `auth.token` to a service as a bearer credential, and those
+  travel on service-to-service requests; if the session-signing secret were the
+  same value, anyone who obtained one of those credentials could sign their own
+  console session and hold an admin one. Hashing `auth.token` would not help —
+  the derivation is in the chart, so the token still yields the secret. The
+  chart refuses to render if the two are equal — this is enforced, not just
+  asked for.
+- **`auth.seedPassword`** — required when `seed.enabled`, because the generated
+  path mints a seed password and this one cannot invent one. Without it the seed
+  Job creates no user and nobody can sign in.
+
+The generated path has neither problem: the Job mints an independent 48-character
+`JWT_SECRET` and its own seed password.
+
+**Retrieve the initial login** after installing:
+
+```bash
+kubectl get secret jitsu-secrets -o jsonpath='{.data.SEED_USER_PASSWORD}' | base64 -d
+```
+
+The user is `env.console.SEED_USER_EMAIL` (default `admin@example.com`), created
+by a post-install Job, and the password must be changed at first login. Without
+that Job a fresh install has a migrated database and no user at all — the
+published console image only seeds when `SEED_DEMO_CONFIGURATION` is set, which
+also creates demo connections.
+
+Dependencies are still the `../helm-deps` chart's single-node Kafka, Postgres,
+ClickHouse and MongoDB, which are **not** production-grade. Point a prod install
+at managed instances by disabling them there and setting the matching
+`env.common` connection URLs.
+
+`ingress.hosts.console` also determines the console's public URL (NextAuth
+redirects, tracking snippet). Without an Ingress, set
+`env.console.NEXTAUTH_URL` and `env.console.JITSU_PUBLIC_URL` explicitly.
+
+Prod mode has not yet been verified end to end on a real cluster — that is the
+remaining work in `JITSU-48`.
+
+## Development mode
 
 ## Prerequisites
 

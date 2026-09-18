@@ -1,0 +1,226 @@
+{{/*
+Generates the inter-service auth tokens into the `jitsu-secrets` Secret.
+
+Prod only — in dev, dev-deploy.sh creates that Secret before deploying.
+
+Why a Job rather than generating the Secret in a template: a template can only
+reach existing cluster state through `lookup`, and `lookup` returns nothing
+during `helm template`, `--dry-run`, and Argo CD repo-server rendering. A chart
+that relies on it emits a *fresh random token on every reconciliation*, and
+because updating a Secret does not restart pods atomically, some pods keep the
+old token and inter-service calls start failing. Doing the stateful part in the
+cluster keeps rendering pure and the token stable.
+
+Idempotent by construction: the Job creates the Secret only if absent, so a
+re-install or a resync leaves an existing token alone. Set `auth.token` to
+manage the value yourself instead — then this Job is not created at all.
+
+Pattern borrowed from the community chart at github.com/stafftastic/jitsu-chart.
+*/}}
+{{- if and (eq (include "jitsu.mode" .) "prod") (not .Values.auth.token) .Values.tokenGenerator.enabled }}
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: jitsu-token-generator
+  labels:
+    {{- include "jitsu.labels" . | nindent 4 }}
+    app.kubernetes.io/name: token-generator
+  annotations:
+    # These must be hooks too, at a lower weight than the Job. A pre-install hook
+    # runs *before* Helm applies ordinary manifests, so a plain ServiceAccount
+    # here would not exist yet and the Job could never start on a fresh install.
+    "helm.sh/hook": pre-install,pre-upgrade
+    "helm.sh/hook-weight": "-20"
+    "helm.sh/hook-delete-policy": before-hook-creation
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: jitsu-token-generator
+  labels:
+    {{- include "jitsu.labels" . | nindent 4 }}
+    app.kubernetes.io/name: token-generator
+  annotations:
+    # Hook, weight -20 — see the ServiceAccount above.
+    "helm.sh/hook": pre-install,pre-upgrade
+    "helm.sh/hook-weight": "-20"
+    "helm.sh/hook-delete-policy": before-hook-creation
+rules:
+  # `get` is scoped to the one Secret this Job owns — it must read it back to
+  # stay idempotent, but it has no business reading any other Secret.
+  - apiGroups: [""]
+    resources: ["secrets"]
+    verbs: ["get"]
+    resourceNames: ["jitsu-secrets"]
+  # `create` is deliberately NOT narrowed, because it cannot be: Kubernetes does
+  # not apply resourceNames to a create request — there is no object yet to
+  # authorize against — so this verb is namespace-wide whatever we write here.
+  # The Job therefore can create Secrets of any name in this namespace.
+  #
+  # Pre-creating an empty jitsu-secrets so only `patch` were needed was the
+  # obvious alternative and is worse: `lookup` is empty during `helm template`,
+  # `--dry-run` and Argo CD rendering (see secrets.yaml), so the templated
+  # Secret would blank the live keys on every upgrade.
+  #
+  # Documented in README rather than silently accepted. tokenGenerator.enabled=false
+  # removes the grant entirely for anyone who cannot live with it.
+  - apiGroups: [""]
+    resources: ["secrets"]
+    verbs: ["create"]
+  # `patch` is how missing keys are backfilled into an existing Secret — scoped
+  # to the same single resource as `get`, so this Job can never modify another.
+  - apiGroups: [""]
+    resources: ["secrets"]
+    verbs: ["patch"]
+    resourceNames: ["jitsu-secrets"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: jitsu-token-generator
+  labels:
+    {{- include "jitsu.labels" . | nindent 4 }}
+    app.kubernetes.io/name: token-generator
+  annotations:
+    # Hook, weight -20 — see the ServiceAccount above.
+    "helm.sh/hook": pre-install,pre-upgrade
+    "helm.sh/hook-weight": "-20"
+    "helm.sh/hook-delete-policy": before-hook-creation
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: jitsu-token-generator
+subjects:
+  - kind: ServiceAccount
+    name: jitsu-token-generator
+    namespace: {{ .Release.Namespace }}
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  # Stable name, deliberately. A `{{ .Release.Revision }}` suffix gives every
+  # upgrade a distinct Job, and `before-hook-creation` only deletes a hook of the
+  # same name — so completed Jobs and their Pods accumulate for the life of the
+  # release, and Helm does not remove hook resources on uninstall either. With a
+  # stable name exactly one generation survives: the previous run is deleted just
+  # before the next is created, which also keeps its logs available until then.
+  name: token-generator
+  labels:
+    {{- include "jitsu.labels" . | nindent 4 }}
+    app.kubernetes.io/name: token-generator
+  annotations:
+    # Before everything else: every service mounts jitsu-secrets via envFrom and
+    # will not start without it.
+    "helm.sh/hook": pre-install,pre-upgrade
+    "helm.sh/hook-weight": "-10"
+    "helm.sh/hook-delete-policy": before-hook-creation
+spec:
+  backoffLimit: 2
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: token-generator
+        app.kubernetes.io/instance: {{ .Release.Name }}
+    spec:
+      restartPolicy: Never
+      serviceAccountName: jitsu-token-generator
+      containers:
+        - name: token-generator
+          image: {{ .Values.tokenGenerator.image | quote }}
+          command:
+            - sh
+            - -c
+            - |
+              set -eu
+              # `tr -dc` on /dev/urandom: no openssl in the kubectl image.
+              gen() { head -c 256 /dev/urandom | tr -dc 'a-zA-Z0-9' | head -c "$1"; }
+
+              # Value of a key in the existing Secret, empty if absent.
+              key() { kubectl get secret jitsu-secrets -o "jsonpath={.data.$1}" 2>/dev/null | base64 -d 2>/dev/null || true; }
+
+              if kubectl get secret jitsu-secrets >/dev/null 2>&1; then
+                # Do NOT exit here. The key set grows over time — and an existing
+                # Secret may predate it. dev-deploy.sh creates only the eight
+                # inter-service keys, so a dev release upgraded to mode=prod
+                # arrives with no JWT_SECRET (console then fails its required env
+                # validation), no SEED_USER_PASSWORD (the seed Job creates no
+                # admin) and no ROTOR_RAW_AUTH_TOKENS (rotor stays open to
+                # everyone). Backfill what is missing; never touch what is there,
+                # because rotating a live token breaks every service until the
+                # last pod restarts.
+                TOKEN=$(key RAW_AUTH_TOKENS)
+                [ -n "$TOKEN" ] || TOKEN=$(gen 32)
+                # No subshell: `add` has to mutate MISSING and PATCH in place.
+                MISSING=""
+                PATCH=""
+                add() {
+                  if [ -z "$(key "$1")" ]; then
+                    MISSING="$MISSING $1"
+                    if [ -n "$PATCH" ]; then PATCH="$PATCH,"; fi
+                    PATCH="$PATCH\"$1\":\"$2\""
+                  fi
+                }
+                add RAW_AUTH_TOKENS "$TOKEN"
+                add BULKER_AUTH_KEY "$TOKEN"
+                add ROTOR_AUTH_KEY "$TOKEN"
+                add ROTOR_RAW_AUTH_TOKENS "$TOKEN"
+                add SYNCCTL_AUTH_KEY "$TOKEN"
+                add CONSOLE_RAW_AUTH_TOKENS "$TOKEN"
+                add REPOSITORY_AUTH_TOKEN "service-admin-account:$TOKEN"
+                add CONSOLE_TOKEN "service-admin-account:$TOKEN"
+                add CONFIG_SOURCE_HTTP_AUTH_TOKEN "service-admin-account:$TOKEN"
+                add JWT_SECRET "$(gen 48)"
+                add SEED_USER_PASSWORD "$(gen 24)"
+                if [ -z "$PATCH" ]; then
+                  echo "jitsu-secrets already complete — nothing to do"
+                  exit 0
+                fi
+                # Output suppressed on BOTH streams, deliberately. `kubectl patch`
+                # echoes the patched resource by default, and that includes the
+                # whole `data` map — every token, JWT_SECRET, SEED_USER_PASSWORD,
+                # base64 but trivially reversible. Anyone able to read this Job's
+                # logs could then recover credentials without any access to the
+                # Secret itself. stderr is suppressed for the same reason: a
+                # malformed patch makes kubectl echo the request body back, and
+                # that body carries the values in plaintext under `stringData`.
+                # The line below reports the key *names*, which is what is
+                # actually useful, and never a value.
+                if ! kubectl patch secret jitsu-secrets -p "{\"stringData\":{$PATCH}}" >/dev/null 2>&1; then
+                  echo "failed to patch jitsu-secrets — error text withheld because kubectl can echo the patch body, which contains credentials"
+                  exit 1
+                fi
+                echo "jitsu-secrets backfilled:$(printf '%s' "$MISSING")"
+                exit 0
+              fi
+
+              TOKEN=$(gen 32)
+              # Console's session-signing secret. Generated here rather than
+              # passed on the command line so it never reaches a pod spec, Helm
+              # release metadata, or shell history.
+              JWT=$(gen 48)
+              # Initial admin password. Generated rather than supplied so it is
+              # never typed on a command line; seed.ts sets changeAtNextLogin,
+              # so it is a one-time value. Retrieve it with:
+              #   kubectl get secret jitsu-secrets \
+              #     -o jsonpath='{.data.SEED_USER_PASSWORD}' | base64 -d
+              SEEDPW=$(gen 24)
+              # The three keyId:secret pairs use the same service-admin-account
+              # prefix the console expects; the rest are the bare token. Mirrors
+              # dev-deploy.sh's ensure_secrets() exactly.
+              kubectl create secret generic jitsu-secrets \
+                --from-literal="RAW_AUTH_TOKENS=$TOKEN" \
+                --from-literal="BULKER_AUTH_KEY=$TOKEN" \
+                --from-literal="ROTOR_AUTH_KEY=$TOKEN" \
+                --from-literal="ROTOR_RAW_AUTH_TOKENS=$TOKEN" \
+                --from-literal="SYNCCTL_AUTH_KEY=$TOKEN" \
+                --from-literal="CONSOLE_RAW_AUTH_TOKENS=$TOKEN" \
+                --from-literal="REPOSITORY_AUTH_TOKEN=service-admin-account:$TOKEN" \
+                --from-literal="CONSOLE_TOKEN=service-admin-account:$TOKEN" \
+                --from-literal="CONFIG_SOURCE_HTTP_AUTH_TOKEN=service-admin-account:$TOKEN" \
+                --from-literal="JWT_SECRET=$JWT" \
+                --from-literal="SEED_USER_PASSWORD=$SEEDPW" >/dev/null 2>&1 || {
+                echo "failed to create jitsu-secrets — error text withheld because kubectl can echo the literals, which are the credentials"
+                exit 1
+              }
+              echo "jitsu-secrets created"
+{{- end }}

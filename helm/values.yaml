@@ -1,9 +1,65 @@
-# Jitsu Dev Helm Chart Values
-# This chart deploys services using local binaries mounted via hostPath
+# Jitsu Helm Chart Values
+
+# Deployment mode.
+#
+#   dev  — services are built from source inside init containers against a
+#          hostPath-mounted checkout, and run from generic base images
+#          (golang / node / debian). Requires projectRoot. This is what the
+#          chart has always done and remains the default.
+#   prod — services run published jitsucom/* images; no source build, no
+#          hostPath, projectRoot unused.
+#
+# A prod install also generates its own inter-service credentials (a pre-install
+# Job) and creates the first admin user (a post-install one), and it needs the
+# dependency chart installed first. helm/README.md is the entry point — start
+# there rather than from this file.
+#
+# `dev` stays the default because it is what the Minikube workflow and
+# dev-deploy.sh expect, and its rendered output is unchanged by prod support.
+mode: dev
+
+# Container images.
+#
+# Defaults apply in prod mode; in dev mode the base images are used instead
+# and these are ignored unless a per-service `repository` is set explicitly.
+image:
+  # Registry / org that publishes the service images.
+  registry: jitsucom
+  # Tag used for every service without its own. The release workflow tags the
+  # stable channel as both `latest` and `stable`; other channels are tagged
+  # with the channel name.
+  tag: latest
+  pullPolicy: IfNotPresent
+
+# Per-service image overrides. Empty by default — a service falls back to the
+# mode default.
+#
+# In prod this is how you pin one service to a specific build. In dev it only
+# changes the base image: the dev templates still mount the source checkout and
+# override the container command, so the service goes on running local source
+# whatever repository you name here.
+#
+#   images:
+#     rotor:
+#       repository: jitsucom/rotor
+#       tag: my-branch.abc1234
+#       pullPolicy: Always
+# NOTE: `rotor` and `profiles` run the SAME image (profiles is rotor with
+# ROTOR_MODE=profiles) but are separate keys here. Pinning one and not the other
+# gives you a split-version deployment — set both, or neither.
+images:
+  ingest: {}
+  bulker: {}
+  rotor: {}
+  profiles: {}
+  syncctl: {}
+  operator: {}
+  console: {}
 
 # Path to the project root on the host machine, mounted into containers.
-# Required — no default. dev-deploy.sh sets it automatically; for direct
-# helm invocations pass --set projectRoot=<absolute path to your checkout>.
+# Required in dev mode — no default. dev-deploy.sh sets it automatically; for
+# direct helm invocations pass --set projectRoot=<absolute path to your
+# checkout>. Unused in prod mode.
 projectRoot: ""
 
 # Environment variables
@@ -18,15 +74,25 @@ env:
   rotor: {}
   profiles: {}
   syncctl: {}
-  operator:
-    FUNCTIONS_SERVER_IMAGE: jitsucom/functions-server:beta
+  # FUNCTIONS_SERVER_IMAGE is a template default (jitsu.functionsServerImage):
+  # beta in dev, image.registry/image.tag in prod. Set it here to override.
+  operator: {}
   console:
-    NEXTAUTH_URL: "http://localhost:3000"
     ENABLE_CREDENTIALS_LOGIN: true
     SEED_USER_EMAIL: admin@example.com
-    SEED_USER_PASSWORD: changeme
-    JITSU_PUBLIC_URL: "http://localhost:3000"
-    JWT_SECRET: "dev-jwt-secret-change-in-production"
+    # NEXTAUTH_URL and JITSU_PUBLIC_URL are template defaults
+    # (jitsu.consolePublicUrl): http://localhost:3000 in dev, and the Ingress
+    # host in prod when one is configured.
+    #
+    # Set them here when the chart cannot know the public URL: a prod install
+    # with no Ingress (exposed by an external load balancer or service mesh)
+    # falls back to http://localhost:3000, which will break sign-in redirects
+    # and the tracking snippet.
+    # JWT_SECRET and SEED_USER_PASSWORD are deliberately absent. In dev they are
+    # template defaults (jitsu.devCredential); in prod the token-generator Job
+    # mints them into jitsu-secrets, which every service already mounts via
+    # envFrom — so they never appear in a pod spec, in Helm release metadata, or
+    # in shell history. Set either here to supply your own.
     SYNCS_ENABLED: true
 
 # Dependencies (Kafka, PostgreSQL, ClickHouse, MongoDB) are deployed by the
@@ -36,6 +102,89 @@ env:
 # external instance, disable it in helm-deps/values.yaml and set the matching
 # env.common.KAFKA_BOOTSTRAP_SERVERS / DATABASE_URL / CLICKHOUSE_URL /
 # MONGODB_URL here (explicit env wins over envFrom).
+
+# Inter-service authentication (prod mode; in dev, dev-deploy.sh manages the
+# jitsu-secrets Secret). Leave empty to generate a token on first install and
+# reuse it on every upgrade — the chart reads the live value back rather than
+# rotating it, because rotating mid-upgrade breaks every service until the last
+# pod restarts. Set it to manage the value yourself.
+auth:
+  # Leave empty and the token-generator Job creates jitsu-secrets on first
+  # install, then leaves it alone on every later upgrade. Set it to supply the
+  # token yourself (external secret manager, SealedSecret, GitOps) — the Job is
+  # then not created at all.
+  token: ""
+  # Only used when `token` is set: the generated path mints its own seed
+  # password, this one cannot. Required if seed.enabled — without it the seed
+  # Job creates no user.
+  seedPassword: ""
+  # Only used when `token` is set, and REQUIRED there. Console signs its session
+  # cookies with this. It must not be `token`, or any value derived from it:
+  # `token` is handed to services as a bearer credential (ROTOR_RAW_AUTH_TOKENS,
+  # CONSOLE_RAW_AUTH_TOKENS, the service-admin-account: pairs) and travels on
+  # service-to-service requests, so anyone holding one could sign their own
+  # console session and become an admin. Two different values, deliberately.
+  jwtSecret: ""
+
+# Image for the token-generator Job and the seed Job's wait-for-console gate.
+# Needs `kubectl`, a POSIX shell, `wget`, and /dev/urandom; nothing else.
+#
+# Not `bitnami/kubectl`: Bitnami moved their public catalog in 2025 and the
+# version tags are gone from the free namespace — `bitnami/kubectl:1.31` now
+# fails to pull with `not found`, which breaks the default prod install. The
+# surviving `bitnamilegacy/*` images are frozen, so they are not a fix either.
+# `alpine/k8s` is actively tagged and carries a shell, which the official
+# `registry.k8s.io/kubectl` image does not (it is distroless, so the Job's
+# script cannot run there).
+tokenGenerator:
+  # Set false when `jitsu-secrets` is managed entirely outside the chart — an
+  # external secret manager, a SealedSecret, whatever your GitOps flow uses. The
+  # chart then creates and touches nothing, and it is on you to supply every key
+  # the services need (the full list is in the Job's `kubectl create secret`
+  # call). Leaving this true is safe alongside an externally managed Secret: the
+  # Job only fills in keys that are absent and never rewrites one you set.
+  enabled: true
+  image: alpine/k8s:1.31.13
+
+# Creates the first admin user and workspace on a fresh prod install, from
+# env.console.SEED_USER_EMAIL / SEED_USER_PASSWORD. Without it a prod install
+# has a migrated database and no user, so nobody can log in. Idempotent — it
+# does nothing once any user exists. Disable if you provision users another way.
+seed:
+  enabled: true
+
+# Service type overrides. Empty by default: dev keeps the LoadBalancers that
+# `minikube tunnel` publishes, prod forces ClusterIP for every service so no
+# service gets its own billed cloud load balancer. Set a type here to override
+# both.
+#
+#   service:
+#     console:
+#       type: LoadBalancer
+service: {}
+
+# External entry point. Prod only — in dev, `minikube tunnel` already publishes
+# the LoadBalancer services.
+#
+# Scoped to console + ingest deliberately: bulker and rotor are internal in
+# production and are not exposed here. Enabling without a host fails the render
+# rather than producing an Ingress with no rules.
+ingress:
+  enabled: false
+  # Ingress controller class, e.g. nginx, traefik, or gce on GKE.
+  className: ""
+  # Controller- and issuer-specific annotations, e.g. cert-manager.io/cluster-issuer.
+  annotations: {}
+  hosts:
+    # Console UI, e.g. jitsu.example.com
+    console: ""
+    # Event collection endpoint, e.g. events.example.com
+    ingest: ""
+  tls:
+    enabled: false
+    # Existing TLS Secret. Leave empty when the controller or cert-manager
+    # provisions the certificate from the host list.
+    secretName: ""
 
 # Service scaling (set replicas to 0 to disable)
 scaling:
