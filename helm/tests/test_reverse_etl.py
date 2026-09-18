@@ -45,6 +45,14 @@ class ReverseEtlChartTest(unittest.TestCase):
         self.assertNotIn(("ServiceAccount", "test-retl-runner"), docs)
         self.assertNotIn(("RoleBinding", "test-retl-runner"), docs)
 
+    def test_syncctl_is_exposed_for_minikube_tunnel(self):
+        docs = self.manifests({})
+        service = docs[("Service", "syncctl")]["spec"]
+        self.assertEqual(service["type"], "LoadBalancer")
+        http = next(port for port in service["ports"] if port["name"] == "http")
+        self.assertEqual(http["port"], 3043)
+        self.assertEqual(http["targetPort"], "http")
+
     def test_enabled_resources_and_identity(self):
         annotations = {"iam.gke.io/gcp-service-account": "runner@example.iam.gserviceaccount.com"}
         docs = self.manifests(enabled(serviceAccount={"annotations": annotations},

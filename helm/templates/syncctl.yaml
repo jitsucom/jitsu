@@ -148,7 +148,7 @@ metadata:
     {{- include "jitsu-dev.labels" . | nindent 4 }}
     app.kubernetes.io/name: syncctl
 spec:
-  type: ClusterIP
+  type: LoadBalancer
   ports:
     - port: 3043
       targetPort: http

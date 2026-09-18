@@ -176,6 +176,7 @@ Then access:
 - Ingest: http://localhost:3049
 - Bulker: http://localhost:3042
 - Rotor: http://localhost:3401
+- Syncctl: http://localhost:3043 (use this as `SYNCCTL_URL` for a console running on your Mac)
 - Kafka: localhost:19092 (external listener of the in-cluster Redpanda)
 - Postgres: localhost:5432 (`postgres` / `helm-deps/values.yaml postgres.password`)
 - ClickHouse: http://localhost:8123 (`default` / `helm-deps/values.yaml clickhouse.password`)
