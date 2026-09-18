@@ -49,6 +49,7 @@ func reverseResourceName(id string) string {
 }
 
 func buildReversePodTemplate(c *Config, entry *SyncEntry, secret, taskID string) v1.PodTemplateSpec {
+	settings := c.reverseSettings()
 	trigger := "scheduled"
 	taskEnv := v1.EnvVar{Name: "TASK_ID", ValueFrom: &v1.EnvVarSource{FieldRef: &v1.ObjectFieldSelector{FieldPath: "metadata.name"}}}
 	if taskID != "" {
@@ -60,16 +61,21 @@ func buildReversePodTemplate(c *Config, entry *SyncEntry, secret, taskID string)
 		{Name: "POD_UID", ValueFrom: &v1.EnvVarSource{FieldRef: &v1.ObjectFieldSelector{FieldPath: "metadata.uid"}}},
 		{Name: "KUBE_NAMESPACE", ValueFrom: &v1.EnvVarSource{FieldRef: &v1.ObjectFieldSelector{FieldPath: "metadata.namespace"}}},
 	}
-	for _, key := range []string{"RETL_DATABASE_URL", "RETL_CONSOLE_URL", "RETL_CONSOLE_TOKEN"} {
+	for _, key := range []string{"RETL_DATABASE_URL", "RETL_CONSOLE_URL", "RETL_CONSOLE_TOKEN", "RETL_OBJECT_STORE", "RETL_OBJECT_BUCKET"} {
 		env = append(env, v1.EnvVar{Name: key, ValueFrom: &v1.EnvVarSource{SecretKeyRef: &v1.SecretKeySelector{LocalObjectReference: v1.LocalObjectReference{Name: c.ReverseRuntimeSecret}, Key: key}}})
 	}
+	// Object storage is deployment-owned, never part of destination configuration.
+	// GCS uses Workload Identity; S3 may use workload identity or these runtime credentials.
+	for _, key := range []string{"RETL_OBJECT_PREFIX", "RETL_S3_ENDPOINT", "RETL_S3_REGION", "AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY", "AWS_SESSION_TOKEN"} {
+		env = append(env, v1.EnvVar{Name: key, ValueFrom: &v1.EnvVarSource{SecretKeyRef: &v1.SecretKeySelector{LocalObjectReference: v1.LocalObjectReference{Name: c.ReverseRuntimeSecret}, Key: key, Optional: ptr.To(true)}}})
+	}
 	return v1.PodTemplateSpec{ObjectMeta: metav1.ObjectMeta{Labels: map[string]string{k8sCreatorLabel: k8sCreatorLabelValue, labelManagedBy: managedByValue, labelSyncID: entry.ID, labelWorkspaceID: entry.WorkspaceID, labelSyncKind: "reverse", labelAppName: cronJobAppValue}, Annotations: td.ExtractAnnotations()}, Spec: v1.PodSpec{
-		RestartPolicy: v1.RestartPolicyNever, ServiceAccountName: c.PodsServiceAccount, TerminationGracePeriodSeconds: ptr.To(int64(60)),
+		RestartPolicy: v1.RestartPolicyNever, ServiceAccountName: c.reverseServiceAccount(), TerminationGracePeriodSeconds: ptr.To(int64(60)),
 		NodeSelector: parseNodeSelector(c.KubernetesNodeSelector),
-		Containers: []v1.Container{{Name: "retl-runner", Image: c.ReverseRunnerImage, Env: env, Resources: sourceResources(),
+		Containers: []v1.Container{{Name: "retl-runner", Image: c.ReverseRunnerImage, Env: env, Resources: *settings.resources.DeepCopy(),
 			SecurityContext: &v1.SecurityContext{AllowPrivilegeEscalation: ptr.To(false), RunAsNonRoot: ptr.To(true), RunAsUser: ptr.To(int64(1000)), ReadOnlyRootFilesystem: ptr.To(true), Capabilities: &v1.Capabilities{Drop: []v1.Capability{"ALL"}}},
 			VolumeMounts:    []v1.VolumeMount{{Name: "config", MountPath: "/config", ReadOnly: true}, {Name: "tmp", MountPath: "/tmp"}},
 		}},
-		Volumes: []v1.Volume{{Name: "config", VolumeSource: v1.VolumeSource{Secret: &v1.SecretVolumeSource{SecretName: secret}}}, {Name: "tmp", VolumeSource: v1.VolumeSource{EmptyDir: &v1.EmptyDirVolumeSource{}}}},
+		Volumes: []v1.Volume{{Name: "config", VolumeSource: v1.VolumeSource{Secret: &v1.SecretVolumeSource{SecretName: secret}}}, {Name: "tmp", VolumeSource: v1.VolumeSource{EmptyDir: &v1.EmptyDirVolumeSource{SizeLimit: ptr.To(settings.scratch.DeepCopy())}}}},
 	}}
 }

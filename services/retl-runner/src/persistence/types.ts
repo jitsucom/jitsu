@@ -35,9 +35,15 @@ export const defaultLimits: Limits = {
   journalBytes: 256_000_000,
 };
 export class PersistenceError extends Error {
-  constructor(message: string) {
-    super(message);
+  constructor(message: string, options?: ErrorOptions) {
+    super(message, options);
     this.name = "PersistenceError";
+  }
+}
+/** Fixed safe message: no database/provider payload is exposed in task errors. */
+export class PersistenceResetRequiredError extends PersistenceError {
+  constructor() {
+    super("Legacy Reverse ETL state requires an explicit test-sync reset before enabling object storage");
   }
 }
 export function ensure(value: unknown, message: string): asserts value {

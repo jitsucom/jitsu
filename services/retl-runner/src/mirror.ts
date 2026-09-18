@@ -20,7 +20,7 @@ import {
   validateStream,
 } from "@jitsu/destination-functions/src/reverse-etl/meta";
 import { Database, openPersistence, type Effect, type Identity, type RunInput } from "./persistence";
-import { effects } from "./persistence/snapshots";
+import { effects } from "./persistence/effects";
 import { ensure, PersistenceError } from "./persistence/types";
 
 /** Pure, deterministic normalization, invoked once per source row, never during delivery/recovery. */

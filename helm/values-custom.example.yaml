@@ -13,6 +13,21 @@
 # matching env.common.<VAR> below — explicit env wins over the URLs published
 # by the deps chart.
 
+# Optional Reverse ETL: read REVERSE_ETL.md before enabling on an existing database.
+# reverseEtl:
+#   enabled: true
+#   runnerImage: jitsucom/retl-runner:<version-from-this-rollout>
+#   runtimeSecret: retl-runtime
+#   serviceAccount:
+#     name: retl-runner
+#     annotations:
+#       iam.gke.io/gcp-service-account: retl@PROJECT.iam.gserviceaccount.com
+#       # OR eks.amazonaws.com/role-arn: arn:aws:iam::ACCOUNT:role/retl-runner
+#   resources:
+#     requests: { cpu: "100m", memory: "256Mi", ephemeral-storage: "1Gi" }
+#     limits: { cpu: "1", memory: "8Gi", ephemeral-storage: "4Gi" }
+#   scratchSizeLimit: "2Gi"
+
 env:
   common:
     # Only used when the in-cluster console is disabled (scaling.console.replicas: 0)

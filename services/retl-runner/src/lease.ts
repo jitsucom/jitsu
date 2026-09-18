@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { request } from "node:https";
 import { ensure, PersistenceError } from "./persistence/types";
+import { KubernetesHttpError } from "./diagnostics";
 
 export const reverseResourceName = (syncId: string) =>
   `reverse-${createHash("sha256").update(syncId).digest("hex").slice(0, 32)}`;
@@ -39,7 +40,8 @@ export class KubernetesLease implements RunLease {
   }
   async acquire() {
     const current = await this.get();
-    ensure(current.status === 404 || current.status === 200, "Kubernetes lease read failed");
+    if (current.status !== 404 && current.status !== 200)
+      throw new PersistenceError("Kubernetes lease read failed", { cause: new KubernetesHttpError(current.status) });
     ensure(current.status === 404 || !this.active(current.body), "Reverse sync already running");
     const lease: Lease = {
       apiVersion: "coordination.k8s.io/v1",
@@ -55,7 +57,10 @@ export class KubernetesLease implements RunLease {
       current.status === 404 ? this.collection : `${this.collection}/${this.name}`,
       lease
     );
-    ensure([200, 201].includes(saved.status), "Kubernetes lease acquisition failed");
+    if (![200, 201].includes(saved.status))
+      throw new PersistenceError("Kubernetes lease acquisition failed", {
+        cause: new KubernetesHttpError(saved.status),
+      });
     this.held = true;
   }
   async renew() {
@@ -126,7 +131,7 @@ export function inClusterLeaseRequest(host: string, port: string): LeaseRequest 
       );
       const deadline = setTimeout(() => req.destroy(new Error("Kubernetes deadline exceeded")), 5000);
       req.on("close", () => clearTimeout(deadline));
-      req.on("error", () => reject(new PersistenceError("Kubernetes request failed")));
+      req.on("error", cause => reject(new PersistenceError("Kubernetes request failed", { cause })));
       req.end(body ? JSON.stringify(body) : undefined);
     });
   };

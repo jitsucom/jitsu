@@ -81,11 +81,25 @@ func TestReversePodContract(t *testing.T) {
 			t.Fatal("runtime DB secret not referenced")
 		}
 		if env.ValueFrom != nil && env.ValueFrom.SecretKeyRef != nil {
-			runtimeKeys[env.ValueFrom.SecretKeyRef.Key] = true
+			ref := env.ValueFrom.SecretKeyRef
+			if ref.Optional == nil || !*ref.Optional {
+				runtimeKeys[ref.Key] = true
+			} else if ref.Name != "retl-runtime" {
+				t.Fatal("optional artifact configuration must come from runtime Secret")
+			}
 		}
 	}
-	if len(runtimeKeys) != 3 || !runtimeKeys["RETL_DATABASE_URL"] || !runtimeKeys["RETL_CONSOLE_URL"] || !runtimeKeys["RETL_CONSOLE_TOKEN"] {
-		t.Fatal("runner must require only DB and admission Secret keys, not encryption keys")
+	optionalKeys := map[string]bool{}
+	for _, env := range pod.Spec.Containers[0].Env {
+		if env.ValueFrom != nil && env.ValueFrom.SecretKeyRef != nil && env.ValueFrom.SecretKeyRef.Optional != nil && *env.ValueFrom.SecretKeyRef.Optional {
+			optionalKeys[env.Name] = true
+		}
+	}
+	if len(optionalKeys) != 6 || !optionalKeys["RETL_OBJECT_PREFIX"] || !optionalKeys["AWS_SECRET_ACCESS_KEY"] {
+		t.Fatal("object storage runtime settings are missing")
+	}
+	if len(runtimeKeys) != 5 || !runtimeKeys["RETL_DATABASE_URL"] || !runtimeKeys["RETL_CONSOLE_URL"] || !runtimeKeys["RETL_CONSOLE_TOKEN"] || !runtimeKeys["RETL_OBJECT_STORE"] || !runtimeKeys["RETL_OBJECT_BUCKET"] {
+		t.Fatal("runner must require DB, admission and object store Secret keys")
 	}
 	manual := buildReversePodTemplate(cfg, entry, "config", "manual-task")
 	if manual.Annotations["TaskID"] != "manual-task" {

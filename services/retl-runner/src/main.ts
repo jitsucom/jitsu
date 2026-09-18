@@ -7,6 +7,8 @@ import { execute } from "./execute";
 import { createAdapterRegistry } from "./adapters";
 import { createConsoleClient } from "./console-client";
 import { KubernetesLease, inClusterLeaseRequest } from "./lease";
+import { objectStorageFromEnv } from "./artifacts/config";
+import { reportFailure } from "./diagnostics";
 
 const Env = z.object({
   RETL_CONFIG_PATH: z.string().default("/config/reverse.json"),
@@ -29,8 +31,12 @@ async function main() {
   const raw = await readFile(env.RETL_CONFIG_PATH);
   if (raw.length > 1_000_000) throw new Error("Run configuration too large");
   const config = ReverseRunConfig.parse(JSON.parse(raw.toString()));
-  const db = new Database({ connectionString: env.RETL_DATABASE_URL });
   const controller = new AbortController();
+  // eslint-disable-next-line no-restricted-properties -- deployment-owned storage configuration.
+  const db = new Database(
+    { connectionString: env.RETL_DATABASE_URL },
+    { objectStorage: objectStorageFromEnv(process.env, controller.signal) }
+  );
   const consoleClient = createConsoleClient(env.RETL_CONSOLE_URL, env.RETL_CONSOLE_TOKEN, config);
   const adapters = createAdapterRegistry((_, signal) => consoleClient.accessToken(signal));
   const stop = () => controller.abort();
@@ -75,7 +81,8 @@ async function main() {
     process.removeListener("SIGINT", stop);
   }
 }
-main().catch(() => {
+main().catch(error => {
+  reportFailure("startup", error);
   process.stderr.write("Reverse ETL runner failed; check configuration and durable recovery state\n");
   process.exit(1);
 });

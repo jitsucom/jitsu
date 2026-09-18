@@ -1,8 +1,6 @@
 import type { JsonObject, ReverseEtlContext, ResumePoint } from "@jitsu/protocols/reverse-etl";
 import { validateBatchResult, validateFinishResult } from "@jitsu/destination-functions/src/reverse-etl/meta";
 import type { openPersistence } from "./persistence";
-import { readSavedState, stateStream } from "./persistence/run-state";
-import type { OperationRow, StateRow } from "./persistence/rows";
 import { ensure } from "./persistence/types";
 import type { RuntimeRecovery } from "./adapters";
 import { mirrorDeliveryBatch } from "./mirror";
@@ -96,30 +94,5 @@ export async function recoverRun(
 }
 
 async function finalPoint(run: Session, sequence: number): Promise<ResumePoint> {
-  return run.core.db
-    .transaction(async client => {
-      const last = await client.query<Pick<OperationRow, "batch_id">>(
-        "SELECT batch_id FROM reverse_sync_operation WHERE workspace_id=$1 AND sync_id=$2 AND run_id=$3 AND sequence=$4",
-        [run.scope.workspaceId, run.scope.syncId, run.scope.logicalRunId, sequence]
-      );
-      if (last.rowCount) {
-        // Loaded below via the journal after this short transaction exits.
-        return { sourceSequence: sequence, batchId: last.rows[0].batch_id };
-      }
-      const result = await client.query<Pick<StateRow, "state">>(
-        `SELECT state FROM ${run.core.db.stateTable} WHERE sync_id=$1 AND stream=$2`,
-        [run.scope.syncId, stateStream]
-      );
-      const saved = result.rows[0]?.state;
-      const value = saved ? readSavedState(saved, run.scope) : undefined;
-      return {
-        sourceSequence: sequence,
-        ...(run.scope.extraction === "cursor" && value?.point.cursor ? { cursor: value.point.cursor } : {}),
-      };
-    })
-    .then(async (point: ResumePoint & { batchId?: string }) => {
-      if (!point.batchId) return point;
-      const batch = await run.core.loadBatch(point.batchId);
-      return { sourceSequence: sequence, ...(batch.cursor ? { cursor: batch.cursor } : {}) };
-    });
+  return run.core.finalPoint(sequence);
 }

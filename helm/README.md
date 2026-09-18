@@ -36,6 +36,14 @@ minikube start
 
 ## Configuration
 
+### Reverse ETL
+
+Disabled by default. Configure `reverseEtl` for the runner image, existing runtime
+Secret, dedicated service account/cloud identity, resource limits and SQLite scratch
+space. See [Reverse ETL setup and schema cutover](REVERSE_ETL.md) **before deploying**
+over an installation with existing Reverse ETL state. The runner image must be
+built separately; the chart does not deploy a sidecar or object store.
+
 ### Secrets
 
 Secrets are generated automatically during `./dev-deploy.sh deploy`: an
@@ -107,7 +115,11 @@ bash helm/build-retl-runner.sh jitsucom/retl-runner:dev
 ```
 
 Provision a Kubernetes Secret containing `RETL_DATABASE_URL`, `RETL_CONSOLE_URL`,
-and `RETL_CONSOLE_TOKEN`. Use the restricted database grants from
+`RETL_CONSOLE_TOKEN`, `RETL_OBJECT_STORE` (`s3` or `gcs`), and `RETL_OBJECT_BUCKET`.
+The bucket must already exist, with credentials or workload identity that let the
+runner read/write its artifacts. See [object-storage authentication](REVERSE_ETL.md#cloud-authentication)
+for cloud setup and the optional prefix, region, endpoint and AWS credential keys.
+Use the restricted database grants from
 [`services/retl-runner/README.md`](../services/retl-runner/README.md), the same
 database/schema as the console, and the console's `SYNCCTL_AUTH_KEY` as the token.
 Keep credentials out of values files and shell history. The console must be
@@ -132,9 +144,11 @@ These prefixed settings take precedence over the shared unprefixed dev settings.
 The local console also needs access to syncctl (for example, a loopback-only
 `kubectl --context minikube -n default port-forward service/syncctl 3043:3043`).
 
-Apply the console Prisma schema before enabling the controller. Normal dev deploys
-run the schema hook, but it must target the same database as the runner. Pause
-existing reverse syncs before activation if you do not intend to upload data yet.
+Before deploying over legacy state, follow the [destructive schema cutover](REVERSE_ETL.md#schema-cutover-and-rollback):
+pause/drain workers, back up and resolve pending delivery, and explicitly reset/retire
+test syncs and audiences. Normal dev deploys run the Prisma schema hook, so these
+steps must happen **before Helm deploy**, not just before controller enablement.
+The schema hook must target the same database as the runner. Keep test syncs paused during setup.
 Enabling the controller can start scheduled or recovery attempts for enabled syncs.
 
 Use a new image tag after rebuilding so existing CronJobs pick up the change.
@@ -168,6 +182,7 @@ Then access:
 - Ingest: http://localhost:3049
 - Bulker: http://localhost:3042
 - Rotor: http://localhost:3401
+- Syncctl: http://localhost:3043 (use this as `SYNCCTL_URL` for a console running on your Mac)
 - Kafka: localhost:19092 (external listener of the in-cluster Redpanda)
 - Postgres: localhost:5432 (`postgres` / `helm-deps/values.yaml postgres.password`)
 - ClickHouse: http://localhost:8123 (`default` / `helm-deps/values.yaml clickhouse.password`)

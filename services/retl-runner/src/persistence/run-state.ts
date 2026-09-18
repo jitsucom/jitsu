@@ -3,7 +3,7 @@ import { contentHash } from "@jitsu/destination-functions/src/reverse-etl/identi
 import { Database } from "./database";
 import { decodeJson } from "./serialization";
 import type { ControlRow, StateRow, TargetOwnerRow } from "./rows";
-import { ensure, type RunInput, type Scope } from "./types";
+import { ensure, PersistenceResetRequiredError, type RunInput, type Scope } from "./types";
 import { controlFor } from "./control-cache";
 export { readControl, lockControl } from "./control-cache";
 
@@ -28,7 +28,11 @@ export function readSavedState(value: unknown, scope: RunInput): SavedState {
 }
 
 /** Open durable lifecycle state after Kubernetes admission; this does not acquire a database lease. */
-export async function openRun(db: Database, input: RunInput): Promise<{ scope: Scope; recovery: boolean }> {
+export async function openRun(
+  db: Database,
+  input: RunInput,
+  initialHead: Buffer
+): Promise<{ scope: Scope; recovery: boolean }> {
   for (const value of [
     input.workspaceId,
     input.syncId,
@@ -52,9 +56,9 @@ export async function openRun(db: Database, input: RunInput): Promise<{ scope: S
     // Serialize target admission too: an upsert cannot race exclusive mirror ownership.
     await client.query("SELECT pg_advisory_xact_lock(hashtextextended($1,0))", [target]);
     await client.query(
-      `INSERT INTO reverse_sync_control (workspace_id,sync_id,run_id,revision,target_hash,mode,extraction)
-      VALUES ($1,$2,$3,$4,$5,$6,$7) ON CONFLICT (workspace_id,sync_id) DO NOTHING`,
-      [run.workspaceId, run.syncId, run.logicalRunId, run.configRevision, target, run.mode, run.extraction]
+      `INSERT INTO reverse_sync_control (workspace_id,sync_id,run_id,revision,target_hash,mode,extraction,artifact_head)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8) ON CONFLICT (workspace_id,sync_id) DO NOTHING`,
+      [run.workspaceId, run.syncId, run.logicalRunId, run.configRevision, target, run.mode, run.extraction, initialHead]
     );
     const {
       rows: [control],
@@ -62,6 +66,9 @@ export async function openRun(db: Database, input: RunInput): Promise<{ scope: S
       "SELECT * FROM reverse_sync_control WHERE workspace_id=$1 AND sync_id=$2 FOR UPDATE",
       [run.workspaceId, run.syncId]
     );
+    // New rows always have a durable empty manifest, even if startup crashes.
+    // A null pointer therefore identifies legacy state after its per-row tables are removed.
+    if (!control.artifact_head) throw new PersistenceResetRequiredError();
     ensure(
       control.target_hash === target && control.revision === run.configRevision && control.mode === run.mode,
       "Target/config changes require controlled reset"
