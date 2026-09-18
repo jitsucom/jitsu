@@ -108,5 +108,22 @@ spec:
                 name: jitsu-deps-urls
                 optional: true
           env:
-            {{- include "jitsu.env" (dict "ctx" . "service" "console") | nindent 12 }}
+            {{- /* Mirrors console.yaml. In dev, dev-deploy.sh creates jitsu-secrets
+                   with only the eight inter-service keys, so SEED_USER_PASSWORD and
+                   JWT_SECRET are not in the Secret this Job pulls via envFrom. They
+                   come from jitsu.devCredential instead. Without them the container
+                   has SEED_USER_EMAIL but no password, and seedUserAndWorkspace()
+                   takes its no-op branch — the Job runs, reports success, and
+                   creates no user. Prod is unaffected: there the token-generator
+                   writes both keys into the Secret and devCredential yields
+                   nothing. */}}
+            {{- $seedExtra := dict }}
+            {{- with (include "jitsu.devCredential" (dict "ctx" . "key" "JWT_SECRET")) }}
+            {{- $_ := set $seedExtra "JWT_SECRET" . }}
+            {{- end }}
+            {{- with (include "jitsu.devCredential" (dict "ctx" . "key" "SEED_USER_PASSWORD")) }}
+            {{- $_ := set $seedExtra "SEED_USER_PASSWORD" . }}
+            {{- end }}
+            {{- include "jitsu.env" (dict "ctx" . "service" "console"
+                  "extra" $seedExtra) | nindent 12 }}
 {{- end }}
