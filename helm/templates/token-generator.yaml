@@ -52,6 +52,18 @@ rules:
     resources: ["secrets"]
     verbs: ["get"]
     resourceNames: ["jitsu-secrets"]
+  # `create` is deliberately NOT narrowed, because it cannot be: Kubernetes does
+  # not apply resourceNames to a create request — there is no object yet to
+  # authorize against — so this verb is namespace-wide whatever we write here.
+  # The Job therefore can create Secrets of any name in this namespace.
+  #
+  # Pre-creating an empty jitsu-secrets so only `patch` were needed was the
+  # obvious alternative and is worse: `lookup` is empty during `helm template`,
+  # `--dry-run` and Argo CD rendering (see secrets.yaml), so the templated
+  # Secret would blank the live keys on every upgrade.
+  #
+  # Documented in README rather than silently accepted. tokenGenerator.enabled=false
+  # removes the grant entirely for anyone who cannot live with it.
   - apiGroups: [""]
     resources: ["secrets"]
     verbs: ["create"]

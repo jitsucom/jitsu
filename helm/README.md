@@ -36,12 +36,22 @@ Worth reading before you hand it to a cluster you care about.
 | `jitsu-operator` | Cluster | CRUD on pods, services, configmaps, secrets, deployments, statefulsets, HPAs, PodDisruptionBudgets | it creates and manages the per-workspace functions-server deployments |
 | `jitsu-syncctl` | Cluster | the same, plus `jobs`/`cronjobs`, `pods/log` get, `pods/exec` create | it runs each connector sync as a pod, tails its logs on failure, and samples CPU/memory by exec-ing into the running container |
 | `jitsu-sync-pod` | Namespace | `leases` | leader election between sync pods |
-| `jitsu-token-generator` | Namespace | `secrets` create, and get/patch **restricted to `jitsu-secrets`** | generates the inter-service tokens; `resourceNames` stops it touching any other Secret |
+| `jitsu-token-generator` | Namespace | `secrets`: get/patch **restricted to `jitsu-secrets`**, plus **unrestricted create** | generates the inter-service tokens; see the note below on why `create` cannot be narrowed |
 
 Two are worth flagging explicitly rather than leaving to be discovered:
 
 - **`pods/exec` create** on syncctl is effectively shell access to pods in scope.
   It is used for resource sampling (`JobRunner.getPodResUsage`), not arbitrarily.
+- **The token-generator can create Secrets of any name** in the release
+  namespace. `get` and `patch` are pinned to `jitsu-secrets` with
+  `resourceNames`, but Kubernetes cannot apply `resourceNames` to `create` —
+  there is no object yet to authorize against — so that verb is namespace-wide
+  by construction. Pre-creating an empty Secret so the Job needs only `patch`
+  was considered and rejected: `lookup` is empty during `helm template`,
+  `--dry-run` and Argo CD rendering, so a templated Secret would blank the live
+  keys on every upgrade. The grant is therefore deliberate, not an oversight.
+  Set `tokenGenerator.enabled=false` and manage `jitsu-secrets` yourself if it
+  is unacceptable.
 - **The two ClusterRoles are cluster-scoped**, so their secrets and pods access
   spans every namespace, not just the release namespace. If that is too broad
   for your cluster, both are ordinary templates and can be narrowed to Roles in
