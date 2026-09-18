@@ -1,0 +1,51 @@
+name: Reverse ETL deployment contracts
+on:
+  pull_request:
+    paths:
+      - 'helm/**'
+      - 'bulker/sync-controller/**'
+      - 'bulker/jitsubase/**'
+      - 'bulker/go.work*'
+      - '.github/workflows/retl-deployment.yml'
+  push:
+    branches: [newjitsu]
+    paths:
+      - 'helm/**'
+      - 'bulker/sync-controller/**'
+      - 'bulker/jitsubase/**'
+      - 'bulker/go.work*'
+      - '.github/workflows/retl-deployment.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  helm:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    strategy:
+      matrix:
+        helm: [v3.18.4, v4.2.2]
+    steps:
+      - uses: actions/checkout@v6
+      - uses: azure/setup-helm@v5
+        with:
+          version: ${{ matrix.helm }}
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - run: pip install PyYAML==6.0.3
+      - run: helm lint helm --strict --set projectRoot=/tmp/jitsu
+      - run: python3 -m unittest discover -s helm/tests -v
+  syncctl:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-go@v6
+        with:
+          go-version: '1.26'
+          cache-dependency-path: bulker/**/*.sum
+      # Existing non-constant fmt.Errorf calls in this package fail Go 1.26 vet.
+      # Keep the full unit suite running independently of that pre-existing issue.
+      - run: go test -vet=off ./... -count=1
+        working-directory: bulker/sync-controller

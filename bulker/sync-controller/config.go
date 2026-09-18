@@ -38,9 +38,15 @@ type Config struct {
 	ReverseEnabled     bool   `mapstructure:"REVERSE_ENABLED" default:"false"`
 	ReverseRunnerImage string `mapstructure:"REVERSE_RUNNER_IMAGE" default:"jitsucom/retl-runner:latest"`
 	// Pre-provisioned runtime-only Secret: RETL_DATABASE_URL, RETL_CONSOLE_URL,
-	// RETL_CONSOLE_TOKEN. Never use schema-owner credentials.
+	// RETL_CONSOLE_TOKEN, RETL_OBJECT_STORE and RETL_OBJECT_BUCKET. Never use schema-owner credentials.
 	ReverseRuntimeSecret string `mapstructure:"REVERSE_RUNTIME_SECRET"`
 	PodsServiceAccount   string `mapstructure:"PODS_SERVICE_ACCOUNT"`
+	// Separate identity for bucket access; falls back to PodsServiceAccount outside Helm.
+	ReverseServiceAccount string `mapstructure:"REVERSE_SERVICE_ACCOUNT"`
+	// JSON requests/limits for cpu, memory and ephemeral-storage; omitted entries use defaults.
+	ReverseRunnerResources  string `mapstructure:"REVERSE_RUNNER_RESOURCES"`
+	ReverseScratchSizeLimit string `mapstructure:"REVERSE_SCRATCH_SIZE_LIMIT"`
+	reversePodSettings      *reversePodSettings
 
 	// CronTemplateRevision, when non-zero, overrides the built-in
 	// cronTemplateRevision constant used in the CronJob drift hash. Lets ops
@@ -108,8 +114,13 @@ func init() {
 }
 
 func (c *Config) PostInit(settings *appbase.AppSettings) error {
-	if c.ReverseEnabled && (c.RepositoryBaseURL == "" || c.ReverseRuntimeSecret == "" || c.PodsServiceAccount == "") {
+	if c.ReverseEnabled && (c.RepositoryBaseURL == "" || c.ReverseRuntimeSecret == "" || c.reverseServiceAccount() == "") {
 		return fmt.Errorf("reverse runs require repository, runtime Secret and pod service account")
+	}
+	if c.ReverseEnabled {
+		if err := c.initReversePodSettings(); err != nil {
+			return err
+		}
 	}
 	if c.KubernetesClientConfig == "" {
 		return fmt.Errorf("KUBERNETES_CLIENT_CONFIG is required")

@@ -36,6 +36,14 @@ minikube start
 
 ## Configuration
 
+### Reverse ETL
+
+Disabled by default. Configure `reverseEtl` for the runner image, existing runtime
+Secret, dedicated service account/cloud identity, resource limits and SQLite scratch
+space. See [Reverse ETL setup and schema cutover](REVERSE_ETL.md) **before deploying**
+over an installation with existing Reverse ETL state. The runner image must be
+built separately; the chart does not deploy a sidecar or object store.
+
 ### Secrets
 
 Secrets are generated automatically during `./dev-deploy.sh deploy`: an

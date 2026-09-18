@@ -73,6 +73,11 @@ Before applying Prisma schema changes:
 
 No runtime DDL, automatic reset, or live schema change is part of this PR.
 
+The dev chart now exposes explicit runner/Secret/service-account/resource settings.
+Follow its [Helm guide](../../../../helm/REVERSE_ETL.md) before upgrading: the
+Prisma pre-upgrade hook runs before replacing services, never accepts data loss
+automatically, and cannot stop old workers for you.
+
 For an existing development checkout, remove the six obsolete generated files
 `webapps/console/prisma/schema/reverse_sync_{batch,operation,generation,source_key,desired,membership}.ts`
 before running `pnpm codegen`. They are ignored build artifacts, not schema source;

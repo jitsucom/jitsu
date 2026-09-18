@@ -95,11 +95,11 @@ func TestReversePodContract(t *testing.T) {
 			optionalKeys[env.Name] = true
 		}
 	}
-	if len(optionalKeys) != 8 || !optionalKeys["RETL_OBJECT_STORE"] || !optionalKeys["RETL_OBJECT_BUCKET"] || !optionalKeys["AWS_SECRET_ACCESS_KEY"] {
+	if len(optionalKeys) != 6 || !optionalKeys["RETL_OBJECT_PREFIX"] || !optionalKeys["AWS_SECRET_ACCESS_KEY"] {
 		t.Fatal("object storage runtime settings are missing")
 	}
-	if len(runtimeKeys) != 3 || !runtimeKeys["RETL_DATABASE_URL"] || !runtimeKeys["RETL_CONSOLE_URL"] || !runtimeKeys["RETL_CONSOLE_TOKEN"] {
-		t.Fatal("runner must require only DB and admission Secret keys, not encryption keys")
+	if len(runtimeKeys) != 5 || !runtimeKeys["RETL_DATABASE_URL"] || !runtimeKeys["RETL_CONSOLE_URL"] || !runtimeKeys["RETL_CONSOLE_TOKEN"] || !runtimeKeys["RETL_OBJECT_STORE"] || !runtimeKeys["RETL_OBJECT_BUCKET"] {
+		t.Fatal("runner must require DB, admission and object store Secret keys")
 	}
 	manual := buildReversePodTemplate(cfg, entry, "config", "manual-task")
 	if manual.Annotations["TaskID"] != "manual-task" {
