@@ -22,7 +22,7 @@ enough either — it deliberately excludes RBAC — and the install fails at the
 pre-install hook with `cannot delete resource "roles" ... requires one of
 ["container.roles.delete"]`. `roles/container.admin` covers it.
 
-**A default StorageClass**, if you use `helm-deps`. It creates three 5Gi PVCs
+**A default StorageClass**, if you use `helm-deps`. It creates four 5Gi PVCs
 and does not set `storageClassName`, so they bind to whatever the cluster
 defaults to. With no default StorageClass they stay `Pending` and the install
 waits without a useful error.
