@@ -1,4 +1,4 @@
-import { beforeAll, afterAll, beforeEach, describe, expect, it } from "vitest";
+import { beforeAll, afterAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { GenericContainer, Wait, type StartedTestContainer } from "testcontainers";
 import { Client, type PoolConfig } from "pg";
 import { createRequire } from "node:module";
@@ -254,6 +254,35 @@ function fixture() {
 }
 
 describe("core snapshot mirror lifecycle", () => {
+  it("persists a full page with fixed query count and exact retry/deduplication budgets", async () => {
+    const run = await session();
+    await run.delivery.prepareInit({});
+    await run.delivery.acknowledgeInit({});
+    await run.snapshots.start();
+    const identity = { identity: "shared", upsert: { id: "shared" }, remove: { id: "shared" } };
+    const page = Array.from({ length: 1000 }, (_, i) => ({ key: contentHash(i), identities: [identity] }));
+    const query = vi.spyOn(Client.prototype, "query");
+    try {
+      await run.snapshots.append(page, 1);
+      expect(query.mock.calls.length).toBeLessThanOrEqual(10);
+    } finally {
+      query.mockRestore();
+    }
+    const before = (await admin.query("SELECT * FROM newjitsu.reverse_sync_generation")).rows[0];
+    expect(before.key_count).toBe("1000");
+    expect(before.entry_count).toBe("1000");
+    expect((await admin.query("SELECT count(*) FROM newjitsu.reverse_sync_desired")).rows[0].count).toBe("1");
+    await run.snapshots.append(page, 1);
+    expect((await admin.query("SELECT * FROM newjitsu.reverse_sync_generation")).rows[0]).toEqual(before);
+    await run.snapshots.append([{ key: contentHash(1000), identities: [identity] }], 2);
+    const after = (await admin.query("SELECT * FROM newjitsu.reverse_sync_generation")).rows[0];
+    expect(BigInt(after.byte_count) - BigInt(before.byte_count)).toBe(64n);
+    await expect(
+      run.snapshots.append([{ key: contentHash(1001), identities: [{ ...identity, remove: { id: "different" } }] }], 3)
+    ).rejects.toThrow("Conflicting payloads");
+    expect((await admin.query("SELECT count(*) FROM newjitsu.reverse_sync_source_key")).rows[0].count).toBe("1001");
+    expect((await admin.query("SELECT * FROM newjitsu.reverse_sync_generation")).rows[0]).toEqual(after);
+  });
   it("refreshes only due unchanged members, using acceptance time rather than source changes", async () => {
     const f = fixture();
     f.adapter.refreshAfterMs = 30 * 86400_000;

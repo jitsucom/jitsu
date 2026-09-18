@@ -74,6 +74,27 @@ export interface NewMirrorOptions<C, Row, O> extends MirrorOptions<C, Row, O> {
   /** A complete cursorless source. Opens only after Kubernetes admission and writer initialization. */
   source(signal: AbortSignal): AsyncIterable<MirrorSourceRecord>;
   sourcePageSize?: number;
+  /** Core-owned progress, emitted only after a page/complete snapshot is durable. */
+  onSnapshotProgress?(savedRows: number, sealed: boolean): Promise<void>;
+}
+
+const mirrorFailureHints = {
+  initialization: "Check destination authorization and saved recovery state.",
+  extraction:
+    "Check warehouse connectivity and query timeouts, primary keys and temporary disk capacity (ClickHouse limit: 512 MiB per query). No audience changes were submitted.",
+  validation: "Check identifier mappings, consent and primary keys. No audience changes were submitted.",
+  snapshot:
+    "Check state database connectivity, duplicate keys, conflicting identities and storage limits. No audience changes were submitted.",
+  delivery:
+    "Check destination authorization and durable delivery state before retrying; some changes may have been submitted.",
+};
+/** Only stage names and core counters are exposed, never SDK errors or source values. */
+export class MirrorRunError extends PersistenceError {
+  constructor(stage: keyof typeof mirrorFailureHints, readRows: number, savedRows: number) {
+    super(
+      `Snapshot mirror stopped during ${stage} (read ${readRows} rows, saved ${savedRows}). ${mirrorFailureHints[stage]}`
+    );
+  }
 }
 export interface MirrorRecovery<C, O> {
   /** Reattach the verified existing session using the recovered context/store; never blindly create a second session. */
@@ -190,6 +211,9 @@ export async function runSnapshotMirror<C, Row, O>(input: NewMirrorOptions<C, Ro
   );
   let writer: ReverseEtlWriter<JsonObject> | undefined;
   let uncertain = false;
+  let stage: keyof typeof mirrorFailureHints = "initialization";
+  let readRows = 0;
+  let savedRows = 0;
   try {
     ctx.signal.throwIfAborted();
     await run.delivery.assertReady();
@@ -209,13 +233,19 @@ export async function runSnapshotMirror<C, Row, O>(input: NewMirrorOptions<C, Ro
     let sequence = 0;
     const flush = async () => {
       if (!page.length) return;
+      stage = "snapshot";
       ctx.signal.throwIfAborted();
       await run.snapshots.append(page, ++sequence);
+      savedRows += page.length;
       page = [];
       pageBytes = 2;
+      await input.onSnapshotProgress?.(savedRows, false);
     };
     ctx.signal.throwIfAborted();
+    stage = "extraction";
     for await (const record of input.source(ctx.signal)) {
+      stage = "validation";
+      readRows++;
       ctx.signal.throwIfAborted();
       ensure(/^[a-f0-9]{64}$/.test(record.key), "Invalid mirror source key");
       const mapped = Object.fromEntries(
@@ -236,10 +266,14 @@ export async function runSnapshotMirror<C, Row, O>(input: NewMirrorOptions<C, Ro
         await flush();
       pageBytes += bytes + (page.length ? 1 : 0);
       page.push(row);
+      stage = "extraction";
     }
     await flush();
+    stage = "snapshot";
     ctx.signal.throwIfAborted();
     await run.snapshots.seal();
+    await input.onSnapshotProgress?.(savedRows, true);
+    stage = "delivery";
     return await deliver(env, writer, value => {
       uncertain = value;
     });
@@ -253,7 +287,7 @@ export async function runSnapshotMirror<C, Row, O>(input: NewMirrorOptions<C, Ro
         /* Preserve original failure and all unresolved evidence. */
       }
     }
-    throw safeError();
+    throw new MirrorRunError(stage, readRows, savedRows);
   }
 }
 

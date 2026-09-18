@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { KubernetesLease, reverseResourceName, type LeaseRequest } from "./lease";
 
 function api() {
@@ -35,6 +35,21 @@ function api() {
   };
 }
 describe("Kubernetes lease", () => {
+  it("serializes acquisition and renewal timestamps as Kubernetes MicroTime", async () => {
+    vi.useFakeTimers();
+    try {
+      vi.setSystemTime(new Date("2026-09-17T14:21:51.030Z"));
+      const a = api();
+      const lease = new KubernetesLease(a.call, "default", "sync", "one");
+      await lease.acquire();
+      expect(a.value().spec.renewTime).toBe("2026-09-17T14:21:51.030000Z");
+      vi.setSystemTime(new Date("2026-09-17T14:22:01.123Z"));
+      await lease.renew();
+      expect(a.value().spec.renewTime).toBe("2026-09-17T14:22:01.123000Z");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
   it("uses case-preserving deterministic names shared with syncctl", () => {
     expect(reverseResourceName("sync")).toBe("reverse-75c75efe327a8ef35a072f25117961f5");
     expect(reverseResourceName("Sync")).not.toBe(reverseResourceName("sync"));

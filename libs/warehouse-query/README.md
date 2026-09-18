@@ -52,3 +52,17 @@ do not include ClickHouse. This is a compatibility limit, not full ClickHouse SQ
 support. A native parser can be evaluated separately. Never execute an unparsed
 fallback. Parser checks are defense in depth; database read-only settings and
 least-privilege warehouse credentials remain necessary.
+
+ClickHouse extraction drains one query to a private temporary JSONL file before
+yielding rows to the sync runner. Slow state-database writes therefore cannot
+stall the warehouse HTTP response, and pagination never re-executes the model.
+The file is limited to 512 MiB, has mode 0600 in a private directory, and is
+deleted on completion, early return, cancellation or failure. It contains source
+data: use ephemeral, access-restricted scratch storage (the runner mounts `/tmp`
+as `emptyDir`, also removed when the Pod is deleted). This is not recovery state.
+Select fewer columns or split the model if extraction exceeds the limit.
+
+Streaming has a 30-second deadline for each outstanding network read and a
+two-hour overall deadline, plus the caller's cancellation signal. Consumer work
+between reads does not consume the network-read deadline. Preview and metadata
+requests retain their existing 30-second limits.
