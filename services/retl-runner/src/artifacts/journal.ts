@@ -46,6 +46,8 @@ export class ObjectJournal implements DeliveryJournal {
   private headBytes: Buffer | null;
   private broken = false;
   private readonly cache: ControlCache;
+  /** Core-only observability, not exposed through the provider's delivery facade. */
+  onPublish?: (head: ArtifactHead) => Promise<void>;
   private constructor(
     readonly db: Database,
     readonly scope: Scope,
@@ -169,6 +171,12 @@ export class ObjectJournal implements DeliveryJournal {
     } catch (error) {
       if (!(error instanceof TransitionConflict)) this.broken = true;
       throw error;
+    }
+    // A log outage must not turn a committed receipt into a delivery failure.
+    try {
+      await this.onPublish?.(this.head);
+    } catch {
+      process.stderr.write('{"event":"reverse_etl_progress_unavailable"}\n');
     }
   }
   private find(id: string) {
@@ -497,6 +505,12 @@ export class ObjectJournal implements DeliveryJournal {
       accepted: result.outcomes.filter(row => row.status === "accepted").length,
       staged,
       rejected: result.outcomes.filter(row => row.status === "rejected").length,
+      submittedRecords: Math.max(
+        old.submittedRecords ?? old.accepted + old.staged,
+        result.remoteJobIds?.length
+          ? result.outcomes.length
+          : result.outcomes.filter(row => row.status !== "rejected").length
+      ),
       reservedEntries: data.batch.action === "upsert" ? retained.flat().length : 0,
       reservedBytes: data.batch.action === "upsert" && retained.length ? Buffer.byteLength(canonicalJson(retained)) : 0,
     };

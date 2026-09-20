@@ -45,6 +45,37 @@ describe("immutable artifacts", () => {
 });
 describe("local snapshot indexing", () => {
   const effect = (id: string) => effects([{ identity: id, upsert: { id }, remove: { id } }])[0];
+  it("counts new, changed, expired, unchanged and removed identities separately", async () => {
+    const local = await LocalIndex.create();
+    try {
+      local.restoreMembers(
+        ["changed", "refresh", "unchanged", "removed"].map(id => ({
+          effect: effect(id),
+          acceptedAt: id === "unchanged" ? "2026-09-19T00:00:00.000Z" : "2026-01-01T00:00:00.000Z",
+        }))
+      );
+      const changed = effects([
+        { identity: "changed", upsert: { id: "changed", name: "new" }, remove: { id: "changed" } },
+      ])[0];
+      local.append(
+        ["new", "refresh", "unchanged"]
+          .map(id => ({ key: contentHash(id), effects: [effect(id)] }))
+          .concat([{ key: contentHash("changed"), effects: [changed] }])
+      );
+      expect(local.comparison("2026-08-20T00:00:00.000Z")).toEqual({
+        baselineMembers: 4,
+        uniqueMembers: 4,
+        newMembers: 1,
+        changedMembers: 1,
+        refreshMembers: 1,
+        unchangedMembers: 1,
+        removals: 1,
+      });
+      expect(local.comparison(null)).toMatchObject({ refreshMembers: 0, unchangedMembers: 2 });
+    } finally {
+      await local.close();
+    }
+  });
   it("splits snapshot and baseline artifacts by serialized bytes, not only row count", async () => {
     const local = await LocalIndex.create();
     try {

@@ -13,6 +13,7 @@ import type { RunLease } from "./lease";
 import { Tasks, type TaskResult } from "./tasks";
 import { recoverRun } from "./recovery";
 import { failureMessage, reportFailure, type FailureStage } from "./diagnostics";
+import { RunProgress } from "./progress";
 
 export interface ExecuteOptions {
   config: ReverseRunConfig;
@@ -32,6 +33,8 @@ export interface ExecuteOptions {
 export async function execute(input: ExecuteOptions): Promise<TaskResult> {
   const { db, lease, controller } = input;
   const tasks = new Tasks(db, input.config.id, input.taskId, input.config.workspaceId);
+  const progress = new RunProgress(message => tasks.progress(message));
+  let reportProgress: (() => Promise<void>) | undefined;
   let reader: WarehouseReader | undefined;
   let started = false;
   let held = false;
@@ -111,6 +114,8 @@ export async function execute(input: ExecuteOptions): Promise<TaskResult> {
       ? await openMirrorPersistence(db, runInput)
       : await openPersistence(db, runInput, adapter.project);
     const scope = run.scope;
+    run.core.onPublish = head => progress.observe(head);
+    reportProgress = () => progress.observe(run.core.head);
     ensure(input.trigger !== "recovery" || run.recovery, "Recovery must not start a fresh extraction");
     await tasks.heartbeat();
     const saved = await run.core.state();
@@ -121,6 +126,12 @@ export async function execute(input: ExecuteOptions): Promise<TaskResult> {
         ? "Extracting warehouse snapshot; no audience changes submitted yet"
         : "Starting Reverse ETL extraction and delivery"
     );
+    await progress.log(
+      `${
+        run.recovery ? "Continuing saved delivery; warehouse SQL is not re-read. " : ""
+      }Delivery counts describe API records, not matched people or targetable audience size. Submission is not acceptance; Google audience sizes may update separately.`
+    );
+    await reportProgress();
     const context: ReverseEtlContext<JsonObject, JsonObject> = {
       ...run.scope,
       mode: config.options.mode,
@@ -138,11 +149,26 @@ export async function execute(input: ExecuteOptions): Promise<TaskResult> {
     const source = async function* (after: CompositeCursor | undefined, sourceSignal: AbortSignal) {
       sourceSignal.throwIfAborted();
       reader = input.reader(config.warehouse);
-      for await (const row of reader.stream(config.model, after, sourceSignal)) {
-        yield {
-          ...row,
-          key: recordKey(config.model.primaryKey.map(column => row.row[column] as string | number | boolean)),
-        };
+      let rows = 0,
+        deleted = 0,
+        complete = false;
+      try {
+        for await (const row of reader.stream(config.model, after, sourceSignal)) {
+          rows++;
+          if (row.deleted) deleted++;
+          yield {
+            ...row,
+            key: recordKey(config.model.primaryKey.map(column => row.row[column] as string | number | boolean)),
+          };
+        }
+        complete = true;
+      } finally {
+        if (!mirror)
+          await progress.log(
+            `Source extraction ${complete ? "complete" : "interrupted"}: ${rows} rows read in this attempt, ${
+              rows - deleted
+            } upsert rows, ${deleted} explicit removal rows. Source rows are not confirmed deliveries.`
+          );
       }
     };
     const hooks = adapter.recovery?.(saved.providerState);
@@ -216,6 +242,7 @@ export async function execute(input: ExecuteOptions): Promise<TaskResult> {
     clearTimeout(timer);
     await renewing;
     const status = signal.aborted && !ownershipLost ? "CANCELLED" : "FAILED";
+    await reportProgress?.();
     if (started)
       await tasks
         .finish(

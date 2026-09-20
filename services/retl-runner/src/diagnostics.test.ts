@@ -15,6 +15,7 @@ describe("safe failure diagnostics", () => {
     expect(JSON.stringify(error)).not.toContain("private-token");
   });
   it.each([
+    ["Model query contains duplicate primary keys", "Return one deterministic row per primary key"],
     ["Async batches require distinct member identities", "Multiple source rows identify the same audience member"],
     ["Audience is exclusively managed by a mirror sync", "This audience is reserved by another sync"],
     ["Source row failed destination validation", "Check the model output"],

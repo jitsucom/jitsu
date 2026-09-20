@@ -107,6 +107,55 @@ afterAll(async () => {
   await container?.stop();
 });
 describe("object journal", () => {
+  it("does not fail committed delivery when an observability callback rejects", async () => {
+    const run = await session();
+    await init(run);
+    const stderr = vi.spyOn(process.stderr, "write").mockReturnValue(true);
+    run.core.onPublish = async () => {
+      throw new Error("private observer error");
+    };
+    try {
+      const prepared = batch(run, ["a"]);
+      await expect(run.delivery.prepare(prepared, {})).resolves.toBeUndefined();
+      await expect(
+        run.delivery.acknowledge(
+          prepared.batchId,
+          { outcomes: prepared.records.map(r => ({ operationId: r.operationId, status: "accepted" })) },
+          {}
+        )
+      ).resolves.toBeUndefined();
+      expect(run.core.head.batches[0]).toMatchObject({ accepted: 1, submittedRecords: 1 });
+      expect((await run.core.recoveryStatus()).phase).toBe("running");
+      expect(stderr.mock.calls.flat().join(" ")).not.toContain("private observer error");
+    } finally {
+      stderr.mockRestore();
+    }
+  });
+  it.each([false, true])(
+    "counts rejected records as submitted only with evidence (remote receipt=%s)",
+    async remote => {
+      const run = await session();
+      await init(run);
+      const prepared = batch(run, ["one"]);
+      await run.delivery.prepare(prepared, {});
+      await run.delivery.acknowledge(
+        prepared.batchId,
+        {
+          outcomes: prepared.records.map(row => ({
+            operationId: row.operationId,
+            status: "rejected",
+            code: "REJECTED",
+            safeReason: "Rejected",
+          })),
+          ...(remote ? { remoteJobIds: ["job"] } : {}),
+        },
+        {}
+      );
+      expect(run.core.head.batches[0]).toMatchObject({ rejected: 1, submittedRecords: remote ? 1 : 0 });
+      const resumed = await session();
+      expect(resumed.core.head.batches[0]).toMatchObject({ rejected: 1, submittedRecords: remote ? 1 : 0 });
+    }
+  );
   it.each(["new", "running", "complete", "aborted"])(
     "rejects legacy control in phase %s after removing payload tables",
     async phase => {

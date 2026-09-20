@@ -78,7 +78,7 @@ export class ObjectSnapshots {
       pageHash: hash,
     };
   }
-  async seal() {
+  async seal(counts?: { projectedMembers: number; excludedRows: number }) {
     ensure((await this.journal.current()).phase === "running", "Cannot seal snapshot in this phase");
     const snapshot = this.pending;
     ensure(snapshot && !snapshot.sealed, "Snapshot is absent or sealed");
@@ -88,7 +88,12 @@ export class ObjectSnapshots {
       parts.push(await this.journal.artifacts.put(page));
       uniqueMembers += page.length;
     }
-    const sealed = { ...snapshot, parts, sealed: true };
+    const sealed = {
+      ...snapshot,
+      parts,
+      sealed: true,
+      summary: { ...this.journal.local.comparison(snapshot.refreshBefore), ...counts },
+    };
     await this.journal.publish({ ...this.journal.head, snapshot: sealed });
     this.pending = undefined;
     return { uniqueMembers };

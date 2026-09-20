@@ -238,6 +238,11 @@ function fixture() {
 async function task(id = "task") {
   return (await admin.query("SELECT * FROM newjitsu.source_task WHERE task_id=$1", [id])).rows[0];
 }
+async function taskLogs(id: string) {
+  return (await admin.query("SELECT message FROM newjitsu.task_log WHERE task_id=$1 ORDER BY timestamp", [id])).rows
+    .map(row => row.message)
+    .join("\n");
+}
 async function control() {
   return (await admin.query("SELECT * FROM newjitsu.reverse_sync_control")).rows[0];
 }
@@ -350,6 +355,18 @@ describe("executable runner", () => {
     expect((await task("automatic-complete")).status).toBe("SUCCESS");
     expect((await control()).phase).toBe("complete");
     expect(f.calls).not.toContain("reader");
+    const waitingLogs = (await admin.query("SELECT message FROM newjitsu.task_log WHERE task_id='task'")).rows
+      .map(r => r.message)
+      .join("\n");
+    expect(waitingLogs).toContain("2 confirmed submitted in 1 batches; 0 accepted, 2 pending");
+    expect(waitingLogs).toContain("2 rows read in this attempt, 2 upsert rows, 0 explicit removal rows");
+    const recoveryLogs = (
+      await admin.query("SELECT message FROM newjitsu.task_log WHERE task_id='automatic-complete'")
+    ).rows
+      .map(r => r.message)
+      .join("\n");
+    expect(recoveryLogs).toContain("warehouse SQL is not re-read");
+    expect(recoveryLogs).toContain("2 confirmed submitted in 1 batches; 2 accepted, 0 pending");
   });
   it.each(["early", "cancelled", "revision", "run", "complete", "foreign", "duplicate"])(
     "does not start an obsolete or unauthorized recovery (%s)",
@@ -397,6 +414,9 @@ describe("executable runner", () => {
     expect((await task("rejected-check")).metrics).toBeNull();
     expect((await admin.query("SELECT 1 FROM newjitsu.source_task WHERE status='WAITING'")).rowCount).toBe(0);
     expect((await control()).phase).toBe("batches_pending");
+    expect(await taskLogs("rejected-check")).toContain(
+      "2 confirmed submitted in 1 batches; 0 accepted, 0 pending processing, 2 rejected"
+    );
   });
   it("stops automatic polling at its original deadline without losing receipts", async () => {
     const f = asynchronousFixture();
@@ -598,7 +618,44 @@ describe("executable runner", () => {
         "Snapshot complete: 3 source rows, 4 projected audience members, 2 unique audience members, 2 duplicates collapsed. Comparing audience membership and submitting changes.",
     });
     expect(JSON.stringify(logs)).not.toContain("private-member");
+    expect(JSON.stringify(logs)).toContain("2 duplicates collapsed, 1 source rows excluded by projection");
     expect(f.writes.flatMap(batch => batch.records)).toHaveLength(2);
+  });
+  it("preserves the original mirror comparison while a later attempt accepts additions and removes old members", async () => {
+    const baseline = fixture();
+    baseline.input.config.options.mode = "mirror";
+    expect(await execute(baseline.input)).toBe("SUCCESS");
+
+    const f = asynchronousFixture();
+    f.input.config.options.mode = "mirror";
+    f.adapter.mirror!.batchDelivery = "asynchronous";
+    f.input.taskId = "diff";
+    f.setRows([{ id: "b" }, { id: "c" }, { id: "duplicate-c" }]);
+    f.adapter.project = (_action, row: any) => {
+      const id = row.id === "duplicate-c" ? "c" : row.id;
+      return [{ identity: id, upsert: { id }, remove: { id } }];
+    };
+    expect(await execute(f.input)).toBe("WAITING");
+    const initialLogs = await taskLogs("diff");
+    expect(initialLogs).toContain(
+      "2 previously acknowledged members; 1 new, 0 changed, 0 unchanged due for expiry refresh, 1 unchanged skipped, 1 to remove"
+    );
+    expect(initialLogs).toContain("3 source rows, 2 unique members, 3 projected members, 1 duplicates collapsed");
+    expect(initialLogs).toContain("1 confirmed submitted in 1 batches; 0 accepted, 1 pending");
+    expect(initialLogs).toContain("Removals are blocked until all additions/updates/refreshes are accepted");
+    expect(f.calls).not.toContain("remove");
+
+    for (const batch of f.writes) f.receipts.set(batch.batchId, accepted(batch));
+    f.input.taskId = "diff-status-check";
+    f.calls.length = 0;
+    expect(await execute(f.input)).toBe("SUCCESS");
+    const resumedLogs = await taskLogs("diff-status-check");
+    expect(resumedLogs).toContain("warehouse SQL is not re-read");
+    expect(resumedLogs).toContain("2 previously acknowledged members; 1 new");
+    expect(resumedLogs).toContain("Removals: 1 confirmed submitted in 1 batches; 1 accepted, 0 pending");
+    expect(f.calls).toContain("remove");
+    expect(f.calls).not.toContain("reader");
+    expect((await durable()).members).toHaveLength(2);
   });
   it("reports the failing mirror stage and counters without exposing warehouse errors", async () => {
     const f = fixture();
@@ -753,15 +810,20 @@ describe("executable runner", () => {
       f.input.taskId = "fresh";
       expect(await execute(f.input)).toBe("SUCCESS");
       expect(submits).toBe(1);
+      expect(await taskLogs("fresh")).toContain("1 unchanged skipped");
+      expect(await taskLogs("fresh")).toContain("No audience changes or expiry refreshes needed");
       vi.useFakeTimers({ toFake: ["Date"] });
       vi.setSystemTime(Date.now() + 31 * 86400_000);
       f.input.taskId = "refresh";
       expect(await execute(f.input)).toBe("WAITING");
       expect(submits).toBe(2);
+      expect(await taskLogs("refresh")).toContain("1 unchanged due for expiry refresh, 0 unchanged skipped");
       expect(bodies[1]).toEqual(bodies[0]);
       expect(JSON.stringify(bodies)).not.toContain("Private.Person");
       f.input.taskId = "refresh-resume";
       expect(await execute(f.input)).toBe("SUCCESS");
+      expect(await taskLogs("refresh-resume")).toContain("1 unchanged due for expiry refresh, 0 unchanged skipped");
+      expect(await taskLogs("refresh-resume")).toContain("1 confirmed submitted in 1 batches; 1 accepted, 0 pending");
     } finally {
       wire.mockRestore();
     }

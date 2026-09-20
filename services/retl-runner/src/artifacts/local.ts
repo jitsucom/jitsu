@@ -97,6 +97,38 @@ export class LocalIndex {
         : this.sql.prepare(query).all(after, limit);
     return rows.map(row => JSON.parse(String(row.value)));
   }
+  /** One local join before delivery; never count later accepted effects as the original baseline. */
+  comparison(refreshBefore: string | null) {
+    const row = this.sql
+      .prepare(
+        `SELECT count(*) AS desired,
+      coalesce(sum(m.value IS NULL),0) AS added,
+      coalesce(sum(m.value IS NOT NULL AND m.payload<>d.payload),0) AS changed,
+      coalesce(sum(m.value IS NOT NULL AND m.payload=d.payload AND m.accepted_at<=?),0) AS refresh
+      FROM desired d LEFT JOIN members m ON m.identity=d.identity`
+      )
+      .get(refreshBefore)!;
+    const previous = this.sql
+      .prepare(
+        `SELECT count(*) AS baseline,
+      coalesce(sum(NOT EXISTS(SELECT 1 FROM desired d WHERE d.identity=m.identity)),0) AS removed
+      FROM members m WHERE m.value IS NOT NULL`
+      )
+      .get()!;
+    const uniqueMembers = Number(row.desired),
+      newMembers = Number(row.added),
+      changedMembers = Number(row.changed),
+      refreshMembers = Number(row.refresh);
+    return {
+      baselineMembers: Number(previous.baseline),
+      uniqueMembers,
+      newMembers,
+      changedMembers,
+      refreshMembers,
+      unchangedMembers: uniqueMembers - newMembers - changedMembers - refreshMembers,
+      removals: Number(previous.removed),
+    };
+  }
   *desiredPages(size = 1000): Generator<Effect[]> {
     yield* this.artifactPages(
       this.sql.prepare("SELECT value FROM desired ORDER BY identity").iterate(),

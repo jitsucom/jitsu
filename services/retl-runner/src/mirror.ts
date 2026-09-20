@@ -229,6 +229,7 @@ export async function runSnapshotMirror<C, Row, O>(input: NewMirrorOptions<C, Ro
   let readRows = 0;
   let savedRows = 0;
   let projectedMembers = 0;
+  let excludedRows = 0;
   try {
     ctx.signal.throwIfAborted();
     await run.delivery.assertReady();
@@ -272,6 +273,7 @@ export async function runSnapshotMirror<C, Row, O>(input: NewMirrorOptions<C, Ro
       // A source row may produce zero or multiple members, so sourceRows minus
       // uniqueMembers is not a valid duplicate count.
       projectedMembers += projected.length;
+      if (!projected.length) excludedRows++;
       for (const value of projected) validatePayloads(value, stream);
       const serialized = canonicalJson({
         key: record.key,
@@ -289,7 +291,7 @@ export async function runSnapshotMirror<C, Row, O>(input: NewMirrorOptions<C, Ro
     await flush();
     stage = "snapshot";
     ctx.signal.throwIfAborted();
-    const { uniqueMembers } = await run.snapshots.seal();
+    const { uniqueMembers } = await run.snapshots.seal({ projectedMembers, excludedRows });
     await input.onSnapshotProgress?.({
       sourceRows: savedRows,
       sealed: true,

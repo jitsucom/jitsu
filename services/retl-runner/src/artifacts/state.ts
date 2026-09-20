@@ -29,6 +29,8 @@ export interface BatchHead {
   accepted: number;
   staged: number;
   rejected: number;
+  /** Confirmed by a remote receipt or accepted/staged outcomes; not merely prepared. */
+  submittedRecords?: number;
   reservedEntries: number;
   reservedBytes: number;
   resultBudget: number;
@@ -42,6 +44,18 @@ export interface SnapshotHead {
   page: number;
   pageHash: string;
   refreshBefore: string | null;
+  /** Immutable pre-delivery comparison. Optional for snapshots created by older runners. */
+  summary?: {
+    baselineMembers: number;
+    uniqueMembers: number;
+    newMembers: number;
+    changedMembers: number;
+    refreshMembers: number;
+    unchangedMembers: number;
+    removals: number;
+    projectedMembers?: number;
+    excludedRows?: number;
+  };
 }
 export interface ArtifactHead {
   version: 1;

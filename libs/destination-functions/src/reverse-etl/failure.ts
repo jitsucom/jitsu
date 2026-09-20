@@ -1,6 +1,10 @@
 /** Exact core-owned reasons only. Never expose arbitrary SDK/SQL messages or causes. */
 const failures = new Map<string, string>([
   [
+    "Model query contains duplicate primary keys",
+    "The model returns multiple rows with the same primary key. Return one deterministic row per primary key, then retry. Audience-identity deduplication does not deduplicate source primary keys.",
+  ],
+  [
     "Async batches require distinct member identities",
     "Multiple source rows identify the same audience member. Update the model to return one row per normalized audience identity (for example, email or phone), then retry.",
   ],
