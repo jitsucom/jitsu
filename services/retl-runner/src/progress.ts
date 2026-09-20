@@ -1,4 +1,4 @@
-import type { ArtifactHead } from "./artifacts/state";
+import type { ArtifactHead, BatchHead } from "./artifacts/state";
 
 export function deliveryTotals(head: ArtifactHead, action: "upsert" | "remove") {
   const totals = {
@@ -32,7 +32,11 @@ export function deliveryTotals(head: ArtifactHead, action: "upsert" | "remove") 
 /** Only aggregate core-owned counts. No payloads, identifiers, cursors or provider messages. */
 export class RunProgress {
   private lastPlan = "";
-  private lastDelivery = "";
+  private summarized = false;
+  private readonly batches = new Map<
+    string,
+    Pick<BatchHead, "status" | "accepted" | "staged" | "rejected"> & { submitted: number; restored: boolean }
+  >();
   constructor(private readonly write: (message: string) => Promise<void>) {}
 
   async log(message: string) {
@@ -46,7 +50,8 @@ export class RunProgress {
     }
   }
 
-  async observe(head: ArtifactHead) {
+  /** Restored batches seed progress without presenting earlier submissions as new uploads. */
+  async observe(head: ArtifactHead, restored = false) {
     const snapshot = head.snapshot;
     if (snapshot?.sealed) {
       const p = snapshot.summary;
@@ -61,7 +66,47 @@ export class RunProgress {
         : "Original mirror comparison counts are unavailable for this older run; saved delivery totals remain available.";
       if (plan !== this.lastPlan && (await this.log(plan))) this.lastPlan = plan;
     }
-    if (!head.batches.length && !snapshot?.sealed) return;
+    for (const batch of head.batches) {
+      const previous = this.batches.get(batch.id);
+      const current = {
+        status: batch.status,
+        accepted: batch.accepted,
+        staged: batch.staged,
+        rejected: batch.rejected,
+        submitted: batch.submittedRecords ?? batch.accepted + batch.staged,
+        restored: restored || previous?.restored === true,
+      };
+      if (restored) {
+        this.batches.set(batch.id, current);
+        continue;
+      }
+      if (JSON.stringify(previous) === JSON.stringify(current)) continue;
+      const records = batch.last - batch.first + 1;
+      const action = batch.action === "upsert" ? "additions/upserts" : "removals";
+      let message: string;
+      if (batch.status === "prepared") message = `Preparing ${records} ${action}.`;
+      else if (batch.status === "unknown")
+        message = `Confirmation missing for ${records} ${action}; check destination status before retrying.`;
+      else if (batch.status === "cancelled")
+        message = `Cancelled ${records - batch.accepted - batch.rejected} ${action}; ${
+          batch.accepted
+        } previously accepted, ${batch.rejected} rejected in this batch.`;
+      else {
+        const submitted = current.submitted - (previous?.submitted ?? 0);
+        message =
+          (submitted > 0 && !current.restored
+            ? `Submitted ${submitted} ${action}; `
+            : `Status updated for ${records} ${action}: `) +
+          `${batch.accepted} accepted, ${batch.staged} pending processing, ${batch.rejected} rejected in this batch.`;
+      }
+      if (await this.log(message)) this.batches.set(batch.id, current);
+    }
+  }
+
+  /** One cumulative summary at the attempt boundary, including earlier attempts' delivery. */
+  async summarize(head: ArtifactHead) {
+    if (this.summarized) return;
+    const snapshot = head.snapshot;
     const additions = deliveryTotals(head, "upsert"),
       removals = deliveryTotals(head, "remove");
     const format = (value: typeof additions) =>
@@ -84,6 +129,6 @@ export class RunProgress {
         message += " Removals are blocked until all additions/updates/refreshes are accepted.";
       if (!plannedAdditions && !p.removals) message += " No audience changes or expiry refreshes needed.";
     }
-    if (message !== this.lastDelivery && (await this.log(message))) this.lastDelivery = message;
+    this.summarized = await this.log(message);
   }
 }

@@ -360,6 +360,10 @@ describe("executable runner", () => {
       .join("\n");
     expect(waitingLogs).toContain("2 confirmed submitted in 1 batches; 0 accepted, 2 pending");
     expect(waitingLogs).toContain("2 rows read in this attempt, 2 upsert rows, 0 explicit removal rows");
+    expect(waitingLogs.match(/Delivery totals/g)).toHaveLength(1);
+    expect(waitingLogs).toContain("Preparing 2 additions/upserts.");
+    expect(waitingLogs).toContain("Submitted 2 additions/upserts; 0 accepted, 2 pending processing");
+    expect(waitingLogs).not.toContain("may have reached the destination");
     const recoveryLogs = (
       await admin.query("SELECT message FROM newjitsu.task_log WHERE task_id='automatic-complete'")
     ).rows
@@ -367,6 +371,12 @@ describe("executable runner", () => {
       .join("\n");
     expect(recoveryLogs).toContain("warehouse SQL is not re-read");
     expect(recoveryLogs).toContain("2 confirmed submitted in 1 batches; 2 accepted, 0 pending");
+    expect(recoveryLogs.match(/Delivery totals/g)).toHaveLength(1);
+    expect(recoveryLogs).toContain("Status updated for 2 additions/upserts: 2 accepted");
+    expect(recoveryLogs).not.toContain("Submitted 2 additions/upserts");
+    const unchangedLogs = await taskLogs("automatic-check");
+    expect(unchangedLogs.match(/Delivery totals/g)).toHaveLength(1);
+    expect(unchangedLogs).not.toMatch(/Preparing 2|Submitted 2|Status updated/);
   });
   it.each(["early", "cancelled", "revision", "run", "complete", "foreign", "duplicate"])(
     "does not start an obsolete or unauthorized recovery (%s)",
@@ -643,6 +653,7 @@ describe("executable runner", () => {
     expect(initialLogs).toContain("3 source rows, 2 unique members, 3 projected members, 1 duplicates collapsed");
     expect(initialLogs).toContain("1 confirmed submitted in 1 batches; 0 accepted, 1 pending");
     expect(initialLogs).toContain("Removals are blocked until all additions/updates/refreshes are accepted");
+    expect(initialLogs.match(/Delivery totals/g)).toHaveLength(1);
     expect(f.calls).not.toContain("remove");
 
     for (const batch of f.writes) f.receipts.set(batch.batchId, accepted(batch));
@@ -653,6 +664,9 @@ describe("executable runner", () => {
     expect(resumedLogs).toContain("warehouse SQL is not re-read");
     expect(resumedLogs).toContain("2 previously acknowledged members; 1 new");
     expect(resumedLogs).toContain("Removals: 1 confirmed submitted in 1 batches; 1 accepted, 0 pending");
+    expect(resumedLogs.match(/Delivery totals/g)).toHaveLength(1);
+    expect(resumedLogs).toContain("Preparing 1 removals.");
+    expect(resumedLogs).toContain("Submitted 1 removals; 1 accepted");
     expect(f.calls).toContain("remove");
     expect(f.calls).not.toContain("reader");
     expect((await durable()).members).toHaveLength(2);
@@ -974,6 +988,11 @@ describe("executable runner", () => {
     const f = fixture();
     f.setFailBatch();
     expect(await execute(f.input)).toBe("FAILED");
+    const failedLogs = await taskLogs("task");
+    expect(failedLogs.match(/Delivery totals/g)).toHaveLength(1);
+    expect(failedLogs).toContain("Confirmation missing for 2 additions/upserts");
+    expect(failedLogs).toContain("2 prepared/unconfirmed");
+    expect(failedLogs).toContain("may have reached the destination");
     f.input.taskId = "recovery";
     f.calls.length = 0;
     expect(await execute(f.input)).toBe("FAILED");

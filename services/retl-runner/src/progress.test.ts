@@ -53,7 +53,9 @@ describe("redacted run progress", () => {
     const progress = new RunProgress(async m => {
       messages.push(m);
     });
-    await progress.observe(head());
+    await progress.observe(head(), true);
+    expect(messages.some(m => m.startsWith("Delivery totals"))).toBe(false);
+    await progress.summarize(head());
     const text = messages.join("\n");
     for (const expected of [
       "4183 previously acknowledged",
@@ -72,29 +74,106 @@ describe("redacted run progress", () => {
       expect(text).toContain(expected);
     expect(text).not.toContain("private-");
     await progress.observe(head());
+    await progress.summarize(head());
     expect(messages).toHaveLength(2);
   });
-  it("reports resumed totals and only logs changes as acceptance and removals progress", async () => {
+  it("logs short stages and one final total as acceptance and removals progress", async () => {
     const messages: string[] = [];
     const progress = new RunProgress(async m => {
       messages.push(m);
     });
     const h = head();
-    await progress.observe(h);
+    await progress.observe(h, true);
     h.batches[0] = batch({ accepted: 64, staged: 0 });
     await progress.observe(h);
-    expect(messages.at(-1)).toContain("64 accepted, 0 pending");
-    expect(messages.at(-1)).not.toContain("Removals are blocked");
-    h.batches.push(batch({ action: "remove", first: 65, last: 67, submittedRecords: 3, staged: 3 }));
+    expect(messages.at(-1)).toBe(
+      "Status updated for 64 additions/upserts: 64 accepted, 0 pending processing, 0 rejected in this batch."
+    );
+    h.batches.push(
+      batch({
+        id: "private-removal",
+        action: "remove",
+        first: 65,
+        last: 67,
+        status: "prepared",
+        submittedRecords: undefined,
+        staged: 0,
+      })
+    );
     await progress.observe(h);
+    expect(messages.at(-1)).toBe("Preparing 3 removals.");
+    expect(messages.join("\n")).not.toMatch(/may have reached|Confirmation missing/);
+    h.batches[1] = { ...h.batches[1], status: "acknowledged", submittedRecords: 3, staged: 3 };
+    await progress.observe(h);
+    expect(messages.at(-1)).toBe("Submitted 3 removals; 0 accepted, 3 pending processing, 0 rejected in this batch.");
+    const beforeRepeat = messages.length;
+    await progress.observe(h);
+    expect(messages).toHaveLength(beforeRepeat);
+    expect(messages.some(m => m.startsWith("Delivery totals"))).toBe(false);
+    await progress.summarize(h);
+    await progress.summarize(h);
     expect(messages.at(-1)).toContain("Removals: 3 confirmed submitted in 1 batches; 0 accepted, 3 pending");
+    expect(messages.at(-1)).not.toContain("Removals are blocked");
+    expect(messages.filter(m => m.startsWith("Delivery totals"))).toHaveLength(1);
     expect(messages.filter(m => m.startsWith("Mirror comparison"))).toHaveLength(1);
     const resumed: string[] = [];
-    await new RunProgress(async m => {
+    const nextAttempt = new RunProgress(async m => {
       resumed.push(m);
-    }).observe(h);
+    });
+    await nextAttempt.observe(h, true);
+    await nextAttempt.observe(h);
+    expect(resumed).toHaveLength(1);
+    await nextAttempt.summarize(h);
     expect(resumed[0]).toContain("4183 previously acknowledged");
     expect(resumed[1]).toContain("including earlier attempts");
+  });
+  it.each(["prepared", "unknown"] as const)(
+    "warns about unresolved %s delivery at the end of an attempt",
+    async status => {
+      const messages: string[] = [];
+      const progress = new RunProgress(async m => {
+        messages.push(m);
+      });
+      const h = head();
+      h.batches = [batch({ status: "prepared", submittedRecords: undefined, staged: 0 })];
+      await progress.observe(h);
+      expect(messages.at(-1)).toBe("Preparing 64 additions/upserts.");
+      if (status === "unknown") {
+        h.batches[0].status = "unknown";
+        await progress.observe(h);
+        expect(messages.at(-1)).toContain("Confirmation missing for 64 additions/upserts");
+      }
+      await progress.summarize(h);
+      expect(messages.at(-1)).toContain("64 prepared/unconfirmed");
+      expect(messages.at(-1)).toContain("may have reached the destination");
+      expect(messages.filter(m => m.startsWith("Delivery totals"))).toHaveLength(1);
+    }
+  );
+  it("summarizes an empty extraction once", async () => {
+    const write = vi.fn().mockResolvedValue(undefined);
+    const progress = new RunProgress(write);
+    const h = { ...head(), snapshot: undefined, batches: [] };
+    await progress.observe(h, true);
+    expect(write).not.toHaveBeenCalled();
+    await progress.summarize(h);
+    await progress.summarize(h);
+    expect(write).toHaveBeenCalledTimes(1);
+    expect(write.mock.calls[0][0]).toContain("0 confirmed submitted");
+  });
+  it("does not label reconciliation of a restored unknown batch as a new submission", async () => {
+    const messages: string[] = [];
+    const progress = new RunProgress(async m => {
+      messages.push(m);
+    });
+    const h = head();
+    h.batches = [batch({ status: "unknown", submittedRecords: undefined, staged: 0 })];
+    await progress.observe(h, true);
+    h.batches[0] = batch({ accepted: 64, staged: 0 });
+    await progress.observe(h);
+    expect(messages.at(-1)).toContain("Status updated for 64 additions/upserts: 64 accepted");
+    expect(messages.join("\n")).not.toContain("Submitted 64");
+    await progress.summarize(h);
+    expect(messages.at(-1)).toContain("64 confirmed submitted");
   });
   it("never labels prepared or unknown records as confirmed submitted", () => {
     const h = head();
@@ -121,12 +200,27 @@ describe("redacted run progress", () => {
     const stderr = vi.spyOn(process.stderr, "write").mockReturnValue(true);
     try {
       const progress = new RunProgress(write);
-      await expect(progress.observe(h)).resolves.toBeUndefined();
+      await expect(progress.observe(h, true)).resolves.toBeUndefined();
       expect(stderr).toHaveBeenCalledWith('{"event":"reverse_etl_progress_unavailable"}\n');
       await progress.observe(h);
+      await progress.summarize(h);
       expect(write.mock.calls.flat().join(" ")).toContain("counts are unavailable for this older run");
       expect(write.mock.calls.flat().join(" ")).toContain("64 confirmed submitted");
       expect(write.mock.calls.flat().join(" ")).toContain("confirmed submission totals are a lower bound");
+    } finally {
+      stderr.mockRestore();
+    }
+  });
+  it("retries a failed summary write without duplicating a successful one", async () => {
+    const write = vi.fn().mockRejectedValueOnce(new Error("private-token")).mockResolvedValue(undefined);
+    const stderr = vi.spyOn(process.stderr, "write").mockReturnValue(true);
+    try {
+      const progress = new RunProgress(write);
+      await expect(progress.summarize(head())).resolves.toBeUndefined();
+      await progress.summarize(head());
+      await progress.summarize(head());
+      expect(write).toHaveBeenCalledTimes(2);
+      expect(stderr.mock.calls.flat().join(" ")).not.toContain("private-token");
     } finally {
       stderr.mockRestore();
     }

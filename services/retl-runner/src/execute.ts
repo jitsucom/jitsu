@@ -115,7 +115,7 @@ export async function execute(input: ExecuteOptions): Promise<TaskResult> {
       : await openPersistence(db, runInput, adapter.project);
     const scope = run.scope;
     run.core.onPublish = head => progress.observe(head);
-    reportProgress = () => progress.observe(run.core.head);
+    reportProgress = () => progress.summarize(run.core.head);
     ensure(input.trigger !== "recovery" || run.recovery, "Recovery must not start a fresh extraction");
     await tasks.heartbeat();
     const saved = await run.core.state();
@@ -131,7 +131,7 @@ export async function execute(input: ExecuteOptions): Promise<TaskResult> {
         run.recovery ? "Continuing saved delivery; warehouse SQL is not re-read. " : ""
       }Delivery counts describe API records, not matched people or targetable audience size. Submission is not acceptance; Google audience sizes may update separately.`
     );
-    await reportProgress();
+    await progress.observe(run.core.head, true);
     const context: ReverseEtlContext<JsonObject, JsonObject> = {
       ...run.scope,
       mode: config.options.mode,
@@ -229,6 +229,7 @@ export async function execute(input: ExecuteOptions): Promise<TaskResult> {
     clearTimeout(timer);
     await renewing;
     signal.throwIfAborted();
+    await reportProgress();
     if (result === "pending") return await tasks.wait(logicalRunId, config.configRevision);
     const success = result === "accepted";
     const changed = await tasks.finish(
