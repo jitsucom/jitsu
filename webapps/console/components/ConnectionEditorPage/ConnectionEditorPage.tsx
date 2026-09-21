@@ -585,35 +585,45 @@ function ConnectionEditor({
         <>
           Identity Stitching Function retroactively updates data rows of anonymous user events with userId and traits as
           soon as user sings in. For correct work 'Deduplicate' option must be enabled.
-          {identityStitchingLocked && (
-            <div className="mt-2">
-              Identity Stitching is available on the <b className="uppercase">Enterprise</b> plan.{" "}
-              <a href="https://jitsu.com/contact?utm_source=app" target="_blank" rel="noopener noreferrer">
-                Contact sales
-              </a>{" "}
-              to enable it for this workspace.
-            </div>
-          )}
         </>
       ),
       name: "Identity Stitching",
       component: (
-        <SwitchComponent
-          disabled={
-            !canEdit || connectionOptions.primaryKey === "" || !connectionOptions.deduplicate || identityStitchingLocked
-          }
-          className="max-w-xs"
-          value={identityStitchingOn}
-          onChange={ur => {
-            const f = (connectionOptions.functions ?? []).filter(f => f.functionId !== IDENTITY_STITCHING_FUNCTION_ID);
-            if (ur) {
-              f.push({
-                functionId: IDENTITY_STITCHING_FUNCTION_ID,
-              });
+        <div>
+          {identityStitchingLocked && (
+            // Inline, not in `documentation`: that is rendered behind a help
+            // icon by DocumentedLabel, so a locked user would see a greyed-out
+            // switch and no reason for it — and no hover at all on touch.
+            <div className="mb-2 text-textLight">
+              Available on the <b className="uppercase">Enterprise</b> plan.{" "}
+              <a href="https://jitsu.com/contact?utm_source=app" target="_blank" rel="noopener noreferrer">
+                Contact sales
+              </a>{" "}
+              to enable it.
+            </div>
+          )}
+          <SwitchComponent
+            disabled={
+              !canEdit ||
+              connectionOptions.primaryKey === "" ||
+              !connectionOptions.deduplicate ||
+              identityStitchingLocked
             }
-            updateOptions({ functions: f });
-          }}
-        />
+            className="max-w-xs"
+            value={identityStitchingOn}
+            onChange={ur => {
+              const f = (connectionOptions.functions ?? []).filter(
+                f => f.functionId !== IDENTITY_STITCHING_FUNCTION_ID
+              );
+              if (ur) {
+                f.push({
+                  functionId: IDENTITY_STITCHING_FUNCTION_ID,
+                });
+              }
+              updateOptions({ functions: f });
+            }}
+          />
+        </div>
       ),
     });
   }
