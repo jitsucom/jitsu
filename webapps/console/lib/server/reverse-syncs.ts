@@ -105,7 +105,7 @@ async function hasState(db: ReadDb, workspaceId: string, syncId: string) {
       select: { sync_id: true },
     })) ||
     !!(await db.source_task.findFirst({
-      where: { sync_id: syncId, status: { in: ["RUNNING", "WAITING"] } },
+      where: { sync_id: syncId, status: { in: ["RUNNING", "WAITING", "PENDING"] } },
       select: { task_id: true },
     }))
   );
@@ -169,7 +169,7 @@ export async function deleteReverseSync(prisma: PrismaClient, workspaceId: strin
   return mutation(prisma, workspaceId, async tx => {
     const link = await linkFor(tx, workspaceId, syncId);
     if (!ReverseSyncOptions.parse(link.data).disabled) throw conflict("Pause this sync before deleting it");
-    if (await tx.source_task.count({ where: { sync_id: syncId, status: { in: ["RUNNING", "WAITING"] } } }))
+    if (await tx.source_task.count({ where: { sync_id: syncId, status: { in: ["RUNNING", "WAITING", "PENDING"] } } }))
       throw conflict("Cancel active or waiting attempts before deleting this sync");
     await tx.configurationObjectLink.update({ where: { id: syncId }, data: { deleted: true } });
     // Deletion keeps runtime state and never clears Google.
@@ -191,6 +191,7 @@ export async function listReverseSyncs(prisma: PrismaClient, workspaceId: string
       });
       const control = await prisma.reverse_sync_control.findFirst({
         where: { workspace_id: workspaceId, sync_id: link.id },
+        orderBy: { run_order: "desc" },
         select: { phase: true },
       });
       return ReverseSyncView.parse({
@@ -221,7 +222,18 @@ export async function reverseTasks(
       sync_id: { in: links.map(l => l.id) },
       package: "jitsu/retl-runner",
       ...(filter.taskId ? { task_id: filter.taskId } : {}),
-      ...(filter.status ? { status: filter.status } : {}),
+      ...(filter.status
+        ? {
+            status: {
+              in:
+                filter.status === "PENDING"
+                  ? ["PENDING", "WAITING"]
+                  : filter.status === "COMPLETE"
+                  ? ["COMPLETE", "SUCCESS"]
+                  : [filter.status],
+            },
+          }
+        : {}),
       ...(filter.from || filter.to
         ? {
             started_at: {

@@ -342,14 +342,18 @@ enum reverse_sync_extraction {
   full
 }
 
-// One durable lifecycle record per sync: current logical run, immutable config/target
+// One durable lifecycle record per logical run: immutable config/target
 // binding, phase, in-progress provider state, sequence boundaries and the durable artifact head.
-// Unlike source_task (one execution attempt), this survives retries of the same run.
+// Status refresh workers reuse the original source_task and append to its logs.
 // source_state holds committed checkpoints; this row also tracks unfinished work.
 model reverse_sync_control {
   workspace_id         String
-  sync_id              String                  @unique
+  sync_id              String
   run_id               String
+  // Monotonic per-sync admission order, including runs still processing remotely.
+  run_order            BigInt                  @default(0)
+  // Initial extraction/uploads are durably submitted; newer runs may now start.
+  detached             Boolean                 @default(false)
   revision             String
   target_hash          String
   phase                String                  @default("new")
@@ -367,7 +371,9 @@ model reverse_sync_control {
   finish_result        Bytes?
   committed_generation String?
 
-  @@id([workspace_id, sync_id])
+  @@id([workspace_id, sync_id, run_id])
+  @@index([sync_id])
+  @@unique([workspace_id, sync_id, run_order])
 }
 
 // Persistent exclusive claim of a destination audience by a mirror sync. Prevents
@@ -394,8 +400,8 @@ model source_state {
 }
 
 // Shared execution-attempt status and heartbeat for syncctl-managed syncs.
-// Each Reverse ETL attempt gets a task ID; multiple attempts may recover the same
-// logical run in reverse_sync_control. Task success is not a per-row receipt.
+// Reverse ETL uses one task ID per logical run, including status-refresh workers.
+// PENDING means submitted/processing; COMPLETE means accepted, not matched audience size.
 model source_task {
   sync_id     String
   task_id     String   @id

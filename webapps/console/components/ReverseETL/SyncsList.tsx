@@ -70,13 +70,13 @@ export function ReverseSyncsList() {
     }
   };
   const actions = (sync: ReverseSyncView): ButtonProps[] => {
-    const active = ["RUNNING", "WAITING"].includes(sync.latestTask?.status ?? "");
+    const active = ["RUNNING", "WAITING", "PENDING"].includes(sync.latestTask?.status ?? "");
     return [
       {
         label: "Run",
         icon: <Play className="w-4 h-4" />,
         requiredPermission: "editEntities",
-        disabled: !enabled || maintenance || sync.options.disabled || active || !!busy,
+        disabled: !enabled || maintenance || sync.options.disabled || sync.latestTask?.status === "RUNNING" || !!busy,
         onClick: () => void perform(sync, "run"),
       },
       { label: "Logs", icon: <ListMinusIcon className="w-5 h-5" />, href: `/reverse-syncs/tasks?syncId=${sync.id}` },

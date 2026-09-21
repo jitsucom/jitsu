@@ -219,13 +219,7 @@ export function SyncEditor({ sync, reload }: { sync?: ReverseSyncView; reload: (
           />
           <Button
             loading={busy}
-            disabled={
-              !editable ||
-              !enabled ||
-              options.disabled ||
-              dirty ||
-              ["RUNNING", "WAITING"].includes(sync.latestTask?.status ?? "")
-            }
+            disabled={!editable || !enabled || options.disabled || dirty || sync.latestTask?.status === "RUNNING"}
             onClick={() => perform(() => run(sync.id))}
           >
             Run now

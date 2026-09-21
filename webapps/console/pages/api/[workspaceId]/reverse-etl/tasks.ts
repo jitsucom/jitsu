@@ -11,7 +11,9 @@ export const route = createRoute()
       workspaceId: z.string(),
       syncId: z.string().optional(),
       taskId: z.string().optional(),
-      status: z.enum(["SUCCESS", "FAILED", "RUNNING", "WAITING", "RESUMED", "CANCELLED", "SKIPPED"]).optional(),
+      status: z
+        .enum(["COMPLETE", "PENDING", "SUCCESS", "FAILED", "RUNNING", "WAITING", "RESUMED", "CANCELLED", "SKIPPED"])
+        .optional(),
       from: z.string().datetime().optional(),
       to: z.string().datetime().optional(),
     }),

@@ -52,7 +52,8 @@ func TestReverseRecoverySchedulerDatabase(t *testing.T) {
 	}
 	exec(`CREATE TABLE source_task(sync_id text,task_id text PRIMARY KEY,package text,version text,status text,
  started_at timestamptz DEFAULT now(),updated_at timestamptz DEFAULT now(),started_by jsonb,metrics jsonb,error text,description text);
- CREATE TABLE reverse_sync_control(workspace_id text,sync_id text PRIMARY KEY,run_id text,revision text,phase text)`)
+ CREATE TABLE reverse_sync_control(workspace_id text,sync_id text,run_id text,revision text,phase text,
+ PRIMARY KEY(workspace_id,sync_id,run_id))`)
 	entry := reverseFixture()
 	entry.Schedule = "0 0 * * *" // A daily model schedule must not delay recovery.
 	client := fake.NewClientset()
@@ -62,7 +63,7 @@ func TestReverseRecoverySchedulerDatabase(t *testing.T) {
 	exec(`INSERT INTO reverse_sync_control VALUES('workspace','sync','run',$1,'batches_pending')`, entry.Reverse.ConfigRevision)
 	exec(`INSERT INTO source_task(sync_id,task_id,package,status,started_by,metrics)
  VALUES('sync','waiting','jitsu/retl-runner','WAITING','{"workspaceId":"workspace"}',
- jsonb_build_object('reverseRecovery',jsonb_build_object('runId','run','revision',$1::text,'nextCheckAt',now()+interval '30 minutes')))`, entry.Reverse.ConfigRevision)
+ jsonb_build_object('reverseRecovery',jsonb_build_object('runId','run','revision',$1::text,'attempt',0,'nextCheckAt',now()+interval '30 minutes')))`, entry.Reverse.ConfigRevision)
 	podCount := func(want int) {
 		t.Helper()
 		pods, err := client.CoreV1().Pods("default").List(ctx, metav1.ListOptions{})
@@ -86,27 +87,54 @@ func TestReverseRecoverySchedulerDatabase(t *testing.T) {
 	tm.scheduleReverseRecovery()
 	tm.scheduleReverseRecovery()
 	podCount(1)
-	// A failed pre-start child prevents perpetual re-creation of the same job.
-	exec(`INSERT INTO source_task(sync_id,task_id,package,status,started_by)
- VALUES('sync','failed-child','jitsu/retl-runner','FAILED','{"recoveryOf":"waiting"}')`)
-	tm.scheduleReverseRecovery()
-	var status string
-	if err := pool.QueryRow(ctx, "SELECT status FROM source_task WHERE task_id='waiting'").Scan(&status); err != nil || status != "RESUMED" {
-		t.Fatalf("parent was not consumed: %s, %v", status, err)
+	// The queued worker must survive cleanup although the original task is waiting.
+	pods, _ := client.CoreV1().Pods("default").List(ctx, metav1.ListOptions{})
+	first := pods.Items[0]
+	if tm.jobRunner.endedReverseTasks(pods.Items)[first.Name] {
+		t.Fatal("queued refresh was treated as ended")
 	}
-	// WAITING/RESUMED are terminal for Pod cleanup, never rewritten as failures.
-	for _, status := range []string{"WAITING", "RESUMED"} {
+	exec(`UPDATE source_task SET status='PENDING',metrics=jsonb_set(metrics,'{reverseWorker}',
+ jsonb_build_object('id',$1::text,'active',true)) WHERE task_id='waiting'`, first.Name)
+	if tm.jobRunner.endedReverseTasks(pods.Items)[first.Name] {
+		t.Fatal("active refresh was treated as ended")
+	}
+	exec(`UPDATE source_task SET metrics=jsonb_set(jsonb_set(metrics,'{reverseWorker,active}','false'),'{reverseRecovery,attempt}','1')`)
+	if !tm.jobRunner.endedReverseTasks(pods.Items)[first.Name] {
+		t.Fatal("finished refresh was not cleaned up")
+	}
+	tm.scheduleReverseRecovery()
+	podCount(2)
+	pods, _ = client.CoreV1().Pods("default").List(ctx, metav1.ListOptions{})
+	var next v1.Pod
+	for _, pod := range pods.Items {
+		if pod.Name != first.Name {
+			next = pod
+		}
+	}
+	if tm.jobRunner.endedReverseTasks(pods.Items)[next.Name] {
+		t.Fatal("next refresh was treated as ended")
+	}
+	exec(`UPDATE source_task SET metrics=jsonb_set(metrics,'{reverseWorker}',jsonb_build_object('id',$1::text,'active',true))`, next.Name)
+	if err := tm.failReverseWorker(&TaskStatus{TaskDescriptor: TaskDescriptor{SyncID: "sync", TaskID: "waiting", StartedBy: `{"trigger":"recovery"}`}, PodName: first.Name}); err != nil {
+		t.Fatal(err)
+	}
+	var status string
+	if err := pool.QueryRow(ctx, "SELECT status FROM source_task WHERE task_id='waiting'").Scan(&status); err != nil || status != "PENDING" {
+		t.Fatalf("late worker failure changed logical task: %s, %v", status, err)
+	}
+	// Terminal statuses and legacy idle attempts permit Pod cleanup.
+	for _, status := range []string{"COMPLETE", "WAITING", "RESUMED"} {
 		exec("UPDATE source_task SET status=$1 WHERE task_id='waiting'", status)
 		ended := tm.jobRunner.endedReverseTasks([]v1.Pod{{ObjectMeta: metav1.ObjectMeta{
-			Labels: map[string]string{labelSyncKind: "reverse"}, Annotations: map[string]string{"TaskID": "waiting"}}}})
-		if !ended["sync:waiting"] {
+			Name: "old-worker", Labels: map[string]string{labelSyncKind: "reverse"}, Annotations: map[string]string{"TaskID": "waiting", "SyncID": "sync"}}}})
+		if !ended["old-worker"] {
 			t.Fatalf("%s must be terminal for Pod cleanup", status)
 		}
 	}
 	// Cancellation does not need a Pod, desired entry, or enabled rollout.
 	tm.config.ReverseEnabled = false
 	tm.appContext.reverseRepo = nil
-	for _, initial := range []string{"WAITING", "RUNNING"} {
+	for _, initial := range []string{"WAITING", "RUNNING", "PENDING"} {
 		exec("UPDATE source_task SET status=$1 WHERE task_id='waiting'", initial)
 		for _, workspace := range []string{"foreign", "workspace"} {
 			recorder := httptest.NewRecorder()

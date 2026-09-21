@@ -17,6 +17,8 @@ const Env = z.object({
   RETL_CONSOLE_TOKEN: z.string().min(1),
   TASK_ID: z.string().min(1).max(512),
   POD_UID: z.string().min(1),
+  POD_NAME: z.string().min(1),
+  RETL_REFRESH_ATTEMPT: z.coerce.number().int().nonnegative().optional(),
   KUBE_NAMESPACE: z.string().min(1),
   KUBERNETES_SERVICE_HOST: z.string().min(1),
   KUBERNETES_SERVICE_PORT: z.string().default("443"),
@@ -60,6 +62,8 @@ async function main() {
       adapters,
       controller,
       taskId: env.TASK_ID,
+      workerId: env.POD_NAME,
+      refreshAttempt: env.RETL_REFRESH_ATTEMPT,
       trigger: env.RETL_TRIGGER,
       recoveryOf: env.RETL_RECOVERY_OF,
       lease: new KubernetesLease(
@@ -71,7 +75,7 @@ async function main() {
       reader: createWarehouseReader,
       admit: () => consoleClient.admit(controller.signal),
     });
-    process.exitCode = result === "SUCCESS" || result === "WAITING" ? 0 : 1;
+    process.exitCode = result === "COMPLETE" || result === "PENDING" ? 0 : 1;
   } finally {
     // Retain the hard-stop watchdog while closing outstanding resources.
     await db.close();

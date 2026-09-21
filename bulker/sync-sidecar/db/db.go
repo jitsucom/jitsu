@@ -101,6 +101,8 @@ cutoffs AS (
 DELETE FROM source_task t
 USING cutoffs c
 WHERE t.sync_id    = c.sync_id
+  -- Pending Reverse ETL tasks own refresh schedules and must outlive history retention.
+  AND NOT (t.package='jitsu/retl-runner' AND t.status IN ('RUNNING','PENDING','WAITING'))
   -- Skip syncs that have <= keepPerSync rows total. The (rn = $1 + 1)
   -- row doesn't exist for them, so MAX returns NULL. Legacy semantics
   -- (OFFSET keepPerSync LIMIT 1 returning no row → NULL cutoff →

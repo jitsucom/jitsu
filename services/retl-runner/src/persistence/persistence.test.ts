@@ -4,6 +4,7 @@ import { Client, type PoolConfig } from "pg";
 import { createRequire } from "node:module";
 import { execFileSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
+import { readFileSync } from "node:fs";
 import { contentHash, createBufferedSyncStore } from "@jitsu/destination-functions/src/reverse-etl/identity";
 import { runReverseEtl } from "@jitsu/destination-functions/src/reverse-etl/run";
 import type { BatchResult, FinishResult, PreparedBatch } from "@jitsu/protocols/reverse-etl";
@@ -150,6 +151,44 @@ afterAll(async () => {
 });
 
 describe("Artifact persistence with PostgreSQL control", () => {
+  it("migrates the old single-run key without changing existing state and is repeatable", async () => {
+    const run = await session();
+    await init(run);
+    const b = batch(run, ["a"]);
+    await run.delivery.prepare(b, {});
+    await admin.query(`CREATE SCHEMA retl_migration_fixture;
+      CREATE TABLE retl_migration_fixture.reverse_sync_control (LIKE newjitsu.reverse_sync_control INCLUDING DEFAULTS);
+      ALTER TABLE retl_migration_fixture.reverse_sync_control DROP COLUMN run_order, DROP COLUMN detached;
+      ALTER TABLE retl_migration_fixture.reverse_sync_control ADD PRIMARY KEY(workspace_id,sync_id);
+      CREATE UNIQUE INDEX reverse_sync_control_sync_id_key ON retl_migration_fixture.reverse_sync_control(sync_id);
+      INSERT INTO retl_migration_fixture.reverse_sync_control(workspace_id,sync_id,run_id,revision,target_hash,mode,extraction,artifact_head,phase)
+      SELECT workspace_id,sync_id,run_id,revision,target_hash,mode,extraction,artifact_head,phase FROM newjitsu.reverse_sync_control`);
+    try {
+      const before = (
+        await admin.query("SELECT to_jsonb(c) AS value FROM retl_migration_fixture.reverse_sync_control c")
+      ).rows;
+      const sql = readFileSync(new URL("../../migrations/per-run-control.sql", import.meta.url), "utf8").replace(
+        ':"schema"',
+        '"retl_migration_fixture"'
+      );
+      await admin.query(sql);
+      await admin.query(sql);
+      const after = (
+        await admin.query(
+          "SELECT to_jsonb(c)-'run_order'-'detached' AS value FROM retl_migration_fixture.reverse_sync_control c"
+        )
+      ).rows;
+      expect(after).toEqual(before);
+      await admin.query(`INSERT INTO retl_migration_fixture.reverse_sync_control(workspace_id,sync_id,run_id,run_order,revision,target_hash,mode,extraction)
+        VALUES('workspace','sync','second',1,'revision','target','upsert','full')`);
+      expect(
+        (await admin.query("SELECT count(*) FROM retl_migration_fixture.reverse_sync_control")).rows[0].count
+      ).toBe("2");
+    } finally {
+      await admin.query("ROLLBACK");
+      await admin.query("DROP SCHEMA retl_migration_fixture CASCADE");
+    }
+  });
   it("keeps Prisma-owned tables, constraints and existing rows intact across schema updates", async () => {
     const run = await session();
     await init(run);
@@ -1244,7 +1283,7 @@ describe("control observations and conditional transitions", () => {
     await failed;
     expect((await reading).phase).toBe("new");
   });
-  it("refreshes on recovery and rejects an old logical run's cached state", async () => {
+  it("refreshes on recovery and keeps old logical run caches isolated", async () => {
     const run = await session();
     await init(run);
     const recovered = await session({ taskId: "recovery" });
@@ -1253,7 +1292,7 @@ describe("control observations and conditional transitions", () => {
     expect((await run.core.recoveryStatus()).phase).toBe("aborted");
     const next = await session({ taskId: "next", logicalRunId: "next" });
     expect((await next.core.recoveryStatus()).phase).toBe("new");
-    await expect(run.core.recoveryStatus()).rejects.toThrow(/Run state/);
+    expect((await run.core.recoveryStatus()).phase).toBe("aborted");
     expect((await next.core.recoveryStatus()).phase).toBe("new");
   });
   it("reads committed state and readiness without waiting on a control-row writer", async () => {
@@ -1422,8 +1461,8 @@ describe("core snapshot storage", () => {
     await init(next);
     expect(await next.snapshots.status()).toBeUndefined();
     // Next-run compaction discards the abandoned candidate automatically.
-    await expect(first.snapshots.start()).rejects.toThrow(/Run state/);
-    await expect(first.snapshots.append([desired("key1", "a")], 1)).rejects.toThrow(/Run state/);
+    await expect(first.snapshots.start()).rejects.toThrow(/Cannot start snapshot/);
+    await expect(first.snapshots.append([desired("key1", "a")], 1)).rejects.toThrow(/Cannot append snapshot/);
 
     await next.snapshots.start();
     expect(await next.snapshots.status()).toEqual({ sealed: false, lastPageSequence: 0, sourceKeyCount: 0 });

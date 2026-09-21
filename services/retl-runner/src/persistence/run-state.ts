@@ -55,16 +55,58 @@ export async function openRun(
     const target = contentHash(run.targetIdentity);
     // Serialize target admission too: an upsert cannot race exclusive mirror ownership.
     await client.query("SELECT pg_advisory_xact_lock(hashtextextended($1,0))", [target]);
+    const foreign = await client.query(
+      "SELECT 1 FROM reverse_sync_control WHERE sync_id=$1 AND workspace_id<>$2 LIMIT 1",
+      [run.syncId, run.workspaceId]
+    );
+    ensure(!foreign.rowCount, "Sync belongs to another workspace");
+    const previous = (
+      await client.query<ControlRow>(
+        "SELECT * FROM reverse_sync_control WHERE workspace_id=$1 AND sync_id=$2 ORDER BY run_order DESC LIMIT 1 FOR UPDATE",
+        [run.workspaceId, run.syncId]
+      )
+    ).rows[0];
+    if (previous) {
+      if (!previous.artifact_head) throw new PersistenceResetRequiredError();
+      ensure(
+        previous.target_hash === target && previous.revision === run.configRevision && previous.mode === run.mode,
+        "Target/config changes require controlled reset"
+      );
+    }
+    const exists = await client.query(
+      "SELECT 1 FROM reverse_sync_control WHERE workspace_id=$1 AND sync_id=$2 AND run_id=$3",
+      [run.workspaceId, run.syncId, run.logicalRunId]
+    );
+    const sameRun = !!exists.rowCount;
+    if (!sameRun) {
+      const blocked = await client.query(
+        `SELECT 1 FROM reverse_sync_control WHERE workspace_id=$1 AND sync_id=$2
+         AND NOT detached AND phase NOT IN ('complete','aborted') LIMIT 1`,
+        [run.workspaceId, run.syncId]
+      );
+      ensure(!blocked.rowCount, "Previous logical run requires recovery");
+    }
     await client.query(
-      `INSERT INTO reverse_sync_control (workspace_id,sync_id,run_id,revision,target_hash,mode,extraction,artifact_head)
-      VALUES ($1,$2,$3,$4,$5,$6,$7,$8) ON CONFLICT (workspace_id,sync_id) DO NOTHING`,
-      [run.workspaceId, run.syncId, run.logicalRunId, run.configRevision, target, run.mode, run.extraction, initialHead]
+      `INSERT INTO reverse_sync_control (workspace_id,sync_id,run_id,revision,target_hash,mode,extraction,artifact_head,run_order,committed_generation)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) ON CONFLICT (workspace_id,sync_id,run_id) DO NOTHING`,
+      [
+        run.workspaceId,
+        run.syncId,
+        run.logicalRunId,
+        run.configRevision,
+        target,
+        run.mode,
+        run.extraction,
+        previous?.artifact_head ?? initialHead,
+        String(BigInt(previous?.run_order ?? -1) + 1n),
+        previous?.committed_generation ?? null,
+      ]
     );
     const {
       rows: [control],
     } = await client.query<ControlRow>(
-      "SELECT * FROM reverse_sync_control WHERE workspace_id=$1 AND sync_id=$2 FOR UPDATE",
-      [run.workspaceId, run.syncId]
+      "SELECT * FROM reverse_sync_control WHERE workspace_id=$1 AND sync_id=$2 AND run_id=$3 FOR UPDATE",
+      [run.workspaceId, run.syncId, run.logicalRunId]
     );
     // New rows always have a durable empty manifest, even if startup crashes.
     // A null pointer therefore identifies legacy state after its per-row tables are removed.
@@ -73,8 +115,6 @@ export async function openRun(
       control.target_hash === target && control.revision === run.configRevision && control.mode === run.mode,
       "Target/config changes require controlled reset"
     );
-    const sameRun = control.run_id === run.logicalRunId;
-    ensure(sameRun || ["complete", "aborted"].includes(control.phase), "Previous logical run requires recovery");
     if (sameRun) {
       ensure(!["complete", "aborted"].includes(control.phase), "Logical run already ended; use a new run ID");
       ensure(control.extraction === run.extraction, "Recovery must preserve the original run configuration");
@@ -120,7 +160,7 @@ export async function openRun(
       checkpoint_sequence=CASE WHEN $5 AND phase <> 'new' THEN checkpoint_sequence ELSE $6 END,
       finish_sequence=CASE WHEN $5 THEN finish_sequence ELSE NULL END,
       finish_result=CASE WHEN $5 THEN finish_result ELSE NULL END
-      WHERE workspace_id=$1 AND sync_id=$2 RETURNING *`,
+      WHERE workspace_id=$1 AND sync_id=$2 AND run_id=$3 RETURNING *`,
       [run.workspaceId, run.syncId, run.logicalRunId, run.extraction, sameRun, base]
     );
     cache.remember(updated.rows[0]);

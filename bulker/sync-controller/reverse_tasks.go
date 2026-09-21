@@ -120,7 +120,7 @@ func (t *TaskManager) ReverseCancelHandler(c *gin.Context) {
 	ctx, cancel := context.WithTimeout(c.Request.Context(), 5*time.Second)
 	_, err := t.dbpool.Exec(ctx, `UPDATE source_task SET status='CANCELLED',updated_at=clock_timestamp(),
  description='Automatic recovery cancelled; unresolved delivery retained'
- WHERE sync_id=$1 AND task_id=$2 AND package='jitsu/retl-runner' AND status IN ('RUNNING','WAITING')
+ WHERE sync_id=$1 AND task_id=$2 AND package='jitsu/retl-runner' AND status IN ('RUNNING','WAITING','PENDING')
  AND started_by->>'workspaceId'=$3`, syncID, taskID, workspaceID)
 	cancel()
 	if err != nil {
@@ -144,7 +144,7 @@ func (t *TaskManager) ReverseCancelHandler(c *gin.Context) {
 		// The runner's INSERT DO NOTHING gate then prohibits starting this task.
 		ctx, cancel := context.WithTimeout(c.Request.Context(), 5*time.Second)
 		_, err = t.dbpool.Exec(ctx, `INSERT INTO source_task(sync_id,task_id,package,version,status) VALUES($1,$2,'jitsu/retl-runner','1','CANCELLED')
-   ON CONFLICT(task_id) DO UPDATE SET status='CANCELLED',updated_at=clock_timestamp() WHERE source_task.sync_id=$1 AND source_task.status IN ('RUNNING','WAITING')`, syncID, taskID)
+   ON CONFLICT(task_id) DO UPDATE SET status='CANCELLED',updated_at=clock_timestamp() WHERE source_task.sync_id=$1 AND source_task.status IN ('RUNNING','WAITING','PENDING')`, syncID, taskID)
 		cancel()
 		if err != nil {
 			c.JSON(http.StatusServiceUnavailable, gin.H{"ok": false})
@@ -161,7 +161,11 @@ func (t *TaskManager) closeStaleReverseTasks() {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	_, err := t.dbpool.Exec(ctx, `UPDATE source_task SET status='FAILED',error='Reverse runner heartbeat expired; recovery required',updated_at=clock_timestamp()
-  WHERE task_id IN (SELECT task_id FROM source_task WHERE package='jitsu/retl-runner' AND status='RUNNING' AND updated_at < clock_timestamp()-interval '2 minutes' LIMIT 100) AND status='RUNNING' AND updated_at < clock_timestamp()-interval '2 minutes'
+  WHERE task_id IN (SELECT task_id FROM source_task WHERE package='jitsu/retl-runner' AND
+    (status='RUNNING' OR (status='PENDING' AND (metrics->'reverseWorker'->>'active')::boolean))
+    AND updated_at < clock_timestamp()-interval '2 minutes' LIMIT 100)
+    AND (status='RUNNING' OR (status='PENDING' AND (metrics->'reverseWorker'->>'active')::boolean))
+    AND updated_at < clock_timestamp()-interval '2 minutes'
   `)
 	if err != nil {
 		t.Errorf("reverse stale-task check failed")
@@ -173,6 +177,11 @@ func (t *TaskManager) closeStaleReverseTasks() {
 
 func (j *JobRunner) endedReverseTasks(pods []v1.Pod) map[string]bool {
 	ended := map[string]bool{}
+	type state struct {
+		status, worker, attempt string
+		active                  bool
+	}
+	states := map[string]state{}
 	var ids []string
 	for _, pod := range pods {
 		if pod.Labels[labelSyncKind] != "reverse" {
@@ -191,29 +200,81 @@ func (j *JobRunner) endedReverseTasks(pods []v1.Pod) map[string]bool {
 			end = len(ids)
 		}
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		rows, err := j.dbpool.Query(ctx, `SELECT sync_id,task_id FROM source_task WHERE package='jitsu/retl-runner' AND status IN ('SUCCESS','FAILED','CANCELLED','WAITING','RESUMED') AND task_id=ANY($1)`, ids[offset:end])
+		rows, err := j.dbpool.Query(ctx, `SELECT sync_id,task_id,status,
+      COALESCE(metrics->'reverseWorker'->>'id',''),COALESCE((metrics->'reverseWorker'->>'active')::boolean,false),
+      COALESCE(metrics->'reverseRecovery'->>'attempt','0')
+      FROM source_task WHERE package='jitsu/retl-runner' AND task_id=ANY($1)`, ids[offset:end])
 		if err != nil {
 			cancel()
 			continue
 		}
-		page := map[string]bool{}
+		page := map[string]state{}
 		for rows.Next() {
 			var syncID, taskID string
-			if err = rows.Scan(&syncID, &taskID); err != nil {
+			var s state
+			if err = rows.Scan(&syncID, &taskID, &s.status, &s.worker, &s.active, &s.attempt); err != nil {
 				break
 			}
-			page[syncID+":"+taskID] = true
+			page[syncID+":"+taskID] = s
 		}
 		complete := err == nil && rows.Err() == nil
 		rows.Close()
 		cancel()
 		if complete {
-			for key := range page {
-				ended[key] = true
+			for key, s := range page {
+				states[key] = s
 			}
 		}
 	}
+	for _, pod := range pods {
+		if pod.Labels[labelSyncKind] != "reverse" {
+			continue
+		}
+		var td TaskDescriptor
+		_ = mapstructure.Decode(pod.Annotations, &td)
+		if td.TaskID == "" {
+			td.TaskID = pod.Name
+		}
+		s, ok := states[td.SyncID+":"+td.TaskID]
+		if !ok {
+			continue
+		}
+		switch s.status {
+		case "COMPLETE", "SUCCESS", "FAILED", "CANCELLED", "RESUMED":
+			ended[pod.Name] = true
+		case "PENDING", "WAITING":
+			// A queued refresh shares the task ID but is not the worker that ended.
+			attempt, refresh := pod.Annotations["ReverseRefreshAttempt"]
+			ended[pod.Name] = (s.worker == pod.Name && !s.active) ||
+				(s.worker != pod.Name && (s.active || !refresh || attempt != s.attempt))
+		case "RUNNING":
+			ended[pod.Name] = s.worker != "" && s.worker != pod.Name
+		}
+	}
 	return ended
+}
+
+// Pod identity is distinct from logical task identity. A late failure notification
+// must never fail another worker currently refreshing the same task.
+func (t *TaskManager) failReverseWorker(st *TaskStatus) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	var started map[string]any
+	_ = json.Unmarshal([]byte(st.StartedBy), &started)
+	if started["trigger"] == "recovery" {
+		_, err := t.dbpool.Exec(ctx, `UPDATE source_task SET status='FAILED',
+          error='Status refresh worker stopped; saved delivery retained',updated_at=clock_timestamp()
+          WHERE sync_id=$1 AND task_id=$2 AND package='jitsu/retl-runner' AND status='PENDING'
+          AND metrics->'reverseWorker'->>'id'=$3 AND (metrics->'reverseWorker'->>'active')::boolean`, st.SyncID, st.TaskID, st.PodName)
+		return err
+	}
+	_, err := t.dbpool.Exec(ctx, `INSERT INTO source_task(sync_id,task_id,package,version,status,started_by,error)
+      VALUES($1,$2,'jitsu/retl-runner','1','FAILED',$3,'Reverse runner stopped before completing submission')
+      ON CONFLICT(task_id) DO UPDATE SET status='FAILED',error=EXCLUDED.error,updated_at=clock_timestamp()
+      WHERE source_task.sync_id=$1 AND source_task.status='RUNNING'
+      AND (source_task.metrics->'reverseWorker'->>'id'=$4 OR source_task.metrics->'reverseWorker' IS NULL)`,
+		st.SyncID, st.TaskID, st.StartedBy, st.PodName)
+	return err
 }
 
 // Called only by the watcher. A failed delete never suppresses the next retry.

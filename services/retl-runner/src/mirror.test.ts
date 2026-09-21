@@ -108,7 +108,8 @@ async function takeover(run: Session) {
   return session(run.scope.logicalRunId, "recovery");
 }
 async function phase() {
-  return (await admin.query("SELECT phase FROM newjitsu.reverse_sync_control")).rows[0].phase;
+  return (await admin.query("SELECT phase FROM newjitsu.reverse_sync_control ORDER BY run_order DESC LIMIT 1")).rows[0]
+    .phase;
 }
 async function membership() {
   return (await durable()).members.map(row => row.effect.upsert);
@@ -559,7 +560,11 @@ describe("core snapshot mirror lifecycle", () => {
     expect(await membership()).toHaveLength(3);
     expect(await phase()).toBe("complete");
     expect(
-      (await admin.query("SELECT committed_generation FROM newjitsu.reverse_sync_control")).rows[0].committed_generation
+      (
+        await admin.query(
+          "SELECT committed_generation FROM newjitsu.reverse_sync_control ORDER BY run_order DESC LIMIT 1"
+        )
+      ).rows[0].committed_generation
     ).toBe("run");
   });
   it("handles unchanged, shared and changed identities across generations without rehashing", async () => {
@@ -733,8 +738,11 @@ describe("core snapshot mirror lifecycle", () => {
       expect(f.calls.at(-1)).toBe("abort");
       expect(await membership()).toHaveLength(2);
       expect(
-        (await admin.query("SELECT committed_generation FROM newjitsu.reverse_sync_control")).rows[0]
-          .committed_generation
+        (
+          await admin.query(
+            "SELECT committed_generation FROM newjitsu.reverse_sync_control ORDER BY run_order DESC LIMIT 1"
+          )
+        ).rows[0].committed_generation
       ).toBe("run");
     }
   );
@@ -831,7 +839,11 @@ describe("core snapshot mirror lifecycle", () => {
     expect(await phase()).toBe("finish_accepted");
     expect(f.calls).not.toContain("abort");
     expect(
-      (await admin.query("SELECT committed_generation FROM newjitsu.reverse_sync_control")).rows[0].committed_generation
+      (
+        await admin.query(
+          "SELECT committed_generation FROM newjitsu.reverse_sync_control ORDER BY run_order DESC LIMIT 1"
+        )
+      ).rows[0].committed_generation
     ).toBeNull();
     const recovered = await takeover(run);
     f.calls.length = 0;
@@ -893,7 +905,11 @@ describe("core snapshot mirror lifecycle", () => {
     expect(f.calls).not.toContain("finish");
     expect(await membership()).toHaveLength(2);
     expect(
-      (await admin.query("SELECT committed_generation FROM newjitsu.reverse_sync_control")).rows[0].committed_generation
+      (
+        await admin.query(
+          "SELECT committed_generation FROM newjitsu.reverse_sync_control ORDER BY run_order DESC LIMIT 1"
+        )
+      ).rows[0].committed_generation
     ).toBe("run");
   });
   it("reconciles an ambiguous removal without recreating the writer or replaying the remove", async () => {

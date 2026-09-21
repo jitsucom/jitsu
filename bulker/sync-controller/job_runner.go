@@ -123,7 +123,7 @@ func (j *JobRunner) watchPodStatuses() {
 				taskStatus.PodName = pod.Name
 				status := pod.Status
 				if taskStatus.TaskType == "reverse" {
-					if endedReverse[taskStatus.SyncID+":"+taskStatus.TaskID] {
+					if endedReverse[pod.Name] {
 						j.cleanupReversePod(&pod)
 						continue
 					}

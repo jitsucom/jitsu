@@ -13,7 +13,7 @@ const entries = new WeakMap<Database, Map<string, Entry>>();
 export function controlFor(db: Database, scope: Scope): ControlCache {
   let syncs = entries.get(db);
   if (!syncs) entries.set(db, (syncs = new Map()));
-  const key = JSON.stringify([scope.workspaceId, scope.syncId]);
+  const key = JSON.stringify([scope.workspaceId, scope.syncId, scope.logicalRunId]);
   let entry = syncs.get(key);
   if (!entry) syncs.set(key, (entry = { tail: Promise.resolve() }));
   return new ControlCache(db, scope, entry);

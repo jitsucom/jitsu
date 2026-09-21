@@ -27,7 +27,9 @@ export class MemoryObjects implements ObjectStore {
 
 /** Inspect only published durable evidence, independently of a worker's scratch/cache. */
 export async function persisted(client: Client, objects: MemoryObjects) {
-  const control = (await client.query("SELECT artifact_head FROM newjitsu.reverse_sync_control")).rows[0];
+  const control = (
+    await client.query("SELECT artifact_head FROM newjitsu.reverse_sync_control ORDER BY run_order DESC LIMIT 1")
+  ).rows[0];
   const read = <T>(ref: ArtifactRef): T => JSON.parse(gunzipSync(objects.objects.get(ref.key)!).toString()).value;
   const head = control?.artifact_head
     ? read<ArtifactHead>(decodeJson(control.artifact_head))

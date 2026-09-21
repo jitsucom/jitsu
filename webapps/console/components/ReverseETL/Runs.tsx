@@ -80,7 +80,9 @@ export function ReverseRuns() {
               <Button
                 danger
                 loading={busy}
-                disabled={!role.editEntities || !!maintenance || !["RUNNING", "WAITING"].includes(task.status)}
+                disabled={
+                  !role.editEntities || !!maintenance || !["RUNNING", "WAITING", "PENDING"].includes(task.status)
+                }
                 onClick={() =>
                   Modal.confirm({
                     title: "Cancel this attempt?",

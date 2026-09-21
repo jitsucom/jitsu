@@ -35,6 +35,7 @@ type Changes = Partial<
     | "next_sequence"
     | "checkpoint_sequence"
     | "committed_generation"
+    | "detached"
   >
 >;
 
@@ -80,9 +81,28 @@ export class ObjectJournal implements DeliveryJournal {
       await journal.restore();
       if (head.runId !== scope.logicalRunId) {
         ensure(
-          !head.batches.some(batch => batch.status === "prepared" || batch.status === "unknown" || batch.staged > 0),
+          !head.batches.some(batch => batch.status === "prepared" || batch.status === "unknown"),
           "Unresolved artifact batches require recovery"
         );
+        // Pending memberships are candidates, not acknowledged baseline. Preserve
+        // them for later removals and force a refresh if desired by the newer run.
+        for (const batch of head.batches.filter(batch => batch.staged > 0)) {
+          const data = await journal.data(batch);
+          const receipt = await artifacts.get<ReceiptData>(batch.receipt);
+          const pending = new Set(
+            receipt.result.outcomes.filter(row => row.status === "staged").map(row => row.operationId)
+          );
+          data.batch.records.forEach((record, i) => {
+            if (pending.has(record.operationId))
+              for (const effect of data.effects[i])
+                local.apply(effect, "upsert", record.sourceSequence, new Date(0).toISOString(), true);
+          });
+        }
+        if (
+          head.batches.some(batch => batch.staged > 0) ||
+          (head.snapshot?.strategy === "native-replace" && head.snapshot.replacementStatus !== "accepted")
+        )
+          local.sql.exec("UPDATE members SET uncertain=1");
         const baseline: ArtifactRef[] = [];
         for (const page of local.memberPages()) baseline.push(await artifacts.put(page));
         journal.head = { version: 1, runId: scope.logicalRunId, baseline, batches: [] };
@@ -139,16 +159,19 @@ export class ObjectJournal implements DeliveryJournal {
             workspaceId: this.scope.workspaceId,
             revision: this.scope.configRevision,
             targetHash: contentHash(this.scope.targetIdentity),
+            runOrder: old.run_order,
             value: encodeJson(checkpoint, 192 * 1024).toString("utf8"),
           };
           await client.query(
-            `INSERT INTO ${this.db.stateTable}(sync_id,stream,state,timestamp) VALUES($1,$2,$3,clock_timestamp()) ON CONFLICT(sync_id,stream) DO UPDATE SET state=EXCLUDED.state,timestamp=EXCLUDED.timestamp`,
+            `INSERT INTO ${this.db.stateTable}(sync_id,stream,state,timestamp) VALUES($1,$2,$3,clock_timestamp())
+             ON CONFLICT(sync_id,stream) DO UPDATE SET state=EXCLUDED.state,timestamp=EXCLUDED.timestamp
+             WHERE COALESCE((${this.db.stateTable}.state->>'runOrder')::bigint,0) <= ($3::jsonb->>'runOrder')::bigint`,
             [this.scope.syncId, stateStream, envelope]
           );
         }
         const result = await client.query<ControlRow>(
           `UPDATE reverse_sync_control SET artifact_head=$4,phase=$5,store=$6,provider_state=$7,finish_result=$8,
-          finish_sequence=$9,next_sequence=$10,checkpoint_sequence=$11,committed_generation=$12
+          finish_sequence=$9,next_sequence=$10,checkpoint_sequence=$11,committed_generation=$12,detached=$13
           WHERE workspace_id=$1 AND sync_id=$2 AND run_id=$3 RETURNING *`,
           [
             this.scope.workspaceId,
@@ -163,6 +186,7 @@ export class ObjectJournal implements DeliveryJournal {
             next.next_sequence,
             next.checkpoint_sequence,
             next.committed_generation,
+            next.detached,
           ]
         );
         ensure(result.rowCount, "Run state changed");
@@ -689,6 +713,25 @@ export class ObjectJournal implements DeliveryJournal {
   }
   async hasRejected() {
     return this.head.batches.some(row => row.rejected > 0);
+  }
+  /** Called after the complete initial upload pass, never for partial/uncertain extraction. */
+  async detach() {
+    const c = await this.current();
+    if (c.detached) return;
+    if (this.head.batches.some(b => b.status === "prepared" || b.status === "unknown" || b.rejected > 0)) return;
+    if (this.scope.mode === "mirror") {
+      const snapshot = this.head.snapshot;
+      if (!snapshot?.sealed || !snapshot.summary) return;
+      const planned =
+        snapshot.strategy === "native-replace"
+          ? snapshot.summary.uniqueMembers
+          : snapshot.summary.newMembers + snapshot.summary.changedMembers + snapshot.summary.refreshMembers;
+      const prepared = this.head.batches
+        .filter(b => b.action === "upsert")
+        .reduce((sum, b) => sum + b.last - b.first + 1, 0);
+      if (prepared !== planned) return;
+    } else if (!["batches_pending", "finish_pending"].includes(c.phase)) return;
+    await this.publish(this.head, { detached: true });
   }
   async commitCheckpoint(point: ResumePoint, store: JsonObject, complete: boolean) {
     store = copy(store);

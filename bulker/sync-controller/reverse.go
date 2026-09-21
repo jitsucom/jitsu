@@ -58,6 +58,7 @@ func buildReversePodTemplate(c *Config, entry *SyncEntry, secret, taskID string)
 	}
 	td := TaskDescriptor{TaskID: taskID, TaskType: "reverse", SyncID: entry.ID, WorkspaceId: entry.WorkspaceID, Package: "jitsu/retl-runner", PackageVersion: "1", StartedBy: `{"trigger":"` + trigger + `","kind":"reverse"}`}
 	env := []v1.EnvVar{taskEnv, {Name: "RETL_TRIGGER", Value: trigger},
+		{Name: "POD_NAME", ValueFrom: &v1.EnvVarSource{FieldRef: &v1.ObjectFieldSelector{FieldPath: "metadata.name"}}},
 		{Name: "POD_UID", ValueFrom: &v1.EnvVarSource{FieldRef: &v1.ObjectFieldSelector{FieldPath: "metadata.uid"}}},
 		{Name: "KUBE_NAMESPACE", ValueFrom: &v1.EnvVarSource{FieldRef: &v1.ObjectFieldSelector{FieldPath: "metadata.namespace"}}},
 	}

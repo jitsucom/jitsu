@@ -47,14 +47,14 @@ export const route = createRoute()
     const prisma = db.prisma();
     if (body.action === "cancel") {
       const tasks = await reverseTasks(prisma, workspaceId, { syncId, taskId: body.taskId });
-      if (!tasks.length || !["RUNNING", "WAITING"].includes(tasks[0].status))
+      if (!tasks.length || !["RUNNING", "WAITING", "PENDING"].includes(tasks[0].status))
         throw new ApiError("No active attempt to cancel", { status: 409 });
     }
     const config = body.action === "run" ? await readReverseSync(prisma, syncId, workspaceId) : undefined;
     if (body.action === "run") {
       if (!config) throw new ApiError("Enable the sync before running it", { status: 409 });
-      if (await prisma.source_task.count({ where: { sync_id: syncId, status: { in: ["RUNNING", "WAITING"] } } }))
-        throw new ApiError("This sync already has an active or waiting attempt", { status: 409 });
+      if (await prisma.source_task.count({ where: { sync_id: syncId, status: "RUNNING" } }))
+        throw new ApiError("This sync is still extracting or submitting uploads", { status: 409 });
     }
     const env = getServerEnv();
     if (!env.SYNCCTL_URL) throw new ApiError("Sync controller is not configured", { status: 503 });

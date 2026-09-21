@@ -19,7 +19,7 @@ import { ReverseSyncTitle } from "./SyncTitle";
 import { ReverseTaskStatus } from "./TaskStatus";
 dayjs.extend(utc);
 dayjs.extend(relativeTime);
-const statuses = ["RUNNING", "SUCCESS", "FAILED", "WAITING", "RESUMED", "CANCELLED", "SKIPPED"];
+const statuses = ["RUNNING", "COMPLETE", "FAILED", "PENDING", "RESUMED", "CANCELLED", "SKIPPED"];
 
 export function ReverseTasksList() {
   const workspace = useWorkspace();
@@ -101,7 +101,7 @@ export function ReverseTasksList() {
         requiredPermission: "editEntities",
         disabled: !sync,
       },
-      ["RUNNING", "WAITING"].includes(task.status)
+      ["RUNNING", "WAITING", "PENDING"].includes(task.status)
         ? {
             label: "Cancel",
             collapsed: true,
@@ -122,7 +122,7 @@ export function ReverseTasksList() {
               !enabled ||
               !sync ||
               sync.options.disabled ||
-              ["RUNNING", "WAITING"].includes(sync.latestTask?.status ?? ""),
+              sync.latestTask?.status === "RUNNING",
             onClick: () => void perform(task, "run"),
           },
     ];

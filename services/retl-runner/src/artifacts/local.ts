@@ -8,6 +8,8 @@ import { ensure, type Effect } from "../persistence/types";
 export interface Member {
   effect: Effect;
   acceptedAt: string;
+  /** Potential membership from an older, still-processing run; never skip its refresh. */
+  uncertain?: boolean;
 }
 
 /** Disposable per-worker indexes. Durable evidence lives exclusively in artifacts. */
@@ -22,7 +24,7 @@ export class LocalIndex {
       sql.exec(`PRAGMA journal_mode=MEMORY; PRAGMA temp_store=FILE; PRAGMA cache_size=-16384; PRAGMA max_page_count=262144;
         CREATE TABLE source_keys (key TEXT PRIMARY KEY);
         CREATE TABLE desired (identity TEXT PRIMARY KEY, payload TEXT NOT NULL, value TEXT NOT NULL);
-        CREATE TABLE members (identity TEXT PRIMARY KEY, payload TEXT, value TEXT, accepted_at TEXT, sequence INTEGER NOT NULL);
+        CREATE TABLE members (identity TEXT PRIMARY KEY, payload TEXT, value TEXT, accepted_at TEXT, sequence INTEGER NOT NULL, uncertain INTEGER NOT NULL DEFAULT 0);
         CREATE TABLE operations (id TEXT PRIMARY KEY, sequence INTEGER UNIQUE, status TEXT NOT NULL, batch TEXT NOT NULL);
         CREATE TABLE touched (identity TEXT PRIMARY KEY);
       `);
@@ -66,14 +68,14 @@ export class LocalIndex {
     });
   }
   restoreMembers(values: Member[]) {
-    for (const { effect, acceptedAt } of values) this.apply(effect, "upsert", 0, acceptedAt);
+    for (const { effect, acceptedAt, uncertain } of values) this.apply(effect, "upsert", 0, acceptedAt, uncertain);
   }
-  apply(effect: Effect, action: "upsert" | "remove", sequence: number, acceptedAt: string) {
+  apply(effect: Effect, action: "upsert" | "remove", sequence: number, acceptedAt: string, uncertain = false) {
     // Keep tombstones until the next run, so late acceptance cannot resurrect an older write.
     this.sql
       .prepare(
-        `INSERT INTO members VALUES (?,?,?,?,?) ON CONFLICT(identity) DO UPDATE SET
-      payload=excluded.payload,value=excluded.value,accepted_at=excluded.accepted_at,sequence=excluded.sequence
+        `INSERT INTO members VALUES (?,?,?,?,?,?) ON CONFLICT(identity) DO UPDATE SET
+      payload=excluded.payload,value=excluded.value,accepted_at=excluded.accepted_at,sequence=excluded.sequence,uncertain=excluded.uncertain
       WHERE excluded.sequence>members.sequence`
       )
       .run(
@@ -81,14 +83,15 @@ export class LocalIndex {
         action === "upsert" ? effect.payloadHash : null,
         action === "upsert" ? canonicalJson(effect) : null,
         acceptedAt,
-        sequence
+        sequence,
+        uncertain ? 1 : 0
       );
   }
   page(kind: "additions" | "removals", after: string, limit: number, refreshBefore: string | null): Effect[] {
     const query =
       kind === "additions"
         ? `SELECT d.value FROM desired d LEFT JOIN members m ON m.identity=d.identity WHERE d.identity>?
-         AND (m.value IS NULL OR m.payload<>d.payload OR m.accepted_at<=?) ORDER BY d.identity LIMIT ?`
+         AND (m.value IS NULL OR m.payload<>d.payload OR m.uncertain=1 OR m.accepted_at<=?) ORDER BY d.identity LIMIT ?`
         : `SELECT m.value FROM members m WHERE m.value IS NOT NULL AND m.identity>?
          AND NOT EXISTS(SELECT 1 FROM desired d WHERE d.identity=m.identity) ORDER BY m.identity LIMIT ?`;
     const rows =
@@ -118,7 +121,7 @@ export class LocalIndex {
         `SELECT count(*) AS desired,
       coalesce(sum(m.value IS NULL),0) AS added,
       coalesce(sum(m.value IS NOT NULL AND m.payload<>d.payload),0) AS changed,
-      coalesce(sum(m.value IS NOT NULL AND m.payload=d.payload AND m.accepted_at<=?),0) AS refresh
+      coalesce(sum(m.value IS NOT NULL AND m.payload=d.payload AND (m.uncertain=1 OR m.accepted_at<=?)),0) AS refresh
       FROM desired d LEFT JOIN members m ON m.identity=d.identity`
       )
       .get(refreshBefore)!;
@@ -152,8 +155,14 @@ export class LocalIndex {
   }
   *memberPages(size = 1000): Generator<Member[]> {
     yield* this.artifactPages(
-      this.sql.prepare("SELECT value,accepted_at FROM members WHERE value IS NOT NULL ORDER BY identity").iterate(),
-      row => ({ effect: JSON.parse(String(row.value)), acceptedAt: String(row.accepted_at) }),
+      this.sql
+        .prepare("SELECT value,accepted_at,uncertain FROM members WHERE value IS NOT NULL ORDER BY identity")
+        .iterate(),
+      row => ({
+        effect: JSON.parse(String(row.value)),
+        acceptedAt: String(row.accepted_at),
+        ...(row.uncertain ? { uncertain: true } : {}),
+      }),
       size
     );
   }

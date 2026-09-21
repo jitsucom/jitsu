@@ -20,6 +20,8 @@ export interface ExecuteOptions {
   taskId: string;
   trigger: "manual" | "scheduled" | "recovery";
   recoveryOf?: string;
+  workerId?: string;
+  refreshAttempt?: number;
   db: Database;
   lease: RunLease;
   adapters: AdapterRegistry;
@@ -32,7 +34,13 @@ export interface ExecuteOptions {
 
 export async function execute(input: ExecuteOptions): Promise<TaskResult> {
   const { db, lease, controller } = input;
-  const tasks = new Tasks(db, input.config.id, input.taskId, input.config.workspaceId);
+  const tasks = new Tasks(
+    db,
+    input.config.id,
+    input.recoveryOf ?? input.taskId,
+    input.config.workspaceId,
+    input.workerId ?? input.taskId
+  );
   const progress = new RunProgress(
     message => tasks.progress(message),
     stats => tasks.statistics(stats)
@@ -72,7 +80,12 @@ export async function execute(input: ExecuteOptions): Promise<TaskResult> {
     await lease.acquire();
     held = true;
     stage = "task_start";
-    await tasks.start(input.trigger, input.recoveryOf, input.config.configRevision);
+    const refreshRunId = await tasks.start(
+      input.trigger,
+      input.recoveryOf,
+      input.config.configRevision,
+      input.refreshAttempt
+    );
     started = true;
     stage = "admission";
     const config = ReverseRunConfig.parse(await input.admit());
@@ -97,14 +110,16 @@ export async function execute(input: ExecuteOptions): Promise<TaskResult> {
         adapter.mirror && adapter.mirror.stream === adapter.stream && adapter.verifyMirrorBaseline,
         "Mirror adapter not verified"
       );
-    const logicalRunId = await db.transaction(async client => {
-      const result = await client.query<Pick<ControlRow, "run_id" | "phase">>(
-        "SELECT run_id,phase FROM reverse_sync_control WHERE workspace_id=$1 AND sync_id=$2",
-        [config.workspaceId, config.id]
-      );
-      const previous = result.rows[0];
-      return previous && !["complete", "aborted"].includes(previous.phase) ? previous.run_id : randomUUID();
-    });
+    const logicalRunId =
+      refreshRunId ??
+      (await db.transaction(async client => {
+        const result = await client.query<Pick<ControlRow, "run_id" | "phase">>(
+          "SELECT run_id,phase FROM reverse_sync_control WHERE workspace_id=$1 AND sync_id=$2 AND NOT detached AND phase NOT IN ('complete','aborted') ORDER BY run_order DESC LIMIT 1",
+          [config.workspaceId, config.id]
+        );
+        const previous = result.rows[0];
+        return previous && !["complete", "aborted"].includes(previous.phase) ? previous.run_id : randomUUID();
+      }));
     // Recheck the Kubernetes lease before opening persistence. Durable state still
     // rejects changed revision/target/mode, but does not authorize worker ownership.
     await renewLease();
@@ -112,7 +127,7 @@ export async function execute(input: ExecuteOptions): Promise<TaskResult> {
     const runInput = {
       workspaceId: config.workspaceId,
       syncId: config.id,
-      taskId: input.taskId,
+      taskId: tasks.taskId,
       logicalRunId,
       targetIdentity: adapter.targetIdentity,
       configRevision: config.configRevision,
@@ -132,7 +147,7 @@ export async function execute(input: ExecuteOptions): Promise<TaskResult> {
     const saved = await run.core.state();
     await tasks.progress(
       run.recovery
-        ? "Reconciling interrupted Reverse ETL delivery"
+        ? "Refreshing submitted Reverse ETL delivery status"
         : mirror
         ? "Extracting warehouse snapshot; no audience changes submitted yet"
         : "Starting Reverse ETL extraction and delivery"
@@ -241,13 +256,17 @@ export async function execute(input: ExecuteOptions): Promise<TaskResult> {
     await renewing;
     signal.throwIfAborted();
     await reportProgress();
-    if (result === "pending") return await tasks.wait(logicalRunId, config.configRevision);
+    if (result === "pending") {
+      // Interrupted legacy runs remain recoverable but cannot admit overlapping extraction.
+      await run.core.detach();
+      return await tasks.wait(logicalRunId, config.configRevision);
+    }
     const success = result === "accepted";
     const changed = await tasks.finish(
-      success ? "SUCCESS" : "FAILED",
+      success ? "COMPLETE" : "FAILED",
       success ? "Reverse ETL delivery committed" : "Recovery completed cleanup; next run will restart extraction"
     );
-    return changed && success ? "SUCCESS" : "FAILED";
+    return changed && success ? "COMPLETE" : "FAILED";
   } catch (error) {
     reportFailure(stage, error);
     stopped = true;

@@ -4,56 +4,69 @@ import { ensure } from "./persistence/types";
 import { RecoverySchedule, nextRecoveryCheck } from "./recovery-schedule";
 import type { ReverseDeliveryStats } from "@jitsu/protocols/reverse-etl-stats";
 
-export type TaskResult = "SUCCESS" | "FAILED" | "CANCELLED" | "WAITING";
+export type TaskResult = "COMPLETE" | "FAILED" | "CANCELLED" | "PENDING";
 
 export class Tasks {
   constructor(
     private readonly db: Database,
     readonly syncId: string,
     readonly taskId: string,
-    readonly workspaceId?: string
+    readonly workspaceId?: string,
+    readonly workerId: string = taskId
   ) {}
   // Called only while holding the Kubernetes lease. The conditional parent
   // transition also makes cancellation win over an already queued recovery Pod.
-  async start(trigger: "manual" | "scheduled" | "recovery", recoveryOf?: string, revision?: string) {
-    await this.db.transaction(async client => {
+  async start(
+    trigger: "manual" | "scheduled" | "recovery",
+    recoveryOf?: string,
+    revision?: string,
+    refreshAttempt?: number
+  ) {
+    return this.db.transaction(async client => {
       if (trigger === "recovery") {
-        ensure(recoveryOf && revision, "Recovery task binding required");
-        const parent = await client.query(
-          `UPDATE source_task t SET status='RESUMED',updated_at=clock_timestamp()
-           FROM reverse_sync_control c WHERE t.sync_id=$1 AND t.task_id=$2 AND t.status='WAITING'
+        ensure(recoveryOf === this.taskId && revision, "Recovery task binding required");
+        const parent = await client.query<{ run_id: string }>(
+          `UPDATE source_task t SET status='PENDING',updated_at=clock_timestamp(),
+           metrics=jsonb_set(t.metrics,'{reverseWorker}',$5::jsonb)
+           FROM reverse_sync_control c WHERE t.sync_id=$1 AND t.task_id=$2 AND t.status IN ('PENDING','WAITING')
+           AND COALESCE((t.metrics->'reverseWorker'->>'active')::boolean,false)=false
            AND t.started_by->>'workspaceId'=$3 AND c.workspace_id=$3 AND c.sync_id=t.sync_id
            AND c.run_id=t.metrics->'reverseRecovery'->>'runId' AND c.revision=$4
            AND c.revision=t.metrics->'reverseRecovery'->>'revision'
            AND c.phase NOT IN ('complete','aborted')
-           AND (t.metrics->'reverseRecovery'->>'nextCheckAt')::timestamptz<=clock_timestamp() RETURNING 1`,
-          [this.syncId, recoveryOf, this.workspaceId, revision]
+           AND ($6::int IS NULL OR (t.metrics->'reverseRecovery'->>'attempt')::int=$6)
+           AND (t.metrics->'reverseRecovery'->>'nextCheckAt')::timestamptz<=clock_timestamp() RETURNING c.run_id`,
+          [
+            this.syncId,
+            recoveryOf,
+            this.workspaceId,
+            revision,
+            { id: this.workerId, active: true },
+            refreshAttempt ?? null,
+          ]
         );
         ensure(parent.rowCount, "Recovery no longer scheduled");
+        return parent.rows[0].run_id;
       }
       const result = await client.query(
-        `INSERT INTO source_task(sync_id,task_id,package,version,status,started_by)
-         VALUES($1,$2,'jitsu/retl-runner','1','RUNNING',$3) ON CONFLICT(task_id) DO NOTHING RETURNING 1`,
+        `INSERT INTO source_task(sync_id,task_id,package,version,status,started_by,metrics)
+         VALUES($1,$2,'jitsu/retl-runner','1','RUNNING',$3,$4) ON CONFLICT(task_id) DO NOTHING RETURNING 1`,
         [
           this.syncId,
           this.taskId,
           { trigger, kind: "reverse", workspaceId: this.workspaceId, ...(recoveryOf ? { recoveryOf } : {}) },
+          { reverseWorker: { id: this.workerId, active: true } },
         ]
       );
       ensure(result.rowCount, "Task already exists");
-      // A manual/cron attempt also supersedes queued checks for this sync. A
-      // stale recovery Pod cannot start or reopen extraction after this point.
-      await client.query(
-        "UPDATE source_task SET status='RESUMED',updated_at=clock_timestamp() WHERE sync_id=$1 AND package='jitsu/retl-runner' AND status='WAITING'",
-        [this.syncId]
-      );
+      return undefined;
     });
   }
   async heartbeat() {
     await this.db.transaction(async client => {
       const result = await client.query(
-        "UPDATE source_task SET updated_at=clock_timestamp() WHERE sync_id=$1 AND task_id=$2 AND status='RUNNING' RETURNING 1",
-        [this.syncId, this.taskId]
+        "UPDATE source_task SET updated_at=clock_timestamp() WHERE sync_id=$1 AND task_id=$2 AND status IN ('RUNNING','PENDING') AND metrics->'reverseWorker'->>'id'=$3 AND (metrics->'reverseWorker'->>'active')::boolean RETURNING 1",
+        [this.syncId, this.taskId, this.workerId]
       );
       ensure(result.rowCount, "Task cancelled or ended");
     });
@@ -61,16 +74,16 @@ export class Tasks {
   async statistics(stats: ReverseDeliveryStats) {
     await this.db.transaction(async client => {
       await client.query(
-        "UPDATE source_task SET metrics=COALESCE(metrics,'{}'::jsonb) || $3::jsonb WHERE sync_id=$1 AND task_id=$2 AND status='RUNNING'",
-        [this.syncId, this.taskId, { reverseDelivery: stats }]
+        "UPDATE source_task SET metrics=COALESCE(metrics,'{}'::jsonb) || $3::jsonb WHERE sync_id=$1 AND task_id=$2 AND status IN ('RUNNING','PENDING') AND metrics->'reverseWorker'->>'id'=$4 AND (metrics->'reverseWorker'->>'active')::boolean",
+        [this.syncId, this.taskId, { reverseDelivery: stats }, this.workerId]
       );
     });
   }
   async progress(message: string) {
     await this.db.transaction(async client => {
       const result = await client.query(
-        "UPDATE source_task SET description=$3 WHERE sync_id=$1 AND task_id=$2 AND status='RUNNING' RETURNING 1",
-        [this.syncId, this.taskId, message]
+        "UPDATE source_task SET description=$3 WHERE sync_id=$1 AND task_id=$2 AND status IN ('RUNNING','PENDING') AND metrics->'reverseWorker'->>'id'=$4 AND (metrics->'reverseWorker'->>'active')::boolean RETURNING 1",
+        [this.syncId, this.taskId, message, this.workerId]
       );
       ensure(result.rowCount, "Task cancelled or ended");
       await client.query(
@@ -90,7 +103,7 @@ export class Tasks {
       return result.rows[0] ? RecoverySchedule.parse(result.rows[0].schedule) : undefined;
     });
     const schedule = nextRecoveryCheck(runId, revision, previous);
-    const status = schedule ? "WAITING" : "FAILED";
+    const status = schedule ? "PENDING" : "FAILED";
     const changed = await this.finish(
       status,
       schedule
@@ -103,14 +116,15 @@ export class Tasks {
   async finish(status: TaskResult, message: string, schedule?: RecoverySchedule) {
     return this.db.transaction(async client => {
       const changed = await client.query(
-        "UPDATE source_task SET status=$3,description=$4,error=$5,metrics=COALESCE(metrics,'{}'::jsonb) || COALESCE($6::jsonb,'{}'::jsonb),updated_at=clock_timestamp() WHERE sync_id=$1 AND task_id=$2 AND status='RUNNING' RETURNING 1",
+        "UPDATE source_task SET status=$3,description=$4,error=$5,metrics=(COALESCE(metrics,'{}'::jsonb)-'reverseRecovery') || $6::jsonb,updated_at=clock_timestamp() WHERE sync_id=$1 AND task_id=$2 AND status IN ('RUNNING','PENDING') AND metrics->'reverseWorker'->>'id'=$7 AND (metrics->'reverseWorker'->>'active')::boolean RETURNING 1",
         [
           this.syncId,
           this.taskId,
           status,
           message,
           status === "FAILED" ? message : null,
-          schedule ? { reverseRecovery: schedule } : null,
+          { ...(schedule ? { reverseRecovery: schedule } : {}), reverseWorker: { id: this.workerId, active: false } },
+          this.workerId,
         ]
       );
       if (changed.rowCount)
