@@ -213,6 +213,10 @@ export function createGoogleConversions(
     } else {
       if (dataManager && (row.merchantCountryCode || row.merchantLanguageCode))
         fail("Merchant feed country/language mappings require Google Ads API delivery");
+      if (!dataManager && row.userAgent)
+        fail(
+          "Click event user agent requires Data Manager; Google Ads API accepts landing-page user agent via session attributes"
+        );
       if (
         !dataManager &&
         row.conversionEnvironment &&

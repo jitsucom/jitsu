@@ -22,6 +22,36 @@ const durable = () => persisted(admin, objects);
 afterEach(() => vi.useRealTimers());
 
 describe("runner-owned Google audience provisioning", () => {
+  it("does not persist an impossible mobile audience creation intent", async () => {
+    const f = fixture();
+    f.input.config.destination = {
+      destinationType: "google-ads",
+      authorized: true,
+      oauthConnectionId: "destination.destination",
+      customerId: "1234567890",
+    };
+    f.input.config.options = {
+      ...f.input.config.options,
+      mode: "mirror",
+      stream: "audience",
+      mapping: { mobileAdvertisingId: "id" },
+      streamOptions: {
+        audience: { kind: "managed", displayName: "Mobile" },
+        identifierType: "MOBILE_ADVERTISING_ID",
+        customerMatchTermsAccepted: true,
+        exclusiveManagementConfirmed: true,
+      },
+    };
+    f.input.adapters = createAdapterRegistry(async () => "token");
+    expect(await execute(f.input)).toBe("FAILED");
+    expect((await task()).error).toContain("Set the App ID and mobile platform");
+    expect(
+      (await admin.query("SELECT count(*) FROM newjitsu.source_state WHERE stream=$1", [googleAudienceStateStream]))
+        .rows[0].count
+    ).toBe("0");
+    expect((await admin.query("SELECT count(*) FROM newjitsu.reverse_sync_control")).rows[0].count).toBe("0");
+    expect(f.calls).not.toContain("reader");
+  });
   it("stops polling terminal ambiguous conversion results without reopening the model", async () => {
     const f = asynchronousFixture();
     expect(await execute(f.input)).toBe("PENDING");

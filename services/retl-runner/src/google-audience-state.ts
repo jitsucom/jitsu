@@ -44,6 +44,12 @@ export async function resolveGoogleAudience(
     };
   }
   ensure(config.options.mode === "mirror", "Managed Google audiences require mirror mode");
+  // A deterministic local validation failure must not become an uncertain create:
+  // settings remain editable until any provisioning intent/delivery state exists.
+  ensure(
+    settings.identifierType !== "MOBILE_ADVERTISING_ID" || (!!settings.appId && !!settings.mobilePlatform),
+    "Mobile audiences require an App ID and mobile platform"
+  );
   const binding = googleAudienceStateBinding(config.workspaceId, config.id, config.toId, credentials, settings);
   const read = () =>
     db.transaction(async client => {

@@ -8,6 +8,10 @@ export class ReverseEtlManualReconciliationError extends Error {
 /** Exact core-owned reasons only. Never expose arbitrary SDK/SQL messages or causes. */
 const failures = new Map<string, string>([
   [
+    "Mobile audiences require an App ID and mobile platform",
+    "Set the App ID and mobile platform before creating a mobile audience. No audience creation was attempted; edit this sync and try again.",
+  ],
+  [
     "Google conversion results require manual reconciliation; no replay",
     "Google returned partial or unverified conversion results. Some events may have been accepted. Contact your Jitsu administrator with this run ID; saved requests are retained and will not be uploaded again automatically.",
   ],

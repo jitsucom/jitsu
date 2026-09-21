@@ -40,14 +40,15 @@ function listInfo(intent: GoogleAudienceIntent) {
   return { uploadKeyTypes: ["CONTACT_ID"], contactIdInfo: { dataSourceType } };
 }
 function matchesType(list: z.infer<typeof userList>, expected: GoogleAudienceIntent) {
-  const info = listInfo(expected);
   const actual = list.ingestedUserListInfo;
+  const type = expected.identifierType ?? "CONTACT_INFO";
+  const key = type === "CONTACT_INFO" ? "CONTACT_ID" : type === "CRM_ID" ? "USER_ID" : "MOBILE_ID";
   return (
-    !!actual?.uploadKeyTypes.includes(info.uploadKeyTypes[0]) &&
-    (!info.contactIdInfo || actual.contactIdInfo?.dataSourceType === info.contactIdInfo.dataSourceType) &&
-    (!info.mobileIdInfo ||
-      (actual.mobileIdInfo?.appId === info.mobileIdInfo.appId &&
-        actual.mobileIdInfo?.keySpace === info.mobileIdInfo.keySpace))
+    !!actual?.uploadKeyTypes.includes(key) &&
+    (type !== "CONTACT_INFO" || actual.contactIdInfo?.dataSourceType === "DATA_SOURCE_TYPE_FIRST_PARTY") &&
+    (type !== "MOBILE_ADVERTISING_ID" ||
+      ((!expected.appId || actual.mobileIdInfo?.appId === expected.appId) &&
+        (!expected.mobilePlatform || actual.mobileIdInfo?.keySpace === expected.mobilePlatform)))
   );
 }
 
@@ -89,6 +90,7 @@ export function createGoogleAudienceManagement(
     }
   }
   function verify(value: unknown, expected: GoogleAudienceIntent, audienceId?: string) {
+    listInfo(expected); // Managed mobile lists always retain their required app/platform binding.
     const result = userList.safeParse(value);
     if (!result.success) return fail();
     const list = result.data;

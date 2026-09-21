@@ -242,7 +242,8 @@ const audience: StreamEditor = {
       items.push(
         {
           name: "App ID",
-          documentation: "The iOS application ID or Android package name associated with the audience.",
+          documentation:
+            "The iOS application ID or Android package name. Required to create a new mobile audience; optional for an existing audience.",
           component: (
             <Input
               className="w-80"
@@ -254,6 +255,7 @@ const audience: StreamEditor = {
         },
         {
           name: "Mobile platform",
+          documentation: "Required to create a new mobile audience; optional for an existing audience.",
           component: (
             <Select
               className="w-80"
@@ -419,7 +421,11 @@ const conversionFields: Record<GoogleConversionStream, [string, string, string?]
     ["countryCode", "Address country code"],
     ["postalCode", "Postal code"],
     ["userIpAddress", "User IP address"],
-    ["userAgent", "User agent"],
+    [
+      "userAgent",
+      "User agent",
+      "Click event device user agent: Data Manager only. For Google Ads API, use landingPageUserAgent in session attributes.",
+    ],
     [
       "conversionEnvironment",
       "Conversion environment",

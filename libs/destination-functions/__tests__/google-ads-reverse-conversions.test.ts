@@ -213,6 +213,13 @@ describe("Google Reverse ETL conversion streams", () => {
     expect(() =>
       fixture("click-conversions", { api: "google-ads" }).batch({
         conversionTimestamp: time,
+        gclid: "click",
+        userAgent: "agent",
+      })
+    ).toThrow("requires Data Manager");
+    expect(() =>
+      fixture("click-conversions", { api: "google-ads" }).batch({
+        conversionTimestamp: time,
         firstName: "Alice",
         lastName: "Smith-Jones",
         countryCode: "US",
@@ -284,6 +291,32 @@ describe("Google Reverse ETL conversion streams", () => {
 });
 describe("expanded Google audience identifiers", () => {
   const provider = createGoogleDataManager(async () => "token");
+  it("does not require redundant app details when using an existing mobile audience", async () => {
+    const request = vi.fn(
+      async () =>
+        new Response(
+          JSON.stringify({
+            name: "accountTypes/GOOGLE_ADS/accounts/1234567890/userLists/42",
+            id: "42",
+            displayName: "Mobile",
+            membershipStatus: "OPEN",
+            membershipDuration: "7776000s",
+            accessReason: "OWNED",
+            ingestedUserListInfo: {
+              uploadKeyTypes: ["MOBILE_ID"],
+              mobileIdInfo: { appId: "com.test", keySpace: "ANDROID" },
+            },
+          })
+        )
+    );
+    await expect(
+      createGoogleAudienceManagement(credentials, async () => "t", request as typeof fetch).verifyExisting(
+        "42",
+        new AbortController().signal,
+        { identifierType: "MOBILE_ADVERTISING_ID" }
+      )
+    ).resolves.toEqual({ audienceId: "42", displayName: "Mobile" });
+  });
   it("accepts email-only, address-only, CRM-only and mobile-only rows", () => {
     const address = provider.stream.rowType.parse({
       firstName: " Alice ",
