@@ -48,7 +48,7 @@ const counts = {
   cancelled: 0,
 };
 describe("Reverse ETL status dropdown", () => {
-  it("shows each outcome against its batch type total and keeps cleanup separate", async () => {
+  it("shows nonzero status columns with Accepted and bold Total last, and keeps cleanup separate", async () => {
     render(
       React.createElement(ReverseTaskStatus, {
         task: task({
@@ -64,14 +64,58 @@ describe("Reverse ETL status dropdown", () => {
     );
     fireEvent.click(screen.getByRole("button", { name: /WAITING/ }));
     const upload = (await screen.findByText("Full-snapshot uploads")).closest("tr")!;
-    expect(within(upload).getByText("3 / 4")).toBeTruthy();
-    expect(within(upload).getByText("1 / 4")).toBeTruthy();
-    expect(within(screen.getByText("Removals").closest("tr")!).getByText("2 / 2")).toBeTruthy();
+    expect(screen.getAllByRole("columnheader").map(cell => cell.textContent)).toEqual([
+      "Batch type",
+      "Pending",
+      "Rejected",
+      "Accepted",
+      "Total",
+    ]);
+    expect(
+      within(upload)
+        .getAllByRole("cell")
+        .map(cell => cell.textContent)
+    ).toEqual(["Full-snapshot uploads", "1", "0", "3", "4"]);
+    const removal = screen.getByText("Removals").closest("tr")!;
+    expect(
+      within(removal)
+        .getAllByRole("cell")
+        .map(cell => cell.textContent)
+    ).toEqual(["Removals", "0", "2", "0", "2"]);
+    expect(screen.getByRole("columnheader", { name: "Total" }).querySelector("strong")).toBeTruthy();
+    expect(upload.lastElementChild?.querySelector("strong")?.textContent).toBe("4");
+    expect(removal.lastElementChild?.querySelector("strong")?.textContent).toBe("2");
     expect(screen.getByText(/Full-audience cleanup:/).textContent).toContain("separate request, not a removal batch");
     expect(screen.getByText(/Records:/).textContent).toContain("300 accepted");
     expect(screen.getByRole("link", { name: "Show Logs" }).getAttribute("href")).toBe(
       "/reverse-syncs/logs?syncId=sync&taskId=task"
     );
+  });
+  it("keeps Accepted and Total when all counts are zero", async () => {
+    render(
+      React.createElement(ReverseTaskStatus, {
+        task: task({
+          version: 1,
+          runId: "run",
+          observedAt: "2026-01-01T00:00:00.000Z",
+          upsert: counts,
+          remove: counts,
+          records: { accepted: 0, pending: 0, rejected: 0 },
+        }),
+      })
+    );
+    fireEvent.click(screen.getByRole("button", { name: /WAITING/ }));
+    const upload = (await screen.findByText("Additions / upserts")).closest("tr")!;
+    expect(screen.getAllByRole("columnheader").map(cell => cell.textContent)).toEqual([
+      "Batch type",
+      "Accepted",
+      "Total",
+    ]);
+    expect(
+      within(upload)
+        .getAllByRole("cell")
+        .map(cell => cell.textContent)
+    ).toEqual(["Additions / upserts", "0", "0"]);
   });
   it("does not invent zero counts for older attempts", async () => {
     render(React.createElement(ReverseTaskStatus, { task: task() }));

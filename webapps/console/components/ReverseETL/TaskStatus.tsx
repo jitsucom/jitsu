@@ -41,12 +41,19 @@ export function ReverseTaskStatus({ task }: { task?: ReverseTask | null }) {
                 dataSource={rows}
                 columns={[
                   { title: "Batch type", dataIndex: "type", width: 170 },
-                  { title: "Total", dataIndex: "total" },
-                  ...reverseBatchStatuses.map(status => ({
-                    title: status === "partial" ? "Mixed result" : status[0].toUpperCase() + status.slice(1),
-                    key: status,
-                    render: (_: unknown, row: (typeof rows)[number]) => `${row[status]} / ${row.total}`,
-                  })),
+                  ...reverseBatchStatuses
+                    .filter(status => status !== "accepted" && rows.some(row => row[status] !== 0))
+                    .map(status => ({
+                      title: status === "partial" ? "Mixed result" : status[0].toUpperCase() + status.slice(1),
+                      dataIndex: status,
+                      key: status,
+                    })),
+                  { title: "Accepted", dataIndex: "accepted" },
+                  {
+                    title: <strong>Total</strong>,
+                    dataIndex: "total",
+                    render: (total: number) => <strong>{total}</strong>,
+                  },
                 ]}
               />
               <p className="text-xs text-textLight mt-3">
