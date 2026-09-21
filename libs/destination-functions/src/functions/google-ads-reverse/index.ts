@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { z } from "zod";
 import type {
   BatchResult,
+  FinishResult,
   JsonObject,
   ReverseEtlContext,
   ReverseEtlDestination,
@@ -118,6 +119,9 @@ const receipt = z
   })
   .strict();
 const submission = z.object({ requestId, fieldWarnings: z.array(z.unknown()).optional() });
+const replacementState = z.object({ version: z.literal(1), cutoff: z.string().datetime(), binding: hex }).strict();
+const replacementReceipt = replacementState.extend({ action: z.literal("replace"), requestId }).strict();
+const replacementKey = "googleAudienceReplacement";
 const account = z.object({ accountType: z.literal("GOOGLE_ADS"), accountId: z.string() });
 const destination = z.object({
   operatingAccount: account,
@@ -136,36 +140,75 @@ const statusResponse = z.object({
         warningInfo: z.object({ warningCounts: z.array(counts).optional() }).optional(),
         audienceMembersIngestionStatus: z.object({ userDataIngestionStatus: stats.optional() }).optional(),
         audienceMembersRemovalStatus: z.object({ userDataRemovalStatus: stats.optional() }).optional(),
+        removeAllAudienceMembersStatus: z.object({}).strict().optional(),
+        eventsIngestionStatus: z.unknown().optional(),
       })
     )
     .length(1),
 });
 
 /** Provider-only implementation: caller supplies a scoped OAuth resolver, never a Nango secret. */
-export function createGoogleDataManager(getAccessToken: GoogleAccessToken, managed?: GoogleManagedAudience) {
+export function createGoogleDataManager(
+  getAccessToken: GoogleAccessToken,
+  managed?: GoogleManagedAudience,
+  strategy: "snapshot-diff" | "native-replace" = "snapshot-diff"
+) {
+  const replacement = strategy === "native-replace";
+  const replacementBinding = (ctx: Context) =>
+    contentHash({
+      target: target(ctx.credentials, ctx.options),
+      syncId: ctx.syncId,
+      run: ctx.logicalRunId,
+      revision: ctx.configRevision,
+      strategy: "native-replace",
+    });
+  function replacementFor(ctx: Context) {
+    const saved = replacementState.safeParse(ctx.store.get(replacementKey));
+    if (!saved.success || saved.data.binding !== replacementBinding(ctx))
+      return fail("Google replacement cutoff is missing or bound to another run; do not reset or replay");
+    return saved.data;
+  }
   const binding = (ctx: Context, batch: WriteBatch<JsonObject>, action: Action) =>
     contentHash({ target: target(ctx.credentials, ctx.options), revision: ctx.configRevision, batch, action });
-  async function request(ctx: Context, path: string, body?: unknown, accessToken?: string): Promise<unknown> {
+  async function request(
+    ctx: Context,
+    path: string,
+    body?: unknown,
+    accessToken?: string,
+    clock?: (date: string | null) => void
+  ): Promise<unknown> {
     ctx.signal.throwIfAborted();
     const token = accessToken ?? (await getAccessToken(ctx.signal));
+    const loginCustomerId = path.startsWith("accountTypes/")
+      ? GoogleAudienceCredentials.parse(ctx.credentials).loginCustomerId
+      : "";
     ctx.signal.throwIfAborted();
     try {
       const response = await ctx.fetch(`${baseUrl}${path}`, {
         method: body ? "POST" : "GET",
         redirect: "error",
         signal: ctx.signal,
-        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+          ...(loginCustomerId ? { "login-account": `accountTypes/GOOGLE_ADS/accounts/${loginCustomerId}` } : {}),
+        },
         ...(body ? { body: JSON.stringify(body) } : {}),
       });
       // Never echo provider responses or network errors: they can include tokens/PII.
       // Even 401/429/5xx POSTs are not replayed: there is no client idempotency key.
       if (!response.ok) fail(`Google Data Manager HTTP ${response.status}; reconcile before retrying delivery`);
+      clock?.(response.headers.get("date"));
       return await response.json();
     } catch {
       return fail("Google Data Manager request failed; preserve recovery evidence and do not replay");
     }
   }
   async function submit(ctx: Context, batch: WriteBatch<JsonObject>, action: Action): Promise<BatchResult> {
+    if (replacement) {
+      replacementFor(ctx);
+      if (action !== "upsert") fail("Full replacement does not use individual removals");
+    }
     if (!batch.records.length || batch.records.length > 1000) fail("Invalid Google audience batch size");
     const audienceMembers = batch.records.map(record => wire(action, record.row));
     ctx.signal.throwIfAborted();
@@ -256,6 +299,8 @@ export function createGoogleDataManager(getAccessToken: GoogleAccessToken, manag
       checkpoint.data.submissionWarnings ||
       status.errorInfo !== undefined ||
       status.warningInfo !== undefined ||
+      status.removeAllAudienceMembersStatus !== undefined ||
+      status.eventsIngestionStatus !== undefined ||
       recordCount !== String(batch.records.length) ||
       (action === "upsert" ? status.audienceMembersRemovalStatus : status.audienceMembersIngestionStatus)
     )
@@ -264,11 +309,72 @@ export function createGoogleDataManager(getAccessToken: GoogleAccessToken, manag
       );
     return { ...saved, outcomes: batch.records.map(({ operationId }) => ({ operationId, status: "accepted" })) };
   }
+  async function finishReplacement(ctx: Context): Promise<FinishResult> {
+    const state = replacementFor(ctx);
+    // Core prepares finish only after every sealed snapshot upload is accepted.
+    const result = submission.safeParse(
+      await request(ctx, "audienceMembers:removeAll", {
+        destinations: [target(ctx.credentials, ctx.options)],
+        removeAsOfTime: state.cutoff,
+      })
+    );
+    if (!result.success || result.data.fieldWarnings?.length)
+      return fail(
+        "Google replacement cleanup receipt unavailable; manual reconciliation required, no automatic replay"
+      );
+    return {
+      delivery: "pending",
+      remoteJobIds: [result.data.requestId],
+      providerCheckpoint: { ...state, action: "replace", requestId: result.data.requestId },
+    };
+  }
+  async function reconcileFinish(saved: FinishResult | undefined, ctx: Context): Promise<FinishResult> {
+    if (!replacement) return { delivery: "accepted" };
+    const state = replacementFor(ctx);
+    const receipt = replacementReceipt.safeParse(saved?.providerCheckpoint);
+    if (
+      !saved ||
+      saved.delivery !== "pending" ||
+      !receipt.success ||
+      receipt.data.binding !== state.binding ||
+      receipt.data.cutoff !== state.cutoff ||
+      saved.remoteJobIds?.length !== 1 ||
+      saved.remoteJobIds[0] !== receipt.data.requestId
+    )
+      return fail(
+        "Google replacement cleanup receipt unavailable; manual reconciliation required, no automatic replay"
+      );
+    const parsed = statusResponse.safeParse(
+      await request(ctx, `requestStatus:retrieve?requestId=${encodeURIComponent(receipt.data.requestId)}`)
+    );
+    if (!parsed.success) return fail("Malformed Google replacement status; manual reconciliation required");
+    const status = parsed.data.requestStatusPerDestination[0];
+    if (contentHash(status.destination) !== contentHash(target(ctx.credentials, ctx.options)))
+      return fail("Google replacement status target mismatch");
+    if (["PROCESSING", "REQUEST_STATUS_UNKNOWN"].includes(status.requestStatus)) return saved;
+    if (
+      status.requestStatus !== "SUCCESS" ||
+      status.errorInfo !== undefined ||
+      status.warningInfo !== undefined ||
+      status.removeAllAudienceMembersStatus === undefined ||
+      status.audienceMembersIngestionStatus !== undefined ||
+      status.audienceMembersRemovalStatus !== undefined ||
+      status.eventsIngestionStatus !== undefined
+    )
+      return fail(
+        "Google replacement cleanup failed or is unverified; manual reconciliation required, no automatic replay"
+      );
+    return { ...saved, delivery: "accepted" };
+  }
   async function createWriter(ctx: Context): Promise<ReverseEtlWriter<JsonObject>> {
+    const options = GoogleAudienceOptions.parse(ctx.options);
+    if (replacement !== (options.mirrorStrategy === "full-replace") || (replacement && ctx.mode !== "mirror"))
+      fail("Google replacement requires an explicitly configured mirror sync");
     if (ctx.targetIdentity !== googleAudienceTargetIdentity(ctx.credentials, ctx.options))
       fail("Google audience target/mode mismatch");
     if (
       ctx.mode === "mirror" &&
+      !replacement &&
       (!managed ||
         managed.syncId !== ctx.syncId ||
         managed.id !== ctx.options.managedAudienceId ||
@@ -277,18 +383,52 @@ export function createGoogleDataManager(getAccessToken: GoogleAccessToken, manag
     )
       fail("Google mirror requires a verified Jitsu-managed audience");
     return {
-      init: async () => {},
+      init: async () => {
+        if (!replacement) return;
+        // Use Google's HTTP clock, not a potentially fast worker clock: a future
+        // cutoff could remove the members this run is about to upload. No fallback.
+        const c = GoogleAudienceCredentials.parse(ctx.credentials);
+        let serverTime: string | null = null;
+        const value = await request(
+          ctx,
+          `accountTypes/GOOGLE_ADS/accounts/${c.customerId}/userLists/${options.audienceId}`,
+          undefined,
+          undefined,
+          date => {
+            serverTime = date;
+          }
+        );
+        const list = z.object({ name: z.string(), id: z.string() }).safeParse(value);
+        const time = serverTime ? Date.parse(serverTime) : NaN;
+        if (
+          !list.success ||
+          list.data.id !== options.audienceId ||
+          list.data.name !== `accountTypes/GOOGLE_ADS/accounts/${c.customerId}/userLists/${options.audienceId}` ||
+          !Number.isFinite(time)
+        )
+          return fail("Google replacement cutoff unavailable; no audience changes submitted");
+        // Buffered store is durably saved by acknowledgeInit before any upload.
+        ctx.store.set(replacementKey, {
+          version: 1,
+          cutoff: new Date(time).toISOString(),
+          binding: replacementBinding(ctx),
+        });
+      },
       upsert: batch => submit(ctx, batch, "upsert"),
       remove: batch => submit(ctx, batch, "remove"),
-      // These operations are local only. Core must settle independent jobs first.
-      finish: async () => ({ delivery: "accepted" }),
+      // Native finish submits cleanup; diff finish and abort are local only.
+      // Core must settle independent upload jobs before authorizing either finish.
+      finish: async () => (replacement ? finishReplacement(ctx) : { delivery: "accepted" }),
       abort: async () => {},
       reconcile: async remoteJobIds => ({ delivery: "pending", remoteJobIds }),
     };
   }
   const stream: ReverseEtlStream<JsonObject, JsonObject, JsonObject> = {
     ...googleAudienceMetadata,
-    capabilities: { ...googleAudienceMetadata.capabilities, mirror: managed ? "snapshot-diff" : "none" },
+    capabilities: {
+      ...googleAudienceMetadata.capabilities,
+      mirror: replacement ? "native-replace" : managed ? "snapshot-diff" : "none",
+    },
     rowType: GoogleAudienceRow.transform((row, ctx) => {
       try {
         return normalize(row, "upsert");
@@ -323,7 +463,7 @@ export function createGoogleDataManager(getAccessToken: GoogleAccessToken, manag
       reconcileBatch,
       reconcileInit: async () => "absent" as const,
       reconcileAbort: async () => {},
-      reconcileFinish: async () => ({ delivery: "accepted" as const }),
+      reconcileFinish,
     },
   };
 }

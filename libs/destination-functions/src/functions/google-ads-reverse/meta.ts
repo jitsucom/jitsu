@@ -34,8 +34,14 @@ export const GoogleAudienceOptions = z
     audienceId: z.string().regex(/^[1-9]\d{0,19}$/),
     managedAudienceId: managedGoogleAudienceId.optional(),
     customerMatchTermsAccepted: z.literal(true),
+    mirrorStrategy: z.enum(["snapshot-diff", "full-replace"]).optional(),
+    exclusiveManagementConfirmed: z.literal(true).optional(),
   })
-  .strict();
+  .strict()
+  .superRefine((options, ctx) => {
+    if (options.mirrorStrategy === "full-replace" && !options.exclusiveManagementConfirmed)
+      ctx.addIssue({ code: "custom", message: "Full replacement requires exclusive audience management confirmation" });
+  });
 
 const identifier = z.string().min(1).max(1024).nullable().optional();
 const hash = z

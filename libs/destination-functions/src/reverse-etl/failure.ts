@@ -47,6 +47,23 @@ const failures = new Map<string, string>([
     "Previous logical run requires recovery",
     "A previous run still has unresolved work. Contact support or your Jitsu administrator to finish that run before starting another; do not reset sync state.",
   ],
+  [
+    "Google replacement cutoff unavailable; no audience changes submitted",
+    "Jitsu could not verify Google's clock and audience identity before replacement. No audience changes were submitted by this attempt. Ask your Jitsu administrator to check Google API access and connectivity, then retry.",
+  ],
+  ...[
+    "Google replacement cutoff is missing or bound to another run; do not reset or replay",
+    "Google replacement cleanup receipt unavailable; manual reconciliation required, no automatic replay",
+    "Malformed Google replacement status; manual reconciliation required",
+    "Google replacement status target mismatch",
+    "Google replacement cleanup failed or is unverified; manual reconciliation required, no automatic replay",
+  ].map(
+    reason =>
+      [
+        reason,
+        "Google audience replacement could not be confirmed. Uploaded members may already be present, but cleanup is not confirmed. Contact support or your Jitsu administrator with the run ID; do not reset state or start another replacement.",
+      ] as [string, string]
+  ),
 ]);
 
 export function reverseEtlFailure(error: unknown): { reason: string; message: string } | undefined {

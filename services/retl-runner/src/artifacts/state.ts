@@ -36,6 +36,9 @@ export interface BatchHead {
   resultBudget: number;
 }
 export interface SnapshotHead {
+  /** Absent in older snapshots: snapshot-diff. Strategy is fixed before any delivery. */
+  strategy?: "native-replace";
+  replacementStatus?: "prepared" | "pending" | "accepted";
   sealed: boolean;
   parts: ArtifactRef[];
   keys: number;

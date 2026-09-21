@@ -48,7 +48,13 @@ export function SyncDetail({ sync, reload }: { sync: ReverseSyncView; reload: ()
         subtitle={
           <div className="flex flex-wrap items-center gap-2 mb-6 text-textLight">
             <Tag>{sync.setupPending ? "Setup incomplete" : sync.options.disabled ? "Paused" : "Enabled"}</Tag>
-            <Tag color="blue">{sync.options.mode === "mirror" ? "Mirror" : "Add / remove"}</Tag>
+            <Tag color="blue">
+              {sync.options.mode === "mirror"
+                ? sync.options.streamOptions.mirrorStrategy === "full-replace"
+                  ? "Mirror · full replacement"
+                  : "Mirror · snapshot diff"
+                : "Add / remove"}
+            </Tag>
             <Link href={`/${workspace.slugOrId}/models?id=${sync.fromId}`}>{sync.modelName}</Link>
             <span>→</span>
             <Link href={`/${workspace.slugOrId}/destinations?id=${sync.toId}`}>{sync.destinationName}</Link>
@@ -157,8 +163,16 @@ export function SyncDetail({ sync, reload }: { sync: ReverseSyncView; reload: ()
                 {sync.options.mode === "mirror" && (
                   <Alert
                     type="info"
-                    title="Snapshot-based mirroring"
-                    description="Each full model result becomes the desired audience. The runner adds new members, removes missing members and refreshes unchanged members after 30 days. A failed or incomplete extraction does not become the new baseline."
+                    title={
+                      sync.options.streamOptions.mirrorStrategy === "full-replace"
+                        ? "Full audience replacement"
+                        : "Snapshot-based mirroring"
+                    }
+                    description={
+                      sync.options.streamOptions.mirrorStrategy === "full-replace"
+                        ? "Every unique member is uploaded each run. Once Google accepts all uploads, Jitsu removes older members not refreshed in this run. Empty model results clear the audience. Other tools must not write to this audience. Upload and cleanup processing continue through automatic status checks."
+                        : "Each full model result becomes the desired audience. The runner adds new members, removes missing members and refreshes unchanged members after 30 days. A failed or incomplete extraction does not become the new baseline."
+                    }
                   />
                 )}
                 {sync.latestTask?.status === "WAITING" && (

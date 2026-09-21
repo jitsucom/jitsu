@@ -1,8 +1,9 @@
 # Google Data Manager Reverse ETL — implementation contract
 
-JITSU-227, adapter/OAuth and managed-audience provisioning. UI enablement follows.
+JITSU-227, adapter/OAuth, audience provisioning and console setup.
 
-- Existing Google Ads Customer Match audiences: additions and explicit tombstone removals.
+- Existing Google Ads Customer Match audiences: additions and explicit tombstone removals,
+  or opt-in full replacement with explicit exclusive-management/takeover confirmation.
 - Email and phone, raw or SHA-256 hex. Normalize/hash once before journal preparation;
   recovery sends no raw identifiers and never re-hashes persisted payloads.
 - Consent mappings are optional: each unmapped ad-user-data/ad-personalization field
@@ -15,16 +16,44 @@ JITSU-227, adapter/OAuth and managed-audience provisioning. UI enablement follow
   unambiguous, warning-free SUCCESS for the exact target/action and record count.
 - FAILED rejects the whole batch immediately. Partial success/unknown diagnostics or
   missing request IDs stop recovery without replay or fabricated per-row outcomes.
-- No remote init/session/finish/abort operations. Core settles independent jobs before
-  finalization or incomplete-extraction cleanup. Pending jobs remain durable between runs.
+- Snapshot-diff/upsert finish and abort are local. Full replacement performs a read-only
+  initialization and submits remote cleanup at finish. Core settles independent upload
+  jobs first. Pending jobs remain durable between runs.
 - OAuth stays in Nango; console issues only the exact sync/revision's short-lived access
   token. Runner caches briefly in memory. No token/refresh token in provider receipts.
-- Mirror requires a Jitsu-created audience reserved to one sync. Console supplies
+- Snapshot-diff mirror requires a Jitsu-created audience reserved to one sync. Console supplies
   server-recorded evidence; runtime verifies the current remote identity, ownership,
   contact-list type and marker. An empty reported audience is not a baseline.
-- Managed lists use 540-day membership. Core refreshes unchanged members after 30 days
+- Managed lists use 540-day membership. Snapshot-diff refreshes unchanged members after 30 days
   during normal syncs, before removals, using a durable per-generation cutoff and
   per-member acceptance time. Paused/failed/infrequent syncs can still expire members.
+
+## Full replacement (opt-in)
+
+Select **Mirror · full replacement** while creating a sync, for a new managed audience
+or an existing owned Customer Match audience. Use a full-query model without a cursor
+or delete column. Stream options add `mirrorStrategy: "full-replace"` and
+`exclusiveManagementConfirmed: true`; existing configs default to their previous behavior.
+Existing sync delivery settings are immutable: this does not convert saved diff runs.
+
+1. Read the audience and capture Google's HTTP Date as the cutoff before any uploads.
+   Persist it in the run's buffered store, bound to sync, logical run, revision and target.
+   A missing clock or mismatched audience stops initialization; worker time is not used.
+2. Extract and seal the complete snapshot. Upload every unique member, including unchanged
+   members, then wait for all upload requests to be accepted.
+3. At finish, POST `audienceMembers:removeAll` with the original `removeAsOfTime` cutoff.
+   Google removes members last added before that cutoff, retaining refreshed members.
+4. Persist the cleanup request receipt and poll it on subsequent status-check jobs.
+   Promote the snapshot only after clean, target/action-verified SUCCESS. Google exposes
+   no removed-member count for this operation; logs report cleanup status, not a guessed count.
+
+This is asynchronous, **not an atomic swap**. An empty successful snapshot clears the
+audience. Other tools/users must not upload to the audience; Google does not enforce the
+exclusive-management agreement. Existing-audience confirmation authorizes removal of
+members uploaded outside Jitsu. Failed extraction or rejected uploads never authorize cleanup.
+If cleanup's response/receipt is lost, Jitsu stops for operator reconciliation and never
+blindly replays the destructive call. A status check never chooses a new cutoff or
+re-extracts the warehouse. No additional database schema or cloud credentials are needed.
 
 ## Setup / recovery
 
@@ -78,13 +107,16 @@ An OAuth failure before any Google call is a definite non-submission, not an amb
 request: its batch receives rejected outcomes and the attempt fails. Repair OAuth and
 retry after core cleanup; no operator override of an unknown request is necessary.
 
-## Evidence (reviewed 2026-09-16)
+## Evidence
 
 - [Ingest](https://developers.google.com/data-manager/api/reference/rest/v1/audienceMembers/ingest),
   [remove](https://developers.google.com/data-manager/api/reference/rest/v1/audienceMembers/remove),
   [status](https://developers.google.com/data-manager/api/reference/rest/v1/requestStatus/retrieve).
 - [Normalization](https://developers.google.com/data-manager/api/devguides/concepts/formatting),
   [diagnostics](https://developers.google.com/data-manager/api/devguides/diagnostics).
+- Full replacement: [remove-all guide](https://developers.google.com/data-manager/api/devguides/audiences/google-ads/customer-match/remove-all-members)
+  and [removeAll reference](https://developers.google.com/data-manager/api/reference/rest/v1/audienceMembers/removeAll),
+  reviewed 2026-09-21.
 - [Creation](https://developers.google.com/data-manager/api/devguides/audiences/google-ads/customer-match/create-audience),
   [list discovery](https://developers.google.com/data-manager/api/reference/rest/v1/accountTypes.accounts.userLists/list)
   and [membership expiry](https://support.google.com/google-ads/answer/6334160) rechecked 2026-09-17.

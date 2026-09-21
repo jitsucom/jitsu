@@ -20,6 +20,14 @@ describe("safe failure diagnostics", () => {
     ["Audience is exclusively managed by a mirror sync", "This audience is reserved by another sync"],
     ["Source row failed destination validation", "Check the model output"],
     ["Reverse ETL recovery artifact is missing or corrupt; delivery blocked", "Saved sync data is missing"],
+    [
+      "Google replacement cutoff unavailable; no audience changes submitted",
+      "No audience changes were submitted by this attempt",
+    ],
+    [
+      "Google replacement cleanup receipt unavailable; manual reconciliation required, no automatic replay",
+      "Uploaded members may already be present, but cleanup is not confirmed",
+    ],
   ])("reports an actionable message for %s", (reason, hint) => {
     const error = new PersistenceError(reason, { cause: new Error("private-token") });
     expect(failureMessage(error, "task-123")).toContain(hint);

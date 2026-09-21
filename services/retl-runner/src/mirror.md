@@ -1,9 +1,9 @@
 # Core snapshot mirroring
 
-This is a server-only library using PostgreSQL control and artifact persistence. It does not
-enable a live adapter, executable job, scheduling, UI, billing or native audience
-replacement. The existing upsert lifecycle still rejects mirror mode; use this
-separate core lifecycle when wiring the executable runner.
+This is a server-only library using PostgreSQL control and artifact persistence,
+wired into the executable runner. It supports snapshot-diff delivery and opt-in native
+replacement. The ordinary upsert lifecycle still rejects mirror mode; mirror runs use
+this separate core lifecycle.
 
 ## Adapter and admission
 
@@ -25,10 +25,10 @@ The canonical identity must include everything needed to identify a removable
 remote member; its removal payload must depend only on that identity and immutable
 configuration, not mutable source attributes.
 
-Adapters must declare `batchDelivery: "accepted"` or `"asynchronous"`, snapshot-diff
+Adapters must declare `batchDelivery: "accepted"` or `"asynchronous"`, snapshot-diff or native-replace
 capability and explicit removal support. Asynchronous batches must resolve independently
-of `finish()` and return recoverable remote job IDs with staged outcomes. Finish-staged/
-native replacement strategies are rejected. Unexpected staged outcomes from an
+of `finish()` and return recoverable remote job IDs with staged outcomes. Finish-staged
+upload strategies are rejected. Unexpected staged outcomes from an
 `"accepted"` adapter are journaled but cannot authorize removals.
 
 Use `openMirrorPersistence` to bind the journal to normalized effect envelopes.
@@ -39,7 +39,9 @@ The caller must hold and renew the Kubernetes per-sync lease. PostgreSQL provide
 atomic persistence, not a second worker lease or stale-worker fencing. The caller must verify
 `targetBaseline`: `new-empty` means a new empty target; `tracked` means an exclusively
 managed target whose complete baseline has been tracked/imported. An arbitrary
-pre-existing audience is not valid. This library cannot discover/import remote
+pre-existing audience is not valid for snapshot-diff. Native replacement instead requires
+`targetBaseline: "replace"`: adapter-verified replacement authority without relying on
+an imported membership baseline. This library cannot discover/import remote
 membership or verify account permissions itself.
 
 ## New run
@@ -69,6 +71,24 @@ Known outcomes are persisted even when a row is rejected or cancellation arrives
 during a request. Permanent rejection stops immediately. Accepted effects survive
 abort and participate in later diffs. Uncertain calls and started finalization do
 not trigger cleanup that could erase recovery evidence.
+
+## Native replacement
+
+The snapshot head persists `strategy: "native-replace"`; absent strategy means the
+original snapshot-diff. Recovery rejects a strategy mismatch. Every desired member is
+uploaded, including unchanged members; touched identities prevent re-preparation within
+the logical run. Individual removal batches are prohibited.
+
+`prepareFinish()` verifies the snapshot is sealed, every desired member has a prepared
+upload and every upload was accepted. The provider's `finish()` then performs cleanup;
+pending cleanup uses the existing durable finish receipt and `reconcileFinish()` lifecycle.
+An empty snapshot still goes through explicit finish. Failed extraction never does.
+
+After confirmed cleanup, persist `replacementStatus: "accepted"` before pruning local
+members absent from the snapshot. Restore replays that pruning before later baseline
+compaction, so deleted memberships cannot reappear after a crash. The existing baseline
+and object-store machinery is retained; no per-row SQL tables or new schema are added.
+The writer context is unchanged and exposes no snapshot methods.
 
 ## Recovery
 

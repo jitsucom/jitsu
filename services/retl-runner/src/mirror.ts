@@ -62,8 +62,8 @@ export interface MirrorOptions<C, Row, O> {
   persistence: MirrorPersistence;
   adapter: SnapshotMirrorAdapter<C, Row, O>;
   context: MirrorContext<C, O>;
-  /** Caller must verify a new empty audience or an exclusively tracked/imported complete baseline. */
-  targetBaseline: "new-empty" | "tracked";
+  /** Caller verifies an empty/tracked baseline, or exclusive native-replacement authority. */
+  targetBaseline: "new-empty" | "tracked" | "replace";
   maxBatchBytes?: number;
 }
 export interface MirrorSourceRecord {
@@ -142,11 +142,17 @@ async function setup<C, Row, O>(input: MirrorOptions<C, Row, O>) {
   } = input;
   ensure(run[mirrorSession], "Use mirror-bound persistence for snapshot delivery");
   ensure(run.scope.mode === "mirror" && run.scope.extraction === "full", "Snapshot mirror requires full extraction");
-  ensure(["new-empty", "tracked"].includes(input.targetBaseline), "Verified target baseline is required");
+  const replacement = stream.capabilities.mirror === "native-replace";
+  ensure(
+    replacement ? input.targetBaseline === "replace" : ["new-empty", "tracked"].includes(input.targetBaseline),
+    "Verified target baseline is required"
+  );
+  const snapshot = run.core.head.snapshot;
+  if (snapshot) ensure((snapshot.strategy === "native-replace") === replacement, "Snapshot strategy changed");
   validateStream(stream);
   ensure(
     ["accepted", "asynchronous"].includes(input.adapter.batchDelivery) &&
-      stream.capabilities.mirror === "snapshot-diff" &&
+      ["snapshot-diff", "native-replace"].includes(stream.capabilities.mirror) &&
       stream.capabilities.supportsUpsert &&
       stream.capabilities.supportsExplicitRemove &&
       stream.removeRowType,
@@ -175,6 +181,7 @@ async function setup<C, Row, O>(input: MirrorOptions<C, Row, O>) {
     ctx,
     maxBytes,
     asynchronous: input.adapter.batchDelivery === "asynchronous",
+    replacement,
     batchSize: Math.min(stream.batchSize, run.core.db.limits.batchRecords),
   };
 }
@@ -205,11 +212,13 @@ function hasPending(result: BatchResult, asynchronous: boolean) {
   ensure(!pending || result.remoteJobIds?.length, "Asynchronous batches require recoverable remote job IDs");
   return pending;
 }
-function safeError(): PersistenceError {
-  return new PersistenceError("Snapshot mirror stopped; inspect durable recovery state before retrying");
+function safeError(error?: unknown): PersistenceError {
+  return new PersistenceError(
+    reverseEtlFailure(error)?.reason ?? "Snapshot mirror stopped; inspect durable recovery state before retrying"
+  );
 }
 
-/** New snapshot-diff lifecycle. No executable service, scheduling, native replacement or billing. */
+/** Core-owned full snapshot lifecycle for diff delivery or native replacement. */
 export async function runSnapshotMirror<C, Row, O>(input: NewMirrorOptions<C, Row, O>) {
   const env = await setup(input);
   const { run, stream, ctx } = env;
@@ -233,7 +242,7 @@ export async function runSnapshotMirror<C, Row, O>(input: NewMirrorOptions<C, Ro
   try {
     ctx.signal.throwIfAborted();
     await run.delivery.assertReady();
-    await run.snapshots.start(input.adapter.refreshAfterMs);
+    await run.snapshots.start(input.adapter.refreshAfterMs, env.replacement ? "native-replace" : "snapshot-diff");
     await run.delivery.prepareInit(ctx.store.snapshot());
     ctx.signal.throwIfAborted();
     uncertain = true;
@@ -370,8 +379,8 @@ export async function resumeSnapshotMirror<C, Row, O>(input: MirrorOptions<C, Ro
     const writer = await recovery.attachWriter(ctx);
     validateWriter(writer);
     return await deliver(env, writer, () => {}, true);
-  } catch {
-    throw safeError();
+  } catch (error) {
+    throw safeError(error);
   }
 }
 
@@ -383,7 +392,7 @@ async function deliver<C, Row, O>(
 ) {
   const { run, stream, ctx, maxBytes, batchSize, asynchronous } = env;
   let sequence = (await run.core.recoveryStatus()).nextSequence;
-  for (const kind of ["additions", "removals"] as const) {
+  for (const kind of env.replacement ? (["additions"] as const) : (["additions", "removals"] as const)) {
     const action = kind === "additions" ? "upsert" : "remove";
     let after = "";
     let pending = false;

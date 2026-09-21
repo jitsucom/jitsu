@@ -48,6 +48,35 @@ const head = (): ArtifactHead => ({
 });
 
 describe("redacted run progress", () => {
+  it.each([undefined, "prepared", "pending", "accepted"] as const)(
+    "reports native cleanup %s without inventing removals or replaying stages on restore",
+    async status => {
+      const messages: string[] = [];
+      const progress = new RunProgress(async m => {
+        messages.push(m);
+      });
+      const h = head();
+      h.snapshot!.strategy = "native-replace";
+      h.snapshot!.replacementStatus = status;
+      await progress.observe(h, true);
+      await progress.observe(h);
+      expect(messages).toHaveLength(1);
+      expect(messages[0]).toContain("All 4244 members will be uploaded");
+      expect(messages[0]).toContain("357 duplicates collapsed");
+      expect(messages[0]).not.toContain("unchanged skipped");
+      await progress.summarize(h);
+      await progress.summarize(h);
+      expect(messages).toHaveLength(2);
+      expect(messages[1]).toContain("full-snapshot uploads: 64 confirmed submitted");
+      expect(messages[1]).toContain(
+        `Full-audience cleanup: ${status === "prepared" ? "prepared/unconfirmed" : status ?? "not started"}`
+      );
+      expect(messages[1]).toContain("removed-member count is not provided by Google");
+      expect(messages[1]).not.toContain("Removals: 0");
+      expect(messages[1]).toContain("4180 snapshot members");
+      expect(messages[1].includes("may have reached Google")).toBe(status === "prepared");
+    }
+  );
   it("reports the complete mirror plan and distinguishes submission from acceptance", async () => {
     const messages: string[] = [];
     const progress = new RunProgress(async m => {

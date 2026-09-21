@@ -97,6 +97,20 @@ export class LocalIndex {
         : this.sql.prepare(query).all(after, limit);
     return rows.map(row => JSON.parse(String(row.value)));
   }
+  /** Replacement uploads every desired identity once per logical run, even if unchanged. */
+  replacementPage(after: string, limit: number): Effect[] {
+    return this.sql
+      .prepare(
+        `SELECT d.value FROM desired d WHERE d.identity>? AND NOT EXISTS
+       (SELECT 1 FROM touched t WHERE t.identity=d.identity) ORDER BY d.identity LIMIT ?`
+      )
+      .all(after, limit)
+      .map(row => JSON.parse(String(row.value)));
+  }
+  /** Only after a durable accepted native-replacement receipt. Replayable on restoration. */
+  applyReplacement() {
+    this.sql.exec("DELETE FROM members WHERE NOT EXISTS (SELECT 1 FROM desired d WHERE d.identity=members.identity)");
+  }
   /** One local join before delivery; never count later accepted effects as the original baseline. */
   comparison(refreshBefore: string | null) {
     const row = this.sql

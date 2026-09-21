@@ -843,6 +843,116 @@ describe("executable runner", () => {
     }
   });
 
+  it("replaces an existing Google audience across upload and cleanup status checks without replay or re-extraction", async () => {
+    const f = fixture();
+    f.input.config.destination = {
+      destinationType: "google-ads",
+      authorized: true,
+      oauthConnectionId: "destination.destination",
+      customerId: "1234567890",
+    };
+    f.input.config.options.mode = "mirror";
+    f.input.config.options.mapping = { email: "id" };
+    f.input.config.options.streamOptions = {
+      audienceId: "123",
+      customerMatchTermsAccepted: true,
+      mirrorStrategy: "full-replace",
+      exclusiveManagementConfirmed: true,
+    };
+    f.setRows([{ id: "one@example.com" }, { id: "two@example.com" }]);
+    f.input.adapters = createAdapterRegistry(async () => "access-token");
+    const cutoff = "2026-09-20T07:00:00.000Z";
+    let uploads = 0,
+      cleanups = 0,
+      uploadsAccepted = false,
+      cleanupAccepted = false;
+    const response = (body: unknown) =>
+      new Response(JSON.stringify(body), { headers: { Date: new Date(cutoff).toUTCString() } }) as Awaited<
+        ReturnType<typeof fetch>
+      >;
+    const wire = vi.spyOn(globalThis, "fetch").mockImplementation(async (url, init) => {
+      if (String(url).endsWith("/userLists/123"))
+        return response({
+          id: "123",
+          name: "accountTypes/GOOGLE_ADS/accounts/1234567890/userLists/123",
+          displayName: "Existing",
+          membershipDuration: "46656000s",
+          membershipStatus: "OPEN",
+          accessReason: "OWNED",
+          ingestedUserListInfo: {
+            uploadKeyTypes: ["CONTACT_ID"],
+            contactIdInfo: { dataSourceType: "DATA_SOURCE_TYPE_FIRST_PARTY" },
+          },
+        });
+      if (String(url).endsWith("audienceMembers:ingest")) {
+        expect(JSON.parse((await control()).store.toString()).value.googleAudienceReplacement.cutoff).toBe(cutoff);
+        expect(JSON.parse(init!.body as string).audienceMembers).toHaveLength(2);
+        return response({ requestId: `upload-${++uploads}` });
+      }
+      if (String(url).endsWith("audienceMembers:removeAll")) {
+        expect(uploadsAccepted).toBe(true);
+        expect((await control()).phase).toBe("finish_prepared");
+        expect(JSON.parse(init!.body as string)).toEqual({
+          destinations: [
+            { operatingAccount: { accountType: "GOOGLE_ADS", accountId: "1234567890" }, productDestinationId: "123" },
+          ],
+          removeAsOfTime: cutoff,
+        });
+        return response({ requestId: `cleanup-${++cleanups}` });
+      }
+      expect(String(url)).toContain("requestStatus:retrieve?requestId=");
+      expect(init?.method).toBe("GET");
+      const cleanup = String(url).includes("requestId=cleanup-");
+      return response({
+        requestStatusPerDestination: [
+          {
+            destination: {
+              operatingAccount: { accountType: "GOOGLE_ADS", accountId: "1234567890" },
+              productDestinationId: "123",
+            },
+            requestStatus: (cleanup ? cleanupAccepted : uploadsAccepted) ? "SUCCESS" : "PROCESSING",
+            ...(cleanup
+              ? { removeAllAudienceMembersStatus: {} }
+              : { audienceMembersIngestionStatus: { userDataIngestionStatus: { recordCount: "2" } } }),
+          },
+        ],
+      });
+    });
+    try {
+      expect(await execute(f.input)).toBe("WAITING");
+      expect(uploads).toBe(1);
+      expect(cleanups).toBe(0);
+      expect(await taskLogs("task")).toContain("All 2 members will be uploaded");
+      expect(await taskLogs("task")).not.toContain("unchanged skipped");
+      await makeDue();
+      f.input = { ...f.input, taskId: "upload-check", trigger: "recovery", recoveryOf: "task" };
+      expect(await execute(f.input)).toBe("WAITING");
+      uploadsAccepted = true;
+      await makeDue();
+      f.input = { ...f.input, taskId: "start-cleanup", recoveryOf: "upload-check" };
+      expect(await execute(f.input)).toBe("WAITING");
+      expect(cleanups).toBe(1);
+      expect(await taskLogs("start-cleanup")).toContain("Google is processing full-audience cleanup");
+      expect(await taskLogs("start-cleanup")).toContain("Full-audience cleanup: pending");
+      expect(await taskLogs("start-cleanup")).not.toContain("Removals: 0");
+      await makeDue();
+      f.input = { ...f.input, taskId: "cleanup-check", recoveryOf: "start-cleanup" };
+      expect(await execute(f.input)).toBe("WAITING");
+      cleanupAccepted = true;
+      await makeDue();
+      f.input = { ...f.input, taskId: "complete-cleanup", recoveryOf: "cleanup-check" };
+      expect(await execute(f.input)).toBe("SUCCESS");
+      expect(await taskLogs("complete-cleanup")).toContain("Full-audience cleanup: accepted");
+      expect((await taskLogs("complete-cleanup")).match(/Delivery totals/g)).toHaveLength(1);
+      expect(uploads).toBe(1);
+      expect(cleanups).toBe(1);
+      expect(f.calls.filter(c => c === "source")).toHaveLength(1);
+      expect((await control()).phase).toBe("complete");
+    } finally {
+      wire.mockRestore();
+    }
+  });
+
   it("rejects Google mirroring without an exact sync/account/audience binding", () => {
     const cfg = config();
     cfg.destination = {

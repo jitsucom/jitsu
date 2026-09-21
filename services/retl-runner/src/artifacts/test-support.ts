@@ -54,6 +54,10 @@ export async function persisted(client: Client, objects: MemoryObjects) {
         return { ...record, status, acceptedAt };
       })
     );
+    if (head.snapshot?.strategy === "native-replace" && head.snapshot.replacementStatus === "accepted") {
+      for (const ref of head.snapshot.parts) local.restoreDesired(read<Effect[]>(ref));
+      local.applyReplacement();
+    }
     return { head, batches, operations, members: [...local.memberPages()].flat() };
   } finally {
     await local.close();

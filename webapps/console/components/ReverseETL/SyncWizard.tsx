@@ -35,6 +35,8 @@ export function SyncWizard() {
   const request = useRef<{ requestId: string; setup: ReverseSyncSetup }>();
   const modelId = Form.useWatch("modelId", { form, preserve: true });
   const kind = Form.useWatch("audienceKind", { form, preserve: true }) ?? "managed";
+  const strategy = Form.useWatch("mirrorStrategy", { form, preserve: true }) ?? "snapshot-diff";
+  const replacement = strategy === "full-replace";
   const model = models.data?.find(m => m.id === modelId);
   const destId = Form.useWatch("destinationId", { form, preserve: true });
   const destination = destinations.find(d => d.id === destId);
@@ -54,8 +56,22 @@ export function SyncWizard() {
       destinationId: values.destinationId,
       audience:
         values.audienceKind === "existing"
-          ? { kind: "existing", audienceId: values.audienceId }
-          : { kind: "managed", displayName: values.displayName, exclusiveManagementConfirmed: values.exclusive },
+          ? {
+              kind: "existing",
+              audienceId: values.audienceId,
+              ...(values.mirrorStrategy === "full-replace"
+                ? {
+                    mirrorStrategy: "full-replace",
+                    exclusiveManagementConfirmed: values.exclusive,
+                  }
+                : {}),
+            }
+          : {
+              kind: "managed",
+              displayName: values.displayName,
+              exclusiveManagementConfirmed: values.exclusive,
+              ...(values.mirrorStrategy === "full-replace" ? { mirrorStrategy: "full-replace" } : {}),
+            },
       customerMatchTermsAccepted: values.terms,
       mapping,
       schedule: values.schedule,
@@ -124,7 +140,7 @@ export function SyncWizard() {
     try {
       await form.validateFields();
       if (step === 0 && !model) throw new Error("Choose a model");
-      if (step === 1 && kind === "managed" && (model?.cursor || model?.deleteColumn))
+      if (step === 1 && (kind === "managed" || replacement) && (model?.cursor || model?.deleteColumn))
         throw new Error("Mirror requires a full-query model without a cursor or delete column");
       setError(undefined);
       setStep(step + 1);
@@ -181,6 +197,7 @@ export function SyncWizard() {
           modelId: typeof router.query.modelId === "string" ? router.query.modelId : undefined,
           destinationId: typeof router.query.destinationId === "string" ? router.query.destinationId : undefined,
           audienceKind: "managed",
+          mirrorStrategy: "snapshot-diff",
           emailFormat: "raw",
           phoneFormat: "raw",
           schedule: "0 0 * * *",
@@ -189,6 +206,12 @@ export function SyncWizard() {
         onValuesChange={changed => {
           setDirty(true);
           setValidated(undefined);
+          if ("audienceKind" in changed)
+            form.setFieldsValue({
+              mirrorStrategy: changed.audienceKind === "managed" ? "snapshot-diff" : "upsert",
+              exclusive: false,
+            });
+          if ("mirrorStrategy" in changed) form.setFieldsValue({ exclusive: false });
           if ("modelId" in changed) {
             version.current++;
             setPreview(undefined);
@@ -254,11 +277,32 @@ export function SyncWizard() {
                 <Radio value="existing">
                   <strong>Existing Google audience</strong>
                   <div className="text-textLight ml-6">
-                    Add members and apply explicit removals. Missing source rows are not removed.
+                    Add/remove members, or explicitly take over the entire audience with full replacement.
                   </div>
                 </Radio>
               </Radio.Group>
             </Form.Item>
+            <Form.Item name="mirrorStrategy" label="Sync behavior">
+              <Radio.Group className="flex flex-col gap-3">
+                {kind === "managed" ? (
+                  <Radio value="snapshot-diff">
+                    Mirror · snapshot diff — upload changes and remove missing members
+                  </Radio>
+                ) : (
+                  <Radio value="upsert">Additions / explicit removals — preserve other audience members</Radio>
+                )}
+                <Radio value="full-replace">Mirror · full replacement — upload the entire model every run</Radio>
+              </Radio.Group>
+            </Form.Item>
+            {replacement && (
+              <Alert
+                type="warning"
+                showIcon
+                className="mb-5"
+                title="Full audience replacement"
+                description="Every unique model member is uploaded, including unchanged members. After Google accepts every upload, Jitsu removes older members not refreshed by this run. This is asynchronous, not an atomic swap. An empty model clears the audience. Do not allow other tools or users to upload to this audience."
+              />
+            )}
             {kind === "managed" ? (
               <>
                 <Form.Item name="displayName" label="New audience name" rules={[{ required: true, whitespace: true }]}>
@@ -267,8 +311,14 @@ export function SyncWizard() {
                 <Alert
                   type="info"
                   showIcon
-                  title="540-day membership · 30-day refresh"
-                  description="Jitsu refreshes unchanged members during normal syncs after 30 days. A unique Jitsu suffix is added to the audience name."
+                  title={
+                    replacement ? "540-day membership · full refresh every run" : "540-day membership · 30-day refresh"
+                  }
+                  description={
+                    replacement
+                      ? "All members are refreshed every run. A unique Jitsu suffix is added to the audience name."
+                      : "Jitsu refreshes unchanged members during normal syncs after 30 days. A unique Jitsu suffix is added to the audience name."
+                  }
                   className="mb-5"
                 />
                 <Form.Item
@@ -297,15 +347,36 @@ export function SyncWizard() {
                 >
                   <Input placeholder="123456789" />
                 </Form.Item>
-                <Alert
-                  type="info"
-                  title="Additions and explicit removals only"
-                  description={
-                    model?.deleteColumn
-                      ? `Rows marked in “${model.deleteColumn}” will be removed. This does not replace the audience.`
-                      : "This model has no delete column, so this sync only adds members. Use a model with a delete column for explicit removals."
-                  }
-                />
+                {!replacement && (
+                  <Alert
+                    type="info"
+                    title="Additions and explicit removals only"
+                    description={
+                      model?.deleteColumn
+                        ? `Rows marked in “${model.deleteColumn}” will be removed. This does not replace the audience.`
+                        : "This model has no delete column, so this sync only adds members. Use a model with a delete column for explicit removals."
+                    }
+                  />
+                )}
+                {replacement && (
+                  <Form.Item
+                    name="exclusive"
+                    valuePropName="checked"
+                    rules={[
+                      {
+                        validator: (_, value) =>
+                          value
+                            ? Promise.resolve()
+                            : Promise.reject(new Error("Confirm exclusive management and audience replacement")),
+                      },
+                    ]}
+                  >
+                    <Checkbox>
+                      I authorize Jitsu to replace all members of this existing audience, including members uploaded
+                      outside Jitsu, and will disable other writers.
+                    </Checkbox>
+                  </Form.Item>
+                )}
               </>
             )}
             <Form.Item
@@ -410,10 +481,11 @@ export function SyncWizard() {
                   {
                     key: "mode",
                     label: "Behavior",
-                    children:
-                      kind === "managed"
-                        ? "Mirror · new managed audience"
-                        : "Additions / explicit removals · existing audience",
+                    children: replacement
+                      ? "Mirror · full replacement of the entire audience"
+                      : kind === "managed"
+                      ? "Mirror · new managed audience"
+                      : "Additions / explicit removals · existing audience",
                   },
                   { key: "errors", label: "Row errors", children: "Fail immediately; preserve accepted changes" },
                 ]}

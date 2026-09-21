@@ -12,9 +12,17 @@ export const ReverseSyncSetup = z
           kind: z.literal("managed"),
           displayName: z.string().trim().min(1).max(120),
           exclusiveManagementConfirmed: z.literal(true),
+          mirrorStrategy: z.enum(["snapshot-diff", "full-replace"]).optional(),
         })
         .strict(),
-      z.object({ kind: z.literal("existing"), audienceId: z.string().regex(/^[1-9]\d{0,19}$/) }).strict(),
+      z
+        .object({
+          kind: z.literal("existing"),
+          audienceId: z.string().regex(/^[1-9]\d{0,19}$/),
+          mirrorStrategy: z.literal("full-replace").optional(),
+          exclusiveManagementConfirmed: z.literal(true).optional(),
+        })
+        .strict(),
     ]),
     customerMatchTermsAccepted: z.literal(true),
     mapping: ReverseSyncOptions.shape.mapping,
@@ -26,7 +34,15 @@ export const ReverseSyncSetup = z
       .transform(value => value || "Etc/UTC")
       .default("Etc/UTC"),
   })
-  .strict();
+  .strict()
+  .superRefine((value, ctx) => {
+    if (value.audience.mirrorStrategy === "full-replace" && !value.audience.exclusiveManagementConfirmed)
+      ctx.addIssue({
+        code: "custom",
+        path: ["audience", "exclusiveManagementConfirmed"],
+        message: "Confirm exclusive management and replacement of all existing audience members",
+      });
+  });
 export type ReverseSyncSetup = z.infer<typeof ReverseSyncSetup>;
 export const ReverseSyncSettings = ReverseSyncOptions.pick({
   name: true,

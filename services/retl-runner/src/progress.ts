@@ -33,6 +33,7 @@ export function deliveryTotals(head: ArtifactHead, action: "upsert" | "remove") 
 export class RunProgress {
   private lastPlan = "";
   private summarized = false;
+  private lastReplacementStatus?: string;
   private readonly batches = new Map<
     string,
     Pick<BatchHead, "status" | "accepted" | "staged" | "rejected"> & { submitted: number; restored: boolean }
@@ -55,16 +56,37 @@ export class RunProgress {
     const snapshot = head.snapshot;
     if (snapshot?.sealed) {
       const p = snapshot.summary;
-      const plan = p
-        ? `Mirror comparison (entire logical run): ${p.baselineMembers} previously acknowledged members; ${p.newMembers} new, ${p.changedMembers} changed, ${p.refreshMembers} unchanged due for expiry refresh, ${p.unchangedMembers} unchanged skipped, ${p.removals} to remove. Snapshot: ${snapshot.keys} source rows, ${p.uniqueMembers} unique members` +
-          (p.projectedMembers === undefined
-            ? "; original duplicate count unavailable"
-            : `, ${p.projectedMembers} projected members, ${
-                p.projectedMembers - p.uniqueMembers
-              } duplicates collapsed, ${p.excludedRows ?? 0} source rows excluded by projection`) +
-          "."
-        : "Original mirror comparison counts are unavailable for this older run; saved delivery totals remain available.";
+      const plan =
+        p && snapshot.strategy === "native-replace"
+          ? `Full audience replacement: ${snapshot.keys} source rows, ${p.uniqueMembers} unique members${
+              p.projectedMembers === undefined
+                ? ""
+                : `, ${p.projectedMembers} projected members, ${
+                    p.projectedMembers - p.uniqueMembers
+                  } duplicates collapsed, ${p.excludedRows ?? 0} source rows excluded by projection`
+            }. All ${
+              p.uniqueMembers
+            } members will be uploaded, including unchanged members. Older audience membership is cleaned up only after every upload is accepted.`
+          : p
+          ? `Mirror comparison (entire logical run): ${p.baselineMembers} previously acknowledged members; ${p.newMembers} new, ${p.changedMembers} changed, ${p.refreshMembers} unchanged due for expiry refresh, ${p.unchangedMembers} unchanged skipped, ${p.removals} to remove. Snapshot: ${snapshot.keys} source rows, ${p.uniqueMembers} unique members` +
+            (p.projectedMembers === undefined
+              ? "; original duplicate count unavailable"
+              : `, ${p.projectedMembers} projected members, ${
+                  p.projectedMembers - p.uniqueMembers
+                } duplicates collapsed, ${p.excludedRows ?? 0} source rows excluded by projection`) +
+            "."
+          : "Original mirror comparison counts are unavailable for this older run; saved delivery totals remain available.";
       if (plan !== this.lastPlan && (await this.log(plan))) this.lastPlan = plan;
+    }
+    const replacementStatus = snapshot?.replacementStatus;
+    if (restored) this.lastReplacementStatus = replacementStatus;
+    else if (replacementStatus && replacementStatus !== this.lastReplacementStatus) {
+      const message = {
+        prepared: "Submitting full-audience cleanup; all snapshot uploads are accepted.",
+        pending: "Google is processing full-audience cleanup; the next status check will poll the saved request.",
+        accepted: "Full-audience cleanup accepted. Google does not report the number of members removed.",
+      }[replacementStatus];
+      if (await this.log(message)) this.lastReplacementStatus = replacementStatus;
     }
     for (const batch of head.batches) {
       const previous = this.batches.get(batch.id);
@@ -107,20 +129,32 @@ export class RunProgress {
   async summarize(head: ArtifactHead) {
     if (this.summarized) return;
     const snapshot = head.snapshot;
+    const replacement = snapshot?.strategy === "native-replace";
     const additions = deliveryTotals(head, "upsert"),
       removals = deliveryTotals(head, "remove");
     const format = (value: typeof additions) =>
       `${value.submitted} confirmed submitted in ${value.submittedBatches} batches; ${value.accepted} accepted, ${value.pending} pending processing, ${value.rejected} rejected, ${value.unconfirmed} prepared/unconfirmed, ${value.cancelled} cancelled`;
-    let message = `Delivery totals (entire logical run, including earlier attempts): additions/upserts: ${format(
-      additions
-    )}. Removals: ${format(removals)}.`;
+    let message = `Delivery totals (entire logical run, including earlier attempts): ${
+      replacement ? "full-snapshot uploads" : "additions/upserts"
+    }: ${format(additions)}.`;
+    if (replacement) {
+      const status = snapshot.replacementStatus;
+      message += ` Full-audience cleanup: ${
+        status === "prepared" ? "prepared/unconfirmed" : status ?? "not started"
+      }; removed-member count is not provided by Google.`;
+      if (status === "prepared")
+        message += " Cleanup may have reached Google; do not replay without checking its outcome.";
+      if (!status) message += " Cleanup waits for every snapshot upload to be accepted.";
+    } else message += ` Removals: ${format(removals)}.`;
     if (additions.unconfirmed || removals.unconfirmed)
       message += " Unconfirmed batches may have reached the destination; they are not safe to replay blindly.";
     if (head.batches.some(batch => batch.status === "acknowledged" && batch.submittedRecords === undefined))
       message +=
         " Older receipts may not retain the exact submitted count; confirmed submission totals are a lower bound.";
     const p = snapshot?.summary;
-    if (p) {
+    if (p && replacement) {
+      message += ` Not yet prepared: ${Math.max(0, p.uniqueMembers - additions.records)} snapshot members.`;
+    } else if (p) {
       const plannedAdditions = p.newMembers + p.changedMembers + p.refreshMembers;
       const remainingAdditions = Math.max(0, plannedAdditions - additions.records);
       const remainingRemovals = Math.max(0, p.removals - removals.records);

@@ -79,7 +79,10 @@ async function sourceFor(db: ReadDb, workspaceId: string, input: ReverseSyncSetu
     credentials.data.oauthConnectionId !== `destination.${destination.id}`
   )
     throw conflict("Connect this Google Ads destination with Data Manager OAuth before creating a sync");
-  if (input.audience.kind === "managed" && (definition.cursor || definition.deleteColumn))
+  if (
+    (input.audience.kind === "managed" || input.audience.mirrorStrategy === "full-replace") &&
+    (definition.cursor || definition.deleteColumn)
+  )
     throw conflict("Mirror requires a full-query model without a cursor or delete column");
   const warehouse = await db.configurationObject.findFirst({
     where: { id: definition.warehouseId, workspaceId, type: "destination", deleted: false },
@@ -95,9 +98,17 @@ function optionsFor(input: ReverseSyncSetup, streamOptions: Record<string, unkno
   return ReverseSyncOptions.parse({
     name: input.name,
     stream: "audience",
-    mode: input.audience.kind === "managed" ? "mirror" : "upsert",
+    mode: input.audience.kind === "managed" || input.audience.mirrorStrategy === "full-replace" ? "mirror" : "upsert",
     mapping: input.mapping,
-    streamOptions,
+    streamOptions: {
+      ...streamOptions,
+      ...(input.audience.mirrorStrategy === "full-replace"
+        ? {
+            mirrorStrategy: "full-replace",
+            exclusiveManagementConfirmed: true,
+          }
+        : {}),
+    },
     schedule: input.schedule,
     timezone: input.timezone,
     disabled: true,
@@ -317,6 +328,7 @@ export async function completeReverseSetup(
         data: {
           ...options,
           streamOptions: {
+            ...options.streamOptions,
             audienceId: result.audienceId!,
             managedAudienceId: result.id,
             customerMatchTermsAccepted: true,

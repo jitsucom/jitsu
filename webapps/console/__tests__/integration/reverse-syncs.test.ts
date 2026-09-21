@@ -145,6 +145,55 @@ async function fixture(kind: "managed" | "existing" = "managed") {
   };
 }
 describe("Reverse ETL console lifecycle", () => {
+  it.each(["managed", "existing"] as const)(
+    "saves, enables and exports full replacement for %s audiences",
+    async kind => {
+      const f = await fixture(kind);
+      const input = {
+        ...f.setup,
+        audience: { ...f.setup.audience, mirrorStrategy: "full-replace", exclusiveManagementConfirmed: true },
+      };
+      const { id } = await f.create(randomUUID(), input);
+      if (kind === "managed")
+        expect((await completeReverseSetup(f.prisma, f.workspace.id, id, nango)).status).toBe("ready");
+      await updateReverseSync(f.prisma, f.workspace.id, id, { disabled: false }, nango);
+      const exported = (await readReverseSync(f.prisma, id))!;
+      expect(exported.options.mode).toBe("mirror");
+      expect(exported.options.streamOptions).toMatchObject({
+        mirrorStrategy: "full-replace",
+        exclusiveManagementConfirmed: true,
+        audienceId: "123",
+      });
+      expect(exported.destination.reverseManagedAudience !== undefined).toBe(kind === "managed");
+      expect(f.writes()).toBe(kind === "managed" ? 1 : 0); // Never clear an audience during console setup.
+    }
+  );
+  it("rejects existing-audience replacement without takeover confirmation", async () => {
+    const f = await fixture("existing");
+    await expect(
+      f.create(randomUUID(), { ...f.setup, audience: { ...f.setup.audience, mirrorStrategy: "full-replace" } })
+    ).rejects.toThrow("Confirm exclusive management");
+    expect(f.writes()).toBe(0);
+  });
+  it.each(["cursor", "deleteColumn"])("rejects full replacement with a model %s", async field => {
+    const f = await fixture("existing");
+    await f.prisma.configurationObject.update({
+      where: { id: f.model.id },
+      data: {
+        config: {
+          ...(f.model.config as object),
+          [field]: field === "cursor" ? { column: "id", type: "number" } : "deleted",
+        },
+      },
+    });
+    await expect(
+      f.create(randomUUID(), {
+        ...f.setup,
+        audience: { ...f.setup.audience, mirrorStrategy: "full-replace", exclusiveManagementConfirmed: true },
+      })
+    ).rejects.toThrow("full-query model");
+    expect(f.writes()).toBe(0);
+  });
   it("can enable a sync when database work exceeds Prisma's default five-second transaction timeout", async () => {
     const f = await fixture("existing");
     const { id } = await f.create();

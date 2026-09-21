@@ -89,7 +89,15 @@ function ReverseSyncs() {
                   <Tag>{s.setupPending ? "Setup incomplete" : s.options.disabled ? "Paused" : "Enabled"}</Tag>
                 ),
               },
-              { title: "Mode", render: (_, s) => (s.options.mode === "mirror" ? "Mirror" : "Add / remove") },
+              {
+                title: "Mode",
+                render: (_, s) =>
+                  s.options.mode === "mirror"
+                    ? s.options.streamOptions.mirrorStrategy === "full-replace"
+                      ? "Mirror · full replacement"
+                      : "Mirror · snapshot diff"
+                    : "Add / remove",
+              },
               {
                 title: "Schedule",
                 render: (_, s) => (

@@ -107,6 +107,8 @@ export class ObjectJournal implements DeliveryJournal {
       const receipt = batch.receipt ? await this.artifacts.get<ReceiptData>(batch.receipt) : undefined;
       this.index(batch, data, receipt);
     }
+    if (this.head.snapshot?.strategy === "native-replace" && this.head.snapshot.replacementStatus === "accepted")
+      this.local.applyReplacement();
   }
   current() {
     ensure(!this.broken, "Artifact session requires reopening after a failed commit");
@@ -334,7 +336,7 @@ export class ObjectJournal implements DeliveryJournal {
         "Operation identity mismatch"
       );
       for (const effect of projected[i]) {
-        if (independent)
+        if (independent || this.head.snapshot?.strategy === "native-replace")
           ensure(
             !seen.has(effect.identityHash) &&
               !this.local.sql.prepare("SELECT 1 FROM touched WHERE identity=?").get(effect.identityHash),
@@ -350,6 +352,20 @@ export class ObjectJournal implements DeliveryJournal {
     }
     if (this.scope.mode === "mirror") {
       ensure(this.head.snapshot?.sealed, "Full source must be sealed before delivery");
+      if (this.head.snapshot.strategy === "native-replace") {
+        ensure(prepared.action === "upsert", "Native replacement does not use individual removals");
+        for (const values of projected)
+          for (const effect of values) {
+            const desired = this.local.sql
+              .prepare("SELECT value FROM desired WHERE identity=?")
+              .get(effect.identityHash);
+            ensure(desired?.value === canonicalJson(effect), "Replacement upload is outside the sealed snapshot");
+            ensure(
+              !this.local.sql.prepare("SELECT 1 FROM touched WHERE identity=?").get(effect.identityHash),
+              "Replacement identity already prepared"
+            );
+          }
+      }
       if (prepared.action === "remove") await this.snapshots.assertRemovalsAllowed();
     }
     const reservedEntries = prepared.action === "upsert" ? projected.flat().length : 0;
@@ -566,9 +582,11 @@ export class ObjectJournal implements DeliveryJournal {
       ),
       "Unresolved/rejected operations prohibit finish"
     );
-    if (this.scope.mode === "mirror") await this.snapshots.assertPromotable();
+    const replacement = this.head.snapshot?.strategy === "native-replace";
+    if (replacement) await this.snapshots.assertReplacementReady();
+    else if (this.scope.mode === "mirror") await this.snapshots.assertPromotable();
     await this.publish(
-      this.head,
+      replacement ? { ...this.head, snapshot: { ...this.head.snapshot!, replacementStatus: "prepared" } } : this.head,
       {
         phase: "finish_prepared",
         finish_sequence: String(sequence),
@@ -618,11 +636,16 @@ export class ObjectJournal implements DeliveryJournal {
     const at =
       c.phase === "finish_resolving" ? decodeJson<{ at: string }>(c.finish_result!).at : new Date().toISOString();
     if (c.phase !== "finish_resolving")
-      await this.publish(this.head, {
-        phase: result.delivery === "pending" ? "finish_pending" : "finish_resolving",
-        finish_result: encodeJson({ result, at }, 384 * 1024),
-        store: encodeJson(store),
-      });
+      await this.publish(
+        this.head.snapshot?.strategy === "native-replace" && result.delivery === "pending"
+          ? { ...this.head, snapshot: { ...this.head.snapshot, replacementStatus: "pending" } }
+          : this.head,
+        {
+          phase: result.delivery === "pending" ? "finish_pending" : "finish_resolving",
+          finish_result: encodeJson({ result, at }, 384 * 1024),
+          store: encodeJson(store),
+        }
+      );
     if (result.delivery === "pending") return;
     for (const batch of this.head.batches.filter(row => row.staged > 0)) {
       const receipt = await this.artifacts.get<ReceiptData>(batch.receipt);
@@ -639,7 +662,18 @@ export class ObjectJournal implements DeliveryJournal {
         at
       );
     }
-    await this.publish(this.head, { phase: "finish_accepted" });
+    const replacement = this.head.snapshot?.strategy === "native-replace";
+    if (replacement) await this.snapshots.assertReplacementReady();
+    await this.publish(
+      replacement
+        ? {
+            ...this.head,
+            snapshot: { ...this.head.snapshot!, replacementStatus: "accepted" },
+          }
+        : this.head,
+      { phase: "finish_accepted" }
+    );
+    if (replacement) this.local.applyReplacement();
   }
   async finalPoint(sequence: number): Promise<ResumePoint> {
     const last = this.head.batches.find(row => row.last === sequence);

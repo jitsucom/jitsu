@@ -11,7 +11,7 @@ export class ObjectSnapshots {
   private get db() {
     return this.journal.db;
   }
-  async start(refreshAfterMs?: number) {
+  async start(refreshAfterMs?: number, strategy: "snapshot-diff" | "native-replace" = "snapshot-diff") {
     ensure(
       refreshAfterMs === undefined || (Number.isSafeInteger(refreshAfterMs) && refreshAfterMs > 0),
       "Invalid refresh interval"
@@ -21,6 +21,7 @@ export class ObjectSnapshots {
     ensure(!this.journal.head.snapshot?.sealed, "Snapshot is sealed");
     if (this.pending) return;
     this.pending = {
+      ...(strategy === "native-replace" ? { strategy } : {}),
       sealed: false,
       parts: [],
       keys: 0,
@@ -104,11 +105,16 @@ export class ObjectSnapshots {
       "Invalid diff page"
     );
     ensure(this.journal.head.snapshot?.sealed, "Full snapshot must be sealed");
+    if (this.journal.head.snapshot.strategy === "native-replace") {
+      ensure(kind === "additions", "Native replacement does not use individual removals");
+      return this.journal.local.replacementPage(after, limit);
+    }
     if (kind === "removals") await this.assertRemovalsAllowed();
     return this.journal.local.page(kind, after, limit, this.journal.head.snapshot.refreshBefore);
   }
   async assertRemovalsAllowed() {
     const snapshot = this.journal.head.snapshot;
+    ensure(snapshot?.strategy !== "native-replace", "Native replacement does not use individual removals");
     ensure(snapshot?.sealed, "Full source must be sealed before removals");
     ensure(
       !this.journal.head.batches.some(
@@ -122,7 +128,23 @@ export class ObjectSnapshots {
     );
   }
   async assertPromotable() {
+    if (this.journal.head.snapshot?.strategy === "native-replace") {
+      await this.assertReplacementReady();
+      ensure(this.journal.head.snapshot.replacementStatus === "accepted", "Replacement cleanup is not accepted");
+      return;
+    }
     await this.assertRemovalsAllowed();
     ensure(!this.journal.local.page("removals", "", 1, null).length, "Unremoved memberships prohibit promotion");
+  }
+  async assertReplacementReady() {
+    const snapshot = this.journal.head.snapshot;
+    ensure(snapshot?.sealed && snapshot.strategy === "native-replace", "Replacement requires a sealed snapshot");
+    ensure(
+      this.journal.head.batches.every(
+        batch => batch.action === "upsert" && batch.accepted === batch.last - batch.first + 1
+      ),
+      "Unaccepted uploads prohibit replacement cleanup"
+    );
+    ensure(!this.journal.local.replacementPage("", 1).length, "Incomplete uploads prohibit replacement cleanup");
   }
 }

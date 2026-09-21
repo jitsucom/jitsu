@@ -4,6 +4,7 @@ import { ModelDefinition, ReverseSyncOptions, supportsWarehouseReader } from "@j
 import { ReverseRunConfig } from "@jitsu/warehouse-query/src/runtime";
 import { ApiError } from "../shared/errors";
 import { managedGoogleAudienceForSync } from "./google-audiences";
+import { GoogleAudienceOptions } from "@jitsu/destination-functions/src/functions/google-ads-reverse/meta";
 
 type ReadDb = Pick<Prisma.TransactionClient, "configurationObjectLink" | "configurationObject">;
 
@@ -37,6 +38,12 @@ export async function readReverseSync(
   // This field is server evidence, never editable destination configuration.
   delete destination.reverseManagedAudience;
   if (destination.destinationType === "google-ads") {
+    const replacement = options.streamOptions.mirrorStrategy === "full-replace";
+    // Existing admission also serves disabled, not-yet-provisioned setups. Only
+    // native replacement needs this additional destructive-mode confirmation.
+    if (replacement) GoogleAudienceOptions.parse(options.streamOptions);
+    if (replacement && options.mode !== "mirror")
+      throw new ApiError("Full replacement requires mirror mode", { status: 409 });
     if (options.mode === "mirror" || options.streamOptions.managedAudienceId !== undefined) {
       const managed = await managedGoogleAudienceForSync(
         db,
@@ -46,7 +53,7 @@ export async function readReverseSync(
         options.streamOptions,
         destination
       );
-      if (options.mode === "mirror" && !managed)
+      if (options.mode === "mirror" && !managed && !replacement)
         throw new ApiError("Google mirror requires a Jitsu-managed audience", { status: 409 });
       if (managed) destination.reverseManagedAudience = managed;
     }

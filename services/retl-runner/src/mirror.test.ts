@@ -246,6 +246,112 @@ function fixture() {
 }
 
 describe("core snapshot mirror lifecycle", () => {
+  it("uploads a complete replacement, waits for every upload, and prunes only after durable cleanup acceptance", async () => {
+    const baseline = fixture();
+    await runSnapshotMirror(baseline.options(await session("baseline"), [record("stay"), record("old")]));
+    const f = fixture();
+    f.adapter.stream.capabilities.mirror = "native-replace";
+    f.adapter.batchDelivery = "asynchronous";
+    f.setBatch(async (_action, batch) => ({
+      outcomes: batch.records.map(row => ({ operationId: row.operationId, status: "staged" })),
+      remoteJobIds: [batch.batchId],
+    }));
+    f.setFinish("pending");
+    const options = (run: Session, rows: MirrorSourceRecord[] = []) => ({
+      ...f.options(run, rows),
+      targetBaseline: "replace" as const,
+    });
+    const run = await session("replacement");
+    expect(
+      (await runSnapshotMirror(options(run, [record("stay"), record("new"), record("alias", "new")]))).delivery
+    ).toBe("pending");
+    expect(f.requests.flatMap(r => r.batch.records)).toHaveLength(2); // Includes unchanged "stay".
+    expect(f.calls).not.toContain("finish");
+    await expect(run.delivery.prepareFinish(2, {})).rejects.toThrow("Unaccepted uploads");
+    await expect(run.snapshots.page("removals")).rejects.toThrow("does not use individual removals");
+    const wrong = fixture();
+    await expect(resumeSnapshotMirror(wrong.options(await takeover(run), []), wrong.recovery)).rejects.toThrow(
+      "Snapshot strategy changed"
+    );
+
+    for (const { batch } of f.requests) f.receipts.set(batch.batchId, accepted(batch));
+    expect((await resumeSnapshotMirror(options(await takeover(run)), f.recovery)).delivery).toBe("pending");
+    expect(await phase()).toBe("finish_pending");
+    expect((await durable()).head.snapshot?.replacementStatus).toBe("pending");
+    expect(await membership()).toHaveLength(3); // Cleanup is not yet accepted: retain "old".
+    expect(f.calls.filter(c => c === "source")).toHaveLength(1);
+    expect(f.calls.filter(c => c === "finish")).toHaveLength(1);
+    expect(f.requests.some(r => r.action === "remove")).toBe(false);
+
+    expect((await resumeSnapshotMirror(options(await takeover(run)), f.recovery)).delivery).toBe("accepted");
+    expect(await phase()).toBe("complete");
+    expect((await durable()).head.snapshot?.replacementStatus).toBe("accepted");
+    expect((await membership()).map(m => m.member).sort()).toEqual([member("stay"), member("new")].sort());
+    const fresh = await session("next-replacement");
+    expect([...fresh.core.local.memberPages()].flat()).toHaveLength(2);
+    expect(f.calls.filter(c => c === "finish")).toHaveLength(1); // Status polling never resubmits cleanup.
+
+    f.setBatch(undefined);
+    f.setFinish("accepted");
+    f.requests.length = 0;
+    await runSnapshotMirror(options(fresh, [record("stay"), record("new")]));
+    expect(f.requests.flatMap(r => r.batch.records)).toHaveLength(2); // Unchanged members upload again next run.
+    f.requests.length = 0;
+    await runSnapshotMirror(options(await session("empty-replacement")));
+    expect(f.requests).toHaveLength(0);
+    expect(await membership()).toHaveLength(0);
+    expect([...(await session("after-empty")).core.local.memberPages()].flat()).toHaveLength(0);
+  });
+  it("never cleans a replacement after rejected uploads or incomplete extraction", async () => {
+    const f = fixture();
+    f.adapter.stream.capabilities.mirror = "native-replace";
+    const run = await session();
+    const input = { ...f.options(run, [record("a")]), targetBaseline: "replace" as const };
+    f.setBatch(async (_action, batch) => ({
+      outcomes: batch.records.map(row => ({
+        operationId: row.operationId,
+        status: "rejected",
+        code: "invalid",
+        safeReason: "Invalid",
+      })),
+    }));
+    await expect(runSnapshotMirror(input)).rejects.toThrow();
+    expect(f.calls).not.toContain("finish");
+    const next = await session("incomplete");
+    const incomplete = {
+      ...f.options(next, []),
+      targetBaseline: "replace" as const,
+      source: async function* () {
+        yield record("a");
+        throw new Error("source failed");
+      },
+    };
+    await expect(runSnapshotMirror(incomplete)).rejects.toThrow();
+    expect(f.calls).not.toContain("finish");
+  });
+  it("retains an ambiguous replacement cleanup for reconciliation without resubmitting it", async () => {
+    const f = fixture();
+    f.adapter.stream.capabilities.mirror = "native-replace";
+    f.setFinish("throw");
+    const run = await session();
+    const options = { ...f.options(run, [record("a")]), targetBaseline: "replace" as const };
+    await expect(runSnapshotMirror(options)).rejects.toThrow();
+    expect(await phase()).toBe("finish_prepared");
+    await expect(
+      resumeSnapshotMirror(
+        { ...options, persistence: await takeover(run) },
+        {
+          ...f.recovery,
+          reconcileFinish: async saved => {
+            expect(saved).toBeUndefined();
+            throw new Error("Receipt unavailable; do not replay");
+          },
+        }
+      )
+    ).rejects.toThrow();
+    expect(f.calls.filter(c => c === "finish")).toHaveLength(1);
+    expect((await durable()).head.snapshot?.replacementStatus).toBe("prepared");
+  });
   it("stages a full page with bounded SQL and seals exact retry/deduplication counts", async () => {
     const run = await session();
     await run.delivery.prepareInit({});
