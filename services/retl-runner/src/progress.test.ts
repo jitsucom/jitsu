@@ -73,6 +73,13 @@ describe("redacted run progress", () => {
     });
     expect(stats.remove).toMatchObject({ total: 1, accepted: 1, partial: 0, pending: 0 });
     expect(stats.records).toEqual({ accepted: 208, pending: 50, rejected: 72 });
+    expect(stats.recordCounts).toEqual({
+      upsert: { total: 448, prepared: 64, unconfirmed: 64, pending: 50, accepted: 144, rejected: 72, cancelled: 54 },
+      remove: { total: 64, prepared: 0, unconfirmed: 0, pending: 0, accepted: 64, rejected: 0, cancelled: 0 },
+    });
+    for (const { total, ...outcomes } of Object.values(stats.recordCounts!)) {
+      expect(Object.values(outcomes).reduce((sum, value) => sum + value, 0)).toBe(total);
+    }
     expect(stats.replacement).toBeUndefined();
     expect(JSON.stringify(stats)).not.toMatch(/private-batch|private-key|sha256|submittedRecords/);
     h.snapshot!.strategy = "native-replace";
@@ -92,7 +99,10 @@ describe("redacted run progress", () => {
       h.batches[0] = batch({ accepted: 64, staged: 0 });
       await progress.observe(h);
       expect(stats).toHaveBeenCalledTimes(3);
-      expect(stats.mock.calls[2][0]).toMatchObject({ upsert: { accepted: 1, pending: 0 } });
+      expect(stats.mock.calls[2][0]).toMatchObject({
+        upsert: { accepted: 1, pending: 0 },
+        recordCounts: { upsert: { total: 64, accepted: 64, pending: 0 } },
+      });
       expect(stderr.mock.calls.flat().join(" ")).not.toContain("private-token");
     } finally {
       stderr.mockRestore();

@@ -58,6 +58,10 @@ describe("Reverse ETL status dropdown", () => {
           upsert: { ...counts, total: 4, accepted: 3, pending: 1 },
           remove: { ...counts, total: 2, rejected: 2 },
           records: { accepted: 300, pending: 100, rejected: 20 },
+          recordCounts: {
+            upsert: { ...counts, total: 400, accepted: 300, pending: 100 },
+            remove: { ...counts, total: 20, rejected: 20 },
+          },
           replacement: "pending",
         }),
       })
@@ -65,7 +69,7 @@ describe("Reverse ETL status dropdown", () => {
     fireEvent.click(screen.getByRole("button", { name: /WAITING/ }));
     const upload = (await screen.findByText("Full-snapshot uploads")).closest("tr")!;
     expect(screen.getAllByRole("columnheader").map(cell => cell.textContent)).toEqual([
-      "Batch type",
+      "Operation",
       "Pending",
       "Rejected",
       "Accepted",
@@ -75,16 +79,16 @@ describe("Reverse ETL status dropdown", () => {
       within(upload)
         .getAllByRole("cell")
         .map(cell => cell.textContent)
-    ).toEqual(["Full-snapshot uploads", "1", "0", "3", "4"]);
+    ).toEqual(["Full-snapshot uploads", "100", "0", "300", "400"]);
     const removal = screen.getByText("Removals").closest("tr")!;
     expect(
       within(removal)
         .getAllByRole("cell")
         .map(cell => cell.textContent)
-    ).toEqual(["Removals", "0", "2", "0", "2"]);
+    ).toEqual(["Removals", "0", "20", "0", "20"]);
     expect(screen.getByRole("columnheader", { name: "Total" }).querySelector("strong")).toBeTruthy();
-    expect(upload.lastElementChild?.querySelector("strong")?.textContent).toBe("4");
-    expect(removal.lastElementChild?.querySelector("strong")?.textContent).toBe("2");
+    expect(upload.lastElementChild?.querySelector("strong")?.textContent).toBe("400");
+    expect(removal.lastElementChild?.querySelector("strong")?.textContent).toBe("20");
     expect(screen.getByText(/Full-audience cleanup:/).textContent).toContain("separate request, not a removal batch");
     expect(screen.getByText(/Records:/).textContent).toContain("300 accepted");
     expect(screen.getByRole("link", { name: "Show Logs" }).getAttribute("href")).toBe(
@@ -101,13 +105,14 @@ describe("Reverse ETL status dropdown", () => {
           upsert: counts,
           remove: counts,
           records: { accepted: 0, pending: 0, rejected: 0 },
+          recordCounts: { upsert: counts, remove: counts },
         }),
       })
     );
     fireEvent.click(screen.getByRole("button", { name: /WAITING/ }));
     const upload = (await screen.findByText("Additions / upserts")).closest("tr")!;
     expect(screen.getAllByRole("columnheader").map(cell => cell.textContent)).toEqual([
-      "Batch type",
+      "Operation",
       "Accepted",
       "Total",
     ]);
@@ -117,10 +122,28 @@ describe("Reverse ETL status dropdown", () => {
         .map(cell => cell.textContent)
     ).toEqual(["Additions / upserts", "0", "0"]);
   });
-  it("does not invent zero counts for older attempts", async () => {
+  it("does not present older batch counts as record counts", async () => {
+    render(
+      React.createElement(ReverseTaskStatus, {
+        task: task({
+          version: 1,
+          runId: "run",
+          observedAt: "2026-01-01T00:00:00.000Z",
+          upsert: { ...counts, total: 1, accepted: 1 },
+          remove: counts,
+          records: { accepted: 64, pending: 0, rejected: 0 },
+        }),
+      })
+    );
+    fireEvent.click(screen.getByRole("button", { name: /WAITING/ }));
+    expect(await screen.findByText(/Record breakdown by operation is unavailable/)).toBeTruthy();
+    expect(screen.getByText(/Records:/).textContent).toContain("64 accepted");
+    expect(screen.queryByRole("table")).toBeNull();
+  });
+  it("does not invent zero counts for attempts without statistics", async () => {
     render(React.createElement(ReverseTaskStatus, { task: task() }));
     fireEvent.click(screen.getByRole("button", { name: /WAITING/ }));
-    expect(await screen.findByText(/Batch statistics unavailable/)).toBeTruthy();
+    expect(await screen.findByText(/Record statistics unavailable/)).toBeTruthy();
     expect(screen.queryByRole("table")).toBeNull();
   });
 });

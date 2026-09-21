@@ -1,5 +1,5 @@
 import type { ArtifactHead, BatchHead } from "./artifacts/state";
-import type { ReverseBatchCounts, ReverseDeliveryStats } from "@jitsu/protocols/reverse-etl-stats";
+import type { ReverseBatchCounts, ReverseDeliveryStats, ReverseRecordCounts } from "@jitsu/protocols/reverse-etl-stats";
 
 export function batchStatistics(head: ArtifactHead): ReverseDeliveryStats {
   const empty = (): ReverseBatchCounts => ({
@@ -12,6 +12,16 @@ export function batchStatistics(head: ArtifactHead): ReverseDeliveryStats {
     partial: 0,
     cancelled: 0,
   });
+  const emptyRecords = (): ReverseRecordCounts => ({
+    total: 0,
+    prepared: 0,
+    unconfirmed: 0,
+    pending: 0,
+    accepted: 0,
+    rejected: 0,
+    cancelled: 0,
+  });
+  const recordCounts = { upsert: emptyRecords(), remove: emptyRecords() };
   const stats: ReverseDeliveryStats = {
     version: 1,
     runId: head.runId,
@@ -19,6 +29,7 @@ export function batchStatistics(head: ArtifactHead): ReverseDeliveryStats {
     upsert: empty(),
     remove: empty(),
     records: { accepted: 0, pending: 0, rejected: 0 },
+    recordCounts,
     ...(head.snapshot?.strategy === "native-replace"
       ? { replacement: head.snapshot.replacementStatus ?? "not_started" }
       : {}),
@@ -42,6 +53,16 @@ export function batchStatistics(head: ArtifactHead): ReverseDeliveryStats {
         : "partial";
     counts.total++;
     counts[status]++;
+    const records = recordCounts[batch.action];
+    records.total += size;
+    records.accepted += batch.accepted;
+    records.rejected += batch.rejected;
+    // Keep known outcomes even when the rest of a batch is cancelled or unconfirmed.
+    const remaining = size - batch.accepted - batch.rejected;
+    if (batch.status === "prepared") records.prepared += remaining;
+    else if (batch.status === "unknown") records.unconfirmed += remaining;
+    else if (batch.status === "cancelled") records.cancelled += remaining;
+    else records.pending += batch.staged;
     stats.records.accepted += batch.accepted;
     stats.records.pending += batch.staged;
     stats.records.rejected += batch.rejected;

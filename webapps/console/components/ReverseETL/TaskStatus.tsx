@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { Alert, Popover, Table, Tag } from "antd";
 import { ChevronDown } from "lucide-react";
-import { reverseBatchStatuses } from "@jitsu/protocols/reverse-etl-stats";
+import { reverseRecordStatuses } from "@jitsu/protocols/reverse-etl-stats";
 import type { ReverseTask } from "../../lib/reverse-etl";
 import { WJitsuButton } from "../JitsuButton/JitsuButton";
 
@@ -15,10 +15,14 @@ export function ReverseTaskStatus({ task }: { task?: ReverseTask | null }) {
       </div>
     );
   const stats = task.stats;
-  const rows = stats
+  const rows = stats?.recordCounts
     ? [
-        { key: "upsert", type: stats.replacement ? "Full-snapshot uploads" : "Additions / upserts", ...stats.upsert },
-        { key: "remove", type: "Removals", ...stats.remove },
+        {
+          key: "upsert",
+          type: stats.replacement ? "Full-snapshot uploads" : "Additions / upserts",
+          ...stats.recordCounts.upsert,
+        },
+        { key: "remove", type: "Removals", ...stats.recordCounts.remove },
       ]
     : [];
   return (
@@ -27,39 +31,44 @@ export function ReverseTaskStatus({ task }: { task?: ReverseTask | null }) {
       onOpenChange={setOpen}
       trigger="click"
       placement="bottomRight"
-      title="Batch delivery statistics"
+      overlayClassName="w-1/2"
+      title="Record delivery statistics"
       content={
-        <div className="max-w-[90vw]" style={{ width: 850 }}>
+        <div className="break-words">
           {task.error && <Alert className="mb-3" type="error" title={task.error} />}
           {stats ? (
             <>
-              <Table
-                size="small"
-                rowKey="key"
-                pagination={false}
-                scroll={{ x: 800 }}
-                dataSource={rows}
-                columns={[
-                  { title: "Batch type", dataIndex: "type", width: 170 },
-                  ...reverseBatchStatuses
-                    .filter(status => status !== "accepted" && rows.some(row => row[status] !== 0))
-                    .map(status => ({
-                      title: status === "partial" ? "Mixed result" : status[0].toUpperCase() + status.slice(1),
-                      dataIndex: status,
-                      key: status,
-                    })),
-                  { title: "Accepted", dataIndex: "accepted" },
-                  {
-                    title: <strong>Total</strong>,
-                    dataIndex: "total",
-                    render: (total: number) => <strong>{total}</strong>,
-                  },
-                ]}
-              />
+              {stats.recordCounts ? (
+                <div className="overflow-x-auto">
+                  <Table
+                    size="small"
+                    rowKey="key"
+                    pagination={false}
+                    dataSource={rows}
+                    columns={[
+                      { title: "Operation", dataIndex: "type", width: 170 },
+                      ...reverseRecordStatuses
+                        .filter(status => status !== "accepted" && rows.some(row => row[status] !== 0))
+                        .map(status => ({
+                          title: status[0].toUpperCase() + status.slice(1),
+                          dataIndex: status,
+                          key: status,
+                        })),
+                      { title: "Accepted", dataIndex: "accepted" },
+                      {
+                        title: <strong>Total</strong>,
+                        dataIndex: "total",
+                        render: (total: number) => <strong>{total}</strong>,
+                      },
+                    ]}
+                  />
+                </div>
+              ) : (
+                <p className="text-textLight">Record breakdown by operation is unavailable for this older attempt.</p>
+              )}
               <p className="text-xs text-textLight mt-3">
-                Totals cover batches created so far in this logical run, including earlier attempts. Totals can grow
-                during delivery. Each batch appears in one status; pending batches may contain both accepted and
-                rejected rows.
+                Totals cover records prepared for delivery so far in this logical run, including earlier attempts.
+                Totals can grow during delivery. Each record appears in one status.
               </p>
               <p className="text-xs mt-2">
                 Records: {stats.records.accepted.toLocaleString()} accepted · {stats.records.pending.toLocaleString()}{" "}
@@ -82,7 +91,7 @@ export function ReverseTaskStatus({ task }: { task?: ReverseTask | null }) {
               </p>
             </>
           ) : (
-            <p className="text-textLight">Batch statistics unavailable for this attempt. {task.description}</p>
+            <p className="text-textLight">Record statistics unavailable for this attempt. {task.description}</p>
           )}
           <div className="flex justify-end mt-3">
             <WJitsuButton href={`/reverse-syncs/logs?syncId=${task.sync_id}&taskId=${task.task_id}`} type="primary">

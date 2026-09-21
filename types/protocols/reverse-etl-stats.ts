@@ -10,6 +10,23 @@ export const reverseBatchStatuses = [
   "cancelled",
 ] as const;
 const count = z.number().int().nonnegative();
+export const reverseRecordStatuses = [
+  "prepared",
+  "unconfirmed",
+  "pending",
+  "rejected",
+  "cancelled",
+  "accepted",
+] as const;
+export const ReverseRecordCounts = z.object({
+  total: count,
+  prepared: count,
+  unconfirmed: count,
+  pending: count,
+  accepted: count,
+  rejected: count,
+  cancelled: count,
+});
 export const ReverseBatchCounts = z.object({
   total: count,
   prepared: count,
@@ -28,7 +45,10 @@ export const ReverseDeliveryStats = z.object({
   upsert: ReverseBatchCounts,
   remove: ReverseBatchCounts,
   records: z.object({ accepted: count, pending: count, rejected: count }),
+  /** Optional for older attempts that only retained batch counts per operation. */
+  recordCounts: z.object({ upsert: ReverseRecordCounts, remove: ReverseRecordCounts }).optional(),
   replacement: z.enum(["not_started", "prepared", "pending", "accepted"]).optional(),
 });
 export type ReverseBatchCounts = z.infer<typeof ReverseBatchCounts>;
+export type ReverseRecordCounts = z.infer<typeof ReverseRecordCounts>;
 export type ReverseDeliveryStats = z.infer<typeof ReverseDeliveryStats>;
