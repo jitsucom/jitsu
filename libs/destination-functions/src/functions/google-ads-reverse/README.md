@@ -66,22 +66,24 @@ is used for this adapter. The account must be eligible for Customer Match.
 Account-level EU political advertising declaration may also be required for user-list
 creation; resolve this in Google Ads before provisioning.
 
-### Managed audience provisioning (before delivery)
+### Managed audience provisioning (first run)
 
-POST `/api/:workspaceId/reverse-etl/google-audiences` with `destinationId`, the intended
-`syncId` of an existing, non-deleted reverse sync, a stable UUID `requestId`, `displayName`, `exclusiveManagementConfirmed: true`
-and `customerMatchTermsAccepted: true`. Workspace edit access and the `reverse-etl`
-rollout flag are required. Save the returned internal `id` as `managedAudienceId`
-alongside `audienceId` in stream options. The upcoming editor must first create a
-disabled sync, provision its audience using the returned sync ID, then configure
-and enable the sync. Caller-chosen IDs and deleted links cannot be provisioned.
+The editor saves `GoogleAudienceSettings` directly in link data: an `audience`
+union of `{kind: "managed", displayName}` or `{kind: "existing", audienceId}`,
+Customer Match terms, optional mirror strategy and exclusive-management confirmation.
+There is no console provisioning endpoint or separate setup entity.
 
-The console durably records intent before creation and only one request may submit
-it. Reuse the **same requestId and input** after a timeout or `pending` response:
-retries only discover the audience by its saved correlation marker. An absent or
-ambiguous match remains unresolved, never authorizing another POST. There is no
-automatic reset, delete or arbitrary existing-audience adoption. The creation record
-is internal configuration, not editable destination JSON.
+Under its Kubernetes lease, the runner saves a random correlation marker and
+creation intent in `source_state` stream `_REVERSE_ETL_GOOGLE_AUDIENCE_` before
+calling Google. The audience ID is saved there after creation. It resolves settings
+to provider-ready `GoogleAudienceOptions` in memory without changing the link revision.
+An uncertain creation fails the attempt; subsequent runs only discover the same
+saved request, never submit a second create. An absent or ambiguous match remains
+unresolved and requires investigation; do not reset or create another sync.
+
+Existing console-provisioned audiences require the explicit settings migration in
+the console Reverse ETL README. It preserves ready links, audience identity and
+delivery revisions while moving the old proof into runtime state.
 
 Exclusivity is an operational agreement, not a Google API lock: do not upload via
 other tools or the Google UI. Changing remote identity/marker/type/ownership/duration

@@ -12,12 +12,90 @@ import { execute, type ExecuteOptions } from "./execute";
 import type { RuntimeAdapter } from "./adapters";
 import { createAdapterRegistry } from "./adapters";
 import { Tasks } from "./tasks";
+import { googleAudienceStateStream } from "@jitsu/destination-functions/src/functions/google-ads-reverse/state";
 
 import { MemoryObjects, persisted } from "./artifacts/test-support";
 const objects = new MemoryObjects();
 const storage = { objectStorage: { store: objects, signal: new AbortController().signal } };
 const durable = () => persisted(admin, objects);
 afterEach(() => vi.useRealTimers());
+
+describe("runner-owned Google audience provisioning", () => {
+  it.each(["normal", "lost-response", "empty-discovery", "oauth-failure"])(
+    "persists first-run provisioning and does not create twice: %s",
+    async scenario => {
+      const f = fixture();
+      f.input.config.destination = {
+        destinationType: "google-ads",
+        authorized: true,
+        oauthConnectionId: "destination.destination",
+        customerId: "1234567890",
+      };
+      f.input.config.options = {
+        ...f.input.config.options,
+        mode: "mirror",
+        mapping: { email: "id" },
+        streamOptions: {
+          audience: { kind: "managed", displayName: "Test" },
+          customerMatchTermsAccepted: true,
+          exclusiveManagementConfirmed: true,
+          mirrorStrategy: "snapshot-diff",
+        },
+      };
+      f.setRows([]);
+      let tokenFails = scenario === "oauth-failure",
+        creates = 0,
+        remote: any;
+      f.input.adapters = createAdapterRegistry(async () => {
+        if (tokenFails) throw new Error("private-token");
+        return "token";
+      });
+      const saved = async () =>
+        (
+          await admin.query("SELECT state FROM newjitsu.source_state WHERE sync_id='sync' AND stream=$1", [
+            googleAudienceStateStream,
+          ])
+        ).rows[0]?.state;
+      const response = (body: unknown) => new Response(JSON.stringify(body)) as Awaited<ReturnType<typeof fetch>>;
+      const wire = vi.spyOn(globalThis, "fetch").mockImplementation(async (url, init) => {
+        expect(f.calls).toContain("lease");
+        if (init?.method === "POST") {
+          creates++;
+          expect((await saved()).phase).toBe("submitting");
+          expect((await admin.query("SELECT count(*) FROM newjitsu.reverse_sync_control")).rows[0].count).toBe("0");
+          remote = {
+            ...JSON.parse(init.body as string),
+            id: "123",
+            name: "accountTypes/GOOGLE_ADS/accounts/1234567890/userLists/123",
+            accessReason: "OWNED",
+          };
+          if (scenario === "lost-response" || scenario === "empty-discovery") throw new Error("lost response");
+          return response(remote);
+        }
+        if (String(url).includes("?")) return response({ userLists: scenario === "empty-discovery" ? [] : [remote] });
+        return response(remote);
+      });
+      try {
+        expect(await execute(f.input)).toBe(scenario === "normal" ? "SUCCESS" : "FAILED");
+        expect((await saved()).phase).toBe(
+          scenario === "normal" ? "ready" : scenario === "oauth-failure" ? "prepared" : "submitting"
+        );
+        tokenFails = false;
+        f.input.taskId = "next";
+        expect(await execute(f.input)).toBe(scenario === "empty-discovery" ? "FAILED" : "SUCCESS");
+        expect(creates).toBe(1);
+        if (scenario !== "empty-discovery") {
+          expect((await saved()).audienceId).toBe("123");
+          expect((await control()).revision).toBe(f.input.config.configRevision);
+          expect((await control()).target_hash).toBeDefined();
+        }
+        expect(f.input.config.options.streamOptions.audienceId).toBeUndefined();
+      } finally {
+        wire.mockRestore();
+      }
+    }
+  );
+});
 
 let container: StartedTestContainer;
 let admin: Client;

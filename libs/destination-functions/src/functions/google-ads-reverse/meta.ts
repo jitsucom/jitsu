@@ -9,7 +9,7 @@ const customerId = z
 export const googleAudienceMembershipDays = 540;
 export const googleAudienceRefreshAfterMs = 30 * 86400_000;
 export const managedGoogleAudienceId = z.string().regex(/^retl-google-[a-f0-9]{64}$/);
-/** Supplied by authenticated console export, never accepted as a UI assertion. */
+/** Runner-owned provisioning evidence, never accepted as a UI assertion. */
 export const GoogleManagedAudience = z
   .object({
     id: managedGoogleAudienceId,
@@ -41,6 +41,26 @@ export const GoogleAudienceOptions = z
   .superRefine((options, ctx) => {
     if (options.mirrorStrategy === "full-replace" && !options.exclusiveManagementConfirmed)
       ctx.addIssue({ code: "custom", message: "Full replacement requires exclusive audience management confirmation" });
+  });
+
+/** User intent stored on the link; generated audience identity belongs to runtime state. */
+export const GoogleAudienceSettings = z
+  .object({
+    audience: z.discriminatedUnion("kind", [
+      z.object({ kind: z.literal("managed"), displayName: z.string().trim().min(1).max(120) }).strict(),
+      z.object({ kind: z.literal("existing"), audienceId: z.string().regex(/^[1-9]\d{0,19}$/) }).strict(),
+    ]),
+    customerMatchTermsAccepted: z.literal(true),
+    exclusiveManagementConfirmed: z.literal(true).optional(),
+    mirrorStrategy: z.enum(["snapshot-diff", "full-replace"]).optional(),
+  })
+  .strict()
+  .superRefine((value, ctx) => {
+    if (
+      (value.audience.kind === "managed" || value.mirrorStrategy === "full-replace") &&
+      !value.exclusiveManagementConfirmed
+    )
+      ctx.addIssue({ code: "custom", message: "Confirm exclusive audience management" });
   });
 
 const identifier = z.string().min(1).max(1024).nullable().optional();

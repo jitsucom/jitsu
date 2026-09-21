@@ -1,6 +1,18 @@
 /** Exact core-owned reasons only. Never expose arbitrary SDK/SQL messages or causes. */
 const failures = new Map<string, string>([
   [
+    "Google audience creation is unconfirmed; retry status discovery without resetting state",
+    "Google has not confirmed audience creation. Run this same sync again to check for the audience; do not reset state or create another sync to retry it.",
+  ],
+  [
+    "Managed audience state is missing; preserve delivery state and reconcile",
+    "The saved Google audience identity is missing. Ask your Jitsu administrator to restore or migrate its runtime state; do not reset this sync.",
+  ],
+  [
+    "Managed audience configuration changed; preserve provisioning state and reconcile",
+    "The audience settings no longer match the saved creation request. Restore the original settings or contact your Jitsu administrator; do not reset state.",
+  ],
+  [
     "Model query contains duplicate primary keys",
     "The model returns multiple rows with the same primary key. Return one deterministic row per primary key, then retry. Audience-identity deduplication does not deduplicate source primary keys.",
   ],

@@ -5,10 +5,17 @@ container. No long-running Go sidecar is used. The compiled-in registry includes
 Google Data Manager Customer Match additions/explicit removals, with scoped OAuth
 and durable request polling. Jitsu-managed audiences additionally support core
 snapshot mirroring with 30-day unchanged-member refresh and 540-day membership.
-The console provisions audiences separately and exports server-recorded creation
-evidence bound to one sync; the runner verifies that binding remotely each attempt.
-Existing audiences remain additions/explicit removals only. The Reverse sync editor
+The runner provisions managed audiences on their first run, saving intent and audience
+identity in a dedicated `source_state` stream under the sync's Kubernetes lease.
+Uncertain creation is discovered by the saved correlation marker, never submitted twice.
+Both managed and exclusively managed existing audiences support full replacement.
+Existing audiences also support additions/explicit removals. The Reverse sync editor
 configures these modes; workspace feature flags and per-sync admission still apply.
+
+For legacy console-provisioned audiences, follow the non-destructive
+[settings migration](../../../webapps/console/components/ReverseETL/README.md#existing-sync-migration)
+before enabling syncs with this console/runner pair. This is separate from the older
+object-storage schema cutover below; it preserves existing delivery state.
 
 ## Deployment prerequisites
 

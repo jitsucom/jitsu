@@ -76,7 +76,11 @@ export async function execute(input: ExecuteOptions): Promise<TaskResult> {
     signal.throwIfAborted();
     const bind = input.adapters.get(String(config.destination.destinationType));
     ensure(bind, "Reverse destination is not enabled in this runner");
-    const adapter = bind(config);
+    // Audience provisioning can outlive a lease period; supervise it just like delivery.
+    timer = setTimeout(() => {
+      renewing = tick();
+    }, input.heartbeatMs ?? 10_000);
+    const adapter = await bind(config, { db, signal, log: message => progress.log(message) });
     ensure(adapter.stream.name === config.options.stream, "Reverse stream does not match adapter");
     if (config.options.mode === "mirror")
       ensure(
@@ -107,9 +111,6 @@ export async function execute(input: ExecuteOptions): Promise<TaskResult> {
     };
     const mirror = config.options.mode === "mirror";
     // Restoring large object-backed baselines must not outlive worker ownership.
-    timer = setTimeout(() => {
-      renewing = tick();
-    }, input.heartbeatMs ?? 10_000);
     const run = mirror
       ? await openMirrorPersistence(db, runInput)
       : await openPersistence(db, runInput, adapter.project);
@@ -137,7 +138,7 @@ export async function execute(input: ExecuteOptions): Promise<TaskResult> {
       mode: config.options.mode,
       fullRefresh: !config.model.cursor,
       credentials: adapter.credentials,
-      options: config.options.streamOptions as JsonObject,
+      options: adapter.options ?? (config.options.streamOptions as JsonObject),
       signal,
       store: createBufferedSyncStore(saved.store),
       delivery: run.delivery,
