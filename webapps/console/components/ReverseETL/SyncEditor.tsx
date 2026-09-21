@@ -6,10 +6,9 @@ import { rpc } from "juava";
 import timezones from "timezones-list";
 import { ListMinusIcon } from "lucide-react";
 import type { ReverseSyncOptions } from "@jitsu/warehouse-query/src/schema";
+import { WarehouseColumn } from "@jitsu/warehouse-query/src/schema";
 import type { ReverseSyncView } from "../../lib/reverse-etl";
-import type { ModelConfig } from "../../lib/schema";
 import { useAppConfig, useWorkspace, useWorkspaceRole } from "../../lib/context";
-import { useConfigApi } from "../../lib/useApi";
 import { useConfigObjectList } from "../../lib/store";
 import { confirmOp, useUnsavedChanges } from "../../lib/ui";
 import FieldListEditorLayout, { EditorItem } from "../FieldListEditorLayout/FieldListEditorLayout";
@@ -25,8 +24,7 @@ export function SyncEditor({ sync, reload }: { sync?: ReverseSyncView; reload: (
     role = useWorkspaceRole(),
     router = useRouter();
   const maintenance = useAppConfig().maintenance?.active;
-  const api = useConfigApi<ModelConfig>("model");
-  const models = useQuery({ queryKey: ["reverse-etl-models", workspace.id], queryFn: () => api.list() });
+  const models = useConfigObjectList("model");
   const destinations = useConfigObjectList("destination").filter(d => reverseStreamEditors[d.destinationType]?.length);
   const [fromId, setFromId] = useState(sync?.fromId ?? String(router.query.modelId ?? ""));
   const [toId, setToId] = useState(sync?.toId ?? String(router.query.destinationId ?? ""));
@@ -69,6 +67,18 @@ export function SyncEditor({ sync, reload }: { sync?: ReverseSyncView; reload: (
     disabled = !editable || !enabled || locked;
   const streams = reverseStreamEditors[destinations.find(d => d.id === toId)?.destinationType ?? ""] ?? [];
   const stream = streams.find(s => s.id === options.stream);
+  const model = models.find(m => m.id === fromId);
+  const columns = useQuery({
+    queryKey: ["reverse-etl-model-columns", workspace.id, fromId, model?.warehouseId, model?.query],
+    enabled: !!model && enabled && role.editEntities && !maintenance,
+    queryFn: async ({ signal }) => {
+      const result = await rpc(`/api/${workspace.id}/models/columns`, { query: { modelId: fromId }, signal });
+      return WarehouseColumn.array().parse(result.columns);
+    },
+    retry: false,
+    staleTime: 60_000,
+    refetchOnWindowFocus: false,
+  });
   useUnsavedChanges(dirty && !busy);
   const update = (patch: Partial<ReverseSyncOptions>) => {
     setOptions(o => ({ ...o, ...patch }));
@@ -114,10 +124,9 @@ export function SyncEditor({ sync, reload }: { sync?: ReverseSyncView; reload: (
           showSearch
           optionFilterProp="label"
           disabled={disabled}
-          loading={models.isLoading}
           value={fromId || undefined}
           placeholder="Select model"
-          options={models.data?.map(m => ({ value: m.id, label: m.name || m.id }))}
+          options={models.map(m => ({ value: m.id, label: m.name || m.id }))}
           onChange={id => {
             setFromId(id);
             setDirty(true);
@@ -195,7 +204,7 @@ export function SyncEditor({ sync, reload }: { sync?: ReverseSyncView; reload: (
         />
       ),
     },
-    ...(stream?.fields(options, update, disabled) ?? []),
+    ...(stream?.fields(options, update, disabled, { columns: columns.data ?? [], loading: columns.isFetching }) ?? []),
   ];
   return (
     <div className="max-w-5xl grow">
@@ -229,7 +238,19 @@ export function SyncEditor({ sync, reload }: { sync?: ReverseSyncView; reload: (
           </Button>
         </div>
       )}
-      <Failure error={error || models.error} />
+      <Failure error={error} />
+      {!!columns.error && (
+        <Alert
+          className="mb-4"
+          type="warning"
+          title="Could not load model columns. Existing mappings are kept."
+          action={
+            <Button size="small" loading={columns.isFetching} onClick={() => columns.refetch()}>
+              Retry
+            </Button>
+          }
+        />
+      )}
       {sync && router.query.runStartUnconfirmed === "1" && (
         <Alert
           className="mb-4"
@@ -319,7 +340,7 @@ export function SyncEditor({ sync, reload }: { sync?: ReverseSyncView; reload: (
                     // Open the saved sync rather than trapping edits behind its create request ID.
                     await router.push(`/${workspace.slugOrId}/reverse-syncs?id=${result.id}&runStartUnconfirmed=1`);
                   }
-                } else await router.push(`/${workspace.slugOrId}/reverse-syncs?id=${result.id}`);
+                } else await router.push(`/${workspace.slugOrId}/reverse-syncs`);
               })
             }
           >

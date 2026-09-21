@@ -1,13 +1,5 @@
-import type {
-  ConnectorImageConfig,
-  MiscEntity,
-  DestinationConfig,
-  FunctionConfig,
-  ServiceConfig,
-  StreamConfig,
-  WorkspaceDomain,
-  NotificationChannel,
-} from "../schema";
+import { allConfigTypes, type ConfigType, type ConfigTypes } from "./config-types";
+export { allConfigTypes, type ConfigType, type ConfigTypes } from "./config-types";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { getLog, requireDefined, rpc } from "juava";
 import { useWorkspace } from "../context";
@@ -16,30 +8,6 @@ import { z } from "zod";
 import { ConfigurationObjectLinkDbModel, ProfileBuilderDbModel, WorkspaceDbModel } from "../../prisma/schema";
 import { UseMutationResult } from "@tanstack/react-query";
 import { useRouter } from "next/router";
-
-export const allConfigTypes = [
-  "stream",
-  "service",
-  "function",
-  "destination",
-  "custom-image",
-  "domain",
-  "misc",
-  "notification",
-] as const;
-
-export type ConfigType = (typeof allConfigTypes)[number];
-
-export type ConfigTypes = {
-  stream: StreamConfig;
-  service: ServiceConfig;
-  function: FunctionConfig;
-  destination: DestinationConfig;
-  "custom-image": ConnectorImageConfig;
-  domain: WorkspaceDomain;
-  misc: MiscEntity;
-  notification: NotificationChannel;
-};
 
 export function asConfigType(type: string): ConfigType {
   if (!allConfigTypes.includes(type as any)) {

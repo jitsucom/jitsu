@@ -99,6 +99,27 @@ function safeReader(config: Record<string, any>) {
   }
 }
 
+/** Inspect a saved model's projection without returning warehouse rows. */
+export async function modelColumns(prisma: PrismaClient, workspaceId: string, modelId: string, signal?: AbortSignal) {
+  await assertModelsEnabled(prisma, workspaceId);
+  const object = await prisma.configurationObject.findFirst({
+    where: { id: modelId, workspaceId, type: "model", deleted: false },
+  });
+  if (!object) throw new ApiError("Model not found in this workspace", { status: 404 });
+  const model = ModelDefinition.parse(object.config);
+  const config = await getModelWarehouse(prisma, workspaceId, model.warehouseId);
+  const reader = safeReader(config);
+  try {
+    return { columns: await reader.columns(model.query, signal ?? AbortSignal.timeout(30_000)) };
+  } catch {
+    throw new ApiError("Could not load model columns. Check the warehouse connection, read permissions and query.", {
+      status: 400,
+    });
+  } finally {
+    await reader.close();
+  }
+}
+
 export async function previewModel(
   prisma: PrismaClient,
   workspaceId: string,

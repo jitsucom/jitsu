@@ -8,7 +8,10 @@ inspection, pausing and cleanup when the flag is disabled.
 One field-list form follows SyncEditor: Name, Model, Destination, scheduling,
 Stream, then stream-specific settings. The stream registry initially supports
 Google Ads audiences. There is no wizard, intermediate save, warehouse preview or
-Google preflight in this form. Save writes `ConfigurationObjectLink.data` once;
+Google preflight in this form. Selecting a model loads only column metadata for
+searchable identifier/consent selectors, retaining saved mappings if inspection
+fails. Save returns to the sync list (or opens logs with Run after save) and
+writes `ConfigurationObjectLink.data` once;
 the server still enforces workspace permissions and structural configuration rules.
 
 Audience settings select a new managed audience or an existing audience ID.

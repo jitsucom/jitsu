@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { Alert, Checkbox, Input, Select } from "antd";
-import type { ReverseSyncOptions } from "@jitsu/warehouse-query/src/schema";
+import type { ReverseSyncOptions, WarehouseColumn } from "@jitsu/warehouse-query/src/schema";
 import type { EditorItem } from "../FieldListEditorLayout/FieldListEditorLayout";
 
 export interface StreamEditor {
@@ -10,8 +10,44 @@ export interface StreamEditor {
   fields(
     options: ReverseSyncOptions,
     update: (patch: Partial<ReverseSyncOptions>) => void,
-    disabled: boolean
+    disabled: boolean,
+    source: { columns: WarehouseColumn[]; loading: boolean }
   ): EditorItem[];
+}
+function ColumnSelector({
+  value,
+  onChange,
+  columns,
+  loading,
+  disabled,
+  label,
+}: {
+  value?: string;
+  onChange: (value: string) => void;
+  columns: WarehouseColumn[];
+  loading: boolean;
+  disabled: boolean;
+  label: string;
+}) {
+  const choices = columns.map(column => ({ value: column.name, label: column.name, title: column.type }));
+  // Never silently discard a saved mapping when inspection fails or the schema changes.
+  if (value && !choices.some(column => column.value === value))
+    choices.unshift({ value, label: value, title: "Saved mapping" });
+  return (
+    <Select
+      aria-label={label}
+      className="w-80"
+      showSearch
+      allowClear
+      optionFilterProp="label"
+      placeholder="Select model column"
+      value={value || undefined}
+      options={choices}
+      loading={loading}
+      disabled={disabled}
+      onChange={value => onChange(value ?? "")}
+    />
+  );
 }
 function IdentifierMapping({
   raw,
@@ -19,12 +55,14 @@ function IdentifierMapping({
   mapping,
   disabled,
   onChange,
+  source,
 }: {
   raw: string;
   hashed: string;
   mapping: Record<string, string>;
   disabled: boolean;
   onChange: (mapping: Record<string, string>) => void;
+  source: { columns: WarehouseColumn[]; loading: boolean };
 }) {
   const [format, setFormat] = useState(mapping[hashed] ? "hashed" : "raw");
   const value = mapping[raw] ?? mapping[hashed] ?? "";
@@ -37,12 +75,12 @@ function IdentifierMapping({
   };
   return (
     <div className="flex gap-2">
-      <Input
+      <ColumnSelector
         disabled={disabled}
-        className="w-52"
-        placeholder="Column name"
+        label={`${raw} column`}
+        {...source}
         value={value}
-        onChange={e => change(e.target.value)}
+        onChange={value => change(value)}
       />
       <Select
         disabled={disabled}
@@ -73,7 +111,7 @@ const audience: StreamEditor = {
       exclusiveManagementConfirmed: false,
     },
   }),
-  fields(options, update, disabled) {
+  fields(options, update, disabled, source) {
     const settings = options.streamOptions;
     // Legacy migrated syncs retain their delivery configuration/revision verbatim.
     const target = settings.audience as { kind: string; displayName?: string; audienceId?: string } | undefined;
@@ -169,7 +207,7 @@ const audience: StreamEditor = {
     ]) {
       items.push({
         name: `${name} column`,
-        documentation: "Enter the model output column. Leave unused identifiers blank.",
+        documentation: "Choose a model output column. Leave unused identifiers blank.",
         component: (
           <IdentifierMapping
             key={raw}
@@ -177,6 +215,7 @@ const audience: StreamEditor = {
             hashed={hashed}
             mapping={options.mapping}
             disabled={disabled}
+            source={source}
             onChange={mapping => update({ mapping })}
           />
         ),
@@ -190,14 +229,14 @@ const audience: StreamEditor = {
         name: label,
         documentation: "Optional. Unmapped consent defaults to GRANTED; mapped values are checked during the run.",
         component: (
-          <Input
-            className="w-80"
+          <ColumnSelector
+            label={label}
+            {...source}
             disabled={disabled}
-            placeholder="Optional column name"
             value={options.mapping[field] ?? ""}
-            onChange={e => {
+            onChange={value => {
               const mapping = { ...options.mapping };
-              if (e.target.value) mapping[field] = e.target.value;
+              if (value) mapping[field] = value;
               else delete mapping[field];
               update({ mapping });
             }}
