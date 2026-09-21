@@ -1,12 +1,11 @@
 import React from "react";
-import { Alert, Button, Empty, Table, Tag } from "antd";
+import { Alert } from "antd";
 import { useRouter } from "next/router";
-import Link from "next/link";
 import { WorkspacePageLayout } from "../../../components/PageLayout/WorkspacePageLayout";
-import { useAppConfig, useWorkspace, useWorkspaceRole } from "../../../lib/context";
-import { ReverseSyncView } from "../../../lib/reverse-etl";
+import { useWorkspace } from "../../../lib/context";
 import { SyncEditor } from "../../../components/ReverseETL/SyncEditor";
-import { Failure, ReverseNotice, RunStatus, useReverseSyncs } from "../../../components/ReverseETL/shared";
+import { ReverseSyncsList } from "../../../components/ReverseETL/SyncsList";
+import { Failure, ReverseNotice, useReverseSyncs } from "../../../components/ReverseETL/shared";
 
 export default function ReverseSyncsPage() {
   return (
@@ -17,98 +16,29 @@ export default function ReverseSyncsPage() {
 }
 function ReverseSyncs() {
   const workspace = useWorkspace();
-  const role = useWorkspaceRole();
   const router = useRouter();
-  const maintenance = useAppConfig().maintenance?.active;
   const syncs = useReverseSyncs();
-  const enabled = workspace.featuresEnabled.includes("reverse-etl");
   const selected = syncs.data?.find(s => s.id === router.query.id);
-  const data = (syncs.data ?? []).filter(
-    s =>
-      (!router.query.modelId || s.fromId === router.query.modelId) &&
-      (!router.query.destinationId || s.toId === router.query.destinationId)
-  );
   return (
-    <div className="w-full max-w-6xl mx-auto px-4 md:px-8 py-6 min-w-0">
-      <ReverseNotice enabled={enabled} />
-      <Failure error={syncs.error} />
-      {router.query.id === "new" ? (
-        <SyncEditor key="new" reload={syncs.refetch} />
-      ) : router.query.id ? (
-        selected ? (
-          <SyncEditor key={selected.id} sync={selected} reload={syncs.refetch} />
-        ) : (
-          <Alert
-            type={syncs.isLoading ? "info" : "error"}
-            title={syncs.isLoading ? "Loading sync…" : "Sync not found"}
-          />
-        )
+    <>
+      <ReverseNotice enabled={workspace.featuresEnabled.includes("reverse-etl")} />
+      {router.query.id ? (
+        <div className="w-full max-w-6xl mx-auto px-4 md:px-8 py-6 min-w-0">
+          <Failure error={syncs.error} />
+          {router.query.id === "new" ? (
+            <SyncEditor key="new" reload={syncs.refetch} />
+          ) : selected ? (
+            <SyncEditor key={selected.id} sync={selected} reload={syncs.refetch} />
+          ) : (
+            <Alert
+              type={syncs.isLoading ? "info" : "error"}
+              title={syncs.isLoading ? "Loading sync…" : "Sync not found"}
+            />
+          )}
+        </div>
       ) : (
-        <>
-          <div className="flex flex-wrap justify-between gap-4 mb-6">
-            <div>
-              <h1 className="text-3xl text-textDark">Reverse syncs</h1>
-              <p className="text-textLight mt-2">Activate warehouse audiences in your advertising destinations.</p>
-            </div>
-            <Button
-              type="primary"
-              disabled={!enabled || !role.editEntities || !!maintenance}
-              onClick={() => router.push(`/${workspace.slugOrId}/reverse-syncs?id=new`)}
-            >
-              New reverse sync
-            </Button>
-          </div>
-          <Table<ReverseSyncView>
-            rowKey="id"
-            loading={syncs.isLoading}
-            dataSource={data}
-            scroll={{ x: 900 }}
-            locale={{
-              emptyText: (
-                <Empty description="Create a model, connect Google Ads, then configure your first reverse sync." />
-              ),
-            }}
-            columns={[
-              {
-                title: "Sync",
-                render: (_, s) => (
-                  <div>
-                    <Link className="font-medium" href={`/${workspace.slugOrId}/reverse-syncs?id=${s.id}`}>
-                      {s.options.name || s.modelName}
-                    </Link>
-                    <p className="text-textLight text-xs mt-1">
-                      {s.modelName} → {s.destinationName}
-                    </p>
-                  </div>
-                ),
-              },
-              {
-                title: "Enablement",
-                render: (_, s) => <Tag>{s.options.disabled ? "Paused" : "Enabled"}</Tag>,
-              },
-              {
-                title: "Mode",
-                render: (_, s) =>
-                  s.options.mode === "mirror"
-                    ? s.options.streamOptions.mirrorStrategy === "full-replace"
-                      ? "Mirror · full replacement"
-                      : "Mirror · snapshot diff"
-                    : "Add / remove",
-              },
-              {
-                title: "Schedule",
-                render: (_, s) => (
-                  <span>
-                    {s.options.schedule || "Manual only"}
-                    <small className="block text-textLight">{s.options.timezone || "Etc/UTC"}</small>
-                  </span>
-                ),
-              },
-              { title: "Last attempt", render: (_, s) => <RunStatus status={s.latestTask?.status} /> },
-            ]}
-          />
-        </>
+        <ReverseSyncsList />
       )}
-    </div>
+    </>
   );
 }

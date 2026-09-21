@@ -6,7 +6,7 @@ export default function ReverseLogsPage() {
   return (
     <WorkspacePageLayout>
       <div className="w-full max-w-6xl mx-auto px-4 md:px-8 py-6 min-w-0">
-        <ReverseRuns view="logs" />
+        <ReverseRuns />
       </div>
     </WorkspacePageLayout>
   );
