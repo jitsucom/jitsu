@@ -27,6 +27,62 @@ and does not set `storageClassName`, so they bind to whatever the cluster
 defaults to. With no default StorageClass they stay `Pending` and the install
 waits without a useful error.
 
+"A default StorageClass" is not the same as "a StorageClass exists" — see the
+EKS section below, where the cluster ships one that provisions nothing.
+
+### On EKS specifically
+
+Three things that do not come up on GKE. All three were hit during the JITSU-48
+acceptance run on EKS 1.31.
+
+**EKS ships a `gp2` StorageClass that provisions nothing, and it is not the
+default.** Its provisioner is `kubernetes.io/aws-ebs` — the in-tree provisioner,
+removed in modern Kubernetes. So `kubectl get storageclass` shows storage and
+none of it works, which is worse than having none at all. Install the
+`aws-ebs-csi-driver` addon and create a StorageClass marked default:
+
+```bash
+eksctl create addon --cluster <name> --name aws-ebs-csi-driver
+kubectl apply -f - <<'EOF'
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: gp3
+  annotations:
+    storageclass.kubernetes.io/is-default-class: "true"
+provisioner: ebs.csi.aws.com
+volumeBindingMode: WaitForFirstConsumer
+allowVolumeExpansion: true
+parameters:
+  type: gp3
+EOF
+```
+
+**AWS's own documented minimum IAM policy for eksctl is incomplete.** It omits
+`iam:ListOpenIDConnectProviders`. eksctl checks for an existing OIDC provider by
+listing providers; denied, it **silently disables IRSA** — a warning, not an
+error — and then skips every addon that needs it, including
+`aws-ebs-csi-driver`. Nothing fails; the addon is simply absent, and you only
+find out when every PVC hangs. Either grant that action, or create the addon
+with no `--service-account-role-arn` and give the node group
+`withAddonPolicies.ebs: true` so the controller uses the node instance role.
+
+**EBS volumes are AZ-bound, so `helm-deps` is a single-AZ point of failure.** A
+5Gi EBS volume lives in one availability zone and its pod can only ever be
+scheduled there. If that node goes away and its replacement lands in a different
+AZ, the pod stays `Pending` indefinitely:
+
+```
+FailedScheduling: 0/3 nodes are available: 1 node(s) were unschedulable,
+                  2 node(s) had volume node affinity conflict.
+```
+
+The blast radius is not just that pod — draining the node holding Postgres took
+console, ingest and rotor into `CrashLoopBackOff` behind it. For anything you
+care about, do not use `helm-deps`: point at RDS, MSK and a managed ClickHouse
+as described below. If you do use it, keep the node group in a single AZ so a
+replacement node can always reach the volumes.
+
 ### What the chart grants, and why
 
 Worth reading before you hand it to a cluster you care about.
@@ -195,8 +251,28 @@ at managed instances by disabling them there and setting the matching
 redirects, tracking snippet). Without an Ingress, set
 `env.console.NEXTAUTH_URL` and `env.console.JITSU_PUBLIC_URL` explicitly.
 
-Prod mode has not yet been verified end to end on a real cluster — that is the
-remaining work in `JITSU-48`.
+### Uninstalling
+
+`helm uninstall` is not a complete teardown. The operator and syncctl create
+workloads at runtime — the per-workspace functions-server Deployment and a
+CronJob per scheduled sync — so they carry no Helm ownership metadata and Helm
+does not remove them. They keep running, and the orphaned CronJobs keep firing
+and failing. Check for leftovers afterwards:
+
+```bash
+kubectl get deploy,cronjob -l '!app.kubernetes.io/managed-by'
+```
+
+Reinstalling, on the other hand, is safe: `jitsu-secrets` survives an uninstall
+and the token-generator reuses it rather than minting new tokens, so existing
+write keys and data keep working.
+
+### Verified
+
+Prod mode has been installed and exercised end to end on two real clusters:
+GKE Autopilot (18 Sep) and EKS 1.31 (21 Sep) — fresh install, an event through
+a UDF into ClickHouse, and a connector sync running as real Kubernetes pods,
+over an Ingress with a supplied certificate on both HTTP and HTTPS.
 
 ## Development mode
 
