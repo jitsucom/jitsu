@@ -110,7 +110,10 @@ export class ObjectSnapshots {
       return this.journal.local.replacementPage(after, limit);
     }
     if (kind === "removals") await this.assertRemovalsAllowed();
-    return this.journal.local.page(kind, after, limit, this.journal.head.snapshot.refreshBefore);
+    // Prepared identities already have durable requests, even while their receipts
+    // are pending. Only plan untouched additions; acceptance guards below still
+    // compare the full desired snapshot against acknowledged membership.
+    return this.journal.local.page(kind, after, limit, this.journal.head.snapshot.refreshBefore, true);
   }
   async assertRemovalsAllowed() {
     const snapshot = this.journal.head.snapshot;

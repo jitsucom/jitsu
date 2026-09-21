@@ -373,12 +373,16 @@ export async function resumeSnapshotMirror<C, Row, O>(input: MirrorOptions<C, Ro
       }
     }
     ctx.signal.throwIfAborted();
-    if (pending) return { delivery: "pending" as const, sourceSequence: status.nextSequence };
+    // Known async receipts need not block the rest of the upload. All uncertain
+    // requests were reconciled above; the snapshot excludes prepared identities.
+    // With no remaining additions, stay poll-only until receipts are accepted.
+    if (pending && !(await run.snapshots.page("additions", "", 1)).length)
+      return { delivery: "pending" as const, sourceSequence: status.nextSequence };
     // Recheck lifecycle state after callbacks and before authorizing provider-session attachment.
     await run.core.recoveryStatus();
     const writer = await recovery.attachWriter(ctx);
     validateWriter(writer);
-    return await deliver(env, writer, () => {}, true);
+    return await deliver(env, writer, () => {}, true, pending);
   } catch (error) {
     throw safeError(error);
   }
@@ -388,14 +392,17 @@ async function deliver<C, Row, O>(
   env: Awaited<ReturnType<typeof setup<C, Row, O>>>,
   writer: ReverseEtlWriter<JsonObject>,
   uncertain: (value: boolean) => void,
-  recovered = false
+  recovered = false,
+  pendingAdditions = false
 ) {
   const { run, stream, ctx, maxBytes, batchSize, asynchronous } = env;
   let sequence = (await run.core.recoveryStatus()).nextSequence;
   for (const kind of env.replacement ? (["additions"] as const) : (["additions", "removals"] as const)) {
     const action = kind === "additions" ? "upsert" : "remove";
     let after = "";
-    let pending = false;
+    // Earlier uploads must still block removals/native cleanup, even if every
+    // newly submitted batch is accepted synchronously in this attempt.
+    let pending = kind === "additions" && pendingAdditions;
     for (;;) {
       ctx.signal.throwIfAborted();
       const page = await run.snapshots.page(kind, after, Math.min(batchSize, 1000));

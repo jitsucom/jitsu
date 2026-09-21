@@ -486,6 +486,119 @@ describe("core snapshot mirror lifecycle", () => {
     expect(f.projections()).toBe(4); // Once for baseline and once per new source row, never on recovery.
   });
 
+  it.each([
+    ["snapshot-diff", "staged"],
+    ["snapshot-diff", "accepted"],
+    ["native-replace", "staged"],
+    ["native-replace", "accepted"],
+  ] as const)(
+    "resumes unsent %s uploads while earlier batches are pending and new batches are %s",
+    async (strategy, outcome) => {
+      const baseline = fixture();
+      await runSnapshotMirror(baseline.options(await session("baseline"), [record("old")]));
+      const f = fixture();
+      f.adapter.stream.capabilities.mirror = strategy;
+      f.adapter.batchDelivery = "asynchronous";
+      f.setBatch(async (_action, batch) => ({
+        outcomes: batch.records.map(row => ({ operationId: row.operationId, status: "staged" })),
+        remoteJobIds: [batch.batchId],
+      }));
+      const options = (run: Session, rows: MirrorSourceRecord[] = []) => ({
+        ...f.options(run, rows),
+        targetBaseline: strategy === "native-replace" ? ("replace" as const) : ("tracked" as const),
+      });
+      const run = await session("interrupted");
+      const acknowledge = run.delivery.acknowledge;
+      let submitted = 0;
+      run.delivery = {
+        ...run.delivery,
+        acknowledge: async (...args) => {
+          await acknowledge(...args);
+          if (++submitted === 2) throw new Error("worker stopped after second upload");
+        },
+      };
+      const rows = Array.from({ length: 7 }, (_, i) => record(`new-${i}`));
+      await expect(runSnapshotMirror(options(run, rows))).rejects.toThrow();
+      expect(f.requests.map(r => r.batch.records.length)).toEqual([2, 2]);
+      if (outcome === "accepted") f.setBatch(async (_action, batch) => accepted(batch));
+
+      f.calls.length = 0;
+      expect(await resumeSnapshotMirror(options(await takeover(run)), f.recovery)).toEqual({
+        delivery: "pending",
+        sourceSequence: 7,
+      });
+      expect(f.calls).toEqual(["reconcile", "reconcile", "attach", "upsert", "upsert"]);
+      expect(f.requests.map(r => r.batch.records.length)).toEqual([2, 2, 2, 1]);
+      const uploaded = f.requests.flatMap(r => r.batch.records);
+      expect(new Set(uploaded.map(r => r.operationId)).size).toBe(7);
+      expect(new Set(uploaded.map(r => r.row.member)).size).toBe(7);
+      expect(uploaded.map(r => r.sourceSequence)).toEqual([1, 2, 3, 4, 5, 6, 7]);
+      expect(await membership()).toContainEqual({ member: member("old"), value: "v" });
+      expect(await phase()).toBe("running");
+
+      // Repeated refreshes don't replay submitted rows or authorize deletions.
+      f.calls.length = 0;
+      expect((await resumeSnapshotMirror(options(await takeover(run)), f.recovery)).delivery).toBe("pending");
+      expect(f.calls.every(call => call === "reconcile")).toBe(true);
+      expect(f.requests).toHaveLength(4);
+
+      for (const { batch } of f.requests) f.receipts.set(batch.batchId, accepted(batch));
+      f.setBatch(async (_action, batch) => accepted(batch));
+      expect((await resumeSnapshotMirror(options(await takeover(run)), f.recovery)).delivery).toBe("accepted");
+      expect(await membership()).toHaveLength(7);
+      expect(await membership()).not.toContainEqual({ member: member("old"), value: "v" });
+      expect(f.projections()).toBe(7);
+      expect(f.requests.filter(r => r.action === "upsert")).toHaveLength(4);
+      expect(await phase()).toBe("complete");
+    }
+  );
+
+  it.each(["unknown", "missing-job-id", "rejected"] as const)(
+    "does not continue unsent uploads when reconciliation is %s",
+    async status => {
+      const f = fixture();
+      f.adapter.batchDelivery = "asynchronous";
+      f.setBatch(async (_action, batch) => ({
+        outcomes: batch.records.map(row => ({ operationId: row.operationId, status: "staged" })),
+        remoteJobIds: [batch.batchId],
+      }));
+      const run = await session();
+      const acknowledge = run.delivery.acknowledge;
+      run.delivery = {
+        ...run.delivery,
+        acknowledge: async (...args) => {
+          await acknowledge(...args);
+          throw new Error("worker stopped");
+        },
+      };
+      await expect(runSnapshotMirror(f.options(run, [record("a"), record("b"), record("c")]))).rejects.toThrow();
+      f.calls.length = 0;
+      await expect(
+        resumeSnapshotMirror(f.options(await takeover(run), []), {
+          ...f.recovery,
+          reconcileBatch: async batch => {
+            if (status === "unknown") throw new Error("submission cannot be reconciled");
+            return {
+              outcomes: batch.records.map(row =>
+                status === "rejected"
+                  ? {
+                      operationId: row.operationId,
+                      status: "rejected" as const,
+                      code: "invalid",
+                      safeReason: "Invalid",
+                    }
+                  : { operationId: row.operationId, status: "staged" as const }
+              ),
+            };
+          },
+        })
+      ).rejects.toThrow();
+      expect(f.calls).toEqual([]);
+      expect(f.requests).toHaveLength(1);
+      expect(await phase()).toBe("running");
+    }
+  );
+
   it("stops async reconciliation on a permanent rejection and preserves known accepted effects", async () => {
     const f = fixture();
     f.adapter.batchDelivery = "asynchronous";

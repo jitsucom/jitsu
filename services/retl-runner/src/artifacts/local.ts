@@ -87,11 +87,19 @@ export class LocalIndex {
         uncertain ? 1 : 0
       );
   }
-  page(kind: "additions" | "removals", after: string, limit: number, refreshBefore: string | null): Effect[] {
+  page(
+    kind: "additions" | "removals",
+    after: string,
+    limit: number,
+    refreshBefore: string | null,
+    unpreparedOnly = false
+  ): Effect[] {
     const query =
       kind === "additions"
         ? `SELECT d.value FROM desired d LEFT JOIN members m ON m.identity=d.identity WHERE d.identity>?
-         AND (m.value IS NULL OR m.payload<>d.payload OR m.uncertain=1 OR m.accepted_at<=?) ORDER BY d.identity LIMIT ?`
+         AND (m.value IS NULL OR m.payload<>d.payload OR m.uncertain=1 OR m.accepted_at<=?)
+         ${unpreparedOnly ? "AND NOT EXISTS(SELECT 1 FROM touched t WHERE t.identity=d.identity)" : ""}
+         ORDER BY d.identity LIMIT ?`
         : `SELECT m.value FROM members m WHERE m.value IS NOT NULL AND m.identity>?
          AND NOT EXISTS(SELECT 1 FROM desired d WHERE d.identity=m.identity) ORDER BY m.identity LIMIT ?`;
     const rows =
