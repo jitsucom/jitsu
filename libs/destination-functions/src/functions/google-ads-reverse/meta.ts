@@ -8,6 +8,13 @@ const customerId = z
   .transform(s => s.replace(/-/g, ""));
 export const googleAudienceMembershipDays = 540;
 export const googleAudienceRefreshAfterMs = 30 * 86400_000;
+// Optional, rather than defaulted, to preserve legacy provisioning-state bindings.
+export const GoogleAudienceType = z.enum(["CONTACT_INFO", "MOBILE_ADVERTISING_ID", "CRM_ID"]);
+const audienceFields = {
+  identifierType: GoogleAudienceType.optional(),
+  appId: z.string().min(1).max(255).optional(),
+  mobilePlatform: z.enum(["IOS", "ANDROID"]).optional(),
+};
 export const managedGoogleAudienceId = z.string().regex(/^retl-google-[a-f0-9]{64}$/);
 /** Runner-owned provisioning evidence, never accepted as a UI assertion. */
 export const GoogleManagedAudience = z
@@ -18,7 +25,8 @@ export const GoogleManagedAudience = z
     audienceId: z.string().regex(/^[1-9]\d{0,19}$/),
     integrationCode: z.string().regex(/^jitsu-retl-[a-f0-9]{64}$/),
     displayName: z.string().min(1).max(255),
-    membershipDays: z.literal(540),
+    membershipDays: z.number().int().min(1).max(540),
+    ...audienceFields,
   })
   .strict();
 export type GoogleManagedAudience = z.infer<typeof GoogleManagedAudience>;
@@ -33,9 +41,11 @@ export const GoogleAudienceOptions = z
   .object({
     audienceId: z.string().regex(/^[1-9]\d{0,19}$/),
     managedAudienceId: managedGoogleAudienceId.optional(),
+    membershipDays: z.number().int().min(1).max(540).optional(),
     customerMatchTermsAccepted: z.literal(true),
     mirrorStrategy: z.enum(["snapshot-diff", "full-replace"]).optional(),
     exclusiveManagementConfirmed: z.literal(true).optional(),
+    ...audienceFields,
   })
   .strict()
   .superRefine((options, ctx) => {
@@ -53,6 +63,8 @@ export const GoogleAudienceSettings = z
     customerMatchTermsAccepted: z.literal(true),
     exclusiveManagementConfirmed: z.literal(true).optional(),
     mirrorStrategy: z.enum(["snapshot-diff", "full-replace"]).optional(),
+    membershipDays: z.number().int().min(1).max(540).optional(),
+    ...audienceFields,
   })
   .strict()
   .superRefine((value, ctx) => {
@@ -63,13 +75,35 @@ export const GoogleAudienceSettings = z
       ctx.addIssue({ code: "custom", message: "Confirm exclusive audience management" });
   });
 
-const identifier = z.string().min(1).max(1024).nullable().optional();
+const identifier = z.string().max(1024).nullable().optional();
 const hash = z
   .string()
   .regex(/^[a-fA-F0-9]{64}$/)
   .nullable()
   .optional();
-const identifiers = z.object({ email: identifier, phone: identifier, hashedEmail: hash, hashedPhone: hash });
+const many = (schema: z.ZodTypeAny) =>
+  z
+    .union([schema, z.array(schema).max(10)])
+    .nullable()
+    .optional();
+export const GoogleContactFields = {
+  email: many(identifier),
+  phone: many(identifier),
+  hashedEmail: many(hash),
+  hashedPhone: many(hash),
+  phoneCountryCode: identifier,
+  firstName: identifier,
+  lastName: identifier,
+  hashedFirstName: hash,
+  hashedLastName: hash,
+  countryCode: identifier,
+  postalCode: identifier,
+};
+const identifiers = z.object({
+  ...GoogleContactFields,
+  crmId: identifier,
+  mobileAdvertisingId: many(identifier),
+});
 const consent = z.enum(["GRANTED", "DENIED"]);
 export const GoogleAudienceRow = identifiers
   .extend({

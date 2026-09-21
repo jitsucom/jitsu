@@ -1,4 +1,3 @@
-import { createHash } from "node:crypto";
 import { z } from "zod";
 import type {
   BatchResult,
@@ -20,58 +19,61 @@ import {
   googleAudienceMetadata,
   GoogleManagedAudience,
 } from "./meta";
+import { contactIdentifiers, values, userIdentifierSchema, hex, fail } from "./identifiers";
 
 type Context = ReverseEtlContext<JsonObject, JsonObject>;
 type Action = "upsert" | "remove";
 export type GoogleAccessToken = (signal: AbortSignal) => Promise<string>;
 const baseUrl = "https://datamanager.googleapis.com/v1/";
-const digest = (value: string) => createHash("sha256").update(value).digest("hex");
-const fail = (message: string): never => {
-  throw new ReverseEtlProtocolError(message);
-};
-
-function email(value: string) {
-  const normalized = value.toLowerCase().replace(/\s/g, "");
-  const parts = normalized.split("@");
-  if (parts.length !== 2 || !parts[0] || !parts[1].includes(".")) fail("Invalid Google audience email");
-  if (["gmail.com", "googlemail.com"].includes(parts[1])) parts[0] = parts[0].split("+")[0].replace(/\./g, "");
-  if (!parts[0]) fail("Invalid Google audience email");
-  return digest(parts.join("@"));
-}
-function phone(value: string) {
-  const normalized = value.replace(/[\s().-]/g, "");
-  if (!/^\+[1-9]\d{7,14}$/.test(normalized)) fail("Google audience phone requires E.164 with country code");
-  return digest(normalized);
-}
 
 /** Only this source-row boundary hashes. Journal/recovery schemas accept hashes only. */
 function normalize(row: z.infer<typeof GoogleAudienceRemoveRow>, action: Action): JsonObject {
-  if ((row.email && row.hashedEmail) || (row.phone && row.hashedPhone))
-    fail("Choose raw or hashed for each identifier");
-  const userIdentifiers: JsonObject[] = [];
-  if (row.email || row.hashedEmail)
-    userIdentifiers.push({ emailAddress: row.email ? email(row.email) : row.hashedEmail!.toLowerCase() });
-  if (row.phone || row.hashedPhone)
-    userIdentifiers.push({ phoneNumber: row.phone ? phone(row.phone) : row.hashedPhone!.toLowerCase() });
-  if (!userIdentifiers.length) fail("Google audience row requires an email or phone identifier");
+  const userIdentifiers = contactIdentifiers(row);
+  const mobileIds = [
+    ...new Set(
+      values(row.mobileAdvertisingId)
+        .map(v => v.trim())
+        .filter(Boolean)
+    ),
+  ];
+  if ([!!userIdentifiers.length, !!mobileIds.length, !!row.crmId].filter(Boolean).length !== 1)
+    fail("Map one audience identifier type: contact information, mobile IDs or CRM ID");
+  if (userIdentifiers.length > 10) fail("Google accepts at most 10 identifiers per audience member");
   return {
-    userData: { userIdentifiers },
+    ...(row.crmId
+      ? { userIdData: { userId: row.crmId } }
+      : mobileIds.length
+      ? { mobileData: { mobileIds } }
+      : { userData: { userIdentifiers } }),
     ...(action === "upsert"
       ? { consent: { adUserData: "CONSENT_GRANTED", adPersonalization: "CONSENT_GRANTED" } }
       : {}),
   };
 }
-const hex = z.string().regex(/^[a-f0-9]{64}$/);
-const wireIdentifiers = z
-  .array(z.union([z.object({ emailAddress: hex }).strict(), z.object({ phoneNumber: hex }).strict()]))
-  .min(1)
-  .max(2);
-const wireRemove = z.object({ userData: z.object({ userIdentifiers: wireIdentifiers }).strict() }).strict();
-const wireUpsert = wireRemove.extend({
-  consent: z
-    .object({ adUserData: z.literal("CONSENT_GRANTED"), adPersonalization: z.literal("CONSENT_GRANTED") })
-    .strict(),
-});
+const wireIdentifiers = z.array(userIdentifierSchema).min(1).max(10);
+const wireBody = {
+  userData: z.object({ userIdentifiers: wireIdentifiers }).strict().optional(),
+  mobileData: z
+    .object({ mobileIds: z.array(z.string().min(1).max(1024)).min(1).max(10) })
+    .strict()
+    .optional(),
+  userIdData: z
+    .object({ userId: z.string().min(1).max(1024) })
+    .strict()
+    .optional(),
+};
+const oneType = (row: { userData?: unknown; mobileData?: unknown; userIdData?: unknown }) =>
+  [row.userData, row.mobileData, row.userIdData].filter(Boolean).length === 1;
+const wireRemove = z.object(wireBody).strict().refine(oneType);
+const wireUpsert = z
+  .object({
+    ...wireBody,
+    consent: z
+      .object({ adUserData: z.literal("CONSENT_GRANTED"), adPersonalization: z.literal("CONSENT_GRANTED") })
+      .strict(),
+  })
+  .strict()
+  .refine(oneType);
 const wire = (action: Action, row: unknown) => {
   const parsed = (action === "upsert" ? wireUpsert : wireRemove).safeParse(row);
   if (!parsed.success) return fail("Invalid persisted Google audience payload");
@@ -81,13 +83,24 @@ const wire = (action: Action, row: unknown) => {
 /** Shared identifiers collide even if different source rows group email/phone differently. */
 export function projectGoogleAudience(action: Action, row: unknown) {
   const member = wire(action, row);
-  return member.userData.userIdentifiers.map(identifier => ({
-    identity: identifier as JsonObject,
+  const members = member.userData
+    ? member.userData.userIdentifiers.map(identifier => ({
+        identity: identifier as JsonObject,
+        body: { userData: { userIdentifiers: [identifier] } },
+      }))
+    : member.mobileData
+    ? member.mobileData.mobileIds.map(id => ({
+        identity: { mobileId: id },
+        body: { mobileData: { mobileIds: [id] } },
+      }))
+    : [{ identity: { crmId: member.userIdData!.userId }, body: { userIdData: member.userIdData! } }];
+  return members.map(({ identity, body }) => ({
+    identity: identity as JsonObject,
     upsert: {
-      userData: { userIdentifiers: [identifier] },
+      ...body,
       consent: { adUserData: "CONSENT_GRANTED", adPersonalization: "CONSENT_GRANTED" },
     } as JsonObject,
-    remove: { userData: { userIdentifiers: [identifier] } } as JsonObject,
+    remove: body as JsonObject,
   }));
 }
 
@@ -138,8 +151,20 @@ const statusResponse = z.object({
         requestStatus: z.string(),
         errorInfo: z.object({ errorCounts: z.array(counts).optional() }).optional(),
         warningInfo: z.object({ warningCounts: z.array(counts).optional() }).optional(),
-        audienceMembersIngestionStatus: z.object({ userDataIngestionStatus: stats.optional() }).optional(),
-        audienceMembersRemovalStatus: z.object({ userDataRemovalStatus: stats.optional() }).optional(),
+        audienceMembersIngestionStatus: z
+          .object({
+            userDataIngestionStatus: stats.optional(),
+            mobileDataIngestionStatus: stats.optional(),
+            userIdDataIngestionStatus: stats.optional(),
+          })
+          .optional(),
+        audienceMembersRemovalStatus: z
+          .object({
+            userDataRemovalStatus: stats.optional(),
+            mobileDataRemovalStatus: stats.optional(),
+            userIdDataRemovalStatus: stats.optional(),
+          })
+          .optional(),
         removeAllAudienceMembersStatus: z.object({}).strict().optional(),
         eventsIngestionStatus: z.unknown().optional(),
       })
@@ -211,6 +236,10 @@ export function createGoogleDataManager(
     }
     if (!batch.records.length || batch.records.length > 1000) fail("Invalid Google audience batch size");
     const audienceMembers = batch.records.map(record => wire(action, record.row));
+    const type = GoogleAudienceOptions.parse(ctx.options).identifierType ?? "CONTACT_INFO";
+    const key = type === "CRM_ID" ? "userIdData" : type === "MOBILE_ADVERTISING_ID" ? "mobileData" : "userData";
+    if (audienceMembers.some(member => !member[key]))
+      fail("Audience mapping does not match the selected identifier type");
     ctx.signal.throwIfAborted();
     let token: string;
     try {
@@ -290,8 +319,15 @@ export function createGoogleDataManager(
           safeReason: "Google rejected all records in this request",
         })),
       };
+    const type = GoogleAudienceOptions.parse(ctx.options).identifierType ?? "CONTACT_INFO";
+    const ingestion = status.audienceMembersIngestionStatus;
+    const removal = status.audienceMembersRemovalStatus;
     const recordCount =
-      action === "upsert"
+      type === "CRM_ID"
+        ? (action === "upsert" ? ingestion?.userIdDataIngestionStatus : removal?.userIdDataRemovalStatus)?.recordCount
+        : type === "MOBILE_ADVERTISING_ID"
+        ? (action === "upsert" ? ingestion?.mobileDataIngestionStatus : removal?.mobileDataRemovalStatus)?.recordCount
+        : action === "upsert"
         ? status.audienceMembersIngestionStatus?.userDataIngestionStatus?.recordCount
         : status.audienceMembersRemovalStatus?.userDataRemovalStatus?.recordCount;
     if (
@@ -432,16 +468,22 @@ export function createGoogleDataManager(
     rowType: GoogleAudienceRow.transform((row, ctx) => {
       try {
         return normalize(row, "upsert");
-      } catch {
-        ctx.addIssue({ code: "custom", message: "Invalid Google audience identifiers" });
+      } catch (error) {
+        ctx.addIssue({
+          code: "custom",
+          message: error instanceof ReverseEtlProtocolError ? error.message : "Invalid Google audience identifiers",
+        });
         return z.NEVER;
       }
     }) as z.ZodType<JsonObject>,
     removeRowType: GoogleAudienceRemoveRow.transform((row, ctx) => {
       try {
         return normalize(row, "remove");
-      } catch {
-        ctx.addIssue({ code: "custom", message: "Invalid Google audience identifiers" });
+      } catch (error) {
+        ctx.addIssue({
+          code: "custom",
+          message: error instanceof ReverseEtlProtocolError ? error.message : "Invalid Google audience identifiers",
+        });
         return z.NEVER;
       }
     }) as z.ZodType<JsonObject>,

@@ -17,10 +17,39 @@ const userList = z.object({
     .object({
       uploadKeyTypes: z.array(z.string()),
       contactIdInfo: z.object({ dataSourceType: z.string() }).optional(),
+      mobileIdInfo: z
+        .object({ dataSourceType: z.string().optional(), appId: z.string(), keySpace: z.string() })
+        .optional(),
+      userIdInfo: z.object({ dataSourceType: z.string().optional() }).optional(),
     })
     .optional(),
 });
-export type GoogleAudienceIntent = Pick<GoogleManagedAudience, "displayName" | "integrationCode">;
+export type GoogleAudienceIntent = Pick<GoogleManagedAudience, "displayName" | "integrationCode"> &
+  Partial<Pick<GoogleManagedAudience, "identifierType" | "appId" | "mobilePlatform" | "membershipDays">>;
+function listInfo(intent: GoogleAudienceIntent) {
+  const dataSourceType = "DATA_SOURCE_TYPE_FIRST_PARTY";
+  if (intent.identifierType === "MOBILE_ADVERTISING_ID") {
+    if (!intent.appId || !intent.mobilePlatform)
+      throw new ReverseEtlProtocolError("Mobile audiences require an App ID and mobile platform");
+    return {
+      uploadKeyTypes: ["MOBILE_ID"],
+      mobileIdInfo: { dataSourceType, appId: intent.appId, keySpace: intent.mobilePlatform },
+    };
+  }
+  if (intent.identifierType === "CRM_ID") return { uploadKeyTypes: ["USER_ID"], userIdInfo: { dataSourceType } };
+  return { uploadKeyTypes: ["CONTACT_ID"], contactIdInfo: { dataSourceType } };
+}
+function matchesType(list: z.infer<typeof userList>, expected: GoogleAudienceIntent) {
+  const info = listInfo(expected);
+  const actual = list.ingestedUserListInfo;
+  return (
+    !!actual?.uploadKeyTypes.includes(info.uploadKeyTypes[0]) &&
+    (!info.contactIdInfo || actual.contactIdInfo?.dataSourceType === info.contactIdInfo.dataSourceType) &&
+    (!info.mobileIdInfo ||
+      (actual.mobileIdInfo?.appId === info.mobileIdInfo.appId &&
+        actual.mobileIdInfo?.keySpace === info.mobileIdInfo.keySpace))
+  );
+}
 
 /** Provider resource APIs only. The console owns durable creation intent/recovery. */
 export function createGoogleAudienceManagement(
@@ -71,10 +100,9 @@ export function createGoogleAudienceManagement(
       list.readOnly === true ||
       list.accessReason !== "OWNED" ||
       list.membershipStatus !== "OPEN" ||
-      list.membershipDuration !== `${googleAudienceMembershipDays * 86400}s` ||
+      list.membershipDuration !== `${(expected.membershipDays ?? googleAudienceMembershipDays) * 86400}s` ||
       list.ingestedUserListInfo?.uploadKeyTypes.length !== 1 ||
-      list.ingestedUserListInfo.uploadKeyTypes[0] !== "CONTACT_ID" ||
-      list.ingestedUserListInfo.contactIdInfo?.dataSourceType !== "DATA_SOURCE_TYPE_FIRST_PARTY"
+      !matchesType(list, expected)
     )
       return fail();
     // Estimated size is deliberately ignored: it cannot establish an empty baseline.
@@ -83,7 +111,7 @@ export function createGoogleAudienceManagement(
   return {
     // Read-only validation for additions/removals; this does not establish a mirror baseline.
     // https://developers.google.com/data-manager/api/reference/rest/v1/accountTypes.accounts.userLists
-    async verifyExisting(audienceId: string, signal: AbortSignal) {
+    async verifyExisting(audienceId: string, signal: AbortSignal, options: Partial<GoogleAudienceIntent> = {}) {
       const targetId = id.parse(audienceId);
       const parsed = userList.safeParse(await call(`${parent}/userLists/${targetId}`, signal));
       if (!parsed.success) return fail();
@@ -94,8 +122,7 @@ export function createGoogleAudienceManagement(
         list.readOnly === true ||
         list.accessReason !== "OWNED" ||
         list.membershipStatus !== "OPEN" ||
-        !list.ingestedUserListInfo?.uploadKeyTypes.includes("CONTACT_ID") ||
-        list.ingestedUserListInfo.contactIdInfo?.dataSourceType !== "DATA_SOURCE_TYPE_FIRST_PARTY"
+        !matchesType(list, { displayName: "", integrationCode: "", ...options })
       )
         return fail();
       return { audienceId: list.id, displayName: list.displayName };
@@ -106,12 +133,9 @@ export function createGoogleAudienceManagement(
           displayName: intent.displayName,
           integrationCode: intent.integrationCode,
           description: "Managed exclusively by Jitsu Reverse ETL; do not upload members outside Jitsu.",
-          membershipDuration: `${googleAudienceMembershipDays * 86400}s`,
+          membershipDuration: `${(intent.membershipDays ?? googleAudienceMembershipDays) * 86400}s`,
           membershipStatus: "OPEN",
-          ingestedUserListInfo: {
-            uploadKeyTypes: ["CONTACT_ID"],
-            contactIdInfo: { dataSourceType: "DATA_SOURCE_TYPE_FIRST_PARTY" },
-          },
+          ingestedUserListInfo: listInfo(intent),
         }),
         intent
       );
