@@ -7,7 +7,13 @@ import { WJitsuButton } from "../JitsuButton/JitsuButton";
 
 export function ReverseTaskStatus({ task }: { task?: ReverseTask | null }) {
   const [open, setOpen] = useState(false);
-  if (!task) return <Tag style={{ marginRight: 0 }}>NO RUNS</Tag>;
+  if (!task)
+    return (
+      <div className="flex flex-col items-end">
+        <Tag style={{ marginRight: 0 }}>NO RUNS</Tag>
+        <span className="text-xxs text-gray-500">&nbsp;</span>
+      </div>
+    );
   const stats = task.stats;
   const rows = stats
     ? [

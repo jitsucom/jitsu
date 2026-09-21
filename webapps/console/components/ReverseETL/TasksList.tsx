@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { DatePicker, Select, Table, Tooltip } from "antd";
+import { DatePicker, Select, Table, Tag, Tooltip } from "antd";
 import { CalendarIcon, Edit3, ListMinusIcon, Play, RefreshCw, UserIcon, XCircle } from "lucide-react";
 import dayjs from "dayjs";
 import utc from "dayjs/plugin/utc";
@@ -12,7 +12,8 @@ import { ReverseTask } from "../../lib/reverse-etl";
 import { useAppConfig, useWorkspace } from "../../lib/context";
 import { confirmOp } from "../../lib/ui";
 import { ButtonGroup, ButtonProps } from "../ButtonGroup/ButtonGroup";
-import { JitsuButton, WJitsuButton } from "../JitsuButton/JitsuButton";
+import { JitsuButton } from "../JitsuButton/JitsuButton";
+import { BackButton } from "../BackButton/BackButton";
 import { Failure, useReverseSyncs } from "./shared";
 import { ReverseSyncTitle } from "./SyncTitle";
 import { ReverseTaskStatus } from "./TaskStatus";
@@ -94,6 +95,7 @@ export function ReverseTasksList() {
       },
       {
         label: "Edit",
+        collapsed: true,
         icon: <Edit3 className="w-4 h-4" />,
         href: `/reverse-syncs?id=${task.sync_id}`,
         requiredPermission: "editEntities",
@@ -102,6 +104,7 @@ export function ReverseTasksList() {
       ["RUNNING", "WAITING"].includes(task.status)
         ? {
             label: "Cancel",
+            collapsed: true,
             icon: <XCircle className="w-4 h-4" />,
             danger: true,
             requiredPermission: "editEntities",
@@ -110,6 +113,7 @@ export function ReverseTasksList() {
           }
         : {
             label: "Run",
+            collapsed: true,
             icon: <Play className="w-4 h-4" />,
             requiredPermission: "editEntities",
             disabled:
@@ -125,46 +129,93 @@ export function ReverseTasksList() {
   };
   return (
     <>
-      <h1 className="text-3xl pb-6">Reverse Sync Tasks</h1>
-      <div className="flex flex-wrap items-center gap-3 pb-6">
-        <Select
-          className="min-w-64"
-          placeholder="All reverse syncs"
-          allowClear
-          showSearch
-          optionFilterProp="search"
-          value={filters.syncId}
-          options={syncs.data?.map(s => ({
-            value: s.id,
-            search: `${s.id} ${s.modelName} ${s.destinationName}`,
-            label: <ReverseSyncTitle sync={s} syncId={s.id} link={false} />,
-          }))}
-          onChange={syncId => void setFilters({ syncId })}
-        />
-        <Select
-          className="w-44"
-          placeholder="All statuses"
-          allowClear
-          value={filters.status}
-          options={statuses.map(value => ({ value, label: value }))}
-          onChange={status => void setFilters({ status })}
-        />
-        <DatePicker.RangePicker
-          showTime
-          allowEmpty={[true, true]}
-          placeholder={["From (UTC)", "To (UTC)"]}
-          value={[filters.from ? dayjs.utc(filters.from) : null, filters.to ? dayjs.utc(filters.to) : null]}
-          onChange={dates =>
-            void setFilters({ from: dates?.[0]?.utc(true).toISOString(), to: dates?.[1]?.utc(true).toISOString() })
-          }
-        />
-        <JitsuButton
-          icon={<RefreshCw className={`w-4 h-4 ${tasks.isFetching ? "animate-spin" : ""}`} />}
-          onClick={() => void tasks.refetch()}
-        >
-          Refresh
-        </JitsuButton>
-        <WJitsuButton href="/reverse-syncs">Back to syncs</WJitsuButton>
+      <div className="flex mb-4">
+        <h1 className="text-3xl">Reverse Sync Tasks</h1>
+      </div>
+      <div className="flex flex-row justify-between items-center gap-4 pb-3.5">
+        <div>
+          <div className="flex flex-row gap-4">
+            <div>
+              <span>Syncs: </span>
+              <Select
+                popupMatchSelectWidth={false}
+                notFoundContent={<div>Project doesn't have configured Reverse Syncs</div>}
+                style={{ width: 300 }}
+                value={filters.syncId ?? "all"}
+                options={[
+                  { value: "all", label: "All", search: "all" },
+                  ...(syncs.data ?? []).map(s => ({
+                    value: s.id,
+                    search: `${s.id} ${s.modelName} ${s.destinationName}`,
+                    label: <ReverseSyncTitle sync={s} syncId={s.id} link={false} />,
+                  })),
+                ]}
+                showSearch={{
+                  autoClearSearchValue: false,
+                  filterOption: (input, option) => option?.search.toLowerCase().includes(input.toLowerCase()) || false,
+                }}
+                onChange={syncId => void setFilters({ syncId: syncId === "all" ? undefined : syncId })}
+              />
+            </div>
+            <div>
+              <span>Statuses: </span>
+              <Select
+                style={{ width: 120 }}
+                value={filters.status ?? "all"}
+                options={[
+                  { value: "all", label: "All" },
+                  ...statuses.map(value => ({
+                    value,
+                    label: (
+                      <Tag
+                        color={
+                          value === "FAILED"
+                            ? "red"
+                            : value === "SUCCESS"
+                            ? "green"
+                            : ["RUNNING", "WAITING"].includes(value)
+                            ? "blue"
+                            : undefined
+                        }
+                      >
+                        {value}
+                      </Tag>
+                    ),
+                  })),
+                ]}
+                onChange={status => void setFilters({ status: status === "all" ? undefined : status })}
+              />
+            </div>
+            <div>
+              <span>Date range: </span>
+              <DatePicker.RangePicker
+                allowEmpty={[true, true]}
+                showTime={{ format: "HH:mm", defaultValue: [dayjs().startOf("day"), dayjs().endOf("day")] }}
+                format={date => date.format("MMM DD, HH:mm")}
+                value={[filters.from ? dayjs.utc(filters.from) : null, filters.to ? dayjs.utc(filters.to) : null]}
+                onChange={dates =>
+                  void setFilters({
+                    from: dates?.[0]?.utc(true).set("millisecond", 0).toISOString(),
+                    to: dates?.[1]?.utc(true).set("millisecond", 999).toISOString(),
+                  })
+                }
+              />
+            </div>
+          </div>
+        </div>
+        <div>
+          <div className="flex flex-row">
+            <JitsuButton
+              icon={<RefreshCw className={`w-6 h-6 ${tasks.isFetching ? "animate-spin" : ""}`} />}
+              type="link"
+              size="small"
+              onClick={() => void tasks.refetch()}
+            >
+              Refresh
+            </JitsuButton>
+            <BackButton href={`/${workspace.slugOrId}/reverse-syncs`} />
+          </div>
+        </div>
       </div>
       <Failure error={error || tasks.error || syncs.error} />
       <Table<ReverseTask>
@@ -174,11 +225,9 @@ export function ReverseTasksList() {
         loading={tasks.isLoading || busy}
         dataSource={tasks.data?.tasks ?? []}
         pagination={false}
-        scroll={{ x: 1200 }}
         columns={[
           {
             title: "",
-            width: 35,
             render: (_, task) => (
               <Tooltip
                 title={
@@ -205,6 +254,7 @@ export function ReverseTasksList() {
           },
           {
             title: "Started (UTC)",
+            width: "12%",
             className: "whitespace-nowrap",
             render: (_, task) => (
               <Tooltip title={task.started_at.toISOString()}>
@@ -219,12 +269,18 @@ export function ReverseTasksList() {
           },
           {
             title: "Sync",
+            className: "w-full",
             render: (_, task) => (
-              <ReverseSyncTitle sync={syncs.data?.find(s => s.id === task.sync_id)} syncId={task.sync_id} />
+              <ReverseSyncTitle
+                sync={syncs.data?.find(s => s.id === task.sync_id)}
+                syncId={task.sync_id}
+                className="max-w-sm xl:max-w-fit flex-wrap"
+              />
             ),
           },
           {
             title: "Duration",
+            width: "12%",
             className: "whitespace-nowrap",
             render: (_, task) =>
               `${Math.max(
@@ -237,11 +293,13 @@ export function ReverseTasksList() {
           },
           {
             title: "Status",
+            width: "5%",
             className: "text-right whitespace-nowrap",
             render: (_, task) => <ReverseTaskStatus task={task} />,
           },
           {
             title: "Batches",
+            width: "12%",
             className: "text-right",
             render: (_, task) =>
               task.stats ? (
@@ -255,17 +313,14 @@ export function ReverseTasksList() {
           },
           {
             title: "Records",
-            className: "text-right whitespace-nowrap",
+            width: "12%",
+            className: "text-right",
             render: (_, task) =>
               task.stats ? (
-                <Tooltip title="API records, not matched audience size">
-                  <div>
-                    {task.stats.records.accepted.toLocaleString()} accepted
-                    <div className="text-xxs text-gray-500">
-                      {task.stats.records.pending.toLocaleString()} pending ·{" "}
-                      {task.stats.records.rejected.toLocaleString()} rejected
-                    </div>
-                  </div>
+                <Tooltip
+                  title={`${task.stats.records.accepted.toLocaleString()} accepted · ${task.stats.records.pending.toLocaleString()} pending · ${task.stats.records.rejected.toLocaleString()} rejected API records, not matched audience size. Click status for details.`}
+                >
+                  <span>{task.stats.records.accepted.toLocaleString()}</span>
                 </Tooltip>
               ) : (
                 "—"

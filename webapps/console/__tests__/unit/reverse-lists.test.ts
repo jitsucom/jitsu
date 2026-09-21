@@ -109,19 +109,26 @@ describe("Reverse ETL standard lists", () => {
   it("uses only endpoints as the title and greys disabled rows without mode or schedule labels", () => {
     state.syncs[0].options.disabled = true;
     state.syncs[0].options.schedule = "0 * * * *";
-    mount(ReverseSyncsList);
+    const { container } = mount(ReverseSyncsList);
+    expect(container.querySelector(".ant-table-small")).toBeNull();
+    expect((container.querySelector(".ant-table-content") as HTMLElement).style.overflowX).not.toBe("auto");
     expect(screen.getByText("Audience").closest("tr")?.classList.contains("opacity-50")).toBe(true);
     for (const label of ["Customers", "Mirror", "0 * * * *", "PAUSED", "ENABLED", "Manual only"])
       expect(screen.queryByText(label)).toBeNull();
   });
   it("passes bookmarked filters to the server and changes status without losing other filters", async () => {
     state.route.query = { syncId: "sync", status: "SUCCESS", from: "2026-01-01T00:00:00.000Z" };
-    mount(ReverseTasksList);
+    const { container } = mount(ReverseTasksList);
     await screen.findByText("10s");
+    expect((container.querySelector(".ant-table-content") as HTMLElement).style.overflowX).not.toBe("auto");
+    expect(screen.getByText("Syncs:")).toBeTruthy();
+    expect(screen.getByText("Statuses:")).toBeTruthy();
+    expect(screen.getByText("Date range:")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Back", exact: true })).toBeTruthy();
     expect(screen.queryByText(/Customers/)).toBeNull();
     expect(state.rpc).toHaveBeenCalledWith("/api/ws/reverse-etl/tasks", { query: state.route.query });
     fireEvent.mouseDown(screen.getAllByRole("combobox")[1]);
-    fireEvent.click(await screen.findByText("FAILED", { selector: ".ant-select-item-option-content" }));
+    fireEvent.click(await screen.findByText("FAILED", { selector: ".ant-tag" }));
     expect(state.route.push).toHaveBeenCalledWith(
       { pathname: "/ws/reverse-syncs/tasks", query: { ...state.route.query, status: "FAILED" } },
       undefined,

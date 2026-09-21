@@ -11,15 +11,17 @@ export function ReverseSyncTitle({
   sync,
   syncId,
   link = true,
+  className = "",
 }: {
   sync?: ReverseSyncView;
   syncId: string;
   link?: boolean;
+  className?: string;
 }) {
   const workspace = useWorkspace();
   const destinations = useConfigObjectList("destination");
   const content = sync ? (
-    <div className="flex gap-2 items-center">
+    <div className={`flex gap-2 items-center ${className}`}>
       <ModelTitle size="small" modelId={sync.fromId} title={sync.modelName} />
       <ArrowRight className="w-4 h-4 text-textLight" />
       <DestinationTitle size="small" destination={destinations.find(d => d.id === sync.toId)} />

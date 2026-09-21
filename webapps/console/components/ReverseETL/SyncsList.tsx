@@ -144,19 +144,17 @@ export function ReverseSyncsList() {
       </div>
       <Failure error={error || syncs.error} />
       <Table<ReverseSyncView>
-        size="small"
         rowKey="id"
         rowClassName={sync => (sync.options.disabled ? "opacity-50" : "")}
         className="border border-backgroundDark rounded-lg"
         loading={syncs.isLoading || !!busy}
         pagination={false}
-        scroll={{ x: 1000 }}
         dataSource={data}
         locale={{ emptyText: <Empty description="No reverse syncs match this view" /> }}
         columns={[
           {
             title: "From",
-            width: "30%",
+            width: "35%",
             sorter: (a, b) => a.modelName.localeCompare(b.modelName),
             render: (_, s) => (
               <Link href={`/${workspace.slugOrId}/reverse-syncs?id=${s.id}`}>
@@ -166,7 +164,7 @@ export function ReverseSyncsList() {
           },
           {
             title: "To",
-            width: "30%",
+            width: "35%",
             sorter: (a, b) => a.destinationName.localeCompare(b.destinationName),
             render: (_, s) => (
               <Link href={`/${workspace.slugOrId}/reverse-syncs?id=${s.id}`}>
@@ -188,10 +186,12 @@ export function ReverseSyncsList() {
               </div>
             ),
             className: "text-right whitespace-nowrap",
+            width: "4%",
             render: (_, s) => <ReverseTaskStatus task={s.latestTask} />,
           },
           {
             title: "Started (UTC)",
+            width: "12%",
             className: "text-right whitespace-nowrap",
             render: (_, s) =>
               s.latestTask && (
