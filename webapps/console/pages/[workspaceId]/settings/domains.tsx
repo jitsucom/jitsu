@@ -2,6 +2,7 @@ import React, { useCallback } from "react";
 import { useWorkspace, useWorkspaceRole } from "../../../lib/context";
 import { WorkspacePageLayout } from "../../../components/PageLayout/WorkspacePageLayout";
 import { useBilling } from "../../../components/Billing/BillingProvider";
+import { canUseCustomDomains } from "../../../lib/shared/plan-features";
 import { LoadingAnimation } from "../../../components/GlobalLoader/GlobalLoader";
 import { UpgradeDialog } from "../../../components/Billing/UpgradeDialog";
 import { DomainsEditor } from "../../../components/DomainsEditor/DomainsEditor";
@@ -43,7 +44,11 @@ const WorkspaceDomainsComponent: React.FC<any> = () => {
   if (billing.loading) {
     return <LoadingAnimation />;
   }
-  if (billing.enabled && billing.settings?.planId === "free" && !workspace.featuresEnabled.includes("misc")) {
+  // JITSU-228: resolved through the shared helper so this page, the site-level
+  // editor and the API gate cannot disagree. Previously an inline
+  // planId === "free" test, which is why the server gate had to learn about
+  // the `misc` grant this page already honoured.
+  if (billing.enabled && !canUseCustomDomains(billing.settings, workspace.featuresEnabled)) {
     return <UpgradeDialog featureDescription={"Workspace Domains"} />;
   }
 

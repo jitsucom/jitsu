@@ -280,7 +280,8 @@ export const DomainsEditor: React.FC<
   // have no plans, hence the billing.enabled guard. Domains already configured
   // stay listed and removable below — only adding one is gated, which is what
   // grandfathers a workspace that had a domain before the gate existed.
-  const planTooLow = billing.enabled && !billing.loading && !canUseCustomDomains(billing.settings);
+  const planTooLow =
+    billing.enabled && !billing.loading && !canUseCustomDomains(billing.settings, workspace.featuresEnabled);
   const add = async () => {
     setAddPending(true);
     try {

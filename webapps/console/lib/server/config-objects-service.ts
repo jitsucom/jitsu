@@ -215,7 +215,7 @@ export class ConfigObjectsService {
     }
     object = await configObjectType.inputFilter(object, "create", workspace);
     // JITSU-228: after inputFilter, so the domain is compared in its normalised form.
-    await assertCustomDomainsAllowed(user, workspaceId, type, object, undefined, opts.req);
+    await assertCustomDomainsAllowed(user, workspace, type, object, undefined, opts.req);
     const inspectedWarehouse =
       type === "model" ? await validateModelForSave(this.prisma, workspaceId, object) : undefined;
     const id = object.id;
@@ -312,7 +312,7 @@ export class ConfigObjectsService {
     const parsed = parseObject(type, merged);
     const filtered = await configObjectType.inputFilter(parsed, "update", workspace);
     // JITSU-228: only a domain that is not already on the object is refused.
-    await assertCustomDomainsAllowed(user, workspaceId, type, filtered, prevVersion, opts.req);
+    await assertCustomDomainsAllowed(user, workspace, type, filtered, prevVersion, opts.req);
     const inspectedWarehouse =
       type === "model" ? await validateModelForSave(this.prisma, workspaceId, filtered) : undefined;
     delete filtered.id;

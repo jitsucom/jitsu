@@ -117,6 +117,20 @@ describe("custom domains gate, through ConfigObjectsService", () => {
     expect(billingCalls).toBe(0);
   });
 
+  // A workspace deliberately granted domains by hand keeps them even when the
+  // plan flag says no. settings/domains.tsx has honoured `misc` since before
+  // this gate; a gate that ignored it would break those workspaces.
+  it("honours the per-workspace `misc` grant over an explicit plan denial", async () => {
+    const { user, workspace } = await seedWorkspace();
+    await deps().prisma.workspace.update({ where: { id: workspace.id }, data: { featuresEnabled: ["misc"] } });
+    onPlan("free", { customDomainsEnabled: false });
+    billingCalls = 0;
+    await expect(
+      svc().create(user, workspace.id, "stream", { id: oid("s"), name: "site", domains: [dom()] })
+    ).resolves.toBeTruthy();
+    expect(billingCalls).toBe(0);
+  });
+
   // The ship-dark property itself: until the flag lands in Stripe plan_data,
   // deploying this code changes nothing for a free workspace. That is what
   // lets it merge without contradicting the pricing page.

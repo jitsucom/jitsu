@@ -10,6 +10,14 @@
  * keep this importable from both sides without a cycle through lib/schema.
  */
 
+/**
+ * Per-workspace grant that predates this gate: an operator adds "misc" to a
+ * workspace's featuresEnabled to give that one customer workspace domains
+ * regardless of plan. settings/domains.tsx has honoured it since before
+ * JITSU-228, so the gate must too or those workspaces break.
+ */
+export const WORKSPACE_DOMAINS_FEATURE = "misc";
+
 /** The function id the connection editor writes for the Identity Stitching toggle. */
 export const IDENTITY_STITCHING_FUNCTION_ID = "builtin.transformation.user-recognition";
 
@@ -74,7 +82,16 @@ function isNegotiatedPlan(billing: PlanFeatureFacts): boolean {
  * Stripe dashboard that workspace reads as free — one more reason not to
  * derive denial from the plan id here.
  */
-export function canUseCustomDomains(billing: PlanFeatureFacts | null | undefined): boolean {
+export function canUseCustomDomains(
+  billing: PlanFeatureFacts | null | undefined,
+  featuresEnabled?: readonly string[] | null
+): boolean {
+  // Checked before the plan: the flag exists precisely to override it, and an
+  // explicit customDomainsEnabled:false on the plan must not revoke a grant
+  // someone made by hand for one workspace.
+  if ((featuresEnabled ?? []).includes(WORKSPACE_DOMAINS_FEATURE)) {
+    return true;
+  }
   if (!billing) {
     return true;
   }

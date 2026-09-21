@@ -7,6 +7,7 @@ import {
   canUseIdentityStitching,
   hasIdentityStitching,
   IDENTITY_STITCHING_FUNCTION_ID,
+  WORKSPACE_DOMAINS_FEATURE,
 } from "../shared/plan-features";
 import { eeAuthHeadersOrServiceToken, getEeConnection, isEEAvailable, serviceTokenHeaders } from "./ee";
 
@@ -82,7 +83,7 @@ export function domainsOf(type: string, config: any): string[] {
  */
 export async function assertCustomDomainsAllowed(
   user: SessionUser,
-  workspaceId: string,
+  workspace: { id: string; featuresEnabled?: readonly string[] | null },
   type: string,
   next: any,
   prev?: any,
@@ -99,8 +100,14 @@ export async function assertCustomDomainsAllowed(
   if (added.length === 0) {
     return;
   }
-  const billing = await fetchPlan(workspaceId, user, req);
-  if (!canUseCustomDomains(billing)) {
+  // Checked before the billing round-trip: a workspace holding the grant needs
+  // no plan lookup at all. Tests the flag directly — calling the resolver with
+  // no billing would return true unconditionally, which defeats the gate.
+  if ((workspace.featuresEnabled ?? []).includes(WORKSPACE_DOMAINS_FEATURE)) {
+    return;
+  }
+  const billing = await fetchPlan(workspace.id, user, req);
+  if (!canUseCustomDomains(billing, workspace.featuresEnabled)) {
     throw new ApiError(
       `Custom domains are available on the Business and Enterprise plans. Upgrade your workspace to add ${added.join(
         ", "

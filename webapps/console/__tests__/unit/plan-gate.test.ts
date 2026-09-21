@@ -19,7 +19,12 @@ const { assertCustomDomainsAllowed, assertIdentityStitchingAllowed, domainsOf, h
 );
 
 const user = { email: "a@b.c" } as any;
-const WS = "ws1";
+// assertCustomDomainsAllowed takes the workspace (it needs featuresEnabled);
+// assertIdentityStitchingAllowed takes only the id, because the link methods
+// never load the workspace and identity stitching has no per-workspace grant.
+const WS = { id: "ws1" };
+/** A workspace holding the per-workspace `misc` grant. */
+const WS_GRANTED = { id: "ws1", featuresEnabled: ["misc"] };
 const onPlan = (planId: string, extra: Record<string, any> = {}) =>
   rpc.mockResolvedValue({ ok: true, subscriptionStatus: { planId, ...extra } });
 
@@ -105,6 +110,18 @@ describe("assertCustomDomainsAllowed", () => {
   // a transport failure too. A mock that rejects is not used here: vitest
   // reports the stored rejected mock result as an unhandled error even though
   // the gate catches it.
+  // The regression this fix exists for: `misc` is a hand-set per-workspace
+  // grant that settings/domains.tsx has honoured since before this gate. A
+  // gate that ignores it silently breaks workspaces someone deliberately
+  // granted the feature.
+  it("honours the per-workspace `misc` grant over an explicit plan denial", async () => {
+    onPlan("free", { customDomainsEnabled: false });
+    await expect(
+      assertCustomDomainsAllowed(user, WS_GRANTED, "stream", { domains: ["new.com"] }, { domains: [] })
+    ).resolves.toBeUndefined();
+    expect(rpc).not.toHaveBeenCalled();
+  });
+
   it("fails closed (503) when the plan cannot be verified", async () => {
     rpc.mockResolvedValue({ ok: false, error: "no such workspace" });
     await expect(
@@ -119,25 +136,25 @@ describe("assertIdentityStitchingAllowed", () => {
 
   it("refuses turning it on below enterprise", async () => {
     onPlan("business");
-    await expect(assertIdentityStitchingAllowed(user, WS, on, off)).rejects.toMatchObject({ status: 403 });
+    await expect(assertIdentityStitchingAllowed(user, WS.id, on, off)).rejects.toMatchObject({ status: 403 });
   });
 
   it("allows turning it on for enterprise, and for a negotiated contract on $custom", async () => {
     onPlan("enterprise");
-    await expect(assertIdentityStitchingAllowed(user, WS, on, off)).resolves.toBeUndefined();
+    await expect(assertIdentityStitchingAllowed(user, WS.id, on, off)).resolves.toBeUndefined();
     onPlan("$custom", { customBilling: true });
-    await expect(assertIdentityStitchingAllowed(user, WS, on, off)).resolves.toBeUndefined();
+    await expect(assertIdentityStitchingAllowed(user, WS.id, on, off)).resolves.toBeUndefined();
   });
 
   it("lets a connection that already has it be re-saved, with no billing call", async () => {
     onPlan("business");
-    await expect(assertIdentityStitchingAllowed(user, WS, on, on)).resolves.toBeUndefined();
+    await expect(assertIdentityStitchingAllowed(user, WS.id, on, on)).resolves.toBeUndefined();
     expect(rpc).not.toHaveBeenCalled();
   });
 
   it("always allows turning it off", async () => {
     onPlan("free");
-    await expect(assertIdentityStitchingAllowed(user, WS, off, on)).resolves.toBeUndefined();
+    await expect(assertIdentityStitchingAllowed(user, WS.id, off, on)).resolves.toBeUndefined();
     expect(rpc).not.toHaveBeenCalled();
   });
 });
