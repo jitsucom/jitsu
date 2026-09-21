@@ -37,7 +37,7 @@ export async function resolveGoogleAudience(
       config.options.mode !== "mirror" || options.mirrorStrategy === "full-replace",
       "Existing Google audiences require full replacement for mirror mode"
     );
-    await createGoogleAudienceManagement(credentials, getToken).verifyExisting(audience.audienceId, signal);
+    await createGoogleAudienceManagement(credentials, getToken).verifyExisting(audience.audienceId, signal, settings);
     return {
       ...config,
       options: { ...config.options, streamOptions: { ...options, audienceId: audience.audienceId } },
@@ -68,7 +68,10 @@ export async function resolveGoogleAudience(
         customerId: credentials.customerId,
         integrationCode: `jitsu-retl-${nonce}`,
         displayName: `${audience.displayName} [Jitsu ${nonce.slice(0, 12)}]`,
-        membershipDays: 540,
+        membershipDays: settings.membershipDays ?? 540,
+        ...(settings.identifierType ? { identifierType: settings.identifierType } : {}),
+        ...(settings.appId ? { appId: settings.appId } : {}),
+        ...(settings.mobilePlatform ? { mobilePlatform: settings.mobilePlatform } : {}),
       },
     };
     await db.transaction(async client => {

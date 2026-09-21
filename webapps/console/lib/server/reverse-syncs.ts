@@ -3,6 +3,10 @@ import type { PrismaClient, Prisma } from "@prisma/client";
 import { ModelDefinition, ReverseSyncOptions } from "@jitsu/warehouse-query/src/schema";
 import { contentHash } from "@jitsu/destination-functions/src/reverse-etl/identity";
 import { GoogleAudienceSettings } from "@jitsu/destination-functions/src/functions/google-ads-reverse/meta";
+import {
+  GoogleConversionStream,
+  GoogleConversionOptions,
+} from "@jitsu/destination-functions/src/functions/google-ads-reverse/conversion-meta";
 import { ReverseSyncInput, ReverseSyncSettings, ReverseSyncView, ReverseTask } from "../reverse-etl";
 import { ReverseDeliveryStats } from "@jitsu/protocols/reverse-etl-stats";
 import { ApiError } from "../shared/errors";
@@ -77,8 +81,17 @@ async function references(db: ReadDb, workspaceId: string, input: ReverseSyncInp
   });
   if (!model || !destination) throw conflict("Choose a model and destination in this workspace");
   const definition = ModelDefinition.parse(model.config);
-  if ((destination.config as any).destinationType !== "google-ads" || input.data.stream !== "audience")
+  if ((destination.config as any).destinationType !== "google-ads")
     throw conflict("This destination stream is not supported");
+  if (input.data.stream !== "audience") {
+    if (!GoogleConversionStream.safeParse(input.data.stream).success)
+      throw conflict("This destination stream is not supported");
+    GoogleConversionOptions.parse(input.data.streamOptions);
+    if (input.data.mode !== "upsert" || definition.deleteColumn)
+      throw conflict("Conversion streams require insert mode and a model without a delete column");
+    schedule(input.data);
+    return;
+  }
   const options = GoogleAudienceSettings.parse(input.data.streamOptions);
   if (input.data.mode === "mirror" && (definition.cursor || definition.deleteColumn))
     throw conflict("Mirror requires a full-query model without a cursor or delete column");

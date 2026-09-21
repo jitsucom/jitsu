@@ -4,6 +4,7 @@ import type { WarehouseReader, CompositeCursor } from "@jitsu/warehouse-query";
 import { ReverseRunConfig } from "@jitsu/warehouse-query/src/runtime";
 import { createBufferedSyncStore, recordKey } from "@jitsu/destination-functions/src/reverse-etl/identity";
 import { runReverseEtl } from "@jitsu/destination-functions/src/reverse-etl/run";
+import { ReverseEtlManualReconciliationError } from "@jitsu/destination-functions/src/reverse-etl/failure";
 import { Database, openPersistence } from "./persistence";
 import type { ControlRow } from "./persistence/rows";
 import { ensure, PersistenceResetRequiredError } from "./persistence/types";
@@ -177,18 +178,30 @@ export async function execute(input: ExecuteOptions): Promise<TaskResult> {
       reader = input.reader(config.warehouse);
       let rows = 0,
         deleted = 0,
+        previouslySubmitted = 0,
         complete = false;
       try {
         for await (const row of reader.stream(config.model, after, sourceSignal)) {
           rows++;
           if (row.deleted) deleted++;
+          const key = recordKey(config.model.primaryKey.map(column => row.row[column] as string | number | boolean));
+          if (adapter.insertOnly && run.core.hasEventKey(key)) {
+            previouslySubmitted++;
+            continue;
+          }
           yield {
             ...row,
-            key: recordKey(config.model.primaryKey.map(column => row.row[column] as string | number | boolean)),
+            key,
           };
         }
         complete = true;
       } finally {
+        if (adapter.insertOnly)
+          await progress.log(
+            `Event deduplication: ${rows} source rows, ${previouslySubmitted} previously submitted events omitted, ${
+              rows - previouslySubmitted
+            } new events.`
+          );
         if (!mirror)
           await progress.log(
             `Source extraction ${complete ? "complete" : "interrupted"}: ${rows} rows read in this attempt, ${
@@ -245,6 +258,7 @@ export async function execute(input: ExecuteOptions): Promise<TaskResult> {
           stream: { ...adapter.stream, batchSize: Math.min(adapter.stream.batchSize, db.limits.batchRecords) },
           context,
           mapping: config.options.mapping,
+          sourceKeyField: adapter.insertOnly ? "__sourceKey" : undefined,
           source,
           checkpointEvery: config.options.checkpointEvery,
         })
@@ -274,6 +288,10 @@ export async function execute(input: ExecuteOptions): Promise<TaskResult> {
     await renewing;
     const status = signal.aborted && !ownershipLost ? "CANCELLED" : "FAILED";
     await reportProgress?.();
+    if (started && error instanceof ReverseEtlManualReconciliationError) {
+      await tasks.finish(status, failureMessage(error, input.taskId)).catch(() => undefined);
+      return status;
+    }
     if (started)
       await tasks
         .finish(

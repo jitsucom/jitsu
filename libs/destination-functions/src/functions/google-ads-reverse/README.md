@@ -1,11 +1,13 @@
-# Google Data Manager Reverse ETL — implementation contract
+# Google Ads Reverse ETL — implementation contract
 
 JITSU-227, adapter/OAuth, audience provisioning and console setup.
 
 - Existing Google Ads Customer Match audiences: additions and explicit tombstone removals,
   or opt-in full replacement with explicit exclusive-management/takeover confirmation.
-- Email and phone, raw or SHA-256 hex. Normalize/hash once before journal preparation;
-  recovery sends no raw identifiers and never re-hashes persisted payloads.
+- Contact audiences: email/phone (string or arrays, raw or SHA-256), and address matching
+  with first/last name (raw or SHA-256), country and postal code. Mobile-advertising-ID
+  and CRM-ID audiences are separate types; mobile audiences also specify app ID/platform.
+  Hash contact identifiers once before journal preparation. Mobile/CRM IDs stay unhashed.
 - Consent mappings are optional: each unmapped ad-user-data/ad-personalization field
   assumes GRANTED for ingestion. Mapped fields must contain GRANTED; null, missing values
   and DENIED fail validation. Customer Match terms still require explicit acceptance.
@@ -24,7 +26,7 @@ JITSU-227, adapter/OAuth, audience provisioning and console setup.
 - Snapshot-diff mirror requires a Jitsu-created audience reserved to one sync. Console supplies
   server-recorded evidence; runtime verifies the current remote identity, ownership,
   contact-list type and marker. An empty reported audience is not a baseline.
-- Managed lists use 540-day membership. Snapshot-diff refreshes unchanged members after 30 days
+- Managed lists default to 540-day membership (configurable 1–540). Snapshot-diff refreshes unchanged members after 30 days, or half the membership duration if shorter,
   during normal syncs, before removals, using a durable per-generation cutoff and
   per-member acceptance time. Paused/failed/infrequent syncs can still expire members.
 
@@ -61,8 +63,11 @@ Create a Google Cloud OAuth app with Data Manager API enabled and the
 `https://www.googleapis.com/auth/datamanager` scope on the existing
 `jitsu-cloud-dst-google-ads` Nango integration. Existing event integrations also use
 `https://www.googleapis.com/auth/adwords`; retain that scope when sharing the app.
-Reconnect the destination after adding scopes. No legacy Google Ads developer token
-is used for this adapter. The account must be eligible for Customer Match.
+Reconnect the destination after adding scopes. Audience delivery and default click delivery
+do not require a Google Ads developer token. Calls, adjustments and optional legacy click
+delivery require the `adwords` scope and a developer token, supplied on the destination or
+via the runner's `GOOGLE_ADS_DEVELOPER_TOKEN`. The optional conversion-action picker also
+uses Ads API and needs that token on the destination or console. Audience accounts must be eligible for Customer Match.
 Account-level EU political advertising declaration may also be required for user-list
 creation; resolve this in Google Ads before provisioning.
 
@@ -92,10 +97,50 @@ prove Jitsu exclusivity. Each managed audience is bound to its intended sync.
 
 Stream `audience`: `audienceId` (numeric user-list ID), `customerMatchTermsAccepted: true`.
 Destination: authorized Google Ads OAuth connection, customer ID and optional manager
-login customer ID. Mapping: at least one of email/hashedEmail/phone/hashedPhone; additions
+login customer ID. Mapping: at least one identifier matching the audience type; additions
 may map adUserData/adPersonalization, both `GRANTED` when mapped. Unmapped consent
 defaults to `GRANTED`. Pre-hashed inputs must already
 follow Google's normalization rules. Raw phone numbers require an explicit country code.
+
+## Conversion streams and mapping coverage
+
+| Stream | Mappings | Delivery |
+| --- | --- | --- |
+| Click / offline conversions | GCLID/GBRAID/WBRAID, email/phone arrays, conversion time, order ID, value/currency, consent, custom variables, session attributes, IP/user agent, event source, cart/items/discount. Address matching via Data Manager; merchant feed country/language via Ads API. | Data Manager by default; optional Ads API for eligible existing integrations. |
+| Phone-call conversions | Caller ID, call start and conversion time, value/currency, consent, custom variables. | Google Ads API. |
+| Conversion adjustments | Retraction/restatement/enhancement; original order ID or GCLID+time, adjustment time, restatement amount/currency, first-/third-party enhanced email/phone/address identifiers and user agent. | Google Ads API. |
+
+These complement the existing Audience stream. Offline **store sales** is not implemented.
+The editor exposes optional mappings without requiring irrelevant fields. Runtime enforces
+Google-required combinations: click identifier and time, call caller/time fields, complete
+address identifiers only when using address matching, order ID and identifiers for enhancement,
+and a value for restatement. Retractions need no contact fields. All conversion streams
+require an existing conversion-action ID; target discovery is read-only and manual IDs work.
+
+Object mappings accept a warehouse JSON object or JSON string. `customVariables` maps
+Google variable names to values; `items` contains `{productId, quantity, price}` entries.
+Session objects use `gadSource`, `gadCampaignId`, `landingPageUrl`, `sessionStartTime`,
+`landingPageReferrer`, `landingPageUserAgent`; alternatively map pre-encoded session attributes.
+Contact identifiers are normalized/hashed before persistence. **Call caller ID, mobile/CRM IDs,
+IP addresses and other non-hashed API fields remain in durable payloads**: protect object storage accordingly.
+
+Conversion syncs insert new model primary keys only. Existing accepted or pending keys are
+omitted using the local SQLite membership index, even if their payload changes. Corrections
+are new events in an adjustment model with a unique primary key for each adjustment.
+Default click transaction IDs include sync ID and primary key; map your own order ID to
+coordinate deduplication across tools or later adjustments. Pending/uncertain keys remain
+suppressed until reconciled; resetting state is not a safe retry mechanism.
+
+Data Manager receipts reuse the normal logical task/status-refresh path. Google Ads responses
+persist per-row success/failure before failing on a permanent rejection. Missing responses
+are not replayed. Final partial/unverified Data Manager results stop status refresh and retain
+the receipt for manual reconciliation; they never fabricate row-level success.
+
+Mapping coverage was compared with [Segment Google Ads Conversions](https://segment.com/docs/connections/destinations/catalog/actions-google-enhanced-conversions/)
+and [Hightouch Google Ads](https://hightouch.com/docs/destinations/google).
+Wire formats follow Google's [Data Manager events](https://developers.google.com/data-manager/api/reference/rest/v1/events/ingest),
+[calls](https://developers.google.com/google-ads/api/docs/conversions/upload-calls), and
+[adjustments](https://developers.google.com/google-ads/api/docs/conversions/upload-adjustments) APIs.
 
 Poll once per recovery attempt; schedule/manual execution resumes durable requests.
 Google recommends allowing processing time (often 30 minutes, up to 24 hours).

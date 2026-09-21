@@ -3,7 +3,7 @@ import type { JsonObject, ReverseEtlContext, WriteBatch } from "@jitsu/protocols
 import { createGoogleConversions, googleAdsOutcomes } from "../src/functions/google-ads-reverse/conversions";
 import { createGoogleDataManager, projectGoogleAudience } from "../src/functions/google-ads-reverse";
 import { createGoogleAudienceManagement } from "../src/functions/google-ads-reverse/audiences";
-import { createBufferedSyncStore } from "../src/reverse-etl/identity";
+import { contentHash, createBufferedSyncStore } from "../src/reverse-etl/identity";
 import type { GoogleConversionStream } from "../src/functions/google-ads-reverse/conversion-meta";
 import { digest } from "../src/functions/google-ads-reverse/identifiers";
 
@@ -16,7 +16,7 @@ const credentials = {
 const time = "2026-09-20T12:30:00Z";
 function fixture(name: GoogleConversionStream = "click-conversions", options: Record<string, unknown> = {}) {
   const settings = { conversionActionId: "321", ...options };
-  const adapter = createGoogleConversions(name, credentials, settings, async () => "test-token");
+  const adapter = createGoogleConversions(name, credentials, settings, async () => "test-token", "s");
   const fetch = vi.fn(async (_url: any, _init?: RequestInit) => new Response(JSON.stringify({ requestId: "req-1" })));
   const ctx = {
     credentials: adapter.credentials,
@@ -48,6 +48,50 @@ function fixture(name: GoogleConversionStream = "click-conversions", options: Re
   return { adapter, fetch, ctx, batch };
 }
 describe("Google Reverse ETL conversion streams", () => {
+  it("accepts lossless SQL numeric strings and namespaces generated order IDs by sync", () => {
+    const f = fixture();
+    const input = {
+      __sourceKey: "a".repeat(64),
+      conversionTimestamp: time,
+      gclid: "click",
+      value: "12.50",
+      items: [{ productId: "sku", quantity: "2", price: "6.25" }],
+    };
+    const first = f.adapter.stream.rowType.parse(input).payload as any;
+    const other = createGoogleConversions(
+      "click-conversions",
+      credentials,
+      { conversionActionId: "321" },
+      async () => "t",
+      "other-sync"
+    );
+    expect(first.conversionValue).toBe(12.5);
+    expect(first.cartData.items[0]).toMatchObject({ quantity: 2, unitPrice: 6.25 });
+    expect((other.stream.rowType.parse(input).payload as any).transactionId).not.toBe(first.transactionId);
+    expect((other.stream.rowType.parse({ ...input, orderId: "shared-order" }).payload as any).transactionId).toBe(
+      "shared-order"
+    );
+  });
+  it("handles all-rejected Google Ads responses even when results are omitted", () => {
+    const batch = fixture().batch({ conversionTimestamp: time, gclid: "bad" });
+    expect(
+      googleAdsOutcomes(batch, {
+        partialFailureError: {
+          code: 3,
+          details: [
+            {
+              errors: [
+                {
+                  errorCode: { conversionUploadError: "INVALID_GCLID" },
+                  location: { fieldPathElements: [{ fieldName: "conversions", index: 0 }] },
+                },
+              ],
+            },
+          ],
+        },
+      }).outcomes[0]
+    ).toMatchObject({ status: "rejected", code: "INVALID_GCLID" });
+  });
   it("maps and hashes click events, persists a receipt, then polls without reuploading", async () => {
     const f = fixture();
     const batch = f.batch({
@@ -68,7 +112,7 @@ describe("Google Reverse ETL conversion streams", () => {
     const payload = JSON.parse(f.fetch.mock.calls[0][1]!.body as string);
     expect(payload.events[0]).toMatchObject({
       conversionValue: 0,
-      transactionId: `jitsu-${"a".repeat(64)}`,
+      transactionId: `jitsu-${contentHash({ syncId: "s", key: "a".repeat(64) })}`,
       userData: {
         userIdentifiers: [
           { emailAddress: digest("alice@example.com") },
@@ -76,7 +120,8 @@ describe("Google Reverse ETL conversion streams", () => {
           { phoneNumber: digest("+14155552671") },
         ],
       },
-      cartData: { items: [{ productId: "sku", quantity: 2, unitPrice: 5 }] },
+      eventSource: "OTHER",
+      cartData: { items: [{ merchantProductId: "sku", quantity: 2, unitPrice: 5 }] },
     });
     expect(saved.outcomes[0].status).toBe("staged");
     f.fetch.mockResolvedValue(
@@ -124,7 +169,8 @@ describe("Google Reverse ETL conversion streams", () => {
           name,
           { ...credentials, developerToken: undefined },
           { conversionActionId: "321" },
-          async () => "t"
+          async () => "t",
+          "s"
         )
       ).toThrow("developer token");
     } finally {
@@ -164,6 +210,15 @@ describe("Google Reverse ETL conversion streams", () => {
     expect((row.payload as any).restatementValue).toEqual(type === "RESTATEMENT" ? { adjustedValue: 0 } : undefined);
   });
   it("does not silently discard unsupported mapped fields", () => {
+    expect(() =>
+      fixture("click-conversions", { api: "google-ads" }).batch({
+        conversionTimestamp: time,
+        firstName: "Alice",
+        lastName: "Smith-Jones",
+        countryCode: "US",
+        postalCode: "94107",
+      })
+    ).toThrow("not address identifiers");
     expect(() => fixture().batch({ conversionTimestamp: time, gclid: "click", merchantCountryCode: "US" })).toThrow(
       "require Google Ads API"
     );
@@ -222,7 +277,7 @@ describe("Google Reverse ETL conversion streams", () => {
         )
       );
       const check = f.adapter.recovery().reconcileBatch(batch, "upsert", saved, f.ctx);
-      if (state === "PARTIAL_SUCCESS") await expect(check).rejects.toThrow("partial");
+      if (state === "PARTIAL_SUCCESS") await expect(check).rejects.toThrow("manual reconciliation");
       else expect((await check).outcomes[0].status).toBe(state === "FAILED" ? "rejected" : "staged");
     }
   );
@@ -232,7 +287,7 @@ describe("expanded Google audience identifiers", () => {
   it("accepts email-only, address-only, CRM-only and mobile-only rows", () => {
     const address = provider.stream.rowType.parse({
       firstName: " Alice ",
-      lastName: "Smith",
+      lastName: "Smith-Jones",
       countryCode: "us",
       postalCode: "94107",
     });
@@ -240,7 +295,12 @@ describe("expanded Google audience identifiers", () => {
       userData: {
         userIdentifiers: [
           {
-            address: { givenName: digest("alice"), familyName: digest("smith"), regionCode: "US", postalCode: "94107" },
+            address: {
+              givenName: digest("alice"),
+              familyName: digest("smith-jones"),
+              regionCode: "US",
+              postalCode: "94107",
+            },
           },
         ],
       },

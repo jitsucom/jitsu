@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { deps, seedWorkspace } from "./support/harness";
 import {
   createReverseSync,
@@ -10,6 +10,8 @@ import {
   reverseLogs,
 } from "../../lib/server/reverse-syncs";
 import { readReverseSync } from "../../lib/server/reverse-sync-export";
+import { reverseGoogleOptions } from "../../lib/server/reverse-google-options";
+import type { NangoConfig } from "../../lib/server/oauth/nango-config";
 
 async function fixture() {
   const { workspace, user } = await seedWorkspace();
@@ -68,6 +70,91 @@ async function fixture() {
   };
 }
 describe("single-save Reverse ETL settings", () => {
+  it("scopes Google target lookup to the workspace and returns no provider credentials", async () => {
+    const f = await fixture();
+    const foreign = await fixture();
+    const connectionId = `destination.${f.destination.id}`;
+    await f.prisma.configurationObject.update({
+      where: { id: f.destination.id },
+      data: {
+        config: {
+          destinationType: "google-ads",
+          authorized: true,
+          oauthConnectionId: connectionId,
+          customerId: "1234567890",
+        },
+      },
+    });
+    const nango: NangoConfig = {
+      enabled: true,
+      callback: "",
+      publicKey: "",
+      secretKey: "nango-secret",
+      nangoApiHost: "https://nango.test",
+      nangoAppHost: "https://nango.test",
+    };
+    const request = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            connection_id: connectionId,
+            provider_config_key: "jitsu-cloud-dst-google-ads",
+            credentials: {
+              access_token: "private-access-token",
+              expires_at: new Date(Date.now() + 3600_000).toISOString(),
+            },
+          })
+        )
+      )
+      .mockResolvedValueOnce(new Response(JSON.stringify({ userLists: [{ id: "12", displayName: "Audience" }] })));
+    await expect(
+      reverseGoogleOptions(f.prisma, foreign.workspace.id, f.destination.id, "audience", nango, undefined, request)
+    ).rejects.toThrow("not found");
+    expect(request).not.toHaveBeenCalled();
+    const result = await reverseGoogleOptions(
+      f.prisma,
+      f.workspace.id,
+      f.destination.id,
+      "audience",
+      nango,
+      undefined,
+      request
+    );
+    expect(result).toEqual({ options: [{ value: "12", label: "Audience (12)" }] });
+    expect(request.mock.calls[1][0]).toContain(
+      "https://datamanager.googleapis.com/v1/accountTypes/GOOGLE_ADS/accounts/1234567890/userLists"
+    );
+    expect(JSON.stringify(result)).not.toContain("private-access-token");
+    request.mockRejectedValue(new Error("private provider payload"));
+    await expect(
+      reverseGoogleOptions(f.prisma, f.workspace.id, f.destination.id, "audience", nango, undefined, request)
+    ).rejects.toThrow("Could not load Google targets");
+  });
+  it.each(["click-conversions", "call-conversions", "conversion-adjustments"])(
+    "saves and exports %s without audience settings or provisioning",
+    async stream => {
+      const f = await fixture();
+      const { id } = await f.create({
+        ...f.input,
+        data: {
+          ...f.input.data,
+          stream,
+          mode: "upsert",
+          disabled: false,
+          streamOptions: { conversionActionId: "123" },
+          mapping: stream === "conversion-adjustments" ? { orderId: "email" } : { conversionTimestamp: "email" },
+        },
+      });
+      const config = await readReverseSync(f.prisma, id, f.workspace.id);
+      expect(config?.options.stream).toBe(stream);
+      expect(config?.options.streamOptions).toEqual({ conversionActionId: "123" });
+      expect(config?.destination.reverseManagedAudience).toBeUndefined();
+      await expect(
+        f.create({ ...f.input, data: { ...f.input.data, stream, streamOptions: { conversionActionId: "123" } } })
+      ).rejects.toThrow("insert mode");
+    }
+  );
   it("filters tasks before the history limit and exposes only safe batch aggregates", async () => {
     const f = await fixture();
     const { id } = await f.create();

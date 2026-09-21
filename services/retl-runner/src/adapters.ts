@@ -17,6 +17,8 @@ import {
 import { createGoogleAudienceManagement } from "@jitsu/destination-functions/src/functions/google-ads-reverse/audiences";
 import { resolveGoogleAudience } from "./google-audience-state";
 import type { Database } from "./persistence/database";
+import { createGoogleConversions } from "@jitsu/destination-functions/src/functions/google-ads-reverse/conversions";
+import { GoogleConversionStream } from "@jitsu/destination-functions/src/functions/google-ads-reverse/conversion-meta";
 
 /** Trusted, compiled-in provider bindings. Implementations live in destination-functions. */
 export interface RuntimeRecovery extends MirrorRecovery<JsonObject, JsonObject> {
@@ -25,6 +27,8 @@ export interface RuntimeRecovery extends MirrorRecovery<JsonObject, JsonObject> 
   reconcileAbort?(context: ReverseEtlContext<JsonObject, JsonObject>): Promise<void>;
 }
 export interface RuntimeAdapter {
+  /** Event streams deliver each model primary key only once, including pending submissions. */
+  insertOnly?: boolean;
   options?: JsonObject;
   stream: ReverseEtlStream<JsonObject, JsonObject, JsonObject>;
   credentials: JsonObject;
@@ -89,12 +93,19 @@ export function createAdapterRegistry(
                 project: (row: JsonObject) => projectGoogleAudience("upsert", row),
               },
               batchDelivery: "asynchronous" as const,
-              ...(replacement ? {} : { refreshAfterMs: googleAudienceRefreshAfterMs }),
+              ...(replacement
+                ? {}
+                : {
+                    refreshAfterMs: Math.min(
+                      googleAudienceRefreshAfterMs,
+                      ((managed?.membershipDays ?? 540) * 86400_000) / 2
+                    ),
+                  }),
             },
             verifyMirrorBaseline: async (signal: AbortSignal) => {
               const management = createGoogleAudienceManagement(credentials.data, getToken);
               if (managed) await management.verifyManaged(managed, signal);
-              else await management.verifyExisting(options.audienceId, signal);
+              else await management.verifyExisting(options.audienceId, signal, options);
               if (replacement) return "replace" as const;
               return "tracked" as const; // Exclusively tracked from its recorded creation, not estimated Google size.
             },
@@ -107,6 +118,19 @@ export function createAdapterRegistry(
     [
       "google-ads",
       (config, runtime) => {
+        if (config.options.stream !== "audience") {
+          if (config.options.mode !== "upsert" || config.model.deleteColumn)
+            throw new Error("Conversion streams are insert-only and do not support tombstones");
+          if (config.destination.oauthConnectionId !== `destination.${config.toId}`)
+            throw new Error("Invalid Google conversion OAuth binding");
+          return createGoogleConversions(
+            GoogleConversionStream.parse(config.options.stream),
+            config.destination,
+            config.options.streamOptions,
+            signal => accessToken(config, signal),
+            config.id
+          );
+        }
         if (config.options.streamOptions.audience !== undefined) {
           if (!runtime) throw new Error("Google audience provisioning requires runner state");
           return resolveGoogleAudience(

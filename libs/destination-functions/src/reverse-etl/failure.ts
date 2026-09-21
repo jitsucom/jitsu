@@ -1,5 +1,16 @@
+/** Terminal uncertainty: retain receipts, but do not keep polling a final, ambiguous result. */
+export class ReverseEtlManualReconciliationError extends Error {
+  constructor() {
+    super("Google conversion results require manual reconciliation; no replay");
+  }
+}
+
 /** Exact core-owned reasons only. Never expose arbitrary SDK/SQL messages or causes. */
 const failures = new Map<string, string>([
+  [
+    "Google conversion results require manual reconciliation; no replay",
+    "Google returned partial or unverified conversion results. Some events may have been accepted. Contact your Jitsu administrator with this run ID; saved requests are retained and will not be uploaded again automatically.",
+  ],
   [
     "Google audience creation is unconfirmed; retry status discovery without resetting state",
     "Google has not confirmed audience creation. Run this same sync again to check for the audience; do not reset state or create another sync to retry it.",

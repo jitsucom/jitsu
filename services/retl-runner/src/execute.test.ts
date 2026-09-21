@@ -13,6 +13,7 @@ import type { RuntimeAdapter } from "./adapters";
 import { createAdapterRegistry } from "./adapters";
 import { Tasks } from "./tasks";
 import { googleAudienceStateStream } from "@jitsu/destination-functions/src/functions/google-ads-reverse/state";
+import { ReverseEtlManualReconciliationError } from "@jitsu/destination-functions/src/reverse-etl/failure";
 
 import { MemoryObjects, persisted } from "./artifacts/test-support";
 const objects = new MemoryObjects();
@@ -21,6 +22,96 @@ const durable = () => persisted(admin, objects);
 afterEach(() => vi.useRealTimers());
 
 describe("runner-owned Google audience provisioning", () => {
+  it("stops polling terminal ambiguous conversion results without reopening the model", async () => {
+    const f = asynchronousFixture();
+    expect(await execute(f.input)).toBe("PENDING");
+    const bind = f.adapter.recovery!;
+    f.adapter.recovery = state => ({
+      ...bind(state),
+      reconcileBatch: async () => {
+        throw new ReverseEtlManualReconciliationError();
+      },
+    });
+    await admin.query(
+      `UPDATE newjitsu.source_task SET metrics=jsonb_set(metrics,'{reverseRecovery,nextCheckAt}',to_jsonb('2000-01-01T00:00:00.000Z'::text)) WHERE status='PENDING'`
+    );
+    f.input = { ...f.input, taskId: "terminal-check", recoveryOf: "task", trigger: "recovery" };
+    f.calls.length = 0;
+    expect(await execute(f.input)).toBe("FAILED");
+    expect((await task()).error).toContain("partial or unverified conversion results");
+    expect(f.calls).not.toContain("reader");
+  });
+  it.each(["click-conversions", "call-conversions", "conversion-adjustments"])(
+    "runs %s and skips previously submitted primary keys on subsequent extraction",
+    async stream => {
+      const f = fixture();
+      f.input.config.destination = {
+        destinationType: "google-ads",
+        authorized: true,
+        oauthConnectionId: "destination.destination",
+        customerId: "1234567890",
+        developerToken: "test-token",
+      };
+      f.input.config.model.cursor = undefined;
+      f.input.config.options = {
+        ...f.input.config.options,
+        mode: "upsert",
+        stream,
+        mapping:
+          stream === "click-conversions"
+            ? { gclid: "id", conversionTimestamp: "time" }
+            : stream === "call-conversions"
+            ? { callerId: "caller", callTimestamp: "time", conversionTimestamp: "time" }
+            : { orderId: "id", adjustmentTimestamp: "time" },
+        streamOptions: {
+          conversionActionId: "123",
+          ...(stream === "conversion-adjustments" ? { adjustmentType: "RETRACTION" } : {}),
+        },
+      };
+      f.input.adapters = createAdapterRegistry(async () => "token");
+      const rows = (ids: string[]) => ids.map(id => ({ id, time: "2026-09-20T12:30:00Z", caller: "+14155552671" }));
+      f.setRows(rows(["a", "b"]));
+      const uploads: any[] = [];
+      const wire = vi.spyOn(globalThis, "fetch").mockImplementation(async (_url, init) => {
+        const body = JSON.parse(init!.body as string);
+        uploads.push(body);
+        return new Response(
+          JSON.stringify(
+            stream === "click-conversions"
+              ? { requestId: `req-${uploads.length}` }
+              : {
+                  results: (body.conversions ?? body.conversionAdjustments).map(() => ({
+                    conversionAction: "customers/1234567890/conversionActions/123",
+                  })),
+                }
+          )
+        ) as Awaited<ReturnType<typeof globalThis.fetch>>;
+      });
+      try {
+        expect(await execute(f.input)).toBe(stream === "click-conversions" ? "PENDING" : "COMPLETE");
+        f.input.taskId = "second-event-run";
+        // Different payload, same primary key: insert-only must still omit a/b.
+        f.setRows(rows(["a", "b", "c"]).map(row => ({ ...row, time: "2026-09-20T13:30:00Z" })));
+        expect(await execute(f.input)).toBe(stream === "click-conversions" ? "PENDING" : "COMPLETE");
+        expect(uploads).toHaveLength(2);
+        const key =
+          stream === "click-conversions"
+            ? "events"
+            : stream === "call-conversions"
+            ? "conversions"
+            : "conversionAdjustments";
+        expect(uploads[0][key]).toHaveLength(2);
+        expect(uploads[1][key]).toHaveLength(1);
+        expect(await taskLogs("second-event-run")).toContain("2 previously submitted events omitted");
+        expect(
+          (await admin.query("SELECT count(*) FROM newjitsu.source_state WHERE stream=$1", [googleAudienceStateStream]))
+            .rows[0].count
+        ).toBe("0");
+      } finally {
+        wire.mockRestore();
+      }
+    }
+  );
   it.each(["normal", "lost-response", "empty-discovery", "oauth-failure"])(
     "persists first-run provisioning and does not create twice: %s",
     async scenario => {

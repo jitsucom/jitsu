@@ -40,7 +40,7 @@ export async function readReverseSync(
   const destination = { ...(link.to.config as Record<string, unknown>) };
   // This field is server evidence, never editable destination configuration.
   delete destination.reverseManagedAudience;
-  if (destination.destinationType === "google-ads") {
+  if (destination.destinationType === "google-ads" && options.stream === "audience") {
     const replacement = options.streamOptions.mirrorStrategy === "full-replace";
     // Existing admission also serves disabled, not-yet-provisioned setups. Only
     // native replacement needs this additional destructive-mode confirmation.

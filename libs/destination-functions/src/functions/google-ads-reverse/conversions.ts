@@ -8,6 +8,7 @@ import type {
 } from "@jitsu/protocols/reverse-etl";
 import { contentHash } from "../../reverse-etl/identity";
 import { validateBatchResult } from "../../reverse-etl/meta";
+import { ReverseEtlManualReconciliationError } from "../../reverse-etl/failure";
 import { contactIdentifiers, fail, hex, nameHash, normalizePhone } from "./identifiers";
 import {
   GoogleConversionCredentials,
@@ -125,7 +126,7 @@ export function googleAdsOutcomes(batch: WriteBatch<JsonObject>, value: unknown)
       }
     if (!errors.size) fail("Google partial failure cannot be assigned to records; no replay");
   }
-  if (!response.results || response.results.length !== batch.records.length)
+  if (errors.size !== batch.records.length && (!response.results || response.results.length !== batch.records.length))
     fail("Google conversion response is incomplete; no replay");
   return {
     outcomes: batch.records.map(({ operationId }, index) => {
@@ -147,7 +148,8 @@ export function createGoogleConversions(
   name: GoogleConversionStream,
   credentialsInput: unknown,
   optionsInput: unknown,
-  getToken: GoogleAccessToken
+  getToken: GoogleAccessToken,
+  syncId: string
 ) {
   const credentials = GoogleConversionCredentials.parse(credentialsInput);
   const options = GoogleConversionOptions.parse(optionsInput);
@@ -218,11 +220,15 @@ export function createGoogleConversions(
       )
         fail("Google Ads API conversion environment supports APP or WEB");
       const ids = contactIdentifiers(row);
+      if (!dataManager && ids.some(id => "address" in id))
+        fail(
+          "Google Ads click conversions support email and phone, not address identifiers; use Data Manager for address matching"
+        );
       if (ids.length > 5) fail("Google accepts at most five conversion user identifiers");
       if (!ids.length && !row.gclid && !row.gbraid && !row.wbraid && !session(row))
         fail("Click conversion requires an identifier or session attributes");
       const items = row.items?.map((item: any) => ({
-        productId: item.productId,
+        ...(dataManager ? { merchantProductId: item.productId } : { productId: item.productId }),
         quantity: item.quantity,
         unitPrice: item.price,
       }));
@@ -242,9 +248,12 @@ export function createGoogleConversions(
           : undefined;
       payload = dataManager
         ? compact({
-            transactionId: row.orderId || `jitsu-${row.__sourceKey}`,
+            transactionId: row.orderId || `jitsu-${contentHash({ syncId, key: row.__sourceKey })}`,
             eventTimestamp: timestamp(row.conversionTimestamp),
-            eventSource: row.conversionEnvironment === "UNSPECIFIED" ? undefined : row.conversionEnvironment,
+            eventSource:
+              !row.conversionEnvironment || row.conversionEnvironment === "UNSPECIFIED"
+                ? "OTHER"
+                : row.conversionEnvironment,
             conversionValue: row.value,
             currency: row.currency,
             userData: ids.length ? { userIdentifiers: ids } : undefined,
@@ -269,7 +278,7 @@ export function createGoogleConversions(
         : compact({
             conversionAction,
             conversionDateTime: adsTime(row.conversionTimestamp),
-            orderId: row.orderId || `jitsu-${row.__sourceKey}`,
+            orderId: row.orderId || `jitsu-${contentHash({ syncId, key: row.__sourceKey })}`,
             conversionValue: row.value,
             currencyCode: row.currency,
             gclid: row.gclid,
@@ -319,22 +328,28 @@ export function createGoogleConversions(
   // Resolve custom-variable names read-only before sending a Google Ads batch.
   async function resolveVariables(ctx: Context, payloads: any[]) {
     if (!payloads.some(p => p.customVariables && Object.keys(p.customVariables).length)) return payloads;
-    const response = await request(ctx, `customers/${credentials.customerId}/googleAds:search`, {
-      query:
-        "SELECT conversion_custom_variable.name, conversion_custom_variable.resource_name FROM conversion_custom_variable",
+    const schema = z.object({
+      results: z
+        .array(z.object({ conversionCustomVariable: z.object({ name: z.string(), resourceName: z.string() }) }))
+        .default([]),
+      nextPageToken: z.string().optional(),
     });
-    const found = z
-      .object({
-        results: z
-          .array(z.object({ conversionCustomVariable: z.object({ name: z.string(), resourceName: z.string() }) }))
-          .default([]),
-        nextPageToken: z.string().optional(),
-      })
-      .parse(response);
-    if (found.nextPageToken) fail("Custom variable lookup exceeds one page; reduce the configured variables");
-    const lookup = new Map(
-      found.results.map(r => [r.conversionCustomVariable.name, r.conversionCustomVariable.resourceName])
-    );
+    const lookup = new Map<string, string>();
+    let pageToken: string | undefined;
+    for (let page = 0; page < 100; page++) {
+      const found = schema.parse(
+        await request(ctx, `customers/${credentials.customerId}/googleAds:search`, {
+          query:
+            "SELECT conversion_custom_variable.name, conversion_custom_variable.resource_name FROM conversion_custom_variable",
+          ...(pageToken ? { pageToken } : {}),
+        })
+      );
+      for (const { conversionCustomVariable: variable } of found.results)
+        lookup.set(variable.name, variable.resourceName);
+      pageToken = found.nextPageToken;
+      if (!pageToken) break;
+    }
+    if (pageToken) fail("Custom variable lookup exceeded its pagination limit");
     return payloads.map(p =>
       p.customVariables
         ? {
@@ -458,7 +473,7 @@ export function createGoogleConversions(
       receipt.warnings ||
       status.eventsIngestionStatus?.recordCount !== String(batch.records.length)
     )
-      fail("Google conversion results are partial or unverified; manual reconciliation required, no replay");
+      throw new ReverseEtlManualReconciliationError();
     return { ...saved, outcomes: batch.records.map(r => ({ operationId: r.operationId, status: "accepted" })) };
   }
   const createWriter = async (ctx: Context) => {

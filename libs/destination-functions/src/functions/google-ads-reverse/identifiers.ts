@@ -41,13 +41,8 @@ export function normalizePhone(value: string, countryCode?: string) {
   if (!/^\+[1-9]\d{7,14}$/.test(normalized)) return fail("Google phone requires E.164 or a phone country code");
   return normalized;
 }
-export const nameHash = (value: string) =>
-  digest(
-    value
-      .trim()
-      .toLowerCase()
-      .replace(/[\p{P}\p{S}]/gu, "")
-  );
+// Google's formatting guide preserves punctuation (for example, smith-jones).
+export const nameHash = (value: string) => digest(value.trim().toLowerCase());
 /** Shared by audience and conversion mappings. Raw PII never reaches durable provider payloads. */
 export function contactIdentifiers(row: Record<string, any>) {
   const result: z.infer<typeof userIdentifierSchema>[] = [];

@@ -22,6 +22,8 @@ export interface RunOptions<Credentials, Row, Options> {
   stream: ReverseEtlStream<Credentials, Row, Options>;
   context: ReverseEtlContext<Credentials, Options>;
   mapping: Record<string, string>;
+  /** Code-owned adapter field populated from the model primary key, never user mapping. */
+  sourceKeyField?: string;
   /** Must open lazily, only after recovery admission. Readers enforce unique keys. */
   source: (after: SourceCursor | undefined, signal: AbortSignal) => AsyncIterable<ReverseSourceRecord>;
   checkpointEvery: number;
@@ -178,6 +180,7 @@ export async function runReverseEtl<C, R, O>(
           Object.hasOwn(record.row, column) ? record.row[column] : undefined,
         ])
       );
+      if (input.sourceKeyField) mapped[input.sourceKeyField] = record.key;
       const row = (record.deleted ? stream.removeRowType! : stream.rowType).safeParse(mapped);
       // Do not emit schema issues: they can contain raw identifiers/source values.
       if (!row.success) throw new ReverseEtlProtocolError("Source row failed destination validation");

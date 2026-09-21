@@ -15,7 +15,12 @@ export const GoogleConversionOptions = z
   })
   .strict();
 const text = z.string().max(4096).nullish();
-const number = z.number().finite().nullish();
+// SQL DECIMAL/NUMERIC columns may be exposed losslessly as strings by the reader.
+const numeric = z.preprocess(
+  value => (typeof value === "string" && /^-?\d+(?:\.\d+)?$/.test(value) ? Number(value) : value),
+  z.number().finite()
+);
+const number = numeric.nullish();
 const time = z.union([z.string(), z.date()]).transform(value => (value instanceof Date ? value.toISOString() : value));
 const consent = z.enum(["GRANTED", "DENIED", "UNSPECIFIED", "UNKNOWN"]).nullish();
 const json = <T extends z.ZodTypeAny>(schema: T) =>
@@ -68,11 +73,7 @@ export const GoogleClickRow = z
     merchantCountryCode: text,
     merchantLanguageCode: text,
     transactionDiscount: number,
-    items: json(
-      z
-        .array(z.object({ productId: z.string(), quantity: z.number().finite(), price: z.number().finite() }).strict())
-        .max(1000)
-    ),
+    items: json(z.array(z.object({ productId: z.string(), quantity: numeric, price: numeric }).strict()).max(1000)),
   })
   .strict();
 export const GoogleCallRow = z.object({ ...common, callerId: z.string().min(1), callTimestamp: time }).strict();

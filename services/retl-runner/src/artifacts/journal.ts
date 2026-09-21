@@ -711,6 +711,12 @@ export class ObjectJournal implements DeliveryJournal {
       ...(this.scope.extraction === "cursor" && saved?.point.cursor ? { cursor: saved.point.cursor } : {}),
     };
   }
+  /** Local indexed membership includes earlier pending submissions, avoiding duplicate conversion uploads. */
+  hasEventKey(key: string) {
+    return !!this.local.sql
+      .prepare("SELECT 1 FROM members WHERE identity=? AND value IS NOT NULL")
+      .get(contentHash({ eventKey: key }));
+  }
   async hasRejected() {
     return this.head.batches.some(row => row.rejected > 0);
   }

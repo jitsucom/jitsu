@@ -198,7 +198,11 @@ export function SyncEditor({ sync, reload }: { sync?: ReverseSyncView; reload: (
         />
       ),
     },
-    ...(stream?.fields(options, update, disabled, { columns: columns.data ?? [], loading: columns.isFetching }) ?? []),
+    ...(stream?.fields(options, update, disabled, {
+      columns: columns.data ?? [],
+      loading: columns.isFetching,
+      destinationId: toId,
+    }) ?? []),
   ];
   return (
     <div className="max-w-5xl grow">
