@@ -111,11 +111,11 @@ export function ReverseRuns() {
               ]}
             />
           </Panel>
-          {task.status === "WAITING" && (
+          {["WAITING", "PENDING"].includes(task.status) && (
             <Alert
               className="mb-5"
-              type="warning"
-              title="Waiting for Google"
+              type="success"
+              title="Pending"
               description="Submitted changes are still processing. Status refreshes continue automatically while the sync is enabled."
             />
           )}

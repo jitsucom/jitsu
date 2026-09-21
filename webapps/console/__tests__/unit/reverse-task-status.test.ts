@@ -48,6 +48,16 @@ const counts = {
   cancelled: 0,
 };
 describe("Reverse ETL status dropdown", () => {
+  it.each([
+    ["WAITING", "PENDING"],
+    ["PENDING", "PENDING"],
+    ["SUCCESS", "COMPLETE"],
+    ["COMPLETE", "COMPLETE"],
+  ])("shows %s as green %s", (stored, label) => {
+    render(React.createElement(ReverseTaskStatus, { task: { ...task(), status: stored } }));
+    const button = screen.getByRole("button", { name: new RegExp(label) });
+    expect(button.querySelector(".ant-tag-green")).toBeTruthy();
+  });
   it("shows nonzero status columns with Accepted and bold Total last, and keeps cleanup separate", async () => {
     render(
       React.createElement(ReverseTaskStatus, {
@@ -66,7 +76,7 @@ describe("Reverse ETL status dropdown", () => {
         }),
       })
     );
-    fireEvent.click(screen.getByRole("button", { name: /WAITING/ }));
+    fireEvent.click(screen.getByRole("button", { name: /PENDING/ }));
     const upload = (await screen.findByText("Full-snapshot uploads")).closest("tr")!;
     expect(screen.getAllByRole("columnheader").map(cell => cell.textContent)).toEqual([
       "Operation",
@@ -109,7 +119,7 @@ describe("Reverse ETL status dropdown", () => {
         }),
       })
     );
-    fireEvent.click(screen.getByRole("button", { name: /WAITING/ }));
+    fireEvent.click(screen.getByRole("button", { name: /PENDING/ }));
     const upload = (await screen.findByText("Additions / upserts")).closest("tr")!;
     expect(screen.getAllByRole("columnheader").map(cell => cell.textContent)).toEqual([
       "Operation",
@@ -135,14 +145,14 @@ describe("Reverse ETL status dropdown", () => {
         }),
       })
     );
-    fireEvent.click(screen.getByRole("button", { name: /WAITING/ }));
+    fireEvent.click(screen.getByRole("button", { name: /PENDING/ }));
     expect(await screen.findByText(/Record breakdown by operation is unavailable/)).toBeTruthy();
     expect(screen.getByText(/Records:/).textContent).toContain("64 accepted");
     expect(screen.queryByRole("table")).toBeNull();
   });
   it("does not invent zero counts for attempts without statistics", async () => {
     render(React.createElement(ReverseTaskStatus, { task: task() }));
-    fireEvent.click(screen.getByRole("button", { name: /WAITING/ }));
+    fireEvent.click(screen.getByRole("button", { name: /PENDING/ }));
     expect(await screen.findByText(/Record statistics unavailable/)).toBeTruthy();
     expect(screen.queryByRole("table")).toBeNull();
   });

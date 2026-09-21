@@ -44,11 +44,17 @@ export const ReverseSyncView = z.object({
 });
 export type ReverseSyncView = z.infer<typeof ReverseSyncView>;
 
+/** Preserve legacy stored status values while using the same user-facing lifecycle. */
+export const reverseTaskStatus = (status: string) =>
+  status === "WAITING" ? "PENDING" : status === "SUCCESS" ? "COMPLETE" : status;
+
 export const reverseStatusLabels: Record<string, string> = {
   RUNNING: "Running",
-  WAITING: "Waiting for Google",
+  WAITING: "Pending",
+  PENDING: "Pending",
   RESUMED: "Continued in a later attempt",
-  SUCCESS: "Succeeded",
+  SUCCESS: "Complete",
+  COMPLETE: "Complete",
   FAILED: "Failed",
   CANCELLED: "Cancelled",
   SKIPPED: "Skipped",

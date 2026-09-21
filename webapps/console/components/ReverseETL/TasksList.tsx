@@ -8,7 +8,7 @@ import { useRouter } from "next/router";
 import { useQuery } from "@tanstack/react-query";
 import { z } from "zod";
 import { rpc } from "juava";
-import { ReverseTask } from "../../lib/reverse-etl";
+import { ReverseTask, reverseTaskStatus } from "../../lib/reverse-etl";
 import { useAppConfig, useWorkspace } from "../../lib/context";
 import { confirmOp } from "../../lib/ui";
 import { ButtonGroup, ButtonProps } from "../ButtonGroup/ButtonGroup";
@@ -171,14 +171,14 @@ export function ReverseTasksList() {
                         color={
                           value === "FAILED"
                             ? "red"
-                            : value === "SUCCESS"
+                            : ["PENDING", "COMPLETE"].includes(reverseTaskStatus(value))
                             ? "green"
-                            : ["RUNNING", "WAITING"].includes(value)
+                            : value === "RUNNING"
                             ? "blue"
                             : undefined
                         }
                       >
-                        {value}
+                        {reverseTaskStatus(value)}
                       </Tag>
                     ),
                   })),

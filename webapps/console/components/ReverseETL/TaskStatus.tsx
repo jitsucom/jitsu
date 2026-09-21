@@ -2,7 +2,7 @@ import React, { useState } from "react";
 import { Alert, Popover, Table, Tag } from "antd";
 import { ChevronDown } from "lucide-react";
 import { reverseRecordStatuses } from "@jitsu/protocols/reverse-etl-stats";
-import type { ReverseTask } from "../../lib/reverse-etl";
+import { reverseTaskStatus, type ReverseTask } from "../../lib/reverse-etl";
 import { WJitsuButton } from "../JitsuButton/JitsuButton";
 
 export function ReverseTaskStatus({ task }: { task?: ReverseTask | null }) {
@@ -15,6 +15,7 @@ export function ReverseTaskStatus({ task }: { task?: ReverseTask | null }) {
       </div>
     );
   const stats = task.stats;
+  const status = reverseTaskStatus(task.status);
   const rows = stats?.recordCounts
     ? [
         {
@@ -110,16 +111,16 @@ export function ReverseTaskStatus({ task }: { task?: ReverseTask | null }) {
         <Tag
           style={{ marginRight: 0 }}
           color={
-            task.status === "SUCCESS"
+            ["PENDING", "COMPLETE"].includes(status)
               ? "green"
               : task.status === "FAILED"
               ? "red"
-              : ["RUNNING", "WAITING"].includes(task.status)
+              : status === "RUNNING"
               ? "blue"
               : undefined
           }
         >
-          {task.status} <ChevronDown className="inline w-3 h-3" />
+          {status} <ChevronDown className="inline w-3 h-3" />
         </Tag>
         <span className="text-xxs text-gray-500">{stats ? "show stats" : "show details"}</span>
       </button>
