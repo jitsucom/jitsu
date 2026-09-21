@@ -648,6 +648,33 @@ describe("executable runner", () => {
     expect(await task()).toBeUndefined();
     expect(f.calls).toEqual([]);
   });
+  it("shares an in-flight heartbeat renewal when slow provisioning finishes", async () => {
+    const f = fixture();
+    let ready!: () => void;
+    const heartbeatStarted = new Promise<void>(resolve => {
+      ready = resolve;
+    });
+    let inFlight = 0;
+    let maximum = 0;
+    f.input.heartbeatMs = 5;
+    f.input.lease.renew = async () => {
+      maximum = Math.max(maximum, ++inFlight);
+      ready();
+      await new Promise(resolve => setTimeout(resolve, 40));
+      inFlight--;
+    };
+    f.input.adapters = new Map([
+      [
+        String(f.input.config.destination.destinationType),
+        async () => {
+          await heartbeatStarted;
+          return f.adapter;
+        },
+      ],
+    ]);
+    expect(await execute(f.input)).toBe("SUCCESS");
+    expect(maximum).toBe(1);
+  });
   it("runs upsert with restricted DB grants, task logs and Kubernetes admission", async () => {
     const f = fixture();
     expect(await execute(f.input)).toBe("SUCCESS");

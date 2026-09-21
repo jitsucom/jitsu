@@ -63,7 +63,7 @@ export function SyncEditor({ sync, reload }: { sync?: ReverseSyncView; reload: (
     [runAfterSave, setRunAfterSave] = useState(false);
   const [error, setError] = useState<unknown>();
   const requestId = useRef<string>();
-  const editable = role.editEntities && !maintenance,
+  const editable = role.editEntities && !maintenance && !busy,
     enabled = workspace.featuresEnabled.includes("reverse-etl");
   const locked = !!sync?.settingsLocked,
     disabled = !editable || !enabled || locked;
@@ -230,6 +230,13 @@ export function SyncEditor({ sync, reload }: { sync?: ReverseSyncView; reload: (
         </div>
       )}
       <Failure error={error || models.error} />
+      {sync && router.query.runStartUnconfirmed === "1" && (
+        <Alert
+          className="mb-4"
+          type="warning"
+          title="Sync saved, but the run could not be confirmed. Check Logs before trying again."
+        />
+      )}
       {locked && (
         <Alert
           className="mb-4"
@@ -268,7 +275,7 @@ export function SyncEditor({ sync, reload }: { sync?: ReverseSyncView; reload: (
           >
             Run sync after save
           </Checkbox>
-          <Button size="large" onClick={() => router.push(`/${workspace.slugOrId}/reverse-syncs`)}>
+          <Button size="large" disabled={busy} onClick={() => router.push(`/${workspace.slugOrId}/reverse-syncs`)}>
             Cancel
           </Button>
           <Button
@@ -278,7 +285,22 @@ export function SyncEditor({ sync, reload }: { sync?: ReverseSyncView; reload: (
             disabled={!editable || (!enabled && (!sync || !options.disabled))}
             onClick={() =>
               perform(async () => {
-                requestId.current ??= crypto.randomUUID();
+                if (!sync) {
+                  const pending = router.query.requestId;
+                  requestId.current ??=
+                    typeof pending === "string" && /^[a-f0-9]{8}(-[a-f0-9]{4}){3}-[a-f0-9]{12}$/i.test(pending)
+                      ? pending
+                      : crypto.randomUUID();
+                  // Keep only the opaque idempotency key across reloads; no intermediate setup object.
+                  await router.replace(
+                    {
+                      pathname: `/${workspace.slugOrId}/reverse-syncs`,
+                      query: { ...router.query, requestId: requestId.current },
+                    },
+                    undefined,
+                    { shallow: true, scroll: false }
+                  );
+                }
                 const body = { fromId, toId, data: options };
                 // No preview, validation request or intermediate save. The API checks the submitted settings.
                 const result = sync
@@ -289,8 +311,15 @@ export function SyncEditor({ sync, reload }: { sync?: ReverseSyncView; reload: (
                     });
                 setDirty(false);
                 await reload();
-                if (runAfterSave && !options.disabled) await run(result.id);
-                else await router.push(`/${workspace.slugOrId}/reverse-syncs?id=${result.id}`);
+                if (runAfterSave && !options.disabled) {
+                  try {
+                    await run(result.id);
+                  } catch {
+                    // Creation committed even if controller admission/response failed.
+                    // Open the saved sync rather than trapping edits behind its create request ID.
+                    await router.push(`/${workspace.slugOrId}/reverse-syncs?id=${result.id}&runStartUnconfirmed=1`);
+                  }
+                } else await router.push(`/${workspace.slugOrId}/reverse-syncs?id=${result.id}`);
               })
             }
           >

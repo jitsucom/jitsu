@@ -40,13 +40,20 @@ export async function execute(input: ExecuteOptions): Promise<TaskResult> {
   let held = false;
   let timer: ReturnType<typeof setTimeout> | undefined;
   let renewing: Promise<void> | undefined;
+  let leaseRenewal: Promise<void> | undefined;
   let stopped = false;
   let ownershipLost = false;
   let stage: FailureStage = "lease_acquire";
   const signal = controller.signal;
+  // Provisioning and foreground admission share renewal with the heartbeat.
+  // Parallel GET/PUT renewals would conflict on Kubernetes resourceVersion.
+  const renewLease = () =>
+    (leaseRenewal ??= lease.renew().finally(() => {
+      leaseRenewal = undefined;
+    }));
   const tick = async () => {
     try {
-      await lease.renew();
+      await renewLease();
       await tasks.heartbeat();
     } catch {
       ownershipLost = true;
@@ -97,7 +104,7 @@ export async function execute(input: ExecuteOptions): Promise<TaskResult> {
     });
     // Recheck the Kubernetes lease before opening persistence. Durable state still
     // rejects changed revision/target/mode, but does not authorize worker ownership.
-    await lease.renew();
+    await renewLease();
     signal.throwIfAborted();
     const runInput = {
       workspaceId: config.workspaceId,
