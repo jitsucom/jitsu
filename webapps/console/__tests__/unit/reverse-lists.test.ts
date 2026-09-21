@@ -21,7 +21,15 @@ vi.mock("../../lib/context", () => ({
   useAppConfig: () => ({}),
   useWorkspaceRole: () => ({ role: "owner" }),
 }));
-vi.mock("../../lib/store", () => ({ useConfigObjectList: () => [{ id: "destination", name: "Google" }] }));
+vi.mock("../../lib/store", () => ({
+  useConfigObjectList: (type: string) =>
+    type === "model"
+      ? [{ id: "model", name: "Audience", warehouseId: "warehouse" }]
+      : [
+          { id: "destination", name: "Google", destinationType: "google-ads" },
+          { id: "warehouse", name: "Source", destinationType: "postgres" },
+        ],
+}));
 vi.mock("../../lib/ui", () => ({ confirmOp: state.confirm }));
 vi.mock("../../components/ReverseETL/shared", async original => ({
   ...(await original<typeof import("../../components/ReverseETL/shared")>()),
@@ -98,10 +106,19 @@ function mount(component: React.ComponentType) {
   return render(React.createElement(QueryClientProvider, { client }, React.createElement(component)));
 }
 describe("Reverse ETL standard lists", () => {
+  it("uses only endpoints as the title and greys disabled rows without mode or schedule labels", () => {
+    state.syncs[0].options.disabled = true;
+    state.syncs[0].options.schedule = "0 * * * *";
+    mount(ReverseSyncsList);
+    expect(screen.getByText("Audience").closest("tr")?.classList.contains("opacity-50")).toBe(true);
+    for (const label of ["Customers", "Mirror", "0 * * * *", "PAUSED", "ENABLED", "Manual only"])
+      expect(screen.queryByText(label)).toBeNull();
+  });
   it("passes bookmarked filters to the server and changes status without losing other filters", async () => {
     state.route.query = { syncId: "sync", status: "SUCCESS", from: "2026-01-01T00:00:00.000Z" };
     mount(ReverseTasksList);
     await screen.findByText("10s");
+    expect(screen.queryByText(/Customers/)).toBeNull();
     expect(state.rpc).toHaveBeenCalledWith("/api/ws/reverse-etl/tasks", { query: state.route.query });
     fireEvent.mouseDown(screen.getAllByRole("combobox")[1]);
     fireEvent.click(await screen.findByText("FAILED", { selector: ".ant-select-item-option-content" }));

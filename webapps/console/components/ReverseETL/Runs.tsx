@@ -1,7 +1,6 @@
 import React, { useState } from "react";
 import { Alert, Button, Descriptions, Input, Modal, Table } from "antd";
 import { useRouter } from "next/router";
-import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 import { rpc } from "juava";
 import { z } from "zod";
@@ -11,6 +10,7 @@ import { EditorTitle } from "../ConfigObjectEditor/EditorTitle";
 import { Failure, Panel, useReverseSyncs } from "./shared";
 
 import { ReverseTaskStatus } from "./TaskStatus";
+import { ReverseSyncTitle } from "./SyncTitle";
 
 const resultSchema = z.object({
   tasks: z.array(ReverseTask),
@@ -38,7 +38,7 @@ export function ReverseRuns() {
     refetchInterval: 5000,
   });
   const task = taskId ? tasks.data?.tasks[0] : undefined;
-  const syncName = (id: string) => syncs.data?.find(s => s.id === id)?.options.name || id;
+  const sync = syncs.data?.find(s => s.id === task?.sync_id);
   const cancel = async () => {
     if (!task) return;
     setBusy(true);
@@ -74,7 +74,7 @@ export function ReverseRuns() {
       <Failure error={error || tasks.error} />
       {task ? (
         <>
-          <Panel title={syncName(task.sync_id)}>
+          <Panel title={<ReverseSyncTitle sync={sync} syncId={task.sync_id} link={false} />}>
             <div className="flex justify-between items-center mb-5">
               <ReverseTaskStatus task={task} />
               <Button
@@ -103,11 +103,7 @@ export function ReverseRuns() {
                 {
                   key: "sync",
                   label: "Sync",
-                  children: (
-                    <Link href={`/${workspace.slugOrId}/reverse-syncs?id=${task.sync_id}`}>
-                      {syncName(task.sync_id)}
-                    </Link>
-                  ),
+                  children: <ReverseSyncTitle sync={sync} syncId={task.sync_id} />,
                 },
                 { key: "start", label: "Started", children: task.started_at.toLocaleString() },
                 { key: "updated", label: "Last update", children: task.updated_at.toLocaleString() },

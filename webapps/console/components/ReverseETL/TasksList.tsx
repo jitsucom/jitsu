@@ -136,8 +136,8 @@ export function ReverseTasksList() {
           value={filters.syncId}
           options={syncs.data?.map(s => ({
             value: s.id,
-            search: `${s.id} ${s.options.name ?? ""} ${s.modelName} ${s.destinationName}`,
-            label: `${s.options.name ? `${s.options.name}: ` : ""}${s.modelName} → ${s.destinationName}`,
+            search: `${s.id} ${s.modelName} ${s.destinationName}`,
+            label: <ReverseSyncTitle sync={s} syncId={s.id} link={false} />,
           }))}
           onChange={syncId => void setFilters({ syncId })}
         />

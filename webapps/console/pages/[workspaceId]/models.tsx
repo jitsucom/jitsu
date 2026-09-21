@@ -11,7 +11,7 @@ import { ModelConfig } from "../../lib/schema";
 import { useConfigApi } from "../../lib/useApi";
 import { useConfigObjectList, useConfigObjectLinks, useStoreReload } from "../../lib/store";
 import { ConfigEditor, ConfigEditorProps } from "../../components/ConfigObjectEditor/ConfigEditor";
-import { Database } from "lucide-react";
+import { ModelIcon, ModelTitle } from "../../components/ReverseETL/ModelTitle";
 import { DestinationTitle } from "./destinations";
 import { EditorTitle } from "../../components/ConfigObjectEditor/EditorTitle";
 import { useUnsavedChanges } from "../../lib/ui";
@@ -42,7 +42,7 @@ function ModelsList() {
     objectType: ModelConfig,
     fields: {},
     explanation: "Reusable warehouse queries for Reverse ETL audiences.",
-    icon: () => <Database className="w-full h-full" />,
+    icon: model => <ModelIcon model={model} />,
     addDisabled: !enabled || maintenance || !warehouses.length,
     deleteDisabled: maintenance,
     addAction: `/${workspace.slugOrId}/models?id=new`,
@@ -231,7 +231,9 @@ function ModelEditor() {
       {editing && router.query.id && (
         <>
           <EditorTitle
-            title={!enabled ? "View model" : editing === "new" ? "New model" : editing.name}
+            title={
+              !enabled ? "View model" : editing === "new" ? "New model" : <ModelTitle model={editing} size="large" />
+            }
             subtitle={
               <p className="text-textLight mb-6">Define the audience once. Reuse it across destination syncs.</p>
             }

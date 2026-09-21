@@ -77,6 +77,7 @@ it("reuses the URL save key after an uncertain create and page reload", async ()
   fireEvent.click(screen.getByRole("button", { name: "Save" }));
   await waitFor(() => expect(state.rpc).toHaveBeenCalledTimes(1));
   const key = state.rpc.mock.calls[0][1].body.requestId;
+  expect(state.rpc.mock.calls[0][1].body.sync.data.name).toBeUndefined();
   expect(state.route.query.requestId).toBe(key);
   first.unmount();
   mount();
@@ -96,7 +97,8 @@ it("disables fields while Save is pending", async () => {
   mount();
   fireEvent.click(screen.getByRole("button", { name: "Save" }));
   await waitFor(() => expect(state.rpc).toHaveBeenCalledTimes(1));
-  expect(screen.getByTestId("Name").querySelector("input")?.disabled).toBe(true);
+  expect(screen.queryByTestId("Name")).toBeNull();
+  expect(screen.getByTestId("Model").querySelector("input")?.disabled).toBe(true);
   finish({ id: "saved" });
   await waitFor(() => expect(state.route.push).toHaveBeenCalledWith("/ws/reverse-syncs"));
 });

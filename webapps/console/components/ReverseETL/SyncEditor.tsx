@@ -1,5 +1,5 @@
 import React, { useRef, useState } from "react";
-import { Alert, Button, Checkbox, Input, Select, Switch } from "antd";
+import { Alert, Button, Checkbox, Select, Switch } from "antd";
 import { useRouter } from "next/router";
 import { useQuery } from "@tanstack/react-query";
 import { rpc } from "juava";
@@ -18,6 +18,7 @@ import { EditorToolbar } from "../EditorToolbar/EditorToolbar";
 import { Failure } from "./shared";
 import { ScheduleEditor } from "./ScheduleEditor";
 import { reverseStreamEditors } from "./streams";
+import { ModelTitle } from "./ModelTitle";
 
 export function SyncEditor({ sync, reload }: { sync?: ReverseSyncView; reload: () => Promise<unknown> }) {
   const workspace = useWorkspace(),
@@ -44,7 +45,6 @@ export function SyncEditor({ sync, reload }: { sync?: ReverseSyncView; reload: (
     }
     return {
       version: 2,
-      name: "",
       stream: "",
       mode: "mirror",
       mapping: {},
@@ -106,27 +106,21 @@ export function SyncEditor({ sync, reload }: { sync?: ReverseSyncView; reload: (
   };
   const items: EditorItem[] = [
     {
-      name: "Name",
-      component: (
-        <Input
-          className="w-80"
-          disabled={!editable || !enabled}
-          value={options.name}
-          onChange={e => update({ name: e.target.value })}
-        />
-      ),
-    },
-    {
       name: "Model",
       component: (
         <Select
           className="w-80"
           showSearch
-          optionFilterProp="label"
+          optionFilterProp="search"
           disabled={disabled}
           value={fromId || undefined}
           placeholder="Select model"
-          options={models.map(m => ({ value: m.id, label: m.name || m.id }))}
+          options={models.map(m => ({
+            value: m.id,
+            title: m.name || m.id,
+            search: `${m.name} ${m.id}`,
+            label: <ModelTitle model={m} size="small" />,
+          }))}
           onChange={id => {
             setFromId(id);
             setDirty(true);

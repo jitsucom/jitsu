@@ -1,8 +1,8 @@
 import React, { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/router";
-import { Button, Empty, Input, Table, Tag, Tooltip } from "antd";
-import { Database, Edit3, ListMinusIcon, Pause, Play, Plus, RefreshCw, Search, Trash2, XCircle } from "lucide-react";
+import { Button, Empty, Input, Table, Tooltip } from "antd";
+import { Edit3, ListMinusIcon, Pause, Play, Plus, RefreshCw, Search, Trash2, XCircle } from "lucide-react";
 import dayjs from "dayjs";
 import utc from "dayjs/plugin/utc";
 import relativeTime from "dayjs/plugin/relativeTime";
@@ -13,7 +13,7 @@ import { useQueryStringState } from "../../lib/useQueryStringState";
 import { confirmOp } from "../../lib/ui";
 import { ReverseSyncView } from "../../lib/reverse-etl";
 import { DestinationTitle } from "../../pages/[workspaceId]/destinations";
-import { ObjectTitle } from "../ObjectTitle/ObjectTitle";
+import { ModelTitle } from "./ModelTitle";
 import { ButtonGroup, ButtonProps } from "../ButtonGroup/ButtonGroup";
 import { WJitsuButton } from "../JitsuButton/JitsuButton";
 import { Failure, useReverseSyncs } from "./shared";
@@ -35,7 +35,7 @@ export function ReverseSyncsList() {
     s =>
       (!router.query.modelId || s.fromId === router.query.modelId) &&
       (!router.query.destinationId || s.toId === router.query.destinationId) &&
-      [s.id, s.fromId, s.toId, s.options.name, s.modelName, s.destinationName].some(v =>
+      [s.id, s.fromId, s.toId, s.modelName, s.destinationName].some(v =>
         v?.toLowerCase().includes(search.trim().toLowerCase())
       )
   );
@@ -146,6 +146,7 @@ export function ReverseSyncsList() {
       <Table<ReverseSyncView>
         size="small"
         rowKey="id"
+        rowClassName={sync => (sync.options.disabled ? "opacity-50" : "")}
         className="border border-backgroundDark rounded-lg"
         loading={syncs.isLoading || !!busy}
         pagination={false}
@@ -159,19 +160,7 @@ export function ReverseSyncsList() {
             sorter: (a, b) => a.modelName.localeCompare(b.modelName),
             render: (_, s) => (
               <Link href={`/${workspace.slugOrId}/reverse-syncs?id=${s.id}`}>
-                <ObjectTitle title={s.modelName} icon={<Database className="w-full h-full" />} />
-                <div className="text-xs text-textLight mt-1">
-                  {s.options.name || s.id} ·{" "}
-                  {s.options.mode === "mirror"
-                    ? s.options.streamOptions.mirrorStrategy === "full-replace"
-                      ? "Full replacement"
-                      : "Mirror"
-                    : "Add / remove"}
-                </div>
-                <div className="mt-1">
-                  <Tag>{s.options.disabled ? "PAUSED" : "ENABLED"}</Tag>
-                  <span className="text-xxs text-textLight">{s.options.schedule || "Manual only"}</span>
-                </div>
+                <ModelTitle modelId={s.fromId} title={s.modelName} />
               </Link>
             ),
           },
