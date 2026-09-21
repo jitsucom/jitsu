@@ -11,6 +11,7 @@ import { rpc } from "juava";
 import { ReverseTask, reverseTaskStatus } from "../../lib/reverse-etl";
 import { useAppConfig, useWorkspace } from "../../lib/context";
 import { confirmOp } from "../../lib/ui";
+import { shortTimeAgo } from "../../lib/short-time-ago";
 import { ButtonGroup, ButtonProps } from "../ButtonGroup/ButtonGroup";
 import { JitsuButton } from "../JitsuButton/JitsuButton";
 import { BackButton } from "../BackButton/BackButton";
@@ -279,17 +280,14 @@ export function ReverseTasksList() {
             ),
           },
           {
-            title: "Duration",
+            title: "Updated At",
             width: "12%",
             className: "whitespace-nowrap",
-            render: (_, task) =>
-              `${Math.max(
-                0,
-                Math.round(
-                  ((task.status === "RUNNING" ? Date.now() : task.updated_at.getTime()) - task.started_at.getTime()) /
-                    1000
-                )
-              )}s`,
+            render: (_, task) => (
+              <Tooltip title={dayjs(task.updated_at).utc().format("MMM DD, YYYY HH:mm:ss [UTC]")}>
+                <span>{shortTimeAgo(task.updated_at)}</span>
+              </Tooltip>
+            ),
           },
           {
             title: "Status",

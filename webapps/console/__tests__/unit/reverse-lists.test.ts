@@ -117,9 +117,12 @@ describe("Reverse ETL standard lists", () => {
       expect(screen.queryByText(label)).toBeNull();
   });
   it("passes bookmarked filters to the server and changes status without losing other filters", async () => {
+    vi.spyOn(Date, "now").mockReturnValue(Date.parse("2026-01-01T00:02:10Z"));
     state.route.query = { syncId: "sync", status: "SUCCESS", from: "2026-01-01T00:00:00.000Z" };
     const { container } = mount(ReverseTasksList);
-    await screen.findByText("10s");
+    await screen.findByText("2m ago");
+    expect(screen.getByRole("columnheader", { name: "Updated At" })).toBeTruthy();
+    expect(screen.queryByRole("columnheader", { name: "Duration" })).toBeNull();
     expect((container.querySelector(".ant-table-content") as HTMLElement).style.overflowX).not.toBe("auto");
     expect(screen.getByText("Syncs:")).toBeTruthy();
     expect(screen.getByText("Statuses:")).toBeTruthy();
