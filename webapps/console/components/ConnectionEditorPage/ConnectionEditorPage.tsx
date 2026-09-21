@@ -12,6 +12,12 @@ import { confirmOp, copyTextToClipboard, feedbackError, feedbackSuccess } from "
 import FieldListEditorLayout, { EditorItem } from "../FieldListEditorLayout/FieldListEditorLayout";
 import { DataLayoutType } from "@jitsu/protocols/analytics";
 import { Activity, Copy } from "lucide-react";
+import { useBilling } from "../Billing/BillingProvider";
+import {
+  canUseIdentityStitching,
+  hasIdentityStitching,
+  IDENTITY_STITCHING_FUNCTION_ID,
+} from "../../lib/shared/plan-features";
 import styles from "./ConnectionEditorPage.module.css";
 import { Htmlizer } from "../Htmlizer/Htmlizer";
 import { FunctionsSelector } from "../FunctionsSelector/FunctionsSelector";
@@ -229,6 +235,10 @@ function ConnectionEditor({
   const workspace = useWorkspace();
   const role = useWorkspaceRole();
   const canEdit = role.editEntities;
+  const billing = useBilling();
+  // JITSU-228: Identity Stitching is Enterprise-only. Self-hosted consoles have
+  // no plans, hence the billing.enabled guard.
+  const identityStitchingPlanTooLow = billing.enabled && !billing.loading && !canUseIdentityStitching(billing.settings);
   const [dstId, setDstId] = useState(existingLink?.toId || destinations[0].id);
   const [srcId, setSrcId] = useState(existingLink?.fromId || streams[0].id);
 
@@ -489,7 +499,7 @@ function ConnectionEditor({
               let functions = connectionOptions.functions ?? [];
               if (!deduplicate) {
                 // remove user recognition function when deduplication is disabled
-                functions = functions.filter(f => f.functionId !== "builtin.transformation.user-recognition");
+                functions = functions.filter(f => f.functionId !== IDENTITY_STITCHING_FUNCTION_ID);
               }
               updateOptions({ deduplicate, functions });
             }}
@@ -563,31 +573,42 @@ function ConnectionEditor({
     });
   }
   if (hasZodFields(connectionOptionsZodType, "functions", "deduplicate") && !limitations?.identityStitchingDisabled) {
+    // JITSU-228: a connection that already has Identity Stitching on keeps it —
+    // only switching it on is gated, matching assertIdentityStitchingAllowed on
+    // the server. That leaves a grandfathered connection free to turn it off,
+    // and the server will refuse to turn it back on afterwards.
+    const identityStitchingOn = hasIdentityStitching(connectionOptions);
+    const identityStitchingLocked = identityStitchingPlanTooLow && !identityStitchingOn;
     configItems.push({
       group: "Advanced",
       documentation: (
         <>
           Identity Stitching Function retroactively updates data rows of anonymous user events with userId and traits as
           soon as user sings in. For correct work 'Deduplicate' option must be enabled.
+          {identityStitchingLocked && (
+            <div className="mt-2">
+              Identity Stitching is available on the <b className="uppercase">Enterprise</b> plan.{" "}
+              <a href="https://jitsu.com/contact?utm_source=app" target="_blank" rel="noopener noreferrer">
+                Contact sales
+              </a>{" "}
+              to enable it for this workspace.
+            </div>
+          )}
         </>
       ),
       name: "Identity Stitching",
       component: (
         <SwitchComponent
-          disabled={!canEdit || connectionOptions.primaryKey === "" || !connectionOptions.deduplicate}
-          className="max-w-xs"
-          value={
-            typeof (connectionOptions.functions ?? []).find(
-              f => f.functionId === "builtin.transformation.user-recognition"
-            ) !== "undefined"
+          disabled={
+            !canEdit || connectionOptions.primaryKey === "" || !connectionOptions.deduplicate || identityStitchingLocked
           }
+          className="max-w-xs"
+          value={identityStitchingOn}
           onChange={ur => {
-            const f = (connectionOptions.functions ?? []).filter(
-              f => f.functionId !== "builtin.transformation.user-recognition"
-            );
+            const f = (connectionOptions.functions ?? []).filter(f => f.functionId !== IDENTITY_STITCHING_FUNCTION_ID);
             if (ur) {
               f.push({
-                functionId: "builtin.transformation.user-recognition",
+                functionId: IDENTITY_STITCHING_FUNCTION_ID,
               });
             }
             updateOptions({ functions: f });

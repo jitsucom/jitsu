@@ -8,6 +8,7 @@ import { getCoreDestinationTypeNonStrict, MASKED_SECRET } from "../schema/destin
 import { verifyAccess, verifyAccessWithRole } from "../api";
 import { prepareZodObjectForDeserialization } from "../zod";
 import { ApiError } from "../shared/errors";
+import { assertCustomDomainsAllowed, assertIdentityStitchingAllowed } from "./plan-gate";
 import { configObjectAuditLog } from "./audit-log";
 import { productTelemetryEnabled, trackTelemetryEvent, withProductAnalytics } from "./telemetry";
 import { scheduleSync, validateSyncSchedule } from "./sync";
@@ -213,6 +214,8 @@ export class ConfigObjectsService {
       }
     }
     object = await configObjectType.inputFilter(object, "create", workspace);
+    // JITSU-228: after inputFilter, so the domain is compared in its normalised form.
+    await assertCustomDomainsAllowed(user, workspaceId, type, object, undefined, opts.req);
     const inspectedWarehouse =
       type === "model" ? await validateModelForSave(this.prisma, workspaceId, object) : undefined;
     const id = object.id;
@@ -308,6 +311,8 @@ export class ConfigObjectsService {
     const merged = await configObjectType.merge(object.config, { ...body, id, workspaceId });
     const parsed = parseObject(type, merged);
     const filtered = await configObjectType.inputFilter(parsed, "update", workspace);
+    // JITSU-228: only a domain that is not already on the object is refused.
+    await assertCustomDomainsAllowed(user, workspaceId, type, filtered, prevVersion, opts.req);
     const inspectedWarehouse =
       type === "model" ? await validateModelForSave(this.prisma, workspaceId, filtered) : undefined;
     delete filtered.id;
@@ -500,6 +505,9 @@ export class ConfigObjectsService {
       });
     }
 
+    // JITSU-228: refuse switching Identity Stitching on without the entitlement.
+    await assertIdentityStitchingAllowed(user, workspaceId, data, existingLink?.data, opts.req);
+
     let createdOrUpdated: any;
     if (existingLink) {
       createdOrUpdated = await this.prisma.configurationObjectLink.update({
@@ -587,6 +595,8 @@ export class ConfigObjectsService {
       }
     }
     await this.validateLinkData(workspaceId, type, existing.toId, data);
+    // JITSU-228: a connection that already has it keeps it; only turning it on is gated.
+    await assertIdentityStitchingAllowed(user, workspaceId, data, existing.data, opts.req);
     const updated = await this.prisma.configurationObjectLink.update({ where: { id: existing.id }, data: { data } });
     await configObjectAuditLog(
       user,
