@@ -2,13 +2,8 @@ import { z } from "zod";
 import { rpc } from "juava";
 import { createRoute, verifyAccessWithRole } from "../../../../lib/api";
 import { db } from "../../../../lib/server/db";
-import { ReverseSyncSettings } from "../../../../lib/reverse-etl";
-import {
-  completeReverseSetup,
-  updateReverseSync,
-  deleteReverseSync,
-  reverseTasks,
-} from "../../../../lib/server/reverse-syncs";
+import { ReverseSyncSettings, ReverseSyncInput } from "../../../../lib/reverse-etl";
+import { updateReverseSync, deleteReverseSync, reverseTasks } from "../../../../lib/server/reverse-syncs";
 import { readReverseSync } from "../../../../lib/server/reverse-sync-export";
 import { getServerEnv } from "../../../../lib/server/serverEnv";
 import { ApiError } from "../../../../lib/shared/errors";
@@ -16,7 +11,13 @@ import { configObjectAuditLog } from "../../../../lib/server/audit-log";
 
 const query = z.object({ workspaceId: z.string(), syncId: z.string() });
 export const route = createRoute()
-  .PUT({ auth: true, mutates: true, query, body: ReverseSyncSettings, result: z.object({ id: z.string() }) })
+  .PUT({
+    auth: true,
+    mutates: true,
+    query,
+    body: z.union([ReverseSyncInput, ReverseSyncSettings]),
+    result: z.object({ id: z.string() }),
+  })
   .handler(async ({ user, query: { workspaceId, syncId }, body, req }) => {
     await verifyAccessWithRole(user, workspaceId, "editEntities");
     const result = await updateReverseSync(db.prisma(), workspaceId, syncId, body);
@@ -35,7 +36,6 @@ export const route = createRoute()
     mutates: true,
     query,
     body: z.discriminatedUnion("action", [
-      z.object({ action: z.literal("setup") }).strict(),
       z.object({ action: z.literal("run") }).strict(),
       z.object({ action: z.literal("cancel"), taskId: z.string() }).strict(),
     ]),
@@ -44,7 +44,6 @@ export const route = createRoute()
   .handler(async ({ user, query: { workspaceId, syncId }, body, req, res }) => {
     await verifyAccessWithRole(user, workspaceId, "editEntities");
     res.setHeader("Cache-Control", "no-store");
-    if (body.action === "setup") return completeReverseSetup(db.prisma(), workspaceId, syncId);
     const prisma = db.prisma();
     if (body.action === "cancel") {
       const tasks = await reverseTasks(prisma, workspaceId, { syncId, taskId: body.taskId });

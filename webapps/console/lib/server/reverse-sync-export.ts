@@ -4,9 +4,12 @@ import { ModelDefinition, ReverseSyncOptions, supportsWarehouseReader } from "@j
 import { ReverseRunConfig } from "@jitsu/warehouse-query/src/runtime";
 import { ApiError } from "../shared/errors";
 import { managedGoogleAudienceForSync } from "./google-audiences";
-import { GoogleAudienceOptions } from "@jitsu/destination-functions/src/functions/google-ads-reverse/meta";
+import {
+  GoogleAudienceOptions,
+  GoogleAudienceSettings,
+} from "@jitsu/destination-functions/src/functions/google-ads-reverse/meta";
 
-type ReadDb = Pick<Prisma.TransactionClient, "configurationObjectLink" | "configurationObject">;
+type ReadDb = Pick<Prisma.TransactionClient, "configurationObjectLink" | "configurationObject" | "source_state">;
 
 /** Missing/disabled is intentional omission; malformed active configuration fails the whole feed. */
 export async function readReverseSync(
@@ -41,10 +44,12 @@ export async function readReverseSync(
     const replacement = options.streamOptions.mirrorStrategy === "full-replace";
     // Existing admission also serves disabled, not-yet-provisioned setups. Only
     // native replacement needs this additional destructive-mode confirmation.
-    if (replacement) GoogleAudienceOptions.parse(options.streamOptions);
+    const runtimeProvisioned = options.streamOptions.audience !== undefined;
+    if (runtimeProvisioned) GoogleAudienceSettings.parse(options.streamOptions);
+    else if (replacement) GoogleAudienceOptions.parse(options.streamOptions);
     if (replacement && options.mode !== "mirror")
       throw new ApiError("Full replacement requires mirror mode", { status: 409 });
-    if (options.mode === "mirror" || options.streamOptions.managedAudienceId !== undefined) {
+    if (!runtimeProvisioned && (options.mode === "mirror" || options.streamOptions.managedAudienceId !== undefined)) {
       const managed = await managedGoogleAudienceForSync(
         db,
         link.workspaceId,

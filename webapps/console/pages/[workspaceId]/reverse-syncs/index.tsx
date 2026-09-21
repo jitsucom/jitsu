@@ -5,8 +5,7 @@ import Link from "next/link";
 import { WorkspacePageLayout } from "../../../components/PageLayout/WorkspacePageLayout";
 import { useAppConfig, useWorkspace, useWorkspaceRole } from "../../../lib/context";
 import { ReverseSyncView } from "../../../lib/reverse-etl";
-import { SyncWizard } from "../../../components/ReverseETL/SyncWizard";
-import { SyncDetail } from "../../../components/ReverseETL/SyncDetail";
+import { SyncEditor } from "../../../components/ReverseETL/SyncEditor";
 import { Failure, ReverseNotice, RunStatus, useReverseSyncs } from "../../../components/ReverseETL/shared";
 
 export default function ReverseSyncsPage() {
@@ -34,10 +33,10 @@ function ReverseSyncs() {
       <ReverseNotice enabled={enabled} />
       <Failure error={syncs.error} />
       {router.query.id === "new" ? (
-        <SyncWizard />
+        <SyncEditor key="new" reload={syncs.refetch} />
       ) : router.query.id ? (
         selected ? (
-          <SyncDetail key={selected.id} sync={selected} reload={syncs.refetch} />
+          <SyncEditor key={selected.id} sync={selected} reload={syncs.refetch} />
         ) : (
           <Alert
             type={syncs.isLoading ? "info" : "error"}
@@ -85,9 +84,7 @@ function ReverseSyncs() {
               },
               {
                 title: "Enablement",
-                render: (_, s) => (
-                  <Tag>{s.setupPending ? "Setup incomplete" : s.options.disabled ? "Paused" : "Enabled"}</Tag>
-                ),
+                render: (_, s) => <Tag>{s.options.disabled ? "Paused" : "Enabled"}</Tag>,
               },
               {
                 title: "Mode",

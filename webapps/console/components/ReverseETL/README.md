@@ -1,61 +1,63 @@
 # Reverse ETL console
 
-The workspace feature flag is `reverse-etl`. The navigation includes Models,
-Syncs, and All Logs. Existing objects remain reachable for inspection and
-cleanup after the flag is disabled.
+The workspace feature flag is `reverse-etl`. Existing syncs remain reachable for
+inspection, pausing and cleanup when the flag is disabled.
 
-## Create a sync
+## Editor
 
-1. Connect a read-only Postgres or HTTP(S) ClickHouse warehouse.
-2. Create a model. Use the SQL editor and preview to select stable primary-key
-   columns. Preview results expand immediately below the button.
-3. Connect Google Ads with Data Manager OAuth and the customer account ID.
-4. Create a reverse sync. Choose a new Jitsu-managed audience for full-query
-   mirroring, or an existing audience ID for additions and explicit removals.
-5. Map email and/or phone (raw or SHA-256). Consent mappings are optional; each
-   unmapped field assumes `GRANTED`. Mapped columns must contain `GRANTED` for additions;
-   denied, null or missing values fail the run. Confirm Customer Match terms;
-   managed audiences also require explicit exclusive-management confirmation.
-6. Validate the mapping and access, then save the disabled sync. For a managed
-   audience, complete setup from its detail page. Enable and run when ready.
+One field-list form follows SyncEditor: Name, Model, Destination, scheduling,
+Stream, then stream-specific settings. The stream registry initially supports
+Google Ads audiences. There is no wizard, intermediate save, warehouse preview or
+Google preflight in this form. Save writes `ConfigurationObjectLink.data` once;
+the server still enforces workspace permissions and structural configuration rules.
 
-Setup is persisted before provider writes. If audience creation is unresolved,
-check the same setup again; do not create another sync to retry it. Browser
-recovery of a lost local-save response uses the original request and settings.
-The server independently deduplicates that request and generates the sync ID.
-Use **Discard unsaved request** to correct a rejected save. The server first
-fences that request against late saves. If it already committed, the UI opens
-the saved sync instead of discarding it. No Google audience is deleted.
+Audience settings select a new managed audience or an existing audience ID.
+Managed audiences support snapshot-diff mirror or full replacement. Existing
+audiences support upsert with explicit removals, or full replacement with explicit
+exclusive-management confirmation. Map email and/or phone, raw or SHA-256.
+Optional consent columns default to GRANTED when unmapped. Runtime validates data
+and provider access; permanent row errors fail immediately.
 
-## Operations
+The runner creates managed audiences during their first run. Generated identity
+and durable creation intent live in `source_state`, not configuration entities.
+Uncertain submissions are discovered by the saved random marker on subsequent runs;
+they never authorize duplicate creation. Delivery settings lock once execution or
+provisioning starts; name, pause and schedule remain editable.
 
-- Schedule changes are reconciled by syncctl into Kubernetes CronJobs.
-- Empty schedule means manual only; recovery still runs while enabled.
-- Pause stops new runs and automatic recovery. In-flight Google calls can
-  finish. Cancel an active/waiting attempt separately when needed.
-- `WAITING` is provider processing. `RESUMED` means a later attempt continued
-  the logical run. Permanent row errors fail immediately; accepted effects and
-  recovery evidence are preserved.
-- Models, warehouses, account bindings and mappings referenced by saved syncs
-  cannot be changed in place in this release. There is no force-success,
-  skip-errors, state-reset or remote-audience deletion control.
-- Managed audiences use 540-day membership and refresh unchanged members after
-  30 days during normal runs. Existing audiences do not acquire a mirror baseline.
+Empty schedule means manual-only execution. Syncctl manages schedules and status
+refresh attempts while enabled. Run now opens the separate run logs page;
+`/reverse-syncs/tasks` shows history and `/reverse-syncs/logs` shows one attempt.
+Logs expose lifecycle and delivery summaries, not rows, identifiers or receipts.
 
-## Implementation and verification
+## Existing sync migration
 
-The UI reuses the console shell, editor title, field layout, Monaco, Ant Design
-and theme tokens. Dedicated workspace/role-scoped APIs own sync setup and
-admission; generic link CRUD cannot bypass them. Setup intent is an internal
-`ConfigurationObject`, not a new Prisma table. No billing logic is included.
+This explicit one-time migration preserves existing syncs and state. It does not
+call Google or reset any audience, checkpoint, acknowledged membership, pending
+receipt, artifact pointer, task history or target ownership. Ready legacy links
+retain their delivery JSON/revision; only their managed-audience evidence moves
+from `reverse-google-audience` into `source_state`. Incomplete setup settings move
+from `reverse-sync-setup` into link data, retaining any saved creation marker/phase.
+The old entities are removed atomically only after their evidence is preserved.
 
-Only task summaries and core lifecycle logs are returned to the UI. Provider
-receipts, payloads, identifiers and recovery state are not exposed.
+1. Back up the database and retain existing object-storage artifacts.
+2. Pause affected syncs and drain all running workers. Stop old console mutation
+   traffic and prevent syncctl from launching workers during the cutover. WAITING
+   delivery state is retained; do not reset/cancel it to run this migration.
+3. Using the new checkout and the intended database, run from `webapps/console`:
+   `pnpm manage migrate-reverse-sync-settings --workspace <id> --apply`.
+4. Deploy matching console and runner code before resuming traffic/syncs. There is
+   no mixed-version fallback to configuration entities. Verify preserved audience
+   IDs and pending runs, then re-enable the syncs you paused.
 
-Tests: console unit tests, `reverse-syncs.test.ts`, `warehouse-models.test.ts`,
-`reverse-sync-export.test.ts`, and destination-function tests. Provider calls
-are mocked. Local browser QA uses a separate synthetic database and must not
-submit audiences to a real Google account.
+The command requires a workspace and explicit `--apply`, refuses enabled legacy
+syncs/running workers, and rolls back on ambiguous or conflicting evidence. A
+second run is a no-op. Unlinked abandoned legacy setup records are not touched.
+No new Prisma tables or columns are needed. No live migration runs on page load,
+Save, or deployment. This is separate from the earlier object-storage cutover.
 
-Deployment for this PR is manual; no `deploy:console` label. Console and runner
-deployment remain separate.
+## Verification
+
+Console integration tests cover save/edit access, migration rollback and exact
+delivery-revision/state preservation. Runner tests cover first-run creation,
+uncertain responses, discovery and OAuth failures using isolated databases and
+mocked provider requests. Deployment remains manual; runner and console are separate.

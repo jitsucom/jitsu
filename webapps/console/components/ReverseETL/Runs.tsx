@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { Alert, Button, Descriptions, Input, Modal, Table } from "antd";
+import { Alert, Button, Descriptions, Input, Modal, Table, Select } from "antd";
 import { useRouter } from "next/router";
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
@@ -14,13 +14,14 @@ const resultSchema = z.object({
   tasks: z.array(ReverseTask),
   logs: z.array(z.object({ id: z.string(), timestamp: z.coerce.date(), level: z.string(), message: z.string() })),
 });
-export function ReverseRuns({ syncId, compact = false }: { syncId?: string; compact?: boolean }) {
+export function ReverseRuns({ view = "tasks" }: { view?: "tasks" | "logs" }) {
   const workspace = useWorkspace();
   const router = useRouter();
   const role = useWorkspaceRole();
   const maintenance = useAppConfig().maintenance?.active;
   const syncs = useReverseSyncs();
-  const taskId = !compact && typeof router.query.taskId === "string" ? router.query.taskId : undefined;
+  const syncId = typeof router.query.syncId === "string" ? router.query.syncId : undefined;
+  const taskId = typeof router.query.taskId === "string" ? router.query.taskId : undefined;
   const [search, setSearch] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<unknown>();
@@ -55,9 +56,9 @@ export function ReverseRuns({ syncId, compact = false }: { syncId?: string; comp
   };
   return (
     <>
-      {!compact && (
+      {
         <EditorTitle
-          title={taskId ? "Run details" : "Reverse ETL logs"}
+          title={view === "logs" ? "Reverse ETL run logs" : "Reverse ETL runs"}
           subtitle={
             <p className="text-textLight mb-6">
               {taskId
@@ -65,11 +66,36 @@ export function ReverseRuns({ syncId, compact = false }: { syncId?: string; comp
                 : "Recent execution attempts across all reverse syncs."}
             </p>
           }
-          onBack={() => router.push(`/${workspace.slugOrId}/reverse-syncs${taskId ? "/tasks" : ""}`)}
+          onBack={() =>
+            router.push(
+              `/${workspace.slugOrId}/reverse-syncs${
+                view === "logs" ? `/tasks${syncId ? `?syncId=${syncId}` : ""}` : syncId ? `?id=${syncId}` : ""
+              }`
+            )
+          }
         />
-      )}
+      }
       <Failure error={error || tasks.error} />
-      {taskId ? (
+      {view === "tasks" && (
+        <div className="flex justify-between gap-4 mb-4">
+          <Select
+            className="w-80"
+            placeholder="All reverse syncs"
+            allowClear
+            showSearch
+            optionFilterProp="label"
+            value={syncId}
+            options={syncs.data?.map(s => ({ value: s.id, label: s.options.name || s.modelName }))}
+            onChange={id =>
+              router.push({ pathname: `/${workspace.slugOrId}/reverse-syncs/tasks`, query: id ? { syncId: id } : {} })
+            }
+          />
+          <Button loading={tasks.isFetching} onClick={() => tasks.refetch()}>
+            Refresh
+          </Button>
+        </div>
+      )}
+      {view === "logs" ? (
         task ? (
           <>
             <Panel title={syncName(task.sync_id)}>
@@ -126,7 +152,7 @@ export function ReverseRuns({ syncId, compact = false }: { syncId?: string; comp
                 className="mb-5"
                 type="info"
                 title="Continued in a later attempt"
-                description="A later attempt is handling these changes. See this sync’s Runs tab for the latest status."
+                description="A later attempt is handling these changes. See this sync’s run history for the latest status."
               />
             )}
             {task.error && <Alert className="mb-5" type="error" title="Run stopped" description={task.error} />}
@@ -187,7 +213,9 @@ export function ReverseRuns({ syncId, compact = false }: { syncId?: string; comp
             {
               title: "",
               render: (_, t) => (
-                <Link href={`/${workspace.slugOrId}/reverse-syncs/tasks?taskId=${t.task_id}`}>View logs</Link>
+                <Link href={`/${workspace.slugOrId}/reverse-syncs/logs?syncId=${t.sync_id}&taskId=${t.task_id}`}>
+                  View logs
+                </Link>
               ),
             },
           ]}

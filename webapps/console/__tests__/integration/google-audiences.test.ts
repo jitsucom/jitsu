@@ -1,19 +1,17 @@
-import { randomUUID } from "node:crypto";
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
+import { createHash } from "node:crypto";
+import type { Prisma } from "@prisma/client";
 import { deps, seedWorkspace } from "./support/harness";
-import { provisionGoogleAudience } from "../../lib/server/google-audiences";
+import { migrateReverseSyncSettings } from "../../lib/server/migrate-reverse-sync-settings";
 import { readReverseSync } from "../../lib/server/reverse-sync-export";
-import type { NangoConfig } from "../../lib/server/oauth/nango-config";
-
-const nango: NangoConfig = {
-  enabled: true,
-  nangoApiHost: "https://nango.test.local",
-  nangoAppHost: "https://nango.test.local",
-  secretKey: "secret",
-  publicKey: "public",
-  callback: "https://console.test.local",
-};
-async function fixture() {
+import {
+  GoogleAudienceCredentials,
+  GoogleManagedAudience,
+} from "@jitsu/destination-functions/src/functions/google-ads-reverse/meta";
+import { contentHash } from "@jitsu/destination-functions/src/reverse-etl/identity";
+import { ModelDefinition, ReverseSyncOptions } from "@jitsu/warehouse-query/src/schema";
+import { googleAudienceStateStream } from "@jitsu/destination-functions/src/functions/google-ads-reverse/state";
+async function fixture(phase: "ready" | "submitting" = "ready") {
   const { workspace } = await seedWorkspace();
   const { prisma } = deps();
   await prisma.workspace.update({ where: { id: workspace.id }, data: { featuresEnabled: ["reverse-etl"] } });
@@ -28,7 +26,7 @@ async function fixture() {
     data: {
       workspaceId: workspace.id,
       type: "model",
-      config: { warehouseId: warehouse.id, query: "select email from users", primaryKey: ["email"] },
+      config: { warehouseId: warehouse.id, query: "select id from users", primaryKey: ["id"] },
     },
   });
   const destination = await prisma.configurationObject.create({
@@ -44,236 +42,177 @@ async function fixture() {
   const link = await prisma.configurationObjectLink.create({
     data: { workspaceId: workspace.id, type: "reverse-sync", fromId: model.id, toId: destination.id, data: {} },
   });
-  const input = {
-    destinationId: destination.id,
-    syncId: link.id,
-    requestId: randomUUID(),
-    displayName: "My audience",
-    exclusiveManagementConfirmed: true,
-    customerMatchTermsAccepted: true,
-  };
-  let remote: Record<string, unknown> | undefined;
-  let loseResponse = false;
-  let emptyDiscovery = false;
-  let duplicateDiscovery = false;
-  const request = vi.fn<typeof fetch>(async (url, init) => {
-    if (String(url).startsWith("https://nango.test.local/"))
-      return Response.json({
-        connection_id: credentials.oauthConnectionId,
-        provider_config_key: "jitsu-cloud-dst-google-ads",
-        credentials: { access_token: "token", expires_at: new Date(Date.now() + 3600000).toISOString() },
-      });
-    expect(new URL(String(url)).origin).toBe("https://datamanager.googleapis.com");
-    if (init?.method === "POST") {
-      remote = {
-        ...JSON.parse(init.body as string),
-        id: "1234",
-        name: "accountTypes/GOOGLE_ADS/accounts/1234567890/userLists/1234",
-        accessReason: "OWNED",
-      };
-      if (loseResponse) throw new Error("lost private response");
-      return Response.json(remote);
-    }
-    if (new URL(String(url)).searchParams.has("filter"))
-      return Response.json({
-        userLists: remote && !emptyDiscovery ? (duplicateDiscovery ? [remote, remote] : [remote]) : [],
-      });
-    return Response.json(remote);
+  const audience = await prisma.configurationObject.create({
+    data: {
+      id: `retl-google-${contentHash(link.id)}`,
+      workspaceId: workspace.id,
+      type: "reverse-google-audience",
+      config: {
+        version: 1,
+        phase,
+        destinationId: destination.id,
+        syncId: link.id,
+        configBinding: contentHash(GoogleAudienceCredentials.parse(credentials)),
+        creationNonce: "a".repeat(64),
+        displayName: "Legacy",
+        integrationCode: `jitsu-retl-${"a".repeat(64)}`,
+        customerId: "1234567890",
+        membershipDays: 540,
+        ...(phase === "ready" ? { audienceId: "123" } : {}),
+      },
+    },
   });
-  const create = (value: unknown = input, scope = workspace.id) =>
-    provisionGoogleAudience(prisma, scope, value, nango, request);
-  const bind = async (id?: string, mode = "mirror") => {
-    await prisma.configurationObjectLink.update({
-      where: { id: link.id },
-      data: {
-        data: {
-          version: 2,
-          stream: "audience",
-          mode,
-          mapping: { email: "email" },
-          streamOptions: {
-            audienceId: "1234",
-            customerMatchTermsAccepted: true,
-            ...(id ? { managedAudienceId: id } : {}),
-          },
+  const options = ReverseSyncOptions.parse({
+    name: "Legacy",
+    stream: "audience",
+    mode: "mirror",
+    mapping: { email: "id" },
+    disabled: true,
+    streamOptions:
+      phase === "ready" ? { audienceId: "123", managedAudienceId: audience.id, customerMatchTermsAccepted: true } : {},
+  });
+  await prisma.configurationObjectLink.update({
+    where: { id: link.id },
+    data: { data: options as Prisma.InputJsonObject },
+  });
+  await prisma.configurationObject.create({
+    data: {
+      workspaceId: workspace.id,
+      type: "reverse-sync-setup",
+      config: {
+        syncId: link.id,
+        ready: phase === "ready",
+        input: {
+          audience: { kind: "managed", displayName: "Legacy", exclusiveManagementConfirmed: true },
+          customerMatchTermsAccepted: true,
         },
       },
-    });
-    return readReverseSync(prisma, link.id);
-  };
-  const posts = () => request.mock.calls.filter(([, init]) => init?.method === "POST");
-  return {
-    prisma,
-    workspace,
-    destination,
-    credentials,
-    link,
-    input,
-    request,
-    create,
-    bind,
-    posts,
-    lose: () => {
-      loseResponse = true;
     },
-    empty: () => {
-      emptyDiscovery = true;
-    },
-    duplicate: () => {
-      duplicateDiscovery = true;
-    },
-  };
+  });
+  return { prisma, workspace, model, warehouse, destination, credentials, link, audience, options };
 }
-describe("managed Google audience provisioning and admission", () => {
-  it.each(["missing", "deleted", "foreign-workspace", "wrong-destination", "wrong-type"])(
-    "rejects a %s sync before storing intent or external I/O",
-    async kind => {
-      const f = await fixture();
-      if (kind === "missing") f.input.syncId = "missing-sync";
-      else {
-        const { workspace: foreign } = await seedWorkspace();
-        await f.prisma.configurationObjectLink.update({
-          where: { id: f.link.id },
-          data: {
-            ...(kind === "deleted" ? { deleted: true } : {}),
-            ...(kind === "foreign-workspace" ? { workspaceId: foreign.id } : {}),
-            ...(kind === "wrong-destination" ? { toId: f.link.fromId } : {}),
-            ...(kind === "wrong-type" ? { type: "push" } : {}),
-          },
-        });
-      }
-      await expect(f.create()).rejects.toThrow("binding");
-      expect(f.request).not.toHaveBeenCalled();
-      expect(
-        await f.prisma.configurationObject.count({
-          where: { workspaceId: f.workspace.id, type: "reverse-google-audience" },
-        })
-      ).toBe(0);
-    }
-  );
-  it("permits provisioning for a disabled but live sync", async () => {
+describe("legacy setup migration", () => {
+  it("preserves target/revision, acknowledged checkpoint and pending delivery exactly", async () => {
     const f = await fixture();
-    await f.prisma.configurationObjectLink.update({ where: { id: f.link.id }, data: { data: { disabled: true } } });
-    expect(await f.create()).toMatchObject({ status: "ready", audienceId: "1234" });
-    expect(f.posts()).toHaveLength(1);
-  });
-  it("rechecks the live sync after OAuth before creating an audience", async () => {
-    const f = await fixture();
-    const oauth = f.request.getMockImplementation()!;
-    f.request.mockImplementationOnce(async (url, init) => {
-      await f.prisma.configurationObjectLink.update({ where: { id: f.link.id }, data: { deleted: true } });
-      return oauth(url, init);
-    });
-    await expect(f.create()).rejects.toThrow("binding");
-    expect(f.request).toHaveBeenCalledTimes(1); // OAuth only, no Google request.
-    expect(f.posts()).toHaveLength(0);
-    const intent = await f.prisma.configurationObject.findFirst({
-      where: { workspaceId: f.workspace.id, type: "reverse-google-audience" },
-    });
-    expect(intent!.config).toMatchObject({ phase: "prepared" });
-  });
-  it("journals creation once, exports only server evidence and reserves it to one sync", async () => {
-    const f = await fixture();
-    const created = await f.create();
-    expect(created).toMatchObject({ status: "ready", audienceId: "1234" });
-    expect(await f.create()).toEqual(created);
-    expect(f.posts()).toHaveLength(1);
-    const sent = JSON.parse(f.posts()[0][1]!.body as string);
-    expect(sent.integrationCode).not.toBe(created.id.replace("retl-google-", "jitsu-retl-"));
-    expect(created).not.toHaveProperty("integrationCode");
-    expect(sent).not.toHaveProperty("creationNonce");
-    const config = await f.bind(created.id);
-    expect(config!.destination.reverseManagedAudience).toMatchObject({
-      id: created.id,
+    const managed = GoogleManagedAudience.parse({
+      id: f.audience.id,
       syncId: f.link.id,
-      audienceId: "1234",
+      customerId: "1234567890",
+      audienceId: "123",
+      displayName: "Legacy",
+      integrationCode: `jitsu-retl-${"a".repeat(64)}`,
       membershipDays: 540,
     });
-    const other = await f.prisma.configurationObjectLink.create({
+    // Match the old exporter using PostgreSQL JSONB key ordering, not pre-insert JS objects.
+    const original = await f.prisma.configurationObjectLink.findUniqueOrThrow({
+      where: { id: f.link.id },
+      include: { to: true, from: true },
+    });
+    const { name, schedule, timezone, checkpointEvery, disabled, ...delivery } = ReverseSyncOptions.parse(
+      original.data
+    );
+    const revision = createHash("sha256")
+      .update(
+        JSON.stringify({
+          model: ModelDefinition.parse(original.from.config),
+          warehouse: f.warehouse.config,
+          destination: { ...(original.to.config as object), reverseManagedAudience: managed },
+          options: delivery,
+        })
+      )
+      .digest("hex");
+    await f.prisma.reverse_sync_control.create({
       data: {
-        workspaceId: f.workspace.id,
-        type: "reverse-sync",
-        fromId: f.link.fromId,
-        toId: f.destination.id,
-        data: config!.options as any,
+        workspace_id: f.workspace.id,
+        sync_id: f.link.id,
+        run_id: "logical",
+        revision,
+        target_hash: "b".repeat(64),
+        mode: "mirror",
+        extraction: "full",
+        phase: "finish_pending",
+        artifact_head: Buffer.from("unchanged-pointer"),
+        finish_result: Buffer.from("unchanged-receipt"),
       },
     });
-    await expect(readReverseSync(f.prisma, other.id)).rejects.toThrow("binding");
-  });
-  it("permits only one creation POST across concurrent requests", async () => {
-    const f = await fixture();
-    await Promise.all([f.create(), f.create(), f.create()]);
-    expect(f.posts()).toHaveLength(1);
-    expect(await f.create()).toMatchObject({ status: "ready", audienceId: "1234" });
-  });
-  it("discovers a lost create response without resubmitting", async () => {
-    const f = await fixture();
-    f.lose();
-    await expect(f.create()).rejects.toThrow("same requestId");
-    expect(await f.create()).toMatchObject({ status: "ready", audienceId: "1234" });
-    expect(f.posts()).toHaveLength(1);
-  });
-  it("keeps absent or ambiguous creation unresolved without another POST", async () => {
-    const f = await fixture();
-    f.lose();
-    await expect(f.create()).rejects.toThrow("same requestId");
-    f.duplicate();
-    await expect(f.create()).rejects.toThrow("same requestId");
-    f.empty();
-    expect(await f.create()).toMatchObject({ status: "pending" });
-    expect(f.posts()).toHaveLength(1);
-  });
-  it("rejects changed intent and account binding, even with the same request ID", async () => {
-    const f = await fixture();
-    const created = await f.create();
-    await expect(f.create({ ...f.input, displayName: "Changed" })).rejects.toThrow("binding");
-    await f.prisma.configurationObject.update({
-      where: { id: f.destination.id },
-      data: { config: { ...f.credentials, customerId: "9999999999" } },
+    await f.prisma.source_state.create({
+      data: { sync_id: f.link.id, stream: "_REVERSE_ETL_", state: { private: "checkpoint" } },
     });
-    await expect(f.create()).rejects.toThrow("binding");
-    await expect(f.bind(created.id)).rejects.toThrow("binding");
-    expect(f.posts()).toHaveLength(1);
-  });
-  it.each([
-    "foreign-workspace",
-    "disabled-rollout",
-    "unauthorized",
-    "foreign-oauth",
-    "wrong-destination",
-    "no-consent",
-  ])("rejects %s before external I/O", async kind => {
-    const f = await fixture();
-    if (kind === "disabled-rollout")
-      await f.prisma.workspace.update({ where: { id: f.workspace.id }, data: { featuresEnabled: [] } });
-    if (["unauthorized", "foreign-oauth", "wrong-destination"].includes(kind))
-      await f.prisma.configurationObject.update({
-        where: { id: f.destination.id },
-        data: {
-          config: {
-            ...f.credentials,
-            ...(kind === "unauthorized" ? { authorized: false } : {}),
-            ...(kind === "foreign-oauth" ? { oauthConnectionId: "destination.other" } : {}),
-            ...(kind === "wrong-destination" ? { destinationType: "other" } : {}),
-          },
-        },
-      });
-    await expect(
-      f.create(
-        kind === "no-consent" ? { ...f.input, exclusiveManagementConfirmed: false } : f.input,
-        kind === "foreign-workspace" ? "foreign" : f.workspace.id
-      )
-    ).rejects.toThrow();
-    expect(f.request).not.toHaveBeenCalled();
-  });
-  it("strips forged destination proof and preserves existing-audience add/remove only", async () => {
-    const f = await fixture();
-    await f.prisma.configurationObject.update({
-      where: { id: f.destination.id },
-      data: { config: { ...f.credentials, reverseManagedAudience: { audienceId: "1234" } } },
+    const control = await f.prisma.reverse_sync_control.findFirstOrThrow({ where: { sync_id: f.link.id } });
+    expect(await migrateReverseSyncSettings(f.prisma, f.workspace.id)).toEqual({ migrated: 1 });
+    expect(await f.prisma.reverse_sync_control.findFirst({ where: { sync_id: f.link.id } })).toEqual(control);
+    expect(
+      (
+        await f.prisma.source_state.findUniqueOrThrow({
+          where: { sync_id_stream: { sync_id: f.link.id, stream: "_REVERSE_ETL_" } },
+        })
+      ).state
+    ).toEqual({ private: "checkpoint" });
+    expect((await f.prisma.configurationObjectLink.findUniqueOrThrow({ where: { id: f.link.id } })).data).toEqual(
+      f.options
+    );
+    await f.prisma.configurationObjectLink.update({
+      where: { id: f.link.id },
+      data: { data: { ...f.options, disabled: false } as Prisma.InputJsonObject },
     });
-    expect((await f.bind(undefined, "upsert"))!.destination).not.toHaveProperty("reverseManagedAudience");
-    await expect(f.bind()).rejects.toThrow("Jitsu-managed");
-    await expect(f.bind(`retl-google-${"a".repeat(64)}`)).rejects.toThrow("binding");
+    const exported = await readReverseSync(f.prisma, f.link.id);
+    expect(exported?.configRevision).toBe(revision);
+    expect(exported?.destination.reverseManagedAudience).toEqual(managed);
+    expect(await migrateReverseSyncSettings(f.prisma, f.workspace.id)).toEqual({ migrated: 0 });
+  });
+  it("moves uncertain creation to runtime state without making another Google call", async () => {
+    const f = await fixture("submitting");
+    await migrateReverseSyncSettings(f.prisma, f.workspace.id);
+    expect(
+      (
+        await f.prisma.source_state.findUniqueOrThrow({
+          where: { sync_id_stream: { sync_id: f.link.id, stream: googleAudienceStateStream } },
+        })
+      ).state
+    ).toMatchObject({ phase: "submitting", managed: { integrationCode: `jitsu-retl-${"a".repeat(64)}` } });
+    expect((await f.prisma.configurationObjectLink.findUniqueOrThrow({ where: { id: f.link.id } })).data).toMatchObject(
+      { streamOptions: { audience: { kind: "managed", displayName: "Legacy" } } }
+    );
+    expect(
+      await f.prisma.configurationObject.count({
+        where: { workspaceId: f.workspace.id, type: { in: ["reverse-sync-setup", "reverse-google-audience"] } },
+      })
+    ).toBe(0);
+  });
+  it("refuses enabled syncs and rolls back without deleting old evidence", async () => {
+    const f = await fixture();
+    await f.prisma.configurationObjectLink.update({
+      where: { id: f.link.id },
+      data: { data: { ...f.options, disabled: false } as Prisma.InputJsonObject },
+    });
+    await expect(migrateReverseSyncSettings(f.prisma, f.workspace.id)).rejects.toThrow("Pause");
+    expect(await f.prisma.configurationObject.findUnique({ where: { id: f.audience.id } })).not.toBeNull();
+  });
+  it("never adopts caller-supplied proof when runtime state is absent", async () => {
+    const f = await fixture();
+    await f.prisma.configurationObjectLink.update({
+      where: { id: f.link.id },
+      data: { data: { ...f.options, disabled: false } as Prisma.InputJsonObject },
+    });
+    await expect(readReverseSync(f.prisma, f.link.id)).rejects.toThrow("migration");
+  });
+  it("rolls back incomplete settings when runtime evidence conflicts", async () => {
+    const f = await fixture("submitting");
+    await f.prisma.source_state.create({
+      data: { sync_id: f.link.id, stream: googleAudienceStateStream, state: { other: "evidence" } },
+    });
+    await expect(migrateReverseSyncSettings(f.prisma, f.workspace.id)).rejects.toThrow("different evidence");
+    expect((await f.prisma.configurationObjectLink.findUniqueOrThrow({ where: { id: f.link.id } })).data).toEqual(
+      f.options
+    );
+    expect(await f.prisma.configurationObject.findUnique({ where: { id: f.audience.id } })).not.toBeNull();
+  });
+  it("refuses a still-running worker even when the sync is paused", async () => {
+    const f = await fixture();
+    await f.prisma.source_task.create({
+      data: { task_id: "active", sync_id: f.link.id, status: "RUNNING", package: "jitsu/retl-runner", version: "test" },
+    });
+    await expect(migrateReverseSyncSettings(f.prisma, f.workspace.id)).rejects.toThrow("Drain");
+    expect(await f.prisma.configurationObject.findUnique({ where: { id: f.audience.id } })).not.toBeNull();
   });
 });
