@@ -2,30 +2,16 @@ import React, { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/router";
 import Link from "next/link";
 import dynamic from "next/dynamic";
-import {
-  Alert,
-  Button,
-  Collapse,
-  Empty,
-  Form,
-  Input,
-  InputNumber,
-  Modal,
-  Select,
-  Table,
-  Typography,
-  Tabs,
-  Tag,
-  message,
-} from "antd";
-import { useQuery } from "@tanstack/react-query";
+import { Alert, Button, Collapse, Form, Input, InputNumber, Select, Table, Tabs, Tag, message } from "antd";
 import { randomId, rpc } from "juava";
 import { ModelDefinition, PreviewResult, supportsWarehouseReader } from "@jitsu/warehouse-query/src/schema";
 import { WorkspacePageLayout } from "../../components/PageLayout/WorkspacePageLayout";
 import { useAppConfig, useWorkspace, useWorkspaceRole } from "../../lib/context";
 import { ModelConfig } from "../../lib/schema";
 import { useConfigApi } from "../../lib/useApi";
-import { useConfigObjectList } from "../../lib/store";
+import { useConfigObjectList, useConfigObjectLinks, useStoreReload } from "../../lib/store";
+import { ConfigEditor, ConfigEditorProps } from "../../components/ConfigObjectEditor/ConfigEditor";
+import { Database, Plus } from "lucide-react";
 import { EditorTitle } from "../../components/ConfigObjectEditor/EditorTitle";
 import { useUnsavedChanges } from "../../lib/ui";
 
@@ -34,14 +20,84 @@ const SqlEditor = dynamic(() => import("../../components/CodeEditor/CodeEditor")
 });
 
 export default function ModelsPage() {
+  const router = useRouter();
   return (
     <WorkspacePageLayout>
-      <Models />
+      {router.query.id ? <ModelEditor key={`${router.query.id}:${router.query.clone ?? ""}`} /> : <ModelsList />}
     </WorkspacePageLayout>
   );
 }
 
-function Models() {
+function ModelsList() {
+  const workspace = useWorkspace();
+  const maintenance = !!useAppConfig().maintenance?.active;
+  const role = useWorkspaceRole();
+  const enabled = workspace.featuresEnabled.includes("reverse-etl");
+  const warehouses = useConfigObjectList("destination").filter(supportsWarehouseReader);
+  const links = useConfigObjectLinks();
+  const config: ConfigEditorProps<ModelConfig> = {
+    type: "model",
+    noun: "model",
+    listTitle: "Models",
+    objectType: ModelConfig,
+    fields: {},
+    explanation: "Reusable warehouse queries for Reverse ETL audiences.",
+    icon: () => <Database className="w-full h-full" />,
+    addDisabled: !enabled || maintenance || !warehouses.length,
+    deleteDisabled: maintenance,
+    addAction: `/${workspace.slugOrId}/models?id=new`,
+    listColumns: [
+      {
+        title: "Warehouse",
+        render: model => warehouses.find(w => w.id === model.warehouseId)?.name ?? model.warehouseId,
+      },
+      { title: "Primary key", render: model => model.primaryKey.join(", ") },
+      {
+        title: "Extraction",
+        render: model => <Tag>{model.cursor ? `Incremental: ${model.cursor.column}` : "Full query"}</Tag>,
+      },
+      {
+        title: "Syncs",
+        render: model => (
+          <Link href={`/${workspace.slugOrId}/reverse-syncs?modelId=${encodeURIComponent(model.id)}`}>
+            {links.filter(l => l.type === "reverse-sync" && l.fromId === model.id).length}
+          </Link>
+        ),
+      },
+    ],
+    actions: [
+      {
+        title: "Create sync",
+        icon: <Plus />,
+        link: model => `/reverse-syncs?id=new&modelId=${encodeURIComponent(model.id)}`,
+        disabled: () => !enabled || !role.editEntities || maintenance,
+      },
+    ],
+  };
+  return (
+    <>
+      {!enabled && (
+        <Alert
+          className="mb-4"
+          type="info"
+          title="Reverse ETL is not enabled for this workspace"
+          description="Existing models can be viewed or deleted. Creating, editing and previewing models requires Reverse ETL to be enabled."
+        />
+      )}
+      {enabled && !warehouses.length && (
+        <Alert
+          className="mb-4"
+          type="info"
+          title="Connect a supported warehouse first"
+          description="Models currently support Postgres with password authentication and ClickHouse over HTTP or HTTPS. Use a connection with read-only warehouse permissions."
+        />
+      )}
+      <ConfigEditor {...(config as ConfigEditorProps)} />
+    </>
+  );
+}
+
+function ModelEditor() {
   const workspace = useWorkspace();
   const router = useRouter();
   const maintenance = !!useAppConfig().maintenance?.active;
@@ -49,7 +105,8 @@ function Models() {
   const api = useConfigApi<ModelConfig>("model");
   const enabled = workspace.featuresEnabled.includes("reverse-etl");
   const warehouses = useConfigObjectList("destination").filter(supportsWarehouseReader);
-  const models = useQuery({ queryKey: ["reverse-etl-models", workspace.id], queryFn: () => api.list() });
+  const models = useConfigObjectList("model");
+  const reloadStore = useStoreReload();
   const [editing, setEditing] = useState<ModelConfig | "new">();
   const [saving, setSaving] = useState(false);
   const [dirty, setDirty] = useState(false);
@@ -62,11 +119,8 @@ function Models() {
   const [form] = Form.useForm();
   const cursorType = Form.useWatch(["cursor", "type"], form);
   const [incremental, setIncremental] = useState(false);
-  const links = useQuery({
-    queryKey: ["reverse-etl-links", workspace.id],
-    queryFn: async (): Promise<any[]> => (await rpc(`/api/${workspace.id}/config/link`)).links,
-  });
-  const dependencies = (links.data ?? []).filter(
+  const links = useConfigObjectLinks();
+  const dependencies = links.filter(
     l => l.type === "reverse-sync" && l.fromId === (editing !== "new" ? editing?.id : undefined)
   );
   const readonly = !enabled || !role.editEntities || maintenance || dependencies.length > 0;
@@ -78,30 +132,34 @@ function Models() {
       return;
     }
     if ((id === "new" && editing === "new") || (editing && editing !== "new" && editing.id === id)) return;
-    if (id === "new") open("new");
-    else {
-      const model = models.data?.find(m => m.id === id);
+    if (id === "new") {
+      const source = router.query.clone ? models.find(m => m.id === router.query.clone) : undefined;
+      if (!router.query.clone || source) open("new", source);
+    } else {
+      const model = models.find(m => m.id === id);
       if (model) open(model);
     }
-  }, [router.query.id, models.data]);
+  }, [router.query.id, router.query.clone, models]);
 
-  const open = (model: ModelConfig | "new") => {
+  const open = (model: ModelConfig | "new", source?: ModelConfig) => {
     previewVersion.current++;
     setPreviewing(false);
     setPreview(undefined);
     setError(undefined);
     setEditing(model);
     setDirty(false);
-    setIncremental(model !== "new" && !!model.cursor);
+    setIncremental(model === "new" ? !!source?.cursor : !!model.cursor);
     form.resetFields();
     form.setFieldsValue(
       model === "new"
-        ? {
-            name: "",
-            query: "SELECT id, email FROM users",
-            primaryKey: [],
-            pageSize: 1000,
-          }
+        ? source
+          ? { ...source, name: `${source.name} (copy)` }
+          : {
+              name: "",
+              query: "SELECT id, email FROM users",
+              primaryKey: [],
+              pageSize: 1000,
+            }
         : model
     );
   };
@@ -159,7 +217,7 @@ function Models() {
           cursor: model.cursor ?? null,
           deleteColumn: model.deleteColumn ?? null,
         } as any);
-      await models.refetch();
+      await reloadStore();
       setDirty(false);
       await router.push({ pathname: router.pathname, query: { workspaceId: workspace.slugOrId } });
       message.success("Model saved");
@@ -174,126 +232,7 @@ function Models() {
     preview?.columns.filter(c => c.supportsDelete).map(c => ({ label: `${c.name} (${c.type})`, value: c.name })) ?? [];
   return (
     <div className="w-full max-w-6xl px-4 md:px-8 py-6 mx-auto min-w-0">
-      {!router.query.id && (
-        <>
-          <div className="flex items-start justify-between mb-6">
-            <div>
-              <Typography.Title level={2}>Models</Typography.Title>
-              <Typography.Paragraph type="secondary">
-                Reusable warehouse queries for Reverse ETL audiences.
-              </Typography.Paragraph>
-            </div>
-            <Button
-              type="primary"
-              disabled={!enabled || !role.editEntities || maintenance || !warehouses.length}
-              onClick={() => router.push({ pathname: router.pathname, query: { ...router.query, id: "new" } })}
-            >
-              New model
-            </Button>
-          </div>
-          {!enabled && (
-            <Alert
-              className="mb-4"
-              type="info"
-              title="Reverse ETL is not enabled for this workspace"
-              description="Existing models can be viewed or deleted. Creating, editing and previewing models requires Reverse ETL to be enabled."
-            />
-          )}
-          {enabled && !warehouses.length && (
-            <Alert
-              className="mb-4"
-              type="info"
-              title="Connect a supported warehouse first"
-              description="Models currently support Postgres with password authentication and ClickHouse over HTTP or HTTPS. Use a connection with read-only warehouse permissions."
-            />
-          )}
-          {!!models.error && <Alert type="error" title={(models.error as Error).message} />}
-          <Table<ModelConfig>
-            scroll={{ x: 850 }}
-            rowKey="id"
-            loading={models.isLoading}
-            dataSource={models.data ?? []}
-            locale={{ emptyText: <Empty description="No models yet" /> }}
-            columns={[
-              {
-                title: "Model",
-                dataIndex: "name",
-                render: (name, model) => (
-                  <Button
-                    type="link"
-                    onClick={() => router.push({ pathname: router.pathname, query: { ...router.query, id: model.id } })}
-                  >
-                    {name}
-                  </Button>
-                ),
-              },
-              {
-                title: "Warehouse",
-                dataIndex: "warehouseId",
-                render: id => warehouses.find(w => w.id === id)?.name ?? id,
-              },
-              { title: "Primary key", dataIndex: "primaryKey", render: keys => keys.join(", ") },
-              {
-                title: "Extraction",
-                render: (_, model) => <Tag>{model.cursor ? `Incremental: ${model.cursor.column}` : "Full query"}</Tag>,
-              },
-              {
-                title: "Syncs",
-                render: (_, model) =>
-                  (links.data ?? []).filter(l => l.type === "reverse-sync" && l.fromId === model.id).length,
-              },
-              {
-                title: "",
-                render: (_, model) => (
-                  <Button
-                    type="link"
-                    disabled={!enabled || !role.editEntities || maintenance}
-                    onClick={() =>
-                      router.push(`/${workspace.slugOrId}/reverse-syncs?id=new&modelId=${encodeURIComponent(model.id)}`)
-                    }
-                  >
-                    Create sync
-                  </Button>
-                ),
-              },
-              {
-                title: "",
-                render: (_, model) => (
-                  <Button
-                    danger
-                    disabled={!role.deleteEntities || maintenance}
-                    onClick={() =>
-                      Modal.confirm({
-                        title: `Delete ${model.name}?`,
-                        content: "Models used by reverse syncs cannot be deleted.",
-                        okText: "Delete",
-                        okButtonProps: { danger: true },
-                        onOk: async () => {
-                          try {
-                            await api.del(model.id, { strict: true });
-                            await models.refetch();
-                          } catch (e) {
-                            message.error((e as Error).message);
-                            throw e;
-                          }
-                        },
-                      })
-                    }
-                  >
-                    Delete
-                  </Button>
-                ),
-              },
-            ]}
-          />
-        </>
-      )}
-      {router.query.id && !editing && (
-        <Alert
-          type={models.isLoading ? "info" : "error"}
-          title={models.isLoading ? "Loading model…" : "Model not found"}
-        />
-      )}
+      {router.query.id && !editing && <Alert type="error" title="Model not found" />}
       {editing && router.query.id && (
         <>
           <EditorTitle

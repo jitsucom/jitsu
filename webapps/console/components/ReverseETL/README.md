@@ -5,6 +5,10 @@ inspection, pausing and cleanup when the flag is disabled.
 
 ## Editor
 
+Models use the shared ConfigEditor object list with warehouse, primary-key,
+extraction and sync-count columns. Single-model editing retains its custom SQL
+editor and preview. Clone opens that editor as a new model with copied settings.
+
 One field-list form follows SyncEditor: Name, Model, Destination, scheduling,
 Stream, then stream-specific settings. The stream registry initially supports
 Google Ads audiences. There is no wizard, intermediate save, warehouse preview or

@@ -201,6 +201,9 @@ export type ConfigEditorProps<T extends { id: string } = { id: string }, M = {}>
   noun: string;
   nounPlural?: string;
   addAction?: Action;
+  /** Page-specific creation gates also apply to cloning existing objects. */
+  addDisabled?: boolean;
+  deleteDisabled?: boolean;
   editorTitle?: (o: T, isNew: boolean, meta?: M) => ReactNode;
   subtitle?: (o: T, isNew: boolean, meta?: M) => ReactNode;
   createKeyword?: string;
@@ -931,6 +934,8 @@ const ObjectsList: React.FC<{ objects: any[]; onDelete: (id: string) => Promise<
   onDelete,
   listColumns = [],
   actions = [],
+  addDisabled,
+  deleteDisabled,
   noun,
   icon,
   name = (o: any) => o.name,
@@ -991,6 +996,7 @@ const ObjectsList: React.FC<{ objects: any[]; onDelete: (id: string) => Promise<
           })),
           {
             label: "Clone",
+            disabled: addDisabled,
             href: `${pref}/${type}s?id=new&clone=${record.id}`,
             collapsed: true,
             icon: <FaClone />,
@@ -998,6 +1004,7 @@ const ObjectsList: React.FC<{ objects: any[]; onDelete: (id: string) => Promise<
           },
           {
             label: "Delete",
+            disabled: deleteDisabled,
             danger: true,
             collapsed: true,
             onClick: () => deleteObject(record.id),
@@ -1083,6 +1090,7 @@ const ObjectListEditor: React.FC<ConfigEditorProps> = props => {
             size="large"
             icon={<FaPlus />}
             requiredPermission="editEntities"
+            disabled={props.addDisabled}
           >
             Add new {props.noun}
           </JitsuButton>
@@ -1095,7 +1103,12 @@ const ObjectListEditor: React.FC<ConfigEditorProps> = props => {
               <Inbox className="h-16 w-16 my-6 text-neutral-200" />
               <div className="text text-textLight mb-6">You don't have any {props.noun}s configured.</div>
 
-              <JitsuButton type="default" onClick={() => doAction(router, addAction)} requiredPermission="editEntities">
+              <JitsuButton
+                type="default"
+                onClick={() => doAction(router, addAction)}
+                requiredPermission="editEntities"
+                disabled={props.addDisabled}
+              >
                 {props.createKeyword || "Create"} your first {props.noun}
               </JitsuButton>
             </div>
