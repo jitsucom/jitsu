@@ -11,7 +11,8 @@ import { ModelConfig } from "../../lib/schema";
 import { useConfigApi } from "../../lib/useApi";
 import { useConfigObjectList, useConfigObjectLinks, useStoreReload } from "../../lib/store";
 import { ConfigEditor, ConfigEditorProps } from "../../components/ConfigObjectEditor/ConfigEditor";
-import { Database, Plus } from "lucide-react";
+import { Database } from "lucide-react";
+import { DestinationTitle } from "./destinations";
 import { EditorTitle } from "../../components/ConfigObjectEditor/EditorTitle";
 import { useUnsavedChanges } from "../../lib/ui";
 
@@ -31,7 +32,6 @@ export default function ModelsPage() {
 function ModelsList() {
   const workspace = useWorkspace();
   const maintenance = !!useAppConfig().maintenance?.active;
-  const role = useWorkspaceRole();
   const enabled = workspace.featuresEnabled.includes("reverse-etl");
   const warehouses = useConfigObjectList("destination").filter(supportsWarehouseReader);
   const links = useConfigObjectLinks();
@@ -49,7 +49,10 @@ function ModelsList() {
     listColumns: [
       {
         title: "Warehouse",
-        render: model => warehouses.find(w => w.id === model.warehouseId)?.name ?? model.warehouseId,
+        render: model => {
+          const warehouse = warehouses.find(w => w.id === model.warehouseId);
+          return warehouse ? <DestinationTitle destination={warehouse} /> : model.warehouseId;
+        },
       },
       { title: "Primary key", render: model => model.primaryKey.join(", ") },
       {
@@ -63,14 +66,6 @@ function ModelsList() {
             {links.filter(l => l.type === "reverse-sync" && l.fromId === model.id).length}
           </Link>
         ),
-      },
-    ],
-    actions: [
-      {
-        title: "Create sync",
-        icon: <Plus />,
-        link: model => `/reverse-syncs?id=new&modelId=${encodeURIComponent(model.id)}`,
-        disabled: () => !enabled || !role.editEntities || maintenance,
       },
     ],
   };

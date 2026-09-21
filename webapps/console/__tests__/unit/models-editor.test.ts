@@ -170,6 +170,7 @@ describe("model editor", () => {
     expect(await screen.findByRole("link", { name: "Audience" })).toBeTruthy();
     expect(screen.getByText("Primary key")).toBeTruthy();
     expect(screen.getByText("Incremental: changed")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Create sync" })).toBeNull();
     fireEvent.change(screen.getByPlaceholderText("Filter by ID or name..."), { target: { value: "no-match" } });
     await waitFor(() => expect(screen.queryByRole("link", { name: "Audience" })).toBeNull());
     client.clear();
