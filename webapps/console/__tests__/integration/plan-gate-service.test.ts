@@ -59,7 +59,7 @@ describe("custom domains gate, through ConfigObjectsService", () => {
   it("refuses a stream created with a domain on the free plan", async () => {
     const { user, workspace } = await seedWorkspace();
     const sid = oid("s");
-    onPlan("free");
+    onPlan("free", { customDomainsEnabled: false });
     await expect(
       svc().create(user, workspace.id, "stream", { id: sid, name: "site", domains: [dom()] })
     ).rejects.toMatchObject({ status: 403 });
@@ -76,7 +76,7 @@ describe("custom domains gate, through ConfigObjectsService", () => {
 
   it("refuses a standalone `domain` object too, not just stream.domains", async () => {
     const { user, workspace } = await seedWorkspace();
-    onPlan("free");
+    onPlan("free", { customDomainsEnabled: false });
     await expect(svc().create(user, workspace.id, "domain", { id: oid("d"), name: dom() })).rejects.toMatchObject({
       status: 403,
     });
@@ -101,7 +101,7 @@ describe("custom domains gate, through ConfigObjectsService", () => {
     const existing = dom();
     onPlan("business");
     await svc().create(user, workspace.id, "stream", { id: sid, name: "site", domains: [existing] });
-    onPlan("free");
+    onPlan("free", { customDomainsEnabled: false });
     await expect(svc().update(user, workspace.id, "stream", sid, { domains: [existing, dom()] })).rejects.toMatchObject(
       { status: 403 }
     );
@@ -115,6 +115,17 @@ describe("custom domains gate, through ConfigObjectsService", () => {
       id: sid,
     });
     expect(billingCalls).toBe(0);
+  });
+
+  // The ship-dark property itself: until the flag lands in Stripe plan_data,
+  // deploying this code changes nothing for a free workspace. That is what
+  // lets it merge without contradicting the pricing page.
+  it("allows a free workspace to add a domain while no plan carries the flag", async () => {
+    const { user, workspace } = await seedWorkspace();
+    onPlan("free");
+    await expect(
+      svc().create(user, workspace.id, "stream", { id: oid("s"), name: "site", domains: [dom()] })
+    ).resolves.toBeTruthy();
   });
 });
 

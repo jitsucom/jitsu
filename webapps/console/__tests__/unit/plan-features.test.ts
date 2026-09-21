@@ -3,10 +3,17 @@ import { canUseCustomDomains, canUseIdentityStitching } from "../../lib/shared/p
 import { noRestrictions } from "../../lib/schema";
 
 describe("canUseCustomDomains", () => {
-  it("allows every plan but free", () => {
-    expect(canUseCustomDomains({ planId: "free" })).toBe(false);
+  // Ships dark: the plan id alone never denies. Enforcement arrives with the
+  // flag, so this merges without contradicting the pricing page.
+  it("allows every plan while no plan carries the flag", () => {
+    expect(canUseCustomDomains({ planId: "free" })).toBe(true);
     expect(canUseCustomDomains({ planId: "business" })).toBe(true);
     expect(canUseCustomDomains({ planId: "enterprise" })).toBe(true);
+  });
+
+  it("denies free once the flag is set on the plan", () => {
+    expect(canUseCustomDomains({ planId: "free", customDomainsEnabled: false })).toBe(false);
+    expect(canUseCustomDomains({ planId: "business", customDomainsEnabled: true })).toBe(true);
   });
 
   it("allows workspaces with no billing at all (self-hosted, billing disabled)", () => {

@@ -44,11 +44,19 @@ describe("hasIdentityStitching", () => {
 });
 
 describe("assertCustomDomainsAllowed", () => {
-  it("refuses a domain added on the free plan", async () => {
-    onPlan("free");
+  it("refuses a domain added on the free plan once the flag is set", async () => {
+    onPlan("free", { customDomainsEnabled: false });
     await expect(
       assertCustomDomainsAllowed(user, WS, "stream", { domains: ["new.com"] }, { domains: [] })
     ).rejects.toMatchObject({ status: 403 });
+  });
+
+  // Ships dark: without the flag on the plan, nothing is refused.
+  it("allows a domain on free while no plan carries the flag", async () => {
+    onPlan("free");
+    await expect(
+      assertCustomDomainsAllowed(user, WS, "stream", { domains: ["new.com"] }, { domains: [] })
+    ).resolves.toBeUndefined();
   });
 
   it("allows a domain added on a paid plan", async () => {
@@ -75,7 +83,7 @@ describe("assertCustomDomainsAllowed", () => {
   });
 
   it("refuses adding a second domain alongside a grandfathered one", async () => {
-    onPlan("free");
+    onPlan("free", { customDomainsEnabled: false });
     await expect(
       assertCustomDomainsAllowed(user, WS, "stream", { domains: ["old.com", "new.com"] }, { domains: ["old.com"] })
     ).rejects.toMatchObject({ status: 403 });
