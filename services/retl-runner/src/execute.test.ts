@@ -407,6 +407,10 @@ describe("executable runner", () => {
     expect(await execute(f.input)).toBe("WAITING");
     const waiting = await task();
     expect(waiting.error).toBeNull();
+    expect(waiting.metrics.reverseDelivery).toMatchObject({
+      upsert: { total: 1, pending: 1 },
+      records: { accepted: 0, pending: 2 },
+    });
     expect(waiting.started_by.workspaceId).toBe("workspace");
     expect(waiting.metrics.reverseRecovery).toMatchObject({
       runId: (await control()).run_id,
@@ -424,6 +428,7 @@ describe("executable runner", () => {
     const polled = await task("automatic-check");
     expect(polled.started_by).toMatchObject({ trigger: "recovery", recoveryOf: "task" });
     expect(polled.metrics.reverseRecovery.attempt).toBe(1);
+    expect(polled.metrics.reverseDelivery).toMatchObject({ upsert: { total: 1, pending: 1 } });
     expect(polled.metrics.reverseRecovery.deadline).toBe(waiting.metrics.reverseRecovery.deadline);
     for (const batch of f.writes) f.receipts.set(batch.batchId, accepted(batch));
     await makeDue();
@@ -431,6 +436,11 @@ describe("executable runner", () => {
     f.input.recoveryOf = "automatic-check";
     expect(await execute(f.input)).toBe("SUCCESS");
     expect((await task("automatic-complete")).status).toBe("SUCCESS");
+    expect((await task("automatic-complete")).metrics.reverseDelivery).toMatchObject({
+      upsert: { total: 1, accepted: 1, pending: 0 },
+      records: { accepted: 2, pending: 0 },
+    });
+    expect((await task()).metrics.reverseDelivery).toEqual(waiting.metrics.reverseDelivery);
     expect((await control()).phase).toBe("complete");
     expect(f.calls).not.toContain("reader");
     const waitingLogs = (await admin.query("SELECT message FROM newjitsu.task_log WHERE task_id='task'")).rows
@@ -499,7 +509,12 @@ describe("executable runner", () => {
     f.input.recoveryOf = "task";
     f.input.taskId = "rejected-check";
     expect(await execute(f.input)).toBe("FAILED");
-    expect((await task("rejected-check")).metrics).toBeNull();
+    const rejectedMetrics = (await task("rejected-check")).metrics;
+    expect(rejectedMetrics.reverseRecovery).toBeUndefined();
+    expect(rejectedMetrics.reverseDelivery).toMatchObject({
+      upsert: { total: 1, rejected: 1 },
+      records: { rejected: 2 },
+    });
     expect((await admin.query("SELECT 1 FROM newjitsu.source_task WHERE status='WAITING'")).rowCount).toBe(0);
     expect((await control()).phase).toBe("batches_pending");
     expect(await taskLogs("rejected-check")).toContain(

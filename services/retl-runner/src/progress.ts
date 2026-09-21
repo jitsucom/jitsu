@@ -1,4 +1,53 @@
 import type { ArtifactHead, BatchHead } from "./artifacts/state";
+import type { ReverseBatchCounts, ReverseDeliveryStats } from "@jitsu/protocols/reverse-etl-stats";
+
+export function batchStatistics(head: ArtifactHead): ReverseDeliveryStats {
+  const empty = (): ReverseBatchCounts => ({
+    total: 0,
+    prepared: 0,
+    unconfirmed: 0,
+    pending: 0,
+    accepted: 0,
+    rejected: 0,
+    partial: 0,
+    cancelled: 0,
+  });
+  const stats: ReverseDeliveryStats = {
+    version: 1,
+    runId: head.runId,
+    observedAt: new Date().toISOString(),
+    upsert: empty(),
+    remove: empty(),
+    records: { accepted: 0, pending: 0, rejected: 0 },
+    ...(head.snapshot?.strategy === "native-replace"
+      ? { replacement: head.snapshot.replacementStatus ?? "not_started" }
+      : {}),
+  };
+  for (const batch of head.batches) {
+    const counts = stats[batch.action];
+    const size = batch.last - batch.first + 1;
+    const status =
+      batch.status === "prepared"
+        ? "prepared"
+        : batch.status === "unknown"
+        ? "unconfirmed"
+        : batch.status === "cancelled"
+        ? "cancelled"
+        : batch.staged > 0
+        ? "pending"
+        : batch.accepted === size
+        ? "accepted"
+        : batch.rejected === size
+        ? "rejected"
+        : "partial";
+    counts.total++;
+    counts[status]++;
+    stats.records.accepted += batch.accepted;
+    stats.records.pending += batch.staged;
+    stats.records.rejected += batch.rejected;
+  }
+  return stats;
+}
 
 export function deliveryTotals(head: ArtifactHead, action: "upsert" | "remove") {
   const totals = {
@@ -31,6 +80,7 @@ export function deliveryTotals(head: ArtifactHead, action: "upsert" | "remove") 
 
 /** Only aggregate core-owned counts. No payloads, identifiers, cursors or provider messages. */
 export class RunProgress {
+  private lastStats = "";
   private lastPlan = "";
   private summarized = false;
   private lastReplacementStatus?: string;
@@ -38,7 +88,24 @@ export class RunProgress {
     string,
     Pick<BatchHead, "status" | "accepted" | "staged" | "rejected"> & { submitted: number; restored: boolean }
   >();
-  constructor(private readonly write: (message: string) => Promise<void>) {}
+  constructor(
+    private readonly write: (message: string) => Promise<void>,
+    private readonly writeStats?: (stats: ReverseDeliveryStats) => Promise<void>
+  ) {}
+
+  private async statistics(head: ArtifactHead) {
+    if (!this.writeStats) return;
+    const stats = batchStatistics(head);
+    const { observedAt, ...value } = stats;
+    const key = JSON.stringify(value);
+    if (key === this.lastStats) return;
+    try {
+      await this.writeStats(stats);
+      this.lastStats = key;
+    } catch {
+      process.stderr.write('{"event":"reverse_etl_statistics_unavailable"}\n');
+    }
+  }
 
   async log(message: string) {
     try {
@@ -53,6 +120,7 @@ export class RunProgress {
 
   /** Restored batches seed progress without presenting earlier submissions as new uploads. */
   async observe(head: ArtifactHead, restored = false) {
+    await this.statistics(head);
     const snapshot = head.snapshot;
     if (snapshot?.sealed) {
       const p = snapshot.summary;
@@ -127,6 +195,7 @@ export class RunProgress {
 
   /** One cumulative summary at the attempt boundary, including earlier attempts' delivery. */
   async summarize(head: ArtifactHead) {
+    await this.statistics(head);
     if (this.summarized) return;
     const snapshot = head.snapshot;
     const replacement = snapshot?.strategy === "native-replace";

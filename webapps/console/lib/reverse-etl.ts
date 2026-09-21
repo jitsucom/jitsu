@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { ReverseSyncOptions } from "@jitsu/warehouse-query/src/schema";
+import { ReverseDeliveryStats } from "@jitsu/protocols/reverse-etl-stats";
 
 export const ReverseSyncInput = z
   .object({
@@ -25,6 +26,8 @@ export const ReverseTask = z.object({
   updated_at: z.coerce.date(),
   description: z.string().nullable(),
   error: z.string().nullable(),
+  trigger: z.enum(["manual", "scheduled", "recovery"]).nullable().default(null),
+  stats: ReverseDeliveryStats.nullable().default(null),
 });
 export type ReverseTask = z.infer<typeof ReverseTask>;
 export const ReverseSyncView = z.object({

@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import type { ArtifactHead, BatchHead } from "./artifacts/state";
-import { deliveryTotals, RunProgress } from "./progress";
+import { batchStatistics, deliveryTotals, RunProgress } from "./progress";
 
 const batch = (extra: Partial<BatchHead> = {}): BatchHead => ({
   id: "private-batch",
@@ -48,6 +48,56 @@ const head = (): ArtifactHead => ({
 });
 
 describe("redacted run progress", () => {
+  it("counts each batch once per action, with pending and mixed outcomes distinct", () => {
+    const h = head();
+    h.batches = [
+      batch({ status: "prepared", staged: 0 }),
+      batch({ status: "unknown", staged: 0 }),
+      batch({ accepted: 10, staged: 50, rejected: 4 }),
+      batch({ accepted: 64, staged: 0 }),
+      batch({ rejected: 64, staged: 0 }),
+      batch({ accepted: 60, rejected: 4, staged: 0 }),
+      batch({ status: "cancelled", accepted: 10, staged: 0 }),
+      batch({ action: "remove", accepted: 64, staged: 0 }),
+    ];
+    const stats = batchStatistics(h);
+    expect(stats.upsert).toEqual({
+      total: 7,
+      prepared: 1,
+      unconfirmed: 1,
+      pending: 1,
+      accepted: 1,
+      rejected: 1,
+      partial: 1,
+      cancelled: 1,
+    });
+    expect(stats.remove).toMatchObject({ total: 1, accepted: 1, partial: 0, pending: 0 });
+    expect(stats.records).toEqual({ accepted: 208, pending: 50, rejected: 72 });
+    expect(stats.replacement).toBeUndefined();
+    expect(JSON.stringify(stats)).not.toMatch(/private-batch|private-key|sha256|submittedRecords/);
+    h.snapshot!.strategy = "native-replace";
+    h.snapshot!.replacementStatus = "pending";
+    expect(batchStatistics(h)).toMatchObject({ replacement: "pending", remove: { total: 1 } });
+  });
+  it("persists aggregates on restore and change, retries outages, and never fails delivery", async () => {
+    const stats = vi.fn().mockRejectedValueOnce(new Error("private-token")).mockResolvedValue(undefined);
+    const stderr = vi.spyOn(process.stderr, "write").mockReturnValue(true);
+    try {
+      const progress = new RunProgress(async () => {}, stats);
+      const h = head();
+      await expect(progress.observe(h, true)).resolves.toBeUndefined();
+      await progress.observe(h);
+      await progress.summarize(h);
+      expect(stats).toHaveBeenCalledTimes(2);
+      h.batches[0] = batch({ accepted: 64, staged: 0 });
+      await progress.observe(h);
+      expect(stats).toHaveBeenCalledTimes(3);
+      expect(stats.mock.calls[2][0]).toMatchObject({ upsert: { accepted: 1, pending: 0 } });
+      expect(stderr.mock.calls.flat().join(" ")).not.toContain("private-token");
+    } finally {
+      stderr.mockRestore();
+    }
+  });
   it.each([undefined, "prepared", "pending", "accepted"] as const)(
     "reports native cleanup %s without inventing removals or replaying stages on restore",
     async status => {

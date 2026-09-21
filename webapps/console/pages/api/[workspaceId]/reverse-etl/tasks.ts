@@ -7,7 +7,14 @@ import { reverseLogs, reverseTasks } from "../../../../lib/server/reverse-syncs"
 export const route = createRoute()
   .GET({
     auth: true,
-    query: z.object({ workspaceId: z.string(), syncId: z.string().optional(), taskId: z.string().optional() }),
+    query: z.object({
+      workspaceId: z.string(),
+      syncId: z.string().optional(),
+      taskId: z.string().optional(),
+      status: z.enum(["SUCCESS", "FAILED", "RUNNING", "WAITING", "RESUMED", "CANCELLED", "SKIPPED"]).optional(),
+      from: z.string().datetime().optional(),
+      to: z.string().datetime().optional(),
+    }),
     result: z.object({
       tasks: z.array(ReverseTask),
       logs: z.array(
@@ -20,10 +27,11 @@ export const route = createRoute()
       ),
     }),
   })
-  .handler(async ({ user, query: { workspaceId, syncId, taskId }, res }) => {
+  .handler(async ({ user, query: { workspaceId, ...filter }, res }) => {
     await verifyAccessWithRole(user, workspaceId, "readEntities");
     res.setHeader("Cache-Control", "no-store");
-    const tasks = await reverseTasks(db.prisma(), workspaceId, { syncId, taskId });
+    const { taskId } = filter;
+    const tasks = await reverseTasks(db.prisma(), workspaceId, filter);
     const logs = taskId && tasks.length ? await reverseLogs(db.prisma(), workspaceId, tasks[0].sync_id, taskId) : [];
     return { tasks, logs };
   });

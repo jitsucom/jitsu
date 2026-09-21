@@ -3,7 +3,8 @@ import type { PrismaClient, Prisma } from "@prisma/client";
 import { ModelDefinition, ReverseSyncOptions } from "@jitsu/warehouse-query/src/schema";
 import { contentHash } from "@jitsu/destination-functions/src/reverse-etl/identity";
 import { GoogleAudienceSettings } from "@jitsu/destination-functions/src/functions/google-ads-reverse/meta";
-import { ReverseSyncInput, ReverseSyncSettings, ReverseSyncView } from "../reverse-etl";
+import { ReverseSyncInput, ReverseSyncSettings, ReverseSyncView, ReverseTask } from "../reverse-etl";
+import { ReverseDeliveryStats } from "@jitsu/protocols/reverse-etl-stats";
 import { ApiError } from "../shared/errors";
 import { assertModelsEnabled } from "./reverse-etl-models";
 import { validateSyncSchedule } from "./sync";
@@ -19,7 +20,20 @@ const taskSelect = {
   updated_at: true,
   description: true,
   error: true,
+  metrics: true,
+  started_by: true,
 } as const;
+function taskView(task: Prisma.source_taskGetPayload<{ select: typeof taskSelect }>) {
+  const metrics = task.metrics as Record<string, unknown> | null;
+  const startedBy = task.started_by as Record<string, unknown> | null;
+  const stats = ReverseDeliveryStats.safeParse(metrics?.reverseDelivery);
+  const trigger = z.enum(["manual", "scheduled", "recovery"]).safeParse(startedBy?.trigger);
+  return ReverseTask.parse({
+    ...task,
+    stats: stats.success ? stats.data : null,
+    trigger: trigger.success ? trigger.data : null,
+  });
+}
 async function mutation<T>(prisma: PrismaClient, workspaceId: string, write: (tx: ReadDb) => Promise<T>) {
   return prisma.$transaction(
     async tx => {
@@ -187,7 +201,7 @@ export async function listReverseSyncs(prisma: PrismaClient, workspaceId: string
         destinationName: (link.to.config as any).name || link.to.id,
         options: link.data,
         settingsLocked: await hasState(prisma, workspaceId, link.id),
-        latestTask,
+        latestTask: latestTask ? taskView(latestTask) : null,
         phase: control?.phase ?? null,
       });
     })
@@ -196,22 +210,32 @@ export async function listReverseSyncs(prisma: PrismaClient, workspaceId: string
 export async function reverseTasks(
   prisma: PrismaClient,
   workspaceId: string,
-  filter: { syncId?: string; taskId?: string }
+  filter: { syncId?: string; taskId?: string; status?: string; from?: string; to?: string }
 ) {
   const links = await prisma.configurationObjectLink.findMany({
     where: { workspaceId, type: "reverse-sync", ...(filter.syncId ? { id: filter.syncId } : {}) },
     select: { id: true },
   });
-  return prisma.source_task.findMany({
+  const tasks = await prisma.source_task.findMany({
     where: {
       sync_id: { in: links.map(l => l.id) },
       package: "jitsu/retl-runner",
       ...(filter.taskId ? { task_id: filter.taskId } : {}),
+      ...(filter.status ? { status: filter.status } : {}),
+      ...(filter.from || filter.to
+        ? {
+            started_at: {
+              ...(filter.from ? { gte: new Date(filter.from) } : {}),
+              ...(filter.to ? { lte: new Date(filter.to) } : {}),
+            },
+          }
+        : {}),
     },
     select: taskSelect,
     orderBy: { started_at: "desc" },
     take: 100,
   });
+  return tasks.map(taskView);
 }
 export async function reverseLogs(prisma: PrismaClient, workspaceId: string, syncId: string, taskId: string) {
   if (!(await reverseTasks(prisma, workspaceId, { syncId, taskId })).length) throw missing();

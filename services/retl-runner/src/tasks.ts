@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { Database } from "./persistence";
 import { ensure } from "./persistence/types";
 import { RecoverySchedule, nextRecoveryCheck } from "./recovery-schedule";
+import type { ReverseDeliveryStats } from "@jitsu/protocols/reverse-etl-stats";
 
 export type TaskResult = "SUCCESS" | "FAILED" | "CANCELLED" | "WAITING";
 
@@ -57,6 +58,14 @@ export class Tasks {
       ensure(result.rowCount, "Task cancelled or ended");
     });
   }
+  async statistics(stats: ReverseDeliveryStats) {
+    await this.db.transaction(async client => {
+      await client.query(
+        "UPDATE source_task SET metrics=COALESCE(metrics,'{}'::jsonb) || $3::jsonb WHERE sync_id=$1 AND task_id=$2 AND status='RUNNING'",
+        [this.syncId, this.taskId, { reverseDelivery: stats }]
+      );
+    });
+  }
   async progress(message: string) {
     await this.db.transaction(async client => {
       const result = await client.query(
@@ -94,7 +103,7 @@ export class Tasks {
   async finish(status: TaskResult, message: string, schedule?: RecoverySchedule) {
     return this.db.transaction(async client => {
       const changed = await client.query(
-        "UPDATE source_task SET status=$3,description=$4,error=$5,metrics=COALESCE($6::jsonb,metrics),updated_at=clock_timestamp() WHERE sync_id=$1 AND task_id=$2 AND status='RUNNING' RETURNING 1",
+        "UPDATE source_task SET status=$3,description=$4,error=$5,metrics=COALESCE(metrics,'{}'::jsonb) || COALESCE($6::jsonb,'{}'::jsonb),updated_at=clock_timestamp() WHERE sync_id=$1 AND task_id=$2 AND status='RUNNING' RETURNING 1",
         [
           this.syncId,
           this.taskId,

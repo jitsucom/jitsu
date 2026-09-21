@@ -68,6 +68,68 @@ async function fixture() {
   };
 }
 describe("single-save Reverse ETL settings", () => {
+  it("filters tasks before the history limit and exposes only safe batch aggregates", async () => {
+    const f = await fixture();
+    const { id } = await f.create();
+    const counts = {
+      total: 1,
+      prepared: 0,
+      unconfirmed: 0,
+      pending: 0,
+      accepted: 1,
+      rejected: 0,
+      partial: 0,
+      cancelled: 0,
+    };
+    const stats = {
+      version: 1,
+      runId: "run",
+      observedAt: "2026-01-01T00:00:00.000Z",
+      upsert: counts,
+      remove: { ...counts, total: 0, accepted: 0 },
+      records: { accepted: 10, pending: 0, rejected: 0 },
+    };
+    const taskId = randomUUID();
+    await f.prisma.source_task.createMany({
+      data: [
+        {
+          task_id: taskId,
+          sync_id: id,
+          package: "jitsu/retl-runner",
+          version: "test",
+          status: "SUCCESS",
+          started_at: new Date("2026-01-01"),
+          metrics: { reverseDelivery: { ...stats, privateData: "secret" }, reverseRecovery: { privateData: "secret" } },
+          started_by: { trigger: "manual", privateData: "secret" },
+        },
+        ...Array.from({ length: 101 }, () => ({
+          task_id: randomUUID(),
+          sync_id: id,
+          package: "jitsu/retl-runner",
+          version: "test",
+          status: "FAILED",
+          started_at: new Date("2026-02-01"),
+          metrics: { reverseDelivery: { version: 99 } },
+        })),
+      ],
+    });
+    const result = await reverseTasks(f.prisma, f.workspace.id, {
+      status: "SUCCESS",
+      from: "2026-01-01T00:00:00.000Z",
+      to: "2026-01-02T00:00:00.000Z",
+    });
+    expect(result).toHaveLength(1);
+    expect(result[0]).toMatchObject({ task_id: taskId, stats, trigger: "manual" });
+    expect(JSON.stringify(result)).not.toMatch(/privateData|secret|reverseRecovery|started_by|metrics/);
+    expect(await reverseTasks(f.prisma, "foreign", { taskId })).toEqual([]);
+    expect(await reverseTasks(f.prisma, f.workspace.id, { from: "2026-03-01T00:00:00.000Z" })).toEqual([]);
+    const recent = await reverseTasks(f.prisma, f.workspace.id, {});
+    expect(recent).toHaveLength(100);
+    expect(recent.every(t => t.stats === null && t.trigger === null)).toBe(true);
+    expect((await listReverseSyncs(f.prisma, f.workspace.id))[0].latestTask?.stats).toBeNull();
+    await f.prisma.source_task.update({ where: { task_id: taskId }, data: { started_at: new Date("2026-04-01") } });
+    expect((await listReverseSyncs(f.prisma, f.workspace.id))[0].latestTask?.stats).toEqual(stats);
+  });
   it("saves all intent on one link without preview, OAuth, provisioning or auxiliary entities", async () => {
     const f = await fixture();
     const { id } = await f.create();

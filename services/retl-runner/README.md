@@ -120,6 +120,25 @@ IAM, infrastructure encryption and retention policies.
 unresolved batches indefinitely; do not use age-only bucket lifecycle deletion.
 See the storage document for orphan cleanup and coordinated rollback precautions.
 
+## Task batch statistics
+
+The runner publishes aggregate batch outcomes to `source_task.metrics.reverseDelivery`
+after durable state changes and on restore. No rows, identifiers, receipts, or object
+keys are copied into metrics. The console uses these counters in the sync/task status
+dropdown; deploy the updated runner to populate them. Older attempts without these
+metrics show statistics unavailable. No schema migration is required.
+
+Counts cover the entire logical run as last observed by this attempt, including work
+from earlier attempts. Totals count batches created so far, not an estimated final
+batch count. Each batch belongs to exactly one outcome within upserts or removals;
+pending takes precedence over partial acceptance, and mixed final results are separate
+from fully accepted/rejected batches. Full-audience cleanup is a separate operation,
+not an invented removal batch or removed-member count. Record acceptance is not
+Google's matched audience size. Historical attempts retain their own observation.
+
+Statistics failures do not fail delivery; unchanged aggregates are not rewritten.
+The existing status-refresh schedule shares the metrics object and is preserved.
+
 ## Validation
 
 `pnpm --filter @jitsu-internal/retl-runner test` uses disposable PostgreSQL 18,

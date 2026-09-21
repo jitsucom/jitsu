@@ -33,7 +33,10 @@ export interface ExecuteOptions {
 export async function execute(input: ExecuteOptions): Promise<TaskResult> {
   const { db, lease, controller } = input;
   const tasks = new Tasks(db, input.config.id, input.taskId, input.config.workspaceId);
-  const progress = new RunProgress(message => tasks.progress(message));
+  const progress = new RunProgress(
+    message => tasks.progress(message),
+    stats => tasks.statistics(stats)
+  );
   let reportProgress: (() => Promise<void>) | undefined;
   let reader: WarehouseReader | undefined;
   let started = false;
