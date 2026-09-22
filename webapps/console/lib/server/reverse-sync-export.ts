@@ -7,7 +7,7 @@ import { managedGoogleAudienceForSync } from "./google-audiences";
 import {
   GoogleAudienceOptions,
   GoogleAudienceSettings,
-} from "@jitsu/destination-functions/src/functions/google-ads-reverse/meta";
+} from "@jitsu/destination-functions/src/functions/google-ads/audience/meta";
 
 type ReadDb = Pick<Prisma.TransactionClient, "configurationObjectLink" | "configurationObject" | "source_state">;
 

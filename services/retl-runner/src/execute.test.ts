@@ -12,7 +12,7 @@ import { execute, type ExecuteOptions } from "./execute";
 import type { RuntimeAdapter } from "./adapters";
 import { createAdapterRegistry } from "./adapters";
 import { Tasks } from "./tasks";
-import { googleAudienceStateStream } from "@jitsu/destination-functions/src/functions/google-ads-reverse/state";
+import { googleAudienceStateStream } from "@jitsu/destination-functions/src/functions/google-ads/audience/state";
 import { ReverseEtlManualReconciliationError } from "@jitsu/destination-functions/src/reverse-etl/failure";
 import { recordKey } from "@jitsu/destination-functions/src/reverse-etl/identity";
 

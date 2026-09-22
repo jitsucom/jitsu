@@ -5,6 +5,7 @@ import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/re
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { ReverseTasksList } from "../../components/ReverseETL/TasksList";
 import { ReverseSyncsList } from "../../components/ReverseETL/SyncsList";
+import { ReverseRuns } from "../../components/ReverseETL/Runs";
 
 const state = vi.hoisted(() => ({
   route: { query: {} as Record<string, string>, isReady: true, push: vi.fn(), replace: vi.fn() },
@@ -106,6 +107,50 @@ function mount(component: React.ComponentType) {
   return render(React.createElement(QueryClientProvider, { client }, React.createElement(component)));
 }
 describe("Reverse ETL standard lists", () => {
+  it("shows a plain status tag and expanded record statistics on the logs page", async () => {
+    state.route.query = { syncId: "sync", taskId: "task" };
+    const counts = {
+      total: 0,
+      prepared: 0,
+      unconfirmed: 0,
+      pending: 0,
+      accepted: 0,
+      rejected: 0,
+      partial: 0,
+      cancelled: 0,
+    };
+    state.rpc.mockResolvedValue({
+      tasks: [
+        {
+          task_id: "task",
+          sync_id: "sync",
+          status: "PENDING",
+          started_at: new Date(),
+          updated_at: new Date(),
+          description: null,
+          error: null,
+          stats: {
+            version: 1,
+            runId: "run",
+            observedAt: "2026-01-01T00:00:00.000Z",
+            upsert: { ...counts, total: 1, pending: 1 },
+            remove: counts,
+            records: { accepted: 0, pending: 100, rejected: 0 },
+            recordCounts: { upsert: { ...counts, total: 100, pending: 100 }, remove: counts },
+          },
+        },
+      ],
+      logs: [],
+    });
+    const { container } = mount(ReverseRuns);
+    expect(await screen.findByText("Additions / upserts")).toBeTruthy();
+    expect(screen.getByText("PENDING").classList.contains("ant-tag-green")).toBe(true);
+    expect(screen.getByText(/Records:/).textContent).toContain("100 pending");
+    expect(screen.queryByRole("button", { name: /PENDING/ })).toBeNull();
+    expect(screen.queryByText("show stats")).toBeNull();
+    expect(screen.queryByRole("link", { name: "Show Logs" })).toBeNull();
+    expect(container.querySelector(".lucide-chevron-down")).toBeNull();
+  });
   it("uses only endpoints as the title and greys disabled rows without mode or schedule labels", () => {
     state.syncs[0].options.disabled = true;
     state.syncs[0].options.schedule = "0 * * * *";

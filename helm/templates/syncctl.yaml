@@ -86,6 +86,9 @@ spec:
             - secretRef:
                 name: {{ . | quote }}
             {{- end }}
+            {{- with .Values.syncctlExtraEnvFrom }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
           env:
             # Prefixed values override legacy envFrom settings, including while disabled.
             - name: SYNCCTL_REVERSE_ENABLED

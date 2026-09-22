@@ -1,8 +1,8 @@
 import React, { useState } from "react";
-import { Alert, Popover, Table, Tag } from "antd";
+import { Alert, Popover, Tag, Tooltip } from "antd";
 import { ChevronDown } from "lucide-react";
-import { reverseRecordStatuses } from "@jitsu/protocols/reverse-etl-stats";
 import { reverseTaskStatus, type ReverseTask } from "../../lib/reverse-etl";
+import { ReverseDeliveryStatistics } from "./DeliveryStatistics";
 import { WJitsuButton } from "../JitsuButton/JitsuButton";
 
 export function ReverseTaskStatus({ task }: { task?: ReverseTask | null }) {
@@ -16,16 +16,6 @@ export function ReverseTaskStatus({ task }: { task?: ReverseTask | null }) {
     );
   const stats = task.stats;
   const status = reverseTaskStatus(task.status);
-  const rows = stats?.recordCounts
-    ? [
-        {
-          key: "upsert",
-          type: stats.replacement ? "Full-snapshot uploads" : "Additions / upserts",
-          ...stats.recordCounts.upsert,
-        },
-        { key: "remove", type: "Removals", ...stats.recordCounts.remove },
-      ]
-    : [];
   return (
     <Popover
       open={open}
@@ -37,63 +27,7 @@ export function ReverseTaskStatus({ task }: { task?: ReverseTask | null }) {
       content={
         <div className="break-words">
           {task.error && <Alert className="mb-3" type="error" title={task.error} />}
-          {stats ? (
-            <>
-              {stats.recordCounts ? (
-                <div className="overflow-x-auto">
-                  <Table
-                    size="small"
-                    rowKey="key"
-                    pagination={false}
-                    dataSource={rows}
-                    columns={[
-                      { title: "Operation", dataIndex: "type", width: 170 },
-                      ...reverseRecordStatuses
-                        .filter(status => status !== "accepted" && rows.some(row => row[status] !== 0))
-                        .map(status => ({
-                          title: status[0].toUpperCase() + status.slice(1),
-                          dataIndex: status,
-                          key: status,
-                        })),
-                      { title: "Accepted", dataIndex: "accepted" },
-                      {
-                        title: <strong>Total</strong>,
-                        dataIndex: "total",
-                        render: (total: number) => <strong>{total}</strong>,
-                      },
-                    ]}
-                  />
-                </div>
-              ) : (
-                <p className="text-textLight">Record breakdown by operation is unavailable for this older attempt.</p>
-              )}
-              <p className="text-xs text-textLight mt-3">
-                Totals cover records prepared for delivery so far in this logical run, including earlier attempts.
-                Totals can grow during delivery. Each record appears in one status.
-              </p>
-              <p className="text-xs mt-2">
-                Records: {stats.records.accepted.toLocaleString()} accepted · {stats.records.pending.toLocaleString()}{" "}
-                pending · {stats.records.rejected.toLocaleString()} rejected. These are API records, not matched
-                audience size.
-              </p>
-              {stats.replacement && (
-                <p className="text-xs mt-2">
-                  Full-audience cleanup:{" "}
-                  <strong>
-                    {stats.replacement === "prepared" ? "prepared / unconfirmed" : stats.replacement.replace("_", " ")}
-                  </strong>
-                  . This is a separate request, not a removal batch. Google does not report the number of members
-                  removed.
-                </p>
-              )}
-              <p className="text-xs text-textLight mt-2">
-                Observed {new Date(stats.observedAt).toISOString().replace("T", " ").replace("Z", " UTC")}. Older
-                attempts retain their own last observation.
-              </p>
-            </>
-          ) : (
-            <p className="text-textLight">Record statistics unavailable for this attempt. {task.description}</p>
-          )}
+          <ReverseDeliveryStatistics task={task} />
           <div className="flex justify-end mt-3">
             <WJitsuButton href={`/reverse-syncs/logs?syncId=${task.sync_id}&taskId=${task.task_id}`} type="primary">
               Show Logs
@@ -103,27 +37,57 @@ export function ReverseTaskStatus({ task }: { task?: ReverseTask | null }) {
       }
     >
       <button
-        className="outline-0 inline-flex flex-col items-end"
+        className="relative outline-0 inline-flex flex-col items-end"
         onKeyDown={event => {
           if (event.key === "Escape") setOpen(false);
         }}
       >
-        <Tag
-          style={{ marginRight: 0 }}
-          color={
-            ["PENDING", "COMPLETE"].includes(status)
-              ? "green"
-              : task.status === "FAILED"
-              ? "red"
-              : status === "RUNNING"
-              ? "blue"
-              : undefined
-          }
-        >
-          {status} <ChevronDown className="inline w-3 h-3" />
-        </Tag>
+        {task.latestLogLevel === "ERROR" && status !== "FAILED" && (
+          <Tooltip title="The latest log entry is an error. Open logs for details.">
+            <span
+              role="img"
+              aria-label="Latest log entry is an error"
+              className="absolute -top-2 -right-2 z-10 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-white text-xs font-bold"
+            >
+              !
+            </span>
+          </Tooltip>
+        )}
+        <ReverseTaskStatusTag status={task.status} dropdown />
         <span className="text-xxs text-gray-500">{stats ? "show stats" : "show details"}</span>
       </button>
     </Popover>
+  );
+}
+
+export function ReverseTaskStatusTag({
+  status: storedStatus,
+  dropdown = false,
+}: {
+  status: string;
+  dropdown?: boolean;
+}) {
+  const status = reverseTaskStatus(storedStatus);
+  return (
+    <Tag
+      style={{ marginRight: 0 }}
+      color={
+        ["PENDING", "COMPLETE"].includes(status)
+          ? "green"
+          : status === "FAILED"
+          ? "red"
+          : status === "RUNNING"
+          ? "blue"
+          : undefined
+      }
+    >
+      {status}
+      {dropdown && (
+        <>
+          {" "}
+          <ChevronDown className="inline w-3 h-3" />
+        </>
+      )}
+    </Tag>
   );
 }

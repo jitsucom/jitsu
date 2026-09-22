@@ -151,6 +151,23 @@ afterAll(async () => {
 });
 
 describe("Artifact persistence with PostgreSQL control", () => {
+  it("starts a fresh run with committed sync store, not a pending run's transient store", async () => {
+    const first = await session();
+    await init(first);
+    await first.delivery.prepareFinish(0, { retained: "committed" });
+    await first.delivery.acknowledgeFinish({ delivery: "accepted" }, { retained: "committed" });
+    await first.delivery.commitCheckpoint({ sourceSequence: 0 }, { retained: "committed" }, true);
+    const next = await session({ logicalRunId: "second" });
+    expect((await next.core.state()).store).toEqual({ retained: "committed" });
+    await next.delivery.prepareInit({ retained: "transient" });
+    await next.delivery.acknowledgeInit({ retained: "transient" });
+    // Model a run detached after submission while its provider results are pending.
+    await admin.query("UPDATE newjitsu.reverse_sync_control SET detached=true WHERE run_id='second'");
+    const third = await session({ logicalRunId: "third" });
+    expect((await third.core.state()).store).toEqual({ retained: "committed" });
+    const resumed = await session({ logicalRunId: "second" });
+    expect((await resumed.core.state()).store).toEqual({ retained: "transient" });
+  });
   it("migrates the old single-run key without changing existing state and is repeatable", async () => {
     const run = await session();
     await init(run);

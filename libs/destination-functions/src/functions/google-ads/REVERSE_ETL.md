@@ -1,6 +1,7 @@
 # Google Ads Reverse ETL — implementation contract
 
-JITSU-227, adapter/OAuth, audience provisioning and console setup.
+JITSU-227, adapter/OAuth, audience provisioning and console setup. See the
+[module overview](README.md) for the implementation layout.
 
 - Existing Google Ads Customer Match audiences: additions and explicit tombstone removals,
   or opt-in full replacement with explicit exclusive-management/takeover confirmation.

@@ -1,7 +1,7 @@
 import type { JsonObject, ResumePoint } from "@jitsu/protocols/reverse-etl";
 import { contentHash } from "@jitsu/destination-functions/src/reverse-etl/identity";
 import { Database } from "./database";
-import { decodeJson } from "./serialization";
+import { decodeJson, encodeJson } from "./serialization";
 import type { ControlRow, StateRow, TargetOwnerRow } from "./rows";
 import { ensure, PersistenceResetRequiredError, type RunInput, type Scope } from "./types";
 import { controlFor } from "./control-cache";
@@ -142,6 +142,7 @@ export async function openRun(
       ensure(!owner.rowCount, "Audience is exclusively managed by a mirror sync");
     }
     let base = 0;
+    let initialStore: Buffer | null = null;
     if (!sameRun || control.phase === "new") {
       const saved = await client.query<Pick<StateRow, "state">>(
         `SELECT state FROM ${db.stateTable} WHERE sync_id=$1 AND stream=$2`,
@@ -150,10 +151,11 @@ export async function openRun(
       if (saved.rows[0]) {
         const value = readSavedState(saved.rows[0].state, run);
         base = run.extraction === "cursor" && value.point.cursor ? value.point.sourceSequence : 0;
+        initialStore = encodeJson(value.store);
       }
     }
     const updated = await client.query<ControlRow>(
-      `UPDATE reverse_sync_control SET run_id=$3, extraction=$4,
+      `UPDATE reverse_sync_control SET run_id=$3, extraction=$4, store=CASE WHEN $5 THEN store ELSE $7 END,
       phase=CASE WHEN $5 THEN phase ELSE 'new' END,
       base_sequence=CASE WHEN $5 AND phase <> 'new' THEN base_sequence ELSE $6 END,
       next_sequence=CASE WHEN $5 AND phase <> 'new' THEN next_sequence ELSE $6 END,
@@ -161,7 +163,7 @@ export async function openRun(
       finish_sequence=CASE WHEN $5 THEN finish_sequence ELSE NULL END,
       finish_result=CASE WHEN $5 THEN finish_result ELSE NULL END
       WHERE workspace_id=$1 AND sync_id=$2 AND run_id=$3 RETURNING *`,
-      [run.workspaceId, run.syncId, run.logicalRunId, run.extraction, sameRun, base]
+      [run.workspaceId, run.syncId, run.logicalRunId, run.extraction, sameRun, base, initialStore]
     );
     cache.remember(updated.rows[0]);
     return {

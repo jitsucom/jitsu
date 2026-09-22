@@ -1,5 +1,5 @@
 import { z } from "zod";
-import type { PrismaClient, Prisma } from "@prisma/client";
+import { Prisma, type PrismaClient } from "@prisma/client";
 import { ModelDefinition, ReverseSyncOptions } from "@jitsu/warehouse-query/src/schema";
 import { contentHash } from "@jitsu/destination-functions/src/reverse-etl/identity";
 import { reverseDestinationMetadata } from "@jitsu/destination-functions/src/reverse-etl/catalog";
@@ -37,6 +37,19 @@ function taskView(task: Prisma.source_taskGetPayload<{ select: typeof taskSelect
     stats: stats.success ? stats.data : null,
     trigger: trigger.success ? trigger.data : null,
   });
+}
+/** One bounded lookup per displayed task; do not download its entire log history. */
+async function latestLogLevels(prisma: PrismaClient, tasks: { sync_id: string; task_id: string }[]) {
+  if (!tasks.length) return new Map<string, string | null>();
+  const rows = await prisma.$queryRaw<{ task_id: string; level: string | null }[]>(Prisma.sql`
+    SELECT tasks.task_id,latest.level
+    FROM (VALUES ${Prisma.join(tasks.map(t => Prisma.sql`(${t.sync_id},${t.task_id})`))}) AS tasks(sync_id,task_id)
+    LEFT JOIN LATERAL (
+      SELECT level FROM task_log WHERE sync_id=tasks.sync_id AND task_id=tasks.task_id AND logger='retl-runner'
+      ORDER BY timestamp DESC,id DESC LIMIT 1
+    ) latest ON true
+  `);
+  return new Map(rows.map(row => [row.task_id, row.level]));
 }
 async function mutation<T>(prisma: PrismaClient, workspaceId: string, write: (tx: ReadDb) => Promise<T>) {
   return prisma.$transaction(
@@ -184,7 +197,7 @@ export async function listReverseSyncs(prisma: PrismaClient, workspaceId: string
     include: { from: true, to: true },
     orderBy: { createdAt: "desc" },
   });
-  return Promise.all(
+  const views = await Promise.all(
     links.map(async link => {
       const latestTask = await prisma.source_task.findFirst({
         where: { sync_id: link.id, package: "jitsu/retl-runner" },
@@ -209,6 +222,19 @@ export async function listReverseSyncs(prisma: PrismaClient, workspaceId: string
       });
     })
   );
+  const levels = await latestLogLevels(
+    prisma,
+    views.flatMap(view => (view.latestTask ? [view.latestTask] : []))
+  );
+  return views.map(view => ({
+    ...view,
+    latestTask: view.latestTask
+      ? {
+          ...view.latestTask,
+          latestLogLevel: levels.get(view.latestTask.task_id) ?? null,
+        }
+      : null,
+  }));
 }
 export async function reverseTasks(
   prisma: PrismaClient,
@@ -249,7 +275,8 @@ export async function reverseTasks(
     orderBy: { started_at: "desc" },
     take: 100,
   });
-  return tasks.map(taskView);
+  const levels = await latestLogLevels(prisma, tasks);
+  return tasks.map(task => ({ ...taskView(task), latestLogLevel: levels.get(task.task_id) ?? null }));
 }
 export async function reverseLogs(prisma: PrismaClient, workspaceId: string, syncId: string, taskId: string) {
   if (!(await reverseTasks(prisma, workspaceId, { syncId, taskId })).length) throw missing();
@@ -257,7 +284,7 @@ export async function reverseLogs(prisma: PrismaClient, workspaceId: string, syn
   return prisma.task_log.findMany({
     where: { sync_id: syncId, task_id: taskId, logger: "retl-runner" },
     select: { id: true, timestamp: true, level: true, message: true },
-    orderBy: { timestamp: "desc" },
+    orderBy: [{ timestamp: "desc" }, { id: "desc" }],
     take: 500,
   });
 }

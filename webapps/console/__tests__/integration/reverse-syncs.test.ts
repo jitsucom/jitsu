@@ -70,6 +70,40 @@ async function fixture() {
   };
 }
 describe("single-save Reverse ETL settings", () => {
+  it("uses the latest runner log for badges with deterministic ordering and sync scoping", async () => {
+    const f = await fixture();
+    const { id } = await f.create();
+    const taskId = randomUUID();
+    await f.prisma.source_task.create({
+      data: { task_id: taskId, sync_id: id, package: "jitsu/retl-runner", version: "test", status: "PENDING" },
+    });
+    const tasks = () => reverseTasks(f.prisma, f.workspace.id, { syncId: id });
+    expect((await tasks())[0].latestLogLevel).toBeNull();
+    const base = {
+      sync_id: id,
+      task_id: taskId,
+      logger: "retl-runner",
+      message: "test",
+      timestamp: new Date("2026-01-01"),
+    };
+    const errorId = "00000000-0000-0000-0000-000000000001";
+    const infoId = "00000000-0000-0000-0000-000000000002";
+    await f.prisma.task_log.create({ data: { ...base, id: errorId, level: "ERROR" } });
+    expect((await tasks())[0].latestLogLevel).toBe("ERROR");
+    expect((await listReverseSyncs(f.prisma, f.workspace.id))[0].latestTask?.latestLogLevel).toBe("ERROR");
+    await f.prisma.task_log.createMany({
+      data: [
+        { ...base, id: infoId, level: "INFO" },
+        { ...base, timestamp: new Date("2026-01-02"), level: "ERROR", logger: "other" },
+        { ...base, timestamp: new Date("2026-01-02"), level: "ERROR", sync_id: "other-sync" },
+        { ...base, timestamp: new Date("2026-01-02"), level: "ERROR", task_id: "other-task" },
+      ],
+    });
+    expect((await tasks())[0].latestLogLevel).toBe("INFO");
+    expect((await listReverseSyncs(f.prisma, f.workspace.id))[0].latestTask?.latestLogLevel).toBe("INFO");
+    expect((await reverseLogs(f.prisma, f.workspace.id, id, taskId)).map(log => log.id)).toEqual([infoId, errorId]);
+    expect(await reverseTasks(f.prisma, "foreign-workspace", { taskId })).toEqual([]);
+  });
   it("scopes Google target lookup to the workspace and returns no provider credentials", async () => {
     const f = await fixture();
     const foreign = await fixture();

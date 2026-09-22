@@ -8,8 +8,11 @@
 - `shared/` owns Reverse ETL identifier normalization; event behavior is intentionally not changed.
 - Console renders metadata and enforces workspace access; Nango and Prisma stay in the host.
 - Runner owns scheduling, source queries, snapshots, journals, and SQL-backed target-state operations.
-- Existing module paths remain compatibility exports; serialized configuration, receipts, and state keys are unchanged.
+- Reverse ETL consumers import these modules directly; serialized configuration, receipts, and state keys are unchanged.
+- The separate `google-ads-destination.ts` event-streaming compatibility entry point is retained.
 - Provisioning still records intent before submission and reconciles uncertain creates without replay. State updates use compare-and-set under the existing Kubernetes lease.
 
 Browser and server catalogs are separate: `src/reverse-etl/catalog.ts` and `src/reverse-etl/runtime.ts`.
 Import metadata without importing the runtime so Node-only code cannot enter console browser bundles.
+
+See the [Reverse ETL implementation contract](REVERSE_ETL.md) for stream behavior, setup, and recovery.

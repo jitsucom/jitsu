@@ -26,6 +26,7 @@ export const ReverseTask = z.object({
   updated_at: z.coerce.date(),
   description: z.string().nullable(),
   error: z.string().nullable(),
+  latestLogLevel: z.string().nullable().default(null),
   canRefresh: z.boolean().default(false),
   trigger: z.enum(["manual", "scheduled", "recovery"]).nullable().default(null),
   stats: ReverseDeliveryStats.nullable().default(null),

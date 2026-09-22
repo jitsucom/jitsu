@@ -33,6 +33,10 @@ reverseEtl:
       ephemeral-storage: "4Gi"
   scratchSizeLimit: "2Gi" # Disk-backed /tmp emptyDir, <= ephemeral-storage limit.
 
+# Additional controller-only Secret/ConfigMap env sources, after chart defaults.
+# Useful when syncctl uses a Mac-hosted console and a separate development DB.
+syncctlExtraEnvFrom: []
+
 # Environment variables
 env:
   # Common to all services

@@ -7,10 +7,10 @@ import { readReverseSync } from "../../lib/server/reverse-sync-export";
 import {
   GoogleAudienceCredentials,
   GoogleManagedAudience,
-} from "@jitsu/destination-functions/src/functions/google-ads-reverse/meta";
+} from "@jitsu/destination-functions/src/functions/google-ads/audience/meta";
 import { contentHash } from "@jitsu/destination-functions/src/reverse-etl/identity";
 import { ModelDefinition, ReverseSyncOptions } from "@jitsu/warehouse-query/src/schema";
-import { googleAudienceStateStream } from "@jitsu/destination-functions/src/functions/google-ads-reverse/state";
+import { googleAudienceStateStream } from "@jitsu/destination-functions/src/functions/google-ads/audience/state";
 async function fixture(phase: "ready" | "submitting" = "ready") {
   const { workspace } = await seedWorkspace();
   const { prisma } = deps();

@@ -174,7 +174,8 @@ For a syncctl-only worktree, mount it at a separate Minikube path and set
 
 Most development services are exposed via LoadBalancer. Syncctl remains
 cluster-internal (`ClusterIP`) because controller authentication is optional.
-Run the tunnel for the other services in a separate terminal:
+Run the dev tunnel in a separate terminal. It starts both `minikube tunnel` for
+LoadBalancer services and a loopback-only syncctl port-forward:
 
 ```bash
 ./dev-deploy.sh tunnel
@@ -188,9 +189,13 @@ Then access:
 - Postgres: localhost:5432 (`postgres` / `helm-deps/values.yaml postgres.password`)
 - ClickHouse: http://localhost:8123 (`default` / `helm-deps/values.yaml clickhouse.password`)
 - MongoDB: localhost:27017 (`admin` / `helm-deps/values.yaml mongodb.password`)
+- Syncctl: http://127.0.0.1:3043 (loopback-only port-forward)
 
-For a console running on your Mac, explicitly forward syncctl's HTTP port using
-your Kubernetes credentials in another terminal (adjust the namespace if needed):
+The syncctl forward reconnects when its pod restarts. Ctrl+C or exiting the
+Minikube tunnel stops both child processes. Port-forward errors (including an
+occupied local port) are printed in this terminal and retried every two seconds.
+
+To forward only syncctl, without the other services, run (adjust the namespace if needed):
 
 ```bash
 kubectl --context minikube -n default port-forward --address 127.0.0.1 service/syncctl 3043:3043

@@ -5,8 +5,8 @@ import {
   createGoogleDataManager,
   googleAudienceTargetIdentity,
   projectGoogleAudience,
-} from "../src/functions/google-ads-reverse";
-import { googleAudienceMetadata } from "../src/functions/google-ads-reverse/meta";
+} from "../src/functions/google-ads/audience/runtime";
+import { googleAudienceMetadata } from "../src/functions/google-ads/audience/meta";
 import { createBufferedSyncStore } from "../src/reverse-etl/identity";
 import { validateReverseEtlConfig } from "../src/reverse-etl/meta";
 

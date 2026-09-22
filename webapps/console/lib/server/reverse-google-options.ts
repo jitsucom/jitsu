@@ -1,6 +1,6 @@
 import type { PrismaClient } from "@prisma/client";
 import { listGoogleTargets } from "@jitsu/destination-functions/src/functions/google-ads/targets";
-import { GoogleConversionCredentials } from "@jitsu/destination-functions/src/functions/google-ads-reverse/conversion-meta";
+import { GoogleConversionCredentials } from "@jitsu/destination-functions/src/functions/google-ads/conversions/meta";
 import { assertModelsEnabled } from "./reverse-etl-models";
 import { readGoogleAudienceConnectionToken } from "./google-audience-oauth";
 import type { NangoConfig } from "./oauth/nango-config";

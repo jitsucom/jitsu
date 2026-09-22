@@ -102,6 +102,21 @@ class ReverseEtlChartTest(unittest.TestCase):
         self.assertEqual(self.controller_env(docs)["SYNCCTL_REVERSE_SERVICE_ACCOUNT"], "external-runner")
         self.assertEqual(docs[("RoleBinding", "test-retl-runner")]["subjects"][0]["name"], "external-runner")
 
+    def test_extra_controller_secret_is_scoped_and_ordered(self):
+        docs = self.manifests({**enabled(), "syncctlExtraEnvFrom": [
+            {"secretRef": {"name": "jitsu-retl-controller"}},
+        ]})
+        for (kind, name), doc in docs.items():
+            if kind != "Deployment":
+                continue
+            for container in doc["spec"]["template"]["spec"]["containers"]:
+                sources = container.get("envFrom", [])
+                refs = [source.get("secretRef", {}).get("name") for source in sources]
+                if name == "syncctl":
+                    self.assertEqual(refs, ["jitsu-secrets", "jitsu-deps-urls", "jitsu-retl-controller"])
+                else:
+                    self.assertNotIn("jitsu-retl-controller", refs)
+
     def test_eks_annotation(self):
         annotations = {"eks.amazonaws.com/role-arn": "arn:aws:iam::123456789012:role/retl"}
         docs = self.manifests(enabled(serviceAccount={"name": "aws-runner", "annotations": annotations}))

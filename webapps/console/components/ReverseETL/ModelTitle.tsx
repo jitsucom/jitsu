@@ -10,7 +10,24 @@ export function ModelIcon({ model }: { model?: Pick<ModelConfig, "warehouseId"> 
   const warehouses = useConfigObjectList("destination");
   const warehouse = warehouses.find(w => w.id === model?.warehouseId);
   const type = warehouse && coreDestinationsMap[warehouse.destinationType];
-  return type ? getDestinationIcon(type) : <Database className="w-full h-full" />;
+  return (
+    <span className="relative block w-full h-full">
+      {type ? getDestinationIcon(type) : <Database className="w-full h-full" />}
+      <svg
+        role="img"
+        aria-label="SQL model"
+        viewBox="0 0 18 12"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        className="absolute bottom-0 right-0 h-2.5 w-3.5 rounded-sm bg-white text-gray-700"
+      >
+        <path d="M5 3 2 6l3 3M11 2 7 10M13 3l3 3-3 3" />
+      </svg>
+    </span>
+  );
 }
 
 export function ModelTitle({

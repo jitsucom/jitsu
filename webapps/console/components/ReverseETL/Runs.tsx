@@ -9,7 +9,8 @@ import { useAppConfig, useWorkspace, useWorkspaceRole } from "../../lib/context"
 import { EditorTitle } from "../ConfigObjectEditor/EditorTitle";
 import { Failure, Panel, useReverseSyncs } from "./shared";
 
-import { ReverseTaskStatus } from "./TaskStatus";
+import { ReverseTaskStatusTag } from "./TaskStatus";
+import { ReverseDeliveryStatistics } from "./DeliveryStatistics";
 import { ReverseSyncTitle } from "./SyncTitle";
 
 const resultSchema = z.object({
@@ -76,7 +77,7 @@ export function ReverseRuns() {
         <>
           <Panel title={<ReverseSyncTitle sync={sync} syncId={task.sync_id} link={false} />}>
             <div className="flex justify-between items-center mb-5">
-              <ReverseTaskStatus task={task} />
+              <ReverseTaskStatusTag status={task.status} />
               <Button
                 danger
                 loading={busy}
@@ -130,6 +131,9 @@ export function ReverseRuns() {
             />
           )}
           {task.error && <Alert className="mb-5" type="error" title="Run stopped" description={task.error} />}
+          <Panel title="Record delivery statistics">
+            <ReverseDeliveryStatistics task={task} />
+          </Panel>
           <Panel
             title="Logs"
             description="Core lifecycle messages only. Source rows, identifiers and provider recovery payloads are not displayed."

@@ -95,7 +95,7 @@ never beyond expiry minus the safety margin. The shared Nango secret and refresh
 token never reach the runner. Redirects are forbidden. Disabling the sync stops new
 token issuance; an already cached/in-flight token is not instantly revoked.
 
-See the [Google adapter contract](../../../libs/destination-functions/src/functions/google-ads-reverse/README.md)
+See the [Google adapter contract](../../../libs/destination-functions/src/functions/google-ads/REVERSE_ETL.md)
 for OAuth scopes, mapping/consent, and unrecoverable ambiguous-request limitations.
 
 ## Supervision and task state

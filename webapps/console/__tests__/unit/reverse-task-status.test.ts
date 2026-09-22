@@ -48,6 +48,18 @@ const counts = {
   cancelled: 0,
 };
 describe("Reverse ETL status dropdown", () => {
+  it.each(["PENDING", "RUNNING", "COMPLETE", "FAILED"])(
+    "shows the latest-log error indicator for %s only when the status is not already failed",
+    status => {
+      render(React.createElement(ReverseTaskStatus, { task: { ...task(), status, latestLogLevel: "ERROR" } }));
+      expect(!!screen.queryByRole("img", { name: "Latest log entry is an error" })).toBe(status !== "FAILED");
+      if (status === "FAILED") expect(screen.getByText("FAILED").classList.contains("ant-tag-red")).toBe(true);
+    }
+  );
+  it("does not flag a non-error latest log entry", () => {
+    render(React.createElement(ReverseTaskStatus, { task: { ...task(), latestLogLevel: "INFO" } }));
+    expect(screen.queryByRole("img", { name: "Latest log entry is an error" })).toBeNull();
+  });
   it.each([
     ["WAITING", "PENDING"],
     ["PENDING", "PENDING"],

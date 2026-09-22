@@ -1,11 +1,11 @@
 import { describe, it, expect, vi } from "vitest";
 import type { JsonObject, ReverseEtlContext, WriteBatch } from "@jitsu/protocols/reverse-etl";
-import { createGoogleConversions, googleAdsOutcomes } from "../src/functions/google-ads-reverse/conversions";
-import { createGoogleDataManager, projectGoogleAudience } from "../src/functions/google-ads-reverse";
-import { createGoogleAudienceManagement } from "../src/functions/google-ads-reverse/audiences";
+import { createGoogleConversions, googleAdsOutcomes } from "../src/functions/google-ads/conversions/runtime";
+import { createGoogleDataManager, projectGoogleAudience } from "../src/functions/google-ads/audience/runtime";
+import { createGoogleAudienceManagement } from "../src/functions/google-ads/audience/management";
 import { contentHash, createBufferedSyncStore } from "../src/reverse-etl/identity";
-import type { GoogleConversionStream } from "../src/functions/google-ads-reverse/conversion-meta";
-import { digest } from "../src/functions/google-ads-reverse/identifiers";
+import type { GoogleConversionStream } from "../src/functions/google-ads/conversions/meta";
+import { digest } from "../src/functions/google-ads/shared/identifiers";
 
 const credentials = {
   authorized: true,

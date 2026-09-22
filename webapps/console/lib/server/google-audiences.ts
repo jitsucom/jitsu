@@ -4,11 +4,11 @@ import {
   GoogleAudienceCredentials,
   GoogleAudienceOptions,
   GoogleManagedAudience,
-} from "@jitsu/destination-functions/src/functions/google-ads-reverse/meta";
+} from "@jitsu/destination-functions/src/functions/google-ads/audience/meta";
 import {
   googleAudienceStateStream,
   LegacyGoogleAudienceState,
-} from "@jitsu/destination-functions/src/functions/google-ads-reverse/state";
+} from "@jitsu/destination-functions/src/functions/google-ads/audience/state";
 import { ApiError } from "../shared/errors";
 
 /** Compatibility for migrated links: reconstruct the identical legacy export from runtime state. */

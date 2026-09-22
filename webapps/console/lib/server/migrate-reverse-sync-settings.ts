@@ -5,13 +5,13 @@ import {
   GoogleAudienceSettings,
   GoogleAudienceCredentials,
   GoogleManagedAudience,
-} from "@jitsu/destination-functions/src/functions/google-ads-reverse/meta";
+} from "@jitsu/destination-functions/src/functions/google-ads/audience/meta";
 import {
   GoogleAudienceState,
   LegacyGoogleAudienceState,
   googleAudienceStateBinding,
   googleAudienceStateStream,
-} from "@jitsu/destination-functions/src/functions/google-ads-reverse/state";
+} from "@jitsu/destination-functions/src/functions/google-ads/audience/state";
 import { ReverseSyncOptions } from "@jitsu/warehouse-query/src/schema";
 
 const Intent = z.object({

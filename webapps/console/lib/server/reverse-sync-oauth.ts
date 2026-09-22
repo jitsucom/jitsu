@@ -1,6 +1,6 @@
 import { timingSafeEqual } from "node:crypto";
 import type { PrismaClient } from "@prisma/client";
-import { GoogleAudienceCredentials } from "@jitsu/destination-functions/src/functions/google-ads-reverse/meta";
+import { GoogleAudienceCredentials } from "@jitsu/destination-functions/src/functions/google-ads/audience/meta";
 import { readReverseSync } from "./reverse-sync-export";
 import type { NangoConfig } from "./oauth/nango-config";
 import { readGoogleAudienceConnectionToken } from "./google-audience-oauth";
