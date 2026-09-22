@@ -67,7 +67,10 @@ Create a Google Cloud OAuth app with Data Manager API enabled and the
 Reconnect the destination after adding scopes. Audience delivery and default click delivery
 do not require a Google Ads developer token. Calls, adjustments and optional legacy click
 delivery require the `adwords` scope and a developer token, supplied on the destination or
-via the runner's `GOOGLE_ADS_DEVELOPER_TOKEN`. The optional conversion-action picker also
+via the runner's `GOOGLE_ADS_DEVELOPER_TOKEN`. With syncctl, put that optional key in
+the Kubernetes Secret named by `reverseEtl.runtimeSecret`; the runner does not
+inherit the controller/console environment. A destination token takes precedence.
+The optional conversion-action picker also
 uses Ads API and needs that token on the destination or console. Audience accounts must be eligible for Customer Match.
 Account-level EU political advertising declaration may also be required for user-list
 creation; resolve this in Google Ads before provisioning.

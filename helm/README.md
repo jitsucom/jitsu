@@ -119,6 +119,9 @@ Provision a Kubernetes Secret containing `RETL_DATABASE_URL`, `RETL_CONSOLE_URL`
 The bucket must already exist, with credentials or workload identity that let the
 runner read/write its artifacts. See [object-storage authentication](REVERSE_ETL.md#cloud-authentication)
 for cloud setup and the optional prefix, region, endpoint and AWS credential keys.
+For Google Ads API streams, optionally add `GOOGLE_ADS_DEVELOPER_TOKEN` to this
+runtime Secret as the fallback when a destination has no developer token. A
+controller/console token is not automatically inherited by runner pods.
 Use the restricted database grants from
 [`services/retl-runner/README.md`](../services/retl-runner/README.md), the same
 database/schema as the console, and the console's `SYNCCTL_AUTH_KEY` as the token.

@@ -39,6 +39,13 @@ Optional keys: `RETL_OBJECT_PREFIX` (default `reverse-etl/`), `RETL_S3_REGION`
 Pods and support conditional `PutObject`; custom endpoints use path-style access.
 If using workload identity, omit static AWS credential keys entirely.
 
+For Google Ads API streams (call conversions, conversion adjustments, and legacy
+click conversions), the runtime Secret may also contain `GOOGLE_ADS_DEVELOPER_TOKEN`.
+It is injected as an optional runner environment variable; a destination's own
+developer token takes precedence. Data Manager audience/default click streams do
+not need it. A token set only on syncctl or the console is **not** inherited by the
+runner: put the fallback in the Secret named by `reverseEtl.runtimeSecret`.
+
 Use `values-custom.yaml` (names only, never Secret contents):
 
 ```yaml

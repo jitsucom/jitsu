@@ -14,8 +14,8 @@ export function ModelIcon({ model }: { model?: Pick<ModelConfig, "warehouseId"> 
     <span className="relative block w-full h-full">
       {type ? getDestinationIcon(type) : <Database className="w-full h-full" />}
       <svg
-        role="img"
-        aria-label="SQL model"
+        aria-hidden="true"
+        focusable="false"
         viewBox="0 0 18 12"
         fill="none"
         stroke="currentColor"
