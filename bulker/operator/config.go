@@ -96,10 +96,33 @@ func (c *Config) PostInit(settings *appbase.AppSettings) error {
 	return c.Config.PostInit(settings)
 }
 
+// podSpecVersion forces a rollout when the generated pod spec changes in a way
+// no Config field captures.
+//
+// The reconcile loop only updates an existing deployment when ConfigHash,
+// OperatorConfigHash or FunctionsClass changes (see operator.go). A hardcoded
+// change to the pod spec — a probe, a lifecycle hook, a volume — alters none of
+// those, so live deployments keep the old spec until some unrelated workspace
+// edit happens to roll them. Busy shards pick it up within hours; quiet ones can
+// wait days, and the deploy itself appears to do nothing, which makes the change
+// impossible to confirm at the time you ship it.
+//
+// Bump this whenever buildDeploymentFromData changes. Every deployment then
+// rolls once on the next reconcile, so ship it at a quiet hour.
+//
+//	v2 — added a StartupProbe to functions-server (21 Sep 2026 crashloop)
+//
+// A var rather than a const only so a test can prove bumping it changes the
+// hash. Nothing should assign to it outside tests.
+var podSpecVersion = "v2-startupprobe"
+
 // CalculateOperatorConfigHash calculates a hash of Config fields that affect deployments.
 // When this hash changes, deployments should be updated to reflect the new configuration.
 func (c *Config) CalculateOperatorConfigHash() string {
 	h := sha256.New()
+
+	// Not a Config field: forces a roll when the generated pod spec changes.
+	h.Write([]byte(podSpecVersion))
 
 	// Include all config fields that affect deployment specs
 	h.Write([]byte(c.FunctionsServerImage))
