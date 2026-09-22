@@ -789,6 +789,30 @@ var retryCancelledDelay = 1 * time.Second
 //
 // Whichever bound runs out, the sync still fails — this trades a certain
 // failure for a very likely recovery, not for a hang.
+// sleepCancellable waits for d, returning early if the sidecar is asked to
+// stop. Without this a SIGTERM arriving just after the cancelled check leaves
+// us asleep for the rest of the current step — up to 30s, longer than the
+// grace period on its own.
+//
+// Close only flips an atomic, so there is no channel to select on and this
+// polls. A 100ms tick is invisible next to the steps it interrupts and far
+// below any grace period worth honouring.
+func (s *ReadSideCar) sleepCancellable(d time.Duration) {
+	const tick = 100 * time.Millisecond
+	deadline := time.Now().Add(d)
+	for {
+		remaining := time.Until(deadline)
+		if remaining <= 0 || s.cancelled.Load() {
+			return
+		}
+		if remaining < tick {
+			time.Sleep(remaining)
+			return
+		}
+		time.Sleep(tick)
+	}
+}
+
 func (s *ReadSideCar) retryControlPlaneWrite(what string, op func() error) {
 	const attempts = 10
 	const maxDelay = 30 * time.Second
@@ -833,7 +857,16 @@ func (s *ReadSideCar) retryControlPlaneWrite(what string, op func() error) {
 		// round-trip to the Postgres that just refused the write. Printing to
 		// stdout costs nothing on either path; the sidecar relays it regardless.
 		fmt.Printf("WARN : %s failed (attempt %d/%d), retrying in %s: %v\n", what, i, attempts, delay, err)
-		time.Sleep(delay)
+		if cancelDeadline.IsZero() {
+			// Not cancelled yet, so this step may be long: wake early if a
+			// SIGTERM lands in the middle of it.
+			s.sleepCancellable(delay)
+		} else {
+			// Already cancelled. delay is capped at retryCancelledDelay here,
+			// and this spacing is the point — returning immediately would burn
+			// the remaining attempts in a hot loop and retry nothing.
+			time.Sleep(delay)
+		}
 		if delay < maxDelay {
 			if delay *= 2; delay > maxDelay {
 				delay = maxDelay

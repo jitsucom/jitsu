@@ -34,6 +34,19 @@ func dockerRun(t *testing.T, args ...string) string {
 	return strings.TrimSpace(string(out))
 }
 
+// hostDSNReady dials the published port exactly as the test will, rather than
+// trusting a readiness check that runs inside the container.
+func hostDSNReady(dsn string) bool {
+	pool, err := pg.NewPGPool(dsn)
+	if err != nil {
+		return false
+	}
+	defer pool.Close()
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	return pool.Ping(ctx) == nil
+}
+
 func startPostgres(t *testing.T) (dsn, name string) {
 	t.Helper()
 	name = fmt.Sprintf("sidecar-retry-test-%d", time.Now().UnixNano())
@@ -48,10 +61,14 @@ func startPostgres(t *testing.T) (dsn, name string) {
 
 	dsn = fmt.Sprintf("postgres://postgres:test@localhost:%d/test?sslmode=disable", port)
 
-	// wait for it to accept connections
+	// Wait on the endpoint the test actually uses. pg_isready over docker exec
+	// only proves Postgres is accepting connections *inside* the container; the
+	// image also restarts the server once after initdb, so the published host
+	// port can accept a TCP connection and then answer with an unexpected EOF.
+	// Ping over the host DSN is the dependency this test really has.
 	deadline := time.Now().Add(60 * time.Second)
 	for time.Now().Before(deadline) {
-		if exec.Command("docker", "exec", name, "pg_isready", "-U", "postgres").Run() == nil {
+		if exec.Command("docker", "exec", name, "pg_isready", "-U", "postgres").Run() == nil && hostDSNReady(dsn) {
 			return dsn, name
 		}
 		time.Sleep(500 * time.Millisecond)

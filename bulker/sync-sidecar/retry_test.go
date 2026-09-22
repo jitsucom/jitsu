@@ -190,6 +190,7 @@ func TestCancellationStillAllowsAShortRetry(t *testing.T) {
 	s := &ReadSideCar{AbstractSideCar: &AbstractSideCar{logLevel: "INFO", dbLogLevel: "ERROR"}}
 	s.cancelled.Store(true)
 	calls := 0
+	started := time.Now()
 	s.retryControlPlaneWrite("test write", func() error {
 		calls++
 		if calls < 2 {
@@ -199,5 +200,38 @@ func TestCancellationStillAllowsAShortRetry(t *testing.T) {
 	})
 	if calls != 2 {
 		t.Fatalf("a cancelled sidecar should still ride out a short blip, got %d attempts", calls)
+	}
+	// And it must space them. If cancellation short-circuited the wait, the ten
+	// attempts would be spent in a hot loop and nothing would actually be
+	// retried.
+	if elapsed := time.Since(started); elapsed < 400*time.Millisecond {
+		t.Fatalf("retries were not spaced while cancelled: %s for 2 attempts", elapsed)
+	}
+}
+
+// The gap the cancellation check alone leaves: a SIGTERM that lands just after
+// it passes would otherwise leave the sidecar asleep for the rest of the step,
+// up to 30s, before anything notices.
+func TestSleepIsInterruptedByCancellation(t *testing.T) {
+	s := &ReadSideCar{AbstractSideCar: &AbstractSideCar{logLevel: "INFO", dbLogLevel: "ERROR"}}
+	go func() {
+		time.Sleep(100 * time.Millisecond)
+		s.cancelled.Store(true)
+	}()
+	started := time.Now()
+	s.sleepCancellable(5 * time.Second)
+	if elapsed := time.Since(started); elapsed > time.Second {
+		t.Fatalf("sleep ignored cancellation: waited %s of a 5s step", elapsed)
+	}
+}
+
+// ...and it must still wait the full step when nothing cancels, or the backoff
+// would collapse into a hot loop.
+func TestSleepWaitsWhenNotCancelled(t *testing.T) {
+	s := &ReadSideCar{AbstractSideCar: &AbstractSideCar{logLevel: "INFO", dbLogLevel: "ERROR"}}
+	started := time.Now()
+	s.sleepCancellable(300 * time.Millisecond)
+	if elapsed := time.Since(started); elapsed < 300*time.Millisecond {
+		t.Fatalf("sleep returned early without cancellation after %s", elapsed)
 	}
 }
