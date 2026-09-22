@@ -1,12 +1,15 @@
 package main
 
 import (
+	"context"
 	"errors"
 	"fmt"
+	"net"
 	"testing"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgconn"
+	"github.com/jitsucom/bulker/jitsubase/pg"
 )
 
 // The sidecar used to panic on any Postgres failure, so a ~1 minute CNPG
@@ -234,4 +237,68 @@ func TestSleepWaitsWhenNotCancelled(t *testing.T) {
 	if elapsed := time.Since(started); elapsed < 300*time.Millisecond {
 		t.Fatalf("sleep returned early without cancellation after %s", elapsed)
 	}
+}
+
+// The startup pool loop runs before the deferred status writer is installed,
+// so a sidecar killed in there records nothing at all. Close has to be able to
+// abandon a ping in flight — the cancelled flag alone cannot do that, since
+// nothing can wait on a bool.
+func TestPingIsAbandonedWhenTheSidecarIsClosed(t *testing.T) {
+	// A listener that accepts and then says nothing: the dial succeeds and the
+	// startup handshake hangs, which is the shape of a blackholed primary.
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("could not listen: %v", err)
+	}
+	defer ln.Close()
+	go func() {
+		for {
+			conn, err := ln.Accept()
+			if err != nil {
+				return
+			}
+			defer conn.Close()
+		}
+	}()
+
+	s := &AbstractSideCar{logLevel: "INFO", dbLogLevel: "ERROR"}
+	s.shutdown, s.triggerShutdown = context.WithCancel(context.Background())
+
+	pool, err := pg.NewPGPool(fmt.Sprintf("postgres://postgres:test@%s/test?sslmode=disable", ln.Addr().String()))
+	if err != nil {
+		t.Fatalf("could not build pool: %v", err)
+	}
+	defer pool.Close()
+
+	go func() {
+		time.Sleep(100 * time.Millisecond)
+		s.Close()
+	}()
+
+	ctx, cancel := context.WithTimeout(s.shutdownCtx(), poolPingTimeout)
+	defer cancel()
+	started := time.Now()
+	if err := pool.Ping(ctx); err == nil {
+		t.Fatal("ping succeeded against a listener that never speaks")
+	}
+	// poolPingTimeout is 10s; without the shutdown context this would sit there
+	// for all of it while the grace period runs out.
+	if elapsed := time.Since(started); elapsed > 2*time.Second {
+		t.Fatalf("ping ignored the shutdown and waited %s", elapsed)
+	}
+}
+
+// AbstractSideCar is built as a struct literal in tests and in the spec/catalog
+// paths, so the shutdown context has to tolerate never being set.
+func TestShutdownContextIsNilSafe(t *testing.T) {
+	s := &AbstractSideCar{}
+	if s.shutdownCtx() == nil {
+		t.Fatal("shutdownCtx returned nil; deriving a timeout from it would panic")
+	}
+	ctx, cancel := context.WithTimeout(s.shutdownCtx(), time.Second)
+	defer cancel()
+	if ctx.Err() != nil {
+		t.Fatalf("fresh context already done: %v", ctx.Err())
+	}
+	s.Close() // must not panic with no context and no pipes
 }

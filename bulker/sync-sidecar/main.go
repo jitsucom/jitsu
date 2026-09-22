@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"github.com/google/uuid"
@@ -67,11 +68,29 @@ type AbstractSideCar struct {
 	errPipe   *os.File
 	outPipe   *os.File
 	cancelled atomic.Bool
+
+	// Cancelled by Close, so a blocking database call can be abandoned when
+	// the sidecar is told to stop rather than running out its own timeout.
+	// cancelled alone cannot do that: it is a flag nothing can wait on.
+	shutdown        context.Context
+	triggerShutdown context.CancelFunc
+}
+
+// shutdownCtx is the parent for any context that should die on SIGTERM. It is
+// nil-safe because tests build AbstractSideCar as a struct literal.
+func (s *AbstractSideCar) shutdownCtx() context.Context {
+	if s.shutdown == nil {
+		return context.Background()
+	}
+	return s.shutdown
 }
 
 func (s *AbstractSideCar) Close() {
 	s._log("jitsu", "WARN", "Cancelling...")
 	s.cancelled.Store(true)
+	if s.triggerShutdown != nil {
+		s.triggerShutdown()
+	}
 	if s.outPipe != nil {
 		_ = s.outPipe.Close()
 	}
@@ -151,6 +170,7 @@ func main() {
 		startedAt:        startedAt,
 		taskTimeoutHours: taskTimeoutHours,
 	}
+	abstract.shutdown, abstract.triggerShutdown = context.WithCancel(context.Background())
 	clickhouseURL := os.Getenv("CLICKHOUSE_URL")
 	clickhouseHost := os.Getenv("CLICKHOUSE_HOST")
 	if clickhouseURL != "" || clickhouseHost != "" {
@@ -276,9 +296,16 @@ func (s *AbstractSideCar) _log(logger, level, message string) {
 func (s *AbstractSideCar) sendLog(logger, level string, message string) error {
 	if s.eventsLogService != nil && strings.Contains(s.eventsLogService.Id(), "clickhouse") {
 		return s.eventsLogService.InsertTaskLog(level, logger, message, s.syncId, s.taskId, time.Now())
-	} else {
-		return db.InsertTaskLog(s.dbpool, uuid.New().String(), level, logger, message, s.syncId, s.taskId, time.Now())
 	}
+	// The pool is not guaranteed to exist. Run() spends up to ~2.5 minutes
+	// establishing it, and drops it between attempts, so anything that logs in
+	// that window — Close on a SIGTERM, or panic — would otherwise dereference
+	// nil inside pgxpool and take the process down with a segfault instead of
+	// the shutdown or the error it was reporting.
+	if s.dbpool == nil {
+		return fmt.Errorf("no database pool yet; log line not persisted")
+	}
+	return db.InsertTaskLog(s.dbpool, uuid.New().String(), level, logger, message, s.syncId, s.taskId, time.Now())
 }
 
 func shouldLog(level string, enabledLevel string) bool {

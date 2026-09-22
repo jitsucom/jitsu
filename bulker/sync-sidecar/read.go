@@ -93,7 +93,9 @@ func (s *ReadSideCar) Run() {
 			// Parse/config failure, not a reachability one: permanent.
 			s.panic("Unable to create postgres connection pool: %v", err)
 		}
-		ctx, cancel := context.WithTimeout(context.Background(), poolPingTimeout)
+		// Derived from the shutdown context, not Background: a SIGTERM during
+		// this ping abandons it instead of running out the full timeout.
+		ctx, cancel := context.WithTimeout(s.shutdownCtx(), poolPingTimeout)
 		err = s.dbpool.Ping(ctx)
 		cancel()
 		if err == nil {
@@ -108,6 +110,14 @@ func (s *ReadSideCar) Run() {
 		if isPermanentPgError(err) {
 			s.panic("Unable to reach postgres: %v", err)
 		}
+		// Nothing has installed the deferred status writer yet — that happens
+		// below, once the pool exists — so a sidecar killed in here records
+		// nothing at all. Stop on the first opportunity rather than spending
+		// another ping and sleep against a grace period that is already
+		// running.
+		if s.cancelled.Load() {
+			s.panic("Unable to reach postgres; giving up, the sidecar is shutting down: %v", err)
+		}
 		if i >= 10 {
 			s.panic("Unable to reach postgres after %d attempts: %v", i, err)
 		}
@@ -115,7 +125,7 @@ func (s *ReadSideCar) Run() {
 		// stdout only: s.dbpool is what we are failing to build, so any logging
 		// primitive that writes to it would nil-panic here.
 		fmt.Printf("WARN : Unable to reach postgres (attempt %d/10), retrying in %s: %v\n", i, delay, err)
-		time.Sleep(delay)
+		s.sleepCancellable(delay)
 	}
 	defer s.dbpool.Close()
 
