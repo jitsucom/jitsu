@@ -29,6 +29,11 @@ function onPlan(planId: string, extra: Record<string, any> = {}) {
 beforeEach(() => {
   vi.stubEnv("EE_CONNECTION", "http://ee.test.local/");
   vi.stubEnv("EE_API_SERVICE_TOKEN", "test-service-token");
+  // INGMGR_URL is set for the whole file (see above), so the stream inputFilter
+  // in the postStream tests now reaches ingress too. Without a default handler
+  // those show up as unhandled outbound requests. Individual tests override
+  // this with server.use() when they need to count the calls.
+  server.use(http.get("http://ingmgr.test.local/api/domain", () => HttpResponse.json({ status: "ok" })));
 });
 
 async function apiKeyFor(userInternalId: string) {
