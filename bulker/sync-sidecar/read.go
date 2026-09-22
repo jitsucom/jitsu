@@ -734,6 +734,12 @@ func isPermanentPgError(err error) bool {
 	return pgErr.Code == "3D000" // invalid catalog name
 }
 
+// retryBudget bounds a whole retry sequence in wall-clock time, independently
+// of how many attempts are left. It exists because attempts are not a bound on
+// their own — see retryControlPlaneWrite. A var rather than a const only so
+// tests can shrink it; nothing in the sidecar reassigns it.
+var retryBudget = 5 * time.Minute
+
 // retryControlPlaneWrite runs a write against our own control-plane Postgres,
 // retrying transient failures instead of killing the customer's sync.
 //
@@ -747,14 +753,28 @@ func isPermanentPgError(err error) bool {
 //
 // The budget deliberately exceeds the observed outage. Blocking here is safe:
 // storeState holds downstreamBusy across the call so the stuck-source watchdog
-// cannot misfire while we wait, and pg.WithStatementTimeout already bounds each
-// individual attempt at 2 minutes. If the budget is exhausted the sync still
-// fails — this trades a certain failure for a very likely recovery, not for a
-// hang.
+// cannot misfire while we wait, and every write is already bounded at two
+// minutes by execTimeout in the db package, which wraps each Exec in a context
+// deadline — that covers acquiring and dialling a connection, not only
+// statement execution, so a single attempt cannot hang indefinitely. (The
+// pool's server-side statement_timeout does not give us this: it only applies
+// once a session exists, so it does nothing for a dial that never completes.)
+//
+// An attempt count alone is still not a bound. Ten attempts each sitting on
+// that two-minute ceiling is twenty minutes of blocking for a failover window
+// that lasts about one, so retryBudget bounds the sequence in wall-clock time
+// as well: we never begin a sleep that would carry us past it. Worst case is
+// therefore retryBudget plus one attempt ceiling — about 7 minutes rather than
+// about 22. The ordinary case is untouched, because a refused connection
+// returns immediately and all ten attempts fit inside the ~121s of backoff.
+//
+// Whichever bound runs out, the sync still fails — this trades a certain
+// failure for a very likely recovery, not for a hang.
 func (s *ReadSideCar) retryControlPlaneWrite(what string, op func() error) {
 	const attempts = 10
 	const maxDelay = 30 * time.Second
 	delay := 500 * time.Millisecond
+	deadline := time.Now().Add(retryBudget)
 	var err error
 	for i := 1; i <= attempts; i++ {
 		if err = op(); err == nil {
@@ -768,6 +788,9 @@ func (s *ReadSideCar) retryControlPlaneWrite(what string, op func() error) {
 		}
 		if i == attempts {
 			break
+		}
+		if time.Now().Add(delay).After(deadline) {
+			s.panic("%s: giving up after %s of retries (attempt %d/%d): %v", what, retryBudget, i, attempts, err)
 		}
 		// Deliberately not s.log: every logging primitive here routes through
 		// _log, which writes the line to the same Postgres that just refused the

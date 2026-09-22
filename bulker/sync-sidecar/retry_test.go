@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"testing"
+	"time"
 
 	"github.com/jackc/pgx/v5/pgconn"
 )
@@ -113,4 +114,42 @@ func TestPermanentWriteIsNotRetried(t *testing.T) {
 		calls++
 		return pgErr("23505")
 	})
+}
+
+// The bound the attempt count does not give us. Each attempt is capped at two
+// minutes by execTimeout, so ten slow attempts would block for twenty — far
+// past the ~1 minute failover this exists for. The wall clock has to stop it.
+func TestWallClockBudgetStopsSlowRetries(t *testing.T) {
+	restore := retryBudget
+	retryBudget = 300 * time.Millisecond
+	defer func() { retryBudget = restore }()
+
+	s := &ReadSideCar{AbstractSideCar: &AbstractSideCar{logLevel: "INFO", dbLogLevel: "ERROR"}}
+	calls := 0
+	started := time.Now()
+	defer func() {
+		_ = recover()
+		if calls >= 10 {
+			t.Fatalf("budget did not cut the sequence short: %d attempts ran", calls)
+		}
+		if elapsed := time.Since(started); elapsed > 3*time.Second {
+			t.Fatalf("budget did not bound the wall clock: blocked for %s", elapsed)
+		}
+	}()
+	s.retryControlPlaneWrite("test write", func() error {
+		calls++
+		time.Sleep(150 * time.Millisecond) // an attempt that hangs rather than refusing
+		return errors.New("dial tcp 10.0.0.1:5432: i/o timeout")
+	})
+	t.Fatal("a sequence that outran its budget should have failed the sync, not returned")
+}
+
+// The budget must not be so tight that it cuts the ordinary failover case
+// short: all ten attempts have to fit inside it when each one fails fast.
+// 0.5+1+2+4+8+16+30+30+30 = 121.5s of backoff.
+func TestBudgetAllowsTheFullBackoffSequence(t *testing.T) {
+	const backoffSum = 121500 * time.Millisecond
+	if retryBudget <= backoffSum {
+		t.Fatalf("retryBudget %s does not cover the %s backoff sequence — fast-failing retries would be cut short", retryBudget, backoffSum)
+	}
 }
