@@ -182,4 +182,30 @@ describe("Reverse ETL standard lists", () => {
     expect((screen.getByRole("button", { name: "Run", exact: true }) as HTMLButtonElement).disabled).toBe(true);
     expect((screen.getByRole("button", { name: "Pause", exact: true }) as HTMLButtonElement).disabled).toBe(false);
   });
+  it("refreshes a failed task by its existing ID instead of starting a new run", async () => {
+    state.rpc.mockResolvedValue({
+      tasks: [
+        {
+          task_id: "original-task",
+          sync_id: "sync",
+          status: "FAILED",
+          canRefresh: true,
+          started_at: new Date(),
+          updated_at: new Date(),
+          description: null,
+          error: "Lookup failed",
+        },
+      ],
+    });
+    mount(ReverseTasksList);
+    fireEvent.click(await screen.findByRole("button", { name: "Refresh status", exact: true }));
+    await waitFor(() =>
+      expect(state.rpc).toHaveBeenCalledWith("/api/ws/reverse-etl/sync", {
+        method: "POST",
+        query: { syncId: "sync" },
+        body: { action: "refresh", taskId: "original-task" },
+      })
+    );
+    expect(state.route.push).not.toHaveBeenCalled();
+  });
 });

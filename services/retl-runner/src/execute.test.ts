@@ -14,6 +14,7 @@ import { createAdapterRegistry } from "./adapters";
 import { Tasks } from "./tasks";
 import { googleAudienceStateStream } from "@jitsu/destination-functions/src/functions/google-ads-reverse/state";
 import { ReverseEtlManualReconciliationError } from "@jitsu/destination-functions/src/reverse-etl/failure";
+import { recordKey } from "@jitsu/destination-functions/src/reverse-etl/identity";
 
 import { MemoryObjects, persisted } from "./artifacts/test-support";
 const objects = new MemoryObjects();
@@ -526,6 +527,89 @@ describe("executable runner", () => {
     await makeDue();
     f.input = { ...f.input, taskId: worker, recoveryOf: parent, trigger: "recovery" };
   }
+  it.each([false, true])(
+    "keeps an all-duplicate overlap from fencing the accepted cursor (saved cursor: %s)",
+    async seeded => {
+      const f = asynchronousFixture();
+      f.input.config.model.cursor = { column: "id", type: "string" };
+      f.adapter.insertOnly = true;
+      f.adapter.project = (_action, row: any) => [
+        {
+          identity: { eventKey: recordKey([row.id]) },
+          upsert: row,
+          remove: {},
+        },
+      ];
+      const createWriter = f.adapter.stream.createWriter;
+      f.adapter.stream.createWriter = async ctx => {
+        const writer = await createWriter(ctx);
+        return {
+          ...writer,
+          init: async () => {
+            await writer.init();
+            ctx.store.set("latestRun", ctx.logicalRunId);
+          },
+        };
+      };
+      const reader = f.input.reader;
+      const afters: unknown[] = [];
+      f.input.reader = config => {
+        const original = reader(config);
+        return {
+          ...original,
+          stream: async function* (model, after, signal) {
+            afters.push(after);
+            for await (const row of original.stream(model, after, signal))
+              if (!after || row.checkpoint!.value > after.value) yield row;
+          },
+        };
+      };
+      const saved = async () => {
+        const envelope = (await admin.query("SELECT state FROM newjitsu.source_state WHERE stream='_REVERSE_ETL_'"))
+          .rows[0]?.state;
+        return envelope && { ...envelope, decoded: JSON.parse(envelope.value).value };
+      };
+      if (seeded) {
+        f.setRows([{ id: "0" }]);
+        f.input.taskId = "seed";
+        expect(await execute(f.input)).toBe("PENDING");
+        for (const batch of f.writes) f.receipts.set(batch.batchId, accepted(batch));
+        await refresh(f, "seed-check", "seed");
+        expect(await execute(f.input)).toBe("COMPLETE");
+        // Older version-2 state has only runOrder; upgrades must preserve its fence.
+        await admin.query(
+          "UPDATE newjitsu.source_state SET state=state-'checkpointRunOrder' WHERE stream='_REVERSE_ETL_'"
+        );
+      }
+      const before = await saved();
+      f.setRows([{ id: "a" }, { id: "b" }]);
+      f.input = { ...f.input, taskId: "task", trigger: "manual", recoveryOf: undefined };
+      const firstWrite = f.writes.length;
+      expect(await execute(f.input)).toBe("PENDING");
+      const runOrder = (await control()).run_order;
+      const count = f.writes.length;
+      for (const taskId of ["noop-1", "noop-2"]) {
+        f.input.taskId = taskId;
+        expect(await execute(f.input)).toBe("COMPLETE");
+        expect(f.writes).toHaveLength(count);
+        expect((await saved()).decoded.point).toEqual(before?.decoded.point ?? { sourceSequence: 0 });
+        expect((await task()).status).toBe("PENDING");
+      }
+      const latestStore = (await saved()).decoded.store;
+      expect(latestStore.latestRun).toBe((await control()).run_id);
+      for (const batch of f.writes.slice(firstWrite)) f.receipts.set(batch.batchId, accepted(batch));
+      await refresh(f, "accepted-check");
+      expect(await execute(f.input)).toBe("COMPLETE");
+      const acceptedState = await saved();
+      expect(acceptedState.checkpointRunOrder).toBe(runOrder);
+      expect(acceptedState.decoded.store).toEqual(latestStore);
+      expect(acceptedState.decoded.point.cursor).toEqual({ value: "b", primaryKeyValues: ["b"] });
+      f.input = { ...f.input, taskId: "after-acceptance", trigger: "manual", recoveryOf: undefined };
+      expect(await execute(f.input)).toBe("COMPLETE");
+      expect(afters.at(-1)).toEqual({ value: "b", primaryKeyValues: ["b"] });
+      expect(f.writes).toHaveLength(count);
+    }
+  );
   it.each(["upsert", "mirror"] as const)(
     "allows a new %s upload while an older run is pending and isolates late refresh",
     async mode => {
@@ -670,7 +754,7 @@ describe("executable runner", () => {
     f.input.taskId = "rejected-check";
     expect(await execute(f.input)).toBe("FAILED");
     const rejectedMetrics = (await task()).metrics;
-    expect(rejectedMetrics.reverseRecovery).toBeUndefined();
+    expect(rejectedMetrics.reverseRecovery.runId).toBe((await control()).run_id);
     expect(rejectedMetrics.reverseDelivery).toMatchObject({
       upsert: { total: 1, rejected: 1 },
       records: { rejected: 2 },
@@ -680,6 +764,140 @@ describe("executable runner", () => {
     expect(await taskLogs("task")).toContain(
       "2 confirmed submitted in 1 batches; 0 accepted, 0 pending processing, 2 rejected"
     );
+  });
+  it("retries a transient refresh failure on the original task without reopening SQL", async () => {
+    const f = asynchronousFixture();
+    expect(await execute(f.input)).toBe("PENDING");
+    const bind = f.adapter.recovery!;
+    let fail = true;
+    f.adapter.recovery = state => ({
+      ...bind(state),
+      reconcileBatch: async batch => {
+        if (fail) throw new Error("private provider response");
+        return accepted(batch);
+      },
+    });
+    await refresh(f, "failed-poll");
+    f.calls.length = 0;
+    expect(await execute(f.input)).toBe("PENDING");
+    expect((await task()).metrics.reverseRecovery.attempt).toBe(1);
+    expect(await taskLogs("task")).not.toContain("private provider response");
+    fail = false;
+    await refresh(f, "next-poll");
+    expect(await execute(f.input)).toBe("COMPLETE");
+    expect(f.calls).not.toContain("reader");
+    expect((await admin.query("SELECT count(*) FROM newjitsu.source_task")).rows[0].count).toBe("1");
+  });
+  it.each(["manual", "scheduled"] as const)(
+    "does not create another task when %s admission encounters a pending non-detached run",
+    async trigger => {
+      const f = asynchronousFixture();
+      expect(await execute(f.input)).toBe("PENDING");
+      // Represents an interrupted extraction or migrated WAITING run.
+      await admin.query("UPDATE newjitsu.reverse_sync_control SET detached=false");
+      const before = await task();
+      f.input = { ...f.input, trigger, taskId: "new-attempt" };
+      f.calls.length = 0;
+      expect(await execute(f.input)).toBe("FAILED");
+      expect((await admin.query("SELECT task_id,status FROM newjitsu.source_task")).rows).toEqual([
+        { task_id: "task", status: "PENDING" },
+      ]);
+      expect((await task()).metrics).toEqual(before.metrics);
+      expect(f.calls).not.toContain("reader");
+      for (const batch of f.writes) f.receipts.set(batch.batchId, accepted(batch));
+      await refresh(f, "continue-original");
+      expect(await execute(f.input)).toBe("COMPLETE");
+      expect((await task()).status).toBe("COMPLETE");
+      expect((await admin.query("SELECT count(*) FROM newjitsu.source_task")).rows[0].count).toBe("1");
+    }
+  );
+  it("retains a failed detached run for explicit refresh on its original task", async () => {
+    const f = asynchronousFixture();
+    expect(await execute(f.input)).toBe("PENDING");
+    const initial = await task();
+    expect((await control()).detached).toBe(true);
+    const bind = f.adapter.recovery!;
+    f.adapter.recovery = state => ({
+      ...bind(state),
+      reconcileBatch: async () => {
+        throw new ReverseEtlManualReconciliationError();
+      },
+    });
+    await refresh(f, "failed-check");
+    expect(await execute(f.input)).toBe("FAILED");
+    expect((await task()).metrics.reverseRecovery.runId).toBe(initial.metrics.reverseRecovery.runId);
+    const error = (await task()).error;
+    // The controller's explicit-refresh transition: same task, new worker.
+    await admin.query(`
+      UPDATE newjitsu.source_task SET status='PENDING',metrics=jsonb_set(
+        jsonb_set(metrics,'{reverseRecovery,nextCheckAt}',to_jsonb('2000-01-01T00:00:00.000Z'::text)),
+        '{reverseRecovery,previousStatus}','"FAILED"') WHERE task_id='task'`);
+    f.input.taskId = "manual-failed-check";
+    f.adapter.recovery = state => ({
+      ...bind(state),
+      reconcileBatch: async () => {
+        throw new Error("temporary lookup failure");
+      },
+    });
+    f.calls.length = 0;
+    expect(await execute(f.input)).toBe("FAILED");
+    expect((await task()).error).toBe(error);
+    expect((await task()).metrics.reverseRecovery.runId).toBe(initial.metrics.reverseRecovery.runId);
+    await admin.query(`
+      UPDATE newjitsu.source_task SET status='PENDING',metrics=jsonb_set(
+        metrics,'{reverseRecovery,nextCheckAt}',to_jsonb('2000-01-01T00:00:00.000Z'::text)) WHERE task_id='task'`);
+    f.input.taskId = "manual-successful-check";
+    f.adapter.recovery = bind;
+    for (const batch of f.writes) f.receipts.set(batch.batchId, accepted(batch));
+    expect(await execute(f.input)).toBe("COMPLETE");
+    expect((await task()).error).toBeNull();
+    expect(f.calls).not.toContain("reader");
+    expect(f.calls).not.toContain("upsert");
+    expect((await admin.query("SELECT count(*) FROM newjitsu.source_task")).rows[0].count).toBe("1");
+  });
+  it("does not let a queued refresh bypass suspension", async () => {
+    const f = asynchronousFixture();
+    expect(await execute(f.input)).toBe("PENDING");
+    await refresh(f, "late-queued-check");
+    await admin.query(
+      "UPDATE newjitsu.source_task SET metrics=jsonb_set(metrics,'{reverseRecovery,suspended}','true')"
+    );
+    const before = await task();
+    f.calls.length = 0;
+    expect(await execute(f.input)).toBe("FAILED");
+    expect(await task()).toEqual(before);
+    expect(f.calls).not.toContain("reconcile");
+    expect(f.calls).not.toContain("reader");
+  });
+  it.each([
+    "Google replacement cleanup failed or is unverified; manual reconciliation required, no automatic replay",
+    "Malformed Google replacement status; manual reconciliation required",
+    "Google replacement status target mismatch",
+    "Google replacement cleanup receipt unavailable; manual reconciliation required, no automatic replay",
+  ])("stops polling a terminal native-replacement result: %s", async reason => {
+    const f = fixture();
+    f.input.config.options.mode = "mirror";
+    f.adapter.stream.capabilities.mirror = "native-replace";
+    f.adapter.verifyMirrorBaseline = async () => "replace";
+    f.setPending();
+    expect(await execute(f.input)).toBe("PENDING");
+    const bind = f.adapter.recovery!;
+    f.adapter.recovery = state => ({
+      ...bind(state),
+      reconcileFinish: async () => {
+        throw new Error(reason);
+      },
+    });
+    const before = await task();
+    await refresh(f, "replacement-failed");
+    f.calls.length = 0;
+    expect(await execute(f.input)).toBe("FAILED");
+    const failed = await task();
+    expect(failed.error).toContain("Google audience replacement could not be confirmed");
+    expect(failed.metrics.reverseRecovery.runId).toBe(before.metrics.reverseRecovery.runId);
+    expect(failed.metrics.reverseRecovery.attempt).toBe(before.metrics.reverseRecovery.attempt);
+    expect(f.calls).not.toContain("reader");
+    expect(f.calls).not.toContain("finish");
   });
   it("stops automatic polling at its original deadline without losing receipts", async () => {
     const f = asynchronousFixture();
@@ -810,6 +1028,9 @@ describe("executable runner", () => {
     expect(await execute(f.input)).toBe("PENDING");
     expect(f.calls).toEqual(["lease", "renew", "reconcile", "release"]);
     expect((await control()).phase).toBe("running");
+    f.input.taskId = "do-not-duplicate-pending";
+    expect(await execute(f.input)).toBe("FAILED");
+    expect(await task("do-not-duplicate-pending")).toBeUndefined();
   });
   it("does not open persistence or start a task when Kubernetes admission is denied", async () => {
     const f = fixture();
@@ -1021,6 +1242,25 @@ describe("executable runner", () => {
     expect(f.calls).toEqual(["lease", "renew", "reconcileFinish", "release"]);
     expect((await control()).run_id).toBe(logical);
     expect((await task()).status).toBe("COMPLETE");
+  });
+  it("does not restore pending after committed delivery when task completion bookkeeping fails", async () => {
+    const f = fixture();
+    f.setPending();
+    expect(await execute(f.input)).toBe("PENDING");
+    await refresh(f, "completion-check");
+    const finish = vi
+      .spyOn(Tasks.prototype, "finish")
+      .mockRejectedValueOnce(new Error("database temporarily unavailable"));
+    try {
+      expect(await execute(f.input)).toBe("FAILED");
+      expect((await control()).phase).toBe("complete");
+      const saved = await task();
+      expect(saved.status).toBe("FAILED");
+      expect(saved.metrics.reverseWorker.active).toBe(false);
+      expect(finish).toHaveBeenCalledTimes(2);
+    } finally {
+      finish.mockRestore();
+    }
   });
   it("executes managed Google mirror, resumes exact wire payloads and refreshes only when due", async () => {
     const f = fixture();

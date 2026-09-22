@@ -2,6 +2,13 @@ import { describe, expect, it } from "vitest";
 import { nextRecoveryCheck, RecoverySchedule } from "./recovery-schedule";
 
 describe("provider recovery backoff", () => {
+  it("keeps worker generations increasing past 100 while capping only backoff", () => {
+    const first = nextRecoveryCheck("run", "revision", undefined, 0)!;
+    const next = RecoverySchedule.parse(nextRecoveryCheck("run", "revision", { ...first, attempt: 100 }, 1000));
+    expect(next.attempt).toBe(101);
+    expect(Date.parse(next.nextCheckAt) - 1000).toBe(60 * 60_000);
+    expect(nextRecoveryCheck("run", "revision", { ...first, attempt: 2147483647 }, 1000)).toBeUndefined();
+  });
   it("waits 30 minutes, increases by 1.3, and caps intervals at an hour", () => {
     let now = Date.parse("2026-09-16T00:00:00.000Z");
     let previous: RecoverySchedule | undefined;

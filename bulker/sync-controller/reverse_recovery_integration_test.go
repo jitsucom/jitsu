@@ -53,7 +53,8 @@ func TestReverseRecoverySchedulerDatabase(t *testing.T) {
 	exec(`CREATE TABLE source_task(sync_id text,task_id text PRIMARY KEY,package text,version text,status text,
  started_at timestamptz DEFAULT now(),updated_at timestamptz DEFAULT now(),started_by jsonb,metrics jsonb,error text,description text);
  CREATE TABLE reverse_sync_control(workspace_id text,sync_id text,run_id text,revision text,phase text,
- PRIMARY KEY(workspace_id,sync_id,run_id))`)
+ PRIMARY KEY(workspace_id,sync_id,run_id));
+ CREATE TABLE task_log(id text,level text,logger text,message text,sync_id text,task_id text)`)
 	entry := reverseFixture()
 	entry.Schedule = "0 0 * * *" // A daily model schedule must not delay recovery.
 	client := fake.NewClientset()
@@ -123,6 +124,21 @@ func TestReverseRecoverySchedulerDatabase(t *testing.T) {
 		t.Fatalf("late worker failure changed logical task: %s, %v", status, err)
 	}
 	// Terminal statuses and legacy idle attempts permit Pod cleanup.
+	exec(`UPDATE source_task SET status='FAILED',metrics=jsonb_set(metrics,'{reverseWorker,active}','false')`)
+	recorder := httptest.NewRecorder()
+	request, _ := gin.CreateTestContext(recorder)
+	tm.refreshReverseTask(request, ctx, entry, "waiting")
+	if recorder.Code != 200 {
+		t.Fatalf("manual refresh failed: %s", recorder.Body.String())
+	}
+	var count int
+	if err := pool.QueryRow(ctx, "SELECT count(*) FROM source_task").Scan(&count); err != nil || count != 1 {
+		t.Fatal("manual refresh created another task", err)
+	}
+	if err := pool.QueryRow(ctx, "SELECT status FROM source_task WHERE task_id='waiting'").Scan(&status); err != nil || status != "PENDING" {
+		t.Fatal("manual refresh did not reopen original task", err)
+	}
+	podCount(3)
 	for _, status := range []string{"COMPLETE", "WAITING", "RESUMED"} {
 		exec("UPDATE source_task SET status=$1 WHERE task_id='waiting'", status)
 		ended := tm.jobRunner.endedReverseTasks([]v1.Pod{{ObjectMeta: metav1.ObjectMeta{
@@ -130,6 +146,61 @@ func TestReverseRecoverySchedulerDatabase(t *testing.T) {
 		if !ended["old-worker"] {
 			t.Fatalf("%s must be terminal for Pod cleanup", status)
 		}
+	}
+	// A pre-start failure (including lease contention) advances only this check,
+	// leaves delivery pending, and logs once even if a late notification repeats.
+	exec(`UPDATE source_task SET status='PENDING',metrics=jsonb_set(jsonb_set(metrics #- '{reverseRecovery,previousStatus}',
+ '{reverseWorker}','{"id":"prior-worker","active":false}'),'{reverseRecovery,attempt}','5')`)
+	failedWorker := reverseResourceName(entry.ID + ":refresh:waiting:5")
+	failedStatus := &TaskStatus{TaskDescriptor: TaskDescriptor{
+		SyncID: "sync", TaskID: "waiting", StartedBy: `{"trigger":"recovery"}`}, PodName: failedWorker}
+	for i := 0; i < 2; i++ {
+		if err := tm.failReverseWorker(failedStatus); err != nil {
+			t.Fatal(err)
+		}
+	}
+	var attempt int
+	if err := pool.QueryRow(ctx, `SELECT status,(metrics->'reverseRecovery'->>'attempt')::int
+ FROM source_task WHERE task_id='waiting'`).Scan(&status, &attempt); err != nil || status != "PENDING" || attempt != 6 {
+		t.Fatalf("startup failure lost pending run: %s attempt=%d err=%v", status, attempt, err)
+	}
+	if err := pool.QueryRow(ctx, "SELECT count(*) FROM task_log WHERE level='ERROR' AND task_id='waiting'").Scan(&count); err != nil || count != 1 {
+		t.Fatalf("startup failure log count=%d err=%v", count, err)
+	}
+	// Suspended checks are never automatically relaunched, even when overdue.
+	exec(`UPDATE source_task SET metrics=jsonb_set(jsonb_set(metrics,'{reverseRecovery,suspended}','true'),
+ '{reverseRecovery,nextCheckAt}',to_jsonb(now()-interval '1 minute'))`)
+	tm.scheduleReverseRecovery()
+	podCount(3)
+	// Explicit retry clears suspension, retains the task, and gets a new worker identity.
+	recorder = httptest.NewRecorder()
+	request, _ = gin.CreateTestContext(recorder)
+	tm.refreshReverseTask(request, ctx, entry, "waiting")
+	if recorder.Code != 200 {
+		t.Fatalf("explicit retry: %s", recorder.Body.String())
+	}
+	podCount(4)
+	if err := pool.QueryRow(ctx, "SELECT count(*) FROM source_task").Scan(&count); err != nil || count != 1 {
+		t.Fatal("explicit retry duplicated task", err)
+	}
+	// Repeated explicit retries must not reuse a completed worker generation at 100.
+	exec(`UPDATE source_task SET status='FAILED',metrics=jsonb_set(metrics #- '{reverseRecovery,previousStatus}','{reverseRecovery,attempt}','100')`)
+	recorder = httptest.NewRecorder()
+	request, _ = gin.CreateTestContext(recorder)
+	tm.refreshReverseTask(request, ctx, entry, "waiting")
+	if recorder.Code != 200 {
+		t.Fatalf("attempt 101: %s", recorder.Body.String())
+	}
+	if err := pool.QueryRow(ctx, "SELECT (metrics->'reverseRecovery'->>'attempt')::int FROM source_task").Scan(&attempt); err != nil || attempt != 101 {
+		t.Fatalf("worker generation did not advance past 100: %d err=%v", attempt, err)
+	}
+	worker101 := reverseResourceName(entry.ID + ":refresh:waiting:101")
+	if err := tm.failReverseWorker(&TaskStatus{TaskDescriptor: TaskDescriptor{
+		SyncID: "sync", TaskID: "waiting", StartedBy: `{"trigger":"recovery"}`}, PodName: worker101}); err != nil {
+		t.Fatal(err)
+	}
+	if err := pool.QueryRow(ctx, "SELECT status,(metrics->'reverseRecovery'->>'attempt')::int FROM source_task").Scan(&status, &attempt); err != nil || status != "FAILED" || attempt != 102 {
+		t.Fatalf("retry failure changed original status or reused worker: %s %d err=%v", status, attempt, err)
 	}
 	// Cancellation does not need a Pod, desired entry, or enabled rollout.
 	tm.config.ReverseEnabled = false

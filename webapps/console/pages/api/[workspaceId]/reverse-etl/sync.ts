@@ -38,6 +38,7 @@ export const route = createRoute()
     body: z.discriminatedUnion("action", [
       z.object({ action: z.literal("run") }).strict(),
       z.object({ action: z.literal("cancel"), taskId: z.string() }).strict(),
+      z.object({ action: z.literal("refresh"), taskId: z.string() }).strict(),
     ]),
     result: z.object({ status: z.string(), taskId: z.string().optional() }),
   })
@@ -45,12 +46,21 @@ export const route = createRoute()
     await verifyAccessWithRole(user, workspaceId, "editEntities");
     res.setHeader("Cache-Control", "no-store");
     const prisma = db.prisma();
-    if (body.action === "cancel") {
+    if (body.action !== "run") {
       const tasks = await reverseTasks(prisma, workspaceId, { syncId, taskId: body.taskId });
-      if (!tasks.length || !["RUNNING", "WAITING", "PENDING"].includes(tasks[0].status))
-        throw new ApiError("No active attempt to cancel", { status: 409 });
+      if (
+        !tasks.length ||
+        (body.action === "refresh"
+          ? !tasks[0].canRefresh
+          : !["RUNNING", "WAITING", "PENDING"].includes(tasks[0].status))
+      )
+        throw new ApiError(
+          body.action === "refresh" ? "No saved run available for a status refresh" : "No active attempt to cancel",
+          { status: 409 }
+        );
     }
-    const config = body.action === "run" ? await readReverseSync(prisma, syncId, workspaceId) : undefined;
+    const config = body.action !== "cancel" ? await readReverseSync(prisma, syncId, workspaceId) : undefined;
+    if (body.action !== "cancel" && !config) throw new ApiError("Enable the sync before running it", { status: 409 });
     if (body.action === "run") {
       if (!config) throw new ApiError("Enable the sync before running it", { status: 409 });
       if (await prisma.source_task.count({ where: { sync_id: syncId, status: "RUNNING" } }))
@@ -60,15 +70,15 @@ export const route = createRoute()
     if (!env.SYNCCTL_URL) throw new ApiError("Sync controller is not configured", { status: 503 });
     let result;
     try {
-      result = await rpc(`${env.SYNCCTL_URL}/${body.action === "run" ? "read" : "cancel"}`, {
-        method: body.action === "run" ? "POST" : "GET",
+      result = await rpc(`${env.SYNCCTL_URL}/${body.action !== "cancel" ? "read" : "cancel"}`, {
+        method: body.action !== "cancel" ? "POST" : "GET",
         headers: env.SYNCCTL_AUTH_KEY ? { Authorization: `Bearer ${env.SYNCCTL_AUTH_KEY}` } : {},
         query: {
           kind: "reverse",
           workspaceId,
           syncId,
           ...(config ? { updatedAt: config.updatedAt } : {}),
-          ...(body.action === "cancel" ? { taskId: body.taskId } : {}),
+          ...(body.action !== "run" ? { taskId: body.taskId } : {}),
         },
       });
     } catch {
@@ -88,7 +98,12 @@ export const route = createRoute()
       req
     );
     return {
-      status: body.action === "run" ? "started" : "cancellation requested",
+      status:
+        body.action === "run"
+          ? "started"
+          : body.action === "refresh"
+          ? "status refresh requested"
+          : "cancellation requested",
       ...(result.taskId ? { taskId: result.taskId } : {}),
     };
   });

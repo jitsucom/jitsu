@@ -154,13 +154,36 @@ export class ObjectJournal implements DeliveryJournal {
         );
         const next = { ...old, ...changes };
         if (checkpoint) {
+          const previousEnvelope = (
+            await client.query<{ state: { runOrder?: string; checkpointRunOrder?: string } }>(
+              `SELECT state FROM ${this.db.stateTable} WHERE sync_id=$1 AND stream=$2 FOR UPDATE`,
+              [this.scope.syncId, stateStream]
+            )
+          ).rows[0]?.state;
+          const previous = previousEnvelope ? readSavedState(previousEnvelope, this.scope) : undefined;
+          const checkpointOrder = previousEnvelope?.checkpointRunOrder ?? previousEnvelope?.runOrder ?? "-1";
+          const replaceState = !previousEnvelope || BigInt(old.run_order) >= BigInt(previousEnvelope.runOrder ?? "0");
+          // A no-op cursor run may update its store, but it has no new delivery
+          // evidence. Do not let it fence out an older pending run's cursor.
+          const replacePoint =
+            (this.scope.mode !== "upsert" ||
+              this.scope.extraction !== "cursor" ||
+              checkpoint.point.sourceSequence > Number(old.base_sequence)) &&
+            BigInt(old.run_order) >= BigInt(checkpointOrder);
           const envelope = {
             version: 2,
             workspaceId: this.scope.workspaceId,
             revision: this.scope.configRevision,
             targetHash: contentHash(this.scope.targetIdentity),
-            runOrder: old.run_order,
-            value: encodeJson(checkpoint, 192 * 1024).toString("utf8"),
+            runOrder: replaceState ? old.run_order : previousEnvelope!.runOrder ?? "0",
+            checkpointRunOrder: replacePoint ? old.run_order : checkpointOrder,
+            value: encodeJson(
+              {
+                ...(replaceState ? checkpoint : previous!),
+                point: replacePoint ? checkpoint.point : previous?.point ?? checkpoint.point,
+              },
+              192 * 1024
+            ).toString("utf8"),
           };
           await client.query(
             `INSERT INTO ${this.db.stateTable}(sync_id,stream,state,timestamp) VALUES($1,$2,$3,clock_timestamp())

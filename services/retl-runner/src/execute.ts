@@ -4,7 +4,7 @@ import type { WarehouseReader, CompositeCursor } from "@jitsu/warehouse-query";
 import { ReverseRunConfig } from "@jitsu/warehouse-query/src/runtime";
 import { createBufferedSyncStore, recordKey } from "@jitsu/destination-functions/src/reverse-etl/identity";
 import { runReverseEtl } from "@jitsu/destination-functions/src/reverse-etl/run";
-import { ReverseEtlManualReconciliationError } from "@jitsu/destination-functions/src/reverse-etl/failure";
+import { requiresManualReconciliation } from "@jitsu/destination-functions/src/reverse-etl/failure";
 import { Database, openPersistence } from "./persistence";
 import type { ControlRow } from "./persistence/rows";
 import { ensure, PersistenceResetRequiredError } from "./persistence/types";
@@ -47,6 +47,9 @@ export async function execute(input: ExecuteOptions): Promise<TaskResult> {
     stats => tasks.statistics(stats)
   );
   let reportProgress: (() => Promise<void>) | undefined;
+  let rejectedRows: (() => Promise<boolean>) | undefined;
+  let refreshRunId: string | undefined;
+  let deliveryFinished = false;
   let reader: WarehouseReader | undefined;
   let started = false;
   let held = false;
@@ -81,7 +84,7 @@ export async function execute(input: ExecuteOptions): Promise<TaskResult> {
     await lease.acquire();
     held = true;
     stage = "task_start";
-    const refreshRunId = await tasks.start(
+    refreshRunId = await tasks.start(
       input.trigger,
       input.recoveryOf,
       input.config.configRevision,
@@ -143,6 +146,7 @@ export async function execute(input: ExecuteOptions): Promise<TaskResult> {
     const scope = run.scope;
     run.core.onPublish = head => progress.observe(head);
     reportProgress = () => progress.summarize(run.core.head);
+    rejectedRows = () => run.core.hasRejected();
     ensure(input.trigger !== "recovery" || run.recovery, "Recovery must not start a fresh extraction");
     await tasks.heartbeat();
     const saved = await run.core.state();
@@ -263,6 +267,9 @@ export async function execute(input: ExecuteOptions): Promise<TaskResult> {
           checkpointEvery: config.options.checkpointEvery,
         })
       ).delivery;
+    // A committed delivery cannot be polled again; subsequent bookkeeping errors
+    // must not restore PENDING against a terminal persistence control.
+    deliveryFinished = result !== "pending";
     // Stop renewal before terminal task status; never let a late heartbeat read
     // our own SUCCESS as cancellation. Still hold the Kubernetes lease until finally.
     stopped = true;
@@ -288,9 +295,32 @@ export async function execute(input: ExecuteOptions): Promise<TaskResult> {
     await renewing;
     const status = signal.aborted && !ownershipLost ? "CANCELLED" : "FAILED";
     await reportProgress?.();
-    if (started && error instanceof ReverseEtlManualReconciliationError) {
-      await tasks.finish(status, failureMessage(error, input.taskId)).catch(() => undefined);
+    // A final provider result is delivery evidence, not a failed status lookup.
+    // Retain its binding for explicit continuation, but stop automatic polling.
+    if (started && requiresManualReconciliation(error)) {
+      await tasks.finish(status, failureMessage(error, tasks.taskId)).catch(() => undefined);
       return status;
+    }
+    if (started && refreshRunId && !deliveryFinished && !progress.deliveryChanged) {
+      return await tasks.refreshFailed(
+        `Status refresh failed without updating delivery outcomes. ${failureMessage(error, tasks.taskId)}`,
+        error instanceof PersistenceResetRequiredError
+      );
+    }
+    if (
+      started &&
+      refreshRunId &&
+      !deliveryFinished &&
+      !signal.aborted &&
+      !ownershipLost &&
+      !(error instanceof PersistenceResetRequiredError) &&
+      !(await rejectedRows?.().catch(() => true))
+    ) {
+      // Polling errors do not discard a submitted run or create a new task. A
+      // permanent row rejection still fails immediately; the polling deadline remains bounded.
+      const result = await tasks.wait(refreshRunId, input.config.configRevision);
+      await tasks.logError(`Status refresh could not complete. ${failureMessage(error, tasks.taskId)}`);
+      return result;
     }
     if (started)
       await tasks

@@ -59,6 +59,7 @@ func (t *TaskManager) scheduleReverseRecovery() {
  JOIN unnest($1::text[],$2::text[],$3::text[]) desired(id,workspace,revision)
  ON desired.id=c.sync_id AND desired.workspace=c.workspace_id AND desired.revision=c.revision
  WHERE t.package='jitsu/retl-runner' AND t.status IN ('PENDING','WAITING')
+ AND COALESCE((t.metrics->'reverseRecovery'->>'suspended')::boolean,false)=false
  AND COALESCE((t.metrics->'reverseWorker'->>'active')::boolean,false)=false
  AND t.started_by->>'workspaceId'=c.workspace_id
  AND t.metrics->'reverseRecovery'->>'runId'=c.run_id
@@ -101,6 +102,11 @@ func (t *TaskManager) scheduleReverseRecovery() {
 		cancel()
 		if err != nil {
 			t.Errorf("reverse recovery launch failed for sync %s", task.SyncID)
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			_ = t.recordReverseRefreshFailure(ctx, task.SyncID, task.TaskID,
+				reverseResourceName(task.SyncID+":refresh:"+task.TaskID+":"+strconv.Itoa(task.Attempt)),
+				"Status refresh could not start; saved delivery retained. Automatic scheduling will retry.", false)
+			cancel()
 		}
 	}
 }

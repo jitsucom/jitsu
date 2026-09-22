@@ -217,6 +217,36 @@ describe("single-save Reverse ETL settings", () => {
     await f.prisma.source_task.update({ where: { task_id: taskId }, data: { started_at: new Date("2026-04-01") } });
     expect((await listReverseSyncs(f.prisma, f.workspace.id))[0].latestTask?.stats).toEqual(stats);
   });
+  it.each([
+    ["FAILED", false, true],
+    ["PENDING", false, true],
+    ["WAITING", false, true],
+    ["PENDING", true, false],
+    ["COMPLETE", false, false],
+    ["CANCELLED", false, false],
+  ] as const)(
+    "exposes explicit refresh eligibility for %s tasks with active=%s",
+    async (status, active, canRefresh) => {
+      const f = await fixture();
+      const { id } = await createReverseSync(f.prisma, f.workspace.id, randomUUID(), f.input);
+      const taskId = randomUUID();
+      await f.prisma.source_task.create({
+        data: {
+          task_id: taskId,
+          sync_id: id,
+          package: "jitsu/retl-runner",
+          version: "test",
+          status,
+          metrics: { reverseRecovery: { runId: "saved-run" }, reverseWorker: { active } },
+        },
+      });
+      const tasks = await reverseTasks(f.prisma, f.workspace.id, { syncId: id, taskId });
+      expect(tasks[0].canRefresh).toBe(canRefresh);
+      expect(await reverseTasks(f.prisma, "foreign", { syncId: id, taskId })).toEqual([]);
+      await f.prisma.source_task.update({ where: { task_id: taskId }, data: { metrics: {} } });
+      expect((await reverseTasks(f.prisma, f.workspace.id, { syncId: id, taskId }))[0].canRefresh).toBe(false);
+    }
+  );
   it("saves all intent on one link without preview, OAuth, provisioning or auxiliary entities", async () => {
     const f = await fixture();
     const { id } = await f.create();

@@ -444,7 +444,7 @@ func (j *JobRunner) getPodResUsage(podName string, container string) (metrics ma
 		metrics["mem_usage"] = memUsage
 	}
 	if stderr.Len() > 0 {
-		err = fmt.Errorf(stderr.String())
+		err = fmt.Errorf("%s", stderr.String())
 	}
 
 	return metrics

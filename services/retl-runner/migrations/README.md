@@ -32,7 +32,12 @@ Multiple runs can process remotely at once, including mirror uploads/removals.
 This does not guarantee provider processing order: while they overlap, older
 changes can still finish after newer ones. Pending memberships are retained as
 potential baseline members and refreshed when desired by a later snapshot.
-Late older checkpoints cannot overwrite a newer committed checkpoint. Receipts
+Late older checkpoints cannot overwrite a newer committed checkpoint. A cursor
+run with no delivered operations does not supersede the checkpoint: version-2
+state records `checkpointRunOrder` separately from the shared store's `runOrder`.
+An older run can therefore publish its accepted cursor after a newer all-duplicate
+run, without overwriting the newer store. Legacy state without `checkpointRunOrder`
+uses `runOrder`; this metadata addition needs no schema migration. Receipts
 remain attached to their own run; pending or uncertain work is never called accepted.
 
 No retention deletion of control rows is introduced. Once multiple runs exist,

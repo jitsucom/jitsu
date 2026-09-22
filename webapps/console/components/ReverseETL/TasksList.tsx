@@ -56,7 +56,7 @@ export function ReverseTasksList() {
     keepPreviousData: true,
     refetchInterval: 5000,
   });
-  const perform = async (task: ReverseTask, action: "run" | "cancel") => {
+  const perform = async (task: ReverseTask, action: "run" | "cancel" | "refresh") => {
     if (busy) return;
     if (
       action === "cancel" &&
@@ -71,7 +71,7 @@ export function ReverseTasksList() {
       const result = await rpc(`/api/${workspace.id}/reverse-etl/sync`, {
         method: "POST",
         query: { syncId: task.sync_id },
-        body: { action, ...(action === "cancel" ? { taskId: task.task_id } : {}) },
+        body: { action, ...(action !== "run" ? { taskId: task.task_id } : {}) },
       });
       await Promise.all([tasks.refetch(), syncs.refetch()]);
       if (action === "run")
@@ -102,6 +102,18 @@ export function ReverseTasksList() {
         requiredPermission: "editEntities",
         disabled: !sync,
       },
+      ...(task.canRefresh
+        ? [
+            {
+              label: "Refresh status",
+              collapsed: true,
+              icon: <RefreshCw className="w-4 h-4" />,
+              requiredPermission: "editEntities" as const,
+              disabled: busy || maintenance || !enabled || !sync || sync.options.disabled,
+              onClick: () => void perform(task, "refresh"),
+            },
+          ]
+        : []),
       ["RUNNING", "WAITING", "PENDING"].includes(task.status)
         ? {
             label: "Cancel",

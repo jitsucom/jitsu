@@ -5,6 +5,22 @@ export class ReverseEtlManualReconciliationError extends Error {
   }
 }
 
+const terminalReplacementReasons = new Set([
+  "Google replacement cutoff is missing or bound to another run; do not reset or replay",
+  "Google replacement cleanup receipt unavailable; manual reconciliation required, no automatic replay",
+  "Malformed Google replacement status; manual reconciliation required",
+  "Google replacement status target mismatch",
+  "Google replacement cleanup failed or is unverified; manual reconciliation required, no automatic replay",
+]);
+
+/** Mirror recovery wraps provider errors; exact redacted reasons retain terminal semantics. */
+export function requiresManualReconciliation(error: unknown): boolean {
+  return (
+    error instanceof ReverseEtlManualReconciliationError ||
+    (error instanceof Error && terminalReplacementReasons.has(error.message))
+  );
+}
+
 /** Exact core-owned reasons only. Never expose arbitrary SDK/SQL messages or causes. */
 const failures = new Map<string, string>([
   [

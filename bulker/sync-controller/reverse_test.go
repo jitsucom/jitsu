@@ -208,11 +208,19 @@ func TestReverseTerminationRetriesTransientFailure(t *testing.T) {
 	}
 	// Next watcher pass still observes Running with terminal task state.
 	j.cleanupReversePod(pod)
-	if !j.cleanedUpPods.Contains(pod.Name) {
-		t.Fatal("successful retry not recorded")
+	if j.cleanedUpPods.Contains(pod.Name) {
+		t.Fatal("cleanup by name would hide a recreated refresh Pod")
 	}
 	if _, err := client.CoreV1().Pods("default").Get(context.Background(), pod.Name, metav1.GetOptions{}); err == nil {
 		t.Fatal("running Pod was not deleted on retry")
+	}
+	replacement := pod.DeepCopy()
+	replacement.UID = "new-uid"
+	if _, err := client.CoreV1().Pods("default").Create(context.Background(), replacement, metav1.CreateOptions{}); err != nil {
+		t.Fatal(err)
+	}
+	if j.cleanedUpPods.Contains(replacement.Name) {
+		t.Fatal("replacement Pod would be skipped")
 	}
 }
 

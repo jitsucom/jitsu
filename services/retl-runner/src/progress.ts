@@ -101,6 +101,9 @@ export function deliveryTotals(head: ArtifactHead, action: "upsert" | "remove") 
 
 /** Only aggregate core-owned counts. No payloads, identifiers, cursors or provider messages. */
 export class RunProgress {
+  /** Changes to delivery evidence, not log messages or refreshed observation timestamps. */
+  deliveryChanged = false;
+  private deliveryBaseline?: string;
   private lastStats = "";
   private lastPlan = "";
   private summarized = false;
@@ -141,6 +144,11 @@ export class RunProgress {
 
   /** Restored batches seed progress without presenting earlier submissions as new uploads. */
   async observe(head: ArtifactHead, restored = false) {
+    const { observedAt, ...delivery } = batchStatistics(head);
+    const fingerprint = JSON.stringify(delivery);
+    if (!restored && this.deliveryBaseline !== undefined && fingerprint !== this.deliveryBaseline)
+      this.deliveryChanged = true;
+    this.deliveryBaseline = fingerprint;
     await this.statistics(head);
     const snapshot = head.snapshot;
     if (snapshot?.sealed) {
