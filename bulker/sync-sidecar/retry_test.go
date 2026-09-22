@@ -7,6 +7,7 @@ import (
 	"io"
 	"net"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -364,4 +365,32 @@ func TestClosePipesBeforeLogging(t *testing.T) {
 	case <-time.After(3 * time.Second):
 		t.Fatal("pipes still open after 3s; the log write is holding the reader goroutines")
 	}
+}
+
+// The bootstrap panic path has no stream open — lastStream is only assigned by
+// openStream, long after the pool loop — and ReadSideCar.panic calls
+// lastStream.RegisterError unconditionally. That is safe because RegisterError
+// checks its own receiver for nil (read.go:1170), so the real Postgres error
+// still reaches AbstractSideCar.panic and the logs. This pins that: remove the
+// nil check and a failure to reach Postgres at startup becomes a segfault that
+// hides the actual cause.
+func TestBootstrapPanicSurvivesWithNoStreamOpen(t *testing.T) {
+	s := &ReadSideCar{AbstractSideCar: &AbstractSideCar{logLevel: "INFO", dbLogLevel: "ERROR"}}
+	if s.lastStream != nil {
+		t.Fatal("precondition: lastStream should be nil before any stream is opened")
+	}
+	defer func() {
+		r := recover()
+		if r == nil {
+			t.Fatal("expected the panic to propagate")
+		}
+		msg, ok := r.(string)
+		if !ok {
+			t.Fatalf("panicked with %T (%v) instead of the intended error text", r, r)
+		}
+		if !strings.Contains(msg, "Unable to reach postgres") {
+			t.Fatalf("the real Postgres error did not survive the panic path: %q", msg)
+		}
+	}()
+	s.panic("Unable to reach postgres: %v", "connection refused")
 }
