@@ -13,7 +13,9 @@ import { deps, seedWorkspace } from "./support/harness";
 // custom-domains.ts captures CUSTOM_DOMAIN_CNAMES into a module-level const at
 // import time, and the route modules are imported dynamically inside the tests
 // below — so these have to be set here, at module scope, not in a beforeEach.
+// eslint-disable-next-line no-restricted-properties
 process.env.CUSTOM_DOMAIN_CNAMES = "cname.jitsu.com";
+// eslint-disable-next-line no-restricted-properties
 process.env.INGMGR_URL = "http://ingmgr.test.local";
 
 function onPlan(planId: string, extra: Record<string, any> = {}) {
