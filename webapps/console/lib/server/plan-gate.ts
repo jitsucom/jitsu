@@ -100,6 +100,26 @@ export async function assertCustomDomainsAllowed(
   if (added.length === 0) {
     return;
   }
+  await assertCustomDomainsEntitlement(user, workspace, req, added);
+}
+
+/**
+ * Does this workspace get custom domains at all? Separate from
+ * assertCustomDomainsAllowed because provisioning does not only happen on a
+ * config write: `GET /api/:workspaceId/domain-check` calls checkOrAddToIngress
+ * directly, behind verifyAccess alone, and never reaches ConfigObjectsService.
+ * Gating one and not the other leaves the side effect reachable, which is the
+ * whole point of the gate.
+ */
+export async function assertCustomDomainsEntitlement(
+  user: SessionUser,
+  workspace: { id: string; featuresEnabled?: readonly string[] | null },
+  req?: NextApiRequest,
+  domains: string[] = []
+): Promise<void> {
+  if (!isEEAvailable()) {
+    return;
+  }
   // Checked before the billing round-trip: a workspace holding the grant needs
   // no plan lookup at all. Tests the flag directly — calling the resolver with
   // no billing would return true unconditionally, which defeats the gate.
@@ -109,9 +129,11 @@ export async function assertCustomDomainsAllowed(
   const billing = await fetchPlan(workspace.id, user, req);
   if (!canUseCustomDomains(billing, workspace.featuresEnabled)) {
     throw new ApiError(
-      `Custom domains are available on the Business and Enterprise plans. Upgrade your workspace to add ${added.join(
-        ", "
-      )}.`,
+      domains.length > 0
+        ? `Custom domains are available on the Business and Enterprise plans. Upgrade your workspace to add ${domains.join(
+            ", "
+          )}.`
+        : `Custom domains are available on the Business and Enterprise plans. Upgrade your workspace to use them.`,
       { status: 403 }
     );
   }

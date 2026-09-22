@@ -9,6 +9,7 @@ import {
 } from "../../../lib/server/custom-domains";
 import { DomainCheckResponse } from "../../../lib/shared/domain-check-response";
 import { createRoute, verifyAccess } from "../../../lib/api";
+import { assertCustomDomainsEntitlement } from "../../../lib/server/plan-gate";
 import { db } from "../../../lib/server/db";
 import { requireDefined } from "juava";
 
@@ -23,7 +24,7 @@ export default createRoute()
     }),
     result: DomainCheckResponse,
   })
-  .handler(async ({ user, query: { workspaceId, domain } }) => {
+  .handler(async ({ user, req, query: { workspaceId, domain } }) => {
     if (!customDomainCnames || customDomainCnames.length == 0) {
       throw new Error(`CUSTOM_DOMAIN_CNAMES is not set`);
     }
@@ -59,6 +60,13 @@ export default createRoute()
         }
       }
     }
+
+    // JITSU-228. checkOrAddToIngress provisions — it creates the certificate-map
+    // entry, and ingress-manager keeps it while the CNAME stays valid. This
+    // route reaches it behind verifyAccess alone, without going through
+    // ConfigObjectsService, so gating only the config write would leave the
+    // side effect reachable by any member of a Free workspace.
+    await assertCustomDomainsEntitlement(user, workspace, req, [domainToCheck]);
 
     try {
       const ingressStatus = await checkOrAddToIngress(domainToCheck);
