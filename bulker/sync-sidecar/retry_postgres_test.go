@@ -174,3 +174,24 @@ func TestGivesUpWhenPostgresNeverReturns(t *testing.T) {
 	s := &ReadSideCar{AbstractSideCar: &AbstractSideCar{logLevel: "INFO", dbLogLevel: "ERROR"}}
 	s.retryControlPlaneWrite("state write", op)
 }
+
+// The premise of the Ping in Run(): building a pool proves nothing about
+// whether Postgres is reachable. pgxpool is lazy — pool_min_conns defaults to
+// zero — so NewPGPool against an address with nothing behind it still returns
+// a pool and no error. Without the Ping, the pool-creation retry loop would
+// only ever see malformed-DSN errors, which are exactly the ones retrying
+// cannot fix, and a sidecar starting mid-promotion would sail past it.
+func TestPoolCreationDoesNotProveReachability(t *testing.T) {
+	// Port 1 is privileged and unused: the dial is refused immediately.
+	pool, err := pg.NewPGPool("postgres://postgres:test@127.0.0.1:1/test?sslmode=disable")
+	if err != nil {
+		t.Fatalf("NewPGPool dialled when it was expected to be lazy: %v", err)
+	}
+	defer pool.Close()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	if err := pool.Ping(ctx); err == nil {
+		t.Fatal("Ping succeeded against a dead address; the reachability check is not checking anything")
+	}
+}

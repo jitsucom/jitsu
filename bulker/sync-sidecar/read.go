@@ -79,23 +79,42 @@ func (s *ReadSideCar) Run() {
 	// fails fast with a cancellation error instead of blocking the stdout
 	// reader indefinitely on a wedged connection.
 	// Same failover window as the writes below: a sidecar that starts while the
-	// primary is being promoted cannot dial at all, and panicking here kills the
+	// primary is being promoted cannot reach it, and panicking here kills the
 	// sync before it has done anything. Retried on the same budget.
+	//
+	// Building the pool is not enough to know that. pgxpool.NewWithConfig is
+	// lazy — pool_min_conns defaults to zero, so it returns a pool without
+	// dialling anything, and an unreachable primary surfaces at the first
+	// write rather than here. The connection has to be proven with a Ping, or
+	// this loop only ever retries malformed DSNs, which retrying cannot fix.
 	for i := 1; ; i++ {
 		s.dbpool, err = pg.NewPGPool(s.databaseURL, pg.WithStatementTimeout(2*time.Minute))
+		if err != nil {
+			// Parse/config failure, not a reachability one: permanent.
+			s.panic("Unable to create postgres connection pool: %v", err)
+		}
+		ctx, cancel := context.WithTimeout(context.Background(), poolPingTimeout)
+		err = s.dbpool.Ping(ctx)
+		cancel()
 		if err == nil {
 			if i > 1 {
 				s.log("postgres connection pool created after %d attempts", i)
 			}
 			break
 		}
+		// Don't leak the pool we are about to replace.
+		s.dbpool.Close()
+		s.dbpool = nil
+		if isPermanentPgError(err) {
+			s.panic("Unable to reach postgres: %v", err)
+		}
 		if i >= 10 {
-			s.panic("Unable to create postgres connection pool after %d attempts: %v", i, err)
+			s.panic("Unable to reach postgres after %d attempts: %v", i, err)
 		}
 		delay := utils.Ternary(time.Duration(i)*time.Second > 30*time.Second, 30*time.Second, time.Duration(i)*time.Second)
 		// stdout only: s.dbpool is what we are failing to build, so any logging
 		// primitive that writes to it would nil-panic here.
-		fmt.Printf("WARN : Unable to create postgres connection pool (attempt %d/10), retrying in %s: %v\n", i, delay, err)
+		fmt.Printf("WARN : Unable to reach postgres (attempt %d/10), retrying in %s: %v\n", i, delay, err)
 		time.Sleep(delay)
 	}
 	defer s.dbpool.Close()
@@ -733,6 +752,11 @@ func isPermanentPgError(err error) bool {
 	}
 	return pgErr.Code == "3D000" // invalid catalog name
 }
+
+// poolPingTimeout bounds the reachability check on each pool-creation attempt.
+// Long enough to ride out a slow dial, short enough that ten attempts plus
+// their backoff stay well inside a sync's startup.
+const poolPingTimeout = 10 * time.Second
 
 // retryBudget bounds a whole retry sequence in wall-clock time, independently
 // of how many attempts are left. It exists because attempts are not a bound on
