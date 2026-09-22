@@ -151,6 +151,36 @@ describe("the plan gate holds through the real REST route", () => {
     expect(ingressCalls, "a denied workspace must not reach ingress-manager at all").toBe(0);
   });
 
+  // The grandfathering guarantee reaches this route too. DomainsEditor calls
+  // domain-check on mount and on "Re-check" for every configured domain, so a
+  // flat plan denial would render a Free workspace's existing, working domain
+  // as an error — the opposite of "nothing already configured is taken away".
+  it("still checks a domain the workspace already has, even on a denied plan", async () => {
+    const { user, workspace } = await seedWorkspace();
+    const bearer = await apiKeyFor(user.internalId);
+    const existing = `grandfathered-${randomId(6).toLowerCase()}.example.com`;
+    await deps().prisma.configurationObject.create({
+      data: { workspaceId: workspace.id, type: "stream", config: { name: "site", domains: [existing] } },
+    });
+
+    let ingressCalls = 0;
+    server.use(
+      http.get("http://ingmgr.test.local/api/domain", () => {
+        ingressCalls++;
+        return HttpResponse.json({ status: "ok" });
+      })
+    );
+
+    onPlan("free", { customDomainsEnabled: false });
+    const res = await getDomainCheck(bearer, workspace.id, existing);
+    expect(res.statusCode, "an already-attached domain must stay checkable").toBe(200);
+    expect(ingressCalls).toBeGreaterThan(0);
+
+    // ...but a domain it does not have is still refused.
+    const fresh = await getDomainCheck(bearer, workspace.id, `new-${randomId(6).toLowerCase()}.example.com`);
+    expect(fresh.statusCode, "a domain not already attached is still gated").toBe(403);
+  });
+
   it("still lets domain-check through on a plan that permits it", async () => {
     const { user, workspace } = await seedWorkspace();
     const bearer = await apiKeyFor(user.internalId);

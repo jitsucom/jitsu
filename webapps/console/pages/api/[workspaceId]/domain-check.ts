@@ -9,7 +9,7 @@ import {
 } from "../../../lib/server/custom-domains";
 import { DomainCheckResponse } from "../../../lib/shared/domain-check-response";
 import { createRoute, verifyAccess } from "../../../lib/api";
-import { assertCustomDomainsEntitlement } from "../../../lib/server/plan-gate";
+import { assertCustomDomainsEntitlement, domainsOf } from "../../../lib/server/plan-gate";
 import { db } from "../../../lib/server/db";
 import { requireDefined } from "juava";
 
@@ -66,7 +66,20 @@ export default createRoute()
     // route reaches it behind verifyAccess alone, without going through
     // ConfigObjectsService, so gating only the config write would leave the
     // side effect reachable by any member of a Free workspace.
-    await assertCustomDomainsEntitlement(user, workspace, req, [domainToCheck]);
+    //
+    // Gated on the delta, like the write gates, not on the plan alone. A domain
+    // already attached to this workspace stays checkable: the editor calls this
+    // endpoint on mount and on "Re-check" for every configured domain, so a
+    // flat denial would render a grandfathered workspace's working domain as an
+    // error — contradicting the guarantee that nothing already configured is
+    // taken away.
+    const configured = await db.prisma().configurationObject.findMany({
+      where: { workspaceId, deleted: false, type: { in: ["stream", "domain"] } },
+    });
+    const alreadyAttached = configured.some(o => domainsOf(o.type, o.config as any).includes(domainToCheck));
+    if (!alreadyAttached) {
+      await assertCustomDomainsEntitlement(user, workspace, req, [domainToCheck]);
+    }
 
     try {
       const ingressStatus = await checkOrAddToIngress(domainToCheck);
