@@ -153,3 +153,51 @@ func TestBudgetAllowsTheFullBackoffSequence(t *testing.T) {
 		t.Fatalf("retryBudget %s does not cover the %s backoff sequence — fast-failing retries would be cut short", retryBudget, backoffSum)
 	}
 }
+
+// SIGTERM sets s.cancelled and starts Kubernetes' termination grace period —
+// 30s by default. A retry sequence that ignores it sits in a sleep until the
+// pod is SIGKILLed, which is how a shutdown ends up taking longer than the
+// grace period it was given.
+func TestCancellationCutsRetriesShort(t *testing.T) {
+	restore := retryCancelledBudget
+	retryCancelledBudget = 200 * time.Millisecond
+	defer func() { retryCancelledBudget = restore }()
+
+	s := &ReadSideCar{AbstractSideCar: &AbstractSideCar{logLevel: "INFO", dbLogLevel: "ERROR"}}
+	s.cancelled.Store(true)
+	calls := 0
+	started := time.Now()
+	defer func() {
+		_ = recover()
+		if elapsed := time.Since(started); elapsed > 2*time.Second {
+			t.Fatalf("a cancelled sidecar kept retrying for %s; the grace period is 30s", elapsed)
+		}
+		if calls >= 10 {
+			t.Fatalf("cancellation did not cut the sequence short: %d attempts ran", calls)
+		}
+	}()
+	s.retryControlPlaneWrite("test write", func() error {
+		calls++
+		return errors.New("dial tcp 10.0.0.1:5432: connect: connection refused")
+	})
+	t.Fatal("a cancelled sequence that ran out of budget should have failed the sync, not returned")
+}
+
+// Cancelling must not mean abandoning the write outright: the status that gets
+// written during shutdown is CANCELLED itself, so a blip of a few hundred
+// milliseconds still has to be ridden out.
+func TestCancellationStillAllowsAShortRetry(t *testing.T) {
+	s := &ReadSideCar{AbstractSideCar: &AbstractSideCar{logLevel: "INFO", dbLogLevel: "ERROR"}}
+	s.cancelled.Store(true)
+	calls := 0
+	s.retryControlPlaneWrite("test write", func() error {
+		calls++
+		if calls < 2 {
+			return errors.New("dial tcp 10.0.0.1:5432: connect: connection refused")
+		}
+		return nil
+	})
+	if calls != 2 {
+		t.Fatalf("a cancelled sidecar should still ride out a short blip, got %d attempts", calls)
+	}
+}

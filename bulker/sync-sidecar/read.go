@@ -740,6 +740,17 @@ func isPermanentPgError(err error) bool {
 // tests can shrink it; nothing in the sidecar reassigns it.
 var retryBudget = 5 * time.Minute
 
+// retryCancelledBudget bounds retries once the sidecar has been told to stop.
+// SIGTERM starts Kubernetes' termination grace period — 30s by default — so
+// sitting on the full retryBudget would get the pod SIGKILLed mid-sleep. A few
+// seconds is still enough for a brief blip to record the final status.
+var retryCancelledBudget = 5 * time.Second
+
+// retryCancelledDelay caps the backoff once cancelled. A sleep already under
+// way cannot be interrupted, so a 30s step would blow the shutdown budget in
+// one go however tight that budget is.
+var retryCancelledDelay = 1 * time.Second
+
 // retryControlPlaneWrite runs a write against our own control-plane Postgres,
 // retrying transient failures instead of killing the customer's sync.
 //
@@ -768,6 +779,14 @@ var retryBudget = 5 * time.Minute
 // about 22. The ordinary case is untouched, because a refused connection
 // returns immediately and all ten attempts fit inside the ~121s of backoff.
 //
+// Shutdown is the third bound. SIGTERM sets s.cancelled and starts the
+// termination grace period, and the deferred block in Run() then tries to
+// write CANCELLED status — through here. Retrying that for five minutes would
+// outlive the grace period and get the pod SIGKILLed mid-sleep, so once
+// cancelled the sequence is held to retryCancelledBudget with a shorter step.
+// Not zero: a cancel that lands during a brief blip should still record its
+// status.
+//
 // Whichever bound runs out, the sync still fails — this trades a certain
 // failure for a very likely recovery, not for a hang.
 func (s *ReadSideCar) retryControlPlaneWrite(what string, op func() error) {
@@ -775,6 +794,7 @@ func (s *ReadSideCar) retryControlPlaneWrite(what string, op func() error) {
 	const maxDelay = 30 * time.Second
 	delay := 500 * time.Millisecond
 	deadline := time.Now().Add(retryBudget)
+	var cancelDeadline time.Time
 	var err error
 	for i := 1; i <= attempts; i++ {
 		if err = op(); err == nil {
@@ -789,7 +809,21 @@ func (s *ReadSideCar) retryControlPlaneWrite(what string, op func() error) {
 		if i == attempts {
 			break
 		}
+		if s.cancelled.Load() {
+			if cancelDeadline.IsZero() {
+				cancelDeadline = time.Now().Add(retryCancelledBudget)
+			}
+			if delay > retryCancelledDelay {
+				delay = retryCancelledDelay
+			}
+			if deadline.After(cancelDeadline) {
+				deadline = cancelDeadline
+			}
+		}
 		if time.Now().Add(delay).After(deadline) {
+			if !cancelDeadline.IsZero() {
+				s.panic("%s: giving up, the sidecar is shutting down (attempt %d/%d): %v", what, i, attempts, err)
+			}
 			s.panic("%s: giving up after %s of retries (attempt %d/%d): %v", what, retryBudget, i, attempts, err)
 		}
 		// Deliberately not s.log: every logging primitive here routes through
