@@ -213,9 +213,13 @@ export class ConfigObjectsService {
         }
       }
     }
-    object = await configObjectType.inputFilter(object, "create", workspace);
-    // JITSU-228: after inputFilter, so the domain is compared in its normalised form.
+    // JITSU-228: *before* inputFilter, not after. The stream filter calls
+    // checkOrAddToIngress() for every submitted domain, which provisions it —
+    // so gating afterwards returns 403 to the caller while the externally
+    // visible side effect has already happened. Nothing is lost by checking
+    // first: domainsOf() trims and lowercases exactly as the filter does.
     await assertCustomDomainsAllowed(user, workspace, type, object, undefined, opts.req);
+    object = await configObjectType.inputFilter(object, "create", workspace);
     const inspectedWarehouse =
       type === "model" ? await validateModelForSave(this.prisma, workspaceId, object) : undefined;
     const id = object.id;
@@ -310,9 +314,12 @@ export class ConfigObjectsService {
     const prevVersion = deepCopy(object.config);
     const merged = await configObjectType.merge(object.config, { ...body, id, workspaceId });
     const parsed = parseObject(type, merged);
+    // JITSU-228: before inputFilter, for the same reason as in create — the
+    // filter provisions the domain in ingress before we have decided whether
+    // the caller may have it. Only a domain that is not already on the object
+    // is refused.
+    await assertCustomDomainsAllowed(user, workspace, type, parsed, prevVersion, opts.req);
     const filtered = await configObjectType.inputFilter(parsed, "update", workspace);
-    // JITSU-228: only a domain that is not already on the object is refused.
-    await assertCustomDomainsAllowed(user, workspace, type, filtered, prevVersion, opts.req);
     const inspectedWarehouse =
       type === "model" ? await validateModelForSave(this.prisma, workspaceId, filtered) : undefined;
     delete filtered.id;

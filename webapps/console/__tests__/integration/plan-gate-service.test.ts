@@ -74,6 +74,34 @@ describe("custom domains gate, through ConfigObjectsService", () => {
     ).resolves.toMatchObject({ id: sid });
   });
 
+  // Raised by review on #1529. The stream inputFilter calls checkOrAddToIngress()
+  // for every submitted domain, which provisions it in the ingress manager. The
+  // gate used to run *after* that filter, so a refused caller still got the
+  // domain added — a 403 with the externally visible side effect already done.
+  it("does not touch the ingress manager for a domain it is going to refuse", async () => {
+    const { user, workspace } = await seedWorkspace();
+    vi.stubEnv("INGMGR_URL", "http://ingmgr.test.local");
+    let ingressCalls = 0;
+    server.use(
+      http.get("http://ingmgr.test.local/api/domain", () => {
+        ingressCalls++;
+        return HttpResponse.json({ ok: true });
+      })
+    );
+
+    onPlan("free", { customDomainsEnabled: false });
+    await expect(
+      svc().create(user, workspace.id, "stream", { id: oid("s"), name: "site", domains: [dom()] })
+    ).rejects.toMatchObject({ status: 403 });
+    expect(ingressCalls, "a refused domain must never reach the ingress manager").toBe(0);
+
+    // The same call on a plan that permits it still provisions, so the move
+    // did not simply break the happy path.
+    onPlan("business");
+    await svc().create(user, workspace.id, "stream", { id: oid("s"), name: "site", domains: [dom()] });
+    expect(ingressCalls, "an allowed domain should still be provisioned").toBeGreaterThan(0);
+  });
+
   it("refuses a standalone `domain` object too, not just stream.domains", async () => {
     const { user, workspace } = await seedWorkspace();
     onPlan("free", { customDomainsEnabled: false });
