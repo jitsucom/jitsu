@@ -12,6 +12,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/jackc/pgx/v5/pgconn"
 	bulker "github.com/jitsucom/bulker/bulkerlib"
 	"github.com/jitsucom/bulker/bulkerlib/implementations/sql"
 	"github.com/jitsucom/bulker/eventslog"
@@ -77,9 +78,25 @@ func (s *ReadSideCar) Run() {
 	// writes (task_log, source_task, source_state). Any stuck Postgres call
 	// fails fast with a cancellation error instead of blocking the stdout
 	// reader indefinitely on a wedged connection.
-	s.dbpool, err = pg.NewPGPool(s.databaseURL, pg.WithStatementTimeout(2*time.Minute))
-	if err != nil {
-		s.panic("Unable to create postgres connection pool: %v", err)
+	// Same failover window as the writes below: a sidecar that starts while the
+	// primary is being promoted cannot dial at all, and panicking here kills the
+	// sync before it has done anything. Retried on the same budget.
+	for i := 1; ; i++ {
+		s.dbpool, err = pg.NewPGPool(s.databaseURL, pg.WithStatementTimeout(2*time.Minute))
+		if err == nil {
+			if i > 1 {
+				s.log("postgres connection pool created after %d attempts", i)
+			}
+			break
+		}
+		if i >= 10 {
+			s.panic("Unable to create postgres connection pool after %d attempts: %v", i, err)
+		}
+		delay := utils.Ternary(time.Duration(i)*time.Second > 30*time.Second, 30*time.Second, time.Duration(i)*time.Second)
+		// stdout only: s.dbpool is what we are failing to build, so any logging
+		// primitive that writes to it would nil-panic here.
+		fmt.Printf("WARN : Unable to create postgres connection pool (attempt %d/10), retrying in %s: %v\n", i, delay, err)
+		time.Sleep(delay)
 	}
 	defer s.dbpool.Close()
 
@@ -684,6 +701,89 @@ func (s *ReadSideCar) panic(message string, args ...any) {
 	s.AbstractSideCar.panic(message, args...)
 }
 
+// isPermanentPgError reports whether a Postgres failure will still be a failure
+// on the next attempt.
+//
+// The statements this sidecar runs are static and known-good — three upserts
+// against our own control plane. A syntax error or a constraint violation here
+// is a deploy-time bug, not a runtime condition, and retrying it for two
+// minutes turns a clear failure into a slow, confusing one. Everything else a
+// sidecar realistically meets is infrastructure: a dialled connection refused
+// while the primary moves, a demoted primary answering read-only, a node
+// draining. Those are worth waiting out.
+//
+// So the list is what must NOT be retried, and anything unrecognised is
+// retried. Classified on SQLSTATE rather than the message because Postgres
+// localizes messages but never SQLSTATEs (same reasoning as
+// bulkerapp/app/batch_consumer.go). errors.As works here because
+// db.execTimeout returns the driver error unwrapped.
+func isPermanentPgError(err error) bool {
+	var pgErr *pgconn.PgError
+	if !errors.As(err, &pgErr) {
+		// Not a Postgres-level error at all: a dial failure, a reset, an EOF.
+		// That is precisely the failover case.
+		return false
+	}
+	switch pgErr.Code[:2] {
+	case "22", // data exception
+		"23", // integrity constraint violation
+		"28", // invalid authorization specification
+		"42": // syntax error or access rule violation
+		return true
+	}
+	return pgErr.Code == "3D000" // invalid catalog name
+}
+
+// retryControlPlaneWrite runs a write against our own control-plane Postgres,
+// retrying transient failures instead of killing the customer's sync.
+//
+// Why this exists: replacing the node that holds the CNPG primary means a
+// replica has to be promoted, and for that window jitsu-pg-rw has no writable
+// endpoint — the write fails with "connect: connection refused". Before this,
+// one such failure panicked the sidecar and the sync was marked FAILED. Seen
+// twice, 12 and 19 Sep 2026, both inside the cluster's weekend maintenance
+// window. The PodDisruptionBudgets are already correct; the window is inherent
+// to failover, so any node replacement reproduces it.
+//
+// The budget deliberately exceeds the observed outage. Blocking here is safe:
+// storeState holds downstreamBusy across the call so the stuck-source watchdog
+// cannot misfire while we wait, and pg.WithStatementTimeout already bounds each
+// individual attempt at 2 minutes. If the budget is exhausted the sync still
+// fails — this trades a certain failure for a very likely recovery, not for a
+// hang.
+func (s *ReadSideCar) retryControlPlaneWrite(what string, op func() error) {
+	const attempts = 10
+	const maxDelay = 30 * time.Second
+	delay := 500 * time.Millisecond
+	var err error
+	for i := 1; i <= attempts; i++ {
+		if err = op(); err == nil {
+			if i > 1 {
+				s.log("%s recovered after %d attempts", what, i)
+			}
+			return
+		}
+		if isPermanentPgError(err) {
+			s.panic("%s: %v", what, err)
+		}
+		if i == attempts {
+			break
+		}
+		// Deliberately not s.log: every logging primitive here routes through
+		// _log, which writes the line to the same Postgres that just refused the
+		// write. Print to stdout instead — the sidecar relays it either way, and
+		// it avoids a second doomed round-trip per attempt.
+		fmt.Printf("WARN : %s failed (attempt %d/%d), retrying in %s: %v\n", what, i, attempts, delay, err)
+		time.Sleep(delay)
+		if delay < maxDelay {
+			if delay *= 2; delay > maxDelay {
+				delay = maxDelay
+			}
+		}
+	}
+	s.panic("%s after %d attempts: %v", what, attempts, err)
+}
+
 func (s *ReadSideCar) storeState(stream, state string) {
 	// Same gate as processRecord: a slow Postgres write here can otherwise
 	// freeze lastMessageTime while the stdout reader is parked on the DB,
@@ -695,10 +795,9 @@ func (s *ReadSideCar) storeState(stream, state string) {
 		s.lastMessageTime.Store(time.Now().Unix())
 		s.downstreamBusy.Add(-1)
 	}()
-	err := db.UpsertState(s.dbpool, s.syncId, stream, state, time.Now())
-	if err != nil {
-		s.panic("error updating state: %v", err)
-	}
+	s.retryControlPlaneWrite("error updating state", func() error {
+		return db.UpsertState(s.dbpool, s.syncId, stream, state, time.Now())
+	})
 }
 
 func (s *ReadSideCar) updateRunningStatus() {
@@ -714,22 +813,20 @@ func (s *ReadSideCar) updateRunningStatus() {
 	s.sendGoodStatus("RUNNING", string(processedStreamsJson), "", false)
 }
 
-func (s *ReadSideCar) sendBadStatus(status string, error string) {
-	s.errprint("READ %s", joinStrings(status, error, ": "))
-	err := db.UpsertTaskError(s.dbpool, s.syncId, s.taskId, s.packageName, s.packageVersion, s.startedAt, status, error)
-	if err != nil {
-		s.panic("error updating task: %v", err)
-	}
+func (s *ReadSideCar) sendBadStatus(status string, errMsg string) {
+	s.errprint("READ %s", joinStrings(status, errMsg, ": "))
+	s.retryControlPlaneWrite("error updating task", func() error {
+		return db.UpsertTaskError(s.dbpool, s.syncId, s.taskId, s.packageName, s.packageVersion, s.startedAt, status, errMsg)
+	})
 }
 
-func (s *ReadSideCar) sendGoodStatus(status string, description, error string, log bool) {
+func (s *ReadSideCar) sendGoodStatus(status string, description, errMsg string, log bool) {
 	if log {
 		s.log("READ %s", joinStrings(status, description, ": "))
 	}
-	err := db.UpsertTaskDescriptionAndError(s.dbpool, s.syncId, s.taskId, s.packageName, s.packageVersion, s.startedAt, status, description, error)
-	if err != nil {
-		s.panic("error updating task: %v", err)
-	}
+	s.retryControlPlaneWrite("error updating task", func() error {
+		return db.UpsertTaskDescriptionAndError(s.dbpool, s.syncId, s.taskId, s.packageName, s.packageVersion, s.startedAt, status, description, errMsg)
+	})
 }
 
 // configsPath returns the directory that holds catalog.json, state.json
