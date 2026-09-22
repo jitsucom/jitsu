@@ -58,13 +58,17 @@ class ReverseEtlChartTest(unittest.TestCase):
                 for container in doc["spec"]["template"]["spec"]["containers"]:
                     self.assertNotIn({"secretRef": {"name": "retl-controller"}}, container.get("envFrom", []))
 
-    def test_syncctl_is_exposed_for_minikube_tunnel(self):
-        docs = self.manifests({})
-        service = docs[("Service", "syncctl")]["spec"]
-        self.assertEqual(service["type"], "LoadBalancer")
-        http = next(port for port in service["ports"] if port["name"] == "http")
-        self.assertEqual(http["port"], 3043)
-        self.assertEqual(http["targetPort"], "http")
+    def test_syncctl_control_plane_stays_cluster_internal(self):
+        for values in [{}, enabled()]:
+            with self.subTest(values=values):
+                service = self.manifests(values)[("Service", "syncctl")]["spec"]
+                self.assertEqual(service["type"], "ClusterIP")
+                self.assertNotIn("externalIPs", service)
+                self.assertNotIn("loadBalancerIP", service)
+                self.assertTrue(all("nodePort" not in port for port in service["ports"]))
+                http = next(port for port in service["ports"] if port["name"] == "http")
+                self.assertEqual(http["port"], 3043)
+                self.assertEqual(http["targetPort"], "http")
 
     def test_enabled_resources_and_identity(self):
         annotations = {"iam.gke.io/gcp-service-account": "runner@example.iam.gserviceaccount.com"}

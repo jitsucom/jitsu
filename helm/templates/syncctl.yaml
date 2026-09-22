@@ -148,7 +148,8 @@ metadata:
     {{- include "jitsu-dev.labels" . | nindent 4 }}
     app.kubernetes.io/name: syncctl
 spec:
-  type: LoadBalancer
+  # Controller authentication is optional; never expose its control plane by default.
+  type: ClusterIP
   ports:
     - port: 3043
       targetPort: http

@@ -469,12 +469,13 @@ tunnel() {
     echo "  Ingest:     http://localhost:3049"
     echo "  Bulker:     http://localhost:3042"
     echo "  Rotor:      http://localhost:3401"
-    echo "  Syncctl:    http://localhost:3043"
     echo "  Postgres:   localhost:5432 (postgres / see helm-deps/values.yaml postgres.password)"
     echo "  ClickHouse: http://localhost:8123 (default / see helm-deps/values.yaml clickhouse.password)"
     echo "  MongoDB:    localhost:27017 (admin / see helm-deps/values.yaml mongodb.password)"
     echo "  Kafka:      localhost:19092"
     echo ""
+    log_info "Syncctl stays cluster-internal. For a local console, run in another terminal:"
+    echo "  kubectl --context minikube -n '$NAMESPACE' port-forward --address 127.0.0.1 service/syncctl 3043:3043"
     log_info "Press Ctrl+C to stop the tunnel"
     minikube tunnel
 }
@@ -487,12 +488,14 @@ expose() {
     echo "  Ingest:     http://localhost:3049"
     echo "  Bulker:     http://localhost:3042"
     echo "  Rotor:      http://localhost:3401"
-    echo "  Syncctl:    http://localhost:3043"
     echo "  Postgres:   localhost:5432"
     echo "  ClickHouse: http://localhost:8123"
     echo "  MongoDB:    localhost:27017"
     echo "  Kafka:      localhost:19092"
     echo ""
+
+    log_info "Syncctl stays cluster-internal. For a local console, run in another terminal:"
+    echo "  kubectl --context minikube -n '$NAMESPACE' port-forward --address 127.0.0.1 service/syncctl 3043:3043"
 
     # Check if tunnel might be needed
     local ingest_ip=$(kubectl get svc -n "$NAMESPACE" ingest -o jsonpath='{.status.loadBalancer.ingress[0].ip}' 2>/dev/null)

@@ -142,7 +142,7 @@ When syncctl uses a host console, set `env.syncctl.REPOSITORY_BASE_URL` to its
 `SYNCCTL_RAW_AUTH_TOKENS`, `SYNCCTL_REPOSITORY_AUTH_TOKEN` and `SYNCCTL_CONSOLE_TOKEN`.
 These prefixed settings take precedence over the shared unprefixed dev settings.
 The local console also needs access to syncctl (for example, a loopback-only
-`kubectl --context minikube -n default port-forward service/syncctl 3043:3043`).
+`kubectl --context minikube -n default port-forward --address 127.0.0.1 service/syncctl 3043:3043`).
 
 Before deploying over legacy state, follow the [destructive schema cutover](REVERSE_ETL.md#schema-cutover-and-rollback):
 pause/drain workers, back up and resolve pending delivery, and explicitly reset/retire
@@ -172,7 +172,9 @@ For a syncctl-only worktree, mount it at a separate Minikube path and set
 
 ## Accessing Services
 
-Services are exposed via LoadBalancer. Run tunnel in a separate terminal:
+Most development services are exposed via LoadBalancer. Syncctl remains
+cluster-internal (`ClusterIP`) because controller authentication is optional.
+Run the tunnel for the other services in a separate terminal:
 
 ```bash
 ./dev-deploy.sh tunnel
@@ -182,11 +184,23 @@ Then access:
 - Ingest: http://localhost:3049
 - Bulker: http://localhost:3042
 - Rotor: http://localhost:3401
-- Syncctl: http://localhost:3043 (use this as `SYNCCTL_URL` for a console running on your Mac)
 - Kafka: localhost:19092 (external listener of the in-cluster Redpanda)
 - Postgres: localhost:5432 (`postgres` / `helm-deps/values.yaml postgres.password`)
 - ClickHouse: http://localhost:8123 (`default` / `helm-deps/values.yaml clickhouse.password`)
 - MongoDB: localhost:27017 (`admin` / `helm-deps/values.yaml mongodb.password`)
+
+For a console running on your Mac, explicitly forward syncctl's HTTP port using
+your Kubernetes credentials in another terminal (adjust the namespace if needed):
+
+```bash
+kubectl --context minikube -n default port-forward --address 127.0.0.1 service/syncctl 3043:3043
+```
+
+Set the local console's `SYNCCTL_URL` to `http://127.0.0.1:3043`. If controller
+authentication is configured, also set the matching console `SYNCCTL_AUTH_KEY`.
+This does not expose the metrics port or create a public load balancer. Keep the
+forward bound to loopback; network exposure requires a separately secured setup
+with controller authentication and restricted network access.
 
 ## Architecture
 
