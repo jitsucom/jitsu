@@ -4,11 +4,14 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"net"
+	"os"
 	"testing"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgconn"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/jitsucom/bulker/jitsubase/pg"
 )
 
@@ -239,18 +242,17 @@ func TestSleepWaitsWhenNotCancelled(t *testing.T) {
 	}
 }
 
-// The startup pool loop runs before the deferred status writer is installed,
-// so a sidecar killed in there records nothing at all. Close has to be able to
-// abandon a ping in flight — the cancelled flag alone cannot do that, since
-// nothing can wait on a bool.
-func TestPingIsAbandonedWhenTheSidecarIsClosed(t *testing.T) {
-	// A listener that accepts and then says nothing: the dial succeeds and the
-	// startup handshake hangs, which is the shape of a blackholed primary.
+// hangingPool points a pool at a listener that accepts connections and then
+// never answers: a Postgres that is reachable but not talking. Anything that
+// goes through it blocks until its own context expires, which is what makes
+// the shutdown ordering observable.
+func hangingPool(t *testing.T) *pgxpool.Pool {
+	t.Helper()
 	ln, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
 		t.Fatalf("could not listen: %v", err)
 	}
-	defer ln.Close()
+	t.Cleanup(func() { _ = ln.Close() })
 	go func() {
 		for {
 			conn, err := ln.Accept()
@@ -260,15 +262,22 @@ func TestPingIsAbandonedWhenTheSidecarIsClosed(t *testing.T) {
 			defer conn.Close()
 		}
 	}()
-
-	s := &AbstractSideCar{logLevel: "INFO", dbLogLevel: "ERROR"}
-	s.shutdown, s.triggerShutdown = context.WithCancel(context.Background())
-
 	pool, err := pg.NewPGPool(fmt.Sprintf("postgres://postgres:test@%s/test?sslmode=disable", ln.Addr().String()))
 	if err != nil {
 		t.Fatalf("could not build pool: %v", err)
 	}
-	defer pool.Close()
+	t.Cleanup(pool.Close)
+	return pool
+}
+
+// The startup pool loop runs before the deferred status writer is installed,
+// so a sidecar killed in there records nothing at all. Close has to be able to
+// abandon a ping in flight — the cancelled flag alone cannot do that, since
+// nothing can wait on a bool.
+func TestPingIsAbandonedWhenTheSidecarIsClosed(t *testing.T) {
+	pool := hangingPool(t)
+	s := &AbstractSideCar{logLevel: "INFO", dbLogLevel: "ERROR"}
+	s.shutdown, s.triggerShutdown = context.WithCancel(context.Background())
 
 	go func() {
 		time.Sleep(100 * time.Millisecond)
@@ -300,7 +309,7 @@ func TestShutdownContextIsNilSafe(t *testing.T) {
 	if ctx.Err() != nil {
 		t.Fatalf("fresh context already done: %v", ctx.Err())
 	}
-	s.Close() // must not panic with no context and no pipes
+	s.Close() // must not panic with no context, no pipes and no pool
 }
 
 // Close must not make cancellation wait on the database. _log falls through to
@@ -308,30 +317,9 @@ func TestShutdownContextIsNilSafe(t *testing.T) {
 // the flag means an unreachable Postgres holds the SIGTERM goroutine for two
 // minutes while the retry loop it was meant to stop keeps going.
 func TestCloseCancelsBeforeLogging(t *testing.T) {
-	ln, err := net.Listen("tcp", "127.0.0.1:0")
-	if err != nil {
-		t.Fatalf("could not listen: %v", err)
-	}
-	defer ln.Close()
-	go func() {
-		for {
-			conn, err := ln.Accept()
-			if err != nil {
-				return
-			}
-			defer conn.Close()
-		}
-	}()
-
-	pool, err := pg.NewPGPool(fmt.Sprintf("postgres://postgres:test@%s/test?sslmode=disable", ln.Addr().String()))
-	if err != nil {
-		t.Fatalf("could not build pool: %v", err)
-	}
-	defer pool.Close()
-
 	// dbLogLevel INFO so the "Cancelling..." line really does try to reach the
 	// database that is not answering.
-	s := &AbstractSideCar{logLevel: "INFO", dbLogLevel: "INFO", dbpool: pool}
+	s := &AbstractSideCar{logLevel: "INFO", dbLogLevel: "INFO", dbpool: hangingPool(t)}
 	s.shutdown, s.triggerShutdown = context.WithCancel(context.Background())
 
 	go s.Close()
@@ -343,5 +331,37 @@ func TestCloseCancelsBeforeLogging(t *testing.T) {
 	}
 	if !s.cancelled.Load() {
 		t.Fatal("cancelled flag was not set before the log write")
+	}
+}
+
+// Same ordering, one step further out: until the pipes are closed the scanner
+// goroutines keep Run() blocked, so it never reaches the deferred status
+// handling and the pod is SIGKILLed with the task left as it was.
+func TestClosePipesBeforeLogging(t *testing.T) {
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatalf("could not make a pipe: %v", err)
+	}
+	defer r.Close()
+
+	s := &AbstractSideCar{logLevel: "INFO", dbLogLevel: "INFO", dbpool: hangingPool(t), outPipe: w}
+	s.shutdown, s.triggerShutdown = context.WithCancel(context.Background())
+
+	go s.Close()
+
+	closed := make(chan error, 1)
+	go func() {
+		buf := make([]byte, 1)
+		_, err := r.Read(buf)
+		closed <- err
+	}()
+
+	select {
+	case err := <-closed:
+		if err != io.EOF {
+			t.Fatalf("expected EOF from the closed pipe, got %v", err)
+		}
+	case <-time.After(3 * time.Second):
+		t.Fatal("pipes still open after 3s; the log write is holding the reader goroutines")
 	}
 }

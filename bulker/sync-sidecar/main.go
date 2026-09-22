@@ -86,22 +86,27 @@ func (s *AbstractSideCar) shutdownCtx() context.Context {
 }
 
 func (s *AbstractSideCar) Close() {
-	// Cancel first, log second. _log falls through to db.InsertTaskLog when no
+	// Order matters here. _log falls through to db.InsertTaskLog when no
 	// ClickHouse events log is configured, and that call has its own 2-minute
-	// deadline — so logging first means an unreachable Postgres holds the
-	// SIGTERM goroutine for two minutes before anything learns it should stop,
-	// which is precisely the failure this file's retry logic exists for.
+	// deadline, so on an unreachable Postgres it blocks — and that is precisely
+	// the failure this file's retry logic exists for, so the shutdown path
+	// would be slowest exactly when it most needs to be quick. Everything that
+	// actually stops work comes first; the log goes last.
 	s.cancelled.Store(true)
 	if s.triggerShutdown != nil {
 		s.triggerShutdown()
 	}
-	s._log("jitsu", "WARN", "Cancelling...")
 	if s.outPipe != nil {
 		_ = s.outPipe.Close()
 	}
 	if s.errPipe != nil {
 		_ = s.errPipe.Close()
 	}
+	// Last, for the same reason: until the pipes are closed the scanner
+	// goroutines keep Run() blocked and it cannot reach its deferred status
+	// handling. Everything that unblocks the shutdown happens before anything
+	// that might wait on the database.
+	s._log("jitsu", "WARN", "Cancelling...")
 }
 
 func main() {
