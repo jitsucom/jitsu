@@ -826,10 +826,12 @@ func (s *ReadSideCar) retryControlPlaneWrite(what string, op func() error) {
 			}
 			s.panic("%s: giving up after %s of retries (attempt %d/%d): %v", what, retryBudget, i, attempts, err)
 		}
-		// Deliberately not s.log: every logging primitive here routes through
-		// _log, which writes the line to the same Postgres that just refused the
-		// write. Print to stdout instead — the sidecar relays it either way, and
-		// it avoids a second doomed round-trip per attempt.
+		// Deliberately not s.log. Logging routes through _log, which for task
+		// logs hits ClickHouse when an events-log service is configured and
+		// falls back to db.InsertTaskLog on this same pool when it is not — so
+		// on a self-hosted install every retry line would be a second doomed
+		// round-trip to the Postgres that just refused the write. Printing to
+		// stdout costs nothing on either path; the sidecar relays it regardless.
 		fmt.Printf("WARN : %s failed (attempt %d/%d), retrying in %s: %v\n", what, i, attempts, delay, err)
 		time.Sleep(delay)
 		if delay < maxDelay {
