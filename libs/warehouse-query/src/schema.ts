@@ -30,6 +30,7 @@ export type ModelDefinition = z.infer<typeof ModelDefinition>;
 export const ReverseSyncOptions = z
   .object({
     version: z.literal(2).default(2),
+    name: z.string().trim().min(1).max(200).optional(),
     stream: z.string().min(1),
     mode: z.enum(["upsert", "mirror"]),
     mapping: z.record(z.string().min(1)),

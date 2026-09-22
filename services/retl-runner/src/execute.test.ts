@@ -526,12 +526,35 @@ describe("executable runner", () => {
     const f = fixture();
     f.input.config.options.mode = "mirror";
     expect(await execute(f.input)).toBe("SUCCESS");
+    const logs = (await admin.query("SELECT message FROM newjitsu.task_log ORDER BY timestamp")).rows.map(
+      r => r.message
+    );
+    expect(logs).toContain("Extracted 2 source rows into snapshot; no audience changes submitted yet");
+    expect(logs).toContain("Snapshot complete: 2 source rows. Comparing audience membership and submitting changes.");
     f.input.taskId = "empty";
     f.setRows([]);
     f.calls.length = 0;
     expect(await execute(f.input)).toBe("SUCCESS");
     expect(f.calls).toContain("remove");
     expect((await admin.query("SELECT count(*) FROM newjitsu.reverse_sync_membership")).rows[0].count).toBe("0");
+  });
+  it("reports the failing mirror stage and counters without exposing warehouse errors", async () => {
+    const f = fixture();
+    f.input.config.options.mode = "mirror";
+    const reader = f.input.reader(f.input.config.warehouse);
+    f.input.reader = () => ({
+      ...reader,
+      stream: async function* () {
+        yield { row: { id: "one" }, deleted: false };
+        throw new Error("private-user@example.com secret-token");
+      },
+    });
+    expect(await execute(f.input)).toBe("FAILED");
+    const failed = await task();
+    expect(failed.error).toContain("during extraction (read 1 rows, saved 0)");
+    expect(failed.error).toContain("Check warehouse connectivity and query timeouts");
+    expect(failed.error).not.toMatch(/private-user|secret-token/);
+    expect(f.writes).toHaveLength(0);
   });
   it("caps provider batches to the journal record budget", async () => {
     const f = fixture();

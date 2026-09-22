@@ -5,6 +5,8 @@ import { ModelDefinition } from "./schema";
 import { createSqlDialect } from "./sql";
 import { boundedPreview, decodeRecord } from "./reader";
 import type { WarehouseReader } from "./types";
+import { StreamDeadline } from "./stream-deadline";
+import { spoolJsonRows } from "./stream-spool";
 const chCredentials = z.object({
   protocol: z.enum(["http", "https"]),
   hosts: z.array(z.string().min(1)).min(1),
@@ -95,7 +97,7 @@ export function createClickHouseReader(input: Record<string, any>): WarehouseRea
   // URL normalizes explicit :443/:80 to an empty port; those proxies must not
   // silently move to ClickHouse's native HTTP(S) defaults.
   if (!url.port && !/:\d+\/?$/.test(host.trim())) url.port = config.protocol === "https" ? "8443" : "8123";
-  const client = createClient({
+  const clientOptions = {
     url: url.toString(),
     username: config.username,
     password: config.password,
@@ -103,13 +105,15 @@ export function createClickHouseReader(input: Record<string, any>): WarehouseRea
     request_timeout: 30_000,
     max_open_connections: 2,
     clickhouse_settings: {
-      readonly: "1",
+      readonly: "1" as const,
       max_execution_time: 30,
       max_memory_usage: "268435456",
       output_format_json_quote_64bit_integers: 1,
       output_format_json_quote_decimals: 1,
     },
-  });
+  } satisfies NonNullable<Parameters<typeof createClient>[0]>;
+  const client = createClient(clientOptions);
+  const streams = new Map<ReturnType<typeof createClient>, StreamDeadline>();
   async function columns(query: string, signal?: AbortSignal) {
     signal?.throwIfAborted();
     const result = await client.query({
@@ -159,26 +163,47 @@ export function createClickHouseReader(input: Record<string, any>): WarehouseRea
       const cols = await columns(sql, signal);
       const compiled = clickhouseSql.compileModel(model, cols, after);
       signal?.throwIfAborted();
-      const result = await client.query({
-        query: compiled.query,
-        query_params: compiled.queryParams,
-        format: "JSONEachRow",
-        abort_signal: signal,
-        clickhouse_settings: { max_block_size: String(model.pageSize) },
+      // Socket inactivity also includes time our consumer spends persisting a page.
+      // Disable that timer for streaming only; bound actual reads and total extraction
+      // separately. Preview/metadata keep their short query and socket deadlines.
+      const deadline = new StreamDeadline(signal);
+      const streaming = createClient({
+        ...clientOptions,
+        request_timeout: 0,
+        clickhouse_settings: { ...clientOptions.clickhouse_settings, max_execution_time: 7200 },
       });
+      streams.set(streaming, deadline);
       try {
-        for await (const chunk of result.stream<Record<string, unknown>>()) {
-          for (const item of chunk) {
-            signal?.throwIfAborted();
-            yield decodeRecord(model, item.json());
+        const result = await deadline.read(() =>
+          streaming.query({
+            query: compiled.query,
+            query_params: compiled.queryParams,
+            format: "JSONEachRow",
+            abort_signal: deadline.signal,
+            clickhouse_settings: { max_block_size: String(model.pageSize) },
+          })
+        );
+        const iterator = result.stream<Record<string, unknown>>()[Symbol.asyncIterator]();
+        const rows = async function* () {
+          for (;;) {
+            const chunk = await deadline.read(() => iterator.next());
+            if (chunk.done) break;
+            for (const item of chunk.value) yield item.text;
           }
-        }
+        };
+        // ClickHouse/proxies can time out a paused HTTP response even with the
+        // client timer disabled. Fully drain this single query to bounded disk.
+        for await (const row of spoolJsonRows<Record<string, unknown>>(rows(), deadline.signal))
+          yield decodeRecord(model, row);
       } finally {
-        result.close();
+        deadline.close();
+        streams.delete(streaming);
+        await streaming.close();
       }
     },
-    close() {
-      return client.close();
+    async close() {
+      for (const deadline of streams.values()) deadline.close();
+      await Promise.all([client.close(), ...[...streams.keys()].map(stream => stream.close())]);
     },
   };
 }

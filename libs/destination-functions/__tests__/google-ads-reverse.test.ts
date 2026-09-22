@@ -74,6 +74,23 @@ function fixture() {
   return { ...provider, ctx, fetch, token, batch, status };
 }
 describe("Google Data Manager audience adapter", () => {
+  it.each([{}, { adUserData: "GRANTED" }, { adPersonalization: "GRANTED" }])(
+    "defaults only unmapped consent fields to GRANTED: %j",
+    mappedConsent => {
+      expect(() =>
+        validateReverseEtlConfig(googleAudienceMetadata, {
+          mode: "upsert",
+          mapping: { email: "email", ...Object.fromEntries(Object.keys(mappedConsent).map(key => [key, "consent"])) },
+          columns: ["email", "consent"],
+          options,
+        })
+      ).not.toThrow();
+      const { stream } = fixture();
+      expect(stream.rowType.parse({ email: "member@example.com", ...mappedConsent })).toEqual(
+        stream.rowType.parse({ email: "member@example.com", ...consent })
+      );
+    }
+  );
   it("normalizes raw identifiers once and preserves pre-hashed identifiers", () => {
     const { stream } = fixture();
     const raw = stream.rowType.parse({ email: " A.Lice+tag@Gmail.com ", phone: "+1 (800) 555-0100", ...consent });
@@ -104,6 +121,10 @@ describe("Google Data Manager audience adapter", () => {
     { hashedEmail: "bad" },
     { email: "a@b.com", hashedEmail: "a".repeat(64) },
     { email: "a@b.com", adUserData: "DENIED" },
+    { email: "a@b.com", adPersonalization: "DENIED" },
+    { email: "a@b.com", adUserData: null },
+    { email: "a@b.com", adPersonalization: null },
+    { email: "a@b.com", adUserData: undefined },
     { email: "a@b.com", adPersonalization: undefined },
   ])("rejects invalid or unconsented source rows before delivery: %j", row => {
     expect(fixture().stream.rowType.safeParse({ ...consent, ...row }).success).toBe(false);

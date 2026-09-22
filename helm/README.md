@@ -95,6 +95,53 @@ env:
 | `expose` | Show URLs for exposed services |
 | `uninstall` | Uninstall both Helm releases (services and dependencies) |
 
+## Reverse ETL
+
+Reverse ETL is opt-in. Syncctl creates a short-lived Node runner Pod for a manual
+run and a CronJob for each scheduled sync; there is no permanent runner Deployment.
+
+Build/load the runner from this checkout (requires local pnpm dependencies and Docker):
+
+```bash
+bash helm/build-retl-runner.sh jitsucom/retl-runner:dev
+```
+
+Provision a Kubernetes Secret containing `RETL_DATABASE_URL`, `RETL_CONSOLE_URL`,
+and `RETL_CONSOLE_TOKEN`. Use the restricted database grants from
+[`services/retl-runner/README.md`](../services/retl-runner/README.md), the same
+database/schema as the console, and the console's `SYNCCTL_AUTH_KEY` as the token.
+Keep credentials out of values files and shell history. The console must be
+reachable from Pods: the host's `.localhost` URL points at the Pod itself and is
+not suitable. For a console running on your host, use its actual listening port,
+e.g. `http://host.minikube.internal:4259`, and update it if that port changes.
+
+Set these non-secret values in `helm/values-custom.yaml`:
+
+```yaml
+reverseEtl:
+  enabled: true
+  runnerImage: jitsucom/retl-runner:dev
+  runtimeSecret: jitsu-retl-runtime
+```
+
+When syncctl uses a host console, set `env.syncctl.REPOSITORY_BASE_URL` to its
+`/api/admin/export` URL and `env.syncctl.CONSOLE_URL` to its origin. The optional
+`reverseEtl.controllerSecret` can supply controller-only `SYNCCTL_DATABASE_URL`,
+`SYNCCTL_RAW_AUTH_TOKENS`, `SYNCCTL_REPOSITORY_AUTH_TOKEN` and `SYNCCTL_CONSOLE_TOKEN`.
+These prefixed settings take precedence over the shared unprefixed dev settings.
+The local console also needs access to syncctl (for example, a loopback-only
+`kubectl --context minikube -n default port-forward service/syncctl 3043:3043`).
+
+Apply the console Prisma schema before enabling the controller. Normal dev deploys
+run the schema hook, but it must target the same database as the runner. Pause
+existing reverse syncs before activation if you do not intend to upload data yet.
+Enabling the controller can start scheduled or recovery attempts for enabled syncs.
+
+Use a new image tag after rebuilding so existing CronJobs pick up the change.
+The production runner image remains the `retl-runner` target in `all.Dockerfile`.
+For a syncctl-only worktree, mount it at a separate Minikube path and set
+`syncctlProjectRoot` to that path; other services continue using `projectRoot`.
+
 ## Services
 
 | Service | Port | Description |

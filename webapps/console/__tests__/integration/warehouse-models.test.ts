@@ -6,6 +6,7 @@ import { compilePostgresPreview, postgresSql } from "@jitsu/warehouse-query/src/
 import { ConfigObjectsService } from "../../lib/server/config-objects-service";
 import { modelMutation, previewModel, recheckModelWarehouse } from "../../lib/server/reverse-etl-models";
 import { getServerEnv } from "../../lib/server/serverEnv";
+import { deleteReverseSync } from "../../lib/server/reverse-syncs";
 import { deps, seedWorkspace } from "./support/harness";
 import { server } from "./support/msw";
 
@@ -88,6 +89,27 @@ afterAll(async () => {
   await pgReader.close();
   await chReader.close();
 });
+
+it("ClickHouse streaming survives consumer backpressure beyond the preview socket timeout", async () => {
+  await deps().clickhouse.command({
+    query: "CREATE TABLE retl_slow_consumer (id UInt64, value String) ENGINE = Memory",
+  });
+  await deps().clickhouse.command({
+    query: "INSERT INTO retl_slow_consumer SELECT number, repeat('x', 4096) FROM numbers(10000)",
+  });
+  const model = ModelDefinition.parse({
+    warehouseId: "test",
+    query: "SELECT id, value FROM retl_slow_consumer",
+    primaryKey: ["id"],
+    pageSize: 1000,
+  });
+  let count = 0;
+  for await (const row of chReader.stream(model, undefined, AbortSignal.timeout(45_000))) {
+    expect(row.row.id).toBe(String(count++));
+    if (count === 1) await new Promise(resolve => setTimeout(resolve, 32_000));
+  }
+  expect(count).toBe(10000);
+}, 50_000);
 
 it.each([
   ["https", 443, ""],
@@ -466,12 +488,19 @@ describe("Models service", () => {
       service.delete(user, workspace.id, "destination", warehouse.id, { cascade: true })
     ).rejects.toMatchObject({ status: 409 });
     const link = await deps().prisma.configurationObjectLink.create({
-      data: { workspaceId: workspace.id, fromId: id, toId: warehouse.id, type: "reverse-sync", data: {} },
+      data: {
+        workspaceId: workspace.id,
+        fromId: id,
+        toId: warehouse.id,
+        type: "reverse-sync",
+        data: { version: 2, stream: "audience", mode: "upsert", mapping: {}, disabled: true },
+      },
     });
     await expect(service.delete(user, workspace.id, "model", id, { cascade: true })).rejects.toMatchObject({
       status: 409,
     });
-    await service.deleteLink(user, workspace.id, { id: link.id });
+    await expect(service.deleteLink(user, workspace.id, { id: link.id })).rejects.toThrow("Reverse ETL");
+    await deleteReverseSync(deps().prisma, workspace.id, link.id);
     await service.delete(user, workspace.id, "model", id);
     expect(await deps().prisma.auditLog.count({ where: { objectId: id, type: "config-object-delete" } })).toBe(1);
     await expect(service.delete(user, workspace.id, "destination", warehouse.id)).resolves.toMatchObject({

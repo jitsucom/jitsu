@@ -48,7 +48,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { Overlay } from "../Overlay/Overlay";
 import { WorkspaceNameAndSlugEditor } from "../WorkspaceNameAndSlugEditor/WorkspaceNameAndSlugEditor";
-import { getLog } from "juava";
+import { getLog, rpc } from "juava";
 import classNames from "classnames";
 import { BillingBanners } from "../Billing/BillingBanners";
 import { useJitsu } from "@jitsu/jitsu-react";
@@ -457,6 +457,12 @@ function PageHeader() {
     enabled: !reverseEtlEnabled,
     staleTime: 60_000,
   });
+  const cleanupSyncs = useQuery({
+    queryKey: ["reverse-etl-cleanup-syncs", workspace.id],
+    queryFn: async (): Promise<unknown[]> => rpc(`/api/${workspace.id}/reverse-etl/syncs`),
+    enabled: !reverseEtlEnabled,
+    staleTime: 60_000,
+  });
   const items: (TabsMenuItem | TabsMenuGroup | undefined | false)[] = [
     { title: "Overview", path: "/", aliases: "/overview", icon: <LayoutDashboard className="w-full h-full" /> },
     {
@@ -482,10 +488,14 @@ function PageHeader() {
       icon: <User className="w-full h-full" />,
       items: [{ title: "Profile Builder", path: "/profile-builder", icon: <UserRoundPen className="w-full h-full" /> }],
     },
-    (reverseEtlEnabled || !!cleanupModels.data?.length) && {
+    (reverseEtlEnabled || !!cleanupModels.data?.length || !!cleanupSyncs.data?.length) && {
       title: "Reverse ETL",
       icon: <Share2 className="w-full h-full" />,
-      items: [{ title: "Models", path: "/models", icon: <SearchCode className="w-full h-full" /> }],
+      items: [
+        { title: "Models", path: "/models", icon: <SearchCode className="w-full h-full" /> },
+        { title: "Syncs", path: "/reverse-syncs", icon: <Share2 className="w-full h-full" /> },
+        { title: "All Logs", path: "/reverse-syncs/tasks", icon: <ScrollText className="w-full h-full" /> },
+      ],
     },
     { title: "Functions", path: "/functions", icon: <FunctionSquare className="w-full h-full" /> },
     { title: "Destinations", path: "/destinations", icon: <Server className="w-full h-full" /> },
