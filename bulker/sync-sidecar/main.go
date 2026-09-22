@@ -86,11 +86,16 @@ func (s *AbstractSideCar) shutdownCtx() context.Context {
 }
 
 func (s *AbstractSideCar) Close() {
-	s._log("jitsu", "WARN", "Cancelling...")
+	// Cancel first, log second. _log falls through to db.InsertTaskLog when no
+	// ClickHouse events log is configured, and that call has its own 2-minute
+	// deadline — so logging first means an unreachable Postgres holds the
+	// SIGTERM goroutine for two minutes before anything learns it should stop,
+	// which is precisely the failure this file's retry logic exists for.
 	s.cancelled.Store(true)
 	if s.triggerShutdown != nil {
 		s.triggerShutdown()
 	}
+	s._log("jitsu", "WARN", "Cancelling...")
 	if s.outPipe != nil {
 		_ = s.outPipe.Close()
 	}

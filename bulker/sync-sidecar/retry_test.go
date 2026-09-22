@@ -302,3 +302,46 @@ func TestShutdownContextIsNilSafe(t *testing.T) {
 	}
 	s.Close() // must not panic with no context and no pipes
 }
+
+// Close must not make cancellation wait on the database. _log falls through to
+// db.InsertTaskLog with its own 2-minute deadline, so logging before setting
+// the flag means an unreachable Postgres holds the SIGTERM goroutine for two
+// minutes while the retry loop it was meant to stop keeps going.
+func TestCloseCancelsBeforeLogging(t *testing.T) {
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("could not listen: %v", err)
+	}
+	defer ln.Close()
+	go func() {
+		for {
+			conn, err := ln.Accept()
+			if err != nil {
+				return
+			}
+			defer conn.Close()
+		}
+	}()
+
+	pool, err := pg.NewPGPool(fmt.Sprintf("postgres://postgres:test@%s/test?sslmode=disable", ln.Addr().String()))
+	if err != nil {
+		t.Fatalf("could not build pool: %v", err)
+	}
+	defer pool.Close()
+
+	// dbLogLevel INFO so the "Cancelling..." line really does try to reach the
+	// database that is not answering.
+	s := &AbstractSideCar{logLevel: "INFO", dbLogLevel: "INFO", dbpool: pool}
+	s.shutdown, s.triggerShutdown = context.WithCancel(context.Background())
+
+	go s.Close()
+
+	select {
+	case <-s.shutdownCtx().Done():
+	case <-time.After(3 * time.Second):
+		t.Fatal("Close did not cancel within 3s; the log write is holding shutdown")
+	}
+	if !s.cancelled.Load() {
+		t.Fatal("cancelled flag was not set before the log write")
+	}
+}
