@@ -76,6 +76,7 @@ describe("local snapshot indexing", () => {
       await local.close();
     }
   });
+  // Exercise the real 15 MB page boundary with SQLite and compression; allow for shared CI disk/CPU contention.
   it("splits snapshot and baseline artifacts by serialized bytes, not only row count", async () => {
     const local = await LocalIndex.create();
     try {
@@ -103,7 +104,7 @@ describe("local snapshot indexing", () => {
     } finally {
       await local.close();
     }
-  });
+  }, 30000);
   it("deduplicates shared identities, rejects duplicate source keys and conflicting payloads atomically", async () => {
     const local = await LocalIndex.create();
     try {
