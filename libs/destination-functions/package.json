@@ -9,7 +9,11 @@
     "access": "public"
   },
   "files": [
-    "src/meta.ts"
+    "src/meta.ts",
+    "src/reverse-etl/**",
+    "src/functions/google-ads/**",
+    "src/functions/lib/**",
+    "src/functions/google-ads-destination.ts"
   ],
   "license": "MIT",
   "private": false,

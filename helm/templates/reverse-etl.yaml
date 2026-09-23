@@ -1,0 +1,42 @@
+{{- if .Values.reverseEtl.enabled }}
+{{- if .Values.reverseEtl.serviceAccount.create }}
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ include "jitsu-dev.reverseServiceAccount" . }}
+  labels:
+    {{- include "jitsu-dev.labels" . | nindent 4 }}
+  {{- with .Values.reverseEtl.serviceAccount.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+---
+{{- end }}
+# Bucket access comes from cloud IAM, not Kubernetes RBAC. The runner only
+# needs a per-sync Lease; no Secret API or workload-creation permissions.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ .Release.Name }}-retl-runner
+  labels:
+    {{- include "jitsu-dev.labels" . | nindent 4 }}
+rules:
+  - apiGroups: ["coordination.k8s.io"]
+    resources: ["leases"]
+    verbs: ["get", "create", "update", "delete"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ .Release.Name }}-retl-runner
+  labels:
+    {{- include "jitsu-dev.labels" . | nindent 4 }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: {{ .Release.Name }}-retl-runner
+subjects:
+  - kind: ServiceAccount
+    name: {{ include "jitsu-dev.reverseServiceAccount" . }}
+    namespace: {{ .Release.Namespace }}
+{{- end }}

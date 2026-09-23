@@ -201,6 +201,9 @@ export type ConfigEditorProps<T extends { id: string } = { id: string }, M = {}>
   noun: string;
   nounPlural?: string;
   addAction?: Action;
+  /** Page-specific creation gates also apply to cloning existing objects. */
+  addDisabled?: boolean;
+  deleteDisabled?: boolean;
   editorTitle?: (o: T, isNew: boolean, meta?: M) => ReactNode;
   subtitle?: (o: T, isNew: boolean, meta?: M) => ReactNode;
   createKeyword?: string;
@@ -454,6 +457,7 @@ const EditorComponent: React.FC<EditorComponentProps> = props => {
               size={"large"}
               ghost={true}
               loading={nangoLoading}
+              disabled={loading || testing}
               onClick={() => {
                 const nango = new Nango({
                   publicKey: appConfig.nango!.publicKey,
@@ -461,28 +465,30 @@ const EditorComponent: React.FC<EditorComponentProps> = props => {
                 });
                 setNangoLoading(true);
                 const oauthIntegrationId = oauthConnector.nangoIntegrationId(formState?.formData || object);
-                const oauthConnectionId = `destination.${object?.id}`;
+                const oauthConnectionId = `destination.${(formState?.formData || object).id}`;
                 nango
                   .auth(oauthIntegrationId, oauthConnectionId)
                   .then(result => {
-                    if (formState) {
-                      formState.formData = {
-                        ...formState.formData,
+                    setFormState(current => ({
+                      ...current,
+                      formData: {
+                        ...(current?.formData || object),
                         authorized: true,
                         oauthIntegrationId,
                         oauthConnectionId,
-                      };
-                      setTouched(true);
-                    }
+                      },
+                    }));
+                    setTouched(true);
                     setNangoError(undefined);
                   })
                   .catch(err => {
                     setNangoError(getErrorMessage(err));
                     getLog().atError().log("Failed to add oauth connection", err);
-                    if (formState) {
-                      formState.formData = { ...formState.formData, authorized: false };
-                      setTouched(true);
-                    }
+                    setFormState(current => ({
+                      ...current,
+                      formData: { ...(current?.formData || object), authorized: false },
+                    }));
+                    setTouched(true);
                   })
                   .finally(() => setNangoLoading(false));
               }}
@@ -530,6 +536,7 @@ const EditorComponent: React.FC<EditorComponentProps> = props => {
           customValidate={(formData, errors) => applyClientFieldValidation(formData, errors, fields)}
           transformErrors={errors => transformConfigErrors(errors, fields)}
           onSubmit={async ({ formData }) => {
+            if (nangoLoading) return;
             if (
               onTest &&
               (typeof testConnectionEnabled === "undefined" || testConnectionEnabled(formData || object) === true)
@@ -563,7 +570,7 @@ const EditorComponent: React.FC<EditorComponentProps> = props => {
           uiSchema={uiSchema}
         >
           <EditorButtons
-            loading={loading}
+            loading={loading || nangoLoading}
             testing={testing}
             isNew={isNew}
             isTouched={isTouched}
@@ -627,6 +634,8 @@ const SingleObjectEditor: React.FC<SingleObjectEditorProps> = props => {
   } = props;
   const pref = pathPrefix;
   const [meta, setMeta] = useState<any>(undefined);
+  // OAuth and the form must refer to the same draft across metadata/store rerenders.
+  const [draftId] = useState(() => cuid());
   const isNew = !!(!otherProps.object || createNew);
   const workspace = useWorkspace();
   const appConfig = useAppConfig();
@@ -665,7 +674,7 @@ const SingleObjectEditor: React.FC<SingleObjectEditorProps> = props => {
     return <LoadingAnimation />;
   }
   const preObject = otherProps.object || {
-    id: cuid(),
+    id: draftId,
     workspaceId: workspace.id,
     type: type,
     ...newObject(meta),
@@ -883,6 +892,7 @@ const SingleObjectEditorLoader: React.FC<ConfigEditorProps & { id: string; clone
   ...rest
 }) => {
   const data = requireDefined(useConfigObject(asConfigType(rest.type), id), `Unknown ${rest.type} ${id}`);
+  const [cloneId] = useState(() => cuid());
   return (
     <SingleObjectEditor
       {...rest}
@@ -891,9 +901,16 @@ const SingleObjectEditorLoader: React.FC<ConfigEditorProps & { id: string; clone
         clone
           ? {
               ...data,
-              id: cuid(),
+              id: cloneId,
               cloneId: clone,
               name: `${data.name} (copy)`,
+              // A copied destination does not own the original Nango connection.
+              ...(rest.type === "destination" &&
+              "destinationType" in data &&
+              typeof data.destinationType === "string" &&
+              oauthDecorators[data.destinationType]
+                ? { authorized: false, oauthConnectionId: undefined, oauthIntegrationId: undefined }
+                : {}),
             }
           : data
       }
@@ -903,18 +920,20 @@ const SingleObjectEditorLoader: React.FC<ConfigEditorProps & { id: string; clone
 
 const ConfigEditor: React.FC<ConfigEditorProps> = props => {
   const router = useRouter();
+  const workspace = useWorkspace();
   const id = router.query.id as string;
   const clone = router.query.clone as string;
   const backTo = router.query.backTo as string;
+  const editorKey = `${workspace.id}:${props.type}:${id}:${clone ?? ""}`;
   if (id) {
     if (id === "new") {
       if (clone) {
-        return <SingleObjectEditorLoader {...props} id={clone} backTo={backTo} clone={clone} />;
+        return <SingleObjectEditorLoader key={editorKey} {...props} id={clone} backTo={backTo} clone={clone} />;
       } else {
-        return <SingleObjectEditor {...props} backTo={backTo} />;
+        return <SingleObjectEditor key={editorKey} {...props} backTo={backTo} />;
       }
     } else {
-      return <SingleObjectEditorLoader {...props} id={id} backTo={backTo} />;
+      return <SingleObjectEditorLoader key={editorKey} {...props} id={id} backTo={backTo} />;
     }
   } else {
     return <ObjectListEditor {...props} />;
@@ -931,6 +950,8 @@ const ObjectsList: React.FC<{ objects: any[]; onDelete: (id: string) => Promise<
   onDelete,
   listColumns = [],
   actions = [],
+  addDisabled,
+  deleteDisabled,
   noun,
   icon,
   name = (o: any) => o.name,
@@ -991,6 +1012,7 @@ const ObjectsList: React.FC<{ objects: any[]; onDelete: (id: string) => Promise<
           })),
           {
             label: "Clone",
+            disabled: addDisabled,
             href: `${pref}/${type}s?id=new&clone=${record.id}`,
             collapsed: true,
             icon: <FaClone />,
@@ -998,6 +1020,7 @@ const ObjectsList: React.FC<{ objects: any[]; onDelete: (id: string) => Promise<
           },
           {
             label: "Delete",
+            disabled: deleteDisabled,
             danger: true,
             collapsed: true,
             onClick: () => deleteObject(record.id),
@@ -1083,6 +1106,7 @@ const ObjectListEditor: React.FC<ConfigEditorProps> = props => {
             size="large"
             icon={<FaPlus />}
             requiredPermission="editEntities"
+            disabled={props.addDisabled}
           >
             Add new {props.noun}
           </JitsuButton>
@@ -1095,7 +1119,12 @@ const ObjectListEditor: React.FC<ConfigEditorProps> = props => {
               <Inbox className="h-16 w-16 my-6 text-neutral-200" />
               <div className="text text-textLight mb-6">You don't have any {props.noun}s configured.</div>
 
-              <JitsuButton type="default" onClick={() => doAction(router, addAction)} requiredPermission="editEntities">
+              <JitsuButton
+                type="default"
+                onClick={() => doAction(router, addAction)}
+                requiredPermission="editEntities"
+                disabled={props.addDisabled}
+              >
                 {props.createKeyword || "Create"} your first {props.noun}
               </JitsuButton>
             </div>

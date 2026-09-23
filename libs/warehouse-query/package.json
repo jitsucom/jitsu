@@ -1,0 +1,23 @@
+{
+  "name": "@jitsu/warehouse-query",
+  "version": "0.0.0",
+  "private": true,
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "scripts": { "typecheck": "tsc --noEmit", "test": "vitest run", "build": "exit 0" },
+  "dependencies": {
+    "@clickhouse/client": "^1.18.3",
+    "node-sql-parser": "^5.3.13",
+    "pg": "^8.18.0",
+    "pg-cursor": "^2.17.0",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@jitsu/common-config": "workspace:*",
+    "@types/node": "catalog:",
+    "@types/pg": "^8.16.0",
+    "@types/pg-cursor": "^2.7.0",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  }
+}

@@ -196,6 +196,10 @@ func (t *TaskManager) DiscoverHandler(c *gin.Context) {
 // No body — all config is sourced from the SyncEntry. Console must pass its
 // known updatedAt so syncctl waits for repo parity before reading config.
 func (t *TaskManager) ReadHandler(c *gin.Context) {
+	if c.Query("kind") == "reverse" {
+		t.ReverseReadHandler(c)
+		return
+	}
 	syncID := c.Query("syncId")
 	if syncID == "" {
 		c.JSON(http.StatusBadRequest, gin.H{"ok": false, "error": "missing syncId"})
@@ -247,6 +251,10 @@ func (t *TaskManager) ReadHandler(c *gin.Context) {
 }
 
 func (t *TaskManager) CancelHandler(c *gin.Context) {
+	if c.Query("kind") == "reverse" {
+		t.ReverseCancelHandler(c)
+		return
+	}
 	pkg := c.Query("package")
 	syncId := c.Query("syncId")
 	taskId := c.Query("taskId")
@@ -261,12 +269,16 @@ func (t *TaskManager) CancelHandler(c *gin.Context) {
 }
 
 func (t *TaskManager) listenTaskStatus() {
+	reverseTicker := time.NewTicker(30 * time.Second)
+	defer reverseTicker.Stop()
 	staleTicker := time.NewTicker(15 * time.Minute)
 	defer staleTicker.Stop()
 	for {
 		select {
 		case <-t.closeCh:
 			return
+		case <-reverseTicker.C:
+			t.closeStaleReverseTasks()
 		case <-staleTicker.C:
 			if err := db.CloseStaleTasks(t.dbpool, time.Now().Add(-time.Hour)); err != nil {
 				t.Errorf("Unable to close stale tasks: %v", err)
@@ -274,6 +286,13 @@ func (t *TaskManager) listenTaskStatus() {
 		case st := <-t.jobRunner.TaskStatusChannel():
 			var err error
 			switch st.TaskType {
+			case "reverse":
+				// Even exit 0 cannot infer success: Node must commit a terminal
+				// attempt status (including WAITING for pending provider work).
+				// UpsertRunningTask cannot overwrite a terminal task.
+				if st.Status != StatusRunning && st.Status != StatusPending && st.Status != StatusCreated {
+					err = t.failReverseWorker(st)
+				}
 			case "spec":
 				if st.Status == StatusCreateFailed || st.Status == StatusFailed || st.Status == StatusInitTimeout {
 					err = db.InsertSpecError(t.dbpool, st.Package, st.PackageVersion, st.StartedAtTime(), st.Error)
@@ -346,4 +365,3 @@ func (t *TaskManager) Close() {
 		close(t.closeCh)
 	}
 }
-

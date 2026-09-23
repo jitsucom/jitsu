@@ -7,6 +7,7 @@ require (
 	github.com/hjson/hjson-go/v4 v4.6.0
 	github.com/jackc/pgx/v5 v5.9.2
 	github.com/jitsucom/bulker/jitsubase v0.0.0
+	github.com/klauspost/compress v1.19.1
 	github.com/spf13/viper v1.21.0
 	k8s.io/api v0.35.2
 	k8s.io/apimachinery v0.35.3

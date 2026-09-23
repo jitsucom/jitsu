@@ -54,6 +54,43 @@ other machines. dev-deploy.sh always passes --set projectRoot=...
 {{- required "projectRoot is not set. Deploy via helm/dev-deploy.sh, or pass --set projectRoot=<absolute path to your newjitsu checkout>" .Values.projectRoot -}}
 {{- end }}
 
+{{- define "jitsu-dev.reverseServiceAccount" -}}
+{{- default (printf "%s-retl-runner" .Release.Name | trunc 63 | trimSuffix "-") .Values.reverseEtl.serviceAccount.name -}}
+{{- end }}
+
+{{/* These settings have one owner: reverseEtl, not generic env overrides. */}}
+{{- define "jitsu-dev.validateReverseEtl" -}}
+{{- range $vars := list .Values.env.common .Values.env.syncctl -}}
+{{- range $key := list "REVERSE_ENABLED" "REVERSE_RUNNER_IMAGE" "REVERSE_RUNTIME_SECRET" "REVERSE_SERVICE_ACCOUNT" "REVERSE_RUNNER_RESOURCES" "REVERSE_SCRATCH_SIZE_LIMIT" -}}
+{{- if or (hasKey $vars $key) (hasKey $vars (printf "SYNCCTL_%s" $key)) -}}
+{{- fail (printf "configure %s via reverseEtl values, not env.common/env.syncctl" $key) -}}
+{{- end -}}
+{{- end -}}
+{{- end -}}
+{{- if .Values.reverseEtl.enabled -}}
+{{- if not (gt (int .Values.scaling.syncctl.replicas) 0) -}}
+{{- fail "reverseEtl.enabled requires scaling.syncctl.replicas > 0" -}}
+{{- end -}}
+{{- if not (trim .Values.reverseEtl.runnerImage) -}}
+{{- fail "reverseEtl.runnerImage is required when enabled" -}}
+{{- end -}}
+{{- if not (trim .Values.reverseEtl.runtimeSecret) -}}
+{{- fail "reverseEtl.runtimeSecret is required when enabled" -}}
+{{- end -}}
+{{- if not .Values.reverseEtl.serviceAccount.create -}}
+{{- if not .Values.reverseEtl.serviceAccount.name -}}
+{{- fail "reverseEtl.serviceAccount.name is required when create=false" -}}
+{{- end -}}
+{{- if .Values.reverseEtl.serviceAccount.annotations -}}
+{{- fail "annotate the existing service account externally when create=false" -}}
+{{- end -}}
+{{- end -}}
+{{- if has (include "jitsu-dev.reverseServiceAccount" .) (list "sync-pod" "syncctl" "default") -}}
+{{- fail "reverseEtl requires a dedicated service account, not sync-pod/syncctl/default" -}}
+{{- end -}}
+{{- end -}}
+{{- end }}
+
 {{/*
 Computed console URL: use in-cluster service when console is deployed, otherwise fall back to env.common.CONSOLE_URL
 */}}

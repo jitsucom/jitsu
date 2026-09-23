@@ -1,0 +1,27 @@
+{
+  "name": "@jitsu-internal/retl-runner",
+  "version": "0.0.0",
+  "private": true,
+  "engines": { "node": ">=22.13.0" },
+  "scripts": { "typecheck": "tsc --noEmit", "test": "vitest run", "build": "node build.mjs", "start": "node dist/main.cjs" },
+  "dependencies": {
+    "@aws-sdk/client-s3": "3.1029.0",
+    "@google-cloud/storage": "7.19.0",
+    "@jitsu/destination-functions": "workspace:*",
+    "@jitsu/protocols": "workspace:*",
+    "@jitsu/warehouse-query": "workspace:*",
+    "pg": "^8.18.0",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@jitsu/common-config": "workspace:*",
+    "@prisma/client": "^6.5.0",
+    "@types/node": "^22.15.0",
+    "@types/pg": "^8.16.0",
+    "prisma": "^6.5.0",
+    "testcontainers": "^11.14.0",
+    "typescript": "catalog:",
+    "esbuild": "catalog:",
+    "vitest": "catalog:"
+  }
+}

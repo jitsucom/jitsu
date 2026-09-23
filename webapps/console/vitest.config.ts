@@ -25,6 +25,8 @@ export default defineConfig({
         test: {
           name: "unit",
           include: ["__tests__/unit/**/*.test.ts"],
+          // Ant Design rendering in jsdom can exceed 5s on shared CI workers.
+          testTimeout: 30_000,
           // Dummy env so module-load singletons don't throw on transitive
           // imports (serverEnv requires DATABASE_URL/JWT_SECRET; clickhouse.ts
           // builds its — lazy, never connected — client at module load). The

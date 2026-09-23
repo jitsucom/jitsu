@@ -4,6 +4,7 @@ import { UserProfileDbModel, WorkspaceDbModel } from "../../prisma/schema";
 import { WorkspaceRolesZodType } from "../workspace-roles";
 import { ConfigApiDeleteOptions } from "../useApi";
 import { monthlyEventsQuota } from "../events-quota";
+import { ModelDefinition } from "@jitsu/warehouse-query/src/schema";
 
 export const SessionUser = z.object({
   name: z.string(),
@@ -312,6 +313,12 @@ export const ConfigEntityBase = z.object({
   cloneId: z.string().optional(),
 });
 export type ConfigEntityBase = z.infer<typeof ConfigEntityBase>;
+
+export const ModelConfig = ConfigEntityBase.merge(ModelDefinition).extend({
+  type: z.literal("model"),
+  name: z.string().trim().min(1).max(200),
+});
+export type ModelConfig = z.infer<typeof ModelConfig>;
 
 export const ApiKey = z.object({
   plaintext: z.string().nullish(),

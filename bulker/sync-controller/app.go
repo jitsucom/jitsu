@@ -6,18 +6,21 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/jitsucom/bulker/jitsubase/appbase"
 	"github.com/jitsucom/bulker/jitsubase/pg"
+	"github.com/jitsucom/bulker/jitsubase/safego"
 	"net/http"
 	"time"
 )
 
 type Context struct {
-	config        *Config
-	dbpool        *pgxpool.Pool
-	jobRunner     *JobRunner
-	taskManager   *TaskManager
-	syncsRepo     appbase.Repository[SyncsData]
-	cronController *CronJobController
-	server        *http.Server
+	config            *Config
+	dbpool            *pgxpool.Pool
+	jobRunner         *JobRunner
+	taskManager       *TaskManager
+	syncsRepo         appbase.Repository[SyncsData]
+	cronController    *CronJobController
+	reverseRepo       appbase.Repository[SyncsData]
+	reverseController *CronJobController
+	server            *http.Server
 }
 
 func (a *Context) InitContext(settings *appbase.AppSettings) error {
@@ -55,6 +58,13 @@ func (a *Context) InitContext(settings *appbase.AppSettings) error {
 		)
 		a.cronController = NewCronJobController(a)
 		a.cronController.Start()
+		if a.config.ReverseEnabled {
+			a.reverseRepo = NewReverseSyncsRepository(a.config.RepositoryBaseURL, a.config.RepositoryAuthToken, a.config.RepositoryRefreshPeriodSec, a.config.RepositoryCacheDir)
+			a.reverseController = NewReverseCronJobController(a)
+			a.reverseController.Start()
+			// Publish the repository before starting its reader goroutine.
+			safego.RunWithRestart(a.taskManager.runReverseRecoveryScheduler)
+		}
 	}
 
 	router := NewRouter(a)
@@ -69,6 +79,12 @@ func (a *Context) InitContext(settings *appbase.AppSettings) error {
 }
 
 func (a *Context) Cleanup() error {
+	if a.reverseController != nil {
+		_ = a.reverseController.Close()
+	}
+	if a.reverseRepo != nil {
+		_ = a.reverseRepo.Close()
+	}
 	if a.cronController != nil {
 		_ = a.cronController.Close()
 	}

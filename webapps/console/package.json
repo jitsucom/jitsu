@@ -44,6 +44,7 @@
     "@jitsu/jitsu-react": "workspace:*",
     "@jitsu/js": "workspace:*",
     "@jitsu/protocols": "workspace:*",
+    "@jitsu/warehouse-query": "workspace:*",
     "@loadable/component": "^5.15.3",
     "@modelcontextprotocol/sdk": "^1.29.0",
     "@monaco-editor/react": "^4.6.0",

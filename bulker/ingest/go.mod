@@ -5,6 +5,7 @@ go 1.26
 require (
 	github.com/confluentinc/confluent-kafka-go/v2 v2.15.0
 	github.com/gin-gonic/gin v1.12.0
+	github.com/klauspost/compress v1.19.1
 	github.com/mroth/weightedrand/v2 v2.1.0
 	github.com/penglongli/gin-metrics v0.1.13
 	github.com/prometheus/client_golang v1.23.2
@@ -33,7 +34,6 @@ require (
 	github.com/goccy/go-json v0.10.5 // indirect
 	github.com/goccy/go-yaml v1.19.2 // indirect
 	github.com/json-iterator/go v1.1.12 // indirect
-	github.com/klauspost/compress v1.18.7 // indirect
 	github.com/klauspost/cpuid/v2 v2.3.0 // indirect
 	github.com/leodido/go-urn v1.4.0 // indirect
 	github.com/mattn/go-isatty v0.0.20 // indirect

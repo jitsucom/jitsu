@@ -9,7 +9,7 @@ const withBundleAnalyzer = require("@next/bundle-analyzer")({
 
 module.exports = withBundleAnalyzer({
   poweredByHeader: false,
-  transpilePackages: ["juava", "@jitsu/protocols", "@jitsu/core-functions-lib", "@jitsu/destination-functions", "@jitsu-internal/webapps-shared", "@jitsu/js"],
+  transpilePackages: ["juava", "@jitsu/protocols", "@jitsu/core-functions-lib", "@jitsu/destination-functions", "@jitsu-internal/webapps-shared", "@jitsu/js", "@jitsu/warehouse-query"],
   // Allow portless dev hosts (https://console[-branch].jitsu.localhost) to
   // load /_next/* resources. Without this Next 15+ blocks them as cross-origin.
   allowedDevOrigins: ["*.jitsu.localhost"],

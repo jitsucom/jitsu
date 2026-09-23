@@ -329,6 +329,67 @@ model source_catalog {
   @@id([package, version, key])
 }
 
+// Reverse ETL tables share the config database schema and its update workflow.
+// Prisma defines their schema/types; the Node runner uses pg for atomic transactions.
+// Worker coordination belongs to Kubernetes leases and syncctl, not these tables.
+enum reverse_sync_mode {
+  upsert
+  mirror
+}
+
+enum reverse_sync_extraction {
+  cursor
+  full
+}
+
+// One durable lifecycle record per logical run: immutable config/target
+// binding, phase, in-progress provider state, sequence boundaries and the durable artifact head.
+// Status refresh workers reuse the original source_task and append to its logs.
+// source_state holds committed checkpoints; this row also tracks unfinished work.
+model reverse_sync_control {
+  workspace_id         String
+  sync_id              String
+  run_id               String
+  // Monotonic per-sync admission order, including runs still processing remotely.
+  run_order            BigInt                  @default(0)
+  // Initial extraction/uploads are durably submitted; newer runs may now start.
+  detached             Boolean                 @default(false)
+  revision             String
+  target_hash          String
+  phase                String                  @default("new")
+  mode                 reverse_sync_mode
+  extraction           reverse_sync_extraction
+  // Immutable object-storage manifest reference. New runs always insert a pointer;
+  // null identifies legacy per-row state requiring an explicit operator reset.
+  artifact_head        Bytes?
+  base_sequence        BigInt                  @default(0)
+  next_sequence        BigInt                  @default(0)
+  checkpoint_sequence  BigInt                  @default(0)
+  finish_sequence      BigInt?
+  store                Bytes?
+  provider_state       Bytes?
+  finish_result        Bytes?
+  committed_generation String?
+
+  @@id([workspace_id, sync_id, run_id])
+  @@index([sync_id])
+  @@unique([workspace_id, sync_id, run_order])
+}
+
+// Persistent exclusive claim of a destination audience by a mirror sync. Prevents
+// other mirror/upsert syncs from managing that same target across runs/workspaces.
+// This is audience ownership, not a worker lease; it survives completion/failure.
+model reverse_sync_target_owner {
+  target_hash  String @id
+  workspace_id String
+  sync_id      String
+
+  @@unique([workspace_id, sync_id])
+}
+
+// Shared committed checkpoint storage for connector syncs and Reverse ETL.
+// Reverse ETL uses the _REVERSE_ETL_ stream for scoped cursor/sequence, provider
+// store and generation state; detailed unfinished delivery stays in its journal.
 model source_state {
   sync_id   String
   stream    String
@@ -338,6 +399,9 @@ model source_state {
   @@id([sync_id, stream])
 }
 
+// Shared execution-attempt status and heartbeat for syncctl-managed syncs.
+// Reverse ETL uses one task ID per logical run, including status-refresh workers.
+// PENDING means submitted/processing; COMPLETE means accepted, not matched audience size.
 model source_task {
   sync_id     String
   task_id     String   @id
@@ -359,6 +423,9 @@ model source_task {
   @@index([sync_id, started_at(sort: Desc)])
 }
 
+// Diagnostic messages attached to a sync/task execution attempt. Reverse ETL writes
+// core-owned lifecycle messages here; delivery receipts and recovery evidence live
+// in durable object-storage batches/receipts instead of being inferred from logs.
 model task_log {
   id        String   @id @default(uuid()) @db.Uuid
   level     String
