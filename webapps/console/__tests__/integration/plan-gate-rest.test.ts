@@ -212,6 +212,23 @@ describe("the plan gate holds through the real REST route", () => {
     expect(res.statusCode).toBe(200);
     expect(ingressCalls, "an allowed workspace should still get its domain checked").toBeGreaterThan(0);
   });
+
+  it("refuses fresh domain provisioning from a read-only workspace member", async () => {
+    const { user, workspace } = await seedWorkspace({ role: "analyst" });
+    const bearer = await apiKeyFor(user.internalId);
+    let ingressCalls = 0;
+    server.use(
+      http.get("http://ingmgr.test.local/api/domain", () => {
+        ingressCalls++;
+        return HttpResponse.json({ status: "ok" });
+      })
+    );
+
+    onPlan("business");
+    const res = await getDomainCheck(bearer, workspace.id, `readonly-${randomId(6).toLowerCase()}.example.com`);
+    expect(res.statusCode).toBe(403);
+    expect(ingressCalls, "a read-only member must not provision ingress").toBe(0);
+  });
 });
 
 async function getEntitlements(bearer: string, workspaceId: string) {
