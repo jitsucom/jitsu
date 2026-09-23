@@ -153,7 +153,6 @@ describe("model editor", () => {
     );
     client.clear();
   });
-  // Ant Design table/menu rendering in jsdom can exceed 5s on shared CI workers.
   it("lists existing models for cleanup without enabling creation", async () => {
     state.enabled = false;
     const client = mount();
@@ -165,7 +164,7 @@ describe("model editor", () => {
     expect(screen.getByRole("menuitem", { name: /Delete/ }).getAttribute("aria-disabled")).not.toBe("true");
     expect(screen.getByRole("menuitem", { name: /Clone/ }).getAttribute("aria-disabled")).toBe("true");
     client.clear();
-  }, 30000);
+  });
   it("uses the standard object-list search and custom model columns", async () => {
     const client = mount();
     expect(await screen.findByRole("link", { name: "Audience" })).toBeTruthy();
@@ -175,7 +174,7 @@ describe("model editor", () => {
     fireEvent.change(screen.getByPlaceholderText("Filter by ID or name..."), { target: { value: "no-match" } });
     await waitFor(() => expect(screen.queryByRole("link", { name: "Audience" })).toBeNull());
     client.clear();
-  }, 30000);
+  });
   it("opens Clone in the custom editor and creates a distinct model", async () => {
     state.route.query = { id: "new", clone: "model-1" };
     const client = mount();
