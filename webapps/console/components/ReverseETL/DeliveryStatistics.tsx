@@ -1,10 +1,35 @@
 import React from "react";
-import { Table } from "antd";
+import { Table, Tag } from "antd";
 import { reverseRecordStatuses } from "@jitsu/protocols/reverse-etl-stats";
 import type { ReverseTask } from "../../lib/reverse-etl";
 
+const cleanupStatuses = {
+  not_started: {
+    label: "NOT STARTED",
+    color: "default",
+    description: "Cleanup starts after all snapshot uploads are accepted.",
+  },
+  prepared: {
+    label: "UNCONFIRMED",
+    color: "gold",
+    description:
+      "Cleanup may already have reached Google, but its outcome is unconfirmed. Do not replay cleanup or reset state. Check the run logs and contact your administrator for reconciliation.",
+  },
+  pending: {
+    label: "PENDING",
+    color: "green",
+    description: "Uploads are accepted. Waiting for Google to finish removing older audience membership.",
+  },
+  accepted: {
+    label: "ACCEPTED",
+    color: "green",
+    description: "Google has confirmed cleanup of older audience membership.",
+  },
+};
+
 export function ReverseDeliveryStatistics({ task }: { task: ReverseTask }) {
   const stats = task.stats;
+  const cleanup = stats?.replacement ? cleanupStatuses[stats.replacement] : undefined;
   const rows = stats?.recordCounts
     ? [
         {
@@ -19,6 +44,19 @@ export function ReverseDeliveryStatistics({ task }: { task: ReverseTask }) {
     <div className="break-words">
       {stats ? (
         <>
+          {cleanup && (
+            <section aria-label="Full-mirror cleanup request" className="border rounded p-3 mb-3">
+              <div className="flex flex-wrap items-center gap-2 mb-2">
+                <strong>Full-mirror cleanup request</strong>
+                <Tag color={cleanup.color}>{cleanup.label}</Tag>
+              </div>
+              <p>{cleanup.description}</p>
+              <p className="text-xs text-textLight mt-2">
+                This is a separate request, not a removal batch, and is not included in record totals. Google does not
+                report the number of members removed.
+              </p>
+            </section>
+          )}
           {stats.recordCounts ? (
             <div className="overflow-x-auto">
               <Table
@@ -56,15 +94,6 @@ export function ReverseDeliveryStatistics({ task }: { task: ReverseTask }) {
             pending · {stats.records.rejected.toLocaleString()} rejected. These are API records, not matched audience
             size.
           </p>
-          {stats.replacement && (
-            <p className="text-xs mt-2">
-              Full-audience cleanup:{" "}
-              <strong>
-                {stats.replacement === "prepared" ? "prepared / unconfirmed" : stats.replacement.replace("_", " ")}
-              </strong>
-              . This is a separate request, not a removal batch. Google does not report the number of members removed.
-            </p>
-          )}
           <p className="text-xs text-textLight mt-2">
             Observed {new Date(stats.observedAt).toISOString().replace("T", " ").replace("Z", " UTC")}. Older attempts
             retain their own last observation.

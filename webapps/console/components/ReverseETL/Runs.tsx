@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { Alert, Button, Descriptions, Input, Modal, Table } from "antd";
 import { useRouter } from "next/router";
 import { useQuery } from "@tanstack/react-query";
@@ -17,6 +17,27 @@ const resultSchema = z.object({
   tasks: z.array(ReverseTask),
   logs: z.array(z.object({ id: z.string(), timestamp: z.coerce.date(), level: z.string(), message: z.string() })),
 });
+
+/** The run endpoint queues a pod; its task record is written when the runner starts. */
+function StartingAttempt() {
+  const [slow, setSlow] = useState(false);
+  useEffect(() => {
+    const timer = setTimeout(() => setSlow(true), 60_000);
+    return () => clearTimeout(timer);
+  }, []);
+  return (
+    <Alert
+      type={slow ? "warning" : "info"}
+      title={slow ? "Still waiting for the runner" : "Starting run…"}
+      description={
+        slow
+          ? "The task record has not appeared yet. This page will keep checking. Check runner startup if this persists; do not start a duplicate run."
+          : "Waiting for the runner to register this attempt. Logs will appear automatically."
+      }
+    />
+  );
+}
+
 export function ReverseRuns() {
   const workspace = useWorkspace();
   const router = useRouter();
@@ -25,18 +46,20 @@ export function ReverseRuns() {
   const syncs = useReverseSyncs();
   const syncId = typeof router.query.syncId === "string" ? router.query.syncId : undefined;
   const taskId = typeof router.query.taskId === "string" ? router.query.taskId : undefined;
+  const starting = router.query.starting === "1";
   const [search, setSearch] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<unknown>();
   const tasks = useQuery({
     queryKey: ["reverse-etl-tasks", workspace.id, syncId, taskId],
+    enabled: router.isReady && !!taskId,
     queryFn: async () =>
       resultSchema.parse(
         await rpc(`/api/${workspace.id}/reverse-etl/tasks`, {
           query: { ...(syncId ? { syncId } : {}), ...(taskId ? { taskId } : {}) },
         })
       ),
-    refetchInterval: 5000,
+    refetchInterval: data => (starting && !data?.tasks.length ? 1000 : 5000),
   });
   const task = taskId ? tasks.data?.tasks[0] : undefined;
   const sync = syncs.data?.find(s => s.id === task?.sync_id);
@@ -163,10 +186,12 @@ export function ReverseRuns() {
             />
           </Panel>
         </>
+      ) : tasks.error ? null : starting && taskId ? (
+        <StartingAttempt key={`${workspace.id}:${taskId}`} />
       ) : (
         <Alert
-          type={tasks.isLoading ? "info" : "error"}
-          title={tasks.isLoading ? "Loading attempt…" : "Attempt not found"}
+          type={!router.isReady || tasks.isInitialLoading ? "info" : "error"}
+          title={!router.isReady || tasks.isInitialLoading ? "Loading attempt…" : "Attempt not found"}
         />
       )}
     </>

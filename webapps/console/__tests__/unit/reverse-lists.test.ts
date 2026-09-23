@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import React from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { ReverseTasksList } from "../../components/ReverseETL/TasksList";
 import { ReverseSyncsList } from "../../components/ReverseETL/SyncsList";
@@ -54,6 +54,7 @@ const clients: QueryClient[] = [];
 beforeEach(() => {
   vi.clearAllMocks();
   state.route.query = {};
+  state.route.isReady = true;
   state.enabled = true;
   state.confirm.mockResolvedValue(true);
   state.refetch.mockResolvedValue(undefined);
@@ -98,6 +99,7 @@ beforeEach(() => {
 afterEach(() => {
   cleanup();
   clients.splice(0).forEach(c => c.clear());
+  vi.useRealTimers();
   vi.restoreAllMocks();
   vi.unstubAllGlobals();
 });
@@ -107,6 +109,49 @@ function mount(component: React.ComponentType) {
   return render(React.createElement(QueryClientProvider, { client }, React.createElement(component)));
 }
 describe("Reverse ETL standard lists", () => {
+  it("waits for a queued attempt and automatically loads its first task record", async () => {
+    state.route.query = { syncId: "sync", taskId: "task", starting: "1" };
+    const task = state.rpc.getMockImplementation()!();
+    state.rpc.mockResolvedValueOnce({ tasks: [], logs: [] }).mockImplementation(async () => ({
+      ...(await task),
+      logs: [],
+    }));
+    mount(ReverseRuns);
+    await waitFor(() => expect(state.rpc).toHaveBeenCalledTimes(1));
+    expect(screen.getByText("Starting run…")).toBeTruthy();
+    expect(screen.queryByText("Attempt not found")).toBeNull();
+    expect(await screen.findByText("Attempt ID", {}, { timeout: 3000 })).toBeTruthy();
+    expect(screen.queryByText("Starting run…")).toBeNull();
+  });
+  it("warns when registration takes too long but keeps checking without starting another run", async () => {
+    state.route.query = { syncId: "sync", taskId: "task", starting: "1" };
+    state.rpc.mockResolvedValue({ tasks: [], logs: [] });
+    vi.useFakeTimers();
+    mount(ReverseRuns);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(60_000);
+    });
+    expect(screen.getByText("Still waiting for the runner")).toBeTruthy();
+    expect(screen.queryByText("Attempt not found")).toBeNull();
+    const calls = state.rpc.mock.calls.length;
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(2000);
+    });
+    expect(state.rpc.mock.calls.length).toBeGreaterThan(calls);
+    expect(state.rpc.mock.calls.every(([, options]) => !options.method)).toBe(true);
+  });
+  it("does not fetch before the task route is ready", () => {
+    state.route.isReady = false;
+    mount(ReverseRuns);
+    expect(state.rpc).not.toHaveBeenCalled();
+    expect(screen.getByText("Loading attempt…")).toBeTruthy();
+  });
+  it("still reports an ordinary missing history link as not found", async () => {
+    state.route.query = { syncId: "sync", taskId: "missing" };
+    state.rpc.mockResolvedValue({ tasks: [], logs: [] });
+    mount(ReverseRuns);
+    expect(await screen.findByText("Attempt not found")).toBeTruthy();
+  });
   it("shows a plain status tag and expanded record statistics on the logs page", async () => {
     state.route.query = { syncId: "sync", taskId: "task" };
     const counts = {
@@ -188,7 +233,7 @@ describe("Reverse ETL standard lists", () => {
     state.rpc.mockResolvedValue({ taskId: "new-task", status: "started" });
     fireEvent.click(screen.getByRole("button", { name: "Run", exact: true }));
     await waitFor(() =>
-      expect(state.route.push).toHaveBeenCalledWith("/ws/reverse-syncs/logs?syncId=sync&taskId=new-task")
+      expect(state.route.push).toHaveBeenCalledWith("/ws/reverse-syncs/logs?syncId=sync&taskId=new-task&starting=1")
     );
     expect(state.rpc).toHaveBeenCalledWith("/api/ws/reverse-etl/sync", {
       query: { syncId: "sync" },
