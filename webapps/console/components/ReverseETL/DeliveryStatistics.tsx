@@ -12,7 +12,8 @@ const cleanupStatuses = {
   prepared: {
     label: "UNCONFIRMED",
     color: "gold",
-    description: "Cleanup was prepared, but submission has not been confirmed.",
+    description:
+      "Cleanup may already have reached Google, but its outcome is unconfirmed. Do not replay cleanup or reset state. Check the run logs and contact your administrator for reconciliation.",
   },
   pending: {
     label: "PENDING",

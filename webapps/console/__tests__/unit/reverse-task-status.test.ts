@@ -122,7 +122,11 @@ describe("Reverse ETL status dropdown", () => {
   });
   it.each([
     ["not_started", "NOT STARTED", "Cleanup starts after all snapshot uploads are accepted."],
-    ["prepared", "UNCONFIRMED", "Cleanup was prepared, but submission has not been confirmed."],
+    [
+      "prepared",
+      "UNCONFIRMED",
+      "Cleanup may already have reached Google, but its outcome is unconfirmed. Do not replay cleanup or reset state. Check the run logs and contact your administrator for reconciliation.",
+    ],
     ["pending", "PENDING", "Uploads are accepted. Waiting for Google to finish removing older audience membership."],
     ["accepted", "ACCEPTED", "Google has confirmed cleanup of older audience membership."],
   ])("shows %s cleanup independently of fully accepted record counts", (replacement, label, description) => {
