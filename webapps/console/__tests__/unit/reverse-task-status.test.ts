@@ -3,6 +3,7 @@ import React from "react";
 import { beforeEach, afterEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { ReverseTaskStatus } from "../../components/ReverseETL/TaskStatus";
+import { ReverseDeliveryStatistics } from "../../components/ReverseETL/DeliveryStatistics";
 import { ReverseTask } from "../../lib/reverse-etl";
 
 vi.mock("../../components/JitsuButton/JitsuButton", () => ({
@@ -111,11 +112,42 @@ describe("Reverse ETL status dropdown", () => {
     expect(screen.getByRole("columnheader", { name: "Total" }).querySelector("strong")).toBeTruthy();
     expect(upload.lastElementChild?.querySelector("strong")?.textContent).toBe("400");
     expect(removal.lastElementChild?.querySelector("strong")?.textContent).toBe("20");
-    expect(screen.getByText(/Full-audience cleanup:/).textContent).toContain("separate request, not a removal batch");
+    const cleanup = screen.getByRole("region", { name: "Full-mirror cleanup request" });
+    expect(cleanup.textContent).toContain("separate request, not a removal batch");
+    expect(within(cleanup).getByText("PENDING")).toBeTruthy();
     expect(screen.getByText(/Records:/).textContent).toContain("300 accepted");
     expect(screen.getByRole("link", { name: "Show Logs" }).getAttribute("href")).toBe(
       "/reverse-syncs/logs?syncId=sync&taskId=task"
     );
+  });
+  it.each([
+    ["not_started", "NOT STARTED", "Cleanup starts after all snapshot uploads are accepted."],
+    ["prepared", "UNCONFIRMED", "Cleanup was prepared, but submission has not been confirmed."],
+    ["pending", "PENDING", "Uploads are accepted. Waiting for Google to finish removing older audience membership."],
+    ["accepted", "ACCEPTED", "Google has confirmed cleanup of older audience membership."],
+  ])("shows %s cleanup independently of fully accepted record counts", (replacement, label, description) => {
+    render(
+      React.createElement(ReverseDeliveryStatistics, {
+        task: task({
+          version: 1,
+          runId: "run",
+          observedAt: "2026-01-01T00:00:00.000Z",
+          upsert: { ...counts, total: 5, accepted: 5 },
+          remove: counts,
+          records: { accepted: 4250, pending: 0, rejected: 0 },
+          recordCounts: { upsert: { ...counts, total: 4250, accepted: 4250 }, remove: counts },
+          replacement,
+        }),
+      })
+    );
+    const cleanup = screen.getByRole("region", { name: "Full-mirror cleanup request" });
+    expect(within(cleanup).getByText(label)).toBeTruthy();
+    expect(within(cleanup).getByText(description)).toBeTruthy();
+    expect(cleanup.textContent).toContain("not included in record totals");
+    const table = screen.getByRole("table");
+    expect(table.contains(cleanup)).toBe(false);
+    expect(within(table).getAllByRole("row")).toHaveLength(3);
+    expect(screen.getByText("Full-snapshot uploads").closest("tr")!.textContent).toBe("Full-snapshot uploads42504250");
   });
   it("keeps Accepted and Total when all counts are zero", async () => {
     render(
@@ -143,6 +175,7 @@ describe("Reverse ETL status dropdown", () => {
         .getAllByRole("cell")
         .map(cell => cell.textContent)
     ).toEqual(["Additions / upserts", "0", "0"]);
+    expect(screen.queryByRole("region", { name: "Full-mirror cleanup request" })).toBeNull();
   });
   it("does not present older batch counts as record counts", async () => {
     render(
@@ -154,6 +187,7 @@ describe("Reverse ETL status dropdown", () => {
           upsert: { ...counts, total: 1, accepted: 1 },
           remove: counts,
           records: { accepted: 64, pending: 0, rejected: 0 },
+          replacement: "pending",
         }),
       })
     );
@@ -161,6 +195,9 @@ describe("Reverse ETL status dropdown", () => {
     expect(await screen.findByText(/Record breakdown by operation is unavailable/)).toBeTruthy();
     expect(screen.getByText(/Records:/).textContent).toContain("64 accepted");
     expect(screen.queryByRole("table")).toBeNull();
+    expect(screen.getByRole("region", { name: "Full-mirror cleanup request" }).textContent).toContain(
+      "Waiting for Google"
+    );
   });
   it("does not invent zero counts for attempts without statistics", async () => {
     render(React.createElement(ReverseTaskStatus, { task: task() }));
