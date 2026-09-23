@@ -45,7 +45,7 @@ vi.mock("../../components/JitsuButton/JitsuButton", () => ({
 // Keep the real editor's identity, OAuth callback, React state and save path;
 // replace only the JSON-schema form renderer with an observable form boundary.
 vi.mock("@rjsf/antd", () => ({
-  Form: React.forwardRef(({ formData, onSubmit, onChange, children }: any, ref) => {
+  Form: React.forwardRef(function MockConfigForm({ formData, onSubmit, onChange, children }: any, ref) {
     React.useImperativeHandle(ref, () => ({ state: { formData, errors: [] } }));
     return React.createElement(
       "form",
