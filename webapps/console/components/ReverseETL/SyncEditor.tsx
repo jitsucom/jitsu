@@ -255,6 +255,7 @@ export function SyncEditor({ sync, reload }: { sync?: ReverseSyncView; reload: (
           className="mb-4"
           type="info"
           title="Delivery settings are locked because this sync has runtime state. Name and scheduling remain editable."
+          description="Deleting a mirror sync keeps its audience reserved. Pause it instead if you may need to resume it."
         />
       )}
       <FieldListEditorLayout items={items} />
@@ -267,7 +268,11 @@ export function SyncEditor({ sync, reload }: { sync?: ReverseSyncView; reload: (
               disabled={!role.deleteEntities || !!maintenance || busy}
               onClick={() =>
                 perform(async () => {
-                  if (await confirmOp("Delete this paused sync? Its audience and runtime state will be retained.")) {
+                  if (
+                    await confirmOp(
+                      "Delete this paused sync? Its audience, runtime state and any exclusive audience ownership will be retained. Deleting does not allow a replacement sync to take over the audience."
+                    )
+                  ) {
                     await rpc(endpoint, { method: "DELETE" });
                     setDirty(false);
                     await reload();

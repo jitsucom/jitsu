@@ -171,7 +171,7 @@ export async function updateReverseSync(prisma: PrismaClient, workspaceId: strin
     }
     if (changed && (await hasState(tx, workspaceId, syncId)))
       throw conflict(
-        "Delivery settings are locked after a run starts. Create a new sync to change its model, destination or stream settings."
+        "Delivery settings are locked to preserve saved state. Scheduling and pause settings remain editable. Deleting a mirror sync does not release its audience ownership."
       );
     await tx.configurationObjectLink.update({
       where: { id: syncId },

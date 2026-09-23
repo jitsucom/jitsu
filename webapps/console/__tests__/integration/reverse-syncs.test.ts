@@ -346,7 +346,7 @@ describe("single-save Reverse ETL settings", () => {
         ...f.input,
         data: { ...f.input.data, mapping: { email: "other" } },
       })
-    ).rejects.toThrow("locked");
+    ).rejects.toThrow("Deleting a mirror sync does not release its audience ownership");
     await updateReverseSync(f.prisma, f.workspace.id, id, { schedule: "0 0 * * *", timezone: "UTC" });
     expect((await listReverseSyncs(f.prisma, f.workspace.id))[0].settingsLocked).toBe(true);
   });

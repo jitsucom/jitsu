@@ -473,18 +473,26 @@ stop_tunnel() {
 
 # A pod restart ends kubectl port-forward; reconnect while the tunnel is open.
 forward_syncctl() {
-    local child_pid=""
-    trap 'if [ -n "$child_pid" ]; then stop_tunnel "$child_pid"; fi' EXIT
-    trap 'exit 0' TERM
+    local child_pid="" stopping=false
+    # Do not exit from a signal trap inside wait, or between launching a child
+    # and recording $!: finish that command before killing/reaping the child.
+    # Also signal an already-recorded child: TERM can arrive immediately before
+    # wait, when setting the flag alone would leave that next wait blocked.
+    trap 'stopping=true; if [ -n "$child_pid" ]; then kill "$child_pid" 2>/dev/null || true; fi' TERM
+    trap 'trap "" TERM; if [ -n "$child_pid" ]; then stop_tunnel "$child_pid"; fi' EXIT
     while true; do
         kubectl --context minikube -n "$NAMESPACE" port-forward --address 127.0.0.1 service/syncctl 3043:3043 &
         child_pid=$!
+        if $stopping; then exit 0; fi
         wait "$child_pid" || true
+        if $stopping; then exit 0; fi
         child_pid=""
         log_warn "Syncctl port-forward stopped; retrying in 2 seconds (check errors above)."
         sleep 2 &
         child_pid=$!
+        if $stopping; then exit 0; fi
         wait "$child_pid" || true
+        if $stopping; then exit 0; fi
         child_pid=""
     done
 }

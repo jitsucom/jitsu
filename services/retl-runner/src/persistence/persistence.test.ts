@@ -1671,4 +1671,72 @@ describe("core snapshot storage", () => {
     ).rejects.toThrow(/another mirror/);
     await expect(session({ workspaceId: "other", syncId: "other" })).rejects.toThrow(/exclusively/);
   });
+  it.each(["complete", "aborted"])("does not treat %s upsert history as exclusive ownership", async phase => {
+    const old = await session();
+    await init(old);
+    if (phase === "complete") await finish(old);
+    else {
+      await old.delivery.prepareAbort();
+      await old.delivery.acknowledgeAbort();
+    }
+    const history = (await admin.query("SELECT * FROM newjitsu.reverse_sync_control")).rows;
+    const next = await session({ workspaceId: "other", syncId: "other", mode: "mirror", extraction: "full" });
+    expect(next.scope.syncId).toBe("other");
+    expect((await admin.query("SELECT * FROM newjitsu.reverse_sync_control WHERE sync_id='sync'")).rows).toEqual(
+      history
+    );
+    // The former upsert cannot start writing again once the mirror has claimed ownership.
+    await expect(session({ logicalRunId: "later" })).rejects.toThrow(/exclusively/);
+  });
+  it.each(["complete", "aborted"])("retains mirror ownership after %s until explicitly released", async phase => {
+    const old = await mirror();
+    if (phase === "complete") {
+      await old.snapshots.seal();
+      await finish(old);
+    } else {
+      await old.delivery.prepareAbort();
+      await old.delivery.acknowledgeAbort();
+    }
+    const next = () => session({ syncId: "replacement", mode: "mirror", extraction: "full" });
+    await expect(next()).rejects.toThrow(/another mirror/);
+    // Simulate an operator-approved release: keep all historical evidence.
+    // This is not an automatic release or membership-baseline transfer API.
+    await admin.query("DELETE FROM newjitsu.reverse_sync_target_owner");
+    expect((await next()).scope.syncId).toBe("replacement");
+    expect(await count("newjitsu.reverse_sync_control")).toBe(2);
+  });
+  it("serializes a mirror takeover against the previous upsert's next run", async () => {
+    const old = await session();
+    await init(old);
+    await finish(old);
+    const results = await Promise.allSettled([
+      session({ syncId: "mirror", mode: "mirror", extraction: "full" }),
+      session({ logicalRunId: "next" }),
+    ]);
+    expect(results.filter(r => r.status === "fulfilled")).toHaveLength(1);
+    expect(results.filter(r => r.status === "rejected")).toHaveLength(1);
+    expect(await count("newjitsu.reverse_sync_control")).toBe(2);
+  });
+  it.each([
+    "new",
+    "init_prepared",
+    "running",
+    "batches_pending",
+    "finish_prepared",
+    "finish_pending",
+    "finish_resolving",
+    "finish_accepted",
+    "abort_prepared",
+    "unknown-phase",
+  ])("blocks takeover while another sync has unresolved %s work, even if detached", async phase => {
+    await session();
+    // Admission is based on durable lifecycle, not a source_task's UI status
+    // or the detached flag (which permits overlap only within the same sync).
+    await admin.query("UPDATE newjitsu.reverse_sync_control SET phase=$1,detached=true", [phase]);
+    await expect(session({ syncId: "other", mode: "mirror", extraction: "full" })).rejects.toThrow(
+      /another mirror or upsert/
+    );
+    expect(await count("newjitsu.reverse_sync_target_owner")).toBe(0);
+    expect(await count("newjitsu.reverse_sync_control")).toBe(1);
+  });
 });

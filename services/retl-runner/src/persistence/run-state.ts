@@ -120,8 +120,13 @@ export async function openRun(
       ensure(control.extraction === run.extraction, "Recovery must preserve the original run configuration");
     }
     if (run.mode === "mirror") {
+      // Upserts do not claim exclusive ownership, but their unfinished provider
+      // work must settle before a mirror can take over. Detached runs can still
+      // be pending; only durable completion or acknowledged abort is terminal.
+      // Historical controls are evidence, not a second permanent ownership lock.
       const other = await client.query(
-        "SELECT 1 FROM reverse_sync_control WHERE target_hash=$1 AND (workspace_id<>$2 OR sync_id<>$3) LIMIT 1",
+        `SELECT 1 FROM reverse_sync_control WHERE target_hash=$1 AND (workspace_id<>$2 OR sync_id<>$3)
+         AND phase NOT IN ('complete','aborted') LIMIT 1`,
         [target, run.workspaceId, run.syncId]
       );
       ensure(!other.rowCount, "Audience already belongs to another mirror or upsert sync");

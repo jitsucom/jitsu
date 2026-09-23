@@ -1,4 +1,4 @@
-name: Reverse ETL deployment contracts
+name: Reverse ETL deployment checks
 on:
   pull_request:
     paths:
@@ -23,6 +23,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     strategy:
+      fail-fast: false
       matrix:
         helm: [v3.18.4, v4.2.2]
     steps:
@@ -35,7 +36,17 @@ jobs:
           python-version: '3.12'
       - run: pip install PyYAML==6.0.3
       - run: helm lint helm --strict --set projectRoot=/tmp/jitsu
-      - run: python3 -m unittest discover -s helm/tests -v
+      - run: python3 -m unittest discover -s helm/tests -p test_reverse_etl.py -v
+  dev-tunnel:
+    name: Local tunnel lifecycle
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - run: python3 -m unittest discover -s helm/tests -p test_dev_tunnel.py -v
   syncctl:
     runs-on: ubuntu-latest
     timeout-minutes: 15

@@ -43,7 +43,9 @@ export function ReverseSyncsList() {
     if (busy) return;
     if (
       action === "delete" &&
-      !(await confirmOp("Delete this paused reverse sync? Its audience and runtime state will be retained."))
+      !(await confirmOp(
+        "Delete this paused reverse sync? Its audience, runtime state and any exclusive audience ownership will be retained. Deleting does not allow a replacement sync to take over the audience."
+      ))
     )
       return;
     setBusy(sync.id);

@@ -63,6 +63,13 @@ The caller holds and renews the per-sync Kubernetes Lease throughout admission,
 artifact restoration/compaction and delivery, and stops on Lease loss. Kubernetes
 and syncctl are the only worker coordination mechanism. Target ownership is a
 separate persistent claim: different syncs must not manage the same mirror audience.
+Mirror admission also checks other syncs' unfinished control records because upsert
+syncs do not claim ownership. Only durable `complete`/`aborted` controls are ignored;
+detached or failed/cancelled tasks with unresolved work still block takeover. Old
+control records remain recovery/audit evidence, not a permanent ownership lock.
+The ownership claim itself is retained after completion and sync deletion. This
+does not add automatic release, transfer another sync's baseline, or make a
+replacement mirror safe without its normal audience admission requirements.
 
 Read-only control observations use an in-memory cache. Short SQL transactions
 publish artifact pointers and lifecycle/store/checkpoint changes atomically.
