@@ -72,6 +72,9 @@ spec:
         # waiting on it waits for exactly the right thing.
         - name: wait-for-console
           image: {{ .Values.tokenGenerator.image | quote }}
+          {{- with (include "jitsu.resources" (dict "ctx" . "service" "seed")) }}
+          {{- . | nindent 10 }}
+          {{- end }}
           command:
             - sh
             - -c
