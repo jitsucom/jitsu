@@ -1,4 +1,4 @@
-import { beforeAll, afterAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeAll, afterAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { GenericContainer, Wait, type StartedTestContainer } from "testcontainers";
 import { Client, type PoolConfig } from "pg";
 import { createRequire } from "node:module";
@@ -13,8 +13,7 @@ import type {
   WriteBatch,
 } from "@jitsu/protocols/reverse-etl";
 import { contentHash } from "@jitsu/destination-functions/src/reverse-etl/identity";
-import { Database, prune } from "./persistence";
-import { decodeJson, encodeJson } from "./persistence/serialization";
+import { Database } from "./persistence";
 import {
   openMirrorPersistence,
   runSnapshotMirror,
@@ -23,6 +22,12 @@ import {
   type MirrorSourceRecord,
   type SnapshotMirrorAdapter,
 } from "./mirror";
+
+import { MemoryObjects, persisted } from "./artifacts/test-support";
+const objects = new MemoryObjects();
+const storage = { objectStorage: { store: objects, signal: new AbortController().signal } };
+const durable = () => persisted(admin, objects);
+afterEach(() => vi.useRealTimers());
 
 let container: StartedTestContainer;
 let admin: Client;
@@ -73,20 +78,11 @@ beforeAll(async () => {
   await admin.query(
     "CREATE ROLE mirror_runtime LOGIN PASSWORD 'runtime'; GRANT USAGE ON SCHEMA newjitsu TO mirror_runtime"
   );
-  for (const table of [
-    "control",
-    "target_owner",
-    "batch",
-    "operation",
-    "generation",
-    "source_key",
-    "desired",
-    "membership",
-  ])
+  for (const table of ["control", "target_owner"])
     await admin.query(`GRANT SELECT,INSERT,UPDATE,DELETE ON newjitsu.reverse_sync_${table} TO mirror_runtime`);
   await admin.query("GRANT SELECT,INSERT,UPDATE,DELETE ON newjitsu.source_state TO mirror_runtime");
   runtimeConfig = { ...config, user: "mirror_runtime", password: "runtime" };
-  db = new Database(runtimeConfig);
+  db = new Database(runtimeConfig, storage);
 }, 60_000);
 afterAll(async () => {
   await db?.close();
@@ -94,9 +90,7 @@ afterAll(async () => {
   await container?.stop();
 });
 beforeEach(async () => {
-  await admin.query(
-    "TRUNCATE newjitsu.reverse_sync_operation,newjitsu.reverse_sync_batch,newjitsu.reverse_sync_control,newjitsu.reverse_sync_target_owner,newjitsu.reverse_sync_generation,newjitsu.reverse_sync_source_key,newjitsu.reverse_sync_desired,newjitsu.reverse_sync_membership,newjitsu.source_state"
-  );
+  await admin.query("TRUNCATE newjitsu.reverse_sync_control,newjitsu.reverse_sync_target_owner,newjitsu.source_state");
 });
 async function session(id = "run", taskId = id, database = db) {
   return openMirrorPersistence(database, {
@@ -114,12 +108,11 @@ async function takeover(run: Session) {
   return session(run.scope.logicalRunId, "recovery");
 }
 async function phase() {
-  return (await admin.query("SELECT phase FROM newjitsu.reverse_sync_control")).rows[0].phase;
+  return (await admin.query("SELECT phase FROM newjitsu.reverse_sync_control ORDER BY run_order DESC LIMIT 1")).rows[0]
+    .phase;
 }
 async function membership() {
-  return (
-    await admin.query("SELECT identity_hash,value FROM newjitsu.reverse_sync_membership ORDER BY identity_hash")
-  ).rows.map(row => decodeJson<any>(row.value).upsert);
+  return (await durable()).members.map(row => row.effect.upsert);
 }
 
 function fixture() {
@@ -254,7 +247,113 @@ function fixture() {
 }
 
 describe("core snapshot mirror lifecycle", () => {
-  it("persists a full page with fixed query count and exact retry/deduplication budgets", async () => {
+  it("uploads a complete replacement, waits for every upload, and prunes only after durable cleanup acceptance", async () => {
+    const baseline = fixture();
+    await runSnapshotMirror(baseline.options(await session("baseline"), [record("stay"), record("old")]));
+    const f = fixture();
+    f.adapter.stream.capabilities.mirror = "native-replace";
+    f.adapter.batchDelivery = "asynchronous";
+    f.setBatch(async (_action, batch) => ({
+      outcomes: batch.records.map(row => ({ operationId: row.operationId, status: "staged" })),
+      remoteJobIds: [batch.batchId],
+    }));
+    f.setFinish("pending");
+    const options = (run: Session, rows: MirrorSourceRecord[] = []) => ({
+      ...f.options(run, rows),
+      targetBaseline: "replace" as const,
+    });
+    const run = await session("replacement");
+    expect(
+      (await runSnapshotMirror(options(run, [record("stay"), record("new"), record("alias", "new")]))).delivery
+    ).toBe("pending");
+    expect(f.requests.flatMap(r => r.batch.records)).toHaveLength(2); // Includes unchanged "stay".
+    expect(f.calls).not.toContain("finish");
+    await expect(run.delivery.prepareFinish(2, {})).rejects.toThrow("Unaccepted uploads");
+    await expect(run.snapshots.page("removals")).rejects.toThrow("does not use individual removals");
+    const wrong = fixture();
+    await expect(resumeSnapshotMirror(wrong.options(await takeover(run), []), wrong.recovery)).rejects.toThrow(
+      "Snapshot strategy changed"
+    );
+
+    for (const { batch } of f.requests) f.receipts.set(batch.batchId, accepted(batch));
+    expect((await resumeSnapshotMirror(options(await takeover(run)), f.recovery)).delivery).toBe("pending");
+    expect(await phase()).toBe("finish_pending");
+    expect((await durable()).head.snapshot?.replacementStatus).toBe("pending");
+    expect(await membership()).toHaveLength(3); // Cleanup is not yet accepted: retain "old".
+    expect(f.calls.filter(c => c === "source")).toHaveLength(1);
+    expect(f.calls.filter(c => c === "finish")).toHaveLength(1);
+    expect(f.requests.some(r => r.action === "remove")).toBe(false);
+
+    expect((await resumeSnapshotMirror(options(await takeover(run)), f.recovery)).delivery).toBe("accepted");
+    expect(await phase()).toBe("complete");
+    expect((await durable()).head.snapshot?.replacementStatus).toBe("accepted");
+    expect((await membership()).map(m => m.member).sort()).toEqual([member("stay"), member("new")].sort());
+    const fresh = await session("next-replacement");
+    expect([...fresh.core.local.memberPages()].flat()).toHaveLength(2);
+    expect(f.calls.filter(c => c === "finish")).toHaveLength(1); // Status polling never resubmits cleanup.
+
+    f.setBatch(undefined);
+    f.setFinish("accepted");
+    f.requests.length = 0;
+    await runSnapshotMirror(options(fresh, [record("stay"), record("new")]));
+    expect(f.requests.flatMap(r => r.batch.records)).toHaveLength(2); // Unchanged members upload again next run.
+    f.requests.length = 0;
+    await runSnapshotMirror(options(await session("empty-replacement")));
+    expect(f.requests).toHaveLength(0);
+    expect(await membership()).toHaveLength(0);
+    expect([...(await session("after-empty")).core.local.memberPages()].flat()).toHaveLength(0);
+  });
+  it("never cleans a replacement after rejected uploads or incomplete extraction", async () => {
+    const f = fixture();
+    f.adapter.stream.capabilities.mirror = "native-replace";
+    const run = await session();
+    const input = { ...f.options(run, [record("a")]), targetBaseline: "replace" as const };
+    f.setBatch(async (_action, batch) => ({
+      outcomes: batch.records.map(row => ({
+        operationId: row.operationId,
+        status: "rejected",
+        code: "invalid",
+        safeReason: "Invalid",
+      })),
+    }));
+    await expect(runSnapshotMirror(input)).rejects.toThrow();
+    expect(f.calls).not.toContain("finish");
+    const next = await session("incomplete");
+    const incomplete = {
+      ...f.options(next, []),
+      targetBaseline: "replace" as const,
+      source: async function* () {
+        yield record("a");
+        throw new Error("source failed");
+      },
+    };
+    await expect(runSnapshotMirror(incomplete)).rejects.toThrow();
+    expect(f.calls).not.toContain("finish");
+  });
+  it("retains an ambiguous replacement cleanup for reconciliation without resubmitting it", async () => {
+    const f = fixture();
+    f.adapter.stream.capabilities.mirror = "native-replace";
+    f.setFinish("throw");
+    const run = await session();
+    const options = { ...f.options(run, [record("a")]), targetBaseline: "replace" as const };
+    await expect(runSnapshotMirror(options)).rejects.toThrow();
+    expect(await phase()).toBe("finish_prepared");
+    await expect(
+      resumeSnapshotMirror(
+        { ...options, persistence: await takeover(run) },
+        {
+          ...f.recovery,
+          reconcileFinish: async saved => {
+            expect(saved).toBeUndefined();
+            throw new Error("Receipt unavailable; do not replay");
+          },
+        }
+      )
+    ).rejects.toThrow();
+    expect(f.calls.filter(c => c === "finish")).toHaveLength(1);
+    expect((await durable()).head.snapshot?.replacementStatus).toBe("prepared");
+  });
+  it("stages a full page with bounded SQL and seals exact retry/deduplication counts", async () => {
     const run = await session();
     await run.delivery.prepareInit({});
     await run.delivery.acknowledgeInit({});
@@ -268,41 +367,43 @@ describe("core snapshot mirror lifecycle", () => {
     } finally {
       query.mockRestore();
     }
-    const before = (await admin.query("SELECT * FROM newjitsu.reverse_sync_generation")).rows[0];
-    expect(before.key_count).toBe("1000");
-    expect(before.entry_count).toBe("1000");
-    expect((await admin.query("SELECT count(*) FROM newjitsu.reverse_sync_desired")).rows[0].count).toBe("1");
+    const before = await run.snapshots.status();
+    expect(before?.sourceKeyCount).toBe(1000);
     await run.snapshots.append(page, 1);
-    expect((await admin.query("SELECT * FROM newjitsu.reverse_sync_generation")).rows[0]).toEqual(before);
+    expect(await run.snapshots.status()).toEqual(before);
     await run.snapshots.append([{ key: contentHash(1000), identities: [identity] }], 2);
-    const after = (await admin.query("SELECT * FROM newjitsu.reverse_sync_generation")).rows[0];
-    expect(BigInt(after.byte_count) - BigInt(before.byte_count)).toBe(64n);
+    const after = await run.snapshots.status();
+    expect(after?.sourceKeyCount).toBe(1001);
     await expect(
       run.snapshots.append([{ key: contentHash(1001), identities: [{ ...identity, remove: { id: "different" } }] }], 3)
     ).rejects.toThrow("Conflicting payloads");
-    expect((await admin.query("SELECT count(*) FROM newjitsu.reverse_sync_source_key")).rows[0].count).toBe("1001");
-    expect((await admin.query("SELECT * FROM newjitsu.reverse_sync_generation")).rows[0]).toEqual(after);
+    expect(await run.snapshots.status()).toEqual(after);
+    expect(await run.snapshots.seal()).toEqual({ uniqueMembers: 1 });
+    expect((await durable()).head.snapshot).toMatchObject({ sealed: true, keys: 1001, entries: 1001, page: 2 });
+    expect(await run.snapshots.page("additions")).toHaveLength(1);
   });
   it("refreshes only due unchanged members, using acceptance time rather than source changes", async () => {
     const f = fixture();
     f.adapter.refreshAfterMs = 30 * 86400_000;
     const rows = [record("old"), record("fresh")];
-    await runSnapshotMirror(f.options(await session("baseline"), rows));
+    const now = Date.now();
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(now - 31 * 86400_000);
+    await runSnapshotMirror(f.options(await session("baseline"), [record("old")]));
+    vi.setSystemTime(now);
+    // Add a fresh member without refreshing the old one yet.
+    f.adapter.refreshAfterMs = 60 * 86400_000;
+    await runSnapshotMirror(f.options(await session("add-fresh"), rows));
     f.requests.length = 0;
     await runSnapshotMirror(f.options(await session("unchanged"), rows));
     expect(f.requests).toHaveLength(0);
-    await admin.query(
-      "UPDATE newjitsu.reverse_sync_membership SET last_accepted_at=clock_timestamp()-interval '31 days' WHERE identity_hash=$1",
-      [contentHash(member("old"))]
-    );
+    f.adapter.refreshAfterMs = 30 * 86400_000;
     const refresh = await session("refresh");
-    await prune(db, refresh.scope, new Date(Date.now() - 30 * 86400_000));
     await runSnapshotMirror(f.options(refresh, rows));
     expect(f.requests.map(r => r.action)).toEqual(["upsert"]);
     expect(f.requests[0].batch.records.map(r => r.row.member)).toEqual([member("old")]);
     f.requests.length = 0;
     const next = await session("fresh-again");
-    await prune(db, next.scope, new Date(Date.now() - 30 * 86400_000));
     await runSnapshotMirror(f.options(next, rows));
     expect(f.requests).toHaveLength(0);
   });
@@ -311,9 +412,8 @@ describe("core snapshot mirror lifecycle", () => {
     const f = fixture();
     f.adapter.refreshAfterMs = 30 * 86400_000;
     await runSnapshotMirror(f.options(await session("baseline"), [record("stay"), record("gone")]));
-    await admin.query(
-      "UPDATE newjitsu.reverse_sync_membership SET last_accepted_at=clock_timestamp()-interval '31 days'"
-    );
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(Date.now() + 31 * 86400_000);
     f.requests.length = 0;
     f.adapter.batchDelivery = "asynchronous";
     f.setBatch(async (_action, batch) => ({
@@ -322,9 +422,7 @@ describe("core snapshot mirror lifecycle", () => {
     }));
     const run = await session("refresh");
     expect((await runSnapshotMirror(f.options(run, [record("stay")]))).delivery).toBe("pending");
-    const cutoff = (
-      await admin.query("SELECT refresh_before FROM newjitsu.reverse_sync_generation WHERE generation='refresh'")
-    ).rows[0].refresh_before;
+    const cutoff = (await durable()).head.snapshot!.refreshBefore;
     expect(f.requests.map(r => r.action)).toEqual(["upsert"]);
     const addition = f.requests[0].batch;
     // A later recovery must not advance the saved generation cutoff or reproject rows.
@@ -333,10 +431,7 @@ describe("core snapshot mirror lifecycle", () => {
     f.calls.length = 0;
     expect((await resumeSnapshotMirror(f.options(resumed, []), f.recovery)).delivery).toBe("pending");
     expect(f.calls).toEqual(["reconcile"]);
-    expect(
-      (await admin.query("SELECT refresh_before FROM newjitsu.reverse_sync_generation WHERE generation='refresh'"))
-        .rows[0].refresh_before
-    ).toEqual(cutoff);
+    expect((await durable()).head.snapshot!.refreshBefore).toEqual(cutoff);
     expect(f.requests[0].batch).toEqual(addition);
     f.receipts.set(addition.batchId, accepted(addition));
     expect((await resumeSnapshotMirror(f.options(await takeover(run), []), f.recovery)).delivery).toBe("pending");
@@ -390,6 +485,119 @@ describe("core snapshot mirror lifecycle", () => {
     expect(await phase()).toBe("complete");
     expect(f.projections()).toBe(4); // Once for baseline and once per new source row, never on recovery.
   });
+
+  it.each([
+    ["snapshot-diff", "staged"],
+    ["snapshot-diff", "accepted"],
+    ["native-replace", "staged"],
+    ["native-replace", "accepted"],
+  ] as const)(
+    "resumes unsent %s uploads while earlier batches are pending and new batches are %s",
+    async (strategy, outcome) => {
+      const baseline = fixture();
+      await runSnapshotMirror(baseline.options(await session("baseline"), [record("old")]));
+      const f = fixture();
+      f.adapter.stream.capabilities.mirror = strategy;
+      f.adapter.batchDelivery = "asynchronous";
+      f.setBatch(async (_action, batch) => ({
+        outcomes: batch.records.map(row => ({ operationId: row.operationId, status: "staged" })),
+        remoteJobIds: [batch.batchId],
+      }));
+      const options = (run: Session, rows: MirrorSourceRecord[] = []) => ({
+        ...f.options(run, rows),
+        targetBaseline: strategy === "native-replace" ? ("replace" as const) : ("tracked" as const),
+      });
+      const run = await session("interrupted");
+      const acknowledge = run.delivery.acknowledge;
+      let submitted = 0;
+      run.delivery = {
+        ...run.delivery,
+        acknowledge: async (...args) => {
+          await acknowledge(...args);
+          if (++submitted === 2) throw new Error("worker stopped after second upload");
+        },
+      };
+      const rows = Array.from({ length: 7 }, (_, i) => record(`new-${i}`));
+      await expect(runSnapshotMirror(options(run, rows))).rejects.toThrow();
+      expect(f.requests.map(r => r.batch.records.length)).toEqual([2, 2]);
+      if (outcome === "accepted") f.setBatch(async (_action, batch) => accepted(batch));
+
+      f.calls.length = 0;
+      expect(await resumeSnapshotMirror(options(await takeover(run)), f.recovery)).toEqual({
+        delivery: "pending",
+        sourceSequence: 7,
+      });
+      expect(f.calls).toEqual(["reconcile", "reconcile", "attach", "upsert", "upsert"]);
+      expect(f.requests.map(r => r.batch.records.length)).toEqual([2, 2, 2, 1]);
+      const uploaded = f.requests.flatMap(r => r.batch.records);
+      expect(new Set(uploaded.map(r => r.operationId)).size).toBe(7);
+      expect(new Set(uploaded.map(r => r.row.member)).size).toBe(7);
+      expect(uploaded.map(r => r.sourceSequence)).toEqual([1, 2, 3, 4, 5, 6, 7]);
+      expect(await membership()).toContainEqual({ member: member("old"), value: "v" });
+      expect(await phase()).toBe("running");
+
+      // Repeated refreshes don't replay submitted rows or authorize deletions.
+      f.calls.length = 0;
+      expect((await resumeSnapshotMirror(options(await takeover(run)), f.recovery)).delivery).toBe("pending");
+      expect(f.calls.every(call => call === "reconcile")).toBe(true);
+      expect(f.requests).toHaveLength(4);
+
+      for (const { batch } of f.requests) f.receipts.set(batch.batchId, accepted(batch));
+      f.setBatch(async (_action, batch) => accepted(batch));
+      expect((await resumeSnapshotMirror(options(await takeover(run)), f.recovery)).delivery).toBe("accepted");
+      expect(await membership()).toHaveLength(7);
+      expect(await membership()).not.toContainEqual({ member: member("old"), value: "v" });
+      expect(f.projections()).toBe(7);
+      expect(f.requests.filter(r => r.action === "upsert")).toHaveLength(4);
+      expect(await phase()).toBe("complete");
+    }
+  );
+
+  it.each(["unknown", "missing-job-id", "rejected"] as const)(
+    "does not continue unsent uploads when reconciliation is %s",
+    async status => {
+      const f = fixture();
+      f.adapter.batchDelivery = "asynchronous";
+      f.setBatch(async (_action, batch) => ({
+        outcomes: batch.records.map(row => ({ operationId: row.operationId, status: "staged" })),
+        remoteJobIds: [batch.batchId],
+      }));
+      const run = await session();
+      const acknowledge = run.delivery.acknowledge;
+      run.delivery = {
+        ...run.delivery,
+        acknowledge: async (...args) => {
+          await acknowledge(...args);
+          throw new Error("worker stopped");
+        },
+      };
+      await expect(runSnapshotMirror(f.options(run, [record("a"), record("b"), record("c")]))).rejects.toThrow();
+      f.calls.length = 0;
+      await expect(
+        resumeSnapshotMirror(f.options(await takeover(run), []), {
+          ...f.recovery,
+          reconcileBatch: async batch => {
+            if (status === "unknown") throw new Error("submission cannot be reconciled");
+            return {
+              outcomes: batch.records.map(row =>
+                status === "rejected"
+                  ? {
+                      operationId: row.operationId,
+                      status: "rejected" as const,
+                      code: "invalid",
+                      safeReason: "Invalid",
+                    }
+                  : { operationId: row.operationId, status: "staged" as const }
+              ),
+            };
+          },
+        })
+      ).rejects.toThrow();
+      expect(f.calls).toEqual([]);
+      expect(f.requests).toHaveLength(1);
+      expect(await phase()).toBe("running");
+    }
+  );
 
   it("stops async reconciliation on a permanent rejection and preserves known accepted effects", async () => {
     const f = fixture();
@@ -465,7 +673,11 @@ describe("core snapshot mirror lifecycle", () => {
     expect(await membership()).toHaveLength(3);
     expect(await phase()).toBe("complete");
     expect(
-      (await admin.query("SELECT committed_generation FROM newjitsu.reverse_sync_control")).rows[0].committed_generation
+      (
+        await admin.query(
+          "SELECT committed_generation FROM newjitsu.reverse_sync_control ORDER BY run_order DESC LIMIT 1"
+        )
+      ).rows[0].committed_generation
     ).toBe("run");
   });
   it("handles unchanged, shared and changed identities across generations without rehashing", async () => {
@@ -485,7 +697,6 @@ describe("core snapshot mirror lifecycle", () => {
     ]);
     expect(await membership()).toHaveLength(2);
     const third = await session("third");
-    await prune(db, third.scope, new Date(Date.now() - 30 * 86400000));
     f.requests.length = 0;
     await runSnapshotMirror(f.options(third, []));
     expect(f.requests.map(r => r.action)).toEqual(["remove"]);
@@ -513,12 +724,8 @@ describe("core snapshot mirror lifecycle", () => {
       ["remove", [member("old")]],
     ]);
     expect([...f.remote.keys()].sort()).toEqual([member("shared"), member("new")].sort());
-    expect(
-      (await admin.query("SELECT key_count FROM newjitsu.reverse_sync_generation WHERE generation='second'")).rows[0]
-        .key_count
-    ).toBe("4");
+    expect((await durable()).head.snapshot!.keys).toBe(4);
     const third = await session("third");
-    await prune(db, third.scope, new Date(Date.now() - 30 * 86400000));
     f.requests.length = 0;
     const excluded = rows.map(row => ({ ...row, row: { ...row.row, value: "excluded" } }));
     expect(await runSnapshotMirror(f.options(third, excluded))).toEqual({ delivery: "accepted", sourceSequence: 2 });
@@ -583,7 +790,6 @@ describe("core snapshot mirror lifecycle", () => {
     const second = await session("second");
     await runSnapshotMirror(f.options(second, [record("a")]));
     const third = await session("third");
-    await prune(db, third.scope, new Date(Date.now() - 30 * 86400000));
     f.calls.length = 0;
     f.requests.length = 0;
     expect(await runSnapshotMirror(f.options(third, [record("a")]))).toEqual({
@@ -645,8 +851,11 @@ describe("core snapshot mirror lifecycle", () => {
       expect(f.calls.at(-1)).toBe("abort");
       expect(await membership()).toHaveLength(2);
       expect(
-        (await admin.query("SELECT committed_generation FROM newjitsu.reverse_sync_control")).rows[0]
-          .committed_generation
+        (
+          await admin.query(
+            "SELECT committed_generation FROM newjitsu.reverse_sync_control ORDER BY run_order DESC LIMIT 1"
+          )
+        ).rows[0].committed_generation
       ).toBe("run");
     }
   );
@@ -665,7 +874,6 @@ describe("core snapshot mirror lifecycle", () => {
     await expect(runSnapshotMirror(f.options(first, [record("a"), record("b")]))).rejects.toThrow();
     expect(await membership()).toHaveLength(1);
     const next = await session("next");
-    await prune(db, next.scope, new Date(Date.now() - 30 * 86400000));
     f.setBatch(undefined);
     await runSnapshotMirror(f.options(next, []));
     expect(await membership()).toEqual([]);
@@ -744,7 +952,11 @@ describe("core snapshot mirror lifecycle", () => {
     expect(await phase()).toBe("finish_accepted");
     expect(f.calls).not.toContain("abort");
     expect(
-      (await admin.query("SELECT committed_generation FROM newjitsu.reverse_sync_control")).rows[0].committed_generation
+      (
+        await admin.query(
+          "SELECT committed_generation FROM newjitsu.reverse_sync_control ORDER BY run_order DESC LIMIT 1"
+        )
+      ).rows[0].committed_generation
     ).toBeNull();
     const recovered = await takeover(run);
     f.calls.length = 0;
@@ -806,7 +1018,11 @@ describe("core snapshot mirror lifecycle", () => {
     expect(f.calls).not.toContain("finish");
     expect(await membership()).toHaveLength(2);
     expect(
-      (await admin.query("SELECT committed_generation FROM newjitsu.reverse_sync_control")).rows[0].committed_generation
+      (
+        await admin.query(
+          "SELECT committed_generation FROM newjitsu.reverse_sync_control ORDER BY run_order DESC LIMIT 1"
+        )
+      ).rows[0].committed_generation
     ).toBe("run");
   });
   it("reconciles an ambiguous removal without recreating the writer or replaying the remove", async () => {
@@ -861,7 +1077,7 @@ describe("core snapshot mirror lifecycle", () => {
     expect(await phase()).toBe("new");
   });
   it("enforces snapshot storage limits before any delivery", async () => {
-    const limited = new Database(runtimeConfig, { limits: { snapshotEntries: 1 } });
+    const limited = new Database(runtimeConfig, { ...storage, limits: { snapshotEntries: 1 } });
     try {
       const f = fixture(),
         run = await session("run", "run", limited);
@@ -881,10 +1097,9 @@ describe("core snapshot mirror lifecycle", () => {
       await run.delivery.prepareInit({});
       await run.delivery.acknowledgeInit({});
       await run.snapshots.start();
-      await admin.query(`INSERT INTO newjitsu.reverse_sync_desired (workspace_id,sync_id,generation,identity_hash,payload_hash,value)
-      SELECT 'workspace','sync','run',lpad(to_hex(n),64,'0'),'unchanged',decode('00','hex') FROM generate_series(1,999999) AS n`);
-      await admin.query(`INSERT INTO newjitsu.reverse_sync_membership (workspace_id,sync_id,identity_hash,payload_hash,value)
-      SELECT workspace_id,sync_id,identity_hash,payload_hash,value FROM newjitsu.reverse_sync_desired`);
+      run.core.local.sql.exec(
+        "WITH RECURSIVE n(x) AS (VALUES(1) UNION ALL SELECT x+1 FROM n WHERE x<999999) INSERT INTO desired SELECT printf('%064x',x),'unchanged','{}' FROM n; INSERT INTO members SELECT identity,payload,value,'2026-01-01T00:00:00.000Z',0 FROM desired;"
+      );
       const f = fixture();
       const desired = f.adapter.projection.project({ id: "last", value: "v" })[0];
       const effect = {
@@ -892,18 +1107,14 @@ describe("core snapshot mirror lifecycle", () => {
         identityHash: contentHash(desired.identity),
         payloadHash: contentHash(desired.upsert),
       };
-      const encoded = encodeJson(effect, 10000);
-      await admin.query(
-        "INSERT INTO newjitsu.reverse_sync_desired (workspace_id,sync_id,generation,identity_hash,payload_hash,value) VALUES ('workspace','sync','run',$1,$2,$3)",
-        [effect.identityHash, effect.payloadHash, encoded]
-      );
-      await admin.query("ANALYZE newjitsu.reverse_sync_desired; ANALYZE newjitsu.reverse_sync_membership");
+      run.core.local.sql
+        .prepare("INSERT INTO desired VALUES (?,?,?)")
+        .run(effect.identityHash, effect.payloadHash, JSON.stringify(effect));
+      run.core.local.sql.exec("ANALYZE");
       await run.snapshots.seal();
       expect(await run.snapshots.page("additions", "", 2)).toEqual([effect]);
       expect(await run.snapshots.page("additions", effect.identityHash, 2)).toEqual([]);
-      expect(Number((await admin.query("SELECT count(*) AS n FROM newjitsu.reverse_sync_desired")).rows[0].n)).toBe(
-        1_000_000
-      );
+      expect(Number(run.core.local.sql.prepare("SELECT count(*) AS n FROM desired").get()!.n)).toBe(1_000_000);
     },
     120_000
   );

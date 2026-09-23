@@ -123,7 +123,7 @@ func (j *JobRunner) watchPodStatuses() {
 				taskStatus.PodName = pod.Name
 				status := pod.Status
 				if taskStatus.TaskType == "reverse" {
-					if endedReverse[taskStatus.SyncID+":"+taskStatus.TaskID] {
+					if endedReverse[pod.Name] {
 						j.cleanupReversePod(&pod)
 						continue
 					}
@@ -444,7 +444,7 @@ func (j *JobRunner) getPodResUsage(podName string, container string) (metrics ma
 		metrics["mem_usage"] = memUsage
 	}
 	if stderr.Len() > 0 {
-		err = fmt.Errorf(stderr.String())
+		err = fmt.Errorf("%s", stderr.String())
 	}
 
 	return metrics

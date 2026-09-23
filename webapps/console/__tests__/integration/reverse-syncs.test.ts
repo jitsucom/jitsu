@@ -1,50 +1,27 @@
 import { randomUUID } from "node:crypto";
-import { describe, expect, it } from "vitest";
-import { http, HttpResponse } from "msw";
+import { describe, expect, it, vi } from "vitest";
 import { deps, seedWorkspace } from "./support/harness";
-import { server } from "./support/msw";
-import { getServerEnv } from "../../lib/server/serverEnv";
 import {
   createReverseSync,
-  completeReverseSetup,
   updateReverseSync,
   deleteReverseSync,
   listReverseSyncs,
   reverseTasks,
   reverseLogs,
-  validateReverseSetup,
-  discardReverseCreation,
 } from "../../lib/server/reverse-syncs";
 import { readReverseSync } from "../../lib/server/reverse-sync-export";
-import { ConfigObjectsService } from "../../lib/server/config-objects-service";
+import { reverseGoogleOptions } from "../../lib/server/reverse-google-options";
 import type { NangoConfig } from "../../lib/server/oauth/nango-config";
 
-const nango: NangoConfig = {
-  enabled: true,
-  nangoApiHost: "https://nango.test.local",
-  nangoAppHost: "https://nango.test.local",
-  publicKey: "public",
-  secretKey: "secret",
-  callback: "https://console.test.local",
-};
-async function fixture(kind: "managed" | "existing" = "managed") {
+async function fixture() {
   const { workspace, user } = await seedWorkspace();
   const { prisma } = deps();
   await prisma.workspace.update({ where: { id: workspace.id }, data: { featuresEnabled: ["reverse-etl"] } });
-  const url = new URL(getServerEnv().DATABASE_URL);
   const warehouse = await prisma.configurationObject.create({
     data: {
       workspaceId: workspace.id,
       type: "destination",
-      config: {
-        destinationType: "postgres",
-        host: url.hostname,
-        port: Number(url.port),
-        database: url.pathname.slice(1),
-        username: url.username,
-        password: url.password,
-        sslMode: "disable",
-      },
+      config: { destinationType: "postgres", host: "never-contact.test" },
     },
   });
   const model = await prisma.configurationObject.create({
@@ -53,254 +30,387 @@ async function fixture(kind: "managed" | "existing" = "managed") {
       type: "model",
       config: {
         name: "Audience",
-        type: "model",
         warehouseId: warehouse.id,
-        query: "SELECT 1 AS id, 'member@example.com' AS email, 'GRANTED' AS consent",
-        primaryKey: ["id"],
+        query: "select email from unavailable_table",
+        primaryKey: ["email"],
       },
     },
   });
   const destination = await prisma.configurationObject.create({
-    data: { workspaceId: workspace.id, type: "destination", config: {} },
+    data: { workspaceId: workspace.id, type: "destination", config: { name: "Google", destinationType: "google-ads" } },
   });
-  await prisma.configurationObject.update({
-    where: { id: destination.id },
+  const input = {
+    fromId: model.id,
+    toId: destination.id,
     data: {
-      config: {
-        name: "Google",
-        destinationType: "google-ads",
-        authorized: true,
-        customerId: "1234567890",
-        oauthConnectionId: `destination.${destination.id}`,
+      version: 2,
+      name: "Test",
+      stream: "audience",
+      mode: "mirror",
+      mapping: { email: "email" },
+      streamOptions: {
+        audience: { kind: "managed", displayName: "Test" },
+        exclusiveManagementConfirmed: true,
+        customerMatchTermsAccepted: true,
       },
-    },
-  });
-  let writes = 0,
-    lose = false;
-  let remote: any = {
-    id: "123",
-    name: "accountTypes/GOOGLE_ADS/accounts/1234567890/userLists/123",
-    displayName: "Existing",
-    membershipDuration: "46656000s",
-    membershipStatus: "OPEN",
-    accessReason: "OWNED",
-    ingestedUserListInfo: {
-      uploadKeyTypes: ["CONTACT_ID"],
-      contactIdInfo: { dataSourceType: "DATA_SOURCE_TYPE_FIRST_PARTY" },
+      schedule: "",
+      timezone: "Etc/UTC",
+      disabled: true,
     },
   };
-  server.use(
-    http.get("https://nango.test.local/connection/:id", ({ params }) =>
-      HttpResponse.json({
-        connection_id: params.id,
-        provider_config_key: "jitsu-cloud-dst-google-ads",
-        credentials: { access_token: "test-token", expires_at: new Date(Date.now() + 3600000).toISOString() },
-      })
-    ),
-    http.get("https://datamanager.googleapis.com/v1/accountTypes/GOOGLE_ADS/accounts/1234567890/userLists/123", () =>
-      HttpResponse.json(remote)
-    ),
-    http.get("https://datamanager.googleapis.com/v1/accountTypes/GOOGLE_ADS/accounts/1234567890/userLists", () =>
-      HttpResponse.json({ userLists: [remote] })
-    ),
-    http.post(
-      "https://datamanager.googleapis.com/v1/accountTypes/GOOGLE_ADS/accounts/1234567890/userLists",
-      async ({ request }) => {
-        writes++;
-        remote = { ...remote, ...((await request.json()) as object) };
-        return lose ? HttpResponse.error() : HttpResponse.json(remote);
-      }
-    )
-  );
-  const setup = {
-    name: "My sync",
-    modelId: model.id,
-    destinationId: destination.id,
-    audience:
-      kind === "managed"
-        ? { kind: "managed", displayName: "Audience", exclusiveManagementConfirmed: true }
-        : { kind: "existing", audienceId: "123" },
-    customerMatchTermsAccepted: true,
-    mapping: { email: "email", adUserData: "consent", adPersonalization: "consent" },
-    schedule: "0 * * * *",
-    timezone: "Etc/UTC",
-  };
-  const create = (key = randomUUID(), input: unknown = setup) =>
-    createReverseSync(prisma, workspace.id, key, input, nango);
   return {
+    prisma,
     workspace,
     user,
-    prisma,
     model,
     destination,
-    setup,
-    create,
-    writes: () => writes,
-    lose: () => {
-      lose = true;
-    },
-    remote: (patch: object) => {
-      remote = { ...remote, ...patch };
-    },
+    warehouse,
+    input,
+    create: (raw: unknown = input, key = randomUUID()) => createReverseSync(prisma, workspace.id, key, raw),
   };
 }
-describe("Reverse ETL console lifecycle", () => {
-  it("can enable a sync when database work exceeds Prisma's default five-second transaction timeout", async () => {
-    const f = await fixture("existing");
-    const { id } = await f.create();
-    // Real PostgreSQL delay: the final admission reads must still use a live transaction.
-    await f.prisma.$executeRaw`
-      CREATE FUNCTION delay_reverse_sync_update() RETURNS trigger LANGUAGE plpgsql AS $$
-      BEGIN
-        PERFORM pg_sleep(5.5);
-        RETURN NEW;
-      END;
-      $$`;
-    try {
-      await f.prisma.$executeRaw`
-        CREATE TRIGGER delay_reverse_sync_update BEFORE UPDATE ON "ConfigurationObjectLink"
-        FOR EACH ROW EXECUTE FUNCTION delay_reverse_sync_update()`;
-      await updateReverseSync(f.prisma, f.workspace.id, id, { disabled: false }, nango);
-      expect((await readReverseSync(f.prisma, id))?.options.disabled).toBe(false);
-      expect(f.writes()).toBe(0);
-    } finally {
-      await f.prisma.$executeRaw`DROP TRIGGER IF EXISTS delay_reverse_sync_update ON "ConfigurationObjectLink"`;
-      await f.prisma.$executeRaw`DROP FUNCTION delay_reverse_sync_update()`;
-    }
-  });
-  it("validates, saves and enables syncs with either or both consent mappings omitted", async () => {
-    const f = await fixture("existing");
-    for (const mapping of [
-      { email: "email" },
-      { email: "email", adUserData: "consent" },
-      { email: "email", adPersonalization: "consent" },
-    ]) {
-      const setup = { ...f.setup, mapping };
-      expect((await validateReverseSetup(f.prisma, f.workspace.id, setup, nango)).sampleRows).toBe(1);
-      const { id } = await f.create(randomUUID(), setup);
-      await updateReverseSync(f.prisma, f.workspace.id, id, { disabled: false }, nango);
-      expect((await readReverseSync(f.prisma, id))?.options.mapping).toEqual(mapping);
-    }
-    expect(f.writes()).toBe(0);
-  });
-  it("fences discarded requests and preserves an already saved sync after a lost response", async () => {
-    const f = await fixture("existing");
-    const key = randomUUID();
-    expect(await discardReverseCreation(f.prisma, f.workspace.id, key)).toEqual({ status: "discarded" });
-    await expect(f.create(key)).rejects.toThrow("discarded");
-    const savedKey = randomUUID();
-    const saved = await f.create(savedKey);
-    expect(await discardReverseCreation(f.prisma, f.workspace.id, savedKey)).toEqual({ status: "saved", id: saved.id });
-    expect(await f.create(savedKey)).toEqual(saved);
-    expect(await listReverseSyncs(f.prisma, f.workspace.id)).toHaveLength(1);
-  });
-  it("persists an immutable disabled setup, deduplicates saves and reconciles a lost audience response", async () => {
+describe("single-save Reverse ETL settings", () => {
+  it("uses the latest runner log for badges with deterministic ordering and sync scoping", async () => {
     const f = await fixture();
-    const key = randomUUID();
-    const [{ id }, second] = await Promise.all([f.create(key), f.create(key)]);
-    expect(second.id).toBe(id);
-    expect(f.writes()).toBe(0);
-    expect(await readReverseSync(f.prisma, id)).toBeUndefined();
-    await expect(f.create(key, { ...f.setup, name: "changed" })).rejects.toThrow("request");
-    await expect(updateReverseSync(f.prisma, f.workspace.id, id, { disabled: false }, nango)).rejects.toThrow(
-      "Complete"
-    );
-    f.lose();
-    await expect(completeReverseSetup(f.prisma, f.workspace.id, id, nango)).rejects.toThrow("unresolved");
-    expect(f.writes()).toBe(1);
-    expect(await completeReverseSetup(f.prisma, f.workspace.id, id, nango)).toEqual({ status: "ready" });
-    expect(f.writes()).toBe(1);
-    await updateReverseSync(f.prisma, f.workspace.id, id, { disabled: false }, nango);
-    const before = await readReverseSync(f.prisma, id);
-    expect(before?.options.mode).toBe("mirror");
-    await updateReverseSync(
-      f.prisma,
-      f.workspace.id,
-      id,
-      { name: "Renamed", schedule: "", timezone: "America/New_York" },
-      nango
-    );
-    const after = await readReverseSync(f.prisma, id);
-    expect(after?.configRevision).toBe(before?.configRevision);
-    expect(after?.options.disabled).toBe(false);
-    expect(after?.schedule).toBe("");
-  });
-  it("supports existing audiences only for additions/removals and never writes during validation", async () => {
-    const f = await fixture("existing");
-    expect((await validateReverseSetup(f.prisma, f.workspace.id, f.setup, nango)).sampleRows).toBe(1);
     const { id } = await f.create();
-    expect(f.writes()).toBe(0);
-    await updateReverseSync(f.prisma, f.workspace.id, id, { disabled: false }, nango);
-    expect((await readReverseSync(f.prisma, id))?.options.mode).toBe("upsert");
-    f.remote({ readOnly: true });
-    await expect(validateReverseSetup(f.prisma, f.workspace.id, f.setup, nango)).rejects.toThrow("read-only");
-  });
-  it("rejects consent errors, unknown mappings, missing identifiers and six-field cron before saving", async () => {
-    const f = await fixture("existing");
-    for (const setup of [
-      { ...f.setup, customerMatchTermsAccepted: false },
-      { ...f.setup, mapping: { ...f.setup.mapping, email: "missing" } },
-      { ...f.setup, mapping: { adUserData: "consent", adPersonalization: "consent" } },
-      { ...f.setup, mapping: { ...f.setup.mapping, adUserData: "email" } },
-      { ...f.setup, schedule: "0 0 * * * *" },
-      { ...f.setup, schedule: "@secondly" },
-    ])
-      await expect(f.create(randomUUID(), setup)).rejects.toThrow();
-    expect(
-      await f.prisma.configurationObjectLink.count({ where: { workspaceId: f.workspace.id, type: "reverse-sync" } })
-    ).toBe(0);
-    expect(f.writes()).toBe(0);
-  });
-  it("keeps cleanup available with the flag off and blocks generic CRUD bypasses", async () => {
-    const f = await fixture("existing");
-    const { id } = await f.create();
-    const service = new ConfigObjectsService({ prisma: f.prisma });
-    await expect(
-      service.update(f.user, f.workspace.id, "model", f.model.id, {
-        query: "SELECT 2 AS id, 'other@example.test' AS email, 'GRANTED' AS consent",
-      })
-    ).rejects.toThrow("bound to a reverse sync");
-    await expect(service.updateLink(f.user, f.workspace.id, id, { data: { disabled: false } })).rejects.toThrow(
-      "Reverse ETL"
-    );
-    await expect(
-      service.upsertLink(f.user, f.workspace.id, {
-        id,
-        type: "sync",
-        fromId: f.model.id,
-        toId: f.destination.id,
-        data: {},
-      })
-    ).rejects.toThrow("Reverse ETL");
-    await expect(service.deleteLink(f.user, f.workspace.id, { id })).rejects.toThrow("Reverse ETL");
-    await updateReverseSync(f.prisma, f.workspace.id, id, { disabled: false }, nango);
-    await f.prisma.workspace.update({ where: { id: f.workspace.id }, data: { featuresEnabled: [] } });
-    expect(await listReverseSyncs(f.prisma, f.workspace.id)).toHaveLength(1);
-    await expect(updateReverseSync(f.prisma, f.workspace.id, id, { schedule: "" }, nango)).rejects.toThrow(
-      "not enabled"
-    );
-    await updateReverseSync(f.prisma, f.workspace.id, id, { disabled: true }, nango);
-    await deleteReverseSync(f.prisma, f.workspace.id, id);
-    expect(await listReverseSyncs(f.prisma, f.workspace.id)).toHaveLength(0);
-    expect(
-      await f.prisma.configurationObject.count({ where: { workspaceId: f.workspace.id, type: "reverse-sync-setup" } })
-    ).toBe(1);
-  });
-  it("scopes setup, tasks and logs to the workspace and refuses deletion of waiting work", async () => {
-    const f = await fixture("existing");
-    const { id } = await f.create();
-    const foreign = await seedWorkspace();
-    await expect(completeReverseSetup(f.prisma, foreign.workspace.id, id, nango)).rejects.toThrow("not found");
     const taskId = randomUUID();
     await f.prisma.source_task.create({
-      data: { sync_id: id, task_id: taskId, package: "jitsu/retl-runner", version: "1", status: "WAITING" },
+      data: { task_id: taskId, sync_id: id, package: "jitsu/retl-runner", version: "test", status: "PENDING" },
     });
-    await f.prisma.task_log.create({
-      data: { sync_id: id, task_id: taskId, logger: "retl-runner", level: "INFO", message: "Waiting for Google" },
+    const tasks = () => reverseTasks(f.prisma, f.workspace.id, { syncId: id });
+    expect((await tasks())[0].latestLogLevel).toBeNull();
+    const base = {
+      sync_id: id,
+      task_id: taskId,
+      logger: "retl-runner",
+      message: "test",
+      timestamp: new Date("2026-01-01"),
+    };
+    const errorId = "00000000-0000-0000-0000-000000000001";
+    const infoId = "00000000-0000-0000-0000-000000000002";
+    await f.prisma.task_log.create({ data: { ...base, id: errorId, level: "ERROR" } });
+    expect((await tasks())[0].latestLogLevel).toBe("ERROR");
+    expect((await listReverseSyncs(f.prisma, f.workspace.id))[0].latestTask?.latestLogLevel).toBe("ERROR");
+    await f.prisma.task_log.createMany({
+      data: [
+        { ...base, id: infoId, level: "INFO" },
+        { ...base, timestamp: new Date("2026-01-02"), level: "ERROR", logger: "other" },
+        { ...base, timestamp: new Date("2026-01-02"), level: "ERROR", sync_id: "other-sync" },
+        { ...base, timestamp: new Date("2026-01-02"), level: "ERROR", task_id: "other-task" },
+      ],
     });
-    expect(await reverseTasks(f.prisma, foreign.workspace.id, { taskId })).toEqual([]);
-    await expect(reverseLogs(f.prisma, foreign.workspace.id, id, taskId)).rejects.toThrow("not found");
-    expect(await reverseLogs(f.prisma, f.workspace.id, id, taskId)).toHaveLength(1);
+    expect((await tasks())[0].latestLogLevel).toBe("INFO");
+    expect((await listReverseSyncs(f.prisma, f.workspace.id))[0].latestTask?.latestLogLevel).toBe("INFO");
+    expect((await reverseLogs(f.prisma, f.workspace.id, id, taskId)).map(log => log.id)).toEqual([infoId, errorId]);
+    expect(await reverseTasks(f.prisma, "foreign-workspace", { taskId })).toEqual([]);
+  });
+  it("scopes Google target lookup to the workspace and returns no provider credentials", async () => {
+    const f = await fixture();
+    const foreign = await fixture();
+    const connectionId = `destination.${f.destination.id}`;
+    await f.prisma.configurationObject.update({
+      where: { id: f.destination.id },
+      data: {
+        config: {
+          destinationType: "google-ads",
+          authorized: true,
+          oauthConnectionId: connectionId,
+          customerId: "1234567890",
+        },
+      },
+    });
+    const nango: NangoConfig = {
+      enabled: true,
+      callback: "",
+      publicKey: "",
+      secretKey: "nango-secret",
+      nangoApiHost: "https://nango.test",
+      nangoAppHost: "https://nango.test",
+    };
+    const request = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            connection_id: connectionId,
+            provider_config_key: "jitsu-cloud-dst-google-ads",
+            credentials: {
+              access_token: "private-access-token",
+              expires_at: new Date(Date.now() + 3600_000).toISOString(),
+            },
+          })
+        )
+      )
+      .mockResolvedValueOnce(new Response(JSON.stringify({ userLists: [{ id: "12", displayName: "Audience" }] })));
+    await expect(
+      reverseGoogleOptions(f.prisma, foreign.workspace.id, f.destination.id, "audience", nango, undefined, request)
+    ).rejects.toThrow("not found");
+    expect(request).not.toHaveBeenCalled();
+    const result = await reverseGoogleOptions(
+      f.prisma,
+      f.workspace.id,
+      f.destination.id,
+      "audience",
+      nango,
+      undefined,
+      request
+    );
+    expect(result).toEqual({ options: [{ value: "12", label: "Audience (12)" }] });
+    expect(request.mock.calls[1][0]).toContain(
+      "https://datamanager.googleapis.com/v1/accountTypes/GOOGLE_ADS/accounts/1234567890/userLists"
+    );
+    expect(JSON.stringify(result)).not.toContain("private-access-token");
+    request.mockRejectedValue(new Error("private provider payload"));
+    await expect(
+      reverseGoogleOptions(f.prisma, f.workspace.id, f.destination.id, "audience", nango, undefined, request)
+    ).rejects.toThrow("Could not load Google targets");
+  });
+  it.each(["click-conversions", "call-conversions", "conversion-adjustments"])(
+    "saves and exports %s without audience settings or provisioning",
+    async stream => {
+      const f = await fixture();
+      const { id } = await f.create({
+        ...f.input,
+        data: {
+          ...f.input.data,
+          stream,
+          mode: "upsert",
+          disabled: false,
+          streamOptions: { conversionActionId: "123" },
+          mapping: stream === "conversion-adjustments" ? { orderId: "email" } : { conversionTimestamp: "email" },
+        },
+      });
+      const config = await readReverseSync(f.prisma, id, f.workspace.id);
+      expect(config?.options.stream).toBe(stream);
+      expect(config?.options.streamOptions).toEqual({ conversionActionId: "123" });
+      expect(config?.destination.reverseManagedAudience).toBeUndefined();
+      await expect(
+        f.create({ ...f.input, data: { ...f.input.data, stream, streamOptions: { conversionActionId: "123" } } })
+      ).rejects.toThrow("insert mode");
+    }
+  );
+  it("filters tasks before the history limit and exposes only safe batch aggregates", async () => {
+    const f = await fixture();
+    const { id } = await f.create();
+    const counts = {
+      total: 1,
+      prepared: 0,
+      unconfirmed: 0,
+      pending: 0,
+      accepted: 1,
+      rejected: 0,
+      partial: 0,
+      cancelled: 0,
+    };
+    const stats = {
+      version: 1,
+      runId: "run",
+      observedAt: "2026-01-01T00:00:00.000Z",
+      upsert: counts,
+      remove: { ...counts, total: 0, accepted: 0 },
+      records: { accepted: 10, pending: 0, rejected: 0 },
+    };
+    const taskId = randomUUID();
+    await f.prisma.source_task.createMany({
+      data: [
+        {
+          task_id: taskId,
+          sync_id: id,
+          package: "jitsu/retl-runner",
+          version: "test",
+          status: "SUCCESS",
+          started_at: new Date("2026-01-01"),
+          metrics: { reverseDelivery: { ...stats, privateData: "secret" }, reverseRecovery: { privateData: "secret" } },
+          started_by: { trigger: "manual", privateData: "secret" },
+        },
+        ...Array.from({ length: 101 }, () => ({
+          task_id: randomUUID(),
+          sync_id: id,
+          package: "jitsu/retl-runner",
+          version: "test",
+          status: "FAILED",
+          started_at: new Date("2026-02-01"),
+          metrics: { reverseDelivery: { version: 99 } },
+        })),
+      ],
+    });
+    const result = await reverseTasks(f.prisma, f.workspace.id, {
+      status: "SUCCESS",
+      from: "2026-01-01T00:00:00.000Z",
+      to: "2026-01-02T00:00:00.000Z",
+    });
+    expect(result).toHaveLength(1);
+    expect(result[0]).toMatchObject({ task_id: taskId, stats, trigger: "manual" });
+    expect(JSON.stringify(result)).not.toMatch(/privateData|secret|reverseRecovery|started_by|metrics/);
+    expect(await reverseTasks(f.prisma, "foreign", { taskId })).toEqual([]);
+    expect(await reverseTasks(f.prisma, f.workspace.id, { from: "2026-03-01T00:00:00.000Z" })).toEqual([]);
+    const recent = await reverseTasks(f.prisma, f.workspace.id, {});
+    expect(recent).toHaveLength(100);
+    expect(recent.every(t => t.stats === null && t.trigger === null)).toBe(true);
+    expect((await listReverseSyncs(f.prisma, f.workspace.id))[0].latestTask?.stats).toBeNull();
+    await f.prisma.source_task.update({ where: { task_id: taskId }, data: { started_at: new Date("2026-04-01") } });
+    expect((await listReverseSyncs(f.prisma, f.workspace.id))[0].latestTask?.stats).toEqual(stats);
+  });
+  it.each([
+    ["FAILED", false, true],
+    ["PENDING", false, true],
+    ["WAITING", false, true],
+    ["PENDING", true, false],
+    ["COMPLETE", false, false],
+    ["CANCELLED", false, true],
+    ["CANCELLED", true, false],
+  ] as const)(
+    "exposes explicit refresh eligibility for %s tasks with active=%s",
+    async (status, active, canRefresh) => {
+      const f = await fixture();
+      const { id } = await createReverseSync(f.prisma, f.workspace.id, randomUUID(), f.input);
+      const taskId = randomUUID();
+      await f.prisma.source_task.create({
+        data: {
+          task_id: taskId,
+          sync_id: id,
+          package: "jitsu/retl-runner",
+          version: "test",
+          status,
+          metrics: { reverseRecovery: { runId: "saved-run" }, reverseWorker: { active } },
+        },
+      });
+      const tasks = await reverseTasks(f.prisma, f.workspace.id, { syncId: id, taskId });
+      expect(tasks[0].canRefresh).toBe(canRefresh);
+      expect(await reverseTasks(f.prisma, "foreign", { syncId: id, taskId })).toEqual([]);
+      await f.prisma.source_task.update({ where: { task_id: taskId }, data: { metrics: {} } });
+      expect((await reverseTasks(f.prisma, f.workspace.id, { syncId: id, taskId }))[0].canRefresh).toBe(false);
+    }
+  );
+  it("saves all intent on one link without preview, OAuth, provisioning or auxiliary entities", async () => {
+    const f = await fixture();
+    const { id } = await f.create();
+    const link = await f.prisma.configurationObjectLink.findUniqueOrThrow({ where: { id } });
+    expect(link.data).toMatchObject(f.input.data);
+    expect(
+      await f.prisma.configurationObject.count({
+        where: { workspaceId: f.workspace.id, type: { in: ["reverse-sync-setup", "reverse-google-audience"] } },
+      })
+    ).toBe(0);
+    expect(await f.prisma.source_state.count({ where: { sync_id: id } })).toBe(0);
+    await updateReverseSync(f.prisma, f.workspace.id, id, { disabled: false });
+    expect((await readReverseSync(f.prisma, id))?.options.streamOptions).toMatchObject(f.input.data.streamOptions);
+    expect((await listReverseSyncs(f.prisma, f.workspace.id))[0]).toMatchObject({ settingsLocked: false });
+  });
+  it.each(["managed", "existing"])("saves full replacement for %s audiences", async kind => {
+    const f = await fixture();
+    const { id } = await f.create({
+      ...f.input,
+      data: {
+        ...f.input.data,
+        streamOptions: {
+          ...f.input.data.streamOptions,
+          audience: kind === "managed" ? { kind, displayName: "Test" } : { kind, audienceId: "123" },
+          mirrorStrategy: "full-replace",
+        },
+      },
+    });
+    await updateReverseSync(f.prisma, f.workspace.id, id, { disabled: false });
+    expect((await readReverseSync(f.prisma, id))?.options.mode).toBe("mirror");
+  });
+  it("deduplicates a lost save response directly on the link", async () => {
+    const f = await fixture();
+    const key = randomUUID();
+    const first = await f.create(f.input, key);
+    expect(await f.create(f.input, key)).toEqual(first);
+    await expect(f.create({ ...f.input, data: { ...f.input.data, name: "changed" } }, key)).rejects.toThrow(
+      "already created"
+    );
+    expect(
+      await f.prisma.configurationObjectLink.count({ where: { workspaceId: f.workspace.id, type: "reverse-sync" } })
+    ).toBe(1);
+  });
+  it("allows complete settings edits before first run", async () => {
+    const f = await fixture();
+    const { id } = await f.create();
+    await updateReverseSync(f.prisma, f.workspace.id, id, {
+      ...f.input,
+      data: { ...f.input.data, mapping: { email: "other" } },
+    });
+    expect((await f.prisma.configurationObjectLink.findUniqueOrThrow({ where: { id } })).data).toMatchObject({
+      mapping: { email: "other" },
+    });
+  });
+  it("locks delivery edits once provisioning or a run has started, but allows scheduling", async () => {
+    const f = await fixture();
+    const { id } = await f.create();
+    await f.prisma.source_state.create({
+      data: { sync_id: id, stream: "_REVERSE_ETL_GOOGLE_AUDIENCE_", state: { phase: "submitting" } },
+    });
+    await expect(
+      updateReverseSync(f.prisma, f.workspace.id, id, {
+        ...f.input,
+        data: { ...f.input.data, mapping: { email: "other" } },
+      })
+    ).rejects.toThrow("Deleting a mirror sync does not release its audience ownership");
+    await updateReverseSync(f.prisma, f.workspace.id, id, { schedule: "0 0 * * *", timezone: "UTC" });
+    expect((await listReverseSyncs(f.prisma, f.workspace.id))[0].settingsLocked).toBe(true);
+  });
+  it.each(["cursor", "deleteColumn"])(
+    "rejects unsafe mirror model %s structurally without querying it",
+    async field => {
+      const f = await fixture();
+      await f.prisma.configurationObject.update({
+        where: { id: f.model.id },
+        data: {
+          config: {
+            ...(f.model.config as object),
+            [field]: field === "cursor" ? { column: "email", type: "string" } : "deleted",
+          },
+        },
+      });
+      await expect(f.create()).rejects.toThrow("full-query");
+    }
+  );
+  it("keeps workspace and stream admission on Save", async () => {
+    const f = await fixture();
+    await expect(f.create({ ...f.input, fromId: "foreign" })).rejects.toThrow("workspace");
+    await expect(f.create({ ...f.input, data: { ...f.input.data, stream: "unsupported" } })).rejects.toThrow("stream");
+    await expect(
+      f.create({
+        ...f.input,
+        data: {
+          ...f.input.data,
+          streamOptions: {
+            audience: { kind: "existing", audienceId: "123" },
+            customerMatchTermsAccepted: true,
+            mirrorStrategy: "full-replace",
+          },
+        },
+      })
+    ).rejects.toThrow("exclusive");
+  });
+  it("retains pause/delete/log access after rollout is disabled", async () => {
+    const f = await fixture();
+    const { id } = await f.create();
+    await updateReverseSync(f.prisma, f.workspace.id, id, { disabled: false });
+    await f.prisma.workspace.update({ where: { id: f.workspace.id }, data: { featuresEnabled: [] } });
+    await updateReverseSync(f.prisma, f.workspace.id, id, { disabled: true });
+    await expect(updateReverseSync(f.prisma, f.workspace.id, id, { disabled: false })).rejects.toThrow();
+    await expect(f.create()).rejects.toThrow();
+    expect(await reverseTasks(f.prisma, f.workspace.id, { syncId: id })).toEqual([]);
+    await expect(reverseLogs(f.prisma, "foreign", id, "task")).rejects.toThrow("not found");
+    await deleteReverseSync(f.prisma, f.workspace.id, id);
+  });
+  it("requires pause and no active attempts before deletion", async () => {
+    const f = await fixture();
+    const { id } = await f.create();
+    await updateReverseSync(f.prisma, f.workspace.id, id, { disabled: false });
+    await expect(deleteReverseSync(f.prisma, f.workspace.id, id)).rejects.toThrow("Pause");
+    await updateReverseSync(f.prisma, f.workspace.id, id, { disabled: true });
+    await f.prisma.source_task.create({
+      data: { task_id: randomUUID(), sync_id: id, package: "jitsu/retl-runner", version: "test", status: "WAITING" },
+    });
     await expect(deleteReverseSync(f.prisma, f.workspace.id, id)).rejects.toThrow("Cancel");
+  });
+  it("checks Kubernetes-compatible cron and timezone at the API boundary", async () => {
+    const f = await fixture();
+    for (const data of [{ schedule: "* * * * * *" }, { schedule: "@every 1m" }, { timezone: "not/a-zone" }])
+      await expect(f.create({ ...f.input, data: { ...f.input.data, ...data } })).rejects.toThrow();
   });
 });

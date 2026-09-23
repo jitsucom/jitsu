@@ -4,11 +4,13 @@ import { createWarehouseReader, SourceRecord } from "@jitsu/warehouse-query";
 import { ModelDefinition } from "@jitsu/warehouse-query/src/schema";
 import { compilePostgresPreview, postgresSql } from "@jitsu/warehouse-query/src/postgres";
 import { ConfigObjectsService } from "../../lib/server/config-objects-service";
-import { modelMutation, previewModel, recheckModelWarehouse } from "../../lib/server/reverse-etl-models";
+import { modelColumns, modelMutation, previewModel, recheckModelWarehouse } from "../../lib/server/reverse-etl-models";
 import { getServerEnv } from "../../lib/server/serverEnv";
 import { deleteReverseSync } from "../../lib/server/reverse-syncs";
 import { deps, seedWorkspace } from "./support/harness";
 import { server } from "./support/msw";
+import { allConfigTypes } from "../../lib/store/config-types";
+import { getAllConfigObjectTypeNames } from "../../lib/schema/config-objects";
 
 const env = getServerEnv();
 const pgUrl = new URL(env.DATABASE_URL);
@@ -280,6 +282,9 @@ describe("Postgres preview server-side byte guard", () => {
 });
 
 describe("Models service", () => {
+  it("keeps the shared store registry aligned with public configuration objects", () => {
+    expect([...allConfigTypes].sort()).toEqual(getAllConfigObjectTypeNames().sort());
+  });
   const service = new ConfigObjectsService({ prisma: deps().prisma });
   async function fixture(config: Record<string, unknown> = pgConfig) {
     const { user, workspace } = await seedWorkspace();
@@ -302,6 +307,17 @@ describe("Models service", () => {
       service.create(a.user, a.workspace.id, "model", { ...a.model, warehouseId: b.warehouse.id }, { generateId: true })
     ).rejects.toMatchObject({ status: 404 });
     await expect(service.list(b.user, a.workspace.id, "model")).rejects.toMatchObject({ status: 403 });
+  });
+  it.each([pgConfig, chConfig])("inspects saved model columns without returning rows", async config => {
+    const f = await fixture(config);
+    const { id } = await service.create(f.user, f.workspace.id, "model", f.model, { generateId: true });
+    const result = await modelColumns(deps().prisma, f.workspace.id, id);
+    expect(result.columns.map(c => c.name)).toEqual(["id", "changed", "removed"]);
+    expect(Object.keys(result)).toEqual(["columns"]);
+    const foreign = await fixture();
+    await expect(modelColumns(deps().prisma, foreign.workspace.id, id)).rejects.toMatchObject({ status: 404 });
+    await deps().prisma.configurationObject.update({ where: { id }, data: { deleted: true } });
+    await expect(modelColumns(deps().prisma, f.workspace.id, id)).rejects.toMatchObject({ status: 404 });
   });
   it.each([
     ["Postgres bytea", pgConfig, "SELECT 1 AS pk, NULL::bytea AS removed WHERE false"],

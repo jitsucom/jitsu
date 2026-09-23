@@ -9,11 +9,14 @@ const getComputedStyle = window.getComputedStyle.bind(window);
 
 const state = vi.hoisted(() => ({
   enabled: true,
+  models: [] as any[],
+  reload: vi.fn(),
   route: {
     query: {} as Record<string, string>,
     pathname: "/[workspaceId]/models",
     events: { on: vi.fn(), off: vi.fn() },
     push: vi.fn(),
+    replace: vi.fn(),
   },
   preview: vi.fn(),
   api: { list: vi.fn(), create: vi.fn(), update: vi.fn(), del: vi.fn() },
@@ -25,10 +28,15 @@ vi.mock("../../components/PageLayout/WorkspacePageLayout", () => ({
 vi.mock("../../lib/context", () => ({
   useWorkspace: () => ({ id: "ws", slugOrId: "ws", featuresEnabled: state.enabled ? ["reverse-etl"] : [] }),
   useAppConfig: () => ({}),
-  useWorkspaceRole: () => ({ editEntities: true, deleteEntities: true }),
+  useWorkspaceRole: () => ({ role: "owner", editEntities: true, deleteEntities: true }),
 }));
 vi.mock("next/router", () => ({ useRouter: () => state.route }));
-vi.mock("../../lib/ui", () => ({ useUnsavedChanges: () => {} }));
+vi.mock("../../lib/ui", async original => ({
+  ...(await original<typeof import("../../lib/ui")>()),
+  useUnsavedChanges: () => {},
+  useTitle: () => {},
+}));
+vi.mock("../../lib/modal", () => ({ useAntdModal: () => ({ confirm: vi.fn() }) }));
 vi.mock("next/dynamic", () => ({
   default:
     () =>
@@ -41,7 +49,12 @@ vi.mock("next/dynamic", () => ({
 }));
 vi.mock("../../lib/useApi", () => ({ useConfigApi: () => state.api }));
 vi.mock("../../lib/store", () => ({
-  useConfigObjectList: () => [{ id: "wh", name: "Warehouse", destinationType: "postgres" }],
+  useConfigObjectList: (type: string) =>
+    type === "model" ? state.models : [{ id: "wh", name: "Warehouse", destinationType: "postgres" }],
+  useConfigObjectLinks: () => [],
+  useStoreReload: () => state.reload,
+  asConfigType: (type: string) => type,
+  useConfigObjectMutation: (_type: string, fn: any) => ({ mutateAsync: fn }),
 }));
 
 beforeEach(() => {
@@ -71,7 +84,7 @@ beforeEach(() => {
     addEventListener() {},
     removeEventListener() {},
   }));
-  state.api.list.mockResolvedValue([
+  state.models = [
     {
       id: "model-1",
       name: "Audience",
@@ -83,7 +96,8 @@ beforeEach(() => {
       pageSize: 1000,
       cursor: { column: "changed", type: "timestamp", lookbackSeconds: 60 },
     },
-  ]);
+  ];
+  state.reload.mockResolvedValue(undefined);
   state.api.update.mockResolvedValue({});
 });
 afterEach(() => {
@@ -139,14 +153,40 @@ describe("model editor", () => {
     );
     client.clear();
   });
+  // Ant Design table/menu rendering in jsdom can exceed 5s on shared CI workers.
   it("lists existing models for cleanup without enabling creation", async () => {
     state.enabled = false;
     const client = mount();
     expect(screen.getByText("Reverse ETL is not enabled for this workspace")).toBeTruthy();
-    expect(await screen.findByRole("button", { name: "Audience" })).toBeTruthy();
-    expect(state.api.list).toHaveBeenCalled();
-    expect((screen.getByRole("button", { name: "New model" }) as HTMLButtonElement).disabled).toBe(true);
-    expect((screen.getByRole("button", { name: "Delete" }) as HTMLButtonElement).disabled).toBe(false);
+    expect(await screen.findByRole("link", { name: "Audience" })).toBeTruthy();
+    expect((screen.getByRole("button", { name: "Add new model" }) as HTMLButtonElement).disabled).toBe(true);
+    fireEvent.click(screen.getAllByRole("button").at(-1)!);
+    expect(await screen.findByText("Delete")).toBeTruthy();
+    expect(screen.getByRole("menuitem", { name: /Delete/ }).getAttribute("aria-disabled")).not.toBe("true");
+    expect(screen.getByRole("menuitem", { name: /Clone/ }).getAttribute("aria-disabled")).toBe("true");
+    client.clear();
+  }, 30000);
+  it("uses the standard object-list search and custom model columns", async () => {
+    const client = mount();
+    expect(await screen.findByRole("link", { name: "Audience" })).toBeTruthy();
+    expect(screen.getByText("Primary key")).toBeTruthy();
+    expect(screen.getByText("Incremental: changed")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Create sync" })).toBeNull();
+    fireEvent.change(screen.getByPlaceholderText("Filter by ID or name..."), { target: { value: "no-match" } });
+    await waitFor(() => expect(screen.queryByRole("link", { name: "Audience" })).toBeNull());
+    client.clear();
+  });
+  it("opens Clone in the custom editor and creates a distinct model", async () => {
+    state.route.query = { id: "new", clone: "model-1" };
+    const client = mount();
+    const name = (await screen.findByLabelText("Name")) as HTMLInputElement;
+    expect(name.value).toBe("Audience (copy)");
+    expect(screen.getByLabelText("SQL editor")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Save model" }));
+    await waitFor(() => expect(state.api.create).toHaveBeenCalled());
+    expect(state.api.create.mock.calls[0][0]).toMatchObject({ name: "Audience (copy)", query: state.models[0].query });
+    expect(state.api.create.mock.calls[0][0].id).not.toBe("model-1");
+    await waitFor(() => expect(state.reload).toHaveBeenCalled());
     client.clear();
   });
 });

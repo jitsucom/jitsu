@@ -1,231 +1,167 @@
 # Reverse ETL Node core — JITSU-227
 
-Server-only persistence, core snapshot mirroring and an executable Node runner.
-See [runtime integration](src/runtime.md) for syncctl/CronJobs, admission, leases,
-task logs, recovery and deployment prerequisites. No live advertising adapters
-are registered yet; this foundation does not enable production advertising writes.
+Server-only persistence, snapshot mirroring and an executable Node runner.
+See [runtime integration](src/runtime.md) for syncctl/CronJobs, admission,
+Kubernetes leases, task logs and recovery, and [snapshot mirroring](src/mirror.md)
+for the full-source lifecycle.
 
-The separate server-only [snapshot-mirror lifecycle](src/mirror.md) now builds on
-this persistence foundation: full source validation, bounded additions/removals,
-explicit finalization and sealed-snapshot recovery. It does not enable the upsert
-library's mirror path or deploy a production runner/provider.
+## Storage and deployment
 
-## Setup and boundaries
+[Object-backed persistence](src/artifacts/README.md) is the sole backend:
+local SQLite indexes source keys and audience identities; GCS/S3 stores immutable
+snapshots, batches and receipts; PostgreSQL holds only small control records.
+Object storage is required. There is no per-row PostgreSQL fallback or SQL sweeper.
 
-All `reverse_sync_*` tables are defined in `webapps/console/prisma/schema.prisma`
-alongside `source_state`. They use the same configuration database schema. Apply
-them through the existing console `db:update-schema` command with schema-owner
-credentials; do not give the runner DDL access. The existing Prisma `db push`
-workflow manages all tables, enums, keys and indexes. There is no separate Reverse
-ETL migration, `retl` schema, supplementary SQL, or custom schema-update command.
-No DDL runs on module import or runner startup. `pg` handles runtime queries and
-transactions. Prisma-generated model types describe database rows through a small
-mapping for `pg`'s bigint strings and byte buffers; Prisma Client is a development
-dependency only, not a runtime client. Run `pnpm codegen` before typechecking.
+**This rollout drops six old payload tables and five accounting columns.** Follow
+the linked cutover instructions: pause schedules and drain old workers, back up
+state, resolve remote requests, explicitly reset/retire test syncs and audiences,
+then apply Prisma and deploy the new runner. No automatic migration/reset is
+provided. Keep deployment manual; do not apply the schema while old workers run.
 
-Provision a restricted runtime login outside this package, then grant:
+Only `reverse_sync_control` and `reverse_sync_target_owner` are Reverse ETL-specific
+PostgreSQL tables. Shared `source_state`, `source_task`, and `task_log` retain their
+existing purposes. Prisma defines the schema and generated row types alongside
+console tables; runtime queries use `pg`. No separate database schema, runtime
+DDL, supplementary SQL migrations, or schema-owner runner credentials.
+
+Provision a restricted runtime login outside this package:
 
 ```sql
 GRANT USAGE ON SCHEMA newjitsu TO retl_runtime;
 GRANT SELECT, INSERT, UPDATE, DELETE ON
-  newjitsu.reverse_sync_control, newjitsu.reverse_sync_target_owner,
-  newjitsu.reverse_sync_batch, newjitsu.reverse_sync_operation,
-  newjitsu.reverse_sync_generation, newjitsu.reverse_sync_source_key,
-  newjitsu.reverse_sync_desired,
-  newjitsu.reverse_sync_membership TO retl_runtime;
+  newjitsu.reverse_sync_control, newjitsu.reverse_sync_target_owner TO retl_runtime;
 GRANT SELECT, INSERT, UPDATE ON newjitsu.source_state, newjitsu.source_task TO retl_runtime;
 GRANT INSERT ON newjitsu.task_log TO retl_runtime;
 ```
 
-Change `newjitsu` in these grants if the config database uses another schema.
-`Database` reads the connection URL's `schema` parameter (default `public` for a
-URL without one); structured pg options default to `newjitsu`. `sourceSchema`
-explicitly overrides either. Every transaction sets a validated local search path
-with `pg_catalog` first and `pg_temp` last; pooled session state cannot redirect
-reads or writes. Do not grant access to unrelated console tables.
-Never give runtime credentials schema ownership
-or DDL rights. The module caps its pool at four connections, acquisition at 5s,
-statements/idle transactions at 10s, and lock waits at 3s. SQL errors are redacted.
+Change `newjitsu` for another configuration schema. The connection URL's `schema`
+parameter defaults to `public`; structured pg options default to `newjitsu`.
+`sourceSchema` overrides either. Transactions set a validated local search path
+with `pg_catalog` first and `pg_temp` last. The pool caps connections at four,
+acquisition at 5s, statements/idle transactions at 10s, and lock waits at 3s.
+SQL errors are redacted. Prisma Client is a development dependency, not a runtime
+client; run `pnpm codegen` before typechecking.
 
-Construct `Database` with the connection configuration and optional schema/limits.
-Payloads are stored as readable JSON, with no application-level encryption,
-keyring or AAD. Existing `bytea` columns contain versioned UTF-8 JSON; compact
-checkpoint state is stored as JSON text inside the `source_state` envelope. This
-preserves protocol strings (including NUL and unpaired surrogates) that PostgreSQL
-`jsonb` cannot represent directly. There is no base64 encoding. No column migration
-is required. Earlier encrypted development data is unsupported and rejected, not
-silently interpreted as current state; this pre-rollout change provides no data
-migration or automatic reset. Do not discard unresolved delivery evidence.
-Audience identities, provider state and request payloads are sensitive. Protection
-relies on restricted database/backup access, infrastructure encryption and retention.
-The runtime role is trusted, not a tenant-facing database account. SQL errors remain
-redacted; application encryption no longer protects database dumps or read access.
+## Provider boundary
 
 `openPersistence(db, run, project)` returns:
 
 - `scope`: immutable workspace/sync/run/task/target/revision binding.
-- `delivery`: the existing `DeliveryJournal` facade, suitable for `ctx.delivery`;
-  no database client, snapshot or core-recovery method.
-- `core`: bounded recovery reads and acknowledgements; never pass this to writers.
-- `snapshots`: core-only desired/effective storage, diff pages and sealing.
+- `delivery`: the existing `DeliveryJournal` facade for `ctx.delivery`, without
+  database, snapshot or core-recovery methods.
+- `core`: recovery reads and reconciled acknowledgements; never pass to writers.
+- `snapshots`: core-only desired/effective indexing, sealing and diff pages.
 
-The pure `project(action, row)` callback is supplied by the core and yields bounded
-provider-ready identity/upsert/removal values. This module hashes canonical JSON,
-not identifiers according to vendor rules. The core mirror planner is implemented;
-provider-specific normalization follows with adapters. Explicit remove projection must yield the same
-canonical identity as upsert; never hash stored removal identifiers again.
+The pure `project(action, row)` callback yields bounded provider-ready identities
+and upsert/removal values. Explicit removals must use the same canonical identity
+as upserts; do not hash stored removal identifiers again. Mirror manifests carry
+normalized Effect envelopes; provider calls receive only their payloads.
 
 ## Ownership and recovery
 
-The caller must hold and renew the matching Kubernetes per-sync lease **before**
-opening persistence and throughout execution and maintenance. Kubernetes leases
-and syncctl are the sole worker coordination mechanism. The caller must stop work
-on lease loss. There are no database worker leases, epochs, or acquire/renew/release
-APIs. A paused worker or an in-flight request is not forcibly fenced by this design.
+The caller holds and renews the per-sync Kubernetes Lease throughout admission,
+artifact restoration/compaction and delivery, and stops on Lease loss. Kubernetes
+and syncctl are the only worker coordination mechanism. Target ownership is a
+separate persistent claim: different syncs must not manage the same mirror audience.
+Mirror admission also checks other syncs' unfinished control records because upsert
+syncs do not claim ownership. Only durable `complete`/`aborted` controls are ignored;
+detached or failed/cancelled tasks with unresolved work still block takeover. Old
+control records remain recovery/audit evidence, not a permanent ownership lock.
+The ownership claim itself is retained after completion and sync deletion. This
+does not add automatic release, transfer another sync's baseline, or make a
+replacement mirror safe without its normal audience admission requirements.
 
-Read-only state/status/readiness/diff observations use a per-sync in-memory control
-cache, loaded without row locks on a miss. Simple lifecycle transitions use conditional `UPDATE … RETURNING`, scoped
-to workspace, sync, logical run and expected phase. Finish/abort preparation keeps
-subsequent journal/snapshot validation in that same transaction, rolling back the
-transition on failure. Multi-statement mutations of counters, receipts, checkpoints,
-snapshots and retention still use explicit `lockControl` row locks for atomicity.
-These mechanisms do not authorize a worker, and read-only observations do not authorize later
-writes. Within one `Database`, lifecycle, snapshot and maintenance sessions share
-a per-sync queue. Cache changes publish only after acknowledged commit. SQL-returned
-rows refresh simple transitions; multi-statement locked mutations invalidate the cache
-instead of duplicating counter/receipt bookkeeping. Any failed/uncertain transaction
-invalidates it too. Reopening a run refreshes durable state, and a different logical run
-cannot use the old run's cached row. No process-shared cache or database worker lease
-is introduced; direct out-of-band database edits require reopening persistence.
-An unfinished run must be reopened for
-recovery under its original logical run/configuration. New runs are admitted only
-after complete or acknowledged abort. Config/target/mode changes fail closed until
-the controlled-reset workflow is implemented.
+Read-only control observations use an in-memory cache. Short SQL transactions
+publish artifact pointers and lifecycle/store/checkpoint changes atomically.
+State transitions check the expected phase; artifact mutations compare the durable
+head. These checks are atomicity guards, not worker leases. No object I/O occurs
+inside a SQL transaction. Failed/ambiguous SQL commits require reopening the
+artifact session; never assume an upload means the commit succeeded.
 
-Persistent mirror-target ownership is separate from worker coordination: different
-syncs must not manage the same audience. Other mirror/upsert syncs cannot claim that
-audience. Conversion of an existing upsert target into exclusive mirror ownership
-requires the later controlled-transfer workflow.
+Prepared batches are durable before provider calls. Recovery uses
+`recoveryStatus`, `recoveryPage`, `recoveryBatch`, and `loadBatch` without rerunning
+changed warehouse SQL. Unknown outcomes require provider reconciliation; missing
+receipts never authorize blind replay. Recovered acceptance uses core-only
+`acknowledgeRecovered` / `acknowledgeRecoveredFinish`.
 
-Prepared manifests are durable before returning. Recovery uses
-`recoveryStatus`, `recoveryPage`, `recoveryBatch` and `loadBatch`; it does not rebuild
-an uncertain request from a changed warehouse query. Verify provider outcomes or
-safe replay before acknowledgement. There is no automatic replay or blanket
-"clear unknown" operation. Accepted/rejected receipts cannot be downgraded.
-Once a batch result is fully terminal, its complete receipt is immutable. Matching
-retries are read-only and never overwrite a newer run store; conflicting metadata
-is rejected. Identical staged/mixed receipts are read-only too, including after
-takeover. A replacement must advance a staged outcome to accepted/rejected, preserve
-already-terminal outcomes, and keep the original job IDs/checkpoint unchanged while
-any staged outcomes remain. Once all outcomes are terminal, final metadata may replace
-the pending metadata. Recovered transitions still require explicit core reconciliation.
+Interrupted initialization requires verified absence or cleanup before
+`resetInitAfterReconciliation`. Reopen the same logical run after that reset.
+Already-accepted finish processing can resume locally from `finish_resolving`
+without another provider call. Its saved timestamp is reused for staged receipts.
 
-`acknowledgeRecovered` and `acknowledgeRecoveredFinish` are explicit core-only
-reconciliation methods. Call them only after verifying provider outcomes; recovered
-acceptance cannot be acknowledged through the writer facade. No billing period or
-provider acceptance timestamp is required. Receipt `accepted_at` records the
-database-clock time when Jitsu acknowledged the outcome, not remote delivery time.
+Terminal receipts are immutable. Identical staged/terminal retries are read-only
+and do not overwrite newer stores. Advancing staged outcomes preserves already
+terminal outcomes and pending job metadata. Accepted membership changes survive
+failed/aborted runs; local sequence tombstones prevent late acknowledgement from
+resurrecting an older value. Acknowledgement times are runner timestamps, not
+provider delivery times or billing attribution.
 
-Initialization recovery uses a separate core-only transition. If takeover finds
-`init_prepared`, inspect the saved store/provider state and verify that the old
-initialization cannot still create a session: confirm absence, or safely finish
-cleanup of the old session. Only then call
-`core.resetInitAfterReconciliation("absent" | "cleaned-up", reconciledStore)`.
-This atomically returns the lifecycle to `new`, clears obsolete provider state and
-saves the reconciled store. An exact phase-`new` retry is read-only. Unknown/in-flight
-initialization must remain blocked; this library does not infer remote absence from
-missing IDs. A recovery session cannot directly acknowledge init or run fresh init.
-Reopen persistence for the same logical run to reload the durable store,
-and invoke the ordinary `runReverseEtl` lifecycle. This also works if the reset committed
-but its response was lost. Already-initialized lifecycles cannot use this reset.
+Audience runs may overlap after initial uploads are submitted. Insert-only conversion
+runs instead wait for every previous logical run to complete or finish verified cleanup:
+pending event keys must not become a newer run's permanent deduplication baseline.
+Permanent rejections still fail immediately; explicit status refresh/cleanup preserves
+accepted keys and leaves rejected keys available to a later extraction.
 
-Pending finish receipts are immutable until accepted, preserving the original remote
-job IDs and provider checkpoint. Matching retries are read-only, including their store
-snapshot; conflicting pending receipts are rejected even through core recovery.
-Accepted finish resolves staged operations
-in bounded transactions; a crash leaves `finish_resolving`, whose saved result and
-acknowledgement timestamp allow local resolution to resume without submitting
-provider finish again.
+Pausing stops automatic extraction and status checks, including checks queued with an
+enabled snapshot before the pause. An explicit status refresh remains available for
+saved, revision-matching delivery on a paused sync or an idle cancelled task; it does
+not reread warehouse SQL. Failed explicit checks preserve the prior task status.
 
-Checkpoints verify contiguous accepted receipts and the exact prepared batch-end
-cursor. Full extraction checkpoints only at completion. The compact JSON
-`source_state` envelope stores cursor, sequence, provider store and generation
-together; it is not a separate `_STORE_` write. Permanent rejections block progress.
-Abort acknowledges cleanup of unaccepted staging only and preserves accepted work.
+## Snapshot guarantees and budgets
 
-## Snapshot and delivery guarantees
+Snapshot pages are collected in ephemeral SQLite with unique source keys,
+including deliberately excluded rows. Shared destination identities collapse
+only when their entire normalized payload agrees. Page retries compare canonical
+content; changed retries, gaps and duplicate source keys fail. An incomplete
+snapshot is not recoverable extraction progress: reconcile/abort, start a new
+logical run and collect full input again. A sealed snapshot is durable in artifacts.
 
-`snapshots.start()` is idempotent for the current run's unsealed candidate, including
-after takeover. Other abandoned generations still require pruning. Core-only
-`snapshots.status()` returns absence or `{ sealed, lastPageSequence, sourceKeyCount }`.
-Append source pages serially with `snapshots.append(rows, pageSequence)`, starting at
-1. The generation stores only the latest page sequence and canonical content hash,
-atomically with its rows and counters. An identical retry of that page is read-only;
-changed/reordered content, older pages, sequence gaps and duplicate source keys in a
-new page fail closed. Object-key ordering does not change the hash. Sealed snapshots
-cannot be restarted or appended to; inspect status to resume planning instead.
-The caller must reproduce the same page after an ambiguous write and must not submit
-the next page until the previous one is acknowledged. These sequence numbers are not
-warehouse cursors: resuming extraction still requires a stable/replayable source.
-
-Desired generations store unique source keys and deduplicated provider-ready
-identities. Full-snapshot diffs need no stored source-to-identity associations.
-An empty mirror source projection deliberately excludes a valid row but retains
-its source key and duplicate checks; invalid rows/projections still fail. Previously
-tracked identities become removable only when no source row projects them.
-Shared identities remain desired while any source row produces them. Conflicting shared-identity payloads are rejected. Effective
-membership is updated on **every durable acceptance**, including failed runs.
-For each identity, the latest accepted source-sequence operation wins, regardless
-of acknowledgement order. An indexed hash list on each operation lets delayed staged
-acceptance skip effects superseded by a later accepted upsert or removal, without
-scanning/decoding the entire journal. The delayed operation still gets its acceptance
-receipt and releases its reservation; other identities it affects still apply.
-Current-run operations retain this ordering evidence until the run has ended, including
-accepted removals, so no membership tombstone or extra table is needed. This is local
-accounting order, not a guarantee of provider-side request ordering.
-Indexed keyset pages keep diff reads bounded. Removals require sealed valid input
-and all desired additions accepted; no staged addition can authorize deletion.
-Completion verifies membership equality and atomically promotes the generation
-with final state. There is no standalone promotion call and no writer snapshot API.
-
-Receipt and effective-membership changes commit together. Accepted changes from
-failed runs are preserved for later recovery or removal.
-
-Billing is entirely deferred from this PR: no activation table, billing-period
-inputs, usage outbox/publisher, entitlement enforcement, or invoicing. Durable
-delivery receipts exist for recovery and are not a billing ledger.
-
-## Budgets and retention
+Local indexed joins produce bounded additions/updates/refreshes/removals. Removals
+require sealed input and accepted additions. Final completion verifies effective
+membership and commits checkpoint/generation state together. Writers have no
+snapshot method. The next logical run compacts receipts into a membership baseline.
 
 Defaults: 1,000 records / 10 MB per batch, 100 identities per source row, 1 million
-projected identity occurrences / 256 MB per desired generation, 1 million effective identities /
-256 MB effective membership, and 256 MB serialized journal storage per sync.
-The generation entry budget counts shared identities once per source occurrence
-and charges one entry for each excluded row to bound projection work; its logical byte budget counts source-key hashes and
-unique serialized desired values, not PostgreSQL table/index overhead.
-Provider state is limited to 64 KiB. These operational limits are unrelated to
-billing; smaller limits can be supplied. Membership growth is conservatively
-reserved before remote calls, including previously staged batches. Near a storage
-cap even updates may require headroom; acceptance must not discover a predictable
-storage limit after submission. Acknowledgement releases unused result reservations.
-Byte reservations include the JSON format envelope. Protocol responses have a
-separate bounded envelope budget (including escaped job IDs/rejection reasons);
-finish metadata is capped at 384 KiB and combined checkpoint state at 192 KiB,
-without reducing the protocol's individual 64-KiB cursor/store allowances.
+projected occurrences / 256 MB per snapshot, 1 million effective identities /
+256 MB membership, and 256 MB current-run journal budget. Excluded rows consume
+one snapshot entry. Snapshot bytes account for serialized source-key/effect pages;
+membership bytes account for normalized values. Reservations conservatively cover
+pending additions, including updates. Smaller limits may be configured.
 
-At most committed + candidate desired generations may be retained before another
-candidate starts. Call `prune` under the Kubernetes lease repeatedly to remove superseded/abandoned
-snapshot data in bounded pages. Current candidate and committed generation are
-never pruned. Receipt pruning takes an explicit retention cutoff (at least 24h),
-deletes only old-run terminal receipts and manifests, and preserves
-effective membership. The rollout must configure its
-retention policy and invoke maintenance; this library runs no background sweeper.
+Artifacts are individually bounded to 16 MB, checksummed and scope-bound.
+Provider state is capped at 64 KiB; finish metadata at 384 KiB; checkpoint
+cursor/store envelope at 192 KiB. No application encryption or billing logic.
+Protect identifiers, payloads, provider state, backups and buckets using restricted
+IAM, infrastructure encryption and retention policies.
+
+**No automatic object garbage collector.** Retain referenced baselines and
+unresolved batches indefinitely; do not use age-only bucket lifecycle deletion.
+See the storage document for orphan cleanup and coordinated rollback precautions.
+
+## Task batch statistics
+
+The runner publishes aggregate batch outcomes to `source_task.metrics.reverseDelivery`
+after durable state changes and on restore. No rows, identifiers, receipts, or object
+keys are copied into metrics. The console uses these counters in the sync/task status
+dropdown; deploy the updated runner to populate them. Older attempts without these
+metrics show statistics unavailable. No schema migration is required.
+
+Counts cover the entire logical run as last observed by this attempt, including work
+from earlier attempts. Totals count batches created so far, not an estimated final
+batch count. Each batch belongs to exactly one outcome within upserts or removals;
+pending takes precedence over partial acceptance, and mixed final results are separate
+from fully accepted/rejected batches. Full-audience cleanup is a separate operation,
+not an invented removal batch or removed-member count. Record acceptance is not
+Google's matched audience size. Historical attempts retain their own observation.
+
+Statistics failures do not fail delivery; unchanged aggregates are not rewritten.
+The existing status-refresh schedule shares the metrics object and is preserved.
 
 ## Validation
 
-`pnpm --filter @jitsu-internal/retl-runner test` starts an isolated PostgreSQL 18
-container and applies the canonical console Prisma schema using ordinary
-Prisma `db push`. It also checks repeated schema updates, database constraints,
-configured-schema routing and scoped runtime grants. Docker is required; there is no
-in-memory substitute or silent integration-test skip. No external credentials,
-production database, advertising API, or deployment is used.
+`pnpm --filter @jitsu-internal/retl-runner test` uses disposable PostgreSQL 18,
+restricted runtime roles, real local SQLite and an immutable in-memory object
+service (tests only). It checks schema reapplication, absent payload tables,
+lifecycle/recovery, partial failure, SQL ambiguity and artifact restoration.
+Cloud tests use a local HTTP S3 fixture and GCS stream doubles. No live database,
+advertising API, deployment bucket or deployment is used.

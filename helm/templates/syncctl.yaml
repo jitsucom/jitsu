@@ -1,13 +1,6 @@
+{{- include "jitsu-dev.validateReverseEtl" . -}}
 {{- if gt (int .Values.scaling.syncctl.replicas) 0 }}
 {{- $reverse := .Values.reverseEtl | default dict }}
-{{- $defaults := dict "HTTP_PORT" "3043" "PODS_SERVICE_ACCOUNT" "sync-pod" }}
-{{- if $reverse.enabled }}
-{{- $_ := set $defaults "REVERSE_ENABLED" "true" }}
-{{- $_ := set $defaults "REVERSE_RUNNER_IMAGE" (required "reverseEtl.runnerImage is required when Reverse ETL is enabled" $reverse.runnerImage) }}
-{{- $_ := set $defaults "REVERSE_RUNTIME_SECRET" (required "reverseEtl.runtimeSecret is required when Reverse ETL is enabled" $reverse.runtimeSecret) }}
-{{- else }}
-{{- $_ := set $defaults "REVERSE_ENABLED" "false" }}
-{{- end }}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -93,7 +86,23 @@ spec:
             - secretRef:
                 name: {{ . | quote }}
             {{- end }}
+            {{- with .Values.syncctlExtraEnvFrom }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
           env:
+            # Prefixed values override legacy envFrom settings, including while disabled.
+            - name: SYNCCTL_REVERSE_ENABLED
+              value: {{ .Values.reverseEtl.enabled | quote }}
+            - name: SYNCCTL_REVERSE_RUNNER_IMAGE
+              value: {{ .Values.reverseEtl.runnerImage | quote }}
+            - name: SYNCCTL_REVERSE_RUNTIME_SECRET
+              value: {{ .Values.reverseEtl.runtimeSecret | quote }}
+            - name: SYNCCTL_REVERSE_SERVICE_ACCOUNT
+              value: {{ include "jitsu-dev.reverseServiceAccount" . | quote }}
+            - name: SYNCCTL_REVERSE_RUNNER_RESOURCES
+              value: {{ .Values.reverseEtl.resources | toJson | quote }}
+            - name: SYNCCTL_REVERSE_SCRATCH_SIZE_LIMIT
+              value: {{ .Values.reverseEtl.scratchSizeLimit | quote }}
             - name: KUBERNETES_NAMESPACE
               valueFrom:
                 fieldRef:
@@ -103,7 +112,7 @@ spec:
             # Separating it from syncctl's own SA keeps the pod-side blast
             # radius tiny (no pod create/delete, no Secret read, no log access).
             {{- include "jitsu-dev.env" (dict "ctx" . "service" "syncctl"
-                  "extra" $defaults
+                  "extra" (dict "HTTP_PORT" "3043" "PODS_SERVICE_ACCOUNT" "sync-pod")
                   "exclude" (list "KUBERNETES_NAMESPACE")) | nindent 12 }}
           volumeMounts:
             - name: build
@@ -142,6 +151,7 @@ metadata:
     {{- include "jitsu-dev.labels" . | nindent 4 }}
     app.kubernetes.io/name: syncctl
 spec:
+  # Controller authentication is optional; never expose its control plane by default.
   type: ClusterIP
   ports:
     - port: 3043

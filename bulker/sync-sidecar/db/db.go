@@ -101,6 +101,11 @@ cutoffs AS (
 DELETE FROM source_task t
 USING cutoffs c
 WHERE t.sync_id    = c.sync_id
+  -- Retained delivery still needs its original task for explicit refresh, even
+  -- after failure/cancellation. Do not depend on optional Reverse ETL tables here.
+  AND NOT (t.package='jitsu/retl-runner' AND (
+      t.status IN ('RUNNING','PENDING','WAITING')
+      OR t.metrics->'reverseRecovery'->>'runId' IS NOT NULL))
   -- Skip syncs that have <= keepPerSync rows total. The (rn = $1 + 1)
   -- row doesn't exist for them, so MAX returns NULL. Legacy semantics
   -- (OFFSET keepPerSync LIMIT 1 returning no row → NULL cutoff →

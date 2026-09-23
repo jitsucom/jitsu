@@ -10,14 +10,32 @@ projectRoot: ""
 # the checkout used by the other development services.
 syncctlProjectRoot: ""
 
-# Reverse ETL runs as short-lived Pods/CronJobs created by syncctl, not a Deployment.
-# Provision the runtime Secret separately; never put credentials in Helm values.
+# Reverse ETL jobs use a separately built retl-runner image, not the host checkout.
+# Provision the runtime Secret and cloud IAM before enabling. See README.md.
 reverseEtl:
   enabled: false
-  runnerImage: ""
-  runtimeSecret: ""
+  runnerImage: "" # Required when enabled; use a version tag or digest from this rollout.
+  runtimeSecret: "" # Existing Secret in this release's namespace; no credentials in values.
   # Optional controller-only credentials (e.g. SYNCCTL_DATABASE_URL and auth tokens).
   controllerSecret: ""
+  serviceAccount:
+    create: true
+    name: "" # Defaults to <release>-retl-runner; required if create=false.
+    annotations: {} # GKE Workload Identity / EKS IRSA; never applied to sync-pod.
+  resources:
+    requests:
+      cpu: "100m"
+      memory: "256Mi"
+      ephemeral-storage: "1Gi"
+    limits:
+      cpu: "1"
+      memory: "8Gi"
+      ephemeral-storage: "4Gi"
+  scratchSizeLimit: "2Gi" # Disk-backed /tmp emptyDir, <= ephemeral-storage limit.
+
+# Additional controller-only Secret/ConfigMap env sources, after chart defaults.
+# Useful when syncctl uses a Mac-hosted console and a separate development DB.
+syncctlExtraEnvFrom: []
 
 # Environment variables
 env:

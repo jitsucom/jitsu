@@ -29,6 +29,28 @@ const config = ReverseRunConfig.parse({
 });
 afterEach(() => vi.useRealTimers());
 describe("runner console OAuth and adapter binding", () => {
+  it("binds refresh admission and OAuth to the original task", async () => {
+    const urls: URL[] = [];
+    const client = createConsoleClient(
+      "https://console.test.local",
+      "service",
+      config,
+      async url => {
+        urls.push(url);
+        return new Response(
+          JSON.stringify(
+            url.pathname.includes("reverse-sync-oauth")
+              ? { accessToken: "token", expiresAt: new Date(Date.now() + 300000).toISOString() }
+              : config
+          )
+        );
+      },
+      "original-task"
+    );
+    await client.admit(new AbortController().signal);
+    await client.accessToken(new AbortController().signal);
+    expect(urls.map(url => url.searchParams.get("refreshTaskId"))).toEqual(["original-task", "original-task"]);
+  });
   it("binds admission and OAuth to sync/workspace/revision, never arbitrary connection IDs", async () => {
     const request = vi.fn<ConsoleRequest>(
       async url =>
@@ -84,11 +106,11 @@ describe("runner console OAuth and adapter binding", () => {
       await expect(client.accessToken(new AbortController().signal)).rejects.toThrow();
     }
   );
-  it("registers only code-owned Google implementation, without fetching tokens during binding", () => {
+  it("registers only code-owned Google implementation, without fetching tokens during binding", async () => {
     const token = vi.fn(async () => "token");
     const registry = createAdapterRegistry(token);
     expect([...registry.keys()]).toEqual(["google-ads"]);
-    const adapter = registry.get("google-ads")!(config);
+    const adapter = await registry.get("google-ads")!(config);
     expect(adapter.targetIdentity).toBe("google-data-manager:1234567890:123");
     expect(adapter.stream.batchDelivery).toBe("asynchronous");
     expect(adapter.mirror).toBeUndefined();

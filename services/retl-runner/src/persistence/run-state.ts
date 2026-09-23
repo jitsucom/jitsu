@@ -1,9 +1,9 @@
 import type { JsonObject, ResumePoint } from "@jitsu/protocols/reverse-etl";
 import { contentHash } from "@jitsu/destination-functions/src/reverse-etl/identity";
 import { Database } from "./database";
-import { decodeJson } from "./serialization";
+import { decodeJson, encodeJson } from "./serialization";
 import type { ControlRow, StateRow, TargetOwnerRow } from "./rows";
-import { ensure, type RunInput, type Scope } from "./types";
+import { ensure, PersistenceResetRequiredError, type RunInput, type Scope } from "./types";
 import { controlFor } from "./control-cache";
 export { readControl, lockControl } from "./control-cache";
 
@@ -28,7 +28,11 @@ export function readSavedState(value: unknown, scope: RunInput): SavedState {
 }
 
 /** Open durable lifecycle state after Kubernetes admission; this does not acquire a database lease. */
-export async function openRun(db: Database, input: RunInput): Promise<{ scope: Scope; recovery: boolean }> {
+export async function openRun(
+  db: Database,
+  input: RunInput,
+  initialHead: Buffer
+): Promise<{ scope: Scope; recovery: boolean }> {
   for (const value of [
     input.workspaceId,
     input.syncId,
@@ -51,30 +55,83 @@ export async function openRun(db: Database, input: RunInput): Promise<{ scope: S
     const target = contentHash(run.targetIdentity);
     // Serialize target admission too: an upsert cannot race exclusive mirror ownership.
     await client.query("SELECT pg_advisory_xact_lock(hashtextextended($1,0))", [target]);
+    const foreign = await client.query(
+      "SELECT 1 FROM reverse_sync_control WHERE sync_id=$1 AND workspace_id<>$2 LIMIT 1",
+      [run.syncId, run.workspaceId]
+    );
+    ensure(!foreign.rowCount, "Sync belongs to another workspace");
+    const previous = (
+      await client.query<ControlRow>(
+        "SELECT * FROM reverse_sync_control WHERE workspace_id=$1 AND sync_id=$2 ORDER BY run_order DESC LIMIT 1 FOR UPDATE",
+        [run.workspaceId, run.syncId]
+      )
+    ).rows[0];
+    if (previous) {
+      if (!previous.artifact_head) throw new PersistenceResetRequiredError();
+      ensure(
+        previous.target_hash === target && previous.revision === run.configRevision && previous.mode === run.mode,
+        "Target/config changes require controlled reset"
+      );
+    }
+    const exists = await client.query(
+      "SELECT 1 FROM reverse_sync_control WHERE workspace_id=$1 AND sync_id=$2 AND run_id=$3",
+      [run.workspaceId, run.syncId, run.logicalRunId]
+    );
+    const sameRun = !!exists.rowCount;
+    if (!sameRun) {
+      const blocked = await client.query(
+        `SELECT 1 FROM reverse_sync_control WHERE workspace_id=$1 AND sync_id=$2
+         AND (NOT detached OR $3::boolean) AND phase NOT IN ('complete','aborted') LIMIT 1`,
+        [run.workspaceId, run.syncId, run.insertOnly === true]
+      );
+      ensure(
+        !blocked.rowCount,
+        run.insertOnly
+          ? "Previous conversion run requires status refresh before new extraction"
+          : "Previous logical run requires recovery"
+      );
+    }
     await client.query(
-      `INSERT INTO reverse_sync_control (workspace_id,sync_id,run_id,revision,target_hash,mode,extraction)
-      VALUES ($1,$2,$3,$4,$5,$6,$7) ON CONFLICT (workspace_id,sync_id) DO NOTHING`,
-      [run.workspaceId, run.syncId, run.logicalRunId, run.configRevision, target, run.mode, run.extraction]
+      `INSERT INTO reverse_sync_control (workspace_id,sync_id,run_id,revision,target_hash,mode,extraction,artifact_head,run_order,committed_generation)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) ON CONFLICT (workspace_id,sync_id,run_id) DO NOTHING`,
+      [
+        run.workspaceId,
+        run.syncId,
+        run.logicalRunId,
+        run.configRevision,
+        target,
+        run.mode,
+        run.extraction,
+        previous?.artifact_head ?? initialHead,
+        String(BigInt(previous?.run_order ?? -1) + 1n),
+        previous?.committed_generation ?? null,
+      ]
     );
     const {
       rows: [control],
     } = await client.query<ControlRow>(
-      "SELECT * FROM reverse_sync_control WHERE workspace_id=$1 AND sync_id=$2 FOR UPDATE",
-      [run.workspaceId, run.syncId]
+      "SELECT * FROM reverse_sync_control WHERE workspace_id=$1 AND sync_id=$2 AND run_id=$3 FOR UPDATE",
+      [run.workspaceId, run.syncId, run.logicalRunId]
     );
+    // New rows always have a durable empty manifest, even if startup crashes.
+    // A null pointer therefore identifies legacy state after its per-row tables are removed.
+    if (!control.artifact_head) throw new PersistenceResetRequiredError();
     ensure(
       control.target_hash === target && control.revision === run.configRevision && control.mode === run.mode,
       "Target/config changes require controlled reset"
     );
-    const sameRun = control.run_id === run.logicalRunId;
-    ensure(sameRun || ["complete", "aborted"].includes(control.phase), "Previous logical run requires recovery");
     if (sameRun) {
       ensure(!["complete", "aborted"].includes(control.phase), "Logical run already ended; use a new run ID");
       ensure(control.extraction === run.extraction, "Recovery must preserve the original run configuration");
     }
     if (run.mode === "mirror") {
+      // Upserts do not claim exclusive ownership, but their unfinished provider
+      // work must settle before a mirror can take over. Detached runs can still
+      // be pending; only durable completion or acknowledged abort is terminal.
+      // Historical controls are evidence, not a second permanent ownership lock.
       const other = await client.query(
-        "SELECT 1 FROM reverse_sync_control WHERE target_hash=$1 AND (workspace_id<>$2 OR sync_id<>$3) LIMIT 1",
+        `SELECT 1 FROM reverse_sync_control WHERE target_hash=$1 AND (workspace_id<>$2 OR sync_id<>$3)
+         AND phase NOT IN ('complete','aborted') LIMIT 1`,
         [target, run.workspaceId, run.syncId]
       );
       ensure(!other.rowCount, "Audience already belongs to another mirror or upsert sync");
@@ -95,6 +152,7 @@ export async function openRun(db: Database, input: RunInput): Promise<{ scope: S
       ensure(!owner.rowCount, "Audience is exclusively managed by a mirror sync");
     }
     let base = 0;
+    let initialStore: Buffer | null = null;
     if (!sameRun || control.phase === "new") {
       const saved = await client.query<Pick<StateRow, "state">>(
         `SELECT state FROM ${db.stateTable} WHERE sync_id=$1 AND stream=$2`,
@@ -103,18 +161,19 @@ export async function openRun(db: Database, input: RunInput): Promise<{ scope: S
       if (saved.rows[0]) {
         const value = readSavedState(saved.rows[0].state, run);
         base = run.extraction === "cursor" && value.point.cursor ? value.point.sourceSequence : 0;
+        initialStore = encodeJson(value.store);
       }
     }
     const updated = await client.query<ControlRow>(
-      `UPDATE reverse_sync_control SET run_id=$3, extraction=$4,
+      `UPDATE reverse_sync_control SET run_id=$3, extraction=$4, store=CASE WHEN $5 THEN store ELSE $7 END,
       phase=CASE WHEN $5 THEN phase ELSE 'new' END,
       base_sequence=CASE WHEN $5 AND phase <> 'new' THEN base_sequence ELSE $6 END,
       next_sequence=CASE WHEN $5 AND phase <> 'new' THEN next_sequence ELSE $6 END,
       checkpoint_sequence=CASE WHEN $5 AND phase <> 'new' THEN checkpoint_sequence ELSE $6 END,
       finish_sequence=CASE WHEN $5 THEN finish_sequence ELSE NULL END,
       finish_result=CASE WHEN $5 THEN finish_result ELSE NULL END
-      WHERE workspace_id=$1 AND sync_id=$2 RETURNING *`,
-      [run.workspaceId, run.syncId, run.logicalRunId, run.extraction, sameRun, base]
+      WHERE workspace_id=$1 AND sync_id=$2 AND run_id=$3 RETURNING *`,
+      [run.workspaceId, run.syncId, run.logicalRunId, run.extraction, sameRun, base, initialStore]
     );
     cache.remember(updated.rows[0]);
     return {

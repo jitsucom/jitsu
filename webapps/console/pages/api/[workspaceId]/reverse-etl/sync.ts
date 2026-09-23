@@ -2,13 +2,8 @@ import { z } from "zod";
 import { rpc } from "juava";
 import { createRoute, verifyAccessWithRole } from "../../../../lib/api";
 import { db } from "../../../../lib/server/db";
-import { ReverseSyncSettings } from "../../../../lib/reverse-etl";
-import {
-  completeReverseSetup,
-  updateReverseSync,
-  deleteReverseSync,
-  reverseTasks,
-} from "../../../../lib/server/reverse-syncs";
+import { ReverseSyncSettings, ReverseSyncInput } from "../../../../lib/reverse-etl";
+import { updateReverseSync, deleteReverseSync, reverseTasks } from "../../../../lib/server/reverse-syncs";
 import { readReverseSync } from "../../../../lib/server/reverse-sync-export";
 import { getServerEnv } from "../../../../lib/server/serverEnv";
 import { ApiError } from "../../../../lib/shared/errors";
@@ -16,7 +11,13 @@ import { configObjectAuditLog } from "../../../../lib/server/audit-log";
 
 const query = z.object({ workspaceId: z.string(), syncId: z.string() });
 export const route = createRoute()
-  .PUT({ auth: true, mutates: true, query, body: ReverseSyncSettings, result: z.object({ id: z.string() }) })
+  .PUT({
+    auth: true,
+    mutates: true,
+    query,
+    body: z.union([ReverseSyncInput, ReverseSyncSettings]),
+    result: z.object({ id: z.string() }),
+  })
   .handler(async ({ user, query: { workspaceId, syncId }, body, req }) => {
     await verifyAccessWithRole(user, workspaceId, "editEntities");
     const result = await updateReverseSync(db.prisma(), workspaceId, syncId, body);
@@ -35,41 +36,63 @@ export const route = createRoute()
     mutates: true,
     query,
     body: z.discriminatedUnion("action", [
-      z.object({ action: z.literal("setup") }).strict(),
       z.object({ action: z.literal("run") }).strict(),
       z.object({ action: z.literal("cancel"), taskId: z.string() }).strict(),
+      z.object({ action: z.literal("refresh"), taskId: z.string() }).strict(),
     ]),
     result: z.object({ status: z.string(), taskId: z.string().optional() }),
   })
   .handler(async ({ user, query: { workspaceId, syncId }, body, req, res }) => {
     await verifyAccessWithRole(user, workspaceId, "editEntities");
     res.setHeader("Cache-Control", "no-store");
-    if (body.action === "setup") return completeReverseSetup(db.prisma(), workspaceId, syncId);
     const prisma = db.prisma();
-    if (body.action === "cancel") {
+    if (body.action !== "run") {
       const tasks = await reverseTasks(prisma, workspaceId, { syncId, taskId: body.taskId });
-      if (!tasks.length || !["RUNNING", "WAITING"].includes(tasks[0].status))
-        throw new ApiError("No active attempt to cancel", { status: 409 });
+      if (
+        !tasks.length ||
+        (body.action === "refresh"
+          ? !tasks[0].canRefresh
+          : !["RUNNING", "WAITING", "PENDING"].includes(tasks[0].status))
+      )
+        throw new ApiError(
+          body.action === "refresh" ? "No saved run available for a status refresh" : "No active attempt to cancel",
+          { status: 409 }
+        );
     }
-    const config = body.action === "run" ? await readReverseSync(prisma, syncId, workspaceId) : undefined;
+    const config =
+      body.action !== "cancel"
+        ? await readReverseSync(
+            prisma,
+            syncId,
+            workspaceId,
+            body.action === "refresh" ? { refreshTaskId: body.taskId } : {}
+          )
+        : undefined;
+    if (body.action !== "cancel" && !config)
+      throw new ApiError(
+        body.action === "refresh"
+          ? "Saved run is unavailable or its configuration has changed"
+          : "Enable the sync before running it",
+        { status: 409 }
+      );
     if (body.action === "run") {
       if (!config) throw new ApiError("Enable the sync before running it", { status: 409 });
-      if (await prisma.source_task.count({ where: { sync_id: syncId, status: { in: ["RUNNING", "WAITING"] } } }))
-        throw new ApiError("This sync already has an active or waiting attempt", { status: 409 });
+      if (await prisma.source_task.count({ where: { sync_id: syncId, status: "RUNNING" } }))
+        throw new ApiError("This sync is still extracting or submitting uploads", { status: 409 });
     }
     const env = getServerEnv();
     if (!env.SYNCCTL_URL) throw new ApiError("Sync controller is not configured", { status: 503 });
     let result;
     try {
-      result = await rpc(`${env.SYNCCTL_URL}/${body.action === "run" ? "read" : "cancel"}`, {
-        method: body.action === "run" ? "POST" : "GET",
+      result = await rpc(`${env.SYNCCTL_URL}/${body.action !== "cancel" ? "read" : "cancel"}`, {
+        method: body.action !== "cancel" ? "POST" : "GET",
         headers: env.SYNCCTL_AUTH_KEY ? { Authorization: `Bearer ${env.SYNCCTL_AUTH_KEY}` } : {},
         query: {
           kind: "reverse",
           workspaceId,
           syncId,
           ...(config ? { updatedAt: config.updatedAt } : {}),
-          ...(body.action === "cancel" ? { taskId: body.taskId } : {}),
+          ...(body.action !== "run" ? { taskId: body.taskId } : {}),
         },
       });
     } catch {
@@ -89,7 +112,12 @@ export const route = createRoute()
       req
     );
     return {
-      status: body.action === "run" ? "started" : "cancellation requested",
+      status:
+        body.action === "run"
+          ? "started"
+          : body.action === "refresh"
+          ? "status refresh requested"
+          : "cancellation requested",
       ...(result.taskId ? { taskId: result.taskId } : {}),
     };
   });

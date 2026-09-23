@@ -50,6 +50,25 @@ describe("Kubernetes lease", () => {
       vi.useRealTimers();
     }
   });
+  it("uses Kubernetes MicroTime precision for creation, renewal and takeover", async () => {
+    const a = api();
+    const timestamps: string[] = [];
+    const call: LeaseRequest = async (method, path, body: any) => {
+      if (method === "POST" || method === "PUT") {
+        const timestamp = body.spec.renewTime;
+        if (!/\.\d{6}Z$/.test(timestamp)) return { status: 400, body: {} as any };
+        timestamps.push(timestamp);
+      }
+      return a.call(method, path, body);
+    };
+    const first = new KubernetesLease(call, "default", "sync", "one");
+    await first.acquire();
+    await first.renew();
+    a.expire();
+    await new KubernetesLease(call, "default", "sync", "two").acquire();
+    expect(timestamps).toHaveLength(3);
+    for (const timestamp of timestamps) expect(Number.isFinite(Date.parse(timestamp))).toBe(true);
+  });
   it("uses case-preserving deterministic names shared with syncctl", () => {
     expect(reverseResourceName("sync")).toBe("reverse-75c75efe327a8ef35a072f25117961f5");
     expect(reverseResourceName("Sync")).not.toBe(reverseResourceName("sync"));

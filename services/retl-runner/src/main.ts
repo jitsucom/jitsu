@@ -7,6 +7,8 @@ import { execute } from "./execute";
 import { createAdapterRegistry } from "./adapters";
 import { createConsoleClient } from "./console-client";
 import { KubernetesLease, inClusterLeaseRequest } from "./lease";
+import { objectStorageFromEnv } from "./artifacts/config";
+import { reportFailure } from "./diagnostics";
 
 const Env = z.object({
   RETL_CONFIG_PATH: z.string().default("/config/reverse.json"),
@@ -15,6 +17,8 @@ const Env = z.object({
   RETL_CONSOLE_TOKEN: z.string().min(1),
   TASK_ID: z.string().min(1).max(512),
   POD_UID: z.string().min(1),
+  POD_NAME: z.string().min(1),
+  RETL_REFRESH_ATTEMPT: z.coerce.number().int().nonnegative().optional(),
   KUBE_NAMESPACE: z.string().min(1),
   KUBERNETES_SERVICE_HOST: z.string().min(1),
   KUBERNETES_SERVICE_PORT: z.string().default("443"),
@@ -29,9 +33,19 @@ async function main() {
   const raw = await readFile(env.RETL_CONFIG_PATH);
   if (raw.length > 1_000_000) throw new Error("Run configuration too large");
   const config = ReverseRunConfig.parse(JSON.parse(raw.toString()));
-  const db = new Database({ connectionString: env.RETL_DATABASE_URL });
   const controller = new AbortController();
-  const consoleClient = createConsoleClient(env.RETL_CONSOLE_URL, env.RETL_CONSOLE_TOKEN, config);
+  // eslint-disable-next-line no-restricted-properties -- deployment-owned storage configuration.
+  const db = new Database(
+    { connectionString: env.RETL_DATABASE_URL },
+    { objectStorage: objectStorageFromEnv(process.env, controller.signal) }
+  );
+  const consoleClient = createConsoleClient(
+    env.RETL_CONSOLE_URL,
+    env.RETL_CONSOLE_TOKEN,
+    config,
+    fetch,
+    env.RETL_TRIGGER === "recovery" ? env.RETL_RECOVERY_OF : undefined
+  );
   const adapters = createAdapterRegistry((_, signal) => consoleClient.accessToken(signal));
   const stop = () => controller.abort();
   process.once("SIGTERM", stop);
@@ -54,6 +68,8 @@ async function main() {
       adapters,
       controller,
       taskId: env.TASK_ID,
+      workerId: env.POD_NAME,
+      refreshAttempt: env.RETL_REFRESH_ATTEMPT,
       trigger: env.RETL_TRIGGER,
       recoveryOf: env.RETL_RECOVERY_OF,
       lease: new KubernetesLease(
@@ -65,7 +81,7 @@ async function main() {
       reader: createWarehouseReader,
       admit: () => consoleClient.admit(controller.signal),
     });
-    process.exitCode = result === "SUCCESS" || result === "WAITING" ? 0 : 1;
+    process.exitCode = result === "COMPLETE" || result === "PENDING" ? 0 : 1;
   } finally {
     // Retain the hard-stop watchdog while closing outstanding resources.
     await db.close();
@@ -75,7 +91,8 @@ async function main() {
     process.removeListener("SIGINT", stop);
   }
 }
-main().catch(() => {
+main().catch(error => {
+  reportFailure("startup", error);
   process.stderr.write("Reverse ETL runner failed; check configuration and durable recovery state\n");
   process.exit(1);
 });

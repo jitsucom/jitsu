@@ -1,0 +1,54 @@
+{
+  "$schema": "https://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "properties": {
+    "reverseEtl": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["enabled", "runnerImage", "runtimeSecret", "serviceAccount", "resources", "scratchSizeLimit"],
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "runnerImage": { "type": "string" },
+        "runtimeSecret": { "type": "string", "pattern": "^$|^[a-z0-9]([a-z0-9.-]*[a-z0-9])?$", "maxLength": 253 },
+        "controllerSecret": { "type": "string", "pattern": "^$|^[a-z0-9]([a-z0-9.-]*[a-z0-9])?$", "maxLength": 253 },
+        "scratchSizeLimit": { "$ref": "#/definitions/quantity" },
+        "serviceAccount": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["create", "name", "annotations"],
+          "properties": {
+            "create": { "type": "boolean" },
+            "name": { "type": "string", "pattern": "^$|^[a-z0-9]([a-z0-9.-]*[a-z0-9])?$", "maxLength": 253 },
+            "annotations": { "type": "object", "additionalProperties": { "type": "string" } }
+          }
+        },
+        "resources": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["requests", "limits"],
+          "properties": {
+            "requests": { "$ref": "#/definitions/resources" },
+            "limits": { "$ref": "#/definitions/resources" }
+          }
+        }
+      }
+    }
+  },
+  "required": ["reverseEtl"],
+  "definitions": {
+    "quantity": {
+      "type": "string",
+      "pattern": "^[0-9]+(\\.[0-9]+)?([numkKMGTPE]|[KMGTPE]i|[eE][+-]?[0-9]+)?$"
+    },
+    "resources": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["cpu", "memory", "ephemeral-storage"],
+      "properties": {
+        "cpu": { "$ref": "#/definitions/quantity" },
+        "memory": { "$ref": "#/definitions/quantity" },
+        "ephemeral-storage": { "$ref": "#/definitions/quantity" }
+      }
+    }
+  }
+}

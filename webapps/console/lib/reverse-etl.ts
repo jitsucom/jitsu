@@ -1,33 +1,15 @@
 import { z } from "zod";
 import { ReverseSyncOptions } from "@jitsu/warehouse-query/src/schema";
+import { ReverseDeliveryStats } from "@jitsu/protocols/reverse-etl-stats";
 
-export const ReverseSyncSetup = z
+export const ReverseSyncInput = z
   .object({
-    name: z.string().trim().min(1).max(200),
-    modelId: z.string().min(1).max(128),
-    destinationId: z.string().min(1).max(128),
-    audience: z.discriminatedUnion("kind", [
-      z
-        .object({
-          kind: z.literal("managed"),
-          displayName: z.string().trim().min(1).max(120),
-          exclusiveManagementConfirmed: z.literal(true),
-        })
-        .strict(),
-      z.object({ kind: z.literal("existing"), audienceId: z.string().regex(/^[1-9]\d{0,19}$/) }).strict(),
-    ]),
-    customerMatchTermsAccepted: z.literal(true),
-    mapping: ReverseSyncOptions.shape.mapping,
-    schedule: z.string().max(128).default(""),
-    timezone: z
-      .string()
-      .trim()
-      .max(128)
-      .transform(value => value || "Etc/UTC")
-      .default("Etc/UTC"),
+    fromId: z.string().min(1).max(128),
+    toId: z.string().min(1).max(128),
+    data: ReverseSyncOptions,
   })
   .strict();
-export type ReverseSyncSetup = z.infer<typeof ReverseSyncSetup>;
+export type ReverseSyncInput = z.infer<typeof ReverseSyncInput>;
 export const ReverseSyncSettings = ReverseSyncOptions.pick({
   name: true,
   schedule: true,
@@ -44,6 +26,10 @@ export const ReverseTask = z.object({
   updated_at: z.coerce.date(),
   description: z.string().nullable(),
   error: z.string().nullable(),
+  latestLogLevel: z.string().nullable().default(null),
+  canRefresh: z.boolean().default(false),
+  trigger: z.enum(["manual", "scheduled", "recovery"]).nullable().default(null),
+  stats: ReverseDeliveryStats.nullable().default(null),
 });
 export type ReverseTask = z.infer<typeof ReverseTask>;
 export const ReverseSyncView = z.object({
@@ -53,18 +39,24 @@ export const ReverseSyncView = z.object({
   modelName: z.string(),
   destinationName: z.string(),
   options: ReverseSyncOptions,
-  setupPending: z.boolean(),
+  settingsLocked: z.boolean(),
   audienceName: z.string().optional(),
   latestTask: ReverseTask.nullable(),
   phase: z.string().nullable(),
 });
 export type ReverseSyncView = z.infer<typeof ReverseSyncView>;
 
+/** Preserve legacy stored status values while using the same user-facing lifecycle. */
+export const reverseTaskStatus = (status: string) =>
+  status === "WAITING" ? "PENDING" : status === "SUCCESS" ? "COMPLETE" : status;
+
 export const reverseStatusLabels: Record<string, string> = {
   RUNNING: "Running",
-  WAITING: "Waiting for Google",
+  WAITING: "Pending",
+  PENDING: "Pending",
   RESUMED: "Continued in a later attempt",
-  SUCCESS: "Succeeded",
+  SUCCESS: "Complete",
+  COMPLETE: "Complete",
   FAILED: "Failed",
   CANCELLED: "Cancelled",
   SKIPPED: "Skipped",

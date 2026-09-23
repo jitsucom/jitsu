@@ -1,12 +1,24 @@
 import { Pool, type PoolClient, type PoolConfig } from "pg";
 import { defaultLimits, ensure, PersistenceError, type Limits } from "./types";
+import type { ObjectStore } from "../artifacts/store";
 
 export class Database {
   readonly pool: Pool;
   readonly limits: Limits;
   readonly stateTable: string;
   private readonly searchPath: string;
-  constructor(config: PoolConfig, options: { sourceSchema?: string; limits?: Partial<Limits> } = {}) {
+  readonly objectStorage: { store: ObjectStore; signal: AbortSignal };
+  private readonly cleanups: Array<() => Promise<void>> = [];
+  constructor(
+    config: PoolConfig,
+    options: {
+      sourceSchema?: string;
+      limits?: Partial<Limits>;
+      objectStorage: { store: ObjectStore; signal: AbortSignal };
+    }
+  ) {
+    ensure(options?.objectStorage, "Reverse ETL requires object storage configuration");
+    this.objectStorage = options.objectStorage;
     this.limits = { ...defaultLimits, ...options.limits };
     for (const [key, value] of Object.entries(this.limits))
       ensure(Number.isSafeInteger(value) && value > 0 && value <= defaultLimits[key], "Invalid storage limit");
@@ -28,8 +40,8 @@ export class Database {
     });
   }
   async transaction<T>(work: (client: PoolClient) => Promise<T>): Promise<T> {
-    const client = await this.pool.connect().catch(() => {
-      throw new PersistenceError("Reverse ETL database connection failed");
+    const client = await this.pool.connect().catch(cause => {
+      throw new PersistenceError("Reverse ETL database connection failed", { cause });
     });
     try {
       await client.query("BEGIN");
@@ -42,12 +54,19 @@ export class Database {
       await client.query("ROLLBACK").catch(() => undefined);
       if (error instanceof PersistenceError) throw error;
       // PostgreSQL error detail can include identifiers and sensitive payloads.
-      throw new PersistenceError("Reverse ETL persistence transaction failed");
+      throw new PersistenceError("Reverse ETL persistence transaction failed", { cause: error });
     } finally {
       client.release();
     }
   }
-  close() {
-    return this.pool.end();
+  onClose(cleanup: () => Promise<void>) {
+    this.cleanups.push(cleanup);
+  }
+  async close() {
+    try {
+      await Promise.all(this.cleanups.splice(0).map(cleanup => cleanup()));
+    } finally {
+      await this.pool.end();
+    }
   }
 }

@@ -5,8 +5,8 @@ import {
   createGoogleDataManager,
   googleAudienceTargetIdentity,
   projectGoogleAudience,
-} from "../src/functions/google-ads-reverse";
-import { googleAudienceMetadata } from "../src/functions/google-ads-reverse/meta";
+} from "../src/functions/google-ads/audience/runtime";
+import { googleAudienceMetadata } from "../src/functions/google-ads/audience/meta";
 import { createBufferedSyncStore } from "../src/reverse-etl/identity";
 import { validateReverseEtlConfig } from "../src/reverse-etl/meta";
 
@@ -27,7 +27,9 @@ const destination = {
 function fixture() {
   const token = vi.fn(async () => "private-token");
   const provider = createGoogleDataManager(token);
-  const fetch = vi.fn(async () => new Response(JSON.stringify({ requestId: "request-1" })));
+  const fetch = vi.fn(
+    async (_url: string, _init?: RequestInit) => new Response(JSON.stringify({ requestId: "request-1" }))
+  );
   const ctx = {
     syncId: "s",
     taskId: "t",
@@ -73,6 +75,122 @@ function fixture() {
     );
   return { ...provider, ctx, fetch, token, batch, status };
 }
+describe("Google Data Manager full replacement", () => {
+  const cutoff = "2026-09-20T07:00:00.000Z";
+  const response = (body: unknown, date?: string) =>
+    new Response(JSON.stringify(body), {
+      headers: date ? { Date: date } : {},
+    });
+  function replacementFixture() {
+    const f = fixture();
+    f.ctx.mode = "mirror";
+    f.ctx.options = { ...options, mirrorStrategy: "full-replace", exclusiveManagementConfirmed: true };
+    f.fetch.mockResolvedValue(
+      response(
+        {
+          id: "1234",
+          name: "accountTypes/GOOGLE_ADS/accounts/1234567890/userLists/1234",
+        },
+        new Date(cutoff).toUTCString()
+      )
+    );
+    const provider = createGoogleDataManager(f.token, undefined, "native-replace");
+    const status = (requestStatus: string, extra = {}) =>
+      f.fetch.mockResolvedValue(
+        response({
+          requestStatusPerDestination: [{ destination, requestStatus, removeAllAudienceMembersStatus: {}, ...extra }],
+        })
+      );
+    return { ...f, ...provider, status };
+  }
+  it("persists a Google-clock cutoff, binds cleanup receipts and only polls on recovery", async () => {
+    const f = replacementFixture();
+    const writer = await f.mirrorStream.createWriter(f.ctx);
+    await writer.init();
+    expect(f.fetch.mock.calls[0][1]?.headers).toMatchObject({
+      "login-account": "accountTypes/GOOGLE_ADS/accounts/9876543210",
+    });
+    const saved = f.ctx.store.snapshot();
+    expect(saved.googleAudienceReplacement).toMatchObject({ cutoff });
+    f.fetch.mockResolvedValue(response({ requestId: "cleanup-1" }));
+    const result = await writer.finish();
+    expect(result).toMatchObject({ delivery: "pending", remoteJobIds: ["cleanup-1"] });
+    const [url, init] = f.fetch.mock.calls.at(-1)! as unknown as [string, RequestInit];
+    expect(url).toBe("https://datamanager.googleapis.com/v1/audienceMembers:removeAll");
+    expect(JSON.parse(init.body as string)).toEqual({ destinations: [destination], removeAsOfTime: cutoff });
+    const recovered = { ...f.ctx, taskId: "later", store: createBufferedSyncStore(saved) };
+    f.status("PROCESSING");
+    expect(await f.recovery.reconcileFinish(result, recovered)).toEqual(result);
+    f.status("SUCCESS");
+    expect(await f.recovery.reconcileFinish(result, recovered)).toEqual({ ...result, delivery: "accepted" });
+    expect(f.fetch.mock.calls.slice(-2).every(call => (call as any)[1].method === "GET")).toBe(true);
+    expect(f.fetch.mock.calls.filter(call => String(call[0]).endsWith(":removeAll"))).toHaveLength(1);
+  });
+  it.each([undefined, "invalid clock"])("fails closed without a valid Google clock: %s", async date => {
+    const f = replacementFixture();
+    f.fetch.mockResolvedValue(
+      response({ id: "1234", name: "accountTypes/GOOGLE_ADS/accounts/1234567890/userLists/1234" }, date)
+    );
+    const writer = await f.mirrorStream.createWriter(f.ctx);
+    await expect(writer.init()).rejects.toThrow("cutoff unavailable");
+    await expect(writer.upsert(f.batch)).rejects.toThrow("cutoff is missing");
+    await expect(writer.finish()).rejects.toThrow("cutoff is missing");
+    expect(f.fetch).toHaveBeenCalledTimes(1);
+  });
+  it.each(["FAILED", "PARTIAL_SUCCESS", "other"])("does not accept %s cleanup", async state => {
+    const f = replacementFixture();
+    const writer = await f.mirrorStream.createWriter(f.ctx);
+    await writer.init();
+    f.fetch.mockResolvedValue(response({ requestId: "cleanup" }));
+    const result = await writer.finish();
+    f.status(state);
+    await expect(f.recovery.reconcileFinish(result, f.ctx)).rejects.toThrow("failed or is unverified");
+  });
+  it.each([
+    { warningInfo: {} },
+    { errorInfo: {} },
+    { removeAllAudienceMembersStatus: undefined },
+    { audienceMembersIngestionStatus: {} },
+    { audienceMembersRemovalStatus: {} },
+    { eventsIngestionStatus: {} },
+    { destination: { ...destination, productDestinationId: "foreign" } },
+  ])("rejects incomplete, warned or foreign cleanup status %j", async extra => {
+    const f = replacementFixture();
+    const writer = await f.mirrorStream.createWriter(f.ctx);
+    await writer.init();
+    f.fetch.mockResolvedValue(response({ requestId: "cleanup" }));
+    const result = await writer.finish();
+    f.status("SUCCESS", extra);
+    await expect(f.recovery.reconcileFinish(result, f.ctx)).rejects.toThrow();
+  });
+  it("never resubmits cleanup without its receipt or with a foreign cutoff/run", async () => {
+    const f = replacementFixture();
+    const writer = await f.mirrorStream.createWriter(f.ctx);
+    await writer.init();
+    f.fetch.mockResolvedValue(response({ requestId: "cleanup" }));
+    const result = await writer.finish();
+    f.fetch.mockClear();
+    await expect(f.recovery.reconcileFinish(undefined, f.ctx)).rejects.toThrow("receipt unavailable");
+    await expect(f.recovery.reconcileFinish(result, { ...f.ctx, logicalRunId: "other" })).rejects.toThrow(
+      "another run"
+    );
+    await expect(
+      f.recovery.reconcileFinish(
+        { ...result, providerCheckpoint: { ...result.providerCheckpoint, cutoff: "2026-09-21T00:00:00.000Z" } },
+        f.ctx
+      )
+    ).rejects.toThrow("receipt unavailable");
+    expect(f.fetch).not.toHaveBeenCalled();
+  });
+  it("requires mirror mode and explicit exclusive-management confirmation", async () => {
+    const f = replacementFixture();
+    await expect(f.mirrorStream.createWriter({ ...f.ctx, mode: "upsert" })).rejects.toThrow();
+    await expect(
+      f.mirrorStream.createWriter({ ...f.ctx, options: { ...options, mirrorStrategy: "full-replace" } })
+    ).rejects.toThrow();
+    expect(f.fetch).not.toHaveBeenCalled();
+  });
+});
 describe("Google Data Manager audience adapter", () => {
   it.each([{}, { adUserData: "GRANTED" }, { adPersonalization: "GRANTED" }])(
     "defaults only unmapped consent fields to GRANTED: %j",

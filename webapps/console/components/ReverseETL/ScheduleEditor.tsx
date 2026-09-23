@@ -14,16 +14,19 @@ export function ScheduleEditor({
   value = "",
   onChange,
   id,
+  disabled,
 }: {
   value?: string;
   onChange?: (value: string) => void;
   id?: string;
+  disabled?: boolean;
 }) {
   const [editingCustom, setEditingCustom] = useState(false);
   const isCustom = editingCustom || !presets.some(preset => preset.value === value);
   return (
     <div className="space-y-3">
       <Select
+        disabled={disabled}
         id={id}
         aria-label="Schedule frequency"
         className="w-full"
@@ -36,6 +39,7 @@ export function ScheduleEditor({
       />
       {isCustom && (
         <Input
+          disabled={disabled}
           aria-label="Cron schedule"
           value={value}
           onChange={event => onChange?.(event.target.value)}

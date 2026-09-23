@@ -269,6 +269,20 @@ describe("Reverse ETL lifecycle", () => {
     expect(f.journal.acknowledgeInit).not.toHaveBeenCalled();
     expect(f.source).not.toHaveBeenCalled();
   });
+  it("preserves known journal failures without carrying private causes or properties", async () => {
+    const f = fixture(1);
+    vi.mocked(f.journal.prepare).mockRejectedValue(
+      Object.assign(
+        new Error("Async batches require distinct member identities", { cause: new Error("private-email") }),
+        { payload: "private-token" }
+      )
+    );
+    const error = await f.run().catch(error => error);
+    expect(error.message).toBe("Async batches require distinct member identities");
+    expect(error.cause).toBeUndefined();
+    expect(JSON.stringify(error)).not.toMatch(/private-email|private-token/);
+    expect(f.writer.upsert).not.toHaveBeenCalled();
+  });
   it("uncertain finish remains prepared without a second finalization attempt", async () => {
     const f = fixture(1);
     vi.mocked(f.writer.finish).mockRejectedValue(new Error("timeout"));

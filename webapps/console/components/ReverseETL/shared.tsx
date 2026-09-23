@@ -4,7 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { rpc } from "juava";
 import { z } from "zod";
 import { useWorkspace } from "../../lib/context";
-import { ReverseSyncView, reverseStatusLabels } from "../../lib/reverse-etl";
+import { ReverseSyncView, reverseStatusLabels, reverseTaskStatus } from "../../lib/reverse-etl";
 
 export function useReverseSyncs() {
   const workspace = useWorkspace();
@@ -18,14 +18,12 @@ export function RunStatus({ status }: { status?: string }) {
   return (
     <Tag
       color={
-        status === "SUCCESS"
+        ["PENDING", "COMPLETE"].includes(reverseTaskStatus(status ?? ""))
           ? "success"
           : status === "FAILED"
           ? "error"
           : status === "RUNNING"
           ? "processing"
-          : status === "WAITING"
-          ? "warning"
           : "default"
       }
     >
@@ -37,7 +35,7 @@ export function Panel({
   title,
   description,
   children,
-}: React.PropsWithChildren<{ title: string; description?: string }>) {
+}: React.PropsWithChildren<{ title: React.ReactNode; description?: string }>) {
   return (
     <section className="border border-textDisabled rounded-lg bg-backgroundLight p-5 md:p-6 mb-5 min-w-0">
       <h2 className="text-lg text-textDark font-semibold mb-1">{title}</h2>

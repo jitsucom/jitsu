@@ -20,8 +20,9 @@ import {
   validateStream,
 } from "@jitsu/destination-functions/src/reverse-etl/meta";
 import { Database, openPersistence, type Effect, type Identity, type RunInput } from "./persistence";
-import { effects } from "./persistence/snapshots";
+import { effects } from "./persistence/effects";
 import { ensure, PersistenceError } from "./persistence/types";
+import { reverseEtlFailure } from "@jitsu/destination-functions/src/reverse-etl/failure";
 
 /** Pure, deterministic normalization, invoked once per source row, never during delivery/recovery. */
 export interface MirrorProjection<Row> {
@@ -61,8 +62,8 @@ export interface MirrorOptions<C, Row, O> {
   persistence: MirrorPersistence;
   adapter: SnapshotMirrorAdapter<C, Row, O>;
   context: MirrorContext<C, O>;
-  /** Caller must verify a new empty audience or an exclusively tracked/imported complete baseline. */
-  targetBaseline: "new-empty" | "tracked";
+  /** Caller verifies an empty/tracked baseline, or exclusive native-replacement authority. */
+  targetBaseline: "new-empty" | "tracked" | "replace";
   maxBatchBytes?: number;
 }
 export interface MirrorSourceRecord {
@@ -74,25 +75,38 @@ export interface NewMirrorOptions<C, Row, O> extends MirrorOptions<C, Row, O> {
   /** A complete cursorless source. Opens only after Kubernetes admission and writer initialization. */
   source(signal: AbortSignal): AsyncIterable<MirrorSourceRecord>;
   sourcePageSize?: number;
-  /** Core-owned progress, emitted only after a page/complete snapshot is durable. */
-  onSnapshotProgress?(savedRows: number, sealed: boolean): Promise<void>;
+  /** Core-owned counts after staging a page or durably sealing the complete snapshot. */
+  onSnapshotProgress?(
+    progress:
+      | { sourceRows: number; sealed: false }
+      | {
+          sourceRows: number;
+          sealed: true;
+          projectedMembers: number;
+          uniqueMembers: number;
+          duplicatesCollapsed: number;
+        }
+  ): Promise<void>;
 }
 
 const mirrorFailureHints = {
-  initialization: "Check destination authorization and saved recovery state.",
+  initialization:
+    "Check destination authorization. If the problem persists, contact support or your Jitsu administrator.",
   extraction:
     "Check warehouse connectivity and query timeouts, primary keys and temporary disk capacity (ClickHouse limit: 512 MiB per query). No audience changes were submitted.",
   validation: "Check identifier mappings, consent and primary keys. No audience changes were submitted.",
   snapshot:
-    "Check state database connectivity, duplicate keys, conflicting identities and storage limits. No audience changes were submitted.",
+    "Check object storage connectivity and permissions, duplicate keys, conflicting identities and temporary disk capacity. No audience changes were submitted.",
   delivery:
-    "Check destination authorization and durable delivery state before retrying; some changes may have been submitted.",
+    "Check destination authorization. Some changes may have been submitted; contact support or your Jitsu administrator before retrying, and do not reset sync state.",
 };
 /** Only stage names and core counters are exposed, never SDK errors or source values. */
 export class MirrorRunError extends PersistenceError {
-  constructor(stage: keyof typeof mirrorFailureHints, readRows: number, savedRows: number) {
+  constructor(stage: keyof typeof mirrorFailureHints, readRows: number, savedRows: number, error?: unknown) {
     super(
-      `Snapshot mirror stopped during ${stage} (read ${readRows} rows, saved ${savedRows}). ${mirrorFailureHints[stage]}`
+      `Snapshot mirror stopped during ${stage} (read ${readRows} rows, saved ${savedRows}). ${
+        reverseEtlFailure(error)?.message ?? mirrorFailureHints[stage]
+      }`
     );
   }
 }
@@ -128,11 +142,17 @@ async function setup<C, Row, O>(input: MirrorOptions<C, Row, O>) {
   } = input;
   ensure(run[mirrorSession], "Use mirror-bound persistence for snapshot delivery");
   ensure(run.scope.mode === "mirror" && run.scope.extraction === "full", "Snapshot mirror requires full extraction");
-  ensure(["new-empty", "tracked"].includes(input.targetBaseline), "Verified target baseline is required");
+  const replacement = stream.capabilities.mirror === "native-replace";
+  ensure(
+    replacement ? input.targetBaseline === "replace" : ["new-empty", "tracked"].includes(input.targetBaseline),
+    "Verified target baseline is required"
+  );
+  const snapshot = run.core.head.snapshot;
+  if (snapshot) ensure((snapshot.strategy === "native-replace") === replacement, "Snapshot strategy changed");
   validateStream(stream);
   ensure(
     ["accepted", "asynchronous"].includes(input.adapter.batchDelivery) &&
-      stream.capabilities.mirror === "snapshot-diff" &&
+      ["snapshot-diff", "native-replace"].includes(stream.capabilities.mirror) &&
       stream.capabilities.supportsUpsert &&
       stream.capabilities.supportsExplicitRemove &&
       stream.removeRowType,
@@ -161,6 +181,7 @@ async function setup<C, Row, O>(input: MirrorOptions<C, Row, O>) {
     ctx,
     maxBytes,
     asynchronous: input.adapter.batchDelivery === "asynchronous",
+    replacement,
     batchSize: Math.min(stream.batchSize, run.core.db.limits.batchRecords),
   };
 }
@@ -191,11 +212,13 @@ function hasPending(result: BatchResult, asynchronous: boolean) {
   ensure(!pending || result.remoteJobIds?.length, "Asynchronous batches require recoverable remote job IDs");
   return pending;
 }
-function safeError(): PersistenceError {
-  return new PersistenceError("Snapshot mirror stopped; inspect durable recovery state before retrying");
+function safeError(error?: unknown): PersistenceError {
+  return new PersistenceError(
+    reverseEtlFailure(error)?.reason ?? "Snapshot mirror stopped; inspect durable recovery state before retrying"
+  );
 }
 
-/** New snapshot-diff lifecycle. No executable service, scheduling, native replacement or billing. */
+/** Core-owned full snapshot lifecycle for diff delivery or native replacement. */
 export async function runSnapshotMirror<C, Row, O>(input: NewMirrorOptions<C, Row, O>) {
   const env = await setup(input);
   const { run, stream, ctx } = env;
@@ -214,10 +237,12 @@ export async function runSnapshotMirror<C, Row, O>(input: NewMirrorOptions<C, Ro
   let stage: keyof typeof mirrorFailureHints = "initialization";
   let readRows = 0;
   let savedRows = 0;
+  let projectedMembers = 0;
+  let excludedRows = 0;
   try {
     ctx.signal.throwIfAborted();
     await run.delivery.assertReady();
-    await run.snapshots.start(input.adapter.refreshAfterMs);
+    await run.snapshots.start(input.adapter.refreshAfterMs, env.replacement ? "native-replace" : "snapshot-diff");
     await run.delivery.prepareInit(ctx.store.snapshot());
     ctx.signal.throwIfAborted();
     uncertain = true;
@@ -239,7 +264,7 @@ export async function runSnapshotMirror<C, Row, O>(input: NewMirrorOptions<C, Ro
       savedRows += page.length;
       page = [];
       pageBytes = 2;
-      await input.onSnapshotProgress?.(savedRows, false);
+      await input.onSnapshotProgress?.({ sourceRows: savedRows, sealed: false });
     };
     ctx.signal.throwIfAborted();
     stage = "extraction";
@@ -254,6 +279,10 @@ export async function runSnapshotMirror<C, Row, O>(input: NewMirrorOptions<C, Ro
       const parsed = input.adapter.projection.rowType.safeParse(mapped);
       ensure(parsed.success, "Source row failed mirror validation");
       const projected = effects(input.adapter.projection.project(parsed.data), { allowEmpty: true });
+      // A source row may produce zero or multiple members, so sourceRows minus
+      // uniqueMembers is not a valid duplicate count.
+      projectedMembers += projected.length;
+      if (!projected.length) excludedRows++;
       for (const value of projected) validatePayloads(value, stream);
       const serialized = canonicalJson({
         key: record.key,
@@ -271,13 +300,19 @@ export async function runSnapshotMirror<C, Row, O>(input: NewMirrorOptions<C, Ro
     await flush();
     stage = "snapshot";
     ctx.signal.throwIfAborted();
-    await run.snapshots.seal();
-    await input.onSnapshotProgress?.(savedRows, true);
+    const { uniqueMembers } = await run.snapshots.seal({ projectedMembers, excludedRows });
+    await input.onSnapshotProgress?.({
+      sourceRows: savedRows,
+      sealed: true,
+      projectedMembers,
+      uniqueMembers,
+      duplicatesCollapsed: projectedMembers - uniqueMembers,
+    });
     stage = "delivery";
     return await deliver(env, writer, value => {
       uncertain = value;
     });
-  } catch {
+  } catch (error) {
     if (writer && !uncertain) {
       try {
         await run.delivery.prepareAbort();
@@ -287,7 +322,7 @@ export async function runSnapshotMirror<C, Row, O>(input: NewMirrorOptions<C, Ro
         /* Preserve original failure and all unresolved evidence. */
       }
     }
-    throw new MirrorRunError(stage, readRows, savedRows);
+    throw new MirrorRunError(stage, readRows, savedRows, error);
   }
 }
 
@@ -338,14 +373,18 @@ export async function resumeSnapshotMirror<C, Row, O>(input: MirrorOptions<C, Ro
       }
     }
     ctx.signal.throwIfAborted();
-    if (pending) return { delivery: "pending" as const, sourceSequence: status.nextSequence };
+    // Known async receipts need not block the rest of the upload. All uncertain
+    // requests were reconciled above; the snapshot excludes prepared identities.
+    // With no remaining additions, stay poll-only until receipts are accepted.
+    if (pending && !(await run.snapshots.page("additions", "", 1)).length)
+      return { delivery: "pending" as const, sourceSequence: status.nextSequence };
     // Recheck lifecycle state after callbacks and before authorizing provider-session attachment.
     await run.core.recoveryStatus();
     const writer = await recovery.attachWriter(ctx);
     validateWriter(writer);
-    return await deliver(env, writer, () => {}, true);
-  } catch {
-    throw safeError();
+    return await deliver(env, writer, () => {}, true, pending);
+  } catch (error) {
+    throw safeError(error);
   }
 }
 
@@ -353,14 +392,17 @@ async function deliver<C, Row, O>(
   env: Awaited<ReturnType<typeof setup<C, Row, O>>>,
   writer: ReverseEtlWriter<JsonObject>,
   uncertain: (value: boolean) => void,
-  recovered = false
+  recovered = false,
+  pendingAdditions = false
 ) {
   const { run, stream, ctx, maxBytes, batchSize, asynchronous } = env;
   let sequence = (await run.core.recoveryStatus()).nextSequence;
-  for (const kind of ["additions", "removals"] as const) {
+  for (const kind of env.replacement ? (["additions"] as const) : (["additions", "removals"] as const)) {
     const action = kind === "additions" ? "upsert" : "remove";
     let after = "";
-    let pending = false;
+    // Earlier uploads must still block removals/native cleanup, even if every
+    // newly submitted batch is accepted synchronously in this attempt.
+    let pending = kind === "additions" && pendingAdditions;
     for (;;) {
       ctx.signal.throwIfAborted();
       const page = await run.snapshots.page(kind, after, Math.min(batchSize, 1000));

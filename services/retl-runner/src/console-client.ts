@@ -9,7 +9,8 @@ export function createConsoleClient(
   baseUrl: string,
   serviceToken: string,
   config: ReverseRunConfig,
-  request: ConsoleRequest = fetch
+  request: ConsoleRequest = fetch,
+  refreshTaskId?: string
 ) {
   let cached: z.infer<typeof token> | undefined;
   let cacheUntil = 0;
@@ -18,6 +19,7 @@ export function createConsoleClient(
     const url = new URL(`/api/admin/${path}/${encodeURIComponent(config.id)}`, baseUrl);
     url.searchParams.set("workspaceId", config.workspaceId);
     if (revision) url.searchParams.set("configRevision", config.configRevision);
+    if (refreshTaskId) url.searchParams.set("refreshTaskId", refreshTaskId);
     try {
       const response = await request(url, {
         redirect: "error",

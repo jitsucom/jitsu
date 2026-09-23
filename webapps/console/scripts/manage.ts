@@ -30,6 +30,20 @@ interface Command {
 }
 
 const commands: Record<string, Command> = {
+  "migrate-reverse-sync-settings": {
+    description:
+      "Move legacy Reverse ETL setup/audience entities to link settings and runtime state (pause and drain first)",
+    usage: "pnpm manage migrate-reverse-sync-settings --workspace <id> --apply",
+    handler: async args => {
+      if (typeof args.workspace !== "string" || args.apply !== true)
+        throw new Error(
+          "Pass --workspace <id> --apply after pausing/draining legacy syncs and backing up the database"
+        );
+      const { db } = await import("../lib/server/db");
+      const { migrateReverseSyncSettings } = await import("../lib/server/migrate-reverse-sync-settings");
+      console.log(await migrateReverseSyncSettings(db.prisma(), args.workspace));
+    },
+  },
   seed: {
     description: "Seed demo connections (stream, destination, and link)",
     usage: "pnpm manage seed",
