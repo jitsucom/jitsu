@@ -263,6 +263,26 @@ and failing. Check for leftovers afterwards:
 kubectl get deploy,cronjob -l '!app.kubernetes.io/managed-by'
 ```
 
+The chart's own hook resources are left behind too, for a different reason:
+Helm does not record hooks in the release, and `before-hook-creation` deletes
+them only at the start of the *next* install or upgrade. After a successful
+install they stay until the chart is installed again. In prod that is the
+`token-generator` and `seed` Jobs plus the `jitsu-token-generator`
+ServiceAccount, Role and RoleBinding; in dev, the `install` and `db-push` Jobs.
+These all carry `app.kubernetes.io/managed-by: Helm`, so the check above does
+not list them.
+
+The RBAC trio is the one worth acting on. Its Role grants namespace-wide Secret
+`create` — see the comment in `templates/token-generator.yaml` for why that verb
+cannot be narrowed — so an uninstalled release leaves an identity that can still
+write Secrets in the namespace. Remove it explicitly when the namespace outlives
+the release:
+
+```bash
+kubectl delete serviceaccount,role,rolebinding jitsu-token-generator --ignore-not-found
+kubectl delete job token-generator seed --ignore-not-found
+```
+
 Reinstalling, on the other hand, is safe: `jitsu-secrets` survives an uninstall
 and the token-generator reuses it rather than minting new tokens, so existing
 write keys and data keep working.
