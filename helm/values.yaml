@@ -48,8 +48,8 @@ image:
 # In prod this is how you pin one service to a specific build. A `repository`
 # pins it in dev too: the dev templates then skip the source checkout and the
 # command override for that service, so it runs the published build rather than
-# your working tree. A `tag` on its own does not — the dev opt-in keys off
-# `repository`, so a tag alone only picks the base image the service builds in.
+# your working tree. In dev, a per-service `tag` is ignored unless `repository`
+# is also set.
 #
 #   images:
 #     rotor:

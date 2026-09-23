@@ -220,8 +220,7 @@ Precedence, highest first:
      jitsu.devScaffold, which is false for any service carrying a repository,
      so the pinned image runs the build inside it rather than the mounted
      checkout, with no init container and no command override.
-     A per-service `tag` alone does not do that — the dev opt-in keys off
-     `repository`, so a tag by itself only selects the base image built in.
+     In dev, a per-service `tag` is ignored unless `repository` is also set.
   2. prod mode — {{ image.registry }}/<prod repository>:<tag>
   3. dev mode  — the base image the service builds against.
 
