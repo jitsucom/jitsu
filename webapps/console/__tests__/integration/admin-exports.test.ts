@@ -1,4 +1,6 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+import { http, HttpResponse } from "msw";
+import { server } from "./support/msw";
 import { Prisma } from "@prisma/client";
 import { deps, seedWorkspace } from "./support/harness";
 import { getExport } from "../../pages/api/admin/export/[name]";
@@ -212,5 +214,23 @@ describe("admin config exports (JITSU-181)", () => {
     expect(RotorConnectionRow.safeParse({ ...rotorBase, options: { mode: "batch" }, optionsHash: "" }).success).toBe(
       false
     );
+  });
+});
+
+describe("billing export routing (JITSU-190)", () => {
+  it("fetches backup credentials internally with the service token", async () => {
+    vi.stubEnv("EE_CONNECTION", "https://public-billing.test/");
+    vi.stubEnv("EE_CONNECTION_INTERNAL", "http://internal-billing.test/");
+    vi.stubEnv("EE_API_SERVICE_TOKEN", "test-service-token");
+    let receivedAuthorization: string | null = null;
+    server.use(
+      http.get("http://internal-billing.test/api/s3-connections", ({ request }) => {
+        receivedAuthorization = request.headers.get("authorization");
+        return HttpResponse.json([]);
+      }),
+      http.get("https://public-billing.test/api/s3-connections", () => new HttpResponse(null, { status: 404 }))
+    );
+    await runExport("bulker-connections");
+    expect(receivedAuthorization).toBe("Bearer test-service-token");
   });
 });

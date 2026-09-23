@@ -2,7 +2,7 @@ import { createRoute, verifyAccess } from "../../../../../lib/api";
 import { z } from "zod";
 import { ClickhouseConnectionCredentials } from "../../../../../lib/schema/clickhouse-connection-credentials";
 import { assertTrue, rpc } from "juava";
-import { eeAuthHeadersOrServiceToken, getEeConnection, isEEAvailable } from "../../../../../lib/server/ee";
+import { eeAuthHeadersOrServiceToken, getEeServerConnection, isEEAvailable } from "../../../../../lib/server/ee";
 
 export default createRoute()
   .GET({
@@ -18,7 +18,7 @@ export default createRoute()
     assertTrue(isEEAvailable(), `EE server URL is not set, DB can't be provisioned`);
     const { workspaceId } = query;
     await verifyAccess(user, workspaceId);
-    const { host } = getEeConnection();
+    const { host } = getEeServerConnection();
     const provisionedDbCredentials = await rpc(`${host}api/provision-db`, {
       method: "GET",
       query: { workspaceId, slug: workspaceId }, //db is created, so the slug won't be really used
