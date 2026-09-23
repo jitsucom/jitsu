@@ -16,13 +16,24 @@ spec:
       app.kubernetes.io/instance: {{ .Release.Name }}
   template:
     metadata:
+      {{- if eq (include "jitsu.mode" .) "prod" }}
+      annotations:
+        {{- include "jitsu.credentialChecksum" . | nindent 8 }}
+      {{- end }}
       labels:
         app.kubernetes.io/name: console
         app.kubernetes.io/instance: {{ .Release.Name }}
     spec:
       containers:
         - name: console
-          image: node:24-bookworm
+          image: {{ include "jitsu.image" (dict "ctx" . "service" "console" "dev" "node:24-bookworm" "prod" "console") }}
+          {{- with (include "jitsu.imagePullPolicy" (dict "ctx" . "service" "console")) }}
+          imagePullPolicy: {{ . }}
+          {{- end }}
+          {{- with (include "jitsu.resources" (dict "ctx" . "service" "console")) }}
+          {{- . | nindent 10 }}
+          {{- end }}
+{{- if include "jitsu.devScaffold" (dict "ctx" . "service" "console") }}
           workingDir: /cache/workspace/webapps/console
           command:
             - sh
@@ -64,6 +75,7 @@ spec:
                 sleep 5
               done
               exec npx next dev -H 0.0.0.0 -p 3000
+{{- end }}
           ports:
             - name: http
               containerPort: 3000
@@ -84,19 +96,33 @@ spec:
             # `jitsu-console-maintenance` (optional ConfigMap, key
             # `maintenance.json`). Manage via
             # webapps/console/scripts/maintenance-mode.sh.
+            {{- $consoleExtra := dict
+                  "NEXTAUTH_URL" (include "jitsu.consolePublicUrl" .)
+                  "JITSU_PUBLIC_URL" (include "jitsu.consolePublicUrl" .)
+                  "BULKER_PORT" ""
+                  "ROTOR_PORT" ""
+                  "SYNCCTL_PORT" ""
+                  "INGMGR_PORT" ""
+                  "MAINTENANCE_CONFIG_FILE" "/etc/jitsu/maintenance/maintenance.json" }}
+            {{- with (include "jitsu.ingestPublicUrl" .) }}
+            {{- $_ := set $consoleExtra "JITSU_INGEST_PUBLIC_URL" . }}
+            {{- end }}
+            {{- with (include "jitsu.devCredential" (dict "ctx" . "key" "JWT_SECRET")) }}
+            {{- $_ := set $consoleExtra "JWT_SECRET" . }}
+            {{- end }}
+            {{- with (include "jitsu.devCredential" (dict "ctx" . "key" "SEED_USER_PASSWORD")) }}
+            {{- $_ := set $consoleExtra "SEED_USER_PASSWORD" . }}
+            {{- end }}
             {{- include "jitsu.env" (dict "ctx" . "service" "console"
-                  "extra" (dict
-                    "BULKER_PORT" ""
-                    "ROTOR_PORT" ""
-                    "SYNCCTL_PORT" ""
-                    "INGMGR_PORT" ""
-                    "MAINTENANCE_CONFIG_FILE" "/etc/jitsu/maintenance/maintenance.json")) | nindent 12 }}
+                  "extra" $consoleExtra) | nindent 12 }}
           volumeMounts:
+{{- if include "jitsu.devScaffold" (dict "ctx" . "service" "console") }}
             - name: project
               mountPath: /project
               readOnly: true
             - name: node-cache
               mountPath: /cache
+{{- end }}
             - name: maintenance
               mountPath: /etc/jitsu/maintenance
               readOnly: true
@@ -123,6 +149,7 @@ spec:
             timeoutSeconds: 10
             failureThreshold: 30
       volumes:
+{{- if include "jitsu.devScaffold" (dict "ctx" . "service" "console") }}
         - name: project
           hostPath:
             path: {{ include "jitsu.projectRoot" . }}
@@ -130,6 +157,7 @@ spec:
         - name: node-cache
           persistentVolumeClaim:
             claimName: node-cache
+{{- end }}
         # `optional: true` so the pod boots cleanly when no maintenance window
         # is configured (the volume mounts as an empty dir; missing config
         # file → load() returns "no maintenance"). Create the CM via
@@ -149,7 +177,7 @@ metadata:
     {{- include "jitsu.labels" . | nindent 4 }}
     app.kubernetes.io/name: console
 spec:
-  type: LoadBalancer
+  type: {{ include "jitsu.serviceType" (dict "ctx" . "service" "console" "dev" "LoadBalancer") }}
   ports:
     - port: 3000
       targetPort: http

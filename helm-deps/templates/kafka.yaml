@@ -25,6 +25,18 @@ spec:
         app.kubernetes.io/name: kafka
         app.kubernetes.io/instance: {{ .Release.Name }}
     spec:
+      # The redpanda image runs as uid/gid 101, but a mounted PVC arrives owned
+      # by root, so redpanda cannot create /var/lib/redpanda/data/crash_reports
+      # and exits during startup:
+      #
+      #   Failure during startup: filesystem error: mkdir failed:
+      #   Permission denied ["/var/lib/redpanda/data/crash_reports"]
+      #
+      # fsGroup makes the kubelet chown the volume on mount. This is invisible
+      # on Minikube, where the container ends up able to write anyway; GKE
+      # Autopilot enforces the stricter context and the pod crash-loops.
+      securityContext:
+        fsGroup: 101
       containers:
         - name: redpanda
           image: {{ .Values.kafka.image }}
@@ -78,7 +90,7 @@ metadata:
     {{- include "jitsu-deps.labels" . | nindent 4 }}
     app.kubernetes.io/name: kafka
 spec:
-  type: LoadBalancer
+  type: {{ .Values.service.type | default "ClusterIP" }}
   ports:
     - port: 9092
       targetPort: kafka
