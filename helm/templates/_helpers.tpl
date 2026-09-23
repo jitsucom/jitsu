@@ -209,6 +209,9 @@ Precedence, highest first:
   3. dev mode  — the base image the service builds against.
 
 The tag falls back to the chart-wide image.tag; a per-service tag overrides it.
+A digest is joined with `@` instead: write it on the repository
+(`jitsucom/rotor@sha256:...`) or as the tag (`sha256:...`), and no `:<tag>` is
+appended either way.
 Callers pass the two defaults because they differ per service and per language:
   dev  — golang:1.26-bookworm builds, debian:bookworm-slim runs, node runs tsx
   prod — jitsucom/<name>, which is not always the service name (profiles runs
@@ -223,10 +226,25 @@ Usage:
 {{- $images := $ctx.Values.images | default dict -}}
 {{- $o := (get $images .service) | default dict -}}
 {{- $tag := $o.tag | default $ctx.Values.image.tag -}}
+{{- /* A digest is joined with "@", not ":". Accept it written either way —
+       carried on the repository ("repo@sha256:..."), or supplied as the tag
+       ("sha256:...") — because values.yaml documents digest pinning and both
+       spellings are natural. Appending ":<tag>" to either produces an image
+       reference Kubernetes rejects. */ -}}
 {{- if $o.repository -}}
+{{- if contains "@" $o.repository -}}
+{{- $o.repository -}}
+{{- else if hasPrefix "sha256:" $tag -}}
+{{- printf "%s@%s" $o.repository $tag -}}
+{{- else -}}
 {{- printf "%s:%s" $o.repository $tag -}}
+{{- end -}}
 {{- else if eq (include "jitsu.mode" $ctx) "prod" -}}
+{{- if hasPrefix "sha256:" $tag -}}
+{{- printf "%s/%s@%s" $ctx.Values.image.registry .prod $tag -}}
+{{- else -}}
 {{- printf "%s/%s:%s" $ctx.Values.image.registry .prod $tag -}}
+{{- end -}}
 {{- else -}}
 {{- .dev -}}
 {{- end -}}
