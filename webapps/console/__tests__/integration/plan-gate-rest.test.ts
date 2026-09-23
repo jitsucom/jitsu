@@ -104,6 +104,21 @@ async function getDomainCheck(bearer: string, workspaceId: string, domain: strin
   return res;
 }
 
+async function postConfigTest(bearer: string, workspaceId: string, type: string, body: any) {
+  const handler = (await import("../../pages/api/[workspaceId]/config/[type]/test")).default;
+  const req: any = {
+    method: "POST",
+    url: `/api/${workspaceId}/config/${type}/test`,
+    headers: { authorization: `Bearer ${bearer}`, "content-type": "application/json" },
+    query: { workspaceId, type },
+    body,
+    socket: {},
+  };
+  const res = makeRes();
+  await handler(req, res);
+  return res;
+}
+
 describe("the plan gate holds through the real REST route", () => {
   // An explicit customDomainsEnabled:false still denies a plan the fallback
   // would allow — kept here so the flag path stays covered through the real
@@ -281,5 +296,53 @@ describe("workspace entitlements endpoint", () => {
     const res = await getEntitlements(await apiKeyFor(user.internalId), workspace.id);
     expect(res.statusCode).toBe(200);
     expect(res.body).toEqual({ customDomains: true, identityStitching: null });
+  });
+});
+
+describe("the stream test endpoint cannot bypass plan or role gates", () => {
+  it("refuses a new domain on Free before ingress or Bulker is called", async () => {
+    const { user, workspace } = await seedWorkspace();
+    const bearer = await apiKeyFor(user.internalId);
+    let ingressCalls = 0;
+    let bulkerCalls = 0;
+    server.use(
+      http.get("http://ingmgr.test.local/api/domain", () => {
+        ingressCalls++;
+        return HttpResponse.json({ status: "ok" });
+      }),
+      http.post("http://bulker.test.local/test", () => {
+        bulkerCalls++;
+        return HttpResponse.json({ ok: true });
+      })
+    );
+    onPlan("free");
+
+    const res = await postConfigTest(bearer, workspace.id, "stream", {
+      name: "site",
+      domains: [`test-blocked-${randomId(6).toLowerCase()}.example.com`],
+    });
+    expect(res.statusCode).toBe(403);
+    expect(ingressCalls).toBe(0);
+    expect(bulkerCalls).toBe(0);
+  });
+
+  it("refuses arbitrary tests from a read-only member on an eligible plan", async () => {
+    const { user, workspace } = await seedWorkspace({ role: "analyst" });
+    const bearer = await apiKeyFor(user.internalId);
+    let ingressCalls = 0;
+    server.use(
+      http.get("http://ingmgr.test.local/api/domain", () => {
+        ingressCalls++;
+        return HttpResponse.json({ status: "ok" });
+      })
+    );
+    onPlan("business");
+
+    const res = await postConfigTest(bearer, workspace.id, "stream", {
+      name: "site",
+      domains: [`test-readonly-${randomId(6).toLowerCase()}.example.com`],
+    });
+    expect(res.statusCode).toBe(403);
+    expect(ingressCalls).toBe(0);
   });
 });

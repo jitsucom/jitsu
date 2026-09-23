@@ -3,6 +3,7 @@ import { http, HttpResponse } from "msw";
 import { server } from "./support/msw";
 import { deps, seedWorkspace } from "./support/harness";
 import { ConfigObjectsService } from "../../lib/server/config-objects-service";
+import { DebugService } from "../../lib/server/debug-service";
 import { registerTools } from "../../lib/server/mcp-server/tools";
 import { IDENTITY_STITCHING_FUNCTION_ID } from "../../lib/shared/plan-features";
 
@@ -34,12 +35,13 @@ const noop: any = new Proxy({}, { get: () => () => undefined });
 beforeEach(() => {
   vi.stubEnv("EE_CONNECTION", "http://ee.test.local/");
   vi.stubEnv("EE_API_SERVICE_TOKEN", "test-service-token");
+  vi.stubEnv("INGMGR_URL", "http://ingmgr.test.local");
   tools.clear();
   registerTools(fakeSdkServer, {
     service: new ConfigObjectsService({ prisma: deps().prisma }),
     eventsLog: noop,
     syncs: noop,
-    debug: noop,
+    debug: new DebugService({ prisma: deps().prisma }),
     reports: noop,
     auditLog: noop,
     req: { headers: { host: "console.test.local" } } as any,
@@ -102,5 +104,29 @@ describe("the plan gate holds through the real MCP tool handler", () => {
       ctxFor(user)
     );
     expect(`${res?.isError} ${textOf(res)}`).toMatch(/Enterprise|403/);
+  });
+
+  it("refuses testing a stream domain on Free before ingress is called", async () => {
+    const { user, workspace } = await seedWorkspace();
+    let ingressCalls = 0;
+    server.use(
+      http.get("http://ingmgr.test.local/api/domain", () => {
+        ingressCalls++;
+        return HttpResponse.json({ status: "ok" });
+      })
+    );
+    onPlan("free");
+
+    const testConnection = tools.get("test_connection")!;
+    const res = await testConnection(
+      {
+        workspaceId: workspace.id,
+        type: "stream",
+        config: { name: "site", domains: ["mcp-test-blocked.example.com"] },
+      },
+      ctxFor(user)
+    );
+    expect(`${res?.isError} ${textOf(res)}`).toMatch(/Business and Enterprise|403/);
+    expect(ingressCalls).toBe(0);
   });
 });

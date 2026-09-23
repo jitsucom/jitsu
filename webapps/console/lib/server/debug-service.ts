@@ -1,13 +1,15 @@
 import type { PrismaClient } from "@prisma/client";
+import type { NextApiRequest } from "next";
 import { getErrorMessage, randomId, requireDefined, rpc } from "juava";
 import { SessionUser } from "../schema";
-import { verifyAccess, verifyAccessWithRole } from "../api";
+import { verifyAccessWithRole } from "../api";
 import { ApiError } from "../shared/errors";
 import { getConfigObjectType, parseObject } from "../schema/config-objects";
 import { containsMaskedSecrets, unmaskSecretsFromOriginal } from "../schema/secrets";
 import { httpAgent, httpsAgent } from "./http-agent";
 import { getServerEnv } from "./serverEnv";
 import { getServerLog } from "./log";
+import { assertCustomDomainsAllowed } from "./plan-gate";
 
 const log = getServerLog("debug-service");
 
@@ -60,9 +62,12 @@ export class DebugService {
     user: SessionUser,
     workspaceId: string,
     type: string,
-    opts: { config?: any; id?: string }
+    opts: { config?: any; id?: string; req?: NextApiRequest }
   ): Promise<any> {
-    await verifyAccess(user, workspaceId);
+    // Testing an arbitrary configuration can run mutating input filters (stream
+    // domain provisioning is one), so it requires the same permission as a
+    // configuration write.
+    await verifyAccessWithRole(user, workspaceId, "editEntities");
     const serverEnv = getServerEnv();
     const bulkerURLEnv = requireDefined(serverEnv.BULKER_URL, "env BULKER_URL is not defined");
     const bulkerAuthKey = serverEnv.BULKER_AUTH_KEY ?? "";
@@ -72,6 +77,7 @@ export class DebugService {
       `Workspace ${workspaceId} not found`
     );
     let body = opts.config;
+    let testedExisting: { config: any } | null = null;
     if (!body) {
       const id = requireDefined(opts.id, "either `config` or `id` must be provided");
       const existing = await this.prisma.configurationObject.findFirst({
@@ -80,20 +86,30 @@ export class DebugService {
       if (!existing) {
         throw new ApiError(`${type} with id ${id} does not exist`, { status: 404 });
       }
+      testedExisting = existing;
       body = { ...(existing.config as any), id };
+    } else if (body.id) {
+      testedExisting = await this.prisma.configurationObject.findFirst({
+        where: { id: body.id, workspaceId, type, deleted: false },
+        select: { config: true },
+      });
     }
     body = { ...body, workspaceId, type, id: body.id ?? randomId() };
     const configObjectType = getConfigObjectType(type);
     let object = parseObject(type, body);
     if (containsMaskedSecrets(object)) {
-      const existingEntity = await this.prisma.configurationObject.findFirst({
-        where: { id: body.cloneId || body.id, workspaceId },
-      });
+      const existingEntity = body.cloneId
+        ? await this.prisma.configurationObject.findFirst({ where: { id: body.cloneId, workspaceId } })
+        : testedExisting;
       if (existingEntity?.config) {
         log.atInfo().log(`Unmasking secrets for ${type} test: ${body.id}`);
         object = unmaskSecretsFromOriginal(object, existingEntity.config as any);
       }
     }
+    // Must run before inputFilter: a stream filter provisions submitted
+    // domains in ingress. Treat domains already stored on the tested object as
+    // grandfathered, matching update and domain-check behavior.
+    await assertCustomDomainsAllowed(user, workspace, type, object, testedExisting?.config, opts.req);
     object = await configObjectType.inputFilter(object, "create", workspace);
 
     const options: any = {
