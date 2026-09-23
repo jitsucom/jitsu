@@ -62,7 +62,7 @@ export function ReverseSyncsList() {
       if (action === "run")
         await router.push(
           `/${workspace.slugOrId}/reverse-syncs/${
-            result.taskId ? `logs?syncId=${sync.id}&taskId=${result.taskId}` : `tasks?syncId=${sync.id}`
+            result.taskId ? `logs?syncId=${sync.id}&taskId=${result.taskId}&starting=1` : `tasks?syncId=${sync.id}`
           }`
         );
     } catch (e) {

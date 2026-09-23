@@ -91,7 +91,7 @@ export function SyncEditor({ sync, reload }: { sync?: ReverseSyncView; reload: (
       query: { syncId: id },
       body: { action: "run" },
     });
-    await router.push(`/${workspace.slugOrId}/reverse-syncs/logs?syncId=${id}&taskId=${result.taskId}`);
+    await router.push(`/${workspace.slugOrId}/reverse-syncs/logs?syncId=${id}&taskId=${result.taskId}&starting=1`);
   };
   const perform = async (action: () => Promise<unknown>) => {
     setBusy(true);
