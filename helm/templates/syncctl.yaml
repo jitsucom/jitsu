@@ -125,14 +125,14 @@ spec:
             # least-privilege SA bound only to coordination.k8s.io/leases.
             # Separating it from syncctl's own SA keeps the pod-side blast
             # radius tiny (no pod create/delete, no Secret read, no log access).
-            {{- /* $defaults is built at the top of this file and already carries
-                   HTTP_PORT, PODS_SERVICE_ACCOUNT and the REVERSE_* vars, so the
-                   sidecar image is added to it rather than to a second dict. */}}
+            {{- /* Reverse ETL settings above are explicit env vars owned by
+                   reverseEtl. Build only the remaining computed defaults here. */}}
+            {{- $extra := dict "HTTP_PORT" "3043" "PODS_SERVICE_ACCOUNT" "sync-pod" }}
             {{- with (include "jitsu.sidecarImage" .) }}
-            {{- $_ := set $defaults "SIDECAR_IMAGE" . }}
+            {{- $_ := set $extra "SIDECAR_IMAGE" . }}
             {{- end }}
             {{- include "jitsu.env" (dict "ctx" . "service" "syncctl"
-                  "extra" (dict "HTTP_PORT" "3043" "PODS_SERVICE_ACCOUNT" "sync-pod")
+                  "extra" $extra
                   "exclude" (list "KUBERNETES_NAMESPACE")) | nindent 12 }}
 {{- if include "jitsu.devScaffold" (dict "ctx" . "service" "syncctl") }}
           volumeMounts:
