@@ -27,9 +27,20 @@ image:
   registry: jitsucom
   # Tag used for every service without its own. The release workflow tags the
   # stable channel as both `latest` and `stable`; other channels are tagged
-  # with the channel name.
+  # with the channel name. Every one of those is re-pointed by a later release,
+  # so the default tag is mutable.
   tag: latest
-  pullPolicy: IfNotPresent
+  # `Always` because that default tag is mutable. With `IfNotPresent` a kubelet
+  # reuses whatever it already cached for `latest`, so a node that pulled it
+  # weeks ago keeps running that build: a fresh install lands on stale code, and
+  # a restart after the tag moves silently disagrees with pods placed elsewhere.
+  # Helm cannot save you either — an upgrade that stays on `latest` leaves the
+  # pod template byte-identical, so nothing rolls.
+  #
+  # Pin an immutable tag or a digest and this cost disappears: set
+  # `images.<service>.pullPolicy: IfNotPresent` for that service, or override
+  # this default wholesale once every tag you use is immutable.
+  pullPolicy: Always
 
 # Per-service image overrides. Empty by default — a service falls back to the
 # mode default.
