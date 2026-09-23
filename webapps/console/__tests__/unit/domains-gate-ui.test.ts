@@ -62,12 +62,13 @@ describe("DomainsEditor plan gate", () => {
     expect(addControl()).toBeTruthy();
   });
 
-  // Ships dark: no flag on the plan means no gate.
-  it("shows the add control on free while no plan carries the flag", () => {
+  // The plan id alone denies free, so the upgrade banner shows and the add
+  // control is withheld without any flag being set.
+  it("shows the upgrade banner on free with no flag on the plan", () => {
     state.billing.settings = { planId: "free" };
     renderEditor();
-    expect(banner()).toBeNull();
-    expect(addControl()).toBeTruthy();
+    expect(banner()).toBeTruthy();
+    expect(addControl()).toBeNull();
   });
 
   // Regression guard for the bug this gate originally shipped with.

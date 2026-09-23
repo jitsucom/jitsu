@@ -105,10 +105,25 @@ async function getDomainCheck(bearer: string, workspaceId: string, domain: strin
 }
 
 describe("the plan gate holds through the real REST route", () => {
-  it("refuses a domain on a denied plan, with 403", async () => {
+  // An explicit customDomainsEnabled:false still denies a plan the fallback
+  // would allow — kept here so the flag path stays covered through the real
+  // route now that the free cases exercise the plan-id fallback instead.
+  it("refuses a domain when the plan carries an explicit denial, with 403", async () => {
     const { user, workspace } = await seedWorkspace();
     const bearer = await apiKeyFor(user.internalId);
-    onPlan("free", { customDomainsEnabled: false });
+    onPlan("business", { customDomainsEnabled: false });
+    const res = await postStream(bearer, workspace.id, {
+      id: `s-${randomId(6).toLowerCase()}`,
+      name: "site",
+      domains: [`rest-flagdenied-${randomId(6).toLowerCase()}.example.com`],
+    });
+    expect(res.statusCode).toBe(403);
+  });
+
+  it("refuses a domain on free with no entitlement flag at all, with 403", async () => {
+    const { user, workspace } = await seedWorkspace();
+    const bearer = await apiKeyFor(user.internalId);
+    onPlan("free");
     const res = await postStream(bearer, workspace.id, {
       id: `s-${randomId(6).toLowerCase()}`,
       name: "site",
@@ -145,7 +160,7 @@ describe("the plan gate holds through the real REST route", () => {
       })
     );
 
-    onPlan("free", { customDomainsEnabled: false });
+    onPlan("free");
     const res = await getDomainCheck(bearer, workspace.id, `check-${randomId(6).toLowerCase()}.example.com`);
     expect(res.statusCode).toBe(403);
     expect(ingressCalls, "a denied workspace must not reach ingress-manager at all").toBe(0);
@@ -171,7 +186,7 @@ describe("the plan gate holds through the real REST route", () => {
       })
     );
 
-    onPlan("free", { customDomainsEnabled: false });
+    onPlan("free");
     const res = await getDomainCheck(bearer, workspace.id, existing);
     expect(res.statusCode, "an already-attached domain must stay checkable").toBe(200);
     expect(ingressCalls).toBeGreaterThan(0);

@@ -70,11 +70,11 @@ describe("workspace domains page gate", () => {
     expect(editor()).toBeTruthy();
   });
 
-  it("shows the editor on free while no plan carries the flag (ships dark)", () => {
+  it("shows the upgrade prompt on free with no flag on the plan", () => {
     state.billing.settings = { planId: "free" };
     renderPage();
-    expect(upgrade()).toBeNull();
-    expect(editor()).toBeTruthy();
+    expect(upgrade()).toBeTruthy();
+    expect(editor()).toBeNull();
   });
 
   it("shows the editor on a plan that allows", () => {

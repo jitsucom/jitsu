@@ -56,12 +56,13 @@ describe("assertCustomDomainsAllowed", () => {
     ).rejects.toMatchObject({ status: 403 });
   });
 
-  // Ships dark: without the flag on the plan, nothing is refused.
-  it("allows a domain on free while no plan carries the flag", async () => {
+  // The plan id alone now denies free — no flag required. This is the server
+  // half of the gate, so it is what an API token hits.
+  it("refuses a domain added on free with no flag on the plan", async () => {
     onPlan("free");
     await expect(
       assertCustomDomainsAllowed(user, WS, "stream", { domains: ["new.com"] }, { domains: [] })
-    ).resolves.toBeUndefined();
+    ).rejects.toMatchObject({ status: 403 });
   });
 
   it("allows a domain added on a paid plan", async () => {

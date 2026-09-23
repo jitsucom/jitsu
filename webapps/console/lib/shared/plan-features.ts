@@ -36,6 +36,17 @@ export type PlanFeatureFacts = {
   customBilling?: boolean;
   customDomainsEnabled?: boolean;
   identityStitchingEnabled?: boolean;
+  /**
+   * Set by ee-api when a custom contract is dated in the future, alongside
+   * `planId: "free"`. **Deliberately not consulted by either resolver.** It
+   * records that a contract is scheduled, not what it entitles, and the early
+   * return that sets it drops `customSettings` — so granting from it would
+   * override an explicit `false` that never reached us. Note the consequence:
+   * because that same early return drops `customSettings`, an explicit grant
+   * cannot reach this resolver on that path either. Present here so the shape
+   * is honest about what billing sends.
+   */
+  futureSubscriptionDate?: string;
 };
 
 /**
@@ -51,6 +62,9 @@ export type PlanFeatureFacts = {
  */
 const SELF_SERVICE_PLAN_IDS = ["free", "business"];
 
+/** The only plan id custom domains are denied on. */
+const FREE_PLAN_ID = "free";
+
 /** A negotiated plan, by either of the two flags ee-api can set for one. */
 function isNegotiatedPlan(billing: PlanFeatureFacts): boolean {
   return !!(billing.custom || billing.customBilling);
@@ -59,28 +73,45 @@ function isNegotiatedPlan(billing: PlanFeatureFacts): boolean {
 /**
  * Custom domains on sites — Business and Enterprise, not Free.
  *
- * **This gate ships dark, and deliberately behaves differently from
- * canUseIdentityStitching below.** A plan carrying no explicit flag is
- * allowed, so merging this code changes nothing for anyone. Enforcement begins
- * when `customDomainsEnabled: false` is set on the free plan's Stripe
- * plan_data — a data operation, not a deploy.
+ * Precedence, highest first: the per-workspace `misc` grant, then an explicit
+ * `customDomainsEnabled` on the plan or the workspace, then the plan id. Only
+ * "free" is denied — Business, Enterprise, "$custom", "$admin" and self-hosted
+ * all fall through to allowed, so a negotiated contract keeps the feature
+ * whatever plan id it arrives under.
  *
- * The reason is that the public pricing page currently advertises custom
- * domains on the Free tier. Deriving "deny" from the plan id would block Free
- * users the moment this merged, while the page still promised the feature —
- * which is the same contradiction JITSU-228 exists to remove, pointed the
- * other way. Tying enforcement to a flag lets it switch on in the same hour
- * the pricing page changes, so the two can never disagree.
+ * **Deriving denial from the plan id is deliberate, and it replaces an earlier
+ * design that shipped this gate inactive.** That version allowed whenever no
+ * flag was set, so enforcement waited on `customDomainsEnabled: false` being
+ * added to the Free plan's Stripe plan_data. That route does not reach a
+ * workspace with no qualifying subscription: ee-api falls back to a bare
+ * `{ planId: "free" }` carrying no plan metadata (jitsu-cloud-billing
+ * lib/stripe.ts), which is most of the Free tier. The flag-only design could
+ * therefore never have been switched on for the population it was aimed at.
  *
- * The cost of this choice is that if nobody ever sets the flag, nothing is
- * gated and the ticket looks done. That is a deliberate trade, not an
- * oversight — see the PR body.
+ * Enforcement must land together with the pricing page change (websites #75),
+ * which removes "Custom domains" from the Free tier. Until that ships the
+ * product would refuse something the page still advertises.
  *
- * Note also that a Stripe subscription in any status other than
- * `active`/`past_due` resolves to planId "free" in ee-api's getActivePlan. The
- * codebase has no trial support today, but if a trial is ever set from the
- * Stripe dashboard that workspace reads as free — one more reason not to
- * derive denial from the plan id here.
+ * **What reads as "free" here is wider than the Free plan.** Verified in
+ * jitsu-cloud-billing: getActivePlan returns a product only for an
+ * `active`/`past_due` subscription carrying the current object_tag, and a
+ * custom contract dated in the future returns `planId: "free"` before its start
+ * date. Both therefore resolve to denied.
+ *
+ * The *intended policy* behind accepting that is access starting when the
+ * customer is billed, with early or trial access granted explicitly. What is
+ * *verified* about that escape hatch is narrower, and the difference matters:
+ * an explicit `customDomainsEnabled` is honoured whenever it reaches this
+ * resolver, which it does on the ordinary path because ee-api spreads
+ * `customSettings` over the plan. It does **not** reach here for a contract
+ * dated in the future — that early return builds its own object and drops
+ * `customSettings`, `noRestrictions` and the negotiated markers — so the
+ * *billing-flag* route to early access is unavailable for a not-yet-started
+ * contract. Fixing that belongs in ee-api, not here. The `misc` workspace grant
+ * above is unaffected, because it is read from the Workspace record rather than
+ * from billing, so custom domains can still be opened for such a customer that
+ * way. There is no equivalent for Identity Stitching, which takes no
+ * featuresEnabled argument.
  */
 export function canUseCustomDomains(
   billing: PlanFeatureFacts | null | undefined,
@@ -98,7 +129,7 @@ export function canUseCustomDomains(
   if (typeof billing.customDomainsEnabled === "boolean") {
     return billing.customDomainsEnabled;
   }
-  return true;
+  return (billing.planId ?? "free") !== FREE_PLAN_ID;
 }
 
 /**

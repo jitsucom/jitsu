@@ -54,9 +54,9 @@ const ctxFor = (user: { internalId: string; email: string }) => ({
 const textOf = (r: any) => (r?.content ?? []).map((c: any) => c.text).join(" ");
 
 describe("the plan gate holds through the real MCP tool handler", () => {
-  it("refuses a domain on a denied plan", async () => {
+  it("refuses a domain on free with no entitlement flag at all", async () => {
     const { user, workspace } = await seedWorkspace();
-    onPlan("free", { customDomainsEnabled: false });
+    onPlan("free");
     const create = tools.get("create_resource")!;
     expect(create).toBeTruthy();
     const res = await create(

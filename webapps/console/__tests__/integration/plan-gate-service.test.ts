@@ -159,15 +159,16 @@ describe("custom domains gate, through ConfigObjectsService", () => {
     expect(billingCalls).toBe(0);
   });
 
-  // The ship-dark property itself: until the flag lands in Stripe plan_data,
-  // deploying this code changes nothing for a free workspace. That is what
-  // lets it merge without contradicting the pricing page.
-  it("allows a free workspace to add a domain while no plan carries the flag", async () => {
+  // The enforcement property: the plan id alone refuses a free workspace, with
+  // no flag anywhere in Stripe plan_data. Deriving denial from a flag could
+  // never have covered this case — ee-api hands a workspace with no qualifying
+  // subscription a bare { planId: "free" } carrying no plan metadata at all.
+  it("refuses a free workspace adding a domain with no flag on the plan", async () => {
     const { user, workspace } = await seedWorkspace();
     onPlan("free");
     await expect(
       svc().create(user, workspace.id, "stream", { id: oid("s"), name: "site", domains: [dom()] })
-    ).resolves.toBeTruthy();
+    ).rejects.toMatchObject({ status: 403 });
   });
 });
 
