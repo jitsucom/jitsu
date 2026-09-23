@@ -34,10 +34,11 @@ image:
 # Per-service image overrides. Empty by default — a service falls back to the
 # mode default.
 #
-# In prod this is how you pin one service to a specific build. In dev it only
-# changes the base image: the dev templates still mount the source checkout and
-# override the container command, so the service goes on running local source
-# whatever repository you name here.
+# In prod this is how you pin one service to a specific build. A `repository`
+# pins it in dev too: the dev templates then skip the source checkout and the
+# command override for that service, so it runs the published build rather than
+# your working tree. A `tag` on its own does not — the dev opt-in keys off
+# `repository`, so a tag alone only picks the base image the service builds in.
 #
 #   images:
 #     rotor:
