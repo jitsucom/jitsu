@@ -25,7 +25,7 @@ export const ReverseRunConfig = z
       validateReverseSyncModel(value.model, value.options);
       if (value.options.mode === "mirror" && value.model.deleteColumn)
         throw new Error("Mirror uses full membership, not tombstones");
-      if (value.options.disabled) throw new Error("Reverse sync is disabled");
+      // Paused configs may resume saved delivery; admission must prohibit new extraction.
     } catch {
       ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Invalid reverse run configuration" });
     }

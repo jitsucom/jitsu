@@ -79,6 +79,11 @@ func TestReverseRecoverySchedulerDatabase(t *testing.T) {
 	tm.scheduleReverseRecovery()
 	podCount(0)
 	tm.config.ReverseEnabled = true
+	options := entry.Reverse.Options
+	entry.Reverse.Options = []byte(`{"disabled":true}`)
+	tm.scheduleReverseRecovery()
+	podCount(0)
+	entry.Reverse.Options = options
 	// Changed/deleted desired configurations must not be launched.
 	oldRevision := entry.Reverse.ConfigRevision
 	entry.Reverse.ConfigRevision = "changed"
@@ -124,10 +129,23 @@ func TestReverseRecoverySchedulerDatabase(t *testing.T) {
 		t.Fatalf("late worker failure changed logical task: %s, %v", status, err)
 	}
 	// Terminal statuses and legacy idle attempts permit Pod cleanup.
-	exec(`UPDATE source_task SET status='FAILED',metrics=jsonb_set(metrics,'{reverseWorker,active}','false')`)
+	exec(`UPDATE source_task SET status='CANCELLED',metrics=jsonb_set(metrics,'{reverseWorker,active}','false')`)
+	tm.scheduleReverseRecovery()
+	podCount(2)
 	recorder := httptest.NewRecorder()
 	request, _ := gin.CreateTestContext(recorder)
-	tm.refreshReverseTask(request, ctx, entry, "waiting")
+	// A paused sync cannot start new extraction, but its saved task can refresh.
+	entry.Reverse.Options = []byte(`{"disabled":true}`)
+	request.Request = httptest.NewRequest("POST", "/read?syncId=sync&workspaceId=workspace", nil)
+	tm.ReverseReadHandler(request)
+	if recorder.Code != 409 {
+		t.Fatalf("paused extraction: %s", recorder.Body.String())
+	}
+	recorder = httptest.NewRecorder()
+	request, _ = gin.CreateTestContext(recorder)
+	request.Request = httptest.NewRequest("POST", "/read?syncId=sync&workspaceId=workspace&taskId=waiting", nil)
+	tm.ReverseReadHandler(request)
+	entry.Reverse.Options = options
 	if recorder.Code != 200 {
 		t.Fatalf("manual refresh failed: %s", recorder.Body.String())
 	}
@@ -201,6 +219,22 @@ func TestReverseRecoverySchedulerDatabase(t *testing.T) {
 	}
 	if err := pool.QueryRow(ctx, "SELECT status,(metrics->'reverseRecovery'->>'attempt')::int FROM source_task").Scan(&status, &attempt); err != nil || status != "FAILED" || attempt != 102 {
 		t.Fatalf("retry failure changed original status or reused worker: %s %d err=%v", status, attempt, err)
+	}
+	// A failed explicit check must restore cancellation, not restart automatic checks.
+	// Cancellation can leave an older queued refresh's previousStatus=PENDING.
+	exec(`UPDATE source_task SET status='CANCELLED',metrics=jsonb_set(jsonb_set(metrics,
+ '{reverseRecovery,previousStatus}','"PENDING"'),'{reverseRecovery,attempt}','200')`)
+	recorder = httptest.NewRecorder()
+	request, _ = gin.CreateTestContext(recorder)
+	tm.refreshReverseTask(request, ctx, entry, "waiting")
+	if recorder.Code != 200 {
+		t.Fatalf("cancelled refresh: %s", recorder.Body.String())
+	}
+	if err := tm.recordReverseRefreshFailure(ctx, "sync", "waiting", reverseResourceName("sync:refresh:waiting:201"), "lookup failed", false); err != nil {
+		t.Fatal(err)
+	}
+	if err := pool.QueryRow(ctx, "SELECT status FROM source_task WHERE task_id='waiting'").Scan(&status); err != nil || status != "CANCELLED" {
+		t.Fatalf("failed check lost cancellation: %s %v", status, err)
 	}
 	// Cancellation does not need a Pod, desired entry, or enabled rollout.
 	tm.config.ReverseEnabled = false

@@ -96,6 +96,17 @@ failed/aborted runs; local sequence tombstones prevent late acknowledgement from
 resurrecting an older value. Acknowledgement times are runner timestamps, not
 provider delivery times or billing attribution.
 
+Audience runs may overlap after initial uploads are submitted. Insert-only conversion
+runs instead wait for every previous logical run to complete or finish verified cleanup:
+pending event keys must not become a newer run's permanent deduplication baseline.
+Permanent rejections still fail immediately; explicit status refresh/cleanup preserves
+accepted keys and leaves rejected keys available to a later extraction.
+
+Pausing stops automatic extraction and status checks, including checks queued with an
+enabled snapshot before the pause. An explicit status refresh remains available for
+saved, revision-matching delivery on a paused sync or an idle cancelled task; it does
+not reread warehouse SQL. Failed explicit checks preserve the prior task status.
+
 ## Snapshot guarantees and budgets
 
 Snapshot pages are collected in ephemeral SQLite with unique source keys,

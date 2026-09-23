@@ -59,8 +59,22 @@ export const route = createRoute()
           { status: 409 }
         );
     }
-    const config = body.action !== "cancel" ? await readReverseSync(prisma, syncId, workspaceId) : undefined;
-    if (body.action !== "cancel" && !config) throw new ApiError("Enable the sync before running it", { status: 409 });
+    const config =
+      body.action !== "cancel"
+        ? await readReverseSync(
+            prisma,
+            syncId,
+            workspaceId,
+            body.action === "refresh" ? { refreshTaskId: body.taskId } : {}
+          )
+        : undefined;
+    if (body.action !== "cancel" && !config)
+      throw new ApiError(
+        body.action === "refresh"
+          ? "Saved run is unavailable or its configuration has changed"
+          : "Enable the sync before running it",
+        { status: 409 }
+      );
     if (body.action === "run") {
       if (!config) throw new ApiError("Enable the sync before running it", { status: 409 });
       if (await prisma.source_task.count({ where: { sync_id: syncId, status: "RUNNING" } }))

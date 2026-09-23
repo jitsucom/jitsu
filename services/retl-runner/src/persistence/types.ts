@@ -5,6 +5,8 @@ export interface RunInput extends ReverseEtlRunScope {
   mode: "upsert" | "mirror";
   /** Full includes cursorless models and explicit full refresh. */
   extraction: "cursor" | "full";
+  /** Pending event keys cannot be copied as acknowledged delivery into a new run. */
+  insertOnly?: boolean;
 }
 export type Scope = Readonly<RunInput>;
 

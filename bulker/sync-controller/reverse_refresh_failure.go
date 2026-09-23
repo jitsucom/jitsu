@@ -62,7 +62,7 @@ func (t *TaskManager) recordReverseRefreshFailure(ctx context.Context, syncID, t
 			status = original
 		}
 	}
-	if status != "PENDING" && status != "WAITING" && status != "FAILED" {
+	if status != "PENDING" && status != "WAITING" && status != "FAILED" && status != "CANCELLED" {
 		return nil
 	}
 	now := time.Now().UTC()

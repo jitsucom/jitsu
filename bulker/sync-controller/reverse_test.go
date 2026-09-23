@@ -28,6 +28,15 @@ func reverseTestConfig() *Config {
 	return &Config{KubernetesNamespace: "default", ReverseEnabled: true, ReverseRunnerImage: "retl:test", ReverseRuntimeSecret: "retl-runtime", PodsServiceAccount: "runner", JobActiveDeadlineSeconds: 3600, ContainerInitTimeoutSeconds: 180, TaskTimeoutHours: 1}
 }
 
+func TestPausedReverseEntryHasNoExtractionSchedule(t *testing.T) {
+	config := reverseFixture().Reverse
+	config.Options = json.RawMessage(`{"disabled":true,"mode":"mirror"}`)
+	entry := config.entry()
+	if !config.paused() || entry.Schedule != "" || entry.Reverse != config {
+		t.Fatal("paused delivery must remain available without an extraction schedule")
+	}
+}
+
 func TestReverseRepositoryRejectsPartialAndPreservesSnapshot(t *testing.T) {
 	entry := reverseFixture()
 	raw, _ := json.Marshal([]*ReverseConfig{entry.Reverse})

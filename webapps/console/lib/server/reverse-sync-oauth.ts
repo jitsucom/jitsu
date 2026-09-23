@@ -15,7 +15,7 @@ export function authorizeReverseRunner(authorization: string | undefined, secret
 /** No caller-supplied Nango connection/integration/host; resolve from the current scoped sync. */
 export async function readReverseGoogleToken(
   prisma: PrismaClient,
-  input: { syncId: string; workspaceId: string; configRevision: string },
+  input: { syncId: string; workspaceId: string; configRevision: string; refreshTaskId?: string },
   nango: NangoConfig,
   request: typeof fetch = fetch,
   signal: AbortSignal = AbortSignal.timeout(15_000)
@@ -24,9 +24,12 @@ export async function readReverseGoogleToken(
   const denied = () => new Error("Reverse sync OAuth unavailable; verify admission, revision and Google authorization");
   try {
     const read = () =>
-      prisma.$transaction(tx => readReverseSync(tx, input.syncId, input.workspaceId), {
-        isolationLevel: "RepeatableRead",
-      });
+      prisma.$transaction(
+        tx => readReverseSync(tx, input.syncId, input.workspaceId, { refreshTaskId: input.refreshTaskId }),
+        {
+          isolationLevel: "RepeatableRead",
+        }
+      );
     const config = await read();
     if (
       !nango.enabled ||
@@ -38,7 +41,7 @@ export async function readReverseGoogleToken(
     const credentials = GoogleAudienceCredentials.safeParse(config.destination);
     if (!credentials.success || credentials.data.oauthConnectionId !== `destination.${config.toId}`) throw denied();
     const token = await readGoogleAudienceConnectionToken(credentials.data.oauthConnectionId, nango, request, signal);
-    // Recheck after Nango I/O: never return a token if the sync was disabled/edited meanwhile.
+    // Recheck after Nango I/O: saved-run scope and revision must still be valid.
     const current = await read();
     if (!current || current.configRevision !== input.configRevision || current.toId !== config.toId) throw denied();
     return token;

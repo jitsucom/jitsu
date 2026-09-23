@@ -5,6 +5,7 @@ import { server } from "./support/msw";
 import { readReverseSync } from "../../lib/server/reverse-sync-export";
 import { readReverseGoogleToken, authorizeReverseRunner } from "../../lib/server/reverse-sync-oauth";
 import type { NangoConfig } from "../../lib/server/oauth/nango-config";
+import { seedPendingReverseRun } from "./support/reverse-pending";
 
 const nango: NangoConfig = {
   enabled: true,
@@ -75,6 +76,27 @@ async function fixture() {
   return { prisma, workspace, destination, credentials, link, options, input, oauth, read, calls: () => calls };
 }
 describe("reverse sync scoped Google OAuth", () => {
+  it("allows paused saved-task OAuth but denies ordinary token requests and rechecks completion", async () => {
+    const f = await fixture();
+    const admission = await seedPendingReverseRun(f.prisma, f.link.id, f.workspace.id, f.input.configRevision);
+    await f.prisma.configurationObjectLink.update({
+      where: { id: f.link.id },
+      data: { data: { ...f.options, disabled: true } },
+    });
+    await expect(f.read()).rejects.toThrow("OAuth unavailable");
+    expect((await readReverseGoogleToken(f.prisma, { ...f.input, ...admission }, nango)).accessToken).toBe(
+      "google-token"
+    );
+    server.use(
+      http.get("https://nango.test.local/connection/:id", async () => {
+        await f.prisma.reverse_sync_control.updateMany({ where: { sync_id: f.link.id }, data: { phase: "complete" } });
+        return HttpResponse.json(f.oauth);
+      })
+    );
+    await expect(readReverseGoogleToken(f.prisma, { ...f.input, ...admission }, nango)).rejects.toThrow(
+      "OAuth unavailable"
+    );
+  });
   it("requires a nonempty exact service bearer token", () => {
     expect(authorizeReverseRunner("Bearer private", "private")).toBe(true);
     for (const actual of [undefined, "", "private", "Bearer privatE", "Bearer private "])

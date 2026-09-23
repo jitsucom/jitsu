@@ -39,7 +39,18 @@ func (r *ReverseConfig) valid() bool {
 	return r.Version == 1 && r.Kind == "reverse" && reverseID.MatchString(r.ID) && r.WorkspaceID != "" && reverseRevision.MatchString(r.ConfigRevision) && !r.UpdatedAt.IsZero() && len(r.Model) > 0 && len(r.Warehouse) > 0 && len(r.Options) > 0
 }
 func (r *ReverseConfig) entry() *SyncEntry {
-	return &SyncEntry{ID: r.ID, WorkspaceID: r.WorkspaceID, FromID: r.FromID, ToID: r.ToID, Schedule: r.Schedule, Timezone: r.Timezone, UpdatedAt: r.UpdatedAt, Reverse: r}
+	schedule := r.Schedule
+	if r.paused() {
+		schedule = ""
+	}
+	return &SyncEntry{ID: r.ID, WorkspaceID: r.WorkspaceID, FromID: r.FromID, ToID: r.ToID, Schedule: schedule, Timezone: r.Timezone, UpdatedAt: r.UpdatedAt, Reverse: r}
+}
+
+func (r *ReverseConfig) paused() bool {
+	var options struct {
+		Disabled bool `json:"disabled"`
+	}
+	return json.Unmarshal(r.Options, &options) != nil || options.Disabled
 }
 
 // Shared with retl-runner/src/lease.ts. Hash preserves case and avoids name collisions.

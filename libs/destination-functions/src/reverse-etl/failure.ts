@@ -91,6 +91,10 @@ const failures = new Map<string, string>([
     "A previous run still has unresolved work. Contact support or your Jitsu administrator to finish that run before starting another; do not reset sync state.",
   ],
   [
+    "Previous conversion run requires status refresh before new extraction",
+    "A previous conversion run is still unresolved. Refresh its delivery status before starting another run. No new conversions were submitted by this attempt.",
+  ],
+  [
     "Google replacement cutoff unavailable; no audience changes submitted",
     "Jitsu could not verify Google's clock and audience identity before replacement. No audience changes were submitted by this attempt. Ask your Jitsu administrator to check Google API access and connectivity, then retry.",
   ],

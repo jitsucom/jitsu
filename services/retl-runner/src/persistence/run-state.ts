@@ -81,10 +81,15 @@ export async function openRun(
     if (!sameRun) {
       const blocked = await client.query(
         `SELECT 1 FROM reverse_sync_control WHERE workspace_id=$1 AND sync_id=$2
-         AND NOT detached AND phase NOT IN ('complete','aborted') LIMIT 1`,
-        [run.workspaceId, run.syncId]
+         AND (NOT detached OR $3::boolean) AND phase NOT IN ('complete','aborted') LIMIT 1`,
+        [run.workspaceId, run.syncId, run.insertOnly === true]
       );
-      ensure(!blocked.rowCount, "Previous logical run requires recovery");
+      ensure(
+        !blocked.rowCount,
+        run.insertOnly
+          ? "Previous conversion run requires status refresh before new extraction"
+          : "Previous logical run requires recovery"
+      );
     }
     await client.query(
       `INSERT INTO reverse_sync_control (workspace_id,sync_id,run_id,revision,target_hash,mode,extraction,artifact_head,run_order,committed_generation)

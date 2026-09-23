@@ -29,6 +29,28 @@ const config = ReverseRunConfig.parse({
 });
 afterEach(() => vi.useRealTimers());
 describe("runner console OAuth and adapter binding", () => {
+  it("binds refresh admission and OAuth to the original task", async () => {
+    const urls: URL[] = [];
+    const client = createConsoleClient(
+      "https://console.test.local",
+      "service",
+      config,
+      async url => {
+        urls.push(url);
+        return new Response(
+          JSON.stringify(
+            url.pathname.includes("reverse-sync-oauth")
+              ? { accessToken: "token", expiresAt: new Date(Date.now() + 300000).toISOString() }
+              : config
+          )
+        );
+      },
+      "original-task"
+    );
+    await client.admit(new AbortController().signal);
+    await client.accessToken(new AbortController().signal);
+    expect(urls.map(url => url.searchParams.get("refreshTaskId"))).toEqual(["original-task", "original-task"]);
+  });
   it("binds admission and OAuth to sync/workspace/revision, never arbitrary connection IDs", async () => {
     const request = vi.fn<ConsoleRequest>(
       async url =>

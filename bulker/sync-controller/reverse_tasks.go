@@ -61,6 +61,10 @@ func (t *TaskManager) ReverseReadHandler(c *gin.Context) {
 		t.refreshReverseTask(c, ctx, entry, taskID)
 		return
 	}
+	if entry.Reverse.paused() {
+		c.JSON(http.StatusConflict, gin.H{"ok": false, "error": "Enable the sync before running it"})
+		return
+	}
 	taskID := uuid.New()
 	name := reverseResourceName(syncID + ":" + taskID)
 	secretName := name + "-config"
@@ -99,12 +103,12 @@ func (t *TaskManager) refreshReverseTask(c *gin.Context, ctx context.Context, en
 	err := t.dbpool.QueryRow(ctx, `UPDATE source_task t SET status='PENDING',
       description='Status refresh requested',updated_at=clock_timestamp(),
       metrics=jsonb_set(t.metrics,'{reverseRecovery}',t.metrics->'reverseRecovery' || jsonb_build_object(
-        'previousStatus',COALESCE(t.metrics->'reverseRecovery'->>'previousStatus',t.status),'suspended',false,
+        'previousStatus',CASE WHEN t.status='CANCELLED' THEN t.status ELSE COALESCE(t.metrics->'reverseRecovery'->>'previousStatus',t.status) END,'suspended',false,
         'attempt',COALESCE((t.metrics->'reverseRecovery'->>'attempt')::int,0)+1,
         'nextCheckAt',to_char(clock_timestamp() AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'),
         'deadline',to_char((clock_timestamp()+interval '24 hours') AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')))
       FROM reverse_sync_control c WHERE t.sync_id=$1 AND t.task_id=$2 AND t.package='jitsu/retl-runner'
-      AND t.status IN ('PENDING','WAITING','FAILED') AND COALESCE((t.metrics->'reverseWorker'->>'active')::boolean,false)=false
+      AND t.status IN ('PENDING','WAITING','FAILED','CANCELLED') AND COALESCE((t.metrics->'reverseWorker'->>'active')::boolean,false)=false
       AND COALESCE((t.metrics->'reverseRecovery'->>'attempt')::int,0)<2147483647
       AND t.started_by->>'workspaceId'=$3 AND c.workspace_id=$3 AND c.sync_id=t.sync_id
       AND c.run_id=t.metrics->'reverseRecovery'->>'runId' AND c.revision=$4

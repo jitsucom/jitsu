@@ -104,6 +104,21 @@ describe("runner-owned Google audience provisioning", () => {
       f.setRows(rows(["a", "b"]));
       const uploads: any[] = [];
       const wire = vi.spyOn(globalThis, "fetch").mockImplementation(async (_url, init) => {
+        if (String(_url).includes("requestStatus:retrieve"))
+          return new Response(
+            JSON.stringify({
+              requestStatusPerDestination: [
+                {
+                  destination: {
+                    operatingAccount: { accountType: "GOOGLE_ADS", accountId: "1234567890" },
+                    productDestinationId: "123",
+                  },
+                  requestStatus: "SUCCESS",
+                  eventsIngestionStatus: { recordCount: "2" },
+                },
+              ],
+            })
+          ) as Awaited<ReturnType<typeof globalThis.fetch>>;
         const body = JSON.parse(init!.body as string);
         uploads.push(body);
         return new Response(
@@ -120,6 +135,14 @@ describe("runner-owned Google audience provisioning", () => {
       });
       try {
         expect(await execute(f.input)).toBe(stream === "click-conversions" ? "PENDING" : "COMPLETE");
+        if (stream === "click-conversions") {
+          await admin.query(
+            `UPDATE newjitsu.source_task SET metrics=jsonb_set(metrics,'{reverseRecovery,nextCheckAt}',to_jsonb('2000-01-01T00:00:00.000Z'::text)) WHERE task_id='task'`
+          );
+          expect(await execute({ ...f.input, taskId: "accepted-check", trigger: "recovery", recoveryOf: "task" })).toBe(
+            "COMPLETE"
+          );
+        }
         f.input.taskId = "second-event-run";
         // Different payload, same primary key: insert-only must still omit a/b.
         f.setRows(rows(["a", "b", "c"]).map(row => ({ ...row, time: "2026-09-20T13:30:00Z" })));
@@ -527,8 +550,68 @@ describe("executable runner", () => {
     await makeDue();
     f.input = { ...f.input, taskId: worker, recoveryOf: parent, trigger: "recovery" };
   }
+  it("refreshes paused delivery without extraction and rejects new manual or scheduled runs", async () => {
+    const f = asynchronousFixture();
+    expect(await execute(f.input)).toBe("PENDING");
+    f.input.config.options.disabled = true;
+    for (const trigger of ["manual", "scheduled"] as const) {
+      f.calls.length = 0;
+      expect(await execute({ ...f.input, taskId: trigger, trigger })).toBe("FAILED");
+      expect(f.calls).not.toContain("reader");
+      expect(f.calls).not.toContain("upsert");
+    }
+    for (const batch of f.writes) f.receipts.set(batch.batchId, accepted(batch));
+    await refresh(f, "paused-check");
+    f.calls.length = 0;
+    expect(await execute(f.input)).toBe("COMPLETE");
+    expect(f.calls).toContain("reconcile");
+    expect(f.calls).not.toContain("reader");
+  });
+  it("refuses an automatic refresh queued before the sync was paused", async () => {
+    const f = asynchronousFixture();
+    expect(await execute(f.input)).toBe("PENDING");
+    await refresh(f, "stale-auto-check");
+    f.input.admit = async () => ({ ...f.input.config, options: { ...f.input.config.options, disabled: true } });
+    f.calls.length = 0;
+    expect(await execute(f.input)).toBe("PENDING");
+    expect(f.calls).not.toContain("reader");
+    expect(f.calls).not.toContain("reconcile");
+    expect(await taskLogs("task")).toContain("Status refresh failed without updating delivery outcomes");
+  });
+  it("retries rejected conversion keys after explicit cleanup without replaying accepted keys", async () => {
+    const f = asynchronousFixture();
+    f.input.config.model.cursor = undefined;
+    f.adapter.insertOnly = true;
+    f.adapter.project = (_action, row: any) => [
+      { identity: { eventKey: recordKey([row.id]) }, upsert: row, remove: {} },
+    ];
+    expect(await execute(f.input)).toBe("PENDING");
+    const batch = f.writes[0];
+    f.input.taskId = "overlap";
+    expect(await execute(f.input)).toBe("FAILED");
+    expect(f.writes).toHaveLength(1);
+    f.receipts.set(batch.batchId, {
+      outcomes: batch.records.map((row, i) =>
+        i === 0
+          ? { operationId: row.operationId, status: "accepted" }
+          : { operationId: row.operationId, status: "rejected", code: "invalid", safeReason: "Invalid" }
+      ),
+    });
+    await refresh(f, "rejected-check");
+    expect(await execute(f.input)).toBe("FAILED");
+    expect((await control()).phase).toBe("batches_pending");
+    // Explicit retry cleans up the failed saved run, but does not re-upload it.
+    await admin.query("UPDATE newjitsu.source_task SET status='PENDING' WHERE task_id='task'");
+    await refresh(f, "cleanup-check");
+    expect(await execute(f.input)).toBe("FAILED");
+    expect((await control()).phase).toBe("aborted");
+    f.input = { ...f.input, taskId: "retry", trigger: "manual", recoveryOf: undefined };
+    expect(await execute(f.input)).toBe("PENDING");
+    expect(f.writes).toHaveLength(2);
+    expect(f.writes[1].records.map(row => row.row.id)).toEqual(["b"]);
+  });
   it.each([false, true])(
-    "keeps an all-duplicate overlap from fencing the accepted cursor (saved cursor: %s)",
+    "blocks insert-only overlap until acceptance without advancing the cursor (saved cursor: %s)",
     async seeded => {
       const f = asynchronousFixture();
       f.input.config.model.cursor = { column: "id", type: "string" };
@@ -590,19 +673,19 @@ describe("executable runner", () => {
       const count = f.writes.length;
       for (const taskId of ["noop-1", "noop-2"]) {
         f.input.taskId = taskId;
-        expect(await execute(f.input)).toBe("COMPLETE");
+        expect(await execute(f.input)).toBe("FAILED");
         expect(f.writes).toHaveLength(count);
-        expect((await saved()).decoded.point).toEqual(before?.decoded.point ?? { sourceSequence: 0 });
+        expect(await saved()).toEqual(before);
+        expect((await task(taskId)).error).toContain("previous conversion run is still unresolved");
         expect((await task()).status).toBe("PENDING");
       }
-      const latestStore = (await saved()).decoded.store;
-      expect(latestStore.latestRun).toBe((await control()).run_id);
+      expect((await control()).run_order).toBe(runOrder);
       for (const batch of f.writes.slice(firstWrite)) f.receipts.set(batch.batchId, accepted(batch));
       await refresh(f, "accepted-check");
       expect(await execute(f.input)).toBe("COMPLETE");
       const acceptedState = await saved();
       expect(acceptedState.checkpointRunOrder).toBe(runOrder);
-      expect(acceptedState.decoded.store).toEqual(latestStore);
+      expect(acceptedState.decoded.store.latestRun).toBe((await control()).run_id);
       expect(acceptedState.decoded.point.cursor).toEqual({ value: "b", primaryKeyValues: ["b"] });
       f.input = { ...f.input, taskId: "after-acceptance", trigger: "manual", recoveryOf: undefined };
       expect(await execute(f.input)).toBe("COMPLETE");
@@ -811,7 +894,7 @@ describe("executable runner", () => {
       expect((await admin.query("SELECT count(*) FROM newjitsu.source_task")).rows[0].count).toBe("1");
     }
   );
-  it("retains a failed detached run for explicit refresh on its original task", async () => {
+  it.each(["FAILED", "CANCELLED"])("retains a %s detached run across failed explicit refresh", async previousStatus => {
     const f = asynchronousFixture();
     expect(await execute(f.input)).toBe("PENDING");
     const initial = await task();
@@ -828,10 +911,13 @@ describe("executable runner", () => {
     expect((await task()).metrics.reverseRecovery.runId).toBe(initial.metrics.reverseRecovery.runId);
     const error = (await task()).error;
     // The controller's explicit-refresh transition: same task, new worker.
-    await admin.query(`
+    await admin.query(
+      `
       UPDATE newjitsu.source_task SET status='PENDING',metrics=jsonb_set(
         jsonb_set(metrics,'{reverseRecovery,nextCheckAt}',to_jsonb('2000-01-01T00:00:00.000Z'::text)),
-        '{reverseRecovery,previousStatus}','"FAILED"') WHERE task_id='task'`);
+        '{reverseRecovery,previousStatus}',to_jsonb($1::text)) WHERE task_id='task'`,
+      [previousStatus]
+    );
     f.input.taskId = "manual-failed-check";
     f.adapter.recovery = state => ({
       ...bind(state),
@@ -840,7 +926,9 @@ describe("executable runner", () => {
       },
     });
     f.calls.length = 0;
-    expect(await execute(f.input)).toBe("FAILED");
+    expect(await execute(f.input)).toBe(previousStatus);
+    expect((await task()).status).toBe(previousStatus);
+    expect((await task()).metrics.reverseWorker.active).toBe(false);
     expect((await task()).error).toBe(error);
     expect((await task()).metrics.reverseRecovery.runId).toBe(initial.metrics.reverseRecovery.runId);
     await admin.query(`

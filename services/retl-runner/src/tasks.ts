@@ -141,9 +141,9 @@ export class Tasks {
       const suspended = stopAutomaticChecks || !next;
       const schedule = { ...(next ?? previous), ...(suspended ? { suspended: true } : {}) };
       const status = current.rows[0].previous;
-      ensure(["WAITING", "PENDING", "FAILED"].includes(status), "Invalid previous refresh status");
+      ensure(["WAITING", "PENDING", "FAILED", "CANCELLED"].includes(status), "Invalid previous refresh status");
       const detail = `${message} ${
-        suspended || status === "FAILED"
+        suspended || status === "FAILED" || status === "CANCELLED"
           ? "Automatic status checks stopped; saved delivery retained."
           : `Saved delivery retained; next status check at ${schedule.nextCheckAt}.`
       }`;
@@ -161,7 +161,7 @@ export class Tasks {
         "INSERT INTO task_log(id,level,logger,message,sync_id,task_id) VALUES($1,'ERROR','retl-runner',$2,$3,$4)",
         [randomUUID(), detail, this.syncId, this.taskId]
       );
-      return status === "FAILED" ? "FAILED" : "PENDING";
+      return status === "FAILED" || status === "CANCELLED" ? status : "PENDING";
     });
   }
   async logError(message: string) {

@@ -39,7 +39,13 @@ async function main() {
     { connectionString: env.RETL_DATABASE_URL },
     { objectStorage: objectStorageFromEnv(process.env, controller.signal) }
   );
-  const consoleClient = createConsoleClient(env.RETL_CONSOLE_URL, env.RETL_CONSOLE_TOKEN, config);
+  const consoleClient = createConsoleClient(
+    env.RETL_CONSOLE_URL,
+    env.RETL_CONSOLE_TOKEN,
+    config,
+    fetch,
+    env.RETL_TRIGGER === "recovery" ? env.RETL_RECOVERY_OF : undefined
+  );
   const adapters = createAdapterRegistry((_, signal) => consoleClient.accessToken(signal));
   const stop = () => controller.abort();
   process.once("SIGTERM", stop);

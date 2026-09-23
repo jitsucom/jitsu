@@ -31,7 +31,7 @@ function taskView(task: Prisma.source_taskGetPayload<{ select: typeof taskSelect
   return ReverseTask.parse({
     ...task,
     canRefresh:
-      ["WAITING", "PENDING", "FAILED"].includes(task.status) &&
+      ["WAITING", "PENDING", "FAILED", "CANCELLED"].includes(task.status) &&
       typeof (metrics?.reverseRecovery as any)?.runId === "string" &&
       (metrics?.reverseWorker as any)?.active !== true,
     stats: stats.success ? stats.data : null,

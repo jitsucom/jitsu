@@ -257,7 +257,8 @@ describe("single-save Reverse ETL settings", () => {
     ["WAITING", false, true],
     ["PENDING", true, false],
     ["COMPLETE", false, false],
-    ["CANCELLED", false, false],
+    ["CANCELLED", false, true],
+    ["CANCELLED", true, false],
   ] as const)(
     "exposes explicit refresh eligibility for %s tasks with active=%s",
     async (status, active, canRefresh) => {

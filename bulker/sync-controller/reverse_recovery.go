@@ -44,7 +44,7 @@ func (t *TaskManager) scheduleReverseRecovery() {
 	}
 	var ids, workspaces, revisions []string
 	for _, entry := range data.Syncs {
-		if entry.Reverse != nil {
+		if entry.Reverse != nil && !entry.Reverse.paused() {
 			ids = append(ids, entry.ID)
 			workspaces = append(workspaces, entry.WorkspaceID)
 			revisions = append(revisions, entry.Reverse.ConfigRevision)

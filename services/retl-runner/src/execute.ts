@@ -93,6 +93,12 @@ export async function execute(input: ExecuteOptions): Promise<TaskResult> {
     started = true;
     stage = "admission";
     const config = ReverseRunConfig.parse(await input.admit());
+    // Automatic checks are only queued with enabled snapshots. A pause after
+    // queuing must still stop them; explicit paused refresh gets a paused snapshot.
+    ensure(
+      !config.options.disabled || (input.config.options.disabled && input.trigger === "recovery" && refreshRunId),
+      "Paused sync only permits saved delivery status refresh"
+    );
     stage = "execution";
     ensure(
       config.id === input.config.id &&
@@ -137,6 +143,7 @@ export async function execute(input: ExecuteOptions): Promise<TaskResult> {
       configRevision: config.configRevision,
       mode: config.options.mode,
       extraction: config.model.cursor ? ("cursor" as const) : ("full" as const),
+      insertOnly: adapter.insertOnly,
     };
     const mirror = config.options.mode === "mirror";
     // Restoring large object-backed baselines must not outlive worker ownership.
