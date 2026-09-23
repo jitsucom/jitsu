@@ -15,8 +15,8 @@ catalog:
   esbuild: ^0.28.1
   tslib: ^2.6.3
   "@types/node": ^18.15.3
-  vitest: ^4.1.4
-  "@vitest/ui": ^4.1.4
+  vitest: ^4.1.11
+  "@vitest/ui": ^4.1.11
   lodash: ^4.18.1
   "@types/lodash": ^4.17.24
   ts-node: ^10.9.2
@@ -84,14 +84,14 @@ overrides:
   "@types/react-dom": "18.3.1"
   "glob@>=10.2.0 <10.5.0": "^10.5.0"
   "qs@<6.16.0": "^6.16.0"
-  "next@<16.2.11": "^16.2.11"
+  "next@<16.3.3": "^16.3.3"
   "@tootallnate/once@<3.0.1": "^3.0.1"
   "protobufjs@<7.6.5": "^7.6.5"
   "@protobufjs/utf8@<1.1.1": "^1.1.1"
   "lodash-es@<4.18.0": "^4.18.0"
   "yaml@<2.8.3": "^2.8.3"
   "picomatch@<2.3.2": "^2.3.2"
-  "js-yaml@<4.3.1": "^4.3.1"
+  "js-yaml@<4.3.2": "^4.3.2"
   "undici@<6.28.0": "^6.28.0"
   "undici@>=7.0.0 <7.29.0": "^7.29.0"
   "vite@6.4.2": "^6.4.3"
@@ -112,13 +112,15 @@ overrides:
   "brace-expansion@>=3 <3.0.1": "^3.0.1"
   "brace-expansion@>=4 <4.0.1": "^4.0.1"
   "brace-expansion@>=5 <5.0.9": "^5.0.9"
-  "hono@<4.12.34": "^4.12.34"
+  "hono@<4.13.5": "^4.13.5"
   "ip-address@<=10.3.0": "^10.3.1"
   "@hono/node-server@<2.0.5": "^2.0.5"
   "@humanfs/node@<0.16.8": "^0.16.8"
   "browserslist@<4.28.7": "^4.28.7"
   "fflate@<0.8.3": "^0.8.3"
   "engine.io@<6.6.7": "^6.6.7"
-  "sharp@<0.35.0": "^0.35.0"
-  "svgo@<4.0.2": "^4.0.2"
+  "sharp@<0.35.4": "^0.35.4"
+  "svgo@<4.1.0": "^4.1.0"
+  "baseline-browser-mapping@<2.11.0": "^2.11.0"
+  "@vitest/mocker@<4.1.11": "^4.1.11"
   "websocket-driver@<0.7.5": "^0.7.5"
