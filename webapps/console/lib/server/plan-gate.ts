@@ -104,6 +104,39 @@ export async function assertCustomDomainsAllowed(
 }
 
 /**
+ * Read the same feature rules used by the write gates. Unlike the browser's
+ * billing provider, this uses EE availability independently of Firebase.
+ * A lookup failure returns unknown instead of an upgrade-required verdict.
+ */
+export async function resolveEntitlements(
+  user: SessionUser,
+  workspace: { id: string; featuresEnabled?: readonly string[] | null },
+  req?: NextApiRequest
+): Promise<{ customDomains: boolean | null; identityStitching: boolean | null }> {
+  if (!isEEAvailable()) {
+    return { customDomains: true, identityStitching: true };
+  }
+  // The grant is a property of the workspace, not of its plan, so it is
+  // answered without billing. assertCustomDomainsEntitlement returns on it
+  // before its own lookup for the same reason — a billing outage must not
+  // revoke an entitlement somebody granted by hand.
+  const granted = (workspace.featuresEnabled ?? []).includes(WORKSPACE_DOMAINS_FEATURE);
+  let billing: Awaited<ReturnType<typeof fetchPlan>> | undefined;
+  try {
+    billing = await fetchPlan(workspace.id, user, req);
+  } catch (e) {
+    // null is "unknown", not "denied". The caller renders neither an upgrade
+    // prompt nor an entitlement; the write gate still fails closed with 503, so
+    // nothing is granted by this uncertainty.
+    return { customDomains: granted ? true : null, identityStitching: null };
+  }
+  return {
+    customDomains: granted ? true : canUseCustomDomains(billing, workspace.featuresEnabled),
+    identityStitching: canUseIdentityStitching(billing),
+  };
+}
+
+/**
  * Does this workspace get custom domains at all? Separate from
  * assertCustomDomainsAllowed because provisioning does not only happen on a
  * config write: `GET /api/:workspaceId/domain-check` calls checkOrAddToIngress

@@ -213,3 +213,56 @@ describe("the plan gate holds through the real REST route", () => {
     expect(ingressCalls, "an allowed workspace should still get its domain checked").toBeGreaterThan(0);
   });
 });
+
+async function getEntitlements(bearer: string, workspaceId: string) {
+  const handler = (await import("../../pages/api/[workspaceId]/entitlements")).default;
+  const res = makeRes();
+  await handler(
+    {
+      method: "GET",
+      url: `/api/${workspaceId}/entitlements`,
+      headers: bearer ? { authorization: `Bearer ${bearer}` } : {},
+      query: { workspaceId },
+      socket: {},
+    } as any,
+    res
+  );
+  return res;
+}
+
+describe("workspace entitlements endpoint", () => {
+  it("resolves Free and explicit grants using service auth without Firebase", async () => {
+    const { user, workspace } = await seedWorkspace();
+    const bearer = await apiKeyFor(user.internalId);
+    onPlan("free");
+    const free = await getEntitlements(bearer, workspace.id);
+    expect(free.statusCode).toBe(200);
+    expect(free.body).toEqual({ customDomains: false, identityStitching: false });
+    onPlan("free", { customDomainsEnabled: true, identityStitchingEnabled: true });
+    expect((await getEntitlements(bearer, workspace.id)).body).toEqual({
+      customDomains: true,
+      identityStitching: true,
+    });
+  });
+  it("rejects anonymous and non-member requests before fetching billing", async () => {
+    const { user, workspace } = await seedWorkspace({ member: false });
+    const calls = vi.fn();
+    server.use(
+      http.get("http://ee.test.local/api/billing/settings", () => {
+        calls();
+        return HttpResponse.json({ ok: true, subscriptionStatus: { planId: "free" } });
+      })
+    );
+    expect((await getEntitlements("", workspace.id)).statusCode).toBe(401);
+    expect((await getEntitlements(await apiKeyFor(user.internalId), workspace.id)).statusCode).toBe(403);
+    expect(calls).not.toHaveBeenCalled();
+  });
+  it("preserves the workspace grant during billing failure and reports stitching unknown", async () => {
+    const { user, workspace } = await seedWorkspace();
+    await deps().prisma.workspace.update({ where: { id: workspace.id }, data: { featuresEnabled: ["misc"] } });
+    server.use(http.get("http://ee.test.local/api/billing/settings", () => new HttpResponse(null, { status: 503 })));
+    const res = await getEntitlements(await apiKeyFor(user.internalId), workspace.id);
+    expect(res.statusCode).toBe(200);
+    expect(res.body).toEqual({ customDomains: true, identityStitching: null });
+  });
+});

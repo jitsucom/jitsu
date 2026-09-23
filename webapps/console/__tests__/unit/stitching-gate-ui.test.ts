@@ -9,6 +9,7 @@ import { cleanup, render, screen } from "@testing-library/react";
 
 const state = vi.hoisted(() => ({
   billing: { enabled: true, loading: false, settings: {} as any },
+  entitlements: { loading: false, customDomains: true as boolean | null, identityStitching: true as boolean | null },
   linkFunctions: [] as any[],
   hasExistingLink: false,
 }));
@@ -20,6 +21,7 @@ vi.mock("../../lib/context", () => ({
   useWorkspaceRole: () => ({ editEntities: true, deleteEntities: true }),
 }));
 vi.mock("../../components/Billing/BillingProvider", () => ({ useBilling: () => state.billing }));
+vi.mock("../../lib/entitlements", () => ({ useEntitlements: () => state.entitlements }));
 vi.mock("../../lib/store", () => ({ useStoreReload: () => async () => {} }));
 vi.mock("next/router", () => ({
   useRouter: () => ({ push: vi.fn(), replace: vi.fn(), query: state.hasExistingLink ? { id: "lnk" } : {} }),
@@ -49,6 +51,11 @@ const renderEditor = () =>
 
 beforeEach(() => {
   state.billing = { enabled: true, loading: false, settings: {} };
+  state.entitlements = {
+    loading: false,
+    customDomains: true as boolean | null,
+    identityStitching: true as boolean | null,
+  };
   state.linkFunctions = [];
   state.hasExistingLink = false;
   vi.stubGlobal(
@@ -76,19 +83,19 @@ const contactSales = () => screen.queryByText(/Contact sales/i);
 
 describe("Identity Stitching plan gate", () => {
   it("renders the toggle at all (sanity: the section exists for this destination)", () => {
-    state.billing.settings = { planId: "enterprise" };
+    state.entitlements.identityStitching = true;
     renderEditor();
     expect(screen.queryByText("Identity Stitching")).toBeTruthy();
   });
 
   it("shows the contact-sales note when the plan denies", () => {
-    state.billing.settings = { planId: "business" };
+    state.entitlements.identityStitching = false;
     renderEditor();
     expect(contactSales()).toBeTruthy();
   });
 
   it("shows no note on enterprise", () => {
-    state.billing.settings = { planId: "enterprise" };
+    state.entitlements.identityStitching = true;
     renderEditor();
     expect(contactSales()).toBeNull();
   });
@@ -96,16 +103,48 @@ describe("Identity Stitching plan gate", () => {
   // The grandfathering half: a connection that already has it is not locked,
   // matching assertIdentityStitchingAllowed on the server.
   it("does not lock a connection that already has it, even below enterprise", () => {
-    state.billing.settings = { planId: "business" };
+    state.entitlements.identityStitching = false;
     state.hasExistingLink = true;
     state.linkFunctions = [{ functionId: ID }];
     renderEditor();
     expect(contactSales()).toBeNull();
   });
 
-  it("does not gate when billing is disabled (self-hosted)", () => {
+  // EE without Firebase: appConfig.billingEnabled is false, so useBilling()
+  // reports disabled and the old gate went inert while the server still
+  // refused the save. Same split as custom domains — this one was live from the
+  // day it shipped, since stitching never had a dark period.
+  it("gates on EE without Firebase, where browser billing is unavailable", () => {
     state.billing = { enabled: false, loading: false, settings: undefined };
+    state.entitlements.identityStitching = false;
+    renderEditor();
+    expect(contactSales()).toBeTruthy();
+  });
+
+  it("does not gate when EE is unavailable (self-hosted)", () => {
+    state.billing = { enabled: false, loading: false, settings: undefined };
+    state.entitlements = {
+      loading: false,
+      customDomains: true as boolean | null,
+      identityStitching: true as boolean | null,
+    };
     renderEditor();
     expect(contactSales()).toBeNull();
   });
+});
+
+it("withholds new stitching during a lookup failure without an upgrade prompt", () => {
+  state.entitlements.identityStitching = null;
+  renderEditor();
+  expect(contactSales()).toBeNull();
+  expect(screen.queryByText(/Could not verify access/)).toBeTruthy();
+  const toggle = screen.getByRole("status").parentElement?.querySelector<HTMLButtonElement>('[role="switch"]');
+  expect(toggle?.disabled).toBe(true);
+});
+it("keeps existing stitching editable during a lookup failure", () => {
+  state.entitlements.identityStitching = null;
+  state.hasExistingLink = true;
+  state.linkFunctions = [{ functionId: ID }];
+  renderEditor();
+  expect(screen.queryByText(/Could not verify access/)).toBeNull();
 });

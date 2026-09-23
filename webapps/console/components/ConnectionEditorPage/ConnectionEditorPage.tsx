@@ -1,4 +1,6 @@
 import { useWorkspace, useWorkspaceRole } from "../../lib/context";
+import { EntitlementStatus } from "../Billing/EntitlementStatus";
+import { useEntitlements } from "../../lib/entitlements";
 import { get } from "../../lib/useApi";
 import { DestinationConfig, FunctionConfig, StreamConfig } from "../../lib/schema";
 import React, { useEffect, useState } from "react";
@@ -13,11 +15,7 @@ import FieldListEditorLayout, { EditorItem } from "../FieldListEditorLayout/Fiel
 import { DataLayoutType } from "@jitsu/protocols/analytics";
 import { Activity, Copy } from "lucide-react";
 import { useBilling } from "../Billing/BillingProvider";
-import {
-  canUseIdentityStitching,
-  hasIdentityStitching,
-  IDENTITY_STITCHING_FUNCTION_ID,
-} from "../../lib/shared/plan-features";
+import { hasIdentityStitching, IDENTITY_STITCHING_FUNCTION_ID } from "../../lib/shared/plan-features";
 import styles from "./ConnectionEditorPage.module.css";
 import { Htmlizer } from "../Htmlizer/Htmlizer";
 import { FunctionsSelector } from "../FunctionsSelector/FunctionsSelector";
@@ -236,9 +234,12 @@ function ConnectionEditor({
   const role = useWorkspaceRole();
   const canEdit = role.editEntities;
   const billing = useBilling();
-  // JITSU-228: Identity Stitching is Enterprise-only. Self-hosted consoles have
-  // no plans, hence the billing.enabled guard.
-  const identityStitchingPlanTooLow = billing.enabled && !billing.loading && !canUseIdentityStitching(billing.settings);
+  // JITSU-228: Identity Stitching is Enterprise-only. Resolved by the server
+  // rather than from useBilling(), which is unavailable on an EE install
+  // without Firebase, where the server still enforces. Self-hosted consoles have
+  // no plans and the endpoint allows everything there.
+  const entitlements = useEntitlements();
+  const identityStitchingPlanTooLow = entitlements.identityStitching === false;
   const [dstId, setDstId] = useState(existingLink?.toId || destinations[0].id);
   const [srcId, setSrcId] = useState(existingLink?.fromId || streams[0].id);
 
@@ -578,7 +579,7 @@ function ConnectionEditor({
     // the server. That leaves a grandfathered connection free to turn it off,
     // and the server will refuse to turn it back on afterwards.
     const identityStitchingOn = hasIdentityStitching(connectionOptions);
-    const identityStitchingLocked = identityStitchingPlanTooLow && !identityStitchingOn;
+    const identityStitchingLocked = entitlements.identityStitching !== true && !identityStitchingOn;
     configItems.push({
       group: "Advanced",
       documentation: (
@@ -590,7 +591,7 @@ function ConnectionEditor({
       name: "Identity Stitching",
       component: (
         <div>
-          {identityStitchingLocked && (
+          {identityStitchingPlanTooLow && !identityStitchingOn && (
             // Inline, not in `documentation`: that is rendered behind a help
             // icon by DocumentedLabel, so a locked user would see a greyed-out
             // switch and no reason for it — and no hover at all on touch.
@@ -601,6 +602,9 @@ function ConnectionEditor({
               </a>{" "}
               to enable it.
             </div>
+          )}
+          {entitlements.identityStitching === null && !identityStitchingOn && (
+            <EntitlementStatus loading={entitlements.loading} retry={entitlements.retry} />
           )}
           <SwitchComponent
             disabled={

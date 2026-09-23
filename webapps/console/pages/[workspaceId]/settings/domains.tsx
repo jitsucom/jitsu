@@ -2,7 +2,7 @@ import React, { useCallback } from "react";
 import { useWorkspace, useWorkspaceRole } from "../../../lib/context";
 import { WorkspacePageLayout } from "../../../components/PageLayout/WorkspacePageLayout";
 import { useBilling } from "../../../components/Billing/BillingProvider";
-import { canUseCustomDomains } from "../../../lib/shared/plan-features";
+import { useEntitlements } from "../../../lib/entitlements";
 import { LoadingAnimation } from "../../../components/GlobalLoader/GlobalLoader";
 import { UpgradeDialog } from "../../../components/Billing/UpgradeDialog";
 import { DomainsEditor } from "../../../components/DomainsEditor/DomainsEditor";
@@ -18,6 +18,11 @@ const WorkspaceDomainsComponent: React.FC<any> = () => {
   const workspace = useWorkspace();
   const role = useWorkspaceRole();
   const billing = useBilling();
+  // JITSU-228: resolved by the server so this page, the site-level editor and
+  // the API gate cannot disagree. Must sit with the other hooks — it used to be
+  // called below the `billing.loading` early return, which changes hook order
+  // between renders the moment billing finishes loading.
+  const entitlements = useEntitlements();
 
   const onSaveMutation = useConfigObjectMutation("domain", async (newObject: any) => {
     await configApi.create(newObject);
@@ -44,12 +49,11 @@ const WorkspaceDomainsComponent: React.FC<any> = () => {
   if (billing.loading) {
     return <LoadingAnimation />;
   }
-  // JITSU-228: resolved through the shared helper so this page, the site-level
-  // editor and the API gate cannot disagree. Previously an inline
-  // planId === "free" test, which is why the server gate had to learn about
-  // the `misc` grant this page already honoured.
-  if (billing.enabled && !canUseCustomDomains(billing.settings, workspace.featuresEnabled)) {
-    return <UpgradeDialog featureDescription={"Workspace Domains"} />;
+  // Gated on an explicit false. `null` means the lookup is in flight or failed,
+  // and an upgrade prompt shown to someone who may be entitled is as wrong as a
+  // control enabled for someone who is not — the server still refuses either way.
+  if (entitlements.customDomains === false && domains.length === 0) {
+    return <UpgradeDialog featureDescription={"Workspace Domains"} availableInPlans={["Business", "Enterprise"]} />;
   }
 
   return (
