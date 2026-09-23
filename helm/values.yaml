@@ -145,6 +145,14 @@ auth:
   # token yourself (external secret manager, SealedSecret, GitOps) — the Job is
   # then not created at all.
   token: ""
+  # Bump this whenever you rotate jitsu-secrets outside the chart
+  # (tokenGenerator.enabled=false). It is mixed into the checksum/credentials
+  # annotation, so changing it rolls every Deployment together. Without it the
+  # annotation is constant on that path, and services pick up a rotated token
+  # one unrelated restart at a time — which breaks inter-service auth until the
+  # last pod catches up. Any value works; a date or the secret's resourceVersion
+  # is the usual choice.
+  credentialsRevision: ""
   # Only used when `token` is set: the generated path mints its own seed
   # password, this one cannot. Required if seed.enabled — without it the seed
   # Job creates no user.
@@ -233,3 +241,24 @@ scaling:
     replicas: 1
   console:
     replicas: 1
+
+# Resource requests and limits, per workload. Empty by default: the right
+# numbers depend on your traffic and cluster, and guessing them either wastes
+# capacity or gets Pods OOMKilled — so the chart ships no opinion.
+#
+# Set these before installing into a namespace with a LimitRange that requires
+# requests, which would otherwise reject every Pod this chart creates, jobs
+# included. Whatever you put under a key is passed through verbatim to the
+# container's `resources:`.
+#
+#   resources:
+#     console:
+#       requests:
+#         cpu: 100m
+#         memory: 512Mi
+#       limits:
+#         memory: 1Gi
+#
+# Keys: console, bulker, ingest, rotor, profiles, syncctl, operator,
+#       seed, install, dbPush, tokenGenerator
+resources: {}

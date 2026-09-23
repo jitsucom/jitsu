@@ -74,6 +74,9 @@ spec:
           {{- with (include "jitsu.imagePullPolicy" (dict "ctx" . "service" "syncctl")) }}
           imagePullPolicy: {{ . }}
           {{- end }}
+          {{- with (include "jitsu.resources" (dict "ctx" . "service" "syncctl")) }}
+          {{- . | nindent 10 }}
+          {{- end }}
 {{- if include "jitsu.devScaffold" (dict "ctx" . "service" "syncctl") }}
           command: ["/build/syncctl"]
 {{- end }}

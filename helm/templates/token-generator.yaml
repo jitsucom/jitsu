@@ -127,18 +127,30 @@ spec:
       containers:
         - name: token-generator
           image: {{ .Values.tokenGenerator.image | quote }}
+          {{- with (include "jitsu.resources" (dict "ctx" . "service" "tokenGenerator")) }}
+          {{- . | nindent 10 }}
+          {{- end }}
           command:
             - sh
             - -c
             - |
               set -eu
+              # Every kubectl call is namespaced explicitly. In-cluster kubectl
+              # does not inherit the Pod's namespace — it falls back to
+              # "default" — while the Role and RoleBinding for this
+              # ServiceAccount exist only in the release namespace. Without
+              # this, `helm install -n jitsu` fails at the pre-install hook:
+              # the get is denied in `default`, so the script takes the create
+              # branch, and the create is forbidden there too.
+              NS="{{ .Release.Namespace }}"
+
               # `tr -dc` on /dev/urandom: no openssl in the kubectl image.
               gen() { head -c 256 /dev/urandom | tr -dc 'a-zA-Z0-9' | head -c "$1"; }
 
               # Value of a key in the existing Secret, empty if absent.
-              key() { kubectl get secret jitsu-secrets -o "jsonpath={.data.$1}" 2>/dev/null | base64 -d 2>/dev/null || true; }
+              key() { kubectl -n "$NS" get secret jitsu-secrets -o "jsonpath={.data.$1}" 2>/dev/null | base64 -d 2>/dev/null || true; }
 
-              if kubectl get secret jitsu-secrets >/dev/null 2>&1; then
+              if kubectl -n "$NS" get secret jitsu-secrets >/dev/null 2>&1; then
                 # Do NOT exit here. The key set grows over time — and an existing
                 # Secret may predate it. dev-deploy.sh creates only the eight
                 # inter-service keys, so a dev release upgraded to mode=prod
@@ -185,7 +197,7 @@ spec:
                 # that body carries the values in plaintext under `stringData`.
                 # The line below reports the key *names*, which is what is
                 # actually useful, and never a value.
-                if ! kubectl patch secret jitsu-secrets -p "{\"stringData\":{$PATCH}}" >/dev/null 2>&1; then
+                if ! kubectl -n "$NS" patch secret jitsu-secrets -p "{\"stringData\":{$PATCH}}" >/dev/null 2>&1; then
                   echo "failed to patch jitsu-secrets — error text withheld because kubectl can echo the patch body, which contains credentials"
                   exit 1
                 fi
@@ -201,13 +213,13 @@ spec:
               # Initial admin password. Generated rather than supplied so it is
               # never typed on a command line; seed.ts sets changeAtNextLogin,
               # so it is a one-time value. Retrieve it with:
-              #   kubectl get secret jitsu-secrets \
+              #   kubectl -n <release-namespace> get secret jitsu-secrets \
               #     -o jsonpath='{.data.SEED_USER_PASSWORD}' | base64 -d
               SEEDPW=$(gen 24)
               # The three keyId:secret pairs use the same service-admin-account
               # prefix the console expects; the rest are the bare token. Mirrors
               # dev-deploy.sh's ensure_secrets() exactly.
-              kubectl create secret generic jitsu-secrets \
+              kubectl -n "$NS" create secret generic jitsu-secrets \
                 --from-literal="RAW_AUTH_TOKENS=$TOKEN" \
                 --from-literal="BULKER_AUTH_KEY=$TOKEN" \
                 --from-literal="ROTOR_AUTH_KEY=$TOKEN" \

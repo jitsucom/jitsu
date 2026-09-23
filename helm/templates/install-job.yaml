@@ -28,6 +28,9 @@ spec:
       containers:
         - name: install
           image: node:24-bookworm
+          {{- with (include "jitsu.resources" (dict "ctx" . "service" "install")) }}
+          {{- . | nindent 10 }}
+          {{- end }}
           workingDir: /cache/workspace
           command:
             - sh

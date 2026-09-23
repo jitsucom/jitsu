@@ -94,6 +94,9 @@ spec:
           {{- with (include "jitsu.imagePullPolicy" (dict "ctx" . "service" "console")) }}
           imagePullPolicy: {{ . }}
           {{- end }}
+          {{- with (include "jitsu.resources" (dict "ctx" . "service" "seed")) }}
+          {{- . | nindent 10 }}
+          {{- end }}
           command:
             - sh
             - -c

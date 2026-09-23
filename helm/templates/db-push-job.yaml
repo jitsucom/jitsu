@@ -46,6 +46,9 @@ spec:
       containers:
         - name: db-push
           image: node:24-bookworm
+          {{- with (include "jitsu.resources" (dict "ctx" . "service" "dbPush")) }}
+          {{- . | nindent 10 }}
+          {{- end }}
           workingDir: /cache/workspace/webapps/console
           command:
             - sh

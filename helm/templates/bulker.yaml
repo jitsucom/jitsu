@@ -71,6 +71,9 @@ spec:
           {{- with (include "jitsu.imagePullPolicy" (dict "ctx" . "service" "bulker")) }}
           imagePullPolicy: {{ . }}
           {{- end }}
+          {{- with (include "jitsu.resources" (dict "ctx" . "service" "bulker")) }}
+          {{- . | nindent 10 }}
+          {{- end }}
 {{- if include "jitsu.devScaffold" (dict "ctx" . "service" "bulker") }}
           command:
             - sh

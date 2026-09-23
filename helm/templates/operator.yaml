@@ -72,6 +72,9 @@ spec:
           {{- with (include "jitsu.imagePullPolicy" (dict "ctx" . "service" "operator")) }}
           imagePullPolicy: {{ . }}
           {{- end }}
+          {{- with (include "jitsu.resources" (dict "ctx" . "service" "operator")) }}
+          {{- . | nindent 10 }}
+          {{- end }}
 {{- if include "jitsu.devScaffold" (dict "ctx" . "service" "operator") }}
           command: ["/build/operator"]
 {{- end }}

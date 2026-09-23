@@ -71,6 +71,9 @@ spec:
           {{- with (include "jitsu.imagePullPolicy" (dict "ctx" . "service" "ingest")) }}
           imagePullPolicy: {{ . }}
           {{- end }}
+          {{- with (include "jitsu.resources" (dict "ctx" . "service" "ingest")) }}
+          {{- . | nindent 10 }}
+          {{- end }}
 {{- if include "jitsu.devScaffold" (dict "ctx" . "service" "ingest") }}
           command: ["/build/ingest"]
 {{- end }}

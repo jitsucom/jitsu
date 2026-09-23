@@ -30,6 +30,9 @@ spec:
           {{- with (include "jitsu.imagePullPolicy" (dict "ctx" . "service" "console")) }}
           imagePullPolicy: {{ . }}
           {{- end }}
+          {{- with (include "jitsu.resources" (dict "ctx" . "service" "console")) }}
+          {{- . | nindent 10 }}
+          {{- end }}
 {{- if include "jitsu.devScaffold" (dict "ctx" . "service" "console") }}
           workingDir: /cache/workspace/webapps/console
           command:

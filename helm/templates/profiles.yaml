@@ -28,6 +28,9 @@ spec:
           {{- with (include "jitsu.imagePullPolicy" (dict "ctx" . "service" "profiles")) }}
           imagePullPolicy: {{ . }}
           {{- end }}
+          {{- with (include "jitsu.resources" (dict "ctx" . "service" "profiles")) }}
+          {{- . | nindent 10 }}
+          {{- end }}
 {{- if include "jitsu.devScaffold" (dict "ctx" . "service" "profiles") }}
           workingDir: /cache/workspace/services/rotor
           command: ["npx", "tsx", "--no-node-snapshot", "--max-old-space-size=2048", "src/index.ts"]

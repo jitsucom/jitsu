@@ -428,7 +428,15 @@ only when absent, so the digest is constant and nothing rolls.
 Emitted in prod only, so the dev render stays byte-identical.
 */}}
 {{- define "jitsu.credentialChecksum" -}}
-checksum/credentials: {{ include (print .Template.BasePath "/secrets.yaml") . | sha256sum }}
+{{- /* auth.credentialsRevision is mixed in for the external-secret path
+       (tokenGenerator.enabled=false with auth.token unset), where secrets.yaml
+       renders nothing and this digest is otherwise the hash of an empty string
+       — constant forever. Rotating jitsu-secrets out of band then changes no
+       pod template, and since envFrom is read only at pod start, the next
+       unrelated restart picks up the new token while every other service keeps
+       the old one and inter-service auth breaks. Bumping this value from the
+       secret controller or GitOps flow makes the rollout deliberate. */}}
+checksum/credentials: {{ printf "%s|%v" (include (print .Template.BasePath "/secrets.yaml") .) (.Values.auth.credentialsRevision | default "") | sha256sum }}
 {{- end -}}
 
 {{/*
@@ -461,4 +469,15 @@ no command override.
 {{- $o := (get ($ctx.Values.images | default dict) .service) | default dict -}}
 {{- if not $o.repository -}}true{{- end -}}
 {{- end -}}
+{{- end }}
+
+{{- /* Per-workload resources, keyed by service name in .Values.resources.
+       Emits nothing when unset, so a chart with no opinion stays that way and
+       existing installs are unaffected. Callers supply the indentation. */}}
+{{- define "jitsu.resources" -}}
+{{- $r := get (.ctx.Values.resources | default dict) .service -}}
+{{- with $r }}
+resources:
+{{- toYaml . | nindent 2 }}
+{{- end }}
 {{- end }}
