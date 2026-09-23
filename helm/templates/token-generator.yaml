@@ -162,6 +162,15 @@ spec:
                 # last pod restarts.
                 TOKEN=$(key RAW_AUTH_TOKENS)
                 [ -n "$TOKEN" ] || TOKEN=$(gen 32)
+                # base64 into `data`, not plain text into `stringData`. TOKEN can
+                # come from an existing Secret this chart did not write — the
+                # auth.token path, an external secret manager, a SealedSecret —
+                # so it can contain a quote or a backslash. Interpolated raw into
+                # hand-built JSON that yields an invalid patch, and since this is
+                # a pre-upgrade hook, a malformed patch aborts the upgrade. base64
+                # output is always JSON-safe, so there is nothing to escape.
+                # `tr -d` because GNU base64 wraps at 76 columns and busybox does not.
+                b64() { printf '%s' "$1" | base64 | tr -d '\n'; }
                 # No subshell: `add` has to mutate MISSING and PATCH in place.
                 MISSING=""
                 PATCH=""
@@ -169,7 +178,7 @@ spec:
                   if [ -z "$(key "$1")" ]; then
                     MISSING="$MISSING $1"
                     if [ -n "$PATCH" ]; then PATCH="$PATCH,"; fi
-                    PATCH="$PATCH\"$1\":\"$2\""
+                    PATCH="$PATCH\"$1\":\"$(b64 "$2")\""
                   fi
                 }
                 add RAW_AUTH_TOKENS "$TOKEN"
@@ -194,10 +203,10 @@ spec:
                 # logs could then recover credentials without any access to the
                 # Secret itself. stderr is suppressed for the same reason: a
                 # malformed patch makes kubectl echo the request body back, and
-                # that body carries the values in plaintext under `stringData`.
-                # The line below reports the key *names*, which is what is
-                # actually useful, and never a value.
-                if ! kubectl -n "$NS" patch secret jitsu-secrets -p "{\"stringData\":{$PATCH}}" >/dev/null 2>&1; then
+                # that body carries every value under `data` — base64, which is
+                # reversible by anyone who can read it. The line below reports the
+                # key *names*, which is what is actually useful, and never a value.
+                if ! kubectl -n "$NS" patch secret jitsu-secrets -p "{\"data\":{$PATCH}}" >/dev/null 2>&1; then
                   echo "failed to patch jitsu-secrets — error text withheld because kubectl can echo the patch body, which contains credentials"
                   exit 1
                 fi
