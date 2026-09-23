@@ -194,6 +194,23 @@ the render instead of silently taking the dev branch everywhere.
 {{- $mode -}}
 {{- end }}
 
+{{- /* Join an image repository and a tag into one reference.
+
+       A digest goes after "@", an ordinary tag after ":". Every image
+       reference the chart emits goes through here — the service Deployments,
+       the functions-server the operator creates, and the sync sidecar — so
+       digest support cannot be added in one place and forgotten in the others.
+       It was: jitsu.image learned digests first and these two kept appending
+       ":%s", which renders jitsucom/functions-server:sha256:... and fails to
+       pull at the exact moment someone pins for immutability. */ -}}
+{{- define "jitsu.imageRef" -}}
+{{- if hasPrefix "sha256:" .tag -}}
+{{- printf "%s@%s" .repository .tag -}}
+{{- else -}}
+{{- printf "%s:%s" .repository .tag -}}
+{{- end -}}
+{{- end }}
+
 {{/*
 Resolve a service's runtime container image.
 
@@ -234,17 +251,11 @@ Usage:
 {{- if $o.repository -}}
 {{- if contains "@" $o.repository -}}
 {{- $o.repository -}}
-{{- else if hasPrefix "sha256:" $tag -}}
-{{- printf "%s@%s" $o.repository $tag -}}
 {{- else -}}
-{{- printf "%s:%s" $o.repository $tag -}}
+{{- include "jitsu.imageRef" (dict "repository" $o.repository "tag" $tag) -}}
 {{- end -}}
 {{- else if eq (include "jitsu.mode" $ctx) "prod" -}}
-{{- if hasPrefix "sha256:" $tag -}}
-{{- printf "%s/%s@%s" $ctx.Values.image.registry .prod $tag -}}
-{{- else -}}
-{{- printf "%s/%s:%s" $ctx.Values.image.registry .prod $tag -}}
-{{- end -}}
+{{- include "jitsu.imageRef" (dict "repository" (printf "%s/%s" $ctx.Values.image.registry .prod) "tag" $tag) -}}
 {{- else -}}
 {{- .dev -}}
 {{- end -}}
@@ -293,7 +304,7 @@ default — see the precedence rule on jitsu.env.
 */}}
 {{- define "jitsu.functionsServerImage" -}}
 {{- if eq (include "jitsu.mode" .) "prod" -}}
-{{- printf "%s/functions-server:%s" .Values.image.registry .Values.image.tag -}}
+{{- include "jitsu.imageRef" (dict "repository" (printf "%s/functions-server" .Values.image.registry) "tag" .Values.image.tag) -}}
 {{- else -}}
 {{- "jitsucom/functions-server:beta" -}}
 {{- end -}}
@@ -404,7 +415,7 @@ emitting the variable would change nothing except the rendered output.
 */}}
 {{- define "jitsu.sidecarImage" -}}
 {{- if eq (include "jitsu.mode" .) "prod" -}}
-{{- printf "%s/sidecar:%s" .Values.image.registry .Values.image.tag -}}
+{{- include "jitsu.imageRef" (dict "repository" (printf "%s/sidecar" .Values.image.registry) "tag" .Values.image.tag) -}}
 {{- end -}}
 {{- end }}
 
