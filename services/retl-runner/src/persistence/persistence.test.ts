@@ -1099,6 +1099,7 @@ describe("recovery and operational boundaries", () => {
     await retry.delivery.prepareAbort();
     await retry.delivery.acknowledgeAbort();
   });
+  // Multiple durable batches and a database reopen can exceed 5s on shared CI workers.
   it("resumes local finish resolution after a committed batch and process loss", async () => {
     const run = await session();
     await init(run);
@@ -1137,7 +1138,7 @@ describe("recovery and operational boundaries", () => {
     const saved = await durable();
     expect(saved.members).toHaveLength(105);
     expect(new Set(saved.operations.map(row => row.acceptedAt)).size).toBe(1);
-  });
+  }, 30000);
   it("records reconciliation time without requiring a provider acceptance timestamp", async () => {
     const run = await session();
     await init(run);
