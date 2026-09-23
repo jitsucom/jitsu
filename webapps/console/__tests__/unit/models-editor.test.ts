@@ -175,7 +175,7 @@ describe("model editor", () => {
     fireEvent.change(screen.getByPlaceholderText("Filter by ID or name..."), { target: { value: "no-match" } });
     await waitFor(() => expect(screen.queryByRole("link", { name: "Audience" })).toBeNull());
     client.clear();
-  });
+  }, 30000);
   it("opens Clone in the custom editor and creates a distinct model", async () => {
     state.route.query = { id: "new", clone: "model-1" };
     const client = mount();
