@@ -1,4 +1,23 @@
-import { defineConfig } from "vitest/config";
+import { readFileSync } from "node:fs";
+import { defineConfig, type Plugin } from "vitest/config";
+
+// Load `.sql` files as raw string modules (`export default "<contents>"`),
+// mirroring Next's raw-loader. clickhouse-init.ts imports the .clickhouse.sql
+// DDL templates this way; without this the integration setup (which imports it)
+// would fail to resolve them. vite:esbuild ignores the .sql extension, so the
+// JS we return here passes through untransformed.
+function rawSql(): Plugin {
+  return {
+    name: "raw-sql",
+    load(id) {
+      const file = id.split("?")[0];
+      if (file.endsWith(".sql")) {
+        return `export default ${JSON.stringify(readFileSync(file, "utf-8"))};`;
+      }
+      return null;
+    },
+  };
+}
 
 // Two projects:
 //   unit        — pure tests, no external dependencies. Runs anywhere, instantly.
@@ -10,6 +29,7 @@ import { defineConfig } from "vitest/config";
 // Running only unit tests (vitest run --project unit, or a file filter that
 // matches nothing under __tests__/integration/) starts no containers.
 export default defineConfig({
+  plugins: [rawSql()],
   // Use the automatic JSX runtime so tests that transitively import `.tsx` files
   // (e.g. the destinations catalog → icon components) don't fail with
   // "React is not defined". The app compiles JSX via Next's automatic runtime;
