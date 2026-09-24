@@ -3,6 +3,7 @@ import { isDeepStrictEqual } from "node:util";
 import { createWarehouseReader, getWarehouseSqlDialect } from "@jitsu/warehouse-query";
 import { ModelDefinition, supportsWarehouseReader } from "@jitsu/warehouse-query/src/schema";
 import { ApiError } from "../shared/errors";
+import { warehouseErrorMessage } from "./warehouse-errors";
 
 type ModelDb = Pick<PrismaClient, "workspace" | "configurationObject" | "configurationObjectLink" | "$queryRaw">;
 
@@ -65,23 +66,19 @@ export async function validateModelForSave(prisma: PrismaClient, workspaceId: st
   await assertModelsEnabled(prisma, workspaceId);
   const model = ModelDefinition.parse(input);
   const config = await getModelWarehouse(prisma, workspaceId, model.warehouseId);
-  // Query syntax/projection errors are actionable; raw database exceptions may
-  // include credentials, SQL literals or source values and are never returned.
+  // Authorized users get actionable SQL diagnostics, with connection secrets redacted.
   try {
     getWarehouseSqlDialect(config.destinationType).validateQuery(model.query);
   } catch (e) {
-    throw new ApiError((e as Error).message, { status: 400 });
+    throw new ApiError(warehouseErrorMessage(e, config, "Invalid model query."), { status: 400 });
   }
   const reader = safeReader(config);
   try {
     let columns;
     try {
       columns = await reader.columns(model.query, AbortSignal.timeout(30_000));
-    } catch {
-      throw new ApiError(
-        "Could not inspect model columns. Check the warehouse connection, read permissions and query.",
-        { status: 400 }
-      );
+    } catch (e) {
+      throw new ApiError(warehouseErrorMessage(e, config, "Could not inspect model columns."), { status: 400 });
     }
     try {
       reader.sql.validateColumns(model, columns);
@@ -114,8 +111,8 @@ export async function modelColumns(prisma: PrismaClient, workspaceId: string, mo
   const reader = safeReader(config);
   try {
     return { columns: await reader.columns(model.query, signal ?? AbortSignal.timeout(30_000)) };
-  } catch {
-    throw new ApiError("Could not load model columns. Check the warehouse connection, read permissions and query.", {
+  } catch (e) {
+    throw new ApiError(warehouseErrorMessage(e, config, "Could not load model columns."), {
       status: 400,
     });
   } finally {
@@ -135,7 +132,7 @@ export async function previewModel(
   try {
     getWarehouseSqlDialect(config.destinationType).validateQuery(query);
   } catch (e) {
-    throw new ApiError((e as Error).message, { status: 400 });
+    throw new ApiError(warehouseErrorMessage(e, config, "Invalid model query."), { status: 400 });
   }
   const reader = safeReader(config);
   try {
@@ -144,11 +141,8 @@ export async function previewModel(
       ...preview,
       columns: preview.columns.map(c => ({ ...c, supportsDelete: reader.sql.supportsDeleteType(c.type) })),
     };
-  } catch {
-    throw new ApiError(
-      "Preview failed or exceeded its limit. Check read permissions and SQL, or select fewer columns.",
-      { status: 400 }
-    );
+  } catch (e) {
+    throw new ApiError(warehouseErrorMessage(e, config, "Preview failed."), { status: 400 });
   } finally {
     await reader.close();
   }

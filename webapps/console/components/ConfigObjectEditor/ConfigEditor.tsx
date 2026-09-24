@@ -415,6 +415,13 @@ const EditorComponent: React.FC<EditorComponentProps> = props => {
     type === "destination" && appConfig.nango ? oauthDecorators[object.destinationType] : undefined;
 
   const uiSchema = getUiSchema(schema, fields, formState?.formData || object, isNew);
+  if (
+    type === "destination" &&
+    object.destinationType === "google-ads" &&
+    appConfig.googleAdsDeveloperTokenConfigured
+  ) {
+    uiSchema.developerToken = { ...uiSchema.developerToken, "ui:widget": "hidden" };
+  }
 
   const [submitCount, setSubmitCount] = useState(0);
   const modal = useAntdModal();

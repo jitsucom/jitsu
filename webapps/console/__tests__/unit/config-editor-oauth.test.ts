@@ -11,6 +11,7 @@ const state = vi.hoisted(() => ({
   create: vi.fn(),
   update: vi.fn(),
   source: {} as any,
+  developerTokenConfigured: false,
 }));
 vi.mock("next/router", () => ({ useRouter: () => state.route }));
 vi.mock("@nangohq/frontend", () => ({
@@ -21,7 +22,10 @@ vi.mock("@nangohq/frontend", () => ({
 vi.mock("../../lib/context", () => ({
   useWorkspace: () => ({ id: "ws", slugOrId: "ws" }),
   useWorkspaceRole: () => ({ editEntities: true }),
-  useAppConfig: () => ({ nango: { publicKey: "test", host: "https://oauth.example.test" } }),
+  useAppConfig: () => ({
+    nango: { publicKey: "test", host: "https://oauth.example.test" },
+    googleAdsDeveloperTokenConfigured: state.developerTokenConfigured,
+  }),
 }));
 vi.mock("../../lib/store", () => ({
   asConfigType: (type: string) => type,
@@ -45,7 +49,7 @@ vi.mock("../../components/JitsuButton/JitsuButton", () => ({
 // Keep the real editor's identity, OAuth callback, React state and save path;
 // replace only the JSON-schema form renderer with an observable form boundary.
 vi.mock("@rjsf/antd", () => ({
-  Form: React.forwardRef(function MockConfigForm({ formData, onSubmit, onChange, children }: any, ref) {
+  Form: React.forwardRef(function MockConfigForm({ formData, onSubmit, onChange, uiSchema, children }: any, ref) {
     React.useImperativeHandle(ref, () => ({ state: { formData, errors: [] } }));
     return React.createElement(
       "form",
@@ -56,6 +60,7 @@ vi.mock("@rjsf/antd", () => ({
         },
       },
       React.createElement("output", { "data-testid": "form-data" }, JSON.stringify(formData)),
+      React.createElement("output", { "data-testid": "ui-schema" }, JSON.stringify(uiSchema)),
       React.createElement("input", {
         "aria-label": "Name",
         value: formData.name,
@@ -71,6 +76,7 @@ const schema = z.object({
   type: z.string(),
   name: z.string(),
   destinationType: z.string(),
+  developerToken: z.string().optional(),
   authorized: z.boolean().optional(),
   oauthConnectionId: z.string().optional(),
   oauthIntegrationId: z.string().optional(),
@@ -86,6 +92,7 @@ const props = {
 const form = () => JSON.parse(screen.getByTestId("form-data").textContent!);
 beforeEach(() => {
   vi.clearAllMocks();
+  state.developerTokenConfigured = false;
   state.route.query = { id: "new" };
   state.auth.mockResolvedValue({});
   state.create.mockResolvedValue({});
@@ -102,6 +109,28 @@ beforeEach(() => {
   };
 });
 afterEach(cleanup);
+
+it.each([true, false])(
+  "hides the Google developer token only when a shared token is configured: %s",
+  async configured => {
+    state.developerTokenConfigured = configured;
+    render(React.createElement(ConfigEditor, props));
+    const ui = JSON.parse((await screen.findByTestId("ui-schema")).textContent!);
+    expect(ui.developerToken["ui:widget"] === "hidden").toBe(configured);
+  }
+);
+
+it("does not hide another destination's developer token", async () => {
+  state.developerTokenConfigured = true;
+  render(
+    React.createElement(ConfigEditor, {
+      ...props,
+      newObject: (): Partial<z.infer<typeof schema>> => ({ name: "Other", destinationType: "other" }),
+    })
+  );
+  const ui = JSON.parse((await screen.findByTestId("ui-schema")).textContent!);
+  expect(ui.developerToken["ui:widget"]).not.toBe("hidden");
+});
 
 it("keeps a new destination ID stable through rerenders, OAuth, and saving", async () => {
   const view = render(React.createElement(ConfigEditor, props));
