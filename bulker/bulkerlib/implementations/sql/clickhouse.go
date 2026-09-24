@@ -38,7 +38,7 @@ const (
 
 	chLocalPrefix = "local_"
 
-	chDatabaseQuery          = "SELECT name FROM system.databases where name = ?"
+	chDatabaseEngineQuery    = "SELECT engine FROM system.databases where name = ?"
 	chClusterQuery           = "SELECT max(shard_num) FROM system.clusters where cluster = ?"
 	chCreateDatabaseTemplate = `CREATE DATABASE IF NOT EXISTS %s %s`
 
@@ -141,18 +141,34 @@ const (
 	ClickHouseProtocolHTTPS  ClickHouseProtocol = "https"
 )
 
+// ClickHouseDatabaseEngine selects how the destination database stores and replicates data.
+// The value is the ClickHouse database engine that Jitsu expects the target database to use.
+type ClickHouseDatabaseEngine string
+
+const (
+	// DatabaseEngineDefault covers the Atomic engine (self-hosted) and the Shared engine (ClickHouse Cloud).
+	// Tables are created as ReplicatedMergeTree with explicit ZooKeeper paths when a cluster is set,
+	// mirroring Jitsu's historical behaviour.
+	DatabaseEngineDefault ClickHouseDatabaseEngine = "default"
+	// DatabaseEngineReplicated targets a database created with ENGINE = Replicated(...). ClickHouse manages
+	// ZooKeeper paths, replica macros, and DDL replication itself, so Jitsu emits path-less Replicated*
+	// table engines and skips ON CLUSTER on DDL inside the database.
+	DatabaseEngineReplicated ClickHouseDatabaseEngine = "replicated"
+)
+
 // ClickHouseConfig dto for deserialized clickhouse config
 type ClickHouseConfig struct {
-	Protocol   ClickHouseProtocol `mapstructure:"protocol,omitempty" json:"protocol,omitempty" yaml:"protocol,omitempty"`
-	Hosts      []string           `mapstructure:"hosts,omitempty" json:"hosts,omitempty" yaml:"hosts,omitempty"`
-	Parameters map[string]string  `mapstructure:"parameters,omitempty" json:"parameters,omitempty" yaml:"parameters,omitempty"`
-	Username   string             `mapstructure:"username,omitempty" json:"username,omitempty" yaml:"username,omitempty"`
-	Password   string             `mapstructure:"password,omitempty" json:"password,omitempty" yaml:"password,omitempty"`
-	Database   string             `mapstructure:"database,omitempty" json:"database,omitempty" yaml:"database,omitempty"`
-	Cluster    string             `mapstructure:"cluster,omitempty" json:"cluster,omitempty" yaml:"cluster,omitempty"`
-	TLS        map[string]string  `mapstructure:"tls,omitempty" json:"tls,omitempty" yaml:"tls,omitempty"`
-	Engine     *EngineConfig      `mapstructure:"engine,omitempty" json:"engine,omitempty" yaml:"engine,omitempty"`
-	LoadAsJSON bool               `mapstructure:"loadAsJson,omitempty" json:"loadAsJson,omitempty" yaml:"loadAsJson,omitempty"`
+	Protocol       ClickHouseProtocol       `mapstructure:"protocol,omitempty" json:"protocol,omitempty" yaml:"protocol,omitempty"`
+	Hosts          []string                 `mapstructure:"hosts,omitempty" json:"hosts,omitempty" yaml:"hosts,omitempty"`
+	Parameters     map[string]string        `mapstructure:"parameters,omitempty" json:"parameters,omitempty" yaml:"parameters,omitempty"`
+	Username       string                   `mapstructure:"username,omitempty" json:"username,omitempty" yaml:"username,omitempty"`
+	Password       string                   `mapstructure:"password,omitempty" json:"password,omitempty" yaml:"password,omitempty"`
+	Database       string                   `mapstructure:"database,omitempty" json:"database,omitempty" yaml:"database,omitempty"`
+	Cluster        string                   `mapstructure:"cluster,omitempty" json:"cluster,omitempty" yaml:"cluster,omitempty"`
+	DatabaseEngine ClickHouseDatabaseEngine `mapstructure:"databaseEngine,omitempty" json:"databaseEngine,omitempty" yaml:"databaseEngine,omitempty"`
+	TLS            map[string]string        `mapstructure:"tls,omitempty" json:"tls,omitempty" yaml:"tls,omitempty"`
+	Engine         *EngineConfig            `mapstructure:"engine,omitempty" json:"engine,omitempty" yaml:"engine,omitempty"`
+	LoadAsJSON     bool                     `mapstructure:"loadAsJson,omitempty" json:"loadAsJson,omitempty" yaml:"loadAsJson,omitempty"`
 
 	// S3Config
 	S3AccessKeyID     string `mapstructure:"s3AccessKeyId,omitempty" json:"s3AccessKeyId,omitempty" yaml:"s3AccessKeyId,omitempty"`
@@ -203,6 +219,9 @@ func NewClickHouse(bulkerConfig bulkerlib.Config) (bulkerlib.Bulker, error) {
 	}
 	chCloud := clickHouseCloudHost.MatchString(config.Hosts[0])
 	if chCloud {
+		if config.DatabaseEngine == DatabaseEngineReplicated {
+			return nil, errors.New("databaseEngine replicated is not supported for ClickHouse Cloud")
+		}
 		// ClickHouse Cloud don't need cluster parameter
 		config.Cluster = ""
 	}
@@ -237,8 +256,17 @@ func NewClickHouse(bulkerConfig bulkerlib.Config) (bulkerlib.Bulker, error) {
 		dataSource.SetConnMaxIdleTime(time.Minute * 3)
 
 		if err := chPing(ctx, dataSource); err != nil {
-			_ = dataSource.Close()
-			return nil, err
+			if config.DatabaseEngine == DatabaseEngineReplicated && ctx.Err() == nil && (isClickHouseUnknownDatabase(err) || (httpMode && clickHouseDatabaseMissing(ctx, config))) {
+				if bootstrapErr := bootstrapClickHouseDatabase(ctx, config); bootstrapErr != nil {
+					err = fmt.Errorf("%w; database bootstrap failed: %v", err, bootstrapErr)
+				} else {
+					err = chPing(ctx, dataSource)
+				}
+			}
+			if err != nil {
+				_ = dataSource.Close()
+				return nil, err
+			}
 		}
 		if config.Cluster != "" {
 			var shardNum int
@@ -392,17 +420,29 @@ func (ch *ClickHouse) createDatabaseIfNotExists(ctx context.Context, db string) 
 	if db == "" {
 		return nil
 	}
-	var dbname string
+	var engine string
 	db = ch.NamespaceName(db)
 	if db == "" {
 		return nil
 	}
-	row := ch.txOrDb(ctx).QueryRowContext(ctx, chDatabaseQuery, db)
+	row := ch.txOrDb(ctx).QueryRowContext(ctx, chDatabaseEngineQuery, db)
 	if row != nil {
-		_ = row.Scan(&dbname)
+		if err := row.Scan(&engine); err != nil && !errors.Is(err, sql.ErrNoRows) {
+			return fmt.Errorf("failed to check database %q: %w", db, err)
+		}
 	}
-	if dbname == "" {
-		query := fmt.Sprintf(chCreateDatabaseTemplate, db, ch.getOnClusterClause())
+	if engine == "" {
+		// CREATE DATABASE is not executed "inside" a Replicated database, so ON CLUSTER is valid
+		// and required to land the new database on every node. Build the clause unconditionally
+		// rather than going through getOnClusterClause, which suppresses ON CLUSTER in replicated mode.
+		onClusterClause := ""
+		if ch.config.Cluster != "" {
+			onClusterClause = fmt.Sprintf(chOnClusterClauseTemplate, ch.config.Cluster)
+		}
+		query := fmt.Sprintf(chCreateDatabaseTemplate, ch.quotedTableName(db), onClusterClause)
+		if ch.isReplicatedDatabase() {
+			query += fmt.Sprintf(" ENGINE = Replicated('/clickhouse/databases/%s', '{shard}', '{replica}')", db)
+		}
 
 		if _, err := ch.txOrDb(ctx).ExecContext(ctx, query); err != nil {
 			return errorj.CreateSchemaError.Wrap(err, "failed to create db schema").
@@ -412,8 +452,58 @@ func (ch *ClickHouse) createDatabaseIfNotExists(ctx context.Context, db string) 
 					Statement: query,
 				})
 		}
+		if err := ch.txOrDb(ctx).QueryRowContext(ctx, chDatabaseEngineQuery, db).Scan(&engine); err != nil {
+			return fmt.Errorf("failed to check database %q: %w", db, err)
+		}
+	}
+	if ch.isReplicatedDatabase() && engine != "Replicated" {
+		return fmt.Errorf("databaseEngine=%q requires database %q to use the Replicated engine; got %q", DatabaseEngineReplicated, db, engine)
+	}
+	if !ch.isReplicatedDatabase() && engine == "Replicated" {
+		return fmt.Errorf("database %q uses the Replicated engine; set databaseEngine to replicated", db)
 	}
 	return nil
+}
+
+func isClickHouseUnknownDatabase(err error) bool {
+	var exception *clickhouse.Exception
+	if errors.As(err, &exception) {
+		return exception.Code == 81
+	}
+	if err == nil {
+		return false
+	}
+	return strings.Contains(err.Error(), `[HTTP 404] response body: "Code: 81. DB::Exception:`) && strings.Contains(err.Error(), "(UNKNOWN_DATABASE)")
+}
+
+func clickHouseDatabaseMissing(ctx context.Context, config *ClickHouseConfig) bool {
+	systemConfig := *config
+	systemConfig.Database = "system"
+	db, err := sql.Open("clickhouse", clickhouseDriverConnectionString(&systemConfig))
+	if err != nil {
+		return false
+	}
+	defer db.Close()
+	var engine string
+	err = db.QueryRowContext(ctx, chDatabaseEngineQuery, config.Database).Scan(&engine)
+	return errors.Is(err, sql.ErrNoRows)
+}
+
+func bootstrapClickHouseDatabase(ctx context.Context, config *ClickHouseConfig) error {
+	bootstrapConfig := *config
+	bootstrapConfig.Database = "system"
+	db, err := sql.Open("clickhouse", clickhouseDriverConnectionString(&bootstrapConfig))
+	if err != nil {
+		return err
+	}
+	defer db.Close()
+	ch := &ClickHouse{SQLAdapterBase: &SQLAdapterBase[ClickHouseConfig]{
+		typeId:      ClickHouseBulkerTypeId,
+		config:      config,
+		dataSource:  db,
+		tableHelper: NewTableHelper(ClickHouseBulkerTypeId, 127, '`'),
+	}}
+	return ch.createDatabaseIfNotExists(ctx, config.Database)
 }
 
 // InitDatabase create database instance if doesn't exist
@@ -485,7 +575,8 @@ func (ch *ClickHouse) CreateTable(ctx context.Context, table *Table) (*Table, er
 			})
 	}
 
-	//create distributed table
+	//create distributed table — still required in replicated_db mode for multi-shard clusters,
+	//since the Replicated database engine handles DDL replication within a shard but not sharding itself.
 	if ch.distributed.Load() {
 		return table, ch.createDistributedTableInTransaction(ctx, table)
 	}
@@ -587,9 +678,49 @@ func (ch *ClickHouse) getPrimaryKey(ctx context.Context, namespace, tableName st
 	if pkString == "" {
 		return "", types2.OrderedSet[string]{}, nil
 	}
+	pkString = unwrapClickHousePrimaryKey(pkString)
 	primaryKeys := types2.NewOrderedSet[string]()
 	primaryKeys.PutAll(utils.ArrayMap(strings.Split(pkString, ","), strings.TrimSpace))
 	return BuildConstraintName(tableName), primaryKeys, nil
+}
+
+func unwrapClickHousePrimaryKey(key string) string {
+	key = strings.TrimSpace(key)
+	if !strings.HasPrefix(key, "(") || !strings.HasSuffix(key, ")") {
+		return key
+	}
+	depth := 0
+	var quote rune
+	escaped := false
+	for i, char := range key {
+		if escaped {
+			escaped = false
+			continue
+		}
+		if quote != 0 {
+			if char == '\\' {
+				escaped = true
+			} else if char == quote {
+				quote = 0
+			}
+			continue
+		}
+		switch char {
+		case '\'', '"', '`':
+			quote = char
+		case '(':
+			depth++
+		case ')':
+			depth--
+			if depth == 0 {
+				if i == len(key)-1 {
+					return strings.TrimSpace(key[1:i])
+				}
+				return key
+			}
+		}
+	}
+	return key
 }
 
 // PatchTableSchema add new columns(from provided Table) to existing table
@@ -941,9 +1072,18 @@ func (ch *ClickHouse) ReplaceTable(ctx context.Context, targetTableName string, 
 
 }
 
+// isReplicatedDatabase reports whether the destination targets a database that
+// uses ClickHouse's Replicated database engine. In that mode the database
+// itself manages zookeeper paths, replica macros, and DDL replication, so
+// table engines must be created without explicit path/replica arguments and
+// without ON CLUSTER inside the database.
+func (ch *ClickHouse) isReplicatedDatabase() bool {
+	return ch.config.Cluster != "" && ch.config.DatabaseEngine == DatabaseEngineReplicated
+}
+
 // return ON CLUSTER name clause or "" if config.cluster is empty
 func (ch *ClickHouse) getOnClusterClause() string {
-	if ch.config.Cluster == "" {
+	if ch.config.Cluster == "" || ch.isReplicatedDatabase() {
 		return ""
 	}
 
@@ -959,7 +1099,7 @@ func (ch *ClickHouse) createDistributedTableInTransaction(ctx context.Context, o
 		shardingKey = "halfMD5(" + strings.Join(originTable.GetPKFields(), ",") + ")"
 	}
 	statement := fmt.Sprintf(chCreateDistributedTableTemplate,
-		namespace, ch.quotedTableName(originTable.Name), ch.getOnClusterClause(), namespace, ch.quotedLocalTableName(originTableName), ch.config.Cluster, ch.NamespaceName(originTable.Namespace), ch.quotedLocalTableName(originTableName), shardingKey)
+		namespace, ch.quotedTableName(originTable.Name), ch.getOnClusterClause(), namespace, ch.quotedLocalTableName(originTableName), ch.config.Cluster, ch.quotedTableName(ch.NamespaceName(originTable.Namespace)), ch.quotedLocalTableName(originTableName), shardingKey)
 
 	if _, err := ch.txOrDb(ctx).ExecContext(ctx, statement); err != nil {
 		return fmt.Errorf("error creating distributed table statement with statement [%s] for [%s] : %v", statement, ch.quotedTableName(originTableName), err)
@@ -1151,6 +1291,15 @@ func (chc *ClickHouseConfig) Validate() error {
 	if chc.Database == "" {
 		return errors.New("database is required parameter")
 	}
+	switch chc.DatabaseEngine {
+	case "", DatabaseEngineDefault:
+	case DatabaseEngineReplicated:
+		if chc.Cluster == "" {
+			return errors.New("cluster is required when databaseEngine is replicated")
+		}
+	default:
+		return fmt.Errorf("unsupported databaseEngine %q: expected default or replicated", chc.DatabaseEngine)
+	}
 
 	return nil
 }
@@ -1166,6 +1315,7 @@ func (ch *ClickHouse) IsDistributed() bool {
 type ClickHouseCluster interface {
 	IsDistributed() bool
 	Config() *ClickHouseConfig
+	isReplicatedDatabase() bool
 }
 
 // TableStatementFactory is used for creating CREATE TABLE statements depends on config
@@ -1176,7 +1326,7 @@ type TableStatementFactory struct {
 
 func NewTableStatementFactory(ch ClickHouseCluster) *TableStatementFactory {
 	var onClusterClause string
-	if ch.Config().Cluster != "" {
+	if ch.Config().Cluster != "" && !ch.isReplicatedDatabase() {
 		onClusterClause = fmt.Sprintf(chOnClusterClauseTemplate, ch.Config().Cluster)
 	}
 
@@ -1220,13 +1370,18 @@ func (tsf TableStatementFactory) CreateTableStatement(namespacePrefix, quotedTab
 	}
 
 	if config.Cluster != "" {
-		shardsMacros := "{shard}/"
-		if !tsf.ch.IsDistributed() {
-			shardsMacros = "1/"
+		if tsf.ch.isReplicatedDatabase() {
+			// Replicated database engine manages zookeeper_path and replica_name; pass none.
+			engineStatement = `ENGINE = Replicated` + baseEngine + `()`
+		} else {
+			shardsMacros := "{shard}/"
+			if !tsf.ch.IsDistributed() {
+				shardsMacros = "1/"
+			}
+			//create engine statement with ReplicatedReplacingMergeTree() engine. We need to replace %s with tableName on creating statement
+			engineStatement = `ENGINE = Replicated` + baseEngine + `('/clickhouse/tables/` + shardsMacros + config.Database + `/%s', '{replica}')`
+			engineStatementFormat = true
 		}
-		//create engine statement with ReplicatedReplacingMergeTree() engine. We need to replace %s with tableName on creating statement
-		engineStatement = `ENGINE = Replicated` + baseEngine + `('/clickhouse/tables/` + shardsMacros + config.Database + `/%s', '{replica}')`
-		engineStatementFormat = true
 	} else {
 		//create table template with ReplacingMergeTree() engine
 		engineStatement = `ENGINE = ` + baseEngine + `()`
