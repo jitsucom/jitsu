@@ -70,6 +70,48 @@ async function fixture() {
   };
 }
 describe("single-save Reverse ETL settings", () => {
+  it("saves and exports Meta streams without OAuth or UI provisioning, and locks a saved creation intent", async () => {
+    const f = await fixture();
+    await f.prisma.configurationObject.update({
+      where: { id: f.destination.id },
+      data: {
+        config: { destinationType: "facebook-conversions", accessToken: "meta-test-token" },
+      },
+    });
+    const input = {
+      ...f.input,
+      data: {
+        ...f.input.data,
+        streamOptions: {
+          accountId: "123",
+          audience: { kind: "managed", name: "Meta audience" },
+          exclusiveManagementConfirmed: true,
+        },
+      },
+    };
+    const { id } = await f.create(input);
+    await updateReverseSync(f.prisma, f.workspace.id, id, { disabled: false });
+    const exported = await readReverseSync(f.prisma, id);
+    expect(exported?.destination.destinationType).toBe("facebook-conversions");
+    expect(exported?.options.streamOptions.audience).toEqual({ kind: "managed", name: "Meta audience" });
+    expect(await f.prisma.source_state.count({ where: { sync_id: id } })).toBe(0);
+    await f.prisma.source_state.create({
+      data: { sync_id: id, stream: "_REVERSE_ETL_META_AUDIENCE_", state: { phase: "submitting" } },
+    });
+    await expect(
+      updateReverseSync(f.prisma, f.workspace.id, id, {
+        ...input,
+        data: { ...input.data, mapping: { email: "other" } },
+      })
+    ).rejects.toThrow("ownership");
+    await updateReverseSync(f.prisma, f.workspace.id, id, { schedule: "0 0 * * *", timezone: "UTC" });
+    expect((await listReverseSyncs(f.prisma, f.workspace.id))[0].settingsLocked).toBe(true);
+    const conversions = await f.create({
+      ...input,
+      data: { ...input.data, stream: "conversions", mode: "upsert", streamOptions: { pixelId: "789" } },
+    });
+    expect(conversions.id).not.toBe(id);
+  });
   it("uses the latest runner log for badges with deterministic ordering and sync scoping", async () => {
     const f = await fixture();
     const { id } = await f.create();

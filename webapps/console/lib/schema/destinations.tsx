@@ -1039,12 +1039,13 @@ export const coreDestinations: DestinationType<any>[] = [
   {
     id: "facebook-conversions",
     icon: facebookIcon,
-    title: "Facebook Conversions API",
+    title: "Meta Ads (Facebook & Instagram)",
     tags: "Product Analytics",
     connectionOptions: CloudDestinationsConnectionOptions,
     credentials: meta.FacebookConversionApiCredentials,
     credentialsUi: meta.FacebookConversionApiCredentialsUi,
-    description: "Facebook Conversion API is a tool for sending events to Facebook Ads Manager.",
+    description:
+      "Send conversions to Meta or sync warehouse models to Facebook and Instagram Custom Audiences through Reverse ETL.",
   },
   {
     id: "google-ads",
