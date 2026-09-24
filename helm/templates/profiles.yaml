@@ -4,7 +4,7 @@ kind: Deployment
 metadata:
   name: profiles
   labels:
-    {{- include "jitsu-dev.labels" . | nindent 4 }}
+    {{- include "jitsu.labels" . | nindent 4 }}
     app.kubernetes.io/name: profiles
 spec:
   replicas: {{ .Values.scaling.profiles.replicas }}
@@ -40,7 +40,7 @@ spec:
                 name: jitsu-deps-urls
                 optional: true
           env:
-            {{- include "jitsu-dev.env" (dict "ctx" . "service" "profiles"
+            {{- include "jitsu.env" (dict "ctx" . "service" "profiles"
                   "extra" (dict
                     "ROTOR_MODE" "profiles"
                     "MONGODB_TIMEOUT_MS" "120000"
@@ -71,7 +71,7 @@ kind: Service
 metadata:
   name: profiles
   labels:
-    {{- include "jitsu-dev.labels" . | nindent 4 }}
+    {{- include "jitsu.labels" . | nindent 4 }}
     app.kubernetes.io/name: profiles
 spec:
   type: ClusterIP

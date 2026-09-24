@@ -1,14 +1,14 @@
 {{/*
 Expand the name of the chart.
 */}}
-{{- define "jitsu-dev.name" -}}
+{{- define "jitsu.name" -}}
 {{- default .Chart.Name .Values.nameOverride | trunc 63 | trimSuffix "-" }}
 {{- end }}
 
 {{/*
 Create a default fully qualified app name.
 */}}
-{{- define "jitsu-dev.fullname" -}}
+{{- define "jitsu.fullname" -}}
 {{- if .Values.fullnameOverride }}
 {{- .Values.fullnameOverride | trunc 63 | trimSuffix "-" }}
 {{- else }}
@@ -24,15 +24,15 @@ Create a default fully qualified app name.
 {{/*
 Create chart name and version as used by the chart label.
 */}}
-{{- define "jitsu-dev.chart" -}}
+{{- define "jitsu.chart" -}}
 {{- printf "%s-%s" .Chart.Name .Chart.Version | replace "+" "_" | trunc 63 | trimSuffix "-" }}
 {{- end }}
 
 {{/*
 Common labels
 */}}
-{{- define "jitsu-dev.labels" -}}
-helm.sh/chart: {{ include "jitsu-dev.chart" . }}
+{{- define "jitsu.labels" -}}
+helm.sh/chart: {{ include "jitsu.chart" . }}
 app.kubernetes.io/managed-by: {{ .Release.Service }}
 app.kubernetes.io/part-of: jitsu
 {{- end }}
@@ -40,7 +40,7 @@ app.kubernetes.io/part-of: jitsu
 {{/*
 Selector labels for a specific service
 */}}
-{{- define "jitsu-dev.selectorLabels" -}}
+{{- define "jitsu.selectorLabels" -}}
 app.kubernetes.io/name: {{ .name }}
 app.kubernetes.io/instance: {{ .release }}
 {{- end }}
@@ -50,16 +50,16 @@ Host path to the project checkout, mounted into service containers.
 No default on purpose — a baked-in path silently mounts an empty dir on
 other machines. dev-deploy.sh always passes --set projectRoot=...
 */}}
-{{- define "jitsu-dev.projectRoot" -}}
+{{- define "jitsu.projectRoot" -}}
 {{- required "projectRoot is not set. Deploy via helm/dev-deploy.sh, or pass --set projectRoot=<absolute path to your newjitsu checkout>" .Values.projectRoot -}}
 {{- end }}
 
-{{- define "jitsu-dev.reverseServiceAccount" -}}
+{{- define "jitsu.reverseServiceAccount" -}}
 {{- default (printf "%s-retl-runner" .Release.Name | trunc 63 | trimSuffix "-") .Values.reverseEtl.serviceAccount.name -}}
 {{- end }}
 
 {{/* These settings have one owner: reverseEtl, not generic env overrides. */}}
-{{- define "jitsu-dev.validateReverseEtl" -}}
+{{- define "jitsu.validateReverseEtl" -}}
 {{- range $vars := list .Values.env.common .Values.env.syncctl -}}
 {{- range $key := list "REVERSE_ENABLED" "REVERSE_RUNNER_IMAGE" "REVERSE_RUNTIME_SECRET" "REVERSE_SERVICE_ACCOUNT" "REVERSE_RUNNER_RESOURCES" "REVERSE_SCRATCH_SIZE_LIMIT" -}}
 {{- if or (hasKey $vars $key) (hasKey $vars (printf "SYNCCTL_%s" $key)) -}}
@@ -85,7 +85,7 @@ other machines. dev-deploy.sh always passes --set projectRoot=...
 {{- fail "annotate the existing service account externally when create=false" -}}
 {{- end -}}
 {{- end -}}
-{{- if has (include "jitsu-dev.reverseServiceAccount" .) (list "sync-pod" "syncctl" "default") -}}
+{{- if has (include "jitsu.reverseServiceAccount" .) (list "sync-pod" "syncctl" "default") -}}
 {{- fail "reverseEtl requires a dedicated service account, not sync-pod/syncctl/default" -}}
 {{- end -}}
 {{- end -}}
@@ -94,7 +94,7 @@ other machines. dev-deploy.sh always passes --set projectRoot=...
 {{/*
 Computed console URL: use in-cluster service when console is deployed, otherwise fall back to env.common.CONSOLE_URL
 */}}
-{{- define "jitsu-dev.consoleUrl" -}}
+{{- define "jitsu.consoleUrl" -}}
 {{- if gt (int .Values.scaling.console.replicas) 0 -}}
 http://console:3000
 {{- else -}}
@@ -118,7 +118,7 @@ manifests with server-side apply, which rejects duplicate env names
 Value precedence (which definition wins on a name clash), lowest first:
   env.common < computed console/service URLs < template defaults ("extra") < env.<service>
 (computed URLs must beat env.common: the in-cluster CONSOLE_URL already folds
-in env.common.CONSOLE_URL as its own fallback via jitsu-dev.consoleUrl.)
+in env.common.CONSOLE_URL as its own fallback via jitsu.consoleUrl.)
 
 Emission order (independent of precedence) is chart-provided bases first, user
 config last — by the phase that produced each name's *winning* value, ordered:
@@ -137,9 +137,9 @@ Args (dict):
   exclude  — list of names the template emits manually (valueFrom entries),
              so a per-service override can't duplicate them
 */}}
-{{- define "jitsu-dev.env" -}}
+{{- define "jitsu.env" -}}
 {{- $ctx := .ctx -}}
-{{- $consoleUrl := include "jitsu-dev.consoleUrl" $ctx -}}
+{{- $consoleUrl := include "jitsu.consoleUrl" $ctx -}}
 {{- $computed := dict
       "CONSOLE_URL" $consoleUrl
       "REPOSITORY_URL" (printf "%s/api/admin/export/streams-with-destinations" $consoleUrl)
