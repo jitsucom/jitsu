@@ -34,6 +34,7 @@ type S3Config struct {
 	Bucket               string `mapstructure:"bucket,omitempty" json:"bucket,omitempty" yaml:"bucket,omitempty"`
 	Region               string `mapstructure:"region,omitempty" json:"region,omitempty" yaml:"region,omitempty"`
 	Endpoint             string `mapstructure:"endpoint,omitempty" json:"endpoint,omitempty" yaml:"endpoint,omitempty"`
+	AddressingStyle      string `mapstructure:"addressingStyle,omitempty" json:"addressingStyle,omitempty" yaml:"addressingStyle,omitempty"`
 	UsePresignedURL      bool   `mapstructure:"usePresignedURL,omitempty" json:"usePresignedURL,omitempty" yaml:"usePresignedURL,omitempty"`
 
 	RoleARN    string `mapstructure:"roleARN" json:"roleARN" yaml:"roleARN"`
@@ -136,7 +137,18 @@ func NewS3(s3Config *S3Config) (*S3, error) {
 			o.Region = s3Config.Region
 			if s3Config.Endpoint != "" {
 				o.BaseEndpoint = &s3Config.Endpoint
+			}
+			// Preserve historical behavior by default (path-style for custom endpoints),
+			// but allow explicit override via addressingStyle.
+			switch s3Config.AddressingStyle {
+			case "path":
 				o.UsePathStyle = true
+			case "virtual-hosted":
+				o.UsePathStyle = false
+			case "auto", "":
+				o.UsePathStyle = s3Config.Endpoint != ""
+			default:
+				o.UsePathStyle = s3Config.Endpoint != ""
 			}
 		}
 		client := s3.NewFromConfig(awsCfg, o)
