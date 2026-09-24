@@ -1,5 +1,6 @@
 import { createPostgresReader, postgresSql } from "./postgres";
 import { createClickHouseReader, clickhouseSql } from "./clickhouse";
+import { createBigQueryReader, bigquerySql } from "./bigquery";
 import { supportsWarehouseReader } from "./schema";
 import type { WarehouseReader, WarehouseSqlDialect } from "./types";
 
@@ -13,6 +14,8 @@ export function getWarehouseSqlDialect(destinationType: string): WarehouseSqlDia
       return postgresSql;
     case "clickhouse":
       return clickhouseSql;
+    case "bigquery":
+      return bigquerySql;
     default:
       throw new Error("This warehouse connection is not supported for models yet");
   }
@@ -20,5 +23,14 @@ export function getWarehouseSqlDialect(destinationType: string): WarehouseSqlDia
 
 export function createWarehouseReader(config: Record<string, any>): WarehouseReader {
   if (!supportsWarehouseReader(config)) throw new Error("This warehouse connection is not supported for models yet");
-  return config.destinationType === "postgres" ? createPostgresReader(config) : createClickHouseReader(config);
+  switch (config.destinationType) {
+    case "postgres":
+      return createPostgresReader(config);
+    case "clickhouse":
+      return createClickHouseReader(config);
+    case "bigquery":
+      return createBigQueryReader(config);
+    default:
+      throw new Error("This warehouse connection is not supported for models yet");
+  }
 }

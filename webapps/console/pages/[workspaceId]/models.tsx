@@ -84,7 +84,7 @@ function ModelsList() {
           className="mb-4"
           type="info"
           title="Connect a supported warehouse first"
-          description="Models support Postgres with password authentication and ClickHouse over HTTP or HTTPS, including Jitsu-provisioned ClickHouse. Use a connection with read-only warehouse permissions."
+          description="Models support Postgres with password authentication, ClickHouse over HTTP or HTTPS (including Jitsu-provisioned ClickHouse), and BigQuery with a service-account key. Use read-only warehouse access; BigQuery also requires permission to create query jobs."
         />
       )}
       <ConfigEditor {...(config as ConfigEditorProps)} />

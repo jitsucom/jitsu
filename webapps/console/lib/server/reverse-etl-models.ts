@@ -52,7 +52,7 @@ export async function getModelWarehouse(prisma: ModelDb, workspaceId: string, wa
   const config = object.config as Record<string, any>;
   if (!supportsWarehouseReader(config)) {
     throw new ApiError(
-      "Models support Postgres password connections and HTTP(S) or Jitsu-provisioned ClickHouse connections",
+      "Models support Postgres password connections, HTTP(S) or Jitsu-provisioned ClickHouse, and BigQuery service accounts",
       {
         status: 400,
       }
