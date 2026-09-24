@@ -256,7 +256,10 @@ export function registerTools(sdkServer: SdkMcpServer, deps: ToolDeps) {
       title: "Update resource",
       annotations: DESTRUCTIVE,
       description:
-        `Update a configuration resource by id (merged into the existing object). type ∈ {${typeList}}. ` +
+        `Update a configuration resource by id (merged into the existing object, so omitted fields keep ` +
+        `their stored value). Free-form maps are the exception: a map you send replaces the stored one ` +
+        `outright, so send its complete contents, not just the entries you want to change. ` +
+        `type ∈ {${typeList}}. ` +
         `For "${CONNECTION}", \`data\` is the connection body and the link is upserted by id.`,
       inputSchema: {
         workspaceId: z.string(),
