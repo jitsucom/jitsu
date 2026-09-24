@@ -52,9 +52,12 @@ export async function getModelWarehouse(prisma: ModelDb, workspaceId: string, wa
   if (!object) throw new ApiError("Warehouse destination not found in this workspace", { status: 404 });
   const config = object.config as Record<string, any>;
   if (!supportsWarehouseReader(config)) {
-    throw new ApiError("Models support Postgres password connections and HTTP(S) ClickHouse connections", {
-      status: 400,
-    });
+    throw new ApiError(
+      "Models support Postgres password connections and HTTP(S) or Jitsu-provisioned ClickHouse connections",
+      {
+        status: 400,
+      }
+    );
   }
   return config;
 }

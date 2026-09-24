@@ -35,6 +35,23 @@ async function seed() {
   return { workspace, warehouse, model, destination, options, link, prisma };
 }
 describe("reverse sync export/admission", () => {
+  it("exports tenant credentials for provisioned ClickHouse without changing stored endpoint or revision", async () => {
+    const f = await seed();
+    const config = {
+      destinationType: "clickhouse",
+      provisioned: true,
+      protocol: "clickhouse-secure",
+      hosts: ["tenant.test:9440"],
+      username: "tenant",
+      password: "private",
+      database: "tenant",
+    };
+    await f.prisma.configurationObject.update({ where: { id: f.warehouse.id }, data: { config } });
+    const first = await readReverseSync(f.prisma, f.link.id, f.workspace.id);
+    expect(first?.warehouse).toEqual(config);
+    expect((await readReverseSync(f.prisma, f.link.id, f.workspace.id))?.configRevision).toBe(first?.configRevision);
+    expect(await readReverseSync(f.prisma, f.link.id, "foreign-workspace")).toBeUndefined();
+  });
   it("exports paused pending delivery without a schedule and admits only its saved task", async () => {
     const f = await seed();
     const initial = (await readReverseSync(f.prisma, f.link.id))!;

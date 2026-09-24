@@ -8,6 +8,12 @@ putting execution methods on a SQL-only consumer.
 
 - `postgres.ts`: PostgreSQL connections, exact scalar decoding, and SQL rules.
 - `clickhouse.ts`: ClickHouse connections, result formats, and SQL rules.
+
+Jitsu-provisioned ClickHouse is supported. The browser's masked config only
+advertises capability; preview and runner execution use the existing server-held
+tenant credentials. Native provisioning endpoints use HTTPS on port 8443, matching
+the console SQL editor. Explicit HTTP(S) endpoints retain their configured ports.
+Read-only query settings and credential masking remain unchanged.
 - `sql.ts`: shared read-only AST checks, delimiter scanning, column invariants,
   and checkpoint/duplicate-key query construction; no warehouse-name branches.
 - `reader.ts`: shared row decoding and preview bounds.
