@@ -87,7 +87,7 @@ export const clickhouseSql = createSqlDialect({
 });
 
 export function createClickHouseReader(input: Record<string, any>): WarehouseReader {
-  const config = chCredentials.parse(input);
+  const config = chCredentials.parse(clickHouseHttpConfig(input));
   const host = config.hosts[0];
   // Match the destination's host[:port] contract; reject URL params/userinfo that
   // could override readonly settings or credentials in the ClickHouse client.
@@ -205,5 +205,24 @@ export function createClickHouseReader(input: Record<string, any>): WarehouseRea
       for (const deadline of streams.values()) deadline.close();
       await Promise.all([client.close(), ...[...streams.keys()].map(stream => stream.close())]);
     },
+  };
+}
+
+/** Provisioned warehouses store native ingestion endpoints; reads use their HTTPS endpoint. */
+export function clickHouseHttpConfig(input: Record<string, any>): Record<string, any> {
+  if (input.provisioned !== true || ["http", "https"].includes(input.protocol)) return input;
+  if (input.protocol !== undefined && !["clickhouse", "clickhouse-secure"].includes(input.protocol))
+    throw new Error("Unsupported provisioned ClickHouse protocol");
+  if (!Array.isArray(input.hosts)) throw new Error("Missing provisioned ClickHouse hosts");
+  return {
+    ...input,
+    protocol: "https",
+    hosts: input.hosts.map((host: unknown) => {
+      if (typeof host !== "string") throw new Error("Invalid provisioned ClickHouse host");
+      const url = new URL(`https://${host}`);
+      if (url.username || url.password || url.search || url.hash || url.pathname !== "/")
+        throw new Error("Expected a ClickHouse host[:port]");
+      return `${url.hostname}:8443`;
+    }),
   };
 }

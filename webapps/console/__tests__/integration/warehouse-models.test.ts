@@ -319,6 +319,23 @@ describe("Models service", () => {
     await deps().prisma.configurationObject.update({ where: { id }, data: { deleted: true } });
     await expect(modelColumns(deps().prisma, f.workspace.id, id)).rejects.toMatchObject({ status: 404 });
   });
+  it("previews, saves and streams models from a provisioned tenant warehouse without exposing credentials", async () => {
+    const f = await fixture({ ...chConfig, provisioned: true });
+    const publicWarehouse = await service.get(f.user, f.workspace.id, "destination", f.warehouse.id);
+    expect(publicWarehouse).toMatchObject({ destinationType: "clickhouse", provisioned: true });
+    expect(publicWarehouse).not.toHaveProperty("password");
+    expect(publicWarehouse).not.toHaveProperty("hosts");
+    const preview = await previewModel(deps().prisma, f.workspace.id, f.warehouse.id, f.model.query);
+    expect(preview.rows).toHaveLength(3);
+    const saved = await service.create(f.user, f.workspace.id, "model", f.model, { generateId: true });
+    expect((await modelColumns(deps().prisma, f.workspace.id, saved.id)).columns).toHaveLength(3);
+    const reader = createWarehouseReader({ ...chConfig, provisioned: true });
+    try {
+      expect(await collect(reader.stream(definition))).toHaveLength(3);
+    } finally {
+      await reader.close();
+    }
+  });
   it.each([
     ["Postgres bytea", pgConfig, "SELECT 1 AS pk, NULL::bytea AS removed WHERE false"],
     ["Postgres jsonb", pgConfig, "SELECT 1 AS pk, NULL::jsonb AS removed WHERE false"],

@@ -64,9 +64,9 @@ export const PreviewResult = z.object({
 });
 export type PreviewResult = z.infer<typeof PreviewResult>;
 
-// Only connections supported by this first reader release appear in the picker.
+// Public provisioned configs hide credentials/protocol, so capability uses their server-owned marker.
 export function supportsWarehouseReader(config: Record<string, any>): boolean {
-  if (config.provisioned) return false;
+  if (config.provisioned) return config.provisioned === true && config.destinationType === "clickhouse";
   return (
     (config.destinationType === "postgres" &&
       (!config.authenticationMethod || config.authenticationMethod === "password")) ||
