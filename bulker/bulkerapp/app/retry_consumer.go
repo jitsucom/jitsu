@@ -139,6 +139,7 @@ func (rc *RetryConsumer) processBatchImpl(_ *Destination, _, _, _, retryBatchSiz
 				// waitForMessages period is over. it's ok. considering batch as full
 				break
 			}
+			rc.onReadError(kafkaErr)
 			return counters, state, false, rc.NewError("Failed to consume event from topic. Retryable: %t: %v", kafkaErr.IsRetriable(), kafkaErr)
 		}
 		if firstPosition != nil && message.TopicPartition.Partition != firstPosition.Partition {
