@@ -12,6 +12,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/jackc/pgx/v5/pgconn"
 	bulker "github.com/jitsucom/bulker/bulkerlib"
 	"github.com/jitsucom/bulker/bulkerlib/implementations/sql"
 	"github.com/jitsucom/bulker/eventslog"
@@ -77,9 +78,54 @@ func (s *ReadSideCar) Run() {
 	// writes (task_log, source_task, source_state). Any stuck Postgres call
 	// fails fast with a cancellation error instead of blocking the stdout
 	// reader indefinitely on a wedged connection.
-	s.dbpool, err = pg.NewPGPool(s.databaseURL, pg.WithStatementTimeout(2*time.Minute))
-	if err != nil {
-		s.panic("Unable to create postgres connection pool: %v", err)
+	// Same failover window as the writes below: a sidecar that starts while the
+	// primary is being promoted cannot reach it, and panicking here kills the
+	// sync before it has done anything. Retried on the same budget.
+	//
+	// Building the pool is not enough to know that. pgxpool.NewWithConfig is
+	// lazy — pool_min_conns defaults to zero, so it returns a pool without
+	// dialling anything, and an unreachable primary surfaces at the first
+	// write rather than here. The connection has to be proven with a Ping, or
+	// this loop only ever retries malformed DSNs, which retrying cannot fix.
+	for i := 1; ; i++ {
+		s.dbpool, err = pg.NewPGPool(s.databaseURL, pg.WithStatementTimeout(2*time.Minute))
+		if err != nil {
+			// Parse/config failure, not a reachability one: permanent.
+			s.panic("Unable to create postgres connection pool: %v", err)
+		}
+		// Derived from the shutdown context, not Background: a SIGTERM during
+		// this ping abandons it instead of running out the full timeout.
+		ctx, cancel := context.WithTimeout(s.shutdownCtx(), poolPingTimeout)
+		err = s.dbpool.Ping(ctx)
+		cancel()
+		if err == nil {
+			if i > 1 {
+				s.log("postgres connection pool created after %d attempts", i)
+			}
+			break
+		}
+		// Don't leak the pool we are about to replace.
+		s.dbpool.Close()
+		s.dbpool = nil
+		if isPermanentPgError(err) {
+			s.panic("Unable to reach postgres: %v", err)
+		}
+		// Nothing has installed the deferred status writer yet — that happens
+		// below, once the pool exists — so a sidecar killed in here records
+		// nothing at all. Stop on the first opportunity rather than spending
+		// another ping and sleep against a grace period that is already
+		// running.
+		if s.cancelled.Load() {
+			s.panic("Unable to reach postgres; giving up, the sidecar is shutting down: %v", err)
+		}
+		if i >= 10 {
+			s.panic("Unable to reach postgres after %d attempts: %v", i, err)
+		}
+		delay := utils.Ternary(time.Duration(i)*time.Second > 30*time.Second, 30*time.Second, time.Duration(i)*time.Second)
+		// stdout only: s.dbpool is what we are failing to build, so any logging
+		// primitive that writes to it would nil-panic here.
+		fmt.Printf("WARN : Unable to reach postgres (attempt %d/10), retrying in %s: %v\n", i, delay, err)
+		s.sleepCancellable(delay)
 	}
 	defer s.dbpool.Close()
 
@@ -684,6 +730,186 @@ func (s *ReadSideCar) panic(message string, args ...any) {
 	s.AbstractSideCar.panic(message, args...)
 }
 
+// isPermanentPgError reports whether a Postgres failure will still be a failure
+// on the next attempt.
+//
+// The statements this sidecar runs are static and known-good — three upserts
+// against our own control plane. A syntax error or a constraint violation here
+// is a deploy-time bug, not a runtime condition, and retrying it for two
+// minutes turns a clear failure into a slow, confusing one. Everything else a
+// sidecar realistically meets is infrastructure: a dialled connection refused
+// while the primary moves, a demoted primary answering read-only, a node
+// draining. Those are worth waiting out.
+//
+// So the list is what must NOT be retried, and anything unrecognised is
+// retried. Classified on SQLSTATE rather than the message because Postgres
+// localizes messages but never SQLSTATEs (same reasoning as
+// bulkerapp/app/batch_consumer.go). errors.As works here because
+// db.execTimeout returns the driver error unwrapped.
+func isPermanentPgError(err error) bool {
+	var pgErr *pgconn.PgError
+	if !errors.As(err, &pgErr) {
+		// Not a Postgres-level error at all: a dial failure, a reset, an EOF.
+		// That is precisely the failover case.
+		return false
+	}
+	switch pgErr.Code[:2] {
+	case "22", // data exception
+		"23", // integrity constraint violation
+		"28", // invalid authorization specification
+		"42": // syntax error or access rule violation
+		return true
+	}
+	return pgErr.Code == "3D000" // invalid catalog name
+}
+
+// poolPingTimeout bounds the reachability check on each pool-creation attempt.
+// Long enough to ride out a slow dial, short enough that ten attempts plus
+// their backoff stay well inside a sync's startup.
+const poolPingTimeout = 10 * time.Second
+
+// retryBudget bounds a whole retry sequence in wall-clock time, independently
+// of how many attempts are left. It exists because attempts are not a bound on
+// their own — see retryControlPlaneWrite. A var rather than a const only so
+// tests can shrink it; nothing in the sidecar reassigns it.
+var retryBudget = 5 * time.Minute
+
+// retryCancelledBudget bounds retries once the sidecar has been told to stop.
+// SIGTERM starts Kubernetes' termination grace period — 30s by default — so
+// sitting on the full retryBudget would get the pod SIGKILLed mid-sleep. A few
+// seconds is still enough for a brief blip to record the final status.
+var retryCancelledBudget = 5 * time.Second
+
+// retryCancelledDelay caps the backoff once cancelled. A sleep already under
+// way cannot be interrupted, so a 30s step would blow the shutdown budget in
+// one go however tight that budget is.
+var retryCancelledDelay = 1 * time.Second
+
+// retryControlPlaneWrite runs a write against our own control-plane Postgres,
+// retrying transient failures instead of killing the customer's sync.
+//
+// Why this exists: replacing the node that holds the CNPG primary means a
+// replica has to be promoted, and for that window jitsu-pg-rw has no writable
+// endpoint — the write fails with "connect: connection refused". Before this,
+// one such failure panicked the sidecar and the sync was marked FAILED. Seen
+// twice, 12 and 19 Sep 2026, both inside the cluster's weekend maintenance
+// window. The PodDisruptionBudgets are already correct; the window is inherent
+// to failover, so any node replacement reproduces it.
+//
+// The budget deliberately exceeds the observed outage. Blocking here is safe:
+// storeState holds downstreamBusy across the call so the stuck-source watchdog
+// cannot misfire while we wait, and every write is already bounded at two
+// minutes by execTimeout in the db package, which wraps each Exec in a context
+// deadline — that covers acquiring and dialling a connection, not only
+// statement execution, so a single attempt cannot hang indefinitely. (The
+// pool's server-side statement_timeout does not give us this: it only applies
+// once a session exists, so it does nothing for a dial that never completes.)
+//
+// An attempt count alone is still not a bound. Ten attempts each sitting on
+// that two-minute ceiling is twenty minutes of blocking for a failover window
+// that lasts about one, so retryBudget bounds the sequence in wall-clock time
+// as well: we never begin a sleep that would carry us past it. Worst case is
+// therefore retryBudget plus one attempt ceiling — about 7 minutes rather than
+// about 22. The ordinary case is untouched, because a refused connection
+// returns immediately and all ten attempts fit inside the ~121s of backoff.
+//
+// Shutdown is the third bound. SIGTERM sets s.cancelled and starts the
+// termination grace period, and the deferred block in Run() then tries to
+// write CANCELLED status — through here. Retrying that for five minutes would
+// outlive the grace period and get the pod SIGKILLed mid-sleep, so once
+// cancelled the sequence is held to retryCancelledBudget with a shorter step.
+// Not zero: a cancel that lands during a brief blip should still record its
+// status.
+//
+// Whichever bound runs out, the sync still fails — this trades a certain
+// failure for a very likely recovery, not for a hang.
+// sleepCancellable waits for d, returning early if the sidecar is asked to
+// stop. Without this a SIGTERM arriving just after the cancelled check leaves
+// us asleep for the rest of the current step — up to 30s, longer than the
+// grace period on its own.
+//
+// Close only flips an atomic, so there is no channel to select on and this
+// polls. A 100ms tick is invisible next to the steps it interrupts and far
+// below any grace period worth honouring.
+func (s *ReadSideCar) sleepCancellable(d time.Duration) {
+	const tick = 100 * time.Millisecond
+	deadline := time.Now().Add(d)
+	for {
+		remaining := time.Until(deadline)
+		if remaining <= 0 || s.cancelled.Load() {
+			return
+		}
+		if remaining < tick {
+			time.Sleep(remaining)
+			return
+		}
+		time.Sleep(tick)
+	}
+}
+
+func (s *ReadSideCar) retryControlPlaneWrite(what string, op func() error) {
+	const attempts = 10
+	const maxDelay = 30 * time.Second
+	delay := 500 * time.Millisecond
+	deadline := time.Now().Add(retryBudget)
+	var cancelDeadline time.Time
+	var err error
+	for i := 1; i <= attempts; i++ {
+		if err = op(); err == nil {
+			if i > 1 {
+				s.log("%s recovered after %d attempts", what, i)
+			}
+			return
+		}
+		if isPermanentPgError(err) {
+			s.panic("%s: %v", what, err)
+		}
+		if i == attempts {
+			break
+		}
+		if s.cancelled.Load() {
+			if cancelDeadline.IsZero() {
+				cancelDeadline = time.Now().Add(retryCancelledBudget)
+			}
+			if delay > retryCancelledDelay {
+				delay = retryCancelledDelay
+			}
+			if deadline.After(cancelDeadline) {
+				deadline = cancelDeadline
+			}
+		}
+		if time.Now().Add(delay).After(deadline) {
+			if !cancelDeadline.IsZero() {
+				s.panic("%s: giving up, the sidecar is shutting down (attempt %d/%d): %v", what, i, attempts, err)
+			}
+			s.panic("%s: giving up after %s of retries (attempt %d/%d): %v", what, retryBudget, i, attempts, err)
+		}
+		// Deliberately not s.log. Logging routes through _log, which for task
+		// logs hits ClickHouse when an events-log service is configured and
+		// falls back to db.InsertTaskLog on this same pool when it is not — so
+		// on a self-hosted install every retry line would be a second doomed
+		// round-trip to the Postgres that just refused the write. Printing to
+		// stdout costs nothing on either path; the sidecar relays it regardless.
+		fmt.Printf("WARN : %s failed (attempt %d/%d), retrying in %s: %v\n", what, i, attempts, delay, err)
+		if cancelDeadline.IsZero() {
+			// Not cancelled yet, so this step may be long: wake early if a
+			// SIGTERM lands in the middle of it.
+			s.sleepCancellable(delay)
+		} else {
+			// Already cancelled. delay is capped at retryCancelledDelay here,
+			// and this spacing is the point — returning immediately would burn
+			// the remaining attempts in a hot loop and retry nothing.
+			time.Sleep(delay)
+		}
+		if delay < maxDelay {
+			if delay *= 2; delay > maxDelay {
+				delay = maxDelay
+			}
+		}
+	}
+	s.panic("%s after %d attempts: %v", what, attempts, err)
+}
+
 func (s *ReadSideCar) storeState(stream, state string) {
 	// Same gate as processRecord: a slow Postgres write here can otherwise
 	// freeze lastMessageTime while the stdout reader is parked on the DB,
@@ -695,10 +921,9 @@ func (s *ReadSideCar) storeState(stream, state string) {
 		s.lastMessageTime.Store(time.Now().Unix())
 		s.downstreamBusy.Add(-1)
 	}()
-	err := db.UpsertState(s.dbpool, s.syncId, stream, state, time.Now())
-	if err != nil {
-		s.panic("error updating state: %v", err)
-	}
+	s.retryControlPlaneWrite("error updating state", func() error {
+		return db.UpsertState(s.dbpool, s.syncId, stream, state, time.Now())
+	})
 }
 
 func (s *ReadSideCar) updateRunningStatus() {
@@ -714,22 +939,20 @@ func (s *ReadSideCar) updateRunningStatus() {
 	s.sendGoodStatus("RUNNING", string(processedStreamsJson), "", false)
 }
 
-func (s *ReadSideCar) sendBadStatus(status string, error string) {
-	s.errprint("READ %s", joinStrings(status, error, ": "))
-	err := db.UpsertTaskError(s.dbpool, s.syncId, s.taskId, s.packageName, s.packageVersion, s.startedAt, status, error)
-	if err != nil {
-		s.panic("error updating task: %v", err)
-	}
+func (s *ReadSideCar) sendBadStatus(status string, errMsg string) {
+	s.errprint("READ %s", joinStrings(status, errMsg, ": "))
+	s.retryControlPlaneWrite("error updating task", func() error {
+		return db.UpsertTaskError(s.dbpool, s.syncId, s.taskId, s.packageName, s.packageVersion, s.startedAt, status, errMsg)
+	})
 }
 
-func (s *ReadSideCar) sendGoodStatus(status string, description, error string, log bool) {
+func (s *ReadSideCar) sendGoodStatus(status string, description, errMsg string, log bool) {
 	if log {
 		s.log("READ %s", joinStrings(status, description, ": "))
 	}
-	err := db.UpsertTaskDescriptionAndError(s.dbpool, s.syncId, s.taskId, s.packageName, s.packageVersion, s.startedAt, status, description, error)
-	if err != nil {
-		s.panic("error updating task: %v", err)
-	}
+	s.retryControlPlaneWrite("error updating task", func() error {
+		return db.UpsertTaskDescriptionAndError(s.dbpool, s.syncId, s.taskId, s.packageName, s.packageVersion, s.startedAt, status, description, errMsg)
+	})
 }
 
 // configsPath returns the directory that holds catalog.json, state.json
