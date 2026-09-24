@@ -112,6 +112,15 @@ function mount() {
   return client;
 }
 
+// These three render the whole models page through antd and React Query, then
+// drive it with findByRole/waitFor. Locally they take 2.5s, 4.4s and 5.1s
+// against vitest's 5s default, so the slowest sits on the limit and any CI
+// slowness tips it over — it failed three of four runs on JITSU-228 and once on
+// JITSU-227 on 22 Sep 2026. Nothing is wrong with the tests; they simply need
+// room. Scoped to this file rather than raising the global default, so a
+// genuinely hanging test elsewhere still fails fast.
+vi.setConfig({ testTimeout: 20000 });
+
 describe("model editor", () => {
   it("offers only delete-compatible preview columns in the delete picker", async () => {
     const preview = {

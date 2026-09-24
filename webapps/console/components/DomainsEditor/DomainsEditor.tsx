@@ -4,15 +4,18 @@ import { useWorkspace } from "../../lib/context";
 import { DomainCheckResponse } from "../../lib/shared/domain-check-response";
 import { get } from "../../lib/useApi";
 import { confirmOp, feedbackError } from "../../lib/ui";
-import { Button, Input, notification, Tag, Tooltip } from "antd";
+import { Alert, Button, Input, notification, Tag, Tooltip } from "antd";
 import { useQuery } from "@tanstack/react-query";
 import { getAntdModal, useAntdModal } from "../../lib/modal";
-import { Globe } from "lucide-react";
+import { Globe, Lock, Unlock } from "lucide-react";
 import { FaExternalLinkAlt, FaSpinner, FaTrash, FaWrench } from "react-icons/fa";
 import { ReloadOutlined } from "@ant-design/icons";
 import { useRouter } from "next/router";
 import { WLink } from "../Workspace/WLink";
-import { JitsuButton } from "../JitsuButton/JitsuButton";
+import { JitsuButton, WJitsuButton } from "../JitsuButton/JitsuButton";
+import { useBilling } from "../Billing/BillingProvider";
+import { EntitlementStatus } from "../Billing/EntitlementStatus";
+import { useEntitlements } from "../../lib/entitlements";
 
 const StatusBadge: React.FC<
   PropsWithChildren<{ status: "error" | "warning" | "info" | "success" | "loading"; className?: string }>
@@ -273,7 +276,18 @@ export const DomainsEditor: React.FC<
   const [addValue, setAddValue] = useState<string | undefined>();
   const [addPending, setAddPending] = useState(false);
   const workspace = useWorkspace();
+  const billing = useBilling();
+  // JITSU-228: custom domains are Business and Enterprise. Resolved by the
+  // server rather than from useBilling() — that is gated on
+  // appConfig.billingEnabled, which is false on an EE install without Firebase,
+  // where the server still enforces. Self-hosted consoles have no plans and the
+  // endpoint allows everything there. Domains already configured stay listed and
+  // removable below — only adding one is gated, which is what grandfathers a
+  // workspace that had a domain before the gate existed.
+  const entitlements = useEntitlements();
+  const planTooLow = entitlements.customDomains === false;
   const add = async () => {
+    if (disabled || entitlements.customDomains !== true) return;
     setAddPending(true);
     try {
       if (addValue?.includes("*") && context !== "workspace") {
@@ -328,30 +342,72 @@ export const DomainsEditor: React.FC<
           <div>Subdomains of these domains can be added without additional configuration.</div>
         </div>
       )}
-      <div className="flex">
-        <Input
-          placeholder="subdomain.mywebsite.com"
-          disabled={disabled}
-          value={addValue}
-          onChange={e => setAddValue(e.target.value)}
-          onKeyDown={e => {
-            if (e.key === "Enter") {
-              add();
-              e.preventDefault();
-            }
-          }}
+      {planTooLow ? (
+        <Alert
+          type="info"
+          icon={<Lock className="w-4 h-4" />}
+          showIcon
+          message={"Custom domains require a paid plan"}
+          description={
+            <div>
+              <div>
+                {/* The plan name comes from useBilling(), which is unavailable on an EE
+                    install without Firebase — the gate itself no longer depends on it, so
+                    name the plan only when we actually know it. */}
+                {billing.settings?.planName || billing.settings?.planId ? (
+                  <>
+                    You are currently subscribed to a{" "}
+                    <b className="uppercase">{billing.settings?.planName || billing.settings?.planId}</b> plan. Custom
+                    domains are available on the <b className="uppercase">Business</b> and{" "}
+                    <b className="uppercase">Enterprise</b> plans.
+                  </>
+                ) : (
+                  <>
+                    Custom domains are available on the <b className="uppercase">Business</b> and{" "}
+                    <b className="uppercase">Enterprise</b> plans.
+                  </>
+                )}
+              </div>
+              <div className="mt-3">
+                {billing.enabled ? (
+                  <WJitsuButton icon={<Unlock className="w-4 h-4" />} type="primary" href={"/settings/billing"}>
+                    Upgrade to add a custom domain
+                  </WJitsuButton>
+                ) : (
+                  <span>Contact your workspace administrator to change the plan.</span>
+                )}
+              </div>
+            </div>
+          }
         />
-        <JitsuButton
-          requiredPermission={"editEntities"}
-          disabled={!addValue}
-          type={"primary"}
-          className="ml-5"
-          onClick={add}
-          loading={addPending}
-        >
-          Add
-        </JitsuButton>
-      </div>
+      ) : entitlements.customDomains === null ? (
+        <EntitlementStatus loading={entitlements.loading} retry={entitlements.retry} />
+      ) : (
+        <div className="flex">
+          <Input
+            placeholder="subdomain.mywebsite.com"
+            disabled={disabled}
+            value={addValue}
+            onChange={e => setAddValue(e.target.value)}
+            onKeyDown={e => {
+              if (e.key === "Enter") {
+                add();
+                e.preventDefault();
+              }
+            }}
+          />
+          <JitsuButton
+            requiredPermission={"editEntities"}
+            disabled={disabled || !addValue}
+            type={"primary"}
+            className="ml-5"
+            onClick={add}
+            loading={addPending}
+          >
+            Add
+          </JitsuButton>
+        </div>
+      )}
       <div className="mt-5">
         {(workspaceDomains ?? [])
           .filter(d => !d.includes("*"))

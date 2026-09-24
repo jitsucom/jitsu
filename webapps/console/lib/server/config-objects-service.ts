@@ -8,6 +8,7 @@ import { getCoreDestinationTypeNonStrict, MASKED_SECRET } from "../schema/destin
 import { verifyAccess, verifyAccessWithRole } from "../api";
 import { prepareZodObjectForDeserialization } from "../zod";
 import { ApiError } from "../shared/errors";
+import { assertCustomDomainsAllowed, assertIdentityStitchingAllowed } from "./plan-gate";
 import { configObjectAuditLog } from "./audit-log";
 import { productTelemetryEnabled, trackTelemetryEvent, withProductAnalytics } from "./telemetry";
 import { scheduleSync, validateSyncSchedule } from "./sync";
@@ -218,6 +219,12 @@ export class ConfigObjectsService {
         }
       }
     }
+    // JITSU-228: *before* inputFilter, not after. The stream filter calls
+    // checkOrAddToIngress() for every submitted domain, which provisions it —
+    // so gating afterwards returns 403 to the caller while the externally
+    // visible side effect has already happened. Nothing is lost by checking
+    // first: domainsOf() trims and lowercases exactly as the filter does.
+    await assertCustomDomainsAllowed(user, workspace, type, object, undefined, opts.req);
     object = await configObjectType.inputFilter(object, "create", workspace);
     const inspectedWarehouse =
       type === "model" ? await validateModelForSave(this.prisma, workspaceId, object) : undefined;
@@ -313,6 +320,11 @@ export class ConfigObjectsService {
     const prevVersion = deepCopy(object.config);
     const merged = await configObjectType.merge(object.config, { ...body, id, workspaceId });
     const parsed = parseObject(type, merged);
+    // JITSU-228: before inputFilter, for the same reason as in create — the
+    // filter provisions the domain in ingress before we have decided whether
+    // the caller may have it. Only a domain that is not already on the object
+    // is refused.
+    await assertCustomDomainsAllowed(user, workspace, type, parsed, prevVersion, opts.req);
     const filtered = await configObjectType.inputFilter(parsed, "update", workspace);
     const inspectedWarehouse =
       type === "model" ? await validateModelForSave(this.prisma, workspaceId, filtered) : undefined;
@@ -510,6 +522,9 @@ export class ConfigObjectsService {
       });
     }
 
+    // JITSU-228: refuse switching Identity Stitching on without the entitlement.
+    await assertIdentityStitchingAllowed(user, workspaceId, data, existingLink?.data, opts.req);
+
     let createdOrUpdated: any;
     if (existingLink) {
       createdOrUpdated = await this.prisma.configurationObjectLink.update({
@@ -600,6 +615,8 @@ export class ConfigObjectsService {
       }
     }
     await this.validateLinkData(workspaceId, type, existing.toId, data);
+    // JITSU-228: a connection that already has it keeps it; only turning it on is gated.
+    await assertIdentityStitchingAllowed(user, workspaceId, data, existing.data, opts.req);
     const updated = await this.prisma.configurationObjectLink.update({ where: { id: existing.id }, data: { data } });
     await configObjectAuditLog(
       user,
