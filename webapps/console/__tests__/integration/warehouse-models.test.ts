@@ -630,11 +630,11 @@ describe("Models service", () => {
       id: warehouse.id,
     });
   });
-  it("does not expose warehouse exceptions from preview", async () => {
+  it("returns actionable warehouse errors from preview", async () => {
     const { workspace, warehouse } = await fixture();
     await expect(
       previewModel(deps().prisma, workspace.id, warehouse.id, "SELECT secret_customer_value FROM nonexistent")
-    ).rejects.toThrow("Preview failed or exceeded its limit");
+    ).rejects.toThrow('relation "nonexistent" does not exist');
   });
 
   it.each(["create", "update"] as const)(

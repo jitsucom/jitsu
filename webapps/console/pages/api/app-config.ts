@@ -58,6 +58,8 @@ export default createRoute()
     // its own console→ee-api calls; that path doesn't go through app-config.
     const eeBrowserAvailable = isEEAvailable() && isFirebaseEnabled();
     return {
+      // Presence only: the shared developer token must never reach the browser.
+      googleAdsDeveloperTokenConfigured: !!serverEnv.GOOGLE_ADS_DEVELOPER_TOKEN?.trim(),
       docsUrl: serverEnv.JITSU_DOCUMENTATION_URL || "https://docs.jitsu.com/",
       maintenance: getPublicMaintenanceState(),
       ee: {
