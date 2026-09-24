@@ -68,6 +68,7 @@ export type PreviewResult = z.infer<typeof PreviewResult>;
 export function supportsWarehouseReader(config: Record<string, any>): boolean {
   if (config.provisioned) return config.provisioned === true && config.destinationType === "clickhouse";
   return (
+    config.destinationType === "bigquery" ||
     (config.destinationType === "postgres" &&
       (!config.authenticationMethod || config.authenticationMethod === "password")) ||
     (config.destinationType === "clickhouse" && ["http", "https"].includes(config.protocol))
