@@ -206,4 +206,97 @@ describe("ConfigObjectsService", () => {
     const { user, workspace } = await seedWorkspace();
     await expect(svc().deleteLink(user, workspace.id, { id: "nope" })).resolves.toEqual({ deleted: false });
   });
+
+  describe("Meta event connection credentials", () => {
+    async function seedMeta(pixelId?: string) {
+      const { user, workspace } = await seedWorkspace();
+      const { id } = await svc().create(
+        user,
+        workspace.id,
+        "destination",
+        { name: "Meta", destinationType: "facebook-conversions", accessToken: "test-token", pixelId },
+        { generateId: true }
+      );
+      const stream = await deps().prisma.configurationObject.create({
+        data: { workspaceId: workspace.id, type: "stream", config: { name: "site" } },
+      });
+      return { user, workspace, id, fromId: stream.id, toId: id };
+    }
+
+    it.each([undefined, "", "   "])(
+      "allows a Reverse ETL-only destination but rejects event connections with pixel %j",
+      async pixelId => {
+        const { user, workspace, fromId, toId } = await seedMeta(pixelId);
+        // No strict flag or options body: neither may bypass event credentials validation.
+        await expect(svc().upsertLink(user, workspace.id, { fromId, toId })).rejects.toThrow(
+          /require a Pixel \/ Dataset ID/
+        );
+        expect(await deps().prisma.configurationObjectLink.count({ where: { toId } })).toBe(0);
+        await expect(
+          svc().update(user, workspace.id, "destination", toId, { name: "Audiences" })
+        ).resolves.toBeUndefined();
+      }
+    );
+
+    it("allows valid event connections and protects their pixel even while disabled", async () => {
+      const { user, workspace, fromId, toId } = await seedMeta("123");
+      const link = await svc().upsertLink(user, workspace.id, { fromId, toId, data: { disabled: true } });
+      await expect(svc().update(user, workspace.id, "destination", toId, { pixelId: "" })).rejects.toThrow(
+        /require a Pixel \/ Dataset ID/
+      );
+      await svc().update(user, workspace.id, "destination", toId, { pixelId: "456" });
+      await expect(svc().updateLink(user, workspace.id, link.id, { data: { disabled: false } })).resolves.toMatchObject(
+        {
+          updated: true,
+        }
+      );
+      await svc().deleteLink(user, workspace.id, { id: link.id });
+      await expect(svc().update(user, workspace.id, "destination", toId, { pixelId: "" })).resolves.toBeUndefined();
+    });
+
+    it.each(["push", null])("rejects both update paths for existing invalid %j event connections", async type => {
+      const { user, workspace, fromId, toId } = await seedMeta();
+      const link = await deps().prisma.configurationObjectLink.create({
+        data: { workspaceId: workspace.id, fromId, toId, type, data: { disabled: true } },
+      });
+      await expect(svc().updateLink(user, workspace.id, link.id, { data: { disabled: false } })).rejects.toThrow(
+        /require a Pixel \/ Dataset ID/
+      );
+      await expect(
+        svc().upsertLink(user, workspace.id, { id: link.id, fromId, toId, data: { disabled: false } })
+      ).rejects.toThrow(/require a Pixel \/ Dataset ID/);
+      expect((await deps().prisma.configurationObjectLink.findUniqueOrThrow({ where: { id: link.id } })).data).toEqual({
+        disabled: true,
+      });
+    });
+
+    it("rejects switching a connected destination to Meta without a pixel", async () => {
+      const { user, workspace } = await seedWorkspace();
+      const { dest } = await seedStreamDestLink(workspace.id);
+      await expect(
+        svc().update(user, workspace.id, "destination", dest.id, {
+          type: "destination",
+          name: "Meta",
+          destinationType: "facebook-conversions",
+          accessToken: "test-token",
+        })
+      ).rejects.toThrow(/require a Pixel \/ Dataset ID/);
+      const stored = await deps().prisma.configurationObject.findUniqueOrThrow({ where: { id: dest.id } });
+      expect((stored.config as any).destinationType).toBe("webhook");
+    });
+
+    it("serializes pixel removal against concurrent event connection creation", async () => {
+      const { user, workspace, fromId, toId } = await seedMeta("123");
+      const outcomes = await Promise.allSettled([
+        svc().update(user, workspace.id, "destination", toId, { pixelId: "" }),
+        svc().upsertLink(user, workspace.id, { fromId, toId }),
+      ]);
+      expect(outcomes.filter(result => result.status === "fulfilled")).toHaveLength(1);
+      const failed = outcomes.find(result => result.status === "rejected") as PromiseRejectedResult;
+      expect(failed.reason.message).toMatch(/require a Pixel \/ Dataset ID/);
+      const destination = await deps().prisma.configurationObject.findUniqueOrThrow({ where: { id: toId } });
+      const connections = await deps().prisma.configurationObjectLink.count({ where: { toId, deleted: false } });
+      expect(connections === 0 || (destination.config as any).pixelId === "123").toBe(true);
+    });
+  });
 });
