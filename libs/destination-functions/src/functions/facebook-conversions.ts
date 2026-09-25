@@ -43,6 +43,7 @@ const FacebookConversionsApi: JitsuFunction<AnalyticsServerEvent, FacebookConver
     const os = (analyticsContext.os?.name ?? "").toLowerCase();
     const filter = createFilter(ctx.props.events || "");
     if (!filter(event.type, event.event)) return;
+    if (!ctx.props.pixelId) throw new Error("Meta event delivery requires a Pixel / Dataset ID on the destination");
     const geo = ctx.geo;
     let geoUserData = {};
     if (geo) {
