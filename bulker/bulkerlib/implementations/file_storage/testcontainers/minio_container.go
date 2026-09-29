@@ -1,8 +1,12 @@
 package testcontainers
 
 import (
+	"archive/tar"
+	"bytes"
 	"context"
+	_ "embed"
 	"fmt"
+	"os"
 
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/credentials"
@@ -14,6 +18,9 @@ import (
 	"github.com/testcontainers/testcontainers-go"
 	tcWait "github.com/testcontainers/testcontainers-go/wait"
 )
+
+//go:embed Dockerfile.minio
+var minioDockerfile []byte
 
 const (
 	minioAccessKey = "test_minio_access_key"
@@ -39,21 +46,27 @@ func NewMinioContainer(ctx context.Context, bucketName string) (*MinioContainer,
 
 	hostPort := fmt.Sprintf("%d", utils.GetPort())
 
+	// Embed the build context so tests also work from a compiled test binary.
+	// Docker caches the source build locally; no private image registry is needed.
+	var buildContext bytes.Buffer
+	tw := tar.NewWriter(&buildContext)
+	if err := tw.WriteHeader(&tar.Header{Name: "Dockerfile", Mode: 0644, Size: int64(len(minioDockerfile))}); err != nil {
+		return nil, err
+	}
+	if _, err := tw.Write(minioDockerfile); err != nil {
+		return nil, err
+	}
+	if err := tw.Close(); err != nil {
+		return nil, err
+	}
+
 	container, err := testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
 		ContainerRequest: testcontainers.ContainerRequest{
-			// docker.io/minio/minio is no longer publicly pullable: an anonymous
-			// pull token is rejected with UNAUTHORIZED, which Docker surfaces as
-			// "repository does not exist or may require 'docker login'". MinIO
-			// also publish to quay.io, which is public.
-			//
-			// Pinned on purpose. The previous reference was :latest, so this broke
-			// with no commit in the repo and went unnoticed for six days — the
-			// bulker shard skips whenever a PR does not touch bulker/, and none did.
-			//
-			// This tag is multi-arch (amd64/arm64/ppc64le) and its manifest list is
-			// byte-identical to quay's :latest today, so pinning costs nothing and
-			// keeps the tests runnable on Apple Silicon.
-			Image:        "quay.io/minio/minio:RELEASE.2025-09-07T16-13-09Z",
+			FromDockerfile: testcontainers.FromDockerfile{
+				ContextArchive: bytes.NewReader(buildContext.Bytes()),
+				KeepImage:      true,
+				BuildLogWriter: os.Stdout,
+			},
 			Cmd:          []string{"server", "/data"},
 			ExposedPorts: []string{"9000/tcp"},
 			HostConfigModifier: func(hc *container.HostConfig) {
