@@ -291,7 +291,7 @@ func (t *TaskManager) listenTaskStatus() {
 				// attempt status (including WAITING for pending provider work).
 				// UpsertRunningTask cannot overwrite a terminal task.
 				if st.Status != StatusRunning && st.Status != StatusPending && st.Status != StatusCreated {
-					err = db.UpsertRunningTask(t.dbpool, st.SyncID, st.TaskID, "jitsu/retl-runner", "1", st.StartedAtTime(), "FAILED", "Reverse runner stopped without committed task success; recovery required", st.StartedBy)
+					err = t.failReverseWorker(st)
 				}
 			case "spec":
 				if st.Status == StatusCreateFailed || st.Status == StatusFailed || st.Status == StatusInitTimeout {

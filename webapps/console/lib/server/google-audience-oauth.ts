@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { googleDataManagerOAuthIntegration } from "@jitsu/destination-functions/src/functions/google-ads-reverse/meta";
+import { googleDataManagerOAuthIntegration } from "@jitsu/destination-functions/src/functions/google-ads/audience/meta";
 import type { NangoConfig } from "./oauth/nango-config";
 
 const connection = z.object({

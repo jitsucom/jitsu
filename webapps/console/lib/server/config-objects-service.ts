@@ -11,10 +11,16 @@ import { ApiError } from "../shared/errors";
 import { configObjectAuditLog } from "./audit-log";
 import { productTelemetryEnabled, trackTelemetryEvent, withProductAnalytics } from "./telemetry";
 import { scheduleSync, validateSyncSchedule } from "./sync";
-import { getEeConnection, isEEAvailable, serviceTokenHeaders } from "./ee";
+import { getEeServerConnection, isEEAvailable, serviceTokenHeaders } from "./ee";
 import { omitDeletedList } from "./omit-deleted";
 import { getServerLog } from "./log";
-import { guardModelReferences, validateModelForSave, modelMutation, recheckModelWarehouse } from "./reverse-etl-models";
+import {
+  guardModelReferences,
+  guardReverseDeliveryChanges,
+  validateModelForSave,
+  modelMutation,
+  recheckModelWarehouse,
+} from "./reverse-etl-models";
 import { supportsWarehouseReader } from "@jitsu/warehouse-query/src/schema";
 
 const log = getServerLog("config-objects-service");
@@ -265,7 +271,7 @@ export class ConfigObjectsService {
       // eeRpc call in ConfigEditor). Best-effort: the hourly backup-retention-sync
       // job on ee-api is the backstop, so a failure must not fail stream creation.
       try {
-        await rpc(`${getEeConnection().host}api/s3-init?workspaceId=${encodeURIComponent(workspaceId)}`, {
+        await rpc(`${getEeServerConnection().host}api/s3-init?workspaceId=${encodeURIComponent(workspaceId)}`, {
           method: "GET",
           headers: { "Content-Type": "application/json", ...serviceTokenHeaders() },
           // This await sits on the stream-creation response path; a hung
@@ -313,6 +319,7 @@ export class ConfigObjectsService {
     delete filtered.id;
     delete filtered.workspaceId;
     await modelMutation(this.prisma, workspaceId, type, async tx => {
+      await guardReverseDeliveryChanges(tx, workspaceId, id, type);
       if (type === "model") await recheckModelWarehouse(tx, workspaceId, filtered.warehouseId, inspectedWarehouse);
       if (type === "destination") {
         // merge() can mutate object.config, and another request may have updated
@@ -487,6 +494,9 @@ export class ConfigObjectsService {
     if (!id && existingLink) {
       throw new ApiError(`Link from '${fromId}' to '${toId}' already exists`, { status: 400 });
     }
+    if (existingLink?.type === "reverse-sync") {
+      throw new ApiError("Use the Reverse ETL sync endpoint to change this connection", { status: 400 });
+    }
 
     const co = this.prisma.configurationObject;
     if (!(await co.findFirst({ where: { workspaceId, type: fromType, id: fromId, deleted: false } }))) {
@@ -573,6 +583,9 @@ export class ConfigObjectsService {
     // delete + create). Reject a mismatched patch.type rather than validate against one
     // type and persist another.
     const type = existing.type ?? "push";
+    if (type === "reverse-sync") {
+      throw new ApiError("Use the Reverse ETL sync endpoint to change this connection", { status: 400 });
+    }
     if (patch.type && patch.type !== type) {
       throw new ApiError(`connection ${id} is '${type}'; its type can't be changed to '${patch.type}'`, {
         status: 400,
@@ -641,6 +654,20 @@ export class ConfigObjectsService {
   ): Promise<{ deleted: boolean }> {
     const { id, fromId, toId } = sel;
     await verifyAccessWithRole(user, workspaceId, "deleteEntities");
+    if (
+      await this.prisma.configurationObjectLink.count({
+        where: {
+          workspaceId,
+          deleted: false,
+          type: "reverse-sync",
+          ...(id ? { id } : fromId && toId ? { fromId, toId } : { id: "" }),
+        },
+      })
+    ) {
+      throw new ApiError("Use the Reverse ETL sync endpoint to pause and delete this connection safely", {
+        status: 400,
+      });
+    }
     if (id) {
       if (fromId || toId) {
         throw new ApiError("You can't specify 'fromId' or 'toId' with 'id'", { status: 400 });

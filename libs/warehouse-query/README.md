@@ -8,6 +8,13 @@ putting execution methods on a SQL-only consumer.
 
 - `postgres.ts`: PostgreSQL connections, exact scalar decoding, and SQL rules.
 - `clickhouse.ts`: ClickHouse connections, result formats, and SQL rules.
+- `bigquery.ts`: GoogleSQL, service-account authentication, dry-run metadata and paginated query jobs.
+
+Jitsu-provisioned ClickHouse is supported. The browser's masked config only
+advertises capability; preview and runner execution use the existing server-held
+tenant credentials. Native provisioning endpoints use HTTPS on port 8443, matching
+the console SQL editor. Explicit HTTP(S) endpoints retain their configured ports.
+Read-only query settings and credential masking remain unchanged.
 - `sql.ts`: shared read-only AST checks, delimiter scanning, column invariants,
   and checkpoint/duplicate-key query construction; no warehouse-name branches.
 - `reader.ts`: shared row decoding and preview bounds.
@@ -52,3 +59,47 @@ do not include ClickHouse. This is a compatibility limit, not full ClickHouse SQ
 support. A native parser can be evaluated separately. Never execute an unparsed
 fallback. Parser checks are defense in depth; database read-only settings and
 least-privilege warehouse credentials remain necessary.
+
+ClickHouse extraction drains one query to a private temporary JSONL file before
+yielding rows to the sync runner. Slow state-database writes therefore cannot
+stall the warehouse HTTP response, and pagination never re-executes the model.
+The file is limited to 512 MiB, has mode 0600 in a private directory, and is
+deleted on completion, early return, cancellation or failure. It contains source
+data: use ephemeral, access-restricted scratch storage (the runner mounts `/tmp`
+as `emptyDir`, also removed when the Pod is deleted). This is not recovery state.
+Select fewer columns or split the model if extraction exceeds the limit.
+
+Streaming has a 30-second deadline for each outstanding network read and a
+two-hour overall deadline, plus the caller's cancellation signal. Consumer work
+between reads does not consume the network-read deadline. Preview and metadata
+requests retain their existing 30-second limits.
+
+## BigQuery
+
+Use the existing BigQuery destination (`project`, `bqDataset`, `keyFile`). Only
+service-account JSON keys are accepted; there is no application-default or
+workload-identity fallback to Jitsu's own Google credentials. Grant the account
+BigQuery Job User on the query project and Data Viewer on the source datasets.
+No destination table-write permissions are required for Reverse ETL reads.
+
+The dataset location is discovered automatically; an optional `location` overrides
+discovery. `maximumBytesBilled` optionally caps each executed query's scan cost.
+Without this setting normal BigQuery billing applies. Preview uses `LIMIT 101`,
+which limits returned rows, **not bytes scanned**. Column inspection is a dry run.
+See [query job configuration](https://cloud.google.com/bigquery/docs/reference/rest/v2/Job#JobConfigurationQuery).
+
+Each extraction submits a single query job and paginates its results. New source
+writes cannot change later pages of that job. INT64/NUMERIC/BIGNUMERIC remain
+strings; TIMESTAMP preserves microseconds in UTC. Arrays and records are retained
+as values, but cannot be primary keys/cursors.
+Floating-point primary keys also require an explicit cast, because BigQuery
+does not allow them in the window partitions used for duplicate detection.
+Incremental cursors, timestamp lookback, duplicate-key validation, and delete flags
+use the shared reader contract.
+
+Preview is bounded to 100 rows/2 MB and individual REST response pages to 24 MiB.
+Reads have 30-second deadlines; extraction is bounded to two hours. Cancellation
+requests target this reader's jobs; server job timeouts remain a backstop if the
+cancel request fails. Read-only SQL parsing is defense in depth; use least-privilege
+service accounts. The supported dialect is node-sql-parser's GoogleSQL subset,
+not arbitrary scripts, DDL, DML, or an unparsed-query fallback.

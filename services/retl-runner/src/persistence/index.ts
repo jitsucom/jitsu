@@ -1,16 +1,24 @@
 import type { DeliveryJournal } from "@jitsu/protocols/reverse-etl";
 import { Database } from "./database";
-import { Journal } from "./journal";
 import { openRun } from "./run-state";
 import type { Project, RunInput } from "./types";
+import { ObjectJournal } from "../artifacts/journal";
+import { Artifacts } from "../artifacts/store";
+import { encodeJson } from "./serialization";
 
 export { Database } from "./database";
-export { prune } from "./maintenance";
 export type { RunInput, Scope, Identity, Effect, Limits, Project } from "./types";
 
 export async function openPersistence(db: Database, input: RunInput, project: Project) {
-  const { scope, recovery } = await openRun(db, input);
-  const core = new Journal(db, scope, project, recovery);
+  input = { ...input };
+  // Persist the empty manifest before admission, then insert its pointer atomically
+  // with the new control row. Null heads are unambiguously legacy state.
+  const artifacts = new Artifacts(db.objectStorage.store, input, db.objectStorage.signal);
+  const initialHead = encodeJson(
+    await artifacts.put({ version: 1, runId: input.logicalRunId, baseline: [], batches: [] })
+  );
+  const { scope, recovery } = await openRun(db, input, initialHead);
+  const core = await ObjectJournal.open(db, scope, project, recovery);
   // Deliberately return a narrow facade: no database client/snapshot access
   // on the object passed to trusted providers as ctx.delivery.
   const delivery: DeliveryJournal = Object.freeze({

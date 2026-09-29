@@ -30,6 +30,7 @@ export type ModelDefinition = z.infer<typeof ModelDefinition>;
 export const ReverseSyncOptions = z
   .object({
     version: z.literal(2).default(2),
+    name: z.string().trim().min(1).max(200).optional(),
     stream: z.string().min(1),
     mode: z.enum(["upsert", "mirror"]),
     mapping: z.record(z.string().min(1)),
@@ -63,10 +64,11 @@ export const PreviewResult = z.object({
 });
 export type PreviewResult = z.infer<typeof PreviewResult>;
 
-// Only connections supported by this first reader release appear in the picker.
+// Public provisioned configs hide credentials/protocol, so capability uses their server-owned marker.
 export function supportsWarehouseReader(config: Record<string, any>): boolean {
-  if (config.provisioned) return false;
+  if (config.provisioned) return config.provisioned === true && config.destinationType === "clickhouse";
   return (
+    config.destinationType === "bigquery" ||
     (config.destinationType === "postgres" &&
       (!config.authenticationMethod || config.authenticationMethod === "password")) ||
     (config.destinationType === "clickhouse" && ["http", "https"].includes(config.protocol))

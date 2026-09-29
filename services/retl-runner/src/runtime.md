@@ -5,23 +5,32 @@ container. No long-running Go sidecar is used. The compiled-in registry includes
 Google Data Manager Customer Match additions/explicit removals, with scoped OAuth
 and durable request polling. Jitsu-managed audiences additionally support core
 snapshot mirroring with 30-day unchanged-member refresh and 540-day membership.
-The console provisions audiences separately and exports server-recorded creation
-evidence bound to one sync; the runner verifies that binding remotely each attempt.
-Existing audiences remain additions/explicit removals only. The Reverse sync editor
-and production enablement follow separately; the API guard against creating Reverse
-sync links remains in place.
+The runner provisions managed audiences on their first run, saving intent and audience
+identity in a dedicated `source_state` stream under the sync's Kubernetes lease.
+Uncertain creation is discovered by the saved correlation marker, never submitted twice.
+Both managed and exclusively managed existing audiences support full replacement.
+Existing audiences also support additions/explicit removals. The Reverse sync editor
+configures these modes; workspace feature flags and per-sync admission still apply.
+
+For legacy console-provisioned audiences, follow the non-destructive
+[settings migration](../../../webapps/console/components/ReverseETL/README.md#existing-sync-migration)
+before enabling syncs with this console/runner pair. This is separate from the older
+object-storage schema cutover below; it preserves existing delivery state.
 
 ## Deployment prerequisites
 
 Configure `SYNCCTL_REVERSE_ENABLED=true`, `SYNCCTL_REVERSE_RUNNER_IMAGE`,
-`SYNCCTL_REVERSE_RUNTIME_SECRET`, and `SYNCCTL_PODS_SERVICE_ACCOUNT`. Normal
+`SYNCCTL_REVERSE_RUNTIME_SECRET`, and `SYNCCTL_REVERSE_SERVICE_ACCOUNT` (falls back
+to `SYNCCTL_PODS_SERVICE_ACCOUNT`). Normal
 repository URL/token/namespace settings still apply. `retl-runner` is a target in
 `all.Dockerfile` and the existing services release workflow. This PR does not bump
 a release version, provision infrastructure, or deploy anything.
 
-Apply the Prisma schema before deploying this runner: membership `last_accepted_at`
-and generation `refresh_before` are additive fields used by snapshot planning.
-The existing restricted table grants cover these columns; no runtime DDL is added.
+This is a **destructive schema cutover**, not an additive rolling deployment.
+Follow the [object persistence cutover](artifacts/README.md#deployment) before applying
+Prisma or starting new workers. For this repository's dev chart, use the
+[Helm setup/cutover guide](../../../helm/REVERSE_ETL.md); schema hooks run before
+service upgrades, so pause and drain old workers first.
 
 The pre-provisioned runtime Secret must contain:
 
@@ -30,10 +39,14 @@ The pre-provisioned runtime Secret must contain:
 | `RETL_DATABASE_URL` | Restricted DB login, including `?schema=newjitsu` (or configured schema). Never migration credentials. |
 | `RETL_CONSOLE_URL` | Reachable console origin. |
 | `RETL_CONSOLE_TOKEN` | Console `SYNCCTL_AUTH_KEY` for per-run admission. |
+| `RETL_OBJECT_STORE` | `gcs` or `s3`; mandatory, no SQL payload fallback. |
+| `RETL_OBJECT_BUCKET` | Existing private artifact bucket. |
 
 No payload-encryption key is required. Recovery payloads and checkpoint state are
-stored as readable JSON; protect database and backup access as described in the
-package README. DB and admission credentials still belong in Kubernetes Secrets.
+stored as compressed JSON artifacts plus small PostgreSQL control records; protect
+bucket, database and backup access as described in the package README. DB and
+admission credentials still belong in Kubernetes Secrets. Optional object-store
+settings and cloud identity setup are documented in the Helm guide.
 
 Use the database grants in the package README. The service account needs
 namespace-scoped `get`, `create`, `update`, `delete` on `coordination.k8s.io/leases`.
@@ -82,7 +95,7 @@ never beyond expiry minus the safety margin. The shared Nango secret and refresh
 token never reach the runner. Redirects are forbidden. Disabling the sync stops new
 token issuance; an already cached/in-flight token is not instantly revoked.
 
-See the [Google adapter contract](../../../libs/destination-functions/src/functions/google-ads-reverse/README.md)
+See the [Google adapter contract](../../../libs/destination-functions/src/functions/google-ads/REVERSE_ETL.md)
 for OAuth scopes, mapping/consent, and unrecoverable ambiguous-request limitations.
 
 ## Supervision and task state
@@ -163,15 +176,18 @@ the controller must recognize WAITING/RESUMED for cleanup. The console label onl
 deploys the console, not these services. Syncctl's DB role needs SELECT on
 `reverse_sync_control` alongside its existing `source_task` permissions.
 
-Fenced maintenance prunes abandoned generations and terminal old-run receipts in
-bounded pages before delivery, retaining receipts for 30 days. `source_state`
-continues to hold compact cursor/store state. No billing or association tables.
+Next-run admission compacts accepted membership into durable baseline files and
+discards the abandoned candidate from the new head. No SQL row sweeper remains.
+Object garbage collection is deferred; do not configure age-only bucket deletion.
+`source_state` continues to hold compact cursor/store state. See the mandatory
+[storage cutover](artifacts/README.md) before deploying; old workers must be stopped
+before dropping the legacy payload tables. No billing or association tables.
 
 ## Validation
 
 `pnpm --filter @jitsu-internal/retl-runner build` produces `dist/main.cjs`.
 Runner tests use disposable PostgreSQL and fake provider bindings. Set
-`RETL_MIRROR_SCALE_TEST=1` to include the existing million-identity SQL pagination
+`RETL_MIRROR_SCALE_TEST=1` to include the million-identity SQLite pagination
 test. Console integration tests verify scoped export/admission data; controller
 tests use fake Kubernetes clients for templates, feed isolation, malformed inputs
 and terminal Pod policy. Setting `SYNCCTL_TEST_DATABASE_URL` to a disposable

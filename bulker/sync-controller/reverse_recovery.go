@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strconv"
 	"time"
 
 	v1 "k8s.io/api/core/v1"
@@ -30,6 +31,7 @@ func (t *TaskManager) runReverseRecoveryScheduler() {
 
 type reverseRecoveryTask struct {
 	SyncID, TaskID, WorkspaceID, Revision string
+	Attempt                               int
 }
 
 func (t *TaskManager) scheduleReverseRecovery() {
@@ -42,7 +44,7 @@ func (t *TaskManager) scheduleReverseRecovery() {
 	}
 	var ids, workspaces, revisions []string
 	for _, entry := range data.Syncs {
-		if entry.Reverse != nil {
+		if entry.Reverse != nil && !entry.Reverse.paused() {
 			ids = append(ids, entry.ID)
 			workspaces = append(workspaces, entry.WorkspaceID)
 			revisions = append(revisions, entry.Reverse.ConfigRevision)
@@ -52,23 +54,13 @@ func (t *TaskManager) scheduleReverseRecovery() {
 		return
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	// Node consumes WAITING atomically on start. If a Pod failed before Node
-	// could start, the watcher writes its FAILED child task instead. Consume the
-	// parent then too, rather than recreating a known failed attempt forever.
-	_, err := t.dbpool.Exec(ctx, `UPDATE source_task p SET status='RESUMED',updated_at=clock_timestamp()
- WHERE p.package='jitsu/retl-runner' AND p.status='WAITING' AND EXISTS
- (SELECT 1 FROM source_task child WHERE child.sync_id=p.sync_id AND child.package='jitsu/retl-runner'
- AND child.started_by->>'recoveryOf'=p.task_id)`)
-	if err != nil {
-		cancel()
-		t.Errorf("reverse recovery task check failed")
-		return
-	}
-	rows, err := t.dbpool.Query(ctx, `SELECT t.sync_id,t.task_id,c.workspace_id,c.revision
+	rows, err := t.dbpool.Query(ctx, `SELECT t.sync_id,t.task_id,c.workspace_id,c.revision,COALESCE((t.metrics->'reverseRecovery'->>'attempt')::int,0)
  FROM source_task t JOIN reverse_sync_control c ON c.sync_id=t.sync_id
  JOIN unnest($1::text[],$2::text[],$3::text[]) desired(id,workspace,revision)
  ON desired.id=c.sync_id AND desired.workspace=c.workspace_id AND desired.revision=c.revision
- WHERE t.package='jitsu/retl-runner' AND t.status='WAITING'
+ WHERE t.package='jitsu/retl-runner' AND t.status IN ('PENDING','WAITING')
+ AND COALESCE((t.metrics->'reverseRecovery'->>'suspended')::boolean,false)=false
+ AND COALESCE((t.metrics->'reverseWorker'->>'active')::boolean,false)=false
  AND t.started_by->>'workspaceId'=c.workspace_id
  AND t.metrics->'reverseRecovery'->>'runId'=c.run_id
  AND t.metrics->'reverseRecovery'->>'revision'=c.revision
@@ -83,7 +75,7 @@ func (t *TaskManager) scheduleReverseRecovery() {
 	var pending []reverseRecoveryTask
 	for rows.Next() {
 		var task reverseRecoveryTask
-		if err = rows.Scan(&task.SyncID, &task.TaskID, &task.WorkspaceID, &task.Revision); err != nil {
+		if err = rows.Scan(&task.SyncID, &task.TaskID, &task.WorkspaceID, &task.Revision, &task.Attempt); err != nil {
 			break
 		}
 		pending = append(pending, task)
@@ -106,10 +98,15 @@ func (t *TaskManager) scheduleReverseRecovery() {
 			continue
 		}
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-		err := t.launchReverseRecovery(ctx, entry, task.TaskID)
+		err := t.launchReverseRecovery(ctx, entry, task.TaskID, task.Attempt)
 		cancel()
 		if err != nil {
 			t.Errorf("reverse recovery launch failed for sync %s", task.SyncID)
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			_ = t.recordReverseRefreshFailure(ctx, task.SyncID, task.TaskID,
+				reverseResourceName(task.SyncID+":refresh:"+task.TaskID+":"+strconv.Itoa(task.Attempt)),
+				"Status refresh could not start; saved delivery retained. Automatic scheduling will retry.", false)
+			cancel()
 		}
 	}
 }
@@ -119,10 +116,10 @@ func recoveryEntryMatches(entry *SyncEntry, task reverseRecoveryTask) bool {
 		entry.WorkspaceID == task.WorkspaceID && entry.Reverse.ConfigRevision == task.Revision
 }
 
-func (t *TaskManager) launchReverseRecovery(ctx context.Context, entry *SyncEntry, parentTaskID string) error {
+func (t *TaskManager) launchReverseRecovery(ctx context.Context, entry *SyncEntry, parentTaskID string, attempt int) error {
 	// Deterministic identity makes repeated scans/controller replicas safe even
 	// after an uncertain Create response. A new parent means a new check attempt.
-	name := reverseResourceName(entry.ID + ":recovery:" + parentTaskID)
+	name := reverseResourceName(entry.ID + ":refresh:" + parentTaskID + ":" + strconv.Itoa(attempt))
 	secretName := name + "-config"
 	raw, err := json.Marshal(entry.Reverse)
 	if err != nil {
@@ -146,7 +143,8 @@ func (t *TaskManager) launchReverseRecovery(ctx context.Context, entry *SyncEntr
 	if err != nil {
 		return err
 	}
-	template := buildReversePodTemplate(t.config, entry, secretName, name)
+	template := buildReversePodTemplate(t.config, entry, secretName, parentTaskID)
+	template.Annotations["ReverseRefreshAttempt"] = strconv.Itoa(attempt)
 	template.Spec.ActiveDeadlineSeconds = ptr.To(int64(t.config.JobActiveDeadlineSeconds))
 	for i := range template.Spec.Containers[0].Env {
 		if template.Spec.Containers[0].Env[i].Name == "RETL_TRIGGER" {
@@ -154,6 +152,7 @@ func (t *TaskManager) launchReverseRecovery(ctx context.Context, entry *SyncEntr
 		}
 	}
 	template.Spec.Containers[0].Env = append(template.Spec.Containers[0].Env, v1.EnvVar{Name: "RETL_RECOVERY_OF", Value: parentTaskID})
+	template.Spec.Containers[0].Env = append(template.Spec.Containers[0].Env, v1.EnvVar{Name: "RETL_REFRESH_ATTEMPT", Value: strconv.Itoa(attempt)})
 	startedBy, _ := json.Marshal(map[string]string{"trigger": "recovery", "kind": "reverse", "workspaceId": entry.WorkspaceID, "recoveryOf": parentTaskID})
 	template.Annotations["StartedBy"] = string(startedBy)
 	pod, err := client.CoreV1().Pods(t.config.KubernetesNamespace).Create(ctx, &v1.Pod{

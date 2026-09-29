@@ -76,12 +76,13 @@ export interface ResumePoint {
 }
 
 /**
- * Awaited persistence boundary; production uses PostgreSQL in the Node runner.
+ * Awaited persistence boundary; the Node runner owns durable storage (PostgreSQL
+ * metadata plus immutable object-storage artifacts).
  * Provider implementations receive this interface, never a database client.
  * There is no production in-memory fallback or requirement for an RPC transport.
  * Bind scope on construction and validate lifecycle transitions. Persist bounded
- * replay payloads before returning from prepare. Acknowledge writes effective
- * membership and receipts transactionally. Worker ownership belongs to Kubernetes
+ * replay payloads before returning from prepare. Acknowledge atomically publishes
+ * receipts and their effective membership changes. Worker ownership belongs to Kubernetes
  * leases and syncctl; this interface has no billing or encryption responsibilities.
  */
 export interface DeliveryJournal {

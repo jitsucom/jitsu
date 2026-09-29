@@ -3,6 +3,7 @@ import { isDeepStrictEqual } from "node:util";
 import { createWarehouseReader, getWarehouseSqlDialect } from "@jitsu/warehouse-query";
 import { ModelDefinition, supportsWarehouseReader } from "@jitsu/warehouse-query/src/schema";
 import { ApiError } from "../shared/errors";
+import { warehouseErrorMessage } from "./warehouse-errors";
 
 type ModelDb = Pick<PrismaClient, "workspace" | "configurationObject" | "configurationObjectLink" | "$queryRaw">;
 
@@ -51,9 +52,12 @@ export async function getModelWarehouse(prisma: ModelDb, workspaceId: string, wa
   if (!object) throw new ApiError("Warehouse destination not found in this workspace", { status: 404 });
   const config = object.config as Record<string, any>;
   if (!supportsWarehouseReader(config)) {
-    throw new ApiError("Models support Postgres password connections and HTTP(S) ClickHouse connections", {
-      status: 400,
-    });
+    throw new ApiError(
+      "Models support Postgres password connections, HTTP(S) or Jitsu-provisioned ClickHouse, and BigQuery service accounts",
+      {
+        status: 400,
+      }
+    );
   }
   return config;
 }
@@ -62,23 +66,19 @@ export async function validateModelForSave(prisma: PrismaClient, workspaceId: st
   await assertModelsEnabled(prisma, workspaceId);
   const model = ModelDefinition.parse(input);
   const config = await getModelWarehouse(prisma, workspaceId, model.warehouseId);
-  // Query syntax/projection errors are actionable; raw database exceptions may
-  // include credentials, SQL literals or source values and are never returned.
+  // Authorized users get actionable SQL diagnostics, with connection secrets redacted.
   try {
     getWarehouseSqlDialect(config.destinationType).validateQuery(model.query);
   } catch (e) {
-    throw new ApiError((e as Error).message, { status: 400 });
+    throw new ApiError(warehouseErrorMessage(e, config, "Invalid model query."), { status: 400 });
   }
   const reader = safeReader(config);
   try {
     let columns;
     try {
       columns = await reader.columns(model.query, AbortSignal.timeout(30_000));
-    } catch {
-      throw new ApiError(
-        "Could not inspect model columns. Check the warehouse connection, read permissions and query.",
-        { status: 400 }
-      );
+    } catch (e) {
+      throw new ApiError(warehouseErrorMessage(e, config, "Could not inspect model columns."), { status: 400 });
     }
     try {
       reader.sql.validateColumns(model, columns);
@@ -99,6 +99,27 @@ function safeReader(config: Record<string, any>) {
   }
 }
 
+/** Inspect a saved model's projection without returning warehouse rows. */
+export async function modelColumns(prisma: PrismaClient, workspaceId: string, modelId: string, signal?: AbortSignal) {
+  await assertModelsEnabled(prisma, workspaceId);
+  const object = await prisma.configurationObject.findFirst({
+    where: { id: modelId, workspaceId, type: "model", deleted: false },
+  });
+  if (!object) throw new ApiError("Model not found in this workspace", { status: 404 });
+  const model = ModelDefinition.parse(object.config);
+  const config = await getModelWarehouse(prisma, workspaceId, model.warehouseId);
+  const reader = safeReader(config);
+  try {
+    return { columns: await reader.columns(model.query, signal ?? AbortSignal.timeout(30_000)) };
+  } catch (e) {
+    throw new ApiError(warehouseErrorMessage(e, config, "Could not load model columns."), {
+      status: 400,
+    });
+  } finally {
+    await reader.close();
+  }
+}
+
 export async function previewModel(
   prisma: PrismaClient,
   workspaceId: string,
@@ -111,7 +132,7 @@ export async function previewModel(
   try {
     getWarehouseSqlDialect(config.destinationType).validateQuery(query);
   } catch (e) {
-    throw new ApiError((e as Error).message, { status: 400 });
+    throw new ApiError(warehouseErrorMessage(e, config, "Invalid model query."), { status: 400 });
   }
   const reader = safeReader(config);
   try {
@@ -120,11 +141,8 @@ export async function previewModel(
       ...preview,
       columns: preview.columns.map(c => ({ ...c, supportsDelete: reader.sql.supportsDeleteType(c.type) })),
     };
-  } catch {
-    throw new ApiError(
-      "Preview failed or exceeded its limit. Check read permissions and SQL, or select fewer columns.",
-      { status: 400 }
-    );
+  } catch (e) {
+    throw new ApiError(warehouseErrorMessage(e, config, "Preview failed."), { status: 400 });
   } finally {
     await reader.close();
   }
@@ -146,4 +164,25 @@ export async function guardModelReferences(prisma: ModelDb, workspaceId: string,
     });
     if (links) throw new ApiError("Object is referenced by a reverse sync. Remove that sync first.", { status: 409 });
   }
+}
+
+/** Saved reverse delivery configuration is immutable, including the model's warehouse credentials. */
+export async function guardReverseDeliveryChanges(prisma: ModelDb, workspaceId: string, id: string, type: string) {
+  if (type !== "model" && type !== "destination") return;
+  const links = await prisma.configurationObjectLink.count({
+    where: {
+      workspaceId,
+      type: "reverse-sync",
+      deleted: false,
+      OR:
+        type === "model"
+          ? [{ fromId: id }]
+          : [{ toId: id }, { from: { workspaceId, type: "model", config: { path: ["warehouseId"], equals: id } } }],
+    },
+  });
+  if (links)
+    throw new ApiError(
+      "Configuration is bound to a reverse sync. Remove that sync before changing its delivery configuration.",
+      { status: 409 }
+    );
 }

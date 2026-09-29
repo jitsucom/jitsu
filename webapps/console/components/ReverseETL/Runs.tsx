@@ -1,0 +1,199 @@
+import React, { useEffect, useState } from "react";
+import { Alert, Button, Descriptions, Input, Modal, Table } from "antd";
+import { useRouter } from "next/router";
+import { useQuery } from "@tanstack/react-query";
+import { rpc } from "juava";
+import { z } from "zod";
+import { ReverseTask } from "../../lib/reverse-etl";
+import { useAppConfig, useWorkspace, useWorkspaceRole } from "../../lib/context";
+import { EditorTitle } from "../ConfigObjectEditor/EditorTitle";
+import { Failure, Panel, useReverseSyncs } from "./shared";
+
+import { ReverseTaskStatusTag } from "./TaskStatus";
+import { ReverseDeliveryStatistics } from "./DeliveryStatistics";
+import { ReverseSyncTitle } from "./SyncTitle";
+
+const resultSchema = z.object({
+  tasks: z.array(ReverseTask),
+  logs: z.array(z.object({ id: z.string(), timestamp: z.coerce.date(), level: z.string(), message: z.string() })),
+});
+
+/** The run endpoint queues a pod; its task record is written when the runner starts. */
+function StartingAttempt() {
+  const [slow, setSlow] = useState(false);
+  useEffect(() => {
+    const timer = setTimeout(() => setSlow(true), 60_000);
+    return () => clearTimeout(timer);
+  }, []);
+  return (
+    <Alert
+      type={slow ? "warning" : "info"}
+      title={slow ? "Still waiting for the runner" : "Starting run…"}
+      description={
+        slow
+          ? "The task record has not appeared yet. This page will keep checking. Check runner startup if this persists; do not start a duplicate run."
+          : "Waiting for the runner to register this attempt. Logs will appear automatically."
+      }
+    />
+  );
+}
+
+export function ReverseRuns() {
+  const workspace = useWorkspace();
+  const router = useRouter();
+  const role = useWorkspaceRole();
+  const maintenance = useAppConfig().maintenance?.active;
+  const syncs = useReverseSyncs();
+  const syncId = typeof router.query.syncId === "string" ? router.query.syncId : undefined;
+  const taskId = typeof router.query.taskId === "string" ? router.query.taskId : undefined;
+  const starting = router.query.starting === "1";
+  const [search, setSearch] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<unknown>();
+  const tasks = useQuery({
+    queryKey: ["reverse-etl-tasks", workspace.id, syncId, taskId],
+    enabled: router.isReady && !!taskId,
+    queryFn: async () =>
+      resultSchema.parse(
+        await rpc(`/api/${workspace.id}/reverse-etl/tasks`, {
+          query: { ...(syncId ? { syncId } : {}), ...(taskId ? { taskId } : {}) },
+        })
+      ),
+    refetchInterval: data => (starting && !data?.tasks.length ? 1000 : 5000),
+  });
+  const task = taskId ? tasks.data?.tasks[0] : undefined;
+  const sync = syncs.data?.find(s => s.id === task?.sync_id);
+  const cancel = async () => {
+    if (!task) return;
+    setBusy(true);
+    setError(undefined);
+    try {
+      await rpc(`/api/${workspace.id}/reverse-etl/sync`, {
+        method: "POST",
+        query: { syncId: task.sync_id },
+        body: { action: "cancel", taskId: task.task_id },
+      });
+      await tasks.refetch();
+    } catch (e) {
+      setError(e);
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <>
+      {
+        <EditorTitle
+          title="Reverse ETL run logs"
+          subtitle={
+            <p className="text-textLight mb-6">
+              {taskId
+                ? "An execution attempt of a durable reverse-sync run."
+                : "Recent execution attempts across all reverse syncs."}
+            </p>
+          }
+          onBack={() => router.push(`/${workspace.slugOrId}/reverse-syncs/tasks${syncId ? `?syncId=${syncId}` : ""}`)}
+        />
+      }
+      <Failure error={error || tasks.error} />
+      {task ? (
+        <>
+          <Panel title={<ReverseSyncTitle sync={sync} syncId={task.sync_id} link={false} />}>
+            <div className="flex justify-between items-center mb-5">
+              <ReverseTaskStatusTag status={task.status} />
+              <Button
+                danger
+                loading={busy}
+                disabled={
+                  !role.editEntities || !!maintenance || !["RUNNING", "WAITING", "PENDING"].includes(task.status)
+                }
+                onClick={() =>
+                  Modal.confirm({
+                    title: "Cancel this attempt?",
+                    content:
+                      "Google requests already in flight may still finish. Accepted changes and recovery evidence are kept.",
+                    okText: "Cancel attempt",
+                    okButtonProps: { danger: true },
+                    onOk: cancel,
+                  })
+                }
+              >
+                Cancel attempt
+              </Button>
+            </div>
+            <Descriptions
+              column={1}
+              size="small"
+              items={[
+                { key: "id", label: "Attempt ID", children: <code className="break-all">{task.task_id}</code> },
+                {
+                  key: "sync",
+                  label: "Sync",
+                  children: <ReverseSyncTitle sync={sync} syncId={task.sync_id} />,
+                },
+                { key: "start", label: "Started", children: task.started_at.toLocaleString() },
+                { key: "updated", label: "Last update", children: task.updated_at.toLocaleString() },
+                { key: "progress", label: "Progress", children: task.description || "—" },
+              ]}
+            />
+          </Panel>
+          {["WAITING", "PENDING"].includes(task.status) && (
+            <Alert
+              className="mb-5"
+              type="success"
+              title="Pending"
+              description="Submitted changes are still processing. Status refreshes continue automatically while the sync is enabled."
+            />
+          )}
+          {task.status === "RESUMED" && (
+            <Alert
+              className="mb-5"
+              type="info"
+              title="Continued in a later attempt"
+              description="A later attempt is handling these changes. See this sync’s run history for the latest status."
+            />
+          )}
+          {task.error && <Alert className="mb-5" type="error" title="Run stopped" description={task.error} />}
+          <Panel title="Record delivery statistics">
+            <ReverseDeliveryStatistics task={task} />
+          </Panel>
+          <Panel
+            title="Logs"
+            description="Core lifecycle messages only. Source rows, identifiers and provider recovery payloads are not displayed."
+          >
+            <Input.Search
+              placeholder="Filter log messages"
+              allowClear
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              className="mb-4"
+            />
+            <Table
+              size="small"
+              rowKey="id"
+              scroll={{ x: 600 }}
+              pagination={{ pageSize: 25 }}
+              dataSource={tasks.data?.logs.filter(l => l.message.toLowerCase().includes(search.toLowerCase()))}
+              columns={[
+                { title: "Time", dataIndex: "timestamp", width: 200, render: (d: Date) => d.toLocaleString() },
+                { title: "Level", dataIndex: "level", width: 90 },
+                {
+                  title: "Message",
+                  dataIndex: "message",
+                  render: t => <span className="font-mono break-all">{t}</span>,
+                },
+              ]}
+            />
+          </Panel>
+        </>
+      ) : tasks.error ? null : starting && taskId ? (
+        <StartingAttempt key={`${workspace.id}:${taskId}`} />
+      ) : (
+        <Alert
+          type={!router.isReady || tasks.isInitialLoading ? "info" : "error"}
+          title={!router.isReady || tasks.isInitialLoading ? "Loading attempt…" : "Attempt not found"}
+        />
+      )}
+    </>
+  );
+}

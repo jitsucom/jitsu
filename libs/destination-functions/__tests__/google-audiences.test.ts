@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { createGoogleAudienceManagement } from "../src/functions/google-ads-reverse/audiences";
+import { createGoogleAudienceManagement } from "../src/functions/google-ads/audience/management";
 
 const credentials = {
   authorized: true,

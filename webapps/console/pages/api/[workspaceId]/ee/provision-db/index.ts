@@ -2,7 +2,7 @@ import { Api, inferUrl, nextJsApiHandler, verifyAccess, verifyAccessWithRole } f
 import { z } from "zod";
 import { getServerLog } from "../../../../../lib/server/log";
 import { assertTrue, requireDefined, rpc } from "juava";
-import { eeAuthHeadersOrServiceToken, getEeConnection, isEEAvailable } from "../../../../../lib/server/ee";
+import { eeAuthHeadersOrServiceToken, getEeServerConnection, isEEAvailable } from "../../../../../lib/server/ee";
 import { db } from "../../../../../lib/server/db";
 import { DestinationConfig } from "../../../../../lib/schema";
 
@@ -69,7 +69,7 @@ export const api: Api = {
         `Workspace ${workspaceId} not found`
       );
 
-      const { host } = getEeConnection();
+      const { host } = getEeServerConnection();
       const provisionedDbCredentials = await rpc(`${host}api/provision-db`, {
         method: "GET",
         query: { workspaceId, slug: workspace.slug || workspace.id },
