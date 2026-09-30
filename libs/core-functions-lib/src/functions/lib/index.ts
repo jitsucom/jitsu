@@ -46,12 +46,15 @@ import NodeCache from "node-cache";
 import { fetch as undiciFetch, type RequestInit as UndiciRequestInit } from "undici";
 
 // This module also runs inside the Deno-based functions-server (UDF sandbox), which
-// monkey-patches globalThis.fetch at startup with its own tuned connection pool
-// (Deno.createHttpClient, see functions-server.ts) for proxied UDF fetch calls.
-// Only substitute the pinned undici fetch on the Node/rotor path — under Deno, keep
-// deferring to globalThis.fetch so that pool configuration stays in effect.
-const platformFetch: typeof undiciFetch =
-  typeof (globalThis as any).Deno !== "undefined" ? (globalThis.fetch as unknown as typeof undiciFetch) : undiciFetch;
+// monkey-patches globalThis.fetch with its own tuned connection pool (Deno.createHttpClient,
+// see functions-server.ts) for proxied UDF fetch calls — but only after its own top-level
+// code runs, which happens *after* this module is imported and evaluated. So the Deno check
+// itself is safe to do once here, but globalThis.fetch must be read fresh at call time below,
+// not captured into a module-level constant — capturing it here would grab the pre-wrap
+// native fetch and silently skip the pool configuration for the module's whole lifetime.
+const isDeno = typeof (globalThis as any).Deno !== "undefined";
+const platformFetch: typeof undiciFetch = (...args) =>
+  (isDeno ? (globalThis.fetch as unknown as typeof undiciFetch) : undiciFetch)(...args);
 
 const log = getLog("functions-context");
 
