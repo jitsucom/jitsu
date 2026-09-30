@@ -43,7 +43,15 @@ import NodeCache from "node-cache";
 // handle counts climb for hours, only resetting on a pod restart). Fixed upstream
 // in 8.11.0 — import undici's own fetch, pinned to that floor, instead of relying
 // on whatever the Node runtime happens to bundle.
-import { fetch, type RequestInit as UndiciRequestInit } from "undici";
+import { fetch as undiciFetch, type RequestInit as UndiciRequestInit } from "undici";
+
+// This module also runs inside the Deno-based functions-server (UDF sandbox), which
+// monkey-patches globalThis.fetch at startup with its own tuned connection pool
+// (Deno.createHttpClient, see functions-server.ts) for proxied UDF fetch calls.
+// Only substitute the pinned undici fetch on the Node/rotor path — under Deno, keep
+// deferring to globalThis.fetch so that pool configuration stays in effect.
+const platformFetch: typeof undiciFetch =
+  typeof (globalThis as any).Deno !== "undefined" ? (globalThis.fetch as unknown as typeof undiciFetch) : undiciFetch;
 
 const log = getLog("functions-context");
 
@@ -596,7 +604,7 @@ export const makeFetch = (
         keepalive: true,
         signal: AbortSignal.timeout(fetchTimeoutMs),
       };
-      fetchResult = await fetch(url, internalInit);
+      fetchResult = await platformFetch(url, internalInit);
       throttle.success();
     } catch (err: any) {
       if (err.name === "TimeoutError") {
