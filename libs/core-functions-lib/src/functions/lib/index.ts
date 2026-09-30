@@ -34,6 +34,16 @@ import {
 import * as dns from "node:dns";
 import * as net from "node:net";
 import NodeCache from "node-cache";
+// Node's global fetch uses whatever undici ships with the running Node version. On
+// Node 24 that's undici 7.x, which has a keepalive connection-pool regression
+// (nodejs/undici#5910): once a server responds with `Connection: close`, every
+// later request to that host opens a fresh connection instead of reusing the pool,
+// and the stale ones are never reclaimed. Under sustained load against destinations
+// that close connections, this leaks sockets over time (rotor's active Socket/TCP
+// handle counts climb for hours, only resetting on a pod restart). Fixed upstream
+// in 8.11.0 — import undici's own fetch, pinned to that floor, instead of relying
+// on whatever the Node runtime happens to bundle.
+import { fetch, type RequestInit as UndiciRequestInit } from "undici";
 
 const log = getLog("functions-context");
 
@@ -581,7 +591,7 @@ export const makeFetch = (
         e.name = "ThrottleError";
         throw e;
       }
-      const internalInit: RequestInit = {
+      const internalInit: UndiciRequestInit = {
         ...init,
         keepalive: true,
         signal: AbortSignal.timeout(fetchTimeoutMs),
