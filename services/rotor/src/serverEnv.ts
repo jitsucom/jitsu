@@ -52,6 +52,8 @@ const ServerEnvSchema = z.object({
   KAFKA_DESTINATIONS_MT_TOPIC_NAME: z.string().optional().default("destination-messages-mt"),
   KAFKA_CONSUMER_GROUP_ID: z.string().optional(),
   KAFKA_TOPIC_COMPRESSION: z.string().optional().default("gzip"),
+  KAFKA_DEBUG: z.string().optional(),
+  KAFKA_CLIENT_LOG_LEVEL: z.string().optional(),
   CONSUMER_PROTOCOL: z.string().optional(),
 
   // Bulker Configuration
