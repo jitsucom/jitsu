@@ -272,6 +272,35 @@ describe("Test Jitsu NodeJS client", () => {
     expect(requestLog[2].body.context.awesome.nestedKey).toBe("awesome-key");
   });
 
+  test("timestamp option", async () => {
+    const config = {
+      host: server.baseUrl,
+      writeKey: "key:secret",
+      debug: true,
+    };
+
+    const date = new Date("2000-01-01");
+
+    console.log("[JITSU TEST] Initializing Jitsu");
+    const client = jitsuAnalytics(config);
+    console.log("[JITSU TEST] Jitsu instance", client);
+
+    expect(requestLog.length).toBe(0);
+    console.log("[JITSU TEST] Sending event EVENT_1");
+    await client.track("EVENT_1", undefined, { timestamp: date });
+    console.log("[JITSU TEST] Sending event EVENT_2");
+    await client.track("EVENT_2", undefined, { timestamp: date.toISOString() });
+    console.log("[JITSU TEST] Sending event EVENT_3");
+    await client.track("EVENT_3", undefined, {});
+
+    await new Promise(resolve => setTimeout(resolve, 1000));
+
+    expect(requestLog.length).toBe(3);
+    expect(requestLog[0].body.timestamp).toBe(date.toISOString());
+    expect(requestLog[1].body.timestamp).toBe(date.toISOString());
+    expect(requestLog[2].body.timestamp).not.toBe(date.toISOString());
+  });
+
   test("node-js", async () => {
     const jitsu: AnalyticsInterface = jitsuAnalytics({
       writeKey: "key:secret",
