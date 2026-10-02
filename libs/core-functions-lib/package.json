@@ -40,6 +40,7 @@
     "node-cache": "^5.1.2",
     "parse-duration": "^2.1.6",
     "tslib": "catalog:",
+    "undici": "^8.11.0",
     "zod": "^3.23.8"
   }
 }

@@ -460,7 +460,44 @@ delete_pod() {
     log_success "Pod deleted (will be recreated by deployment)"
 }
 
-# Start minikube tunnel for LoadBalancer services
+# Stop only the child processes started by this tunnel command.
+stop_tunnel() {
+    local pid
+    for pid in "$@"; do
+        kill "$pid" 2>/dev/null || true
+    done
+    for pid in "$@"; do
+        wait "$pid" 2>/dev/null || true
+    done
+}
+
+# A pod restart ends kubectl port-forward; reconnect while the tunnel is open.
+forward_syncctl() {
+    local child_pid="" stopping=false
+    # Do not exit from a signal trap inside wait, or between launching a child
+    # and recording $!: finish that command before killing/reaping the child.
+    # Also signal an already-recorded child: TERM can arrive immediately before
+    # wait, when setting the flag alone would leave that next wait blocked.
+    trap 'stopping=true; if [ -n "$child_pid" ]; then kill "$child_pid" 2>/dev/null || true; fi' TERM
+    trap 'trap "" TERM; if [ -n "$child_pid" ]; then stop_tunnel "$child_pid"; fi' EXIT
+    while true; do
+        kubectl --context minikube -n "$NAMESPACE" port-forward --address 127.0.0.1 service/syncctl 3043:3043 &
+        child_pid=$!
+        if $stopping; then exit 0; fi
+        wait "$child_pid" || true
+        if $stopping; then exit 0; fi
+        child_pid=""
+        log_warn "Syncctl port-forward stopped; retrying in 2 seconds (check errors above)."
+        sleep 2 &
+        child_pid=$!
+        if $stopping; then exit 0; fi
+        wait "$child_pid" || true
+        if $stopping; then exit 0; fi
+        child_pid=""
+    done
+}
+
+# Start the LoadBalancer tunnel and the loopback-only syncctl forward together.
 tunnel() {
     log_info "Starting minikube tunnel (requires sudo)..."
     log_info "Services will be accessible at:"
@@ -473,9 +510,21 @@ tunnel() {
     echo "  ClickHouse: http://localhost:8123 (default / see helm-deps/values.yaml clickhouse.password)"
     echo "  MongoDB:    localhost:27017 (admin / see helm-deps/values.yaml mongodb.password)"
     echo "  Kafka:      localhost:19092"
+    echo "  Syncctl:    http://127.0.0.1:3043 (loopback port-forward)"
     echo ""
-    log_info "Press Ctrl+C to stop the tunnel"
-    minikube tunnel
+    log_info "Syncctl stays cluster-internal; forwarding its HTTP port to loopback only."
+    log_info "Press Ctrl+C to stop both tunnels"
+    forward_syncctl &
+    local syncctl_pid=$!
+    # Capture PID values now: local variables no longer exist at script exit.
+    trap "stop_tunnel $syncctl_pid" EXIT
+    trap 'exit 130' INT
+    trap 'exit 143' TERM
+    # Preserve stdin for minikube/sudo prompts while allowing signal handling in wait.
+    minikube tunnel <&0 &
+    local tunnel_pid=$!
+    trap "stop_tunnel $syncctl_pid $tunnel_pid" EXIT
+    wait "$tunnel_pid"
 }
 
 # Show URLs for exposed services
@@ -491,6 +540,9 @@ expose() {
     echo "  MongoDB:    localhost:27017"
     echo "  Kafka:      localhost:19092"
     echo ""
+
+    log_info "The dev tunnel also forwards syncctl to http://127.0.0.1:3043. To forward it separately:"
+    echo "  kubectl --context minikube -n '$NAMESPACE' port-forward --address 127.0.0.1 service/syncctl 3043:3043"
 
     # Check if tunnel might be needed
     local ingest_ip=$(kubectl get svc -n "$NAMESPACE" ingest -o jsonpath='{.status.loadBalancer.ingress[0].ip}' 2>/dev/null)
@@ -667,7 +719,7 @@ show_help() {
     echo "  db-push            Apply console Prisma schema (also runs on every deploy)"
     echo "  clear-cache [type] Clear build caches (go|node|all, default: all)"
     echo "  expose             Show URLs for externally accessible services"
-    echo "  tunnel             Start minikube tunnel (makes services accessible on localhost)"
+    echo "  tunnel             Start minikube tunnel and loopback syncctl port-forward"
     echo "  uninstall          Uninstall the Helm release"
     echo "  help               Show this help"
     echo ""

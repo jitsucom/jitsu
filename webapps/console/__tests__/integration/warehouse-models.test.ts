@@ -4,10 +4,13 @@ import { createWarehouseReader, SourceRecord } from "@jitsu/warehouse-query";
 import { ModelDefinition } from "@jitsu/warehouse-query/src/schema";
 import { compilePostgresPreview, postgresSql } from "@jitsu/warehouse-query/src/postgres";
 import { ConfigObjectsService } from "../../lib/server/config-objects-service";
-import { modelMutation, previewModel, recheckModelWarehouse } from "../../lib/server/reverse-etl-models";
+import { modelColumns, modelMutation, previewModel, recheckModelWarehouse } from "../../lib/server/reverse-etl-models";
 import { getServerEnv } from "../../lib/server/serverEnv";
+import { deleteReverseSync } from "../../lib/server/reverse-syncs";
 import { deps, seedWorkspace } from "./support/harness";
 import { server } from "./support/msw";
+import { allConfigTypes } from "../../lib/store/config-types";
+import { getAllConfigObjectTypeNames } from "../../lib/schema/config-objects";
 
 const env = getServerEnv();
 const pgUrl = new URL(env.DATABASE_URL);
@@ -88,6 +91,27 @@ afterAll(async () => {
   await pgReader.close();
   await chReader.close();
 });
+
+it("ClickHouse streaming survives consumer backpressure beyond the preview socket timeout", async () => {
+  await deps().clickhouse.command({
+    query: "CREATE TABLE retl_slow_consumer (id UInt64, value String) ENGINE = Memory",
+  });
+  await deps().clickhouse.command({
+    query: "INSERT INTO retl_slow_consumer SELECT number, repeat('x', 4096) FROM numbers(10000)",
+  });
+  const model = ModelDefinition.parse({
+    warehouseId: "test",
+    query: "SELECT id, value FROM retl_slow_consumer",
+    primaryKey: ["id"],
+    pageSize: 1000,
+  });
+  let count = 0;
+  for await (const row of chReader.stream(model, undefined, AbortSignal.timeout(45_000))) {
+    expect(row.row.id).toBe(String(count++));
+    if (count === 1) await new Promise(resolve => setTimeout(resolve, 32_000));
+  }
+  expect(count).toBe(10000);
+}, 50_000);
 
 it.each([
   ["https", 443, ""],
@@ -258,6 +282,9 @@ describe("Postgres preview server-side byte guard", () => {
 });
 
 describe("Models service", () => {
+  it("keeps the shared store registry aligned with public configuration objects", () => {
+    expect([...allConfigTypes].sort()).toEqual(getAllConfigObjectTypeNames().sort());
+  });
   const service = new ConfigObjectsService({ prisma: deps().prisma });
   async function fixture(config: Record<string, unknown> = pgConfig) {
     const { user, workspace } = await seedWorkspace();
@@ -280,6 +307,34 @@ describe("Models service", () => {
       service.create(a.user, a.workspace.id, "model", { ...a.model, warehouseId: b.warehouse.id }, { generateId: true })
     ).rejects.toMatchObject({ status: 404 });
     await expect(service.list(b.user, a.workspace.id, "model")).rejects.toMatchObject({ status: 403 });
+  });
+  it.each([pgConfig, chConfig])("inspects saved model columns without returning rows", async config => {
+    const f = await fixture(config);
+    const { id } = await service.create(f.user, f.workspace.id, "model", f.model, { generateId: true });
+    const result = await modelColumns(deps().prisma, f.workspace.id, id);
+    expect(result.columns.map(c => c.name)).toEqual(["id", "changed", "removed"]);
+    expect(Object.keys(result)).toEqual(["columns"]);
+    const foreign = await fixture();
+    await expect(modelColumns(deps().prisma, foreign.workspace.id, id)).rejects.toMatchObject({ status: 404 });
+    await deps().prisma.configurationObject.update({ where: { id }, data: { deleted: true } });
+    await expect(modelColumns(deps().prisma, f.workspace.id, id)).rejects.toMatchObject({ status: 404 });
+  });
+  it("previews, saves and streams models from a provisioned tenant warehouse without exposing credentials", async () => {
+    const f = await fixture({ ...chConfig, provisioned: true });
+    const publicWarehouse = await service.get(f.user, f.workspace.id, "destination", f.warehouse.id);
+    expect(publicWarehouse).toMatchObject({ destinationType: "clickhouse", provisioned: true });
+    expect(publicWarehouse).not.toHaveProperty("password");
+    expect(publicWarehouse).not.toHaveProperty("hosts");
+    const preview = await previewModel(deps().prisma, f.workspace.id, f.warehouse.id, f.model.query);
+    expect(preview.rows).toHaveLength(3);
+    const saved = await service.create(f.user, f.workspace.id, "model", f.model, { generateId: true });
+    expect((await modelColumns(deps().prisma, f.workspace.id, saved.id)).columns).toHaveLength(3);
+    const reader = createWarehouseReader({ ...chConfig, provisioned: true });
+    try {
+      expect(await collect(reader.stream(definition))).toHaveLength(3);
+    } finally {
+      await reader.close();
+    }
   });
   it.each([
     ["Postgres bytea", pgConfig, "SELECT 1 AS pk, NULL::bytea AS removed WHERE false"],
@@ -466,12 +521,19 @@ describe("Models service", () => {
       service.delete(user, workspace.id, "destination", warehouse.id, { cascade: true })
     ).rejects.toMatchObject({ status: 409 });
     const link = await deps().prisma.configurationObjectLink.create({
-      data: { workspaceId: workspace.id, fromId: id, toId: warehouse.id, type: "reverse-sync", data: {} },
+      data: {
+        workspaceId: workspace.id,
+        fromId: id,
+        toId: warehouse.id,
+        type: "reverse-sync",
+        data: { version: 2, stream: "audience", mode: "upsert", mapping: {}, disabled: true },
+      },
     });
     await expect(service.delete(user, workspace.id, "model", id, { cascade: true })).rejects.toMatchObject({
       status: 409,
     });
-    await service.deleteLink(user, workspace.id, { id: link.id });
+    await expect(service.deleteLink(user, workspace.id, { id: link.id })).rejects.toThrow("Reverse ETL");
+    await deleteReverseSync(deps().prisma, workspace.id, link.id);
     await service.delete(user, workspace.id, "model", id);
     expect(await deps().prisma.auditLog.count({ where: { objectId: id, type: "config-object-delete" } })).toBe(1);
     await expect(service.delete(user, workspace.id, "destination", warehouse.id)).resolves.toMatchObject({
@@ -585,11 +647,11 @@ describe("Models service", () => {
       id: warehouse.id,
     });
   });
-  it("does not expose warehouse exceptions from preview", async () => {
+  it("returns actionable warehouse errors from preview", async () => {
     const { workspace, warehouse } = await fixture();
     await expect(
       previewModel(deps().prisma, workspace.id, warehouse.id, "SELECT secret_customer_value FROM nonexistent")
-    ).rejects.toThrow("Preview failed or exceeded its limit");
+    ).rejects.toThrow('relation "nonexistent" does not exist');
   });
 
   it.each(["create", "update"] as const)(

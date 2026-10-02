@@ -28,6 +28,15 @@ func reverseTestConfig() *Config {
 	return &Config{KubernetesNamespace: "default", ReverseEnabled: true, ReverseRunnerImage: "retl:test", ReverseRuntimeSecret: "retl-runtime", PodsServiceAccount: "runner", JobActiveDeadlineSeconds: 3600, ContainerInitTimeoutSeconds: 180, TaskTimeoutHours: 1}
 }
 
+func TestPausedReverseEntryHasNoExtractionSchedule(t *testing.T) {
+	config := reverseFixture().Reverse
+	config.Options = json.RawMessage(`{"disabled":true,"mode":"mirror"}`)
+	entry := config.entry()
+	if !config.paused() || entry.Schedule != "" || entry.Reverse != config {
+		t.Fatal("paused delivery must remain available without an extraction schedule")
+	}
+}
+
 func TestReverseRepositoryRejectsPartialAndPreservesSnapshot(t *testing.T) {
 	entry := reverseFixture()
 	raw, _ := json.Marshal([]*ReverseConfig{entry.Reverse})
@@ -81,15 +90,56 @@ func TestReversePodContract(t *testing.T) {
 			t.Fatal("runtime DB secret not referenced")
 		}
 		if env.ValueFrom != nil && env.ValueFrom.SecretKeyRef != nil {
-			runtimeKeys[env.ValueFrom.SecretKeyRef.Key] = true
+			ref := env.ValueFrom.SecretKeyRef
+			if ref.Optional == nil || !*ref.Optional {
+				runtimeKeys[ref.Key] = true
+			} else if ref.Name != "retl-runtime" {
+				t.Fatal("optional artifact configuration must come from runtime Secret")
+			}
 		}
 	}
-	if len(runtimeKeys) != 3 || !runtimeKeys["RETL_DATABASE_URL"] || !runtimeKeys["RETL_CONSOLE_URL"] || !runtimeKeys["RETL_CONSOLE_TOKEN"] {
-		t.Fatal("runner must require only DB and admission Secret keys, not encryption keys")
+	optionalKeys := map[string]bool{}
+	for _, env := range pod.Spec.Containers[0].Env {
+		if env.ValueFrom != nil && env.ValueFrom.SecretKeyRef != nil && env.ValueFrom.SecretKeyRef.Optional != nil && *env.ValueFrom.SecretKeyRef.Optional {
+			optionalKeys[env.Name] = true
+		}
+	}
+	if len(optionalKeys) != 7 || !optionalKeys["RETL_OBJECT_PREFIX"] || !optionalKeys["AWS_SECRET_ACCESS_KEY"] || !optionalKeys["GOOGLE_ADS_DEVELOPER_TOKEN"] {
+		t.Fatal("optional runtime settings are missing")
+	}
+	if len(runtimeKeys) != 5 || !runtimeKeys["RETL_DATABASE_URL"] || !runtimeKeys["RETL_CONSOLE_URL"] || !runtimeKeys["RETL_CONSOLE_TOKEN"] || !runtimeKeys["RETL_OBJECT_STORE"] || !runtimeKeys["RETL_OBJECT_BUCKET"] {
+		t.Fatal("runner must require DB, admission and object store Secret keys")
 	}
 	manual := buildReversePodTemplate(cfg, entry, "config", "manual-task")
 	if manual.Annotations["TaskID"] != "manual-task" {
 		t.Fatal("manual cancellation identity missing")
+	}
+}
+
+func TestReverseDeveloperTokenUsesOptionalRuntimeSecret(t *testing.T) {
+	for _, taskID := range []string{"", "manual-task", "refresh-task"} {
+		t.Run(taskID, func(t *testing.T) {
+			cfg := reverseTestConfig()
+			cfg.GoogleAdsDeveloperToken = "controller-token-must-not-be-copied"
+			pod := buildReversePodTemplate(cfg, reverseFixture(), "config", taskID)
+			found := 0
+			for _, env := range pod.Spec.Containers[0].Env {
+				if env.Name != "GOOGLE_ADS_DEVELOPER_TOKEN" {
+					continue
+				}
+				found++
+				if env.Value != "" || env.ValueFrom == nil || env.ValueFrom.SecretKeyRef == nil {
+					t.Fatal("developer token must use a Secret reference, not a literal")
+				}
+				ref := env.ValueFrom.SecretKeyRef
+				if ref.Name != cfg.ReverseRuntimeSecret || ref.Key != env.Name || ref.Optional == nil || !*ref.Optional {
+					t.Fatal("developer token must be optional and sourced from the runner runtime Secret")
+				}
+			}
+			if found != 1 {
+				t.Fatalf("expected one developer token projection, got %d", found)
+			}
+		})
 	}
 }
 
@@ -194,11 +244,19 @@ func TestReverseTerminationRetriesTransientFailure(t *testing.T) {
 	}
 	// Next watcher pass still observes Running with terminal task state.
 	j.cleanupReversePod(pod)
-	if !j.cleanedUpPods.Contains(pod.Name) {
-		t.Fatal("successful retry not recorded")
+	if j.cleanedUpPods.Contains(pod.Name) {
+		t.Fatal("cleanup by name would hide a recreated refresh Pod")
 	}
 	if _, err := client.CoreV1().Pods("default").Get(context.Background(), pod.Name, metav1.GetOptions{}); err == nil {
 		t.Fatal("running Pod was not deleted on retry")
+	}
+	replacement := pod.DeepCopy()
+	replacement.UID = "new-uid"
+	if _, err := client.CoreV1().Pods("default").Create(context.Background(), replacement, metav1.CreateOptions{}); err != nil {
+		t.Fatal(err)
+	}
+	if j.cleanedUpPods.Contains(replacement.Name) {
+		t.Fatal("replacement Pod would be skipped")
 	}
 }
 

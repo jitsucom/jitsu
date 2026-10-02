@@ -3,7 +3,7 @@ import { z } from "zod";
 import { assertTrue } from "juava";
 import {
   eeAuthHeadersOrServiceToken,
-  getEeConnection,
+  getEeServerConnection,
   isEEAvailable,
   serviceTokenHeaders,
 } from "../../../lib/server/ee";
@@ -132,7 +132,7 @@ async function proxy(opts: { req: any; res: any; query?: z.infer<typeof querySch
     }
     headers = serviceTokenHeaders();
   }
-  const url = new URL(`${getEeConnection().host}api/migration/${query.endpoint}`);
+  const url = new URL(`${getEeServerConnection().host}api/migration/${query.endpoint}`);
   if (spec.method === "GET") {
     for (const param of ["workspaceId", "id", "accessCode"] as const) {
       if (query[param]) {

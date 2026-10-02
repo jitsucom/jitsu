@@ -4,15 +4,20 @@ import { Client, type PoolConfig } from "pg";
 import { createRequire } from "node:module";
 import { execFileSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
+import { readFileSync } from "node:fs";
 import { contentHash, createBufferedSyncStore } from "@jitsu/destination-functions/src/reverse-etl/identity";
 import { runReverseEtl } from "@jitsu/destination-functions/src/reverse-etl/run";
 import type { BatchResult, FinishResult, PreparedBatch } from "@jitsu/protocols/reverse-etl";
 import { z } from "zod";
-import { effects } from "./snapshots";
+import { effects } from "./effects";
 import { encodeJson, decodeJson } from "./serialization";
-import { Database, openPersistence, prune, type RunInput, type Project } from "./index";
+import { Database, openPersistence, type RunInput, type Project } from "./index";
 import { readControl } from "./run-state";
-import { Journal } from "./journal";
+import { ObjectJournal as Journal } from "../artifacts/journal";
+import { MemoryObjects, persisted } from "../artifacts/test-support";
+const objects = new MemoryObjects();
+const storage = { objectStorage: { store: objects, signal: new AbortController().signal } };
+const durable = () => persisted(admin, objects);
 import { controlFor } from "./control-cache";
 import type { ControlRow } from "./rows";
 
@@ -31,7 +36,10 @@ function pushSchema(databaseUrl: string) {
     stdio: "inherit",
   });
 }
-const project: Project = (_, row: any) => [{ identity: row.id, upsert: row, remove: { id: row.id } }];
+const project: Project = (_, row: any) =>
+  row.identityHash
+    ? [{ identity: row.identity, upsert: row.upsert, remove: row.remove }]
+    : [{ identity: row.id, upsert: row, remove: { id: row.id } }];
 const input = (extra: Partial<RunInput> = {}): RunInput => ({
   workspaceId: "workspace",
   syncId: "sync",
@@ -61,7 +69,7 @@ function batch(
   cursor = true
 ): PreparedBatch<any> {
   const records = ids.map((id, index) => {
-    const row = { id };
+    const row = run.scope.mode === "mirror" ? effects(project(action, { id }))[0] : { id };
     const key = contentHash([id]);
     return {
       key,
@@ -130,13 +138,11 @@ beforeAll(async () => {
   }
   await admin.query("GRANT SELECT,INSERT,UPDATE ON newjitsu.source_state TO retl_runtime");
   runtimeConfig = { ...config, user: "retl_runtime", password: "runtime" };
-  db = new Database(runtimeConfig);
+  db = new Database(runtimeConfig, storage);
 }, 120000);
 beforeEach(async () => {
   runInput = input();
-  await admin.query(
-    "TRUNCATE newjitsu.reverse_sync_operation,newjitsu.reverse_sync_batch,newjitsu.reverse_sync_control,newjitsu.reverse_sync_target_owner,newjitsu.reverse_sync_generation,newjitsu.reverse_sync_source_key,newjitsu.reverse_sync_desired,newjitsu.reverse_sync_membership,newjitsu.source_state"
-  );
+  await admin.query("TRUNCATE newjitsu.reverse_sync_control,newjitsu.reverse_sync_target_owner,newjitsu.source_state");
 });
 afterAll(async () => {
   await db?.close();
@@ -144,7 +150,62 @@ afterAll(async () => {
   await container?.stop();
 });
 
-describe("PostgreSQL persistence", () => {
+describe("Artifact persistence with PostgreSQL control", () => {
+  it("starts a fresh run with committed sync store, not a pending run's transient store", async () => {
+    const first = await session();
+    await init(first);
+    await first.delivery.prepareFinish(0, { retained: "committed" });
+    await first.delivery.acknowledgeFinish({ delivery: "accepted" }, { retained: "committed" });
+    await first.delivery.commitCheckpoint({ sourceSequence: 0 }, { retained: "committed" }, true);
+    const next = await session({ logicalRunId: "second" });
+    expect((await next.core.state()).store).toEqual({ retained: "committed" });
+    await next.delivery.prepareInit({ retained: "transient" });
+    await next.delivery.acknowledgeInit({ retained: "transient" });
+    // Model a run detached after submission while its provider results are pending.
+    await admin.query("UPDATE newjitsu.reverse_sync_control SET detached=true WHERE run_id='second'");
+    const third = await session({ logicalRunId: "third" });
+    expect((await third.core.state()).store).toEqual({ retained: "committed" });
+    const resumed = await session({ logicalRunId: "second" });
+    expect((await resumed.core.state()).store).toEqual({ retained: "transient" });
+  });
+  it("migrates the old single-run key without changing existing state and is repeatable", async () => {
+    const run = await session();
+    await init(run);
+    const b = batch(run, ["a"]);
+    await run.delivery.prepare(b, {});
+    await admin.query(`CREATE SCHEMA retl_migration_fixture;
+      CREATE TABLE retl_migration_fixture.reverse_sync_control (LIKE newjitsu.reverse_sync_control INCLUDING DEFAULTS);
+      ALTER TABLE retl_migration_fixture.reverse_sync_control DROP COLUMN run_order, DROP COLUMN detached;
+      ALTER TABLE retl_migration_fixture.reverse_sync_control ADD PRIMARY KEY(workspace_id,sync_id);
+      CREATE UNIQUE INDEX reverse_sync_control_sync_id_key ON retl_migration_fixture.reverse_sync_control(sync_id);
+      INSERT INTO retl_migration_fixture.reverse_sync_control(workspace_id,sync_id,run_id,revision,target_hash,mode,extraction,artifact_head,phase)
+      SELECT workspace_id,sync_id,run_id,revision,target_hash,mode,extraction,artifact_head,phase FROM newjitsu.reverse_sync_control`);
+    try {
+      const before = (
+        await admin.query("SELECT to_jsonb(c) AS value FROM retl_migration_fixture.reverse_sync_control c")
+      ).rows;
+      const sql = readFileSync(new URL("../../migrations/per-run-control.sql", import.meta.url), "utf8").replace(
+        ':"schema"',
+        '"retl_migration_fixture"'
+      );
+      await admin.query(sql);
+      await admin.query(sql);
+      const after = (
+        await admin.query(
+          "SELECT to_jsonb(c)-'run_order'-'detached' AS value FROM retl_migration_fixture.reverse_sync_control c"
+        )
+      ).rows;
+      expect(after).toEqual(before);
+      await admin.query(`INSERT INTO retl_migration_fixture.reverse_sync_control(workspace_id,sync_id,run_id,run_order,revision,target_hash,mode,extraction)
+        VALUES('workspace','sync','second',1,'revision','target','upsert','full')`);
+      expect(
+        (await admin.query("SELECT count(*) FROM retl_migration_fixture.reverse_sync_control")).rows[0].count
+      ).toBe("2");
+    } finally {
+      await admin.query("ROLLBACK");
+      await admin.query("DROP SCHEMA retl_migration_fixture CASCADE");
+    }
+  });
   it("keeps Prisma-owned tables, constraints and existing rows intact across schema updates", async () => {
     const run = await session();
     await init(run);
@@ -152,8 +213,8 @@ describe("PostgreSQL persistence", () => {
     await run.delivery.prepare(b, {});
     await run.delivery.acknowledge(b.batchId, outcomes(b), {});
     pushSchema(adminUrl);
-    expect(await count("newjitsu.reverse_sync_operation")).toBe(1);
-    expect(await count("newjitsu.reverse_sync_membership")).toBe(1);
+    expect((await durable()).operations.length).toBe(1);
+    expect((await durable()).members.length).toBe(1);
     expect((await admin.query("SELECT 1 FROM pg_namespace WHERE nspname='retl'")).rowCount).toBe(0);
     expect(
       (
@@ -170,11 +231,8 @@ describe("PostgreSQL persistence", () => {
       ).rows
     ).toEqual([]);
     await expect(admin.query("UPDATE newjitsu.reverse_sync_control SET mode='invalid'")).rejects.toThrow(/enum/);
-    await expect(admin.query("UPDATE newjitsu.reverse_sync_operation SET batch_id='missing'")).rejects.toThrow(
-      /foreign key/
-    );
     await expect(
-      admin.query("INSERT INTO newjitsu.reverse_sync_operation SELECT * FROM newjitsu.reverse_sync_operation")
+      admin.query("INSERT INTO newjitsu.reverse_sync_control SELECT * FROM newjitsu.reverse_sync_control")
     ).rejects.toThrow(/duplicate key/);
   }, 30000);
   it("uses the configured schema for every transaction without relying on pooled search_path", async () => {
@@ -192,7 +250,7 @@ describe("PostgreSQL persistence", () => {
     await admin.query(`GRANT SELECT,INSERT,UPDATE ON ${schema}.source_state TO retl_runtime`);
     url.username = "retl_runtime";
     url.password = "runtime";
-    const custom = new Database({ connectionString: url.toString(), options: "-c search_path=public" });
+    const custom = new Database({ connectionString: url.toString(), options: "-c search_path=public" }, storage);
     try {
       const run = await openPersistence(custom, runInput, project);
       await init(run);
@@ -248,8 +306,7 @@ describe("PostgreSQL persistence", () => {
     await expect(session({ workspaceId: "foreign" })).rejects.toThrow();
     const b = batch(run, ["private@example.com"]);
     await run.delivery.prepare(b, { token: "secret" });
-    const saved = (await admin.query("SELECT manifest FROM newjitsu.reverse_sync_batch")).rows[0].manifest;
-    expect(JSON.parse(saved.toString())).toEqual({ version: 1, value: b });
+    expect((await durable()).batches[0].batch).toEqual(b);
     expect(decodeJson((await admin.query("SELECT store FROM newjitsu.reverse_sync_control")).rows[0].store)).toEqual({
       token: "secret",
     });
@@ -264,7 +321,7 @@ describe("PostgreSQL persistence", () => {
     const b = batch(run, ["a"]);
     await run.delivery.prepare(b, {});
     await db.close();
-    db = new Database(runtimeConfig);
+    db = new Database(runtimeConfig, storage);
     await expect(session({ logicalRunId: "new-run" })).rejects.toThrow(/requires recovery/);
     const recovered = await session({ taskId: "recovery" });
     expect(recovered.recovery).toBe(true);
@@ -287,9 +344,7 @@ describe("PostgreSQL persistence", () => {
     if (initial === "staged") await run.delivery.acknowledge(b.batchId, outcomes(b, "staged"), { saved: true });
     const recovered = await session({ taskId: "recovery" });
     const before = await recovered.core.recoveryBatch(b.batchId);
-    const counters = (
-      await admin.query("SELECT reserved_entries,reserved_bytes,journal_bytes FROM newjitsu.reverse_sync_control")
-    ).rows[0];
+    const counters = (await admin.query("SELECT artifact_head FROM newjitsu.reverse_sync_control")).rows[0];
     const result: BatchResult = {
       outcomes: [
         outcome === "rejected"
@@ -307,11 +362,8 @@ describe("PostgreSQL persistence", () => {
     }
     expect(await recovered.core.recoveryBatch(b.batchId)).toEqual(before);
     expect((await recovered.core.state()).store).toEqual({ saved: true });
-    expect(
-      (await admin.query("SELECT reserved_entries,reserved_bytes,journal_bytes FROM newjitsu.reverse_sync_control"))
-        .rows[0]
-    ).toEqual(counters);
-    expect(await count("newjitsu.reverse_sync_membership")).toBe(0);
+    expect((await admin.query("SELECT artifact_head FROM newjitsu.reverse_sync_control")).rows[0]).toEqual(counters);
+    expect((await durable()).members.length).toBe(0);
     if (initial !== "staged") await expect(recovered.delivery.prepareAbort()).rejects.toThrow(/reconciliation/);
     await recovered.core.acknowledgeRecovered(b.batchId, result, {});
     expect((await recovered.core.recoveryBatch(b.batchId)).operations[0].status).toBe(outcome);
@@ -364,13 +416,13 @@ describe("PostgreSQL persistence", () => {
       },
       {}
     );
-    expect(await count("newjitsu.reverse_sync_membership")).toBe(1);
+    expect((await durable()).members.length).toBe(1);
     await expect(run.delivery.commitCheckpoint({ sourceSequence: 2, cursor: b.cursor }, {}, false)).rejects.toThrow(
       /unaccepted/
     );
     await run.delivery.prepareAbort();
     await run.delivery.acknowledgeAbort();
-    expect(await count("newjitsu.reverse_sync_membership")).toBe(1);
+    expect((await durable()).members.length).toBe(1);
   });
   it("rolls back all acceptance writes when saving the batch receipt fails", async () => {
     const run = await session();
@@ -378,17 +430,18 @@ describe("PostgreSQL persistence", () => {
     const b = batch(run, ["a"]);
     await run.delivery.prepare(b, {});
     await admin.query(
-      "ALTER TABLE newjitsu.reverse_sync_batch ADD CONSTRAINT injected_failure CHECK (status <> 'acknowledged') NOT VALID"
+      "ALTER TABLE newjitsu.reverse_sync_control ADD CONSTRAINT injected_failure CHECK (phase = 'new') NOT VALID"
     );
     try {
       await expect(run.delivery.acknowledge(b.batchId, outcomes(b), {})).rejects.toThrow();
     } finally {
-      await admin.query("ALTER TABLE newjitsu.reverse_sync_batch DROP CONSTRAINT injected_failure");
+      await admin.query("ALTER TABLE newjitsu.reverse_sync_control DROP CONSTRAINT injected_failure");
     }
-    expect(await count("newjitsu.reverse_sync_membership")).toBe(0);
-    expect((await admin.query("SELECT status FROM newjitsu.reverse_sync_operation")).rows[0].status).toBe("prepared");
-    await run.delivery.acknowledge(b.batchId, outcomes(b), {});
-    expect(await count("newjitsu.reverse_sync_membership")).toBe(1);
+    expect((await durable()).members.length).toBe(0);
+    expect((await durable()).operations[0].status).toBe("prepared");
+    const recovered = await session();
+    await recovered.core.acknowledgeRecovered(b.batchId, outcomes(b), {});
+    expect((await durable()).members.length).toBe(1);
   });
   it("deduplicates accepted receipts and membership updates", async () => {
     const run = await session();
@@ -398,20 +451,16 @@ describe("PostgreSQL persistence", () => {
     await run.delivery.acknowledge(b.batchId, outcomes(b), {});
     await run.delivery.acknowledge(b.batchId, outcomes(b), {});
     await run.delivery.markUnknown(b.batchId);
-    expect((await admin.query("SELECT status FROM newjitsu.reverse_sync_operation")).rows[0].status).toBe("accepted");
+    expect((await durable()).operations[0].status).toBe("accepted");
     await finish(run, b);
     const next = await session({ logicalRunId: "run2", taskId: "task2" });
     await init(next);
     const b2 = batch(next, ["b"], 2);
     await next.delivery.prepare(b2, {});
     await next.delivery.acknowledge(b2.batchId, outcomes(b2), {});
-    expect(await count("newjitsu.reverse_sync_membership")).toBe(2);
-    expect(await count("newjitsu.reverse_sync_operation")).toBe(2);
-    expect(
-      Number(
-        (await admin.query("SELECT membership_entries FROM newjitsu.reverse_sync_control")).rows[0].membership_entries
-      )
-    ).toBe(2);
+    expect((await durable()).members.length).toBe(2);
+    expect((await durable()).operations.length).toBe(1);
+    expect(next.core.local.stats().entries).toBe(2);
   });
   it.each([false, true].flatMap(recovery => [false, true].map(rejected => ({ recovery, rejected }))))(
     "keeps terminal receipts immutable and ignores duplicate store snapshots (recovery=$recovery, rejected=$rejected)",
@@ -441,16 +490,8 @@ describe("PostgreSQL persistence", () => {
         active = await session({ taskId: "recovery" });
       }
       const snapshot = async () => ({
-        receipt: (
-          await admin.query("SELECT result,result_bytes FROM newjitsu.reverse_sync_batch WHERE batch_id=$1", [
-            b.batchId,
-          ])
-        ).rows[0],
-        control: (
-          await admin.query(
-            "SELECT store,journal_bytes,reserved_entries,reserved_bytes,membership_entries,membership_bytes FROM newjitsu.reverse_sync_control"
-          )
-        ).rows[0],
+        receipt: (await durable()).batches.find(row => row.batch.batchId === b.batchId)?.receipt,
+        control: (await admin.query("SELECT store,artifact_head FROM newjitsu.reverse_sync_control")).rows[0],
         operations: (await active.core.recoveryBatch(b.batchId)).operations,
       });
       const before = await snapshot();
@@ -477,10 +518,10 @@ describe("PostgreSQL persistence", () => {
         },
       ]) {
         await expect(active.delivery.acknowledge(b.batchId, changed, { version: 0 })).rejects.toThrow(
-          /terminal batch receipt/
+          /unchanged receipt|terminal receipt/
         );
         await expect(active.core.acknowledgeRecovered(b.batchId, changed, { version: 0 })).rejects.toThrow(
-          /terminal batch receipt/
+          /unchanged receipt|terminal receipt/
         );
         expect(await snapshot()).toEqual(before);
       }
@@ -496,7 +537,7 @@ describe("PostgreSQL persistence", () => {
     const final = { ...outcomes(b), remoteJobIds: ["completed"], providerCheckpoint: { cursor: "final" } };
     await recovered.core.acknowledgeRecovered(b.batchId, final, { version: 2 });
     expect((await recovered.core.recoveryBatch(b.batchId)).result).toEqual(final);
-    expect(await count("newjitsu.reverse_sync_membership")).toBe(1);
+    expect((await durable()).members.length).toBe(1);
     await recovered.core.acknowledgeRecovered(b.batchId, final, { version: 1 });
     expect((await recovered.core.state()).store).toEqual({ version: 2 });
   });
@@ -520,23 +561,16 @@ describe("PostgreSQL persistence", () => {
       await run.delivery.acknowledge(earlier.batchId, outcomes(earlier, "staged"), {});
       await run.delivery.prepare(later, {});
       await run.delivery.acknowledge(later.batchId, outcomes(later), {});
-      const before = (await admin.query("SELECT * FROM newjitsu.reverse_sync_membership")).rows;
+      const before = (await durable()).members;
       let active = run;
       if (recovery) {
         active = await openPersistence(db, { ...runInput, taskId: "recovery" }, shared);
         await active.core.acknowledgeRecovered(earlier.batchId, outcomes(earlier), {});
       }
       await finish(active, later);
-      expect((await admin.query("SELECT * FROM newjitsu.reverse_sync_membership")).rows).toEqual(before);
-      const control = (
-        await admin.query(
-          "SELECT membership_entries,membership_bytes,reserved_entries,reserved_bytes FROM newjitsu.reverse_sync_control"
-        )
-      ).rows[0];
-      expect(control.membership_entries).toBe(laterAction === "upsert" ? "1" : "0");
-      expect(control.reserved_entries).toBe("0");
-      expect(control.reserved_bytes).toBe("0");
-      expect(Number(control.membership_bytes)).toBe(before.reduce((total, row) => total + row.value.length, 0));
+      expect((await durable()).members).toEqual(before);
+      expect(active.core.local.stats().entries).toBe(laterAction === "upsert" ? 1 : 0);
+      expect(active.core.head.batches.every(row => row.reservedEntries === 0 && row.reservedBytes === 0)).toBe(true);
       expect((await active.core.recoveryBatch(earlier.batchId)).operations[0].status).toBe("accepted");
     }
   );
@@ -550,11 +584,10 @@ describe("PostgreSQL persistence", () => {
     const b = batch(run, ["old", "new"]);
     await run.delivery.prepare(b, {});
     await run.delivery.acknowledge(b.batchId, { outcomes: outcomes(b).outcomes.reverse() }, {});
-    const membership = (
-      await admin.query(
-        "SELECT identity_hash,payload_hash FROM newjitsu.reverse_sync_membership ORDER BY identity_hash"
-      )
-    ).rows;
+    const membership = (await durable()).members.map(({ effect }) => ({
+      identity_hash: effect.identityHash,
+      payload_hash: effect.payloadHash,
+    }));
     expect(membership).toEqual(
       [
         { identity_hash: contentHash("shared"), payload_hash: contentHash({ id: "new" }) },
@@ -562,7 +595,7 @@ describe("PostgreSQL persistence", () => {
       ].sort((a, b) => a.identity_hash.localeCompare(b.identity_hash))
     );
     await finish(run, b);
-    expect(await count("newjitsu.reverse_sync_membership")).toBe(2);
+    expect((await durable()).members.length).toBe(2);
   });
   it("does not let a later rejection hide an earlier accepted effect", async () => {
     const projection: Project = (_, row: any) => [
@@ -587,7 +620,7 @@ describe("PostgreSQL persistence", () => {
     await run.core.acknowledgeRecovered(earlier.batchId, outcomes(earlier), {});
     await run.delivery.prepareAbort();
     await run.delivery.acknowledgeAbort();
-    expect((await admin.query("SELECT payload_hash FROM newjitsu.reverse_sync_membership")).rows).toEqual([
+    expect((await durable()).members.map(({ effect }) => ({ payload_hash: effect.payloadHash }))).toEqual([
       { payload_hash: contentHash({ id: "old" }) },
     ]);
   });
@@ -612,12 +645,8 @@ describe("PostgreSQL persistence", () => {
         active = await session({ taskId: "recovery" });
       }
       const snapshot = async () => ({
-        batch: (await admin.query("SELECT result,result_bytes FROM newjitsu.reverse_sync_batch")).rows,
-        control: (
-          await admin.query(
-            "SELECT store,journal_bytes,reserved_entries,reserved_bytes,membership_entries,membership_bytes FROM newjitsu.reverse_sync_control"
-          )
-        ).rows,
+        batch: (await durable()).batches.map(row => row.receipt),
+        control: (await admin.query("SELECT store,artifact_head FROM newjitsu.reverse_sync_control")).rows,
         operations: (await active.core.recoveryBatch(b.batchId)).operations,
       });
       const before = await snapshot();
@@ -630,10 +659,8 @@ describe("PostgreSQL persistence", () => {
         { ...result, providerCheckpoint: { cursor: "replacement" } },
         { outcomes: result.outcomes },
       ]) {
-        await expect(active.delivery.acknowledge(b.batchId, changed, {})).rejects.toThrow(/unchanged staged receipt/);
-        await expect(active.core.acknowledgeRecovered(b.batchId, changed, {})).rejects.toThrow(
-          /unchanged staged receipt/
-        );
+        await expect(active.delivery.acknowledge(b.batchId, changed, {})).rejects.toThrow(/unchanged receipt/);
+        await expect(active.core.acknowledgeRecovered(b.batchId, changed, {})).rejects.toThrow(/unchanged receipt/);
         expect(await snapshot()).toEqual(before);
       }
       const advancing: BatchResult = {
@@ -665,8 +692,8 @@ describe("PostgreSQL persistence", () => {
     const run = await session();
     await init(run);
     await finish(run);
-    expect(await count("newjitsu.reverse_sync_operation")).toBe(0);
-    expect(await count("newjitsu.reverse_sync_membership")).toBe(0);
+    expect((await durable()).operations.length).toBe(0);
+    expect((await durable()).members.length).toBe(0);
     expect(await count("newjitsu.source_state")).toBe(1);
   });
   it("blocks a checkpoint past a staged delete even if a later upsert is accepted", async () => {
@@ -700,7 +727,7 @@ describe("PostgreSQL persistence", () => {
     expect((await recovered.core.recoveryBatch(b.batchId)).operations[0].status).toBe("staged");
     await recovered.core.acknowledgeRecoveredFinish({ delivery: "accepted" }, {});
     await recovered.delivery.commitCheckpoint({ sourceSequence: 1, cursor: b.cursor }, {}, true);
-    expect(await count("newjitsu.reverse_sync_membership")).toBe(1);
+    expect((await durable()).members.length).toBe(1);
   });
   it.each([false, true].flatMap(recovery => [false, true].map(staged => ({ recovery, staged }))))(
     "preserves pending finish receipts until accepted (recovery=$recovery, staged=$staged)",
@@ -725,11 +752,8 @@ describe("PostgreSQL persistence", () => {
         active = await session({ taskId: "recovery" });
       }
       const snapshot = async () =>
-        (
-          await admin.query(
-            "SELECT phase,finish_result,store,journal_bytes,reserved_entries,reserved_bytes FROM newjitsu.reverse_sync_control"
-          )
-        ).rows[0];
+        (await admin.query("SELECT phase,finish_result,store,artifact_head FROM newjitsu.reverse_sync_control"))
+          .rows[0];
       const before = await snapshot();
       for (const changed of [
         { ...result, remoteJobIds: ["different-job"] },
@@ -750,7 +774,7 @@ describe("PostgreSQL persistence", () => {
       expect(await snapshot()).toEqual(before);
       expect((await active.core.recoveryStatus()).finish).toEqual(result);
       expect((await active.core.state()).store).toEqual({ version: 1 });
-      expect(await count("newjitsu.reverse_sync_membership")).toBe(0);
+      expect((await durable()).members.length).toBe(0);
       if (recovery) {
         await expect(active.delivery.acknowledgeFinish({ delivery: "accepted" }, {})).rejects.toThrow(
           /explicit reconciliation/
@@ -760,7 +784,7 @@ describe("PostgreSQL persistence", () => {
         await active.delivery.acknowledgeFinish({ delivery: "accepted" }, {});
       }
       await active.delivery.commitCheckpoint(point, {}, true);
-      expect(await count("newjitsu.reverse_sync_membership")).toBe(staged ? 1 : 0);
+      expect((await durable()).members.length).toBe(staged ? 1 : 0);
       expect(await count("newjitsu.source_state")).toBe(1);
     }
   );
@@ -794,8 +818,8 @@ describe("PostgreSQL persistence", () => {
     await next.delivery.prepare(b2, {});
     await next.delivery.acknowledge(b2.batchId, outcomes(b2), {});
     await expect(next.delivery.commitCheckpoint({ sourceSequence: 1, cursor: b2.cursor }, {}, false)).rejects.toThrow();
-    expect(await count("newjitsu.reverse_sync_operation")).toBe(2);
-    expect(await count("newjitsu.reverse_sync_membership")).toBe(2);
+    expect((await durable()).operations.length).toBe(1);
+    expect((await durable()).members.length).toBe(2);
   });
   it.each([false, true])(
     "recovers interrupted init before running the normal lifecycle (hasSession=%s)",
@@ -805,7 +829,7 @@ describe("PostgreSQL persistence", () => {
       if (hasSession) await first.delivery.saveProviderState({ session: "old-session" });
       const recovered = await session({ extraction: "full", taskId: "recovery" });
       const before = await recovered.core.state();
-      await expect(recovered.delivery.acknowledgeInit({ invented: true })).rejects.toThrow(/reconciliation/);
+      await expect(recovered.delivery.acknowledgeInit({ invented: true })).rejects.toThrow(/Initialization/);
       expect(await recovered.core.state()).toEqual(before);
       expect(Object.keys(recovered.delivery)).not.toContain("resetInitAfterReconciliation");
       let writerCalls = 0;
@@ -859,7 +883,7 @@ describe("PostgreSQL persistence", () => {
         });
       await expect(execute(recovered)).rejects.toThrow(/Recovery admission/);
       expect([writerCalls, initCalls, sourceCalls]).toEqual([0, 0, 0]);
-      await expect(recovered.core.resetInitAfterReconciliation("unknown" as any, {})).rejects.toThrow(/resolution/);
+      await expect(recovered.core.resetInitAfterReconciliation("unknown" as any, {})).rejects.toThrow(/reconciliation/);
       expect(await recovered.core.state()).toEqual(before);
       // The provider-specific recovery caller must verify absence or finish cleanup first.
       await recovered.core.resetInitAfterReconciliation(hasSession ? "cleaned-up" : "absent", { saved: true });
@@ -868,16 +892,16 @@ describe("PostgreSQL persistence", () => {
       await recovered.core.resetInitAfterReconciliation("absent", { stale: true });
       expect(await recovered.core.state()).toEqual(reset);
       await expect(execute(recovered)).rejects.toThrow(/Recovery admission/);
-      await expect(recovered.delivery.prepareInit({})).rejects.toThrow(/Reopen/);
+      await expect(recovered.delivery.prepareInit({})).rejects.toThrow(/Initialization/);
       expect([writerCalls, initCalls, sourceCalls]).toEqual([0, 0, 0]);
       // A reopened session consumes the durable retry admission, including after a lost reset response.
-      const nextDb = new Database(runtimeConfig);
+      const nextDb = new Database(runtimeConfig, storage);
       try {
         const next = await openPersistence(nextDb, { ...runInput, extraction: "full", taskId: "retry" }, project);
         expect(next.recovery).toBe(false);
         expect(await execute(next)).toEqual({ delivery: "accepted", sourceSequence: 1 });
         expect([writerCalls, initCalls, sourceCalls]).toEqual([1, 1, 1]);
-        expect(await count("newjitsu.reverse_sync_membership")).toBe(1);
+        expect((await durable()).members.length).toBe(1);
       } finally {
         await nextDb.close();
       }
@@ -900,18 +924,19 @@ describe("PostgreSQL persistence", () => {
     expect((await admin.query("SELECT phase,store,provider_state FROM newjitsu.reverse_sync_control")).rows).toEqual(
       before
     );
-    await recovered.core.resetInitAfterReconciliation("cleaned-up", {});
-    expect((await recovered.core.recoveryStatus()).phase).toBe("new");
+    const reopened = await session({ taskId: "retry" });
+    await reopened.core.resetInitAfterReconciliation("cleaned-up", {});
+    expect((await reopened.core.recoveryStatus()).phase).toBe("new");
   });
   it("refuses init recovery for a fresh session or an already initialized lifecycle", async () => {
     const run = await session();
-    await expect(run.core.resetInitAfterReconciliation("absent", {})).rejects.toThrow(/recovery session/);
+    await expect(run.core.resetInitAfterReconciliation("absent", {})).rejects.toThrow(/reconciliation/);
     await init(run);
     const recovered = await session({ taskId: "recovery" });
     await expect(recovered.core.resetInitAfterReconciliation("cleaned-up", {})).rejects.toThrow(/Only prepared init/);
     expect((await recovered.core.recoveryStatus()).phase).toBe("running");
   });
-  it("runs the merged lifecycle with the PostgreSQL journal", async () => {
+  it("runs the merged lifecycle with the artifact journal", async () => {
     const run = await session({ extraction: "full" });
     const stream: any = {
       name: "test",
@@ -954,7 +979,7 @@ describe("PostgreSQL persistence", () => {
       },
     });
     expect(result).toEqual({ delivery: "accepted", sourceSequence: 2 });
-    expect(await count("newjitsu.reverse_sync_membership")).toBe(2);
+    expect((await durable()).members.length).toBe(2);
   });
 });
 
@@ -969,8 +994,8 @@ describe("recovery and operational boundaries", () => {
   });
   it("reserves exact serialized membership bytes before delivery and through recovery", async () => {
     const projected = effects(project("upsert", { id: "a" }))[0];
-    const capacity = encodeJson(projected, 10000).length;
-    const tooSmall = new Database(runtimeConfig, { limits: { snapshotBytes: capacity - 1 } });
+    const capacity = Buffer.byteLength(JSON.stringify([[projected]]));
+    const tooSmall = new Database(runtimeConfig, { ...storage, limits: { snapshotBytes: capacity - 1 } });
     try {
       const run = await openPersistence(tooSmall, runInput, project);
       await init(run);
@@ -978,19 +1003,15 @@ describe("recovery and operational boundaries", () => {
     } finally {
       await tooSmall.close();
     }
-    const oldDb = new Database(runtimeConfig, { limits: { snapshotBytes: capacity } });
-    const recoveredDb = new Database(runtimeConfig, { limits: { snapshotBytes: capacity } });
+    const oldDb = new Database(runtimeConfig, { ...storage, limits: { snapshotBytes: capacity } });
+    const recoveredDb = new Database(runtimeConfig, { ...storage, limits: { snapshotBytes: capacity } });
     try {
       const run = await openPersistence(oldDb, { ...runInput, taskId: "prepare" }, project);
       const b = batch(run, ["a"]);
       await run.delivery.prepare(b, {});
       const recovered = await openPersistence(recoveredDb, { ...runInput, taskId: "recovery" }, project);
       await recovered.core.acknowledgeRecovered(b.batchId, outcomes(b), {});
-      expect(
-        Number(
-          (await admin.query("SELECT membership_bytes FROM newjitsu.reverse_sync_control")).rows[0].membership_bytes
-        )
-      ).toBe(capacity);
+      expect(recovered.core.local.stats().bytes).toBe(Buffer.byteLength(JSON.stringify(projected)));
     } finally {
       await oldDb.close();
       await recoveredDb.close();
@@ -1071,49 +1092,53 @@ describe("recovery and operational boundaries", () => {
       providerState: { session: "remote-secret" },
     });
     await expect(next.delivery.assertReady()).rejects.toThrow();
-    await expect(next.delivery.acknowledgeInit({})).rejects.toThrow(/reconciliation/);
+    await expect(next.delivery.acknowledgeInit({})).rejects.toThrow(/Initialization/);
     await next.core.resetInitAfterReconciliation("cleaned-up", {});
     const retry = await session({ taskId: "retry" });
     await init(retry);
     await retry.delivery.prepareAbort();
     await retry.delivery.acknowledgeAbort();
   });
-  it("resumes local finish resolution after a committed chunk and process loss", async () => {
+  // Multiple durable batches and a database reopen can exceed 5s on shared CI workers.
+  it("resumes local finish resolution after a committed batch and process loss", async () => {
     const run = await session();
     await init(run);
-    const b = batch(
+    const first = batch(
       run,
-      Array.from({ length: 105 }, (_, i) => String(i))
+      Array.from({ length: 100 }, (_, i) => String(i))
     );
-    await run.delivery.prepare(b, {});
-    await run.delivery.acknowledge(b.batchId, outcomes(b, "staged"), {});
-    await run.delivery.prepareFinish(105, {});
-    await admin.query(
-      "ALTER TABLE newjitsu.reverse_sync_operation ADD CONSTRAINT interrupt_finish CHECK (sequence<=100 OR status<>'accepted') NOT VALID"
+    const last = batch(
+      run,
+      Array.from({ length: 5 }, (_, i) => String(i + 100)),
+      101
     );
-    try {
-      await expect(run.delivery.acknowledgeFinish({ delivery: "accepted" }, {})).rejects.toThrow();
-    } finally {
-      await admin.query("ALTER TABLE newjitsu.reverse_sync_operation DROP CONSTRAINT interrupt_finish");
+    for (const b of [first, last]) {
+      await run.delivery.prepare(b, {});
+      await run.delivery.acknowledge(b.batchId, outcomes(b, "staged"), {});
     }
-    expect(await count("newjitsu.reverse_sync_membership")).toBe(100);
+    await run.delivery.prepareFinish(105, {});
+    const publish = run.core.publish.bind(run.core);
+    const injected = vi.spyOn(run.core, "publish").mockImplementation(async (...args) => {
+      if (args[0].batches[1]?.accepted === 5) throw new Error("injected second receipt failure");
+      return publish(...args);
+    });
+    try {
+      await expect(run.delivery.acknowledgeFinish({ delivery: "accepted" }, {})).rejects.toThrow("injected");
+    } finally {
+      injected.mockRestore();
+    }
+    expect((await durable()).members).toHaveLength(100);
     expect((await run.core.recoveryStatus()).phase).toBe("finish_resolving");
     expect(await count("newjitsu.source_state")).toBe(0);
     await db.close();
-    db = new Database(runtimeConfig);
+    db = new Database(runtimeConfig, storage);
     const recovered = await session({ taskId: "recovery" });
-    // Acceptance was recorded before the crash; only local resolution remains.
     await recovered.delivery.acknowledgeFinish({ delivery: "accepted" }, {});
-    await recovered.delivery.commitCheckpoint({ sourceSequence: 105, cursor: b.cursor }, {}, true);
-    expect(await count("newjitsu.reverse_sync_membership")).toBe(105);
-    expect(
-      (
-        await admin.query(
-          "SELECT count(DISTINCT accepted_at) AS n FROM newjitsu.reverse_sync_operation WHERE status='accepted'"
-        )
-      ).rows[0].n
-    ).toBe("1");
-  }, 15000);
+    await recovered.delivery.commitCheckpoint({ sourceSequence: 105, cursor: last.cursor }, {}, true);
+    const saved = await durable();
+    expect(saved.members).toHaveLength(105);
+    expect(new Set(saved.operations.map(row => row.acceptedAt)).size).toBe(1);
+  }, 30000);
   it("records reconciliation time without requiring a provider acceptance timestamp", async () => {
     const run = await session();
     await init(run);
@@ -1135,7 +1160,7 @@ describe("recovery and operational boundaries", () => {
     expect((await recovered.core.recoveryBatch(b.batchId)).operations[0].acceptedAt).toEqual(accepted.acceptedAt);
   });
   it("reserves membership capacity before submission and rolls back rejected snapshot batches", async () => {
-    const limited = new Database(runtimeConfig, { limits: { snapshotEntries: 1 } });
+    const limited = new Database(runtimeConfig, { ...storage, limits: { snapshotEntries: 1 } });
     try {
       const run = await openPersistence(limited, { ...runInput, mode: "mirror", extraction: "full" }, project);
       await init(run);
@@ -1149,38 +1174,31 @@ describe("recovery and operational boundaries", () => {
           1
         )
       ).rejects.toThrow(/budget/);
-      expect(await count("newjitsu.reverse_sync_source_key")).toBe(0);
-      await expect(run.delivery.prepare(batch(run, ["a", "b"]), {})).rejects.toThrow(/budget/);
-      expect(await count("newjitsu.reverse_sync_batch")).toBe(0);
-      expect(await count("newjitsu.reverse_sync_operation")).toBe(0);
+      expect(Number(run.core.local.sql.prepare("SELECT count(*) AS n FROM source_keys").get()!.n)).toBe(0);
+      await expect(run.delivery.prepare(batch(run, ["a", "b"]), {})).rejects.toThrow(/sealed/);
+      expect((await durable()).batches.length).toBe(0);
+      expect((await durable()).operations.length).toBe(0);
     } finally {
       await limited.close();
     }
   });
-  it("keeps journal accounting exact and prunes only old terminal recovery data", async () => {
+  it("compacts terminal receipts into a baseline without deleting durable objects", async () => {
     const run = await session();
     await init(run);
-    const b = batch(run, ["private@example.com"]);
+    const b = batch(run, ["a"]);
     await run.delivery.prepare(b, {});
     await run.delivery.acknowledge(b.batchId, outcomes(b), {});
     await finish(run, b);
-    await admin.query("UPDATE newjitsu.reverse_sync_batch SET created_at=clock_timestamp()-interval '60 days'");
+    const retained = [...objects.objects.keys()];
     const next = await session({ logicalRunId: "next", taskId: "next", extraction: "full" });
     await init(next);
     const current = batch(next, ["b"]);
     await next.delivery.prepare(current, {});
-    const removed = await prune(db, next.scope, new Date(Date.now() - 30 * 86400000));
-    expect(removed.batches).toBe(1);
-    expect(await count("newjitsu.reverse_sync_batch")).toBe(1);
-    expect(await count("newjitsu.reverse_sync_membership")).toBe(1);
-    const expected = (
-      await admin.query(
-        "SELECT (SELECT sum(octet_length(manifest)+result_bytes) FROM newjitsu.reverse_sync_batch)+(SELECT sum(octet_length(effects)) FROM newjitsu.reverse_sync_operation) AS bytes"
-      )
-    ).rows[0].bytes;
-    expect((await admin.query("SELECT journal_bytes FROM newjitsu.reverse_sync_control")).rows[0].journal_bytes).toBe(
-      expected
-    );
+    const saved = await durable();
+    expect(saved.batches).toHaveLength(1);
+    expect(saved.members).toHaveLength(1);
+    expect(saved.head.baseline.length).toBeGreaterThan(0);
+    for (const key of retained) expect(objects.objects.has(key)).toBe(true);
     expect((await next.core.recoveryBatch(current.batchId)).operations[0].status).toBe("prepared");
   });
   it("requires the empty cursor run to retain its actual starting checkpoint", async () => {
@@ -1194,7 +1212,7 @@ describe("recovery and operational boundaries", () => {
         {},
         true
       )
-    ).rejects.toThrow(/starting cursor/);
+    ).rejects.toThrow(/cursor/);
     expect(await count("newjitsu.source_state")).toBe(0);
   });
 });
@@ -1216,7 +1234,7 @@ describe("control observations and conditional transitions", () => {
       transaction.mockRestore();
     }
   });
-  it("invalidates after complex writes and refreshes the cache once", async () => {
+  it("keeps committed control cached after artifact writes", async () => {
     const run = await session();
     await init(run);
     await run.delivery.prepare(batch(run, ["a"]), { prepared: true });
@@ -1224,7 +1242,7 @@ describe("control observations and conditional transitions", () => {
     try {
       expect((await run.core.recoveryStatus()).nextSequence).toBe(1);
       expect((await run.core.state()).store).toEqual({ prepared: true });
-      expect(transaction).toHaveBeenCalledTimes(1);
+      expect(transaction).not.toHaveBeenCalled();
     } finally {
       transaction.mockRestore();
     }
@@ -1241,9 +1259,11 @@ describe("control observations and conditional transitions", () => {
     } finally {
       transaction.mockRestore();
     }
-    expect((await run.core.recoveryStatus()).phase).toBe("init_prepared");
-    expect((await run.core.state()).store).toEqual({ committed: true });
-    await expect(run.delivery.prepareInit({ repeat: true })).rejects.toThrow(/already prepared/);
+    await expect(run.core.recoveryStatus()).rejects.toThrow(/reopening/);
+    const recovered = await session({ taskId: "recovery" });
+    expect((await recovered.core.recoveryStatus()).phase).toBe("init_prepared");
+    expect((await recovered.core.state()).store).toEqual({ committed: true });
+    await expect(recovered.delivery.prepareInit({ repeat: true })).rejects.toThrow();
   });
   it("shares queued observations across sessions and never publishes a rolled-back row", async () => {
     const run = await session();
@@ -1281,7 +1301,7 @@ describe("control observations and conditional transitions", () => {
     await failed;
     expect((await reading).phase).toBe("new");
   });
-  it("refreshes on recovery and rejects an old logical run's cached state", async () => {
+  it("refreshes on recovery and keeps old logical run caches isolated", async () => {
     const run = await session();
     await init(run);
     const recovered = await session({ taskId: "recovery" });
@@ -1290,7 +1310,7 @@ describe("control observations and conditional transitions", () => {
     expect((await run.core.recoveryStatus()).phase).toBe("aborted");
     const next = await session({ taskId: "next", logicalRunId: "next" });
     expect((await next.core.recoveryStatus()).phase).toBe("new");
-    await expect(run.core.recoveryStatus()).rejects.toThrow(/Run state/);
+    expect((await run.core.recoveryStatus()).phase).toBe("aborted");
     expect((await next.core.recoveryStatus()).phase).toBe("new");
   });
   it("reads committed state and readiness without waiting on a control-row writer", async () => {
@@ -1360,6 +1380,8 @@ describe("control observations and conditional transitions", () => {
     const before = (await admin.query("SELECT * FROM newjitsu.reverse_sync_control")).rows;
     await expect(run.delivery.prepareFinish(0, { changed: true })).rejects.toThrow(/sealed/);
     expect((await admin.query("SELECT * FROM newjitsu.reverse_sync_control")).rows).toEqual(before);
+    await run.snapshots.append([{ key: contentHash("a"), identities: project("upsert", { id: "a" }) }], 1);
+    await run.snapshots.seal();
     const b = batch(run, ["a"], 1, "upsert", false);
     await run.delivery.prepare(b, { original: true });
     const prepared = (await admin.query("SELECT * FROM newjitsu.reverse_sync_control")).rows;
@@ -1380,10 +1402,11 @@ describe("control observations and conditional transitions", () => {
     await admin.query("UPDATE newjitsu.reverse_sync_control SET phase=$1", [phase]);
     const before = (await admin.query("SELECT * FROM newjitsu.reverse_sync_control")).rows;
     for (const field of ["workspaceId", "syncId", "logicalRunId"])
-      await expect(call(new Journal(db, { ...run.scope, [field]: "other" }, project, false))).rejects.toThrow();
+      await expect(Journal.open(db, { ...run.scope, [field]: "other" }, project, false).then(call)).rejects.toThrow();
     expect((await admin.query("SELECT * FROM newjitsu.reverse_sync_control")).rows).toEqual(before);
     await admin.query("UPDATE newjitsu.reverse_sync_control SET phase='complete'");
     const terminal = (await admin.query("SELECT * FROM newjitsu.reverse_sync_control")).rows;
+    await controlFor(db, run.scope).transaction(async () => controlFor(db, run.scope).invalidate());
     await expect(call(run.core)).rejects.toThrow();
     expect((await admin.query("SELECT * FROM newjitsu.reverse_sync_control")).rows).toEqual(terminal);
   });
@@ -1397,24 +1420,21 @@ describe("core snapshot storage", () => {
     return run;
   }
   const desired = (key: string, id: string) => ({ key: contentHash([key]), identities: project("upsert", { id }) });
-  it("retains excluded keys and accounting through retries and recovery", async () => {
-    const run = await mirror();
-    const row = { key: contentHash(["excluded"]), identities: [] };
+  it("deduplicates excluded keys locally and discards incomplete scratch on recovery", async () => {
+    const run = await mirror(),
+      row = { key: contentHash(["excluded"]), identities: [] };
     await run.snapshots.append([row], 1);
-    const snapshot = async () => (await admin.query("SELECT * FROM newjitsu.reverse_sync_generation")).rows[0];
-    const before = await snapshot();
-    expect(before).toMatchObject({ key_count: "1", entry_count: "1", byte_count: "64", last_page_sequence: "1" });
+    await run.snapshots.append([row], 1);
+    expect(await run.snapshots.status()).toEqual({ sealed: false, lastPageSequence: 1, sourceKeyCount: 1 });
+    await expect(run.snapshots.append([desired("excluded", "now-included")], 1)).rejects.toThrow(/retry differs/);
+    await expect(run.snapshots.append([desired("other", "a"), row], 2)).rejects.toThrow();
+    expect(run.core.local.sql.prepare("SELECT count(*) AS n FROM desired").get()!.n).toBe(0);
     const recovered = await session({ mode: "mirror", extraction: "full", taskId: "recovery" });
-    await recovered.snapshots.append([row], 1);
-    expect(await snapshot()).toEqual(before);
-    await expect(recovered.snapshots.append([desired("excluded", "now-included")], 1)).rejects.toThrow(/retry differs/);
-    await expect(recovered.snapshots.append([desired("other", "a"), row], 2)).rejects.toThrow();
-    expect(await snapshot()).toEqual(before);
-    expect(await count("newjitsu.reverse_sync_source_key")).toBe(1);
-    expect(await count("newjitsu.reverse_sync_desired")).toBe(0);
+    expect(await recovered.snapshots.status()).toEqual({ sealed: false, lastPageSequence: 0, sourceKeyCount: 0 });
+    await expect(recovered.snapshots.page("removals")).rejects.toThrow(/sealed/);
   });
   it.each([{ snapshotEntries: 1 }, { snapshotBytes: 127 }])("bounds excluded rows with %j", async limits => {
-    const limited = new Database(runtimeConfig, { limits });
+    const limited = new Database(runtimeConfig, { ...storage, limits });
     try {
       const run = await openPersistence(limited, { ...runInput, mode: "mirror", extraction: "full" }, project);
       await init(run);
@@ -1422,7 +1442,7 @@ describe("core snapshot storage", () => {
       await run.snapshots.append([{ key: contentHash("a"), identities: [] }], 1);
       await expect(run.snapshots.append([{ key: contentHash("b"), identities: [] }], 2)).rejects.toThrow(/budget/);
       expect(await run.snapshots.status()).toEqual({ sealed: false, lastPageSequence: 1, sourceKeyCount: 1 });
-      expect(await count("newjitsu.reverse_sync_source_key")).toBe(1);
+      expect(Number(run.core.local.sql.prepare("SELECT count(*) AS n FROM source_keys").get()!.n)).toBe(1);
     } finally {
       await limited.close();
     }
@@ -1431,7 +1451,7 @@ describe("core snapshot storage", () => {
     const run = await openPersistence(db, runInput, () => []);
     await init(run);
     await expect(run.delivery.prepare(batch(run, ["a"]), {})).rejects.toThrow(/projection size/);
-    expect(await count("newjitsu.reverse_sync_batch")).toBe(0);
+    expect((await durable()).batches.length).toBe(0);
   });
   it("serializes concurrent duplicate page retries and ignores object-key ordering", async () => {
     const run = await mirror();
@@ -1446,11 +1466,9 @@ describe("core snapshot storage", () => {
     };
     await Promise.all([run.snapshots.append([row], 1), run.snapshots.append([reordered], 1)]);
     expect(await run.snapshots.status()).toEqual({ sealed: false, lastPageSequence: 1, sourceKeyCount: 1 });
-    expect(await count("newjitsu.reverse_sync_source_key")).toBe(1);
-    expect(await count("newjitsu.reverse_sync_desired")).toBe(1);
-    expect((await admin.query("SELECT entry_count FROM newjitsu.reverse_sync_generation")).rows[0].entry_count).toBe(
-      "1"
-    );
+    expect(Number(run.core.local.sql.prepare("SELECT count(*) AS n FROM source_keys").get()!.n)).toBe(1);
+    expect(Number(run.core.local.sql.prepare("SELECT count(*) AS n FROM desired").get()!.n)).toBe(1);
+    expect((await run.snapshots.status())!.sourceKeyCount).toBe(1);
   });
   it("keeps abandoned generation and changed-run guards on retryable snapshot APIs", async () => {
     const first = await mirror();
@@ -1460,39 +1478,24 @@ describe("core snapshot storage", () => {
     const next = await session({ mode: "mirror", extraction: "full", taskId: "next", logicalRunId: "next" });
     await init(next);
     expect(await next.snapshots.status()).toBeUndefined();
-    await expect(next.snapshots.start()).rejects.toThrow(/Prune abandoned/);
-    await expect(first.snapshots.start()).rejects.toThrow(/Run state/);
-    await expect(first.snapshots.append([desired("key1", "a")], 1)).rejects.toThrow(/Run state/);
-    await expect(first.snapshots.status()).rejects.toThrow(/Run state/);
-    await prune(db, next.scope, new Date(Date.now() - 30 * 86400000));
+    // Next-run compaction discards the abandoned candidate automatically.
+    await expect(first.snapshots.start()).rejects.toThrow(/Cannot start snapshot/);
+    await expect(first.snapshots.append([desired("key1", "a")], 1)).rejects.toThrow(/Cannot append snapshot/);
+
     await next.snapshots.start();
     expect(await next.snapshots.status()).toEqual({ sealed: false, lastPageSequence: 0, sourceKeyCount: 0 });
   });
-  it("rolls back a snapshot page and its receipt together, then permits retry after takeover", async () => {
-    const run = await mirror();
-    const rows = [desired("key1", "a")];
-    for (const sequence of [0, -1, 1.5, Number.MAX_SAFE_INTEGER + 1]) {
-      await expect(run.snapshots.append(rows, sequence)).rejects.toThrow(/sequence/);
-    }
+  it("rolls back a duplicate scratch page and rejects invalid page sequences", async () => {
+    const run = await mirror(),
+      rows = [desired("key1", "a")];
+    for (const sequence of [0, -1, 1.5, Number.MAX_SAFE_INTEGER + 1])
+      await expect(run.snapshots.append(rows, sequence)).rejects.toThrow();
     await expect(run.snapshots.append([rows[0], rows[0]], 1)).rejects.toThrow();
-    await admin.query(
-      "ALTER TABLE newjitsu.reverse_sync_generation ADD CONSTRAINT injected_page_failure CHECK (key_count = 0) NOT VALID"
-    );
-    try {
-      await expect(run.snapshots.append(rows, 1)).rejects.toThrow();
-    } finally {
-      await admin.query("ALTER TABLE newjitsu.reverse_sync_generation DROP CONSTRAINT injected_page_failure");
-    }
     expect(await run.snapshots.status()).toEqual({ sealed: false, lastPageSequence: 0, sourceKeyCount: 0 });
-    expect(await count("newjitsu.reverse_sync_desired")).toBe(0);
-    expect(await count("newjitsu.reverse_sync_source_key")).toBe(0);
-    expect(
-      (await admin.query("SELECT last_page_hash FROM newjitsu.reverse_sync_generation")).rows[0].last_page_hash
-    ).toBeNull();
-    const recovered = await session({ mode: "mirror", extraction: "full", taskId: "recovery" });
-    await recovered.snapshots.start();
-    await recovered.snapshots.append(rows, 1);
-    expect(await recovered.snapshots.status()).toEqual({ sealed: false, lastPageSequence: 1, sourceKeyCount: 1 });
+    expect(run.core.local.sql.prepare("SELECT count(*) AS n FROM source_keys").get()!.n).toBe(0);
+    expect(run.core.local.sql.prepare("SELECT count(*) AS n FROM desired").get()!.n).toBe(0);
+    await run.snapshots.append(rows, 1);
+    expect(await run.snapshots.status()).toEqual({ sealed: false, lastPageSequence: 1, sourceKeyCount: 1 });
   });
   it.each([false, true])("retries snapshot creation after takeover (committed=%s)", async committed => {
     const run = await session({ mode: "mirror", extraction: "full" });
@@ -1501,10 +1504,10 @@ describe("core snapshot storage", () => {
     const recovered = await session({ mode: "mirror", extraction: "full", taskId: "recovery" });
     await recovered.snapshots.start();
     await recovered.snapshots.start();
-    expect(await count("newjitsu.reverse_sync_generation")).toBe(1);
+    expect((await durable()).head.snapshot).toMatchObject({ sealed: false });
     await recovered.snapshots.append([desired("key1", "a")], 1);
     await recovered.snapshots.start();
-    expect(await count("newjitsu.reverse_sync_source_key")).toBe(1);
+    expect(Number(recovered.core.local.sql.prepare("SELECT count(*) AS n FROM source_keys").get()!.n)).toBe(1);
   });
   it.each([false, true])("retries the last snapshot page without changing data (recovery=%s)", async recovery => {
     const run = await mirror();
@@ -1514,17 +1517,21 @@ describe("core snapshot storage", () => {
     let recoveredDb: Database | undefined;
     try {
       if (recovery) {
-        recoveredDb = new Database(runtimeConfig);
+        recoveredDb = new Database(runtimeConfig, storage);
         active = await openPersistence(
           recoveredDb,
           { ...runInput, mode: "mirror", extraction: "full", taskId: "recovery" },
           project
         );
       }
+      if (recovery) {
+        await active.snapshots.start();
+        await active.snapshots.append(rows, 1);
+      }
       const snapshot = async () => ({
-        generation: (await admin.query("SELECT * FROM newjitsu.reverse_sync_generation")).rows,
-        keys: (await admin.query("SELECT * FROM newjitsu.reverse_sync_source_key ORDER BY key_hash")).rows,
-        desired: (await admin.query("SELECT * FROM newjitsu.reverse_sync_desired ORDER BY identity_hash")).rows,
+        status: await active.snapshots.status(),
+        keys: active.core.local.sql.prepare("SELECT * FROM source_keys ORDER BY key").all(),
+        desired: active.core.local.sql.prepare("SELECT * FROM desired ORDER BY identity").all(),
       });
       const before = await snapshot();
       await active.snapshots.append(rows, 1);
@@ -1546,8 +1553,7 @@ describe("core snapshot storage", () => {
       await active.snapshots.append([desired("key3", "a")], 2);
       await expect(active.snapshots.append(rows, 1)).rejects.toThrow(/sequence/);
       expect(await active.snapshots.status()).toEqual({ sealed: false, lastPageSequence: 2, sourceKeyCount: 3 });
-      expect(await count("newjitsu.reverse_sync_desired")).toBe(1);
-      await active.snapshots.seal();
+      expect(Number(run.core.local.sql.prepare("SELECT count(*) AS n FROM desired").get()!.n)).toBe(1);
       await active.snapshots.seal();
       expect(await active.snapshots.status()).toEqual({ sealed: true, lastPageSequence: 2, sourceKeyCount: 3 });
       await expect(active.snapshots.start()).rejects.toThrow(/sealed/);
@@ -1559,14 +1565,9 @@ describe("core snapshot storage", () => {
   it("separately validates source keys and shared identities, with rollback on conflicting payloads", async () => {
     const run = await mirror();
     await run.snapshots.append([desired("key1", "shared"), desired("key2", "shared")], 1);
-    expect(await count("newjitsu.reverse_sync_desired")).toBe(1);
-    expect(await count("newjitsu.reverse_sync_source_key")).toBe(2);
-    const size = (await admin.query("SELECT sum(octet_length(value)) AS n FROM newjitsu.reverse_sync_desired")).rows[0]
-      .n;
-    const accounting = (
-      await admin.query("SELECT key_count,entry_count,byte_count FROM newjitsu.reverse_sync_generation")
-    ).rows[0];
-    expect(accounting).toEqual({ key_count: "2", entry_count: "2", byte_count: String(Number(size) + 2 * 64) });
+    expect(Number(run.core.local.sql.prepare("SELECT count(*) AS n FROM desired").get()!.n)).toBe(1);
+    expect(Number(run.core.local.sql.prepare("SELECT count(*) AS n FROM source_keys").get()!.n)).toBe(2);
+    const accounting = await run.snapshots.status();
     await expect(run.snapshots.append([desired("key1", "different")], 2)).rejects.toThrow();
     await expect(
       run.snapshots.append(
@@ -1579,10 +1580,8 @@ describe("core snapshot storage", () => {
         2
       )
     ).rejects.toThrow(/Conflicting/);
-    expect(await count("newjitsu.reverse_sync_source_key")).toBe(2);
-    expect(
-      (await admin.query("SELECT key_count,entry_count,byte_count FROM newjitsu.reverse_sync_generation")).rows[0]
-    ).toEqual(accounting);
+    expect(Number(run.core.local.sql.prepare("SELECT count(*) AS n FROM source_keys").get()!.n)).toBe(2);
+    expect(await run.snapshots.status()).toEqual(accounting);
   });
   it("keeps a shared identity until its last source row disappears from a full snapshot", async () => {
     const first = await mirror();
@@ -1604,10 +1603,7 @@ describe("core snapshot storage", () => {
 
     const third = await session({ mode: "mirror", extraction: "full", taskId: "third", logicalRunId: "third" });
     await init(third);
-    await prune(db, third.scope, new Date(Date.now() - 30 * 86400000));
-    expect(
-      (await admin.query("SELECT generation FROM newjitsu.reverse_sync_generation ORDER BY generation")).rows
-    ).toEqual([{ generation: "second" }]);
+    expect((await durable()).head.runId).toBe("third");
     await third.snapshots.start();
     await third.snapshots.seal();
     expect((await third.snapshots.page("removals")).map(row => row.remove)).toEqual([{ id: "shared" }]);
@@ -1615,7 +1611,7 @@ describe("core snapshot storage", () => {
     await third.delivery.prepare(removal, {});
     await third.delivery.acknowledge(removal.batchId, outcomes(removal), {});
     await finish(third, removal);
-    expect(await count("newjitsu.reverse_sync_membership")).toBe(0);
+    expect((await durable()).members.length).toBe(0);
   });
   it("requires sealed full source and accepted additions before any removal", async () => {
     const run = await mirror();
@@ -1631,6 +1627,8 @@ describe("core snapshot storage", () => {
   });
   it("retains failed-run additions and promotes an empty later snapshot only after accepted removal", async () => {
     const first = await mirror();
+    await first.snapshots.append([desired("key1", "a")], 1);
+    await first.snapshots.seal();
     const b = batch(first, ["a"], 1, "upsert", false);
     await first.delivery.prepare(b, {});
     await first.delivery.acknowledge(b.batchId, outcomes(b), {});
@@ -1638,7 +1636,6 @@ describe("core snapshot storage", () => {
     await first.delivery.acknowledgeAbort();
     const next = await session({ mode: "mirror", extraction: "full", taskId: "next", logicalRunId: "next" });
     await init(next);
-    await prune(db, next.scope, new Date(Date.now() - 30 * 86400000));
     await next.snapshots.start();
     await next.snapshots.seal();
     expect((await next.snapshots.page("removals"))[0].remove).toEqual({ id: "a" });
@@ -1650,7 +1647,7 @@ describe("core snapshot storage", () => {
     expect(
       (await admin.query("SELECT committed_generation FROM newjitsu.reverse_sync_control")).rows[0].committed_generation
     ).toBe("next");
-    expect(await count("newjitsu.reverse_sync_membership")).toBe(0);
+    expect((await durable()).members.length).toBe(0);
   });
   it("keeps shared desired identities and paginates additions by identity hash", async () => {
     const run = await mirror();
@@ -1674,5 +1671,73 @@ describe("core snapshot storage", () => {
       session({ workspaceId: "other", syncId: "other", mode: "mirror", extraction: "full" })
     ).rejects.toThrow(/another mirror/);
     await expect(session({ workspaceId: "other", syncId: "other" })).rejects.toThrow(/exclusively/);
+  });
+  it.each(["complete", "aborted"])("does not treat %s upsert history as exclusive ownership", async phase => {
+    const old = await session();
+    await init(old);
+    if (phase === "complete") await finish(old);
+    else {
+      await old.delivery.prepareAbort();
+      await old.delivery.acknowledgeAbort();
+    }
+    const history = (await admin.query("SELECT * FROM newjitsu.reverse_sync_control")).rows;
+    const next = await session({ workspaceId: "other", syncId: "other", mode: "mirror", extraction: "full" });
+    expect(next.scope.syncId).toBe("other");
+    expect((await admin.query("SELECT * FROM newjitsu.reverse_sync_control WHERE sync_id='sync'")).rows).toEqual(
+      history
+    );
+    // The former upsert cannot start writing again once the mirror has claimed ownership.
+    await expect(session({ logicalRunId: "later" })).rejects.toThrow(/exclusively/);
+  });
+  it.each(["complete", "aborted"])("retains mirror ownership after %s until explicitly released", async phase => {
+    const old = await mirror();
+    if (phase === "complete") {
+      await old.snapshots.seal();
+      await finish(old);
+    } else {
+      await old.delivery.prepareAbort();
+      await old.delivery.acknowledgeAbort();
+    }
+    const next = () => session({ syncId: "replacement", mode: "mirror", extraction: "full" });
+    await expect(next()).rejects.toThrow(/another mirror/);
+    // Simulate an operator-approved release: keep all historical evidence.
+    // This is not an automatic release or membership-baseline transfer API.
+    await admin.query("DELETE FROM newjitsu.reverse_sync_target_owner");
+    expect((await next()).scope.syncId).toBe("replacement");
+    expect(await count("newjitsu.reverse_sync_control")).toBe(2);
+  });
+  it("serializes a mirror takeover against the previous upsert's next run", async () => {
+    const old = await session();
+    await init(old);
+    await finish(old);
+    const results = await Promise.allSettled([
+      session({ syncId: "mirror", mode: "mirror", extraction: "full" }),
+      session({ logicalRunId: "next" }),
+    ]);
+    expect(results.filter(r => r.status === "fulfilled")).toHaveLength(1);
+    expect(results.filter(r => r.status === "rejected")).toHaveLength(1);
+    expect(await count("newjitsu.reverse_sync_control")).toBe(2);
+  });
+  it.each([
+    "new",
+    "init_prepared",
+    "running",
+    "batches_pending",
+    "finish_prepared",
+    "finish_pending",
+    "finish_resolving",
+    "finish_accepted",
+    "abort_prepared",
+    "unknown-phase",
+  ])("blocks takeover while another sync has unresolved %s work, even if detached", async phase => {
+    await session();
+    // Admission is based on durable lifecycle, not a source_task's UI status
+    // or the detached flag (which permits overlap only within the same sync).
+    await admin.query("UPDATE newjitsu.reverse_sync_control SET phase=$1,detached=true", [phase]);
+    await expect(session({ syncId: "other", mode: "mirror", extraction: "full" })).rejects.toThrow(
+      /another mirror or upsert/
+    );
+    expect(await count("newjitsu.reverse_sync_target_owner")).toBe(0);
+    expect(await count("newjitsu.reverse_sync_control")).toBe(1);
   });
 });

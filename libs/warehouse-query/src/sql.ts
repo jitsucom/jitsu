@@ -27,8 +27,13 @@ function validateSelect(query: string, parse: SqlDialectRules["parse"]) {
   let ast: any;
   try {
     ast = parse(query);
-  } catch {
-    throw new Error("Query must be a single supported read-only SELECT (including SELECT CTEs)");
+  } catch (error) {
+    const location = (error as { location?: { start?: { line?: number; column?: number } } }).location?.start;
+    throw new Error(
+      `Query must be a single supported read-only SELECT (including SELECT CTEs). ${
+        location ? `At line ${location.line}, column ${location.column}: ` : ""
+      }${error instanceof Error ? error.message.slice(0, 2000) : "SQL could not be parsed"}`
+    );
   }
   const statements = Array.isArray(ast) ? ast : [ast];
   if (statements.length !== 1 || statements[0]?.type !== "select") throw new Error("Only one SELECT is allowed");

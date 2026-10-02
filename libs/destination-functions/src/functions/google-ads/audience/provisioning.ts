@@ -1,0 +1,117 @@
+import { randomBytes, createHash } from "node:crypto";
+import { z } from "zod";
+import type { ReverseDestinationConfig, DestinationServices } from "@jitsu/protocols/reverse-etl-runtime";
+import { GoogleAudienceCredentials, GoogleAudienceSettings, GoogleManagedAudience } from "./meta";
+import { createGoogleAudienceManagement } from "./management";
+function ensure(value: unknown, message: string): asserts value {
+  if (!value) throw new Error(message);
+}
+import { googleAudienceStateStream, GoogleAudienceState as State, googleAudienceStateBinding } from "./state";
+
+/** Called under the sync's Kubernetes lease. No remote I/O inside SQL transactions. */
+export async function resolveGoogleAudience<C extends ReverseDestinationConfig>(
+  config: C,
+  services: DestinationServices
+): Promise<C> {
+  const { signal, getAccessToken: getToken, log } = services;
+  const settings = GoogleAudienceSettings.parse(config.options.streamOptions);
+  ensure(config.options.stream === "audience", "Unsupported Google destination stream");
+  ensure(
+    config.options.mode !== "mirror" || (!config.model.cursor && !config.model.deleteColumn),
+    "Mirror requires a full-query model without a cursor or delete column"
+  );
+  const credentials = GoogleAudienceCredentials.parse(config.destination);
+  ensure(credentials.oauthConnectionId === `destination.${config.toId}`, "Invalid Google audience OAuth binding");
+  const { audience, ...options } = settings;
+  if (audience.kind === "existing") {
+    ensure(
+      config.options.mode !== "mirror" || options.mirrorStrategy === "full-replace",
+      "Existing Google audiences require full replacement for mirror mode"
+    );
+    await createGoogleAudienceManagement(credentials, getToken, services.fetch).verifyExisting(
+      audience.audienceId,
+      signal,
+      settings
+    );
+    return {
+      ...config,
+      options: { ...config.options, streamOptions: { ...options, audienceId: audience.audienceId } },
+    };
+  }
+  ensure(config.options.mode === "mirror", "Managed Google audiences require mirror mode");
+  // A deterministic local validation failure must not become an uncertain create:
+  // settings remain editable until any provisioning intent/delivery state exists.
+  ensure(
+    settings.identifierType !== "MOBILE_ADVERTISING_ID" || (!!settings.appId && !!settings.mobilePlatform),
+    "Mobile audiences require an App ID and mobile platform"
+  );
+  const binding = googleAudienceStateBinding(config.workspaceId, config.id, config.toId, credentials, settings);
+  if (!services.targetState) throw new Error("Google audience provisioning requires runner state");
+  const state = services.targetState(googleAudienceStateStream);
+  const read = () => state.read();
+  let raw = await read();
+  if (!raw) {
+    signal.throwIfAborted();
+    const nonce = randomBytes(32).toString("hex");
+    const intent: z.infer<typeof State> = {
+      version: 1,
+      workspaceId: config.workspaceId,
+      binding,
+      phase: "prepared",
+      managed: {
+        id: `retl-google-${createHash("sha256").update(`${config.workspaceId}:${config.id}:${nonce}`).digest("hex")}`,
+        syncId: config.id,
+        customerId: credentials.customerId,
+        integrationCode: `jitsu-retl-${nonce}`,
+        displayName: `${audience.displayName} [Jitsu ${nonce.slice(0, 12)}]`,
+        membershipDays: settings.membershipDays ?? 540,
+        ...(settings.identifierType ? { identifierType: settings.identifierType } : {}),
+        ...(settings.appId ? { appId: settings.appId } : {}),
+        ...(settings.mobilePlatform ? { mobilePlatform: settings.mobilePlatform } : {}),
+      },
+    };
+    await state.create(intent);
+    raw = await read();
+  }
+  const saved = State.parse(raw);
+  ensure(
+    saved.workspaceId === config.workspaceId &&
+      saved.binding === binding &&
+      saved.managed.syncId === config.id &&
+      saved.managed.customerId === credentials.customerId,
+    "Managed audience configuration changed; preserve provisioning state and reconcile"
+  );
+  const api = createGoogleAudienceManagement(credentials, getToken, services.fetch);
+  if (saved.phase !== "ready") {
+    // Resolve OAuth before claiming submission: a token failure cannot create an audience.
+    const token = await getToken(signal);
+    const submission = createGoogleAudienceManagement(credentials, async () => token, services.fetch);
+    signal.throwIfAborted();
+    const submitting = { ...saved, phase: "submitting" };
+    const claimed = await state.compareAndSet({ ...saved, phase: "prepared" }, submitting);
+    await log(
+      claimed
+        ? "Creating Google audience; provisioning intent is saved."
+        : "Checking the saved Google audience creation request; no duplicate creation will be submitted."
+    );
+    const result = claimed
+      ? await submission.create(saved.managed, signal)
+      : await api.reconcile(saved.managed, signal);
+    ensure(result, "Google audience creation is unconfirmed; retry status discovery without resetting state");
+    saved.audienceId = result.audienceId;
+    saved.phase = "ready";
+    signal.throwIfAborted();
+    ensure(await state.compareAndSet(submitting, saved), "Google audience provisioning state changed");
+  }
+  const managed = GoogleManagedAudience.parse({ ...saved.managed, audienceId: saved.audienceId });
+  await api.verifyManaged(managed, signal);
+  await log(`Using Google audience ${managed.audienceId}.`);
+  return {
+    ...config,
+    destination: { ...config.destination, reverseManagedAudience: managed },
+    options: {
+      ...config.options,
+      streamOptions: { ...options, audienceId: managed.audienceId, managedAudienceId: managed.id },
+    },
+  };
+}

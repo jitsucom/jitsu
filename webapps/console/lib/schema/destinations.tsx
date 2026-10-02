@@ -658,6 +658,19 @@ export const coreDestinations: DestinationType<any>[] = [
         .describe(
           "Dataset::BigQuery <a target='_blank' rel='noreferrer noopener' href='https://cloud.google.com/bigquery/docs/datasets-intro'>Dataset</a>"
         ),
+      location: z
+        .string()
+        .optional()
+        .describe(
+          "Query location::Optional BigQuery region for Reverse ETL. If omitted, Jitsu reads the configured dataset's location."
+        ),
+      maximumBytesBilled: z
+        .string()
+        .regex(/^[1-9]\d*$/)
+        .optional()
+        .describe(
+          "Maximum bytes billed per query::Optional Reverse ETL query cost limit, in bytes. Without a limit, normal BigQuery query pricing applies. LIMIT in a preview does not limit bytes scanned."
+        ),
       keyFile: z
         .string()
         .describe(

@@ -9,6 +9,15 @@ const getComputedStyle = window.getComputedStyle.bind(window);
 
 const state = vi.hoisted(() => ({
   enabled: true,
+  models: [] as any[],
+  reload: vi.fn(),
+  route: {
+    query: {} as Record<string, string>,
+    pathname: "/[workspaceId]/models",
+    events: { on: vi.fn(), off: vi.fn() },
+    push: vi.fn(),
+    replace: vi.fn(),
+  },
   preview: vi.fn(),
   api: { list: vi.fn(), create: vi.fn(), update: vi.fn(), del: vi.fn() },
 }));
@@ -17,17 +26,47 @@ vi.mock("../../components/PageLayout/WorkspacePageLayout", () => ({
   WorkspacePageLayout: ({ children }: any) => children,
 }));
 vi.mock("../../lib/context", () => ({
-  useWorkspace: () => ({ id: "ws", featuresEnabled: state.enabled ? ["reverse-etl"] : [] }),
-  useWorkspaceRole: () => ({ editEntities: true, deleteEntities: true }),
+  useWorkspace: () => ({ id: "ws", slugOrId: "ws", featuresEnabled: state.enabled ? ["reverse-etl"] : [] }),
+  useAppConfig: () => ({}),
+  useWorkspaceRole: () => ({ role: "owner", editEntities: true, deleteEntities: true }),
+}));
+vi.mock("next/router", () => ({ useRouter: () => state.route }));
+vi.mock("../../lib/ui", async original => ({
+  ...(await original<typeof import("../../lib/ui")>()),
+  useUnsavedChanges: () => {},
+  useTitle: () => {},
+}));
+vi.mock("../../lib/modal", () => ({ useAntdModal: () => ({ confirm: vi.fn() }) }));
+vi.mock("next/dynamic", () => ({
+  default:
+    () =>
+    ({ value, onChange }: any) =>
+      React.createElement("textarea", {
+        "aria-label": "SQL editor",
+        value,
+        onChange: (e: any) => onChange(e.target.value),
+      }),
 }));
 vi.mock("../../lib/useApi", () => ({ useConfigApi: () => state.api }));
 vi.mock("../../lib/store", () => ({
-  useConfigObjectList: () => [{ id: "wh", name: "Warehouse", destinationType: "postgres" }],
+  useConfigObjectList: (type: string) =>
+    type === "model" ? state.models : [{ id: "wh", name: "Warehouse", destinationType: "postgres" }],
+  useConfigObjectLinks: () => [],
+  useStoreReload: () => state.reload,
+  asConfigType: (type: string) => type,
+  useConfigObjectMutation: (_type: string, fn: any) => ({ mutateAsync: fn }),
 }));
 
 beforeEach(() => {
   vi.clearAllMocks();
   state.enabled = true;
+  state.route.query = {};
+  state.route.push.mockImplementation(async (url: any) => {
+    state.route.query = typeof url === "string" ? {} : url.query;
+  });
+  state.preview.mockImplementation(async (url: string) =>
+    url.includes("/config/link") ? { links: [] } : { columns: [], rows: [], truncated: false }
+  );
   vi.spyOn(window, "getComputedStyle").mockImplementation(element => getComputedStyle(element));
   vi.stubGlobal(
     "ResizeObserver",
@@ -45,7 +84,7 @@ beforeEach(() => {
     addEventListener() {},
     removeEventListener() {},
   }));
-  state.api.list.mockResolvedValue([
+  state.models = [
     {
       id: "model-1",
       name: "Audience",
@@ -57,7 +96,8 @@ beforeEach(() => {
       pageSize: 1000,
       cursor: { column: "changed", type: "timestamp", lookbackSeconds: 60 },
     },
-  ]);
+  ];
+  state.reload.mockResolvedValue(undefined);
   state.api.update.mockResolvedValue({});
 });
 afterEach(() => {
@@ -83,7 +123,7 @@ vi.setConfig({ testTimeout: 20000 });
 
 describe("model editor", () => {
   it("offers only delete-compatible preview columns in the delete picker", async () => {
-    state.preview.mockResolvedValue({
+    const preview = {
       columns: [
         { name: "removed", type: "16", supportsDelete: true },
         { name: "flag_text", type: "25", supportsDelete: true },
@@ -92,22 +132,24 @@ describe("model editor", () => {
       ],
       rows: [],
       truncated: false,
-    });
+    };
+    state.preview.mockImplementation(async (url: string) => (url.includes("/config/link") ? { links: [] } : preview));
+    state.route.query = { id: "model-1" };
     const client = mount();
-    fireEvent.click(await screen.findByRole("button", { name: "Audience" }));
-    fireEvent.click(screen.getByRole("button", { name: "Preview up to 100 rows" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Preview up to 100 rows" }));
     await waitFor(() => expect(state.preview).toHaveBeenCalled());
     fireEvent.mouseDown(screen.getByLabelText("Delete column (optional)"));
     expect(await screen.findByRole("option", { name: "removed (16)" })).toBeTruthy();
-    expect(screen.getByRole("option", { name: "flag_text (25)" })).toBeTruthy();
+    // Ant Design virtualizes the aria option list; visible items retain their title.
+    expect(screen.getByTitle("flag_text (25)")).toBeTruthy();
     expect(screen.queryByRole("option", { name: "payload (3802)" })).toBeNull();
     expect(screen.queryByRole("option", { name: "unknown (custom)" })).toBeNull();
     client.clear();
   });
   it("preserves an API-configured lookback when changing the name", async () => {
+    state.route.query = { id: "model-1" };
     const client = mount();
-    fireEvent.click(await screen.findByRole("button", { name: "Audience" }));
-    fireEvent.change(screen.getByLabelText("Name"), { target: { value: "Renamed audience" } });
+    fireEvent.change(await screen.findByLabelText("Name"), { target: { value: "Renamed audience" } });
     fireEvent.click(screen.getByRole("button", { name: "Save model" }));
     await waitFor(() =>
       expect(state.api.update).toHaveBeenCalledWith(
@@ -124,15 +166,35 @@ describe("model editor", () => {
     state.enabled = false;
     const client = mount();
     expect(screen.getByText("Reverse ETL is not enabled for this workspace")).toBeTruthy();
-    expect(await screen.findByRole("button", { name: "Audience" })).toBeTruthy();
-    expect(state.api.list).toHaveBeenCalled();
-    expect((screen.getByRole("button", { name: "New model" }) as HTMLButtonElement).disabled).toBe(true);
-    expect((screen.getByRole("button", { name: "Delete" }) as HTMLButtonElement).disabled).toBe(false);
-    fireEvent.click(screen.getByRole("button", { name: "Audience" }));
-    expect(screen.getByText("View model")).toBeTruthy();
-    expect((screen.getByLabelText("Name") as HTMLInputElement).disabled).toBe(true);
-    expect((screen.getByRole("button", { name: "Save model" }) as HTMLButtonElement).disabled).toBe(true);
-    expect((screen.getByRole("button", { name: "Preview up to 100 rows" }) as HTMLButtonElement).disabled).toBe(true);
+    expect(await screen.findByRole("link", { name: "Audience" })).toBeTruthy();
+    expect((screen.getByRole("button", { name: "Add new model" }) as HTMLButtonElement).disabled).toBe(true);
+    fireEvent.click(screen.getAllByRole("button").at(-1)!);
+    expect(await screen.findByText("Delete")).toBeTruthy();
+    expect(screen.getByRole("menuitem", { name: /Delete/ }).getAttribute("aria-disabled")).not.toBe("true");
+    expect(screen.getByRole("menuitem", { name: /Clone/ }).getAttribute("aria-disabled")).toBe("true");
+    client.clear();
+  });
+  it("uses the standard object-list search and custom model columns", async () => {
+    const client = mount();
+    expect(await screen.findByRole("link", { name: "Audience" })).toBeTruthy();
+    expect(screen.getByText("Primary key")).toBeTruthy();
+    expect(screen.getByText("Incremental: changed")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Create sync" })).toBeNull();
+    fireEvent.change(screen.getByPlaceholderText("Filter by ID or name..."), { target: { value: "no-match" } });
+    await waitFor(() => expect(screen.queryByRole("link", { name: "Audience" })).toBeNull());
+    client.clear();
+  });
+  it("opens Clone in the custom editor and creates a distinct model", async () => {
+    state.route.query = { id: "new", clone: "model-1" };
+    const client = mount();
+    const name = (await screen.findByLabelText("Name")) as HTMLInputElement;
+    expect(name.value).toBe("Audience (copy)");
+    expect(screen.getByLabelText("SQL editor")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Save model" }));
+    await waitFor(() => expect(state.api.create).toHaveBeenCalled());
+    expect(state.api.create.mock.calls[0][0]).toMatchObject({ name: "Audience (copy)", query: state.models[0].query });
+    expect(state.api.create.mock.calls[0][0].id).not.toBe("model-1");
+    await waitFor(() => expect(state.reload).toHaveBeenCalled());
     client.clear();
   });
 });

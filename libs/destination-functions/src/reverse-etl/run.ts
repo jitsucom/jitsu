@@ -10,6 +10,7 @@ import type {
 } from "@jitsu/protocols/reverse-etl";
 import { canonicalJson, contentHash } from "./identity";
 import { ReverseEtlProtocolError, validateBatchResult, validateFinishResult, validateStream } from "./meta";
+import { reverseEtlFailure } from "./failure";
 
 export interface ReverseSourceRecord {
   key: string;
@@ -21,6 +22,8 @@ export interface RunOptions<Credentials, Row, Options> {
   stream: ReverseEtlStream<Credentials, Row, Options>;
   context: ReverseEtlContext<Credentials, Options>;
   mapping: Record<string, string>;
+  /** Code-owned adapter field populated from the model primary key, never user mapping. */
+  sourceKeyField?: string;
   /** Must open lazily, only after recovery admission. Readers enforce unique keys. */
   source: (after: SourceCursor | undefined, signal: AbortSignal) => AsyncIterable<ReverseSourceRecord>;
   checkpointEvery: number;
@@ -177,6 +180,7 @@ export async function runReverseEtl<C, R, O>(
           Object.hasOwn(record.row, column) ? record.row[column] : undefined,
         ])
       );
+      if (input.sourceKeyField) mapped[input.sourceKeyField] = record.key;
       const row = (record.deleted ? stream.removeRowType! : stream.rowType).safeParse(mapped);
       // Do not emit schema issues: they can contain raw identifiers/source values.
       if (!row.success) throw new ReverseEtlProtocolError("Source row failed destination validation");
@@ -251,10 +255,13 @@ export async function runReverseEtl<C, R, O>(
       /* Original failure wins. */
     }
     // Library/transport errors may contain tokens or row data. Preserve only our
-    // own deliberately redacted errors; never log/rethrow arbitrary SDK bodies.
+    // own deliberately redacted errors and exact known core reasons. Do not
+    // retain the original cause: loggers may serialize its SDK body or row data.
     if (error instanceof ReverseEtlProtocolError) throw error;
     throw new ReverseEtlProtocolError(
-      ctx.signal.aborted ? "Reverse ETL run cancelled" : "Reverse ETL run failed; inspect acknowledged recovery state"
+      ctx.signal.aborted
+        ? "Reverse ETL run cancelled"
+        : reverseEtlFailure(error)?.reason ?? "Reverse ETL run failed; inspect acknowledged recovery state"
     );
   }
 }

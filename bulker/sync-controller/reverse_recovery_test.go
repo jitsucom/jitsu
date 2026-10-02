@@ -16,7 +16,7 @@ func TestReverseRecoveryPodIsIndependentAndIdempotent(t *testing.T) {
 	entry.Schedule = "" // Even a manually triggered sync gets recovery checks.
 	ctx := context.Background()
 	for range 2 {
-		if err := tm.launchReverseRecovery(ctx, entry, "waiting-task"); err != nil {
+		if err := tm.launchReverseRecovery(ctx, entry, "waiting-task", 0); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -38,18 +38,18 @@ func TestReverseRecoveryPodIsIndependentAndIdempotent(t *testing.T) {
 	for _, variable := range pod.Spec.Containers[0].Env {
 		env[variable.Name] = variable.Value
 	}
-	if env["RETL_TRIGGER"] != "recovery" || env["RETL_RECOVERY_OF"] != "waiting-task" || env["TASK_ID"] != pod.Name {
+	if env["RETL_TRIGGER"] != "recovery" || env["RETL_RECOVERY_OF"] != "waiting-task" || env["TASK_ID"] != "waiting-task" {
 		t.Fatal("missing Node recovery contract")
 	}
 	if pod.Spec.ActiveDeadlineSeconds == nil || *pod.Spec.ActiveDeadlineSeconds != int64(tm.config.JobActiveDeadlineSeconds) {
 		t.Fatal("recovery Pod needs the normal active deadline")
 	}
-	if err := tm.launchReverseRecovery(ctx, entry, "next-waiting-task"); err != nil {
+	if err := tm.launchReverseRecovery(ctx, entry, "waiting-task", 1); err != nil {
 		t.Fatal(err)
 	}
 	pods, _ = client.CoreV1().Pods("default").List(ctx, metav1.ListOptions{})
 	if len(pods.Items) != 2 {
-		t.Fatal("next parent should create a distinct task")
+		t.Fatal("next refresh should create a distinct Pod for the same task")
 	}
 }
 
@@ -58,11 +58,11 @@ func TestReverseRecoveryRejectsChangedSecret(t *testing.T) {
 	tm := &TaskManager{config: reverseTestConfig(), jobRunner: &JobRunner{clientset: client}}
 	entry := reverseFixture()
 	ctx := context.Background()
-	if err := tm.launchReverseRecovery(ctx, entry, "parent"); err != nil {
+	if err := tm.launchReverseRecovery(ctx, entry, "parent", 0); err != nil {
 		t.Fatal(err)
 	}
 	entry.Reverse.ConfigRevision = "different-revision"
-	if err := tm.launchReverseRecovery(ctx, entry, "parent"); err == nil {
+	if err := tm.launchReverseRecovery(ctx, entry, "parent", 0); err == nil {
 		t.Fatal("must not reuse a Secret bound to different delivery config")
 	}
 }

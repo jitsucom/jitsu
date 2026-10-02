@@ -33,6 +33,18 @@ const mkTask = (syncId: string, taskId: string, status: string, startedAt: strin
   started_at: new Date(startedAt),
 });
 
+/**
+ * ClickHouse DateTime64(3) literal for `minutesAgo` minutes before now.
+ *
+ * Rows written to ClickHouse must be stamped relative to now, not with a fixed
+ * date: task_log carries `TTL toDateTime(timestamp) + INTERVAL 3 MONTH DELETE`
+ * (clickhouse-init.ts), so a fixed date eventually falls outside that window and
+ * ClickHouse drops the row at insert. The test then reads back nothing and fails
+ * on every branch from that day on, whatever the change under test.
+ */
+const chTs = (minutesAgo: number) =>
+  new Date(Date.now() - minutesAgo * 60_000).toISOString().replace("T", " ").replace("Z", "");
+
 const mkLog = (taskId: string, syncId: string, timestamp: string | Date, message: string) => ({
   task_id: taskId,
   sync_id: syncId,
@@ -240,10 +252,7 @@ describe("SyncService", () => {
       table: "task_log",
       format: "JSONEachRow",
       clickhouse_settings: { wait_end_of_query: 1 },
-      values: [
-        mkLog("task-ch", sync.id, "2026-07-01 10:00:00.000", "started"),
-        mkLog("task-ch", sync.id, "2026-07-01 10:01:00.000", "finished"),
-      ],
+      values: [mkLog("task-ch", sync.id, chTs(61), "started"), mkLog("task-ch", sync.id, chTs(60), "finished")],
     });
     const chLogs = await svc().getSyncLogs(user, workspace.id, { syncId: sync.id, taskId: "task-ch" });
     expect(chLogs.ok).toBe(true);

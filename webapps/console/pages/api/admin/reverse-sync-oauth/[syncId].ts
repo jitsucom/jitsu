@@ -15,6 +15,7 @@ export default createRoute()
         syncId: z.string().min(1).max(128),
         workspaceId: z.string().min(1).max(128),
         configRevision: z.string().regex(/^[a-f0-9]{64}$/),
+        refreshTaskId: z.string().min(1).max(512).optional(),
       })
       .strict(),
   })
