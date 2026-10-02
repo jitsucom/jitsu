@@ -303,6 +303,12 @@ export const ClickhouseCredentials = z.object({
     .string()
     .optional()
     .describe("Name of cluster to use.<br/>For <b>ClickHouse Cloud</b> or single-node setups, leave this field empty."),
+  databaseEngine: z
+    .enum(["default", "replicated"])
+    .optional()
+    .describe(
+      "Database engine::Use <code>default</code> for Atomic or ClickHouse Cloud databases. Choose <code>replicated</code> for the <a href='https://clickhouse.com/docs/en/engines/database-engines/replicated' rel='noreferrer noopener' target='_blank'>Replicated</a> database engine. This requires a <b>cluster</b> name, even when connecting through one host. Tables use ReplicatedMergeTree engines without explicit Keeper paths, and the database handles DDL replication."
+    ),
   database: z.string().default("default").describe("Name of the database to use"),
   parameters: z
     .object({})
@@ -542,6 +548,9 @@ export const coreDestinations: DestinationType<any>[] = [
       },
       loadAsJson: {
         hidden: true,
+      },
+      databaseEngine: {
+        hidden: obj => !obj.cluster && obj.databaseEngine !== "replicated",
       },
       password: {
         password: true,
