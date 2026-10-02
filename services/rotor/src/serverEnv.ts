@@ -31,6 +31,7 @@ const ServerEnvSchema = z.object({
   // MaxMind Configuration
   MAXMIND_LICENSE_KEY: z.string().optional(),
   MAXMIND_URL: z.string().optional(),
+  MAXMIND_PATH: z.string().optional(),
   MAXMIND_S3_BUCKET: z.string().optional(),
   MAXMIND_S3_REGION: z.string().optional(),
   MAXMIND_S3_ACCESS_KEY_ID: z.string().optional(),
