@@ -15,7 +15,11 @@ import FieldListEditorLayout, { EditorItem } from "../FieldListEditorLayout/Fiel
 import { DataLayoutType } from "@jitsu/protocols/analytics";
 import { Activity, Copy } from "lucide-react";
 import { useBilling } from "../Billing/BillingProvider";
-import { hasIdentityStitching, IDENTITY_STITCHING_FUNCTION_ID } from "../../lib/shared/plan-features";
+import {
+  hasIdentityStitching,
+  IDENTITY_STITCHING_FUNCTION_ID,
+  IDENTITY_STITCHING_OFF_WARNING,
+} from "../../lib/shared/plan-features";
 import styles from "./ConnectionEditorPage.module.css";
 import { Htmlizer } from "../Htmlizer/Htmlizer";
 import { FunctionsSelector } from "../FunctionsSelector/FunctionsSelector";
@@ -577,9 +581,15 @@ function ConnectionEditor({
     // JITSU-228: a connection that already has Identity Stitching on keeps it —
     // only switching it on is gated, matching assertIdentityStitchingAllowed on
     // the server. That leaves a grandfathered connection free to turn it off,
-    // and the server will refuse to turn it back on afterwards.
+    // and the server will refuse to turn it back on afterwards — so turning it
+    // off on such a plan asks first.
     const identityStitchingOn = hasIdentityStitching(connectionOptions);
-    const identityStitchingLocked = entitlements.identityStitching !== true && !identityStitchingOn;
+    // What the stored connection has, not the form: the server compares against
+    // the stored connection, so switching it off and back on before Save is a
+    // no-op there. Locking on the form state instead would grey the switch the
+    // instant it was turned off and leave the mistake impossible to undo.
+    const identityStitchingSaved = hasIdentityStitching(existingLink?.data);
+    const identityStitchingLocked = entitlements.identityStitching !== true && !identityStitchingSaved;
     configItems.push({
       group: "Advanced",
       documentation: (
@@ -590,8 +600,8 @@ function ConnectionEditor({
       ),
       name: "Identity Stitching",
       component: (
-        <div>
-          {identityStitchingPlanTooLow && !identityStitchingOn && (
+        <div data-testid="identity-stitching">
+          {identityStitchingPlanTooLow && !identityStitchingSaved && (
             // Inline, not in `documentation`: that is rendered behind a help
             // icon by DocumentedLabel, so a locked user would see a greyed-out
             // switch and no reason for it — and no hover at all on touch.
@@ -603,7 +613,7 @@ function ConnectionEditor({
               to enable it.
             </div>
           )}
-          {entitlements.identityStitching === null && !identityStitchingOn && (
+          {entitlements.identityStitching === null && !identityStitchingSaved && (
             <EntitlementStatus loading={entitlements.loading} retry={entitlements.retry} />
           )}
           <SwitchComponent
@@ -615,7 +625,14 @@ function ConnectionEditor({
             }
             className="max-w-xs"
             value={identityStitchingOn}
-            onChange={ur => {
+            onChange={async ur => {
+              // Only on an explicit "plan too low": with the lookup unknown (null)
+              // nothing is known about whether it could be turned back on.
+              if (!ur && identityStitchingOn && identityStitchingPlanTooLow) {
+                if (!(await confirmOp(IDENTITY_STITCHING_OFF_WARNING))) {
+                  return;
+                }
+              }
               const f = (connectionOptions.functions ?? []).filter(
                 f => f.functionId !== IDENTITY_STITCHING_FUNCTION_ID
               );

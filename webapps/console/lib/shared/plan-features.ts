@@ -21,6 +21,15 @@ export const WORKSPACE_DOMAINS_FEATURE = "misc";
 /** The function id the connection editor writes for the Identity Stitching toggle. */
 export const IDENTITY_STITCHING_FUNCTION_ID = "builtin.transformation.user-recognition";
 
+/**
+ * Confirmation shown before switching Identity Stitching off on a plan that
+ * cannot switch it back on. Turning it on is refused on Save below Enterprise,
+ * so on such a plan turning it off is one-way. Says only that — nothing about
+ * what happens to data already stitched.
+ */
+export const IDENTITY_STITCHING_OFF_WARNING =
+  "Turn off Identity Stitching? It's available on the Enterprise plan only, so you won't be able to turn it back on unless you upgrade. Contact sales to re-enable it.";
+
 /** True when a connection's data enables the Identity Stitching function. */
 export function hasIdentityStitching(data: any): boolean {
   const functions = data?.functions;

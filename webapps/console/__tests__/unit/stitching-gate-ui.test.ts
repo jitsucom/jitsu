@@ -1,7 +1,8 @@
 // @vitest-environment jsdom
 import React from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { IDENTITY_STITCHING_OFF_WARNING } from "../../lib/shared/plan-features";
 
 // JITSU-228. Proves the Identity Stitching toggle is actually disabled with a
 // contact-sales note when the plan denies, and — the part the resolver tests
@@ -12,6 +13,7 @@ const state = vi.hoisted(() => ({
   entitlements: { loading: false, customDomains: true as boolean | null, identityStitching: true as boolean | null },
   linkFunctions: [] as any[],
   hasExistingLink: false,
+  confirmOp: vi.fn(async (_message: string) => true),
 }));
 
 const ID = "builtin.transformation.user-recognition";
@@ -23,6 +25,10 @@ vi.mock("../../lib/context", () => ({
 vi.mock("../../components/Billing/BillingProvider", () => ({ useBilling: () => state.billing }));
 vi.mock("../../lib/entitlements", () => ({ useEntitlements: () => state.entitlements }));
 vi.mock("../../lib/store", () => ({ useStoreReload: () => async () => {} }));
+vi.mock("../../lib/ui", async importOriginal => ({
+  ...(await importOriginal<typeof import("../../lib/ui")>()),
+  confirmOp: state.confirmOp,
+}));
 vi.mock("next/router", () => ({
   useRouter: () => ({ push: vi.fn(), replace: vi.fn(), query: state.hasExistingLink ? { id: "lnk" } : {} }),
 }));
@@ -58,6 +64,8 @@ beforeEach(() => {
   };
   state.linkFunctions = [];
   state.hasExistingLink = false;
+  state.confirmOp.mockClear();
+  state.confirmOp.mockResolvedValue(true);
   vi.stubGlobal(
     "ResizeObserver",
     class {
@@ -147,4 +155,74 @@ it("keeps existing stitching editable during a lookup failure", () => {
   state.linkFunctions = [{ functionId: ID }];
   renderEditor();
   expect(screen.queryByText(/Could not verify access/)).toBeNull();
+});
+
+// Turning stitching off on a plan that cannot turn it back on is one-way, so it
+// asks first; and because the server compares against the stored connection,
+// the switch stays usable before Save so a mistake can be undone.
+describe("turning Identity Stitching off on a plan that cannot turn it back on", () => {
+  const stitchingSwitch = () =>
+    screen.getByTestId("identity-stitching").querySelector('[role="switch"]') as HTMLButtonElement;
+  const isOn = () => stitchingSwitch().getAttribute("aria-checked") === "true";
+
+  const withStitchingOn = (identityStitching: boolean | null) => {
+    state.entitlements.identityStitching = identityStitching;
+    state.hasExistingLink = true;
+    state.linkFunctions = [{ functionId: ID }];
+    renderEditor();
+  };
+
+  it("asks first, with the approved text, when the plan is below Enterprise", async () => {
+    withStitchingOn(false);
+    expect(isOn()).toBe(true);
+    fireEvent.click(stitchingSwitch());
+    await waitFor(() => expect(state.confirmOp).toHaveBeenCalledTimes(1));
+    expect(state.confirmOp).toHaveBeenCalledWith(IDENTITY_STITCHING_OFF_WARNING);
+    expect(IDENTITY_STITCHING_OFF_WARNING).toMatch(/won't be able to turn it back on unless you upgrade/);
+    await waitFor(() => expect(isOn()).toBe(false));
+  });
+
+  it("leaves it on when the user cancels", async () => {
+    state.confirmOp.mockResolvedValue(false);
+    withStitchingOn(false);
+    fireEvent.click(stitchingSwitch());
+    await waitFor(() => expect(state.confirmOp).toHaveBeenCalledTimes(1));
+    expect(isOn()).toBe(true);
+  });
+
+  // The server compares with the stored connection, so on and back off-on before
+  // Save is a no-op there. The switch must not lock the moment it is turned off.
+  it("lets the user turn it back on before saving, without asking again", async () => {
+    withStitchingOn(false);
+    fireEvent.click(stitchingSwitch());
+    await waitFor(() => expect(isOn()).toBe(false));
+    expect(stitchingSwitch().disabled).toBe(false);
+    fireEvent.click(stitchingSwitch());
+    await waitFor(() => expect(isOn()).toBe(true));
+    expect(state.confirmOp).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not ask on Enterprise", async () => {
+    withStitchingOn(true);
+    fireEvent.click(stitchingSwitch());
+    await waitFor(() => expect(isOn()).toBe(false));
+    expect(state.confirmOp).not.toHaveBeenCalled();
+  });
+
+  // Nothing is known about whether it could be turned back on, so no warning
+  // that claims it could not.
+  it("does not ask while the plan lookup is unknown", async () => {
+    withStitchingOn(null);
+    fireEvent.click(stitchingSwitch());
+    await waitFor(() => expect(isOn()).toBe(false));
+    expect(state.confirmOp).not.toHaveBeenCalled();
+  });
+
+  it("still locks a connection that never had it", () => {
+    state.entitlements.identityStitching = false;
+    state.hasExistingLink = true;
+    state.linkFunctions = [];
+    renderEditor();
+    expect(stitchingSwitch().disabled).toBe(true);
+  });
 });
