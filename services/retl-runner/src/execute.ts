@@ -167,7 +167,7 @@ export async function execute(input: ExecuteOptions): Promise<TaskResult> {
     await progress.log(
       `${
         run.recovery ? "Continuing saved delivery; warehouse SQL is not re-read. " : ""
-      }Delivery counts describe API records, not matched people or targetable audience size. Submission is not acceptance; Google audience sizes may update separately.`
+      }Delivery counts describe API records, not matched people or targetable audience size. Submission is not acceptance; destination audience sizes may update separately.`
     );
     await progress.observe(run.core.head, true);
     const context: ReverseEtlContext<JsonObject, JsonObject> = {

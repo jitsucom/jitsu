@@ -106,15 +106,28 @@ describe("runner console OAuth and adapter binding", () => {
       await expect(client.accessToken(new AbortController().signal)).rejects.toThrow();
     }
   );
-  it("registers only code-owned Google implementation, without fetching tokens during binding", async () => {
+  it("registers code-owned Google and Meta implementations, without fetching tokens during binding", async () => {
     const token = vi.fn(async () => "token");
     const registry = createAdapterRegistry(token);
-    expect([...registry.keys()]).toEqual(["google-ads"]);
+    expect([...registry.keys()]).toEqual(["google-ads", "facebook-conversions"]);
     const adapter = await registry.get("google-ads")!(config);
     expect(adapter.targetIdentity).toBe("google-data-manager:1234567890:123");
     expect(adapter.stream.batchDelivery).toBe("asynchronous");
     expect(adapter.mirror).toBeUndefined();
     expect(adapter.recovery?.({}).reconcileBatch).toBeTypeOf("function");
+    const meta = await registry.get("facebook-conversions")!({
+      ...config,
+      destination: { destinationType: "facebook-conversions", accessToken: "meta-test-token" },
+      options: {
+        ...config.options,
+        stream: "conversions",
+        mode: "upsert",
+        mapping: { email: "email", eventTime: "event_time" },
+        streamOptions: { pixelId: "456", eventName: "Purchase", actionSource: "website" },
+      },
+    });
+    expect(meta.targetIdentity).toBe("meta-conversions:456");
+    expect(meta.stream.name).toBe("conversions");
     expect(token).not.toHaveBeenCalled();
     expect(() => registry.get("google-ads")!({ ...config, toId: "other" })).toThrow("OAuth binding");
   });

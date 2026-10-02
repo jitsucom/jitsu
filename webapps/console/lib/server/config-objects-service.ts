@@ -25,6 +25,15 @@ import { supportsWarehouseReader } from "@jitsu/warehouse-query/src/schema";
 
 const log = getServerLog("config-objects-service");
 
+function missingMetaEventPixel(config: any): boolean {
+  return (
+    config?.destinationType === "facebook-conversions" && (typeof config.pixelId !== "string" || !config.pixelId.trim())
+  );
+}
+
+const metaEventPixelError = () =>
+  new ApiError("Meta event connections require a Pixel / Dataset ID on the destination", { status: 400 });
+
 export interface ConfigObjectsServiceDeps {
   prisma: PrismaClient;
 }
@@ -328,6 +337,14 @@ export class ConfigObjectsService {
           where: { id, workspaceId, type, deleted: false },
         });
         if (
+          missingMetaEventPixel(filtered) &&
+          (await tx.configurationObjectLink.count({
+            where: { workspaceId, toId: id, deleted: false, from: { type: "stream" } },
+          })) > 0
+        ) {
+          throw metaEventPixelError();
+        }
+        if (
           !supportsWarehouseReader(filtered) ||
           filtered.destinationType !== (current.config as any).destinationType
         ) {
@@ -512,10 +529,12 @@ export class ConfigObjectsService {
 
     let createdOrUpdated: any;
     if (existingLink) {
-      createdOrUpdated = await this.prisma.configurationObjectLink.update({
-        where: { id: existingLink.id },
-        data: { data, deleted: false, workspaceId },
-      });
+      createdOrUpdated = await this.mutateEventLink(workspaceId, existingLink.toId, existingLink.type ?? "push", tx =>
+        tx.configurationObjectLink.update({
+          where: { id: existingLink.id },
+          data: { data, deleted: false, workspaceId },
+        })
+      );
       await configObjectAuditLog(
         user,
         workspaceId,
@@ -526,16 +545,20 @@ export class ConfigObjectsService {
         opts.req
       );
     } else {
-      createdOrUpdated = await this.prisma.configurationObjectLink.create({
-        data: {
-          id: `${workspaceId}-${fromId.substring(fromId.length - 4)}-${toId.substring(toId.length - 4)}-${randomId(6)}`,
-          workspaceId,
-          fromId,
-          toId,
-          data,
-          type,
-        },
-      });
+      createdOrUpdated = await this.mutateEventLink(workspaceId, toId, type, tx =>
+        tx.configurationObjectLink.create({
+          data: {
+            id: `${workspaceId}-${fromId.substring(fromId.length - 4)}-${toId.substring(toId.length - 4)}-${randomId(
+              6
+            )}`,
+            workspaceId,
+            fromId,
+            toId,
+            data,
+            type,
+          },
+        })
+      );
       await configObjectAuditLog(
         user,
         workspaceId,
@@ -600,7 +623,9 @@ export class ConfigObjectsService {
       }
     }
     await this.validateLinkData(workspaceId, type, existing.toId, data);
-    const updated = await this.prisma.configurationObjectLink.update({ where: { id: existing.id }, data: { data } });
+    const updated = await this.mutateEventLink(workspaceId, existing.toId, type, tx =>
+      tx.configurationObjectLink.update({ where: { id: existing.id }, data: { data } })
+    );
     await configObjectAuditLog(
       user,
       workspaceId,
@@ -611,6 +636,28 @@ export class ConfigObjectsService {
       opts.req
     );
     return { id: updated.id, updated: true };
+  }
+
+  /**
+   * Check event credentials even without strict/options validation. Share the destination
+   * mutation lock so creating a connection cannot race with removing its pixel ID.
+   * Audit/telemetry and network calls stay outside this short transaction.
+   */
+  private async mutateEventLink<T>(
+    workspaceId: string,
+    toId: string,
+    type: string,
+    write: (db: Pick<PrismaClient, "configurationObjectLink">) => Promise<T>
+  ): Promise<T> {
+    if (type === "sync") return write(this.prisma);
+    return modelMutation(this.prisma, workspaceId, "destination", async tx => {
+      const destination = await tx.configurationObject.findFirst({
+        where: { workspaceId, id: toId, type: "destination", deleted: false },
+      });
+      if (!destination) throw new ApiError("Destination not found", { status: 400 });
+      if (missingMetaEventPixel(destination.config)) throw metaEventPixelError();
+      return write(tx);
+    });
   }
 
   /** Validate connection `data` against the destination's connection options / sync schema. No-op if undefined. */
