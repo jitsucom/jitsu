@@ -4,11 +4,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, render, screen } from "@testing-library/react";
 
 // JITSU-228. settings/domains.tsx gated free workspaces with its own inline
-// `planId === "free" && !featuresEnabled.includes("misc")` test until this
-// ticket pointed it at the shared resolver. This covers that it still reaches
-// the same verdicts — in particular that the `misc` grant survived the
-// refactor, since honouring it is the whole reason the server gate had to
-// learn about featuresEnabled.
+// plan test until this ticket pointed it at the server's entitlement verdict.
+// This covers that the page follows that verdict alone — in particular that
+// the operator `misc` flag, which the old inline test honoured, no longer
+// opens the page for a workspace the server says is locked.
 
 const state = vi.hoisted(() => ({
   billing: { enabled: true, loading: false, settings: {} as any },
@@ -84,16 +83,13 @@ describe("workspace domains page gate", () => {
     expect(editor()).toBeNull();
   });
 
-  // The behaviour that predates JITSU-228 and had to survive the refactor. The
-  // grant is resolved server-side and survives a billing failure,
-  // so it reaches the page as a plain allow. Its
-  // resolution is covered in plan-features; this asserts the page honours it.
-  it("honours the per-workspace `misc` grant over an explicit plan denial", () => {
-    state.entitlements.customDomains = true;
+  // `misc` is an operator flag with no meaning for this page.
+  it("ignores the `misc` workspace flag — a locked workspace shows the upgrade prompt", () => {
+    state.entitlements.customDomains = false;
     state.featuresEnabled = ["misc"];
     renderPage();
-    expect(upgrade()).toBeNull();
-    expect(editor()).toBeTruthy();
+    expect(upgrade()).toBeTruthy();
+    expect(editor()).toBeNull();
   });
 
   it("shows the upgrade prompt on free with no flag on the plan", () => {

@@ -289,13 +289,25 @@ describe("workspace entitlements endpoint", () => {
     expect((await getEntitlements(await apiKeyFor(user.internalId), workspace.id)).statusCode).toBe(403);
     expect(calls).not.toHaveBeenCalled();
   });
-  it("preserves the workspace grant during billing failure and reports stitching unknown", async () => {
+  it("reports both unknown, not denied, during a billing failure — even with `misc` set", async () => {
     const { user, workspace } = await seedWorkspace();
     await deps().prisma.workspace.update({ where: { id: workspace.id }, data: { featuresEnabled: ["misc"] } });
     server.use(http.get("http://ee.test.local/api/billing/settings", () => new HttpResponse(null, { status: 503 })));
     const res = await getEntitlements(await apiKeyFor(user.internalId), workspace.id);
     expect(res.statusCode).toBe(200);
-    expect(res.body).toEqual({ customDomains: true, identityStitching: null });
+    expect(res.body).toEqual({ customDomains: null, identityStitching: null });
+  });
+  it("locks a Free workspace carrying `misc` like any other Free workspace", async () => {
+    const { user, workspace } = await seedWorkspace();
+    await deps().prisma.workspace.update({ where: { id: workspace.id }, data: { featuresEnabled: ["misc"] } });
+    server.use(
+      http.get("http://ee.test.local/api/billing/settings", () =>
+        HttpResponse.json({ ok: true, subscriptionStatus: { planId: "free" } })
+      )
+    );
+    const res = await getEntitlements(await apiKeyFor(user.internalId), workspace.id);
+    expect(res.statusCode).toBe(200);
+    expect(res.body).toEqual({ customDomains: false, identityStitching: false });
   });
 });
 

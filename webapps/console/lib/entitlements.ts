@@ -16,8 +16,8 @@ export type WorkspaceEntitlementsResult = {
  * EE access is independent of the browser's Firebase-backed billing UI.
  * Show upgrade messaging only for false, enable new gated actions only for
  * true, and offer loading/retry feedback for null. Existing configurations
- * remain editable. The server may preserve a misc domain grant while
- * returning unknown for stitching during a billing outage.
+ * remain editable. When billing is unreachable the server returns null for
+ * both entitlements, never an upgrade-required verdict.
  */
 export function useEntitlements(): WorkspaceEntitlementsResult {
   const workspace = useWorkspace();

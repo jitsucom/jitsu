@@ -145,18 +145,17 @@ describe("custom domains gate, through ConfigObjectsService", () => {
     expect(billingCalls).toBe(0);
   });
 
-  // A workspace deliberately granted domains by hand keeps them even when the
-  // plan flag says no. settings/domains.tsx has honoured `misc` since before
-  // this gate; a gate that ignored it would break those workspaces.
-  it("honours the per-workspace `misc` grant over an explicit plan denial", async () => {
+  // `misc` is an operator flag with no meaning for this gate: a Free workspace
+  // carrying it is refused exactly like one without it, and billing is asked.
+  it("ignores the `misc` workspace flag — Free is refused with or without it", async () => {
     const { user, workspace } = await seedWorkspace();
     await deps().prisma.workspace.update({ where: { id: workspace.id }, data: { featuresEnabled: ["misc"] } });
-    onPlan("free", { customDomainsEnabled: false });
+    onPlan("free");
     billingCalls = 0;
     await expect(
       svc().create(user, workspace.id, "stream", { id: oid("s"), name: "site", domains: [dom()] })
-    ).resolves.toBeTruthy();
-    expect(billingCalls).toBe(0);
+    ).rejects.toMatchObject({ status: 403 });
+    expect(billingCalls).toBe(1);
   });
 
   // The enforcement property: the plan id alone refuses a free workspace, with

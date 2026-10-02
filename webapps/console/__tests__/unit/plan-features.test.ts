@@ -35,12 +35,14 @@ describe("canUseCustomDomains", () => {
     expect(canUseCustomDomains({ planId: "enterprise", customDomainsEnabled: false })).toBe(false);
   });
 
-  // The per-workspace `misc` grant predates this gate and is checked above the
-  // plan, so it survives an explicit plan-level denial.
-  it("honours the per-workspace misc grant over an explicit plan denial", () => {
-    expect(canUseCustomDomains({ planId: "free", customDomainsEnabled: false }, ["misc"])).toBe(true);
-    expect(canUseCustomDomains({ planId: "free" }, ["misc"])).toBe(true);
-    expect(canUseCustomDomains({ planId: "free" }, ["syncs"])).toBe(false);
+  // The operator `misc` flag has no meaning for this gate. The resolver takes
+  // billing facts only, so a Free plan is denied however the workspace is
+  // flagged; the extra argument is ignored at runtime, which is what is pinned.
+  it("is decided by billing alone — a workspace flag cannot unlock Free", () => {
+    const resolve = canUseCustomDomains as (b: any, featuresEnabled?: string[]) => boolean;
+    expect(resolve({ planId: "free" }, ["misc"])).toBe(false);
+    expect(resolve({ planId: "free", customDomainsEnabled: false }, ["misc"])).toBe(false);
+    expect(canUseCustomDomains({ planId: "free" })).toBe(false);
   });
 
   // ee-api reports planId "free" for more than the Free plan: a subscription in
@@ -52,9 +54,7 @@ describe("canUseCustomDomains", () => {
   // explicit grant *if one arrives* — it does not show that one can arrive on
   // this path. It cannot today: the ee-api early return that sets
   // futureSubscriptionDate drops customSettings, so no *billing* grant reaches
-  // the console for a not-yet-started contract. That gap is in billing. The
-  // misc workspace grant is a separate route and still works — see the misc
-  // test above, which does not go through billing at all.
+  // the console for a not-yet-started contract. That gap is in billing.
   it("denies a contract that has not started; honours an explicit grant if one reaches it", () => {
     const futureContract = { planId: "free", futureSubscriptionDate: "2027-01-01T00:00:00.000Z" };
     expect(canUseCustomDomains(futureContract)).toBe(false);

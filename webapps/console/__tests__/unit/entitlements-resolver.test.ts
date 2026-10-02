@@ -19,8 +19,8 @@ const { resolveEntitlements } = await import("../../lib/server/plan-gate");
 
 const user = { email: "a@b.c" } as any;
 const WS = { id: "ws1" };
-/** A workspace holding the per-workspace `misc` grant. */
-const WS_GRANTED = { id: "ws1", featuresEnabled: ["misc"] };
+/** A workspace carrying the operator `misc` flag, which must not matter here. */
+const WS_MISC = { id: "ws1", featuresEnabled: ["misc"] };
 const onPlan = (planId: string, extra: Record<string, any> = {}) =>
   rpc.mockResolvedValue({ ok: true, subscriptionStatus: { planId, ...extra } });
 const billingDown = () => rpc.mockRejectedValue(new Error("ee-api down"));
@@ -50,17 +50,11 @@ describe("resolveEntitlements", () => {
     expect((await resolveEntitlements(user, WS)).identityStitching).toBe(false);
   });
 
-  it("honours the misc grant over an explicit plan denial", async () => {
+  it("ignores the misc workspace flag — a Free workspace stays locked", async () => {
+    onPlan("free");
+    expect((await resolveEntitlements(user, WS_MISC as any)).customDomains).toBe(false);
     onPlan("free", { customDomainsEnabled: false });
-    expect((await resolveEntitlements(user, WS_GRANTED)).customDomains).toBe(true);
-  });
-
-  // The fix for a real defect: the first version awaited the billing lookup even
-  // for a granted workspace, so an ee-api outage revoked an entitlement somebody
-  // had granted by hand. The grant is a property of the workspace, not the plan.
-  it("keeps the misc grant when billing cannot be reached", async () => {
-    billingDown();
-    expect(await resolveEntitlements(user, WS_GRANTED)).toEqual({ customDomains: true, identityStitching: null });
+    expect((await resolveEntitlements(user, WS_MISC as any)).customDomains).toBe(false);
   });
 
   // null is "unknown", never "denied" — the caller must not render an upgrade

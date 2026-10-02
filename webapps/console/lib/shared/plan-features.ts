@@ -10,14 +10,6 @@
  * keep this importable from both sides without a cycle through lib/schema.
  */
 
-/**
- * Per-workspace grant that predates this gate: an operator adds "misc" to a
- * workspace's featuresEnabled to give that one customer workspace domains
- * regardless of plan. settings/domains.tsx has honoured it since before
- * JITSU-228, so the gate must too or those workspaces break.
- */
-export const WORKSPACE_DOMAINS_FEATURE = "misc";
-
 /** The function id the connection editor writes for the Identity Stitching toggle. */
 export const IDENTITY_STITCHING_FUNCTION_ID = "builtin.transformation.user-recognition";
 
@@ -90,11 +82,18 @@ function isNegotiatedPlan(billing: PlanFeatureFacts): boolean {
 /**
  * Custom domains on sites — Business and Enterprise, not Free.
  *
- * Precedence, highest first: the per-workspace `misc` grant, then an explicit
- * `customDomainsEnabled` on the plan or the workspace, then the plan id. Only
- * "free" is denied — Business, Enterprise, "$custom", "$admin" and self-hosted
- * all fall through to allowed, so a negotiated contract keeps the feature
- * whatever plan id it arrives under.
+ * Precedence, highest first: an explicit `customDomainsEnabled` on the plan or
+ * the workspace's billing `customSettings`, then the plan id. Only "free" is
+ * denied — Business, Enterprise, "$custom", "$admin" and self-hosted all fall
+ * through to allowed, so a negotiated contract keeps the feature whatever plan
+ * id it arrives under.
+ *
+ * **Nothing about the workspace record is consulted.** `featuresEnabled` — and
+ * in particular the operator `misc` flag, which means something else entirely —
+ * has no effect on this decision, here or in the server gates. An earlier
+ * version honoured `misc` as an override, which let a Free workspace add domains
+ * on the strength of an unrelated flag. The only way to grant the feature
+ * without changing the plan is the explicit `customDomainsEnabled` above.
  *
  * **Deriving denial from the plan id is deliberate, and it replaces an earlier
  * design that shipped this gate inactive.** That version allowed whenever no
@@ -124,22 +123,11 @@ function isNegotiatedPlan(billing: PlanFeatureFacts): boolean {
  * dated in the future — that early return builds its own object and drops
  * `customSettings`, `noRestrictions` and the negotiated markers — so the
  * *billing-flag* route to early access is unavailable for a not-yet-started
- * contract. Fixing that belongs in ee-api, not here. The `misc` workspace grant
- * above is unaffected, because it is read from the Workspace record rather than
- * from billing, so custom domains can still be opened for such a customer that
- * way. There is no equivalent for Identity Stitching, which takes no
- * featuresEnabled argument.
+ * contract. Fixing that belongs in ee-api, not here. There is deliberately no
+ * workspace-level escape hatch outside billing for either Custom Domains or
+ * Identity Stitching.
  */
-export function canUseCustomDomains(
-  billing: PlanFeatureFacts | null | undefined,
-  featuresEnabled?: readonly string[] | null
-): boolean {
-  // Checked before the plan: the flag exists precisely to override it, and an
-  // explicit customDomainsEnabled:false on the plan must not revoke a grant
-  // someone made by hand for one workspace.
-  if ((featuresEnabled ?? []).includes(WORKSPACE_DOMAINS_FEATURE)) {
-    return true;
-  }
+export function canUseCustomDomains(billing: PlanFeatureFacts | null | undefined): boolean {
   if (!billing) {
     return true;
   }

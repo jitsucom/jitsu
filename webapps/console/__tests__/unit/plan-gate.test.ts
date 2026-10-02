@@ -19,12 +19,9 @@ const { assertCustomDomainsAllowed, assertIdentityStitchingAllowed, domainsOf, h
 );
 
 const user = { email: "a@b.c" } as any;
-// assertCustomDomainsAllowed takes the workspace (it needs featuresEnabled);
-// assertIdentityStitchingAllowed takes only the id, because the link methods
-// never load the workspace and identity stitching has no per-workspace grant.
 const WS = { id: "ws1" };
-/** A workspace holding the per-workspace `misc` grant. */
-const WS_GRANTED = { id: "ws1", featuresEnabled: ["misc"] };
+/** A workspace carrying the operator `misc` flag, which must not matter here. */
+const WS_MISC = { id: "ws1", featuresEnabled: ["misc"] };
 const onPlan = (planId: string, extra: Record<string, any> = {}) =>
   rpc.mockResolvedValue({ ok: true, subscriptionStatus: { planId, ...extra } });
 
@@ -111,16 +108,14 @@ describe("assertCustomDomainsAllowed", () => {
   // a transport failure too. A mock that rejects is not used here: vitest
   // reports the stored rejected mock result as an unhandled error even though
   // the gate catches it.
-  // The regression this fix exists for: `misc` is a hand-set per-workspace
-  // grant that settings/domains.tsx has honoured since before this gate. A
-  // gate that ignores it silently breaks workspaces someone deliberately
-  // granted the feature.
-  it("honours the per-workspace `misc` grant over an explicit plan denial", async () => {
-    onPlan("free", { customDomainsEnabled: false });
+  // `misc` is an operator flag with no bearing on this gate: a Free workspace
+  // carrying it is refused like any other Free workspace, and billing is asked.
+  it("ignores the `misc` workspace flag — Free is refused with or without it", async () => {
+    onPlan("free");
     await expect(
-      assertCustomDomainsAllowed(user, WS_GRANTED, "stream", { domains: ["new.com"] }, { domains: [] })
-    ).resolves.toBeUndefined();
-    expect(rpc).not.toHaveBeenCalled();
+      assertCustomDomainsAllowed(user, WS_MISC as any, "stream", { domains: ["new.com"] }, { domains: [] })
+    ).rejects.toMatchObject({ status: 403 });
+    expect(rpc).toHaveBeenCalledTimes(1);
   });
 
   it("fails closed (503) when the plan cannot be verified", async () => {

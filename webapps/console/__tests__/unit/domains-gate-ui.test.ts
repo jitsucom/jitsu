@@ -8,7 +8,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 // the thing neither can: that the component actually keeps the add-domain
 // control on screen but locked, with the reason in a tooltip and inline, when
 // the plan does not include custom domains, that a final removal says so, and
-// that the per-workspace `misc` grant still lets a free workspace add one.
+// that the operator `misc` flag does not unlock it.
 
 const state = vi.hoisted(() => ({
   billing: { enabled: true, loading: false, settings: {} as any },
@@ -150,15 +150,23 @@ describe("DomainsEditor plan gate", () => {
     expect(hint()).toBeNull();
   });
 
-  // The misc grant and explicit flags are resolved server-side now, so from the
-  // component's side they arrive as a plain allow. Their resolution is covered
-  // in plan-features; what matters here is that an allow renders as an allow.
-  it("enables the add control when an explicit grant makes the server allow", () => {
-    state.featuresEnabled = ["misc"];
+  // Explicit billing flags are resolved server-side and arrive as a plain
+  // allow; what matters here is that an allow renders as an allow.
+  it("enables the add control when the server allows", () => {
     state.entitlements.customDomains = true;
     renderEditor();
     expect(addControl()!.disabled).toBe(false);
     expect(hint()).toBeNull();
+  });
+
+  // `misc` is an operator flag with no meaning for this gate. The verdict comes
+  // from the server alone, so a flagged Free workspace is locked like any other.
+  it("keeps the add control locked on a workspace carrying `misc`", () => {
+    state.featuresEnabled = ["misc"];
+    state.entitlements.customDomains = false;
+    renderEditor();
+    expect(addControl()!.disabled).toBe(true);
+    expect(hint()).not.toBeNull();
   });
 
   // No EE at all: resolveEntitlements returns allow-all, so self-hosted is

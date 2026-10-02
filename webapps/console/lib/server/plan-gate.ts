@@ -7,7 +7,6 @@ import {
   canUseIdentityStitching,
   hasIdentityStitching,
   IDENTITY_STITCHING_FUNCTION_ID,
-  WORKSPACE_DOMAINS_FEATURE,
 } from "../shared/plan-features";
 import { eeAuthHeadersOrServiceToken, getEeConnection, isEEAvailable, serviceTokenHeaders } from "./ee";
 
@@ -83,7 +82,7 @@ export function domainsOf(type: string, config: any): string[] {
  */
 export async function assertCustomDomainsAllowed(
   user: SessionUser,
-  workspace: { id: string; featuresEnabled?: readonly string[] | null },
+  workspace: { id: string },
   type: string,
   next: any,
   prev?: any,
@@ -110,17 +109,12 @@ export async function assertCustomDomainsAllowed(
  */
 export async function resolveEntitlements(
   user: SessionUser,
-  workspace: { id: string; featuresEnabled?: readonly string[] | null },
+  workspace: { id: string },
   req?: NextApiRequest
 ): Promise<{ customDomains: boolean | null; identityStitching: boolean | null }> {
   if (!isEEAvailable()) {
     return { customDomains: true, identityStitching: true };
   }
-  // The grant is a property of the workspace, not of its plan, so it is
-  // answered without billing. assertCustomDomainsEntitlement returns on it
-  // before its own lookup for the same reason — a billing outage must not
-  // revoke an entitlement somebody granted by hand.
-  const granted = (workspace.featuresEnabled ?? []).includes(WORKSPACE_DOMAINS_FEATURE);
   let billing: Awaited<ReturnType<typeof fetchPlan>> | undefined;
   try {
     billing = await fetchPlan(workspace.id, user, req);
@@ -128,10 +122,10 @@ export async function resolveEntitlements(
     // null is "unknown", not "denied". The caller renders neither an upgrade
     // prompt nor an entitlement; the write gate still fails closed with 503, so
     // nothing is granted by this uncertainty.
-    return { customDomains: granted ? true : null, identityStitching: null };
+    return { customDomains: null, identityStitching: null };
   }
   return {
-    customDomains: granted ? true : canUseCustomDomains(billing, workspace.featuresEnabled),
+    customDomains: canUseCustomDomains(billing),
     identityStitching: canUseIdentityStitching(billing),
   };
 }
@@ -146,21 +140,15 @@ export async function resolveEntitlements(
  */
 export async function assertCustomDomainsEntitlement(
   user: SessionUser,
-  workspace: { id: string; featuresEnabled?: readonly string[] | null },
+  workspace: { id: string },
   req?: NextApiRequest,
   domains: string[] = []
 ): Promise<void> {
   if (!isEEAvailable()) {
     return;
   }
-  // Checked before the billing round-trip: a workspace holding the grant needs
-  // no plan lookup at all. Tests the flag directly — calling the resolver with
-  // no billing would return true unconditionally, which defeats the gate.
-  if ((workspace.featuresEnabled ?? []).includes(WORKSPACE_DOMAINS_FEATURE)) {
-    return;
-  }
   const billing = await fetchPlan(workspace.id, user, req);
-  if (!canUseCustomDomains(billing, workspace.featuresEnabled)) {
+  if (!canUseCustomDomains(billing)) {
     throw new ApiError(
       domains.length > 0
         ? `Custom domains are available on the Business and Enterprise plans. Upgrade your workspace to add ${domains.join(
