@@ -19,8 +19,8 @@ export const route = createRoute()
     summary: "Test connection",
     tags: ["config"],
   })
-  .handler(async ({ user, body, query }) => {
-    return debugService().testConnection(user, query.workspaceId, query.type, { config: body });
+  .handler(async ({ user, body, query, req }) => {
+    return debugService().testConnection(user, query.workspaceId, query.type, { config: body, req });
   });
 
 export default route.toNextApiHandler();
