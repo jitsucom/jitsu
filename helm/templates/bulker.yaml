@@ -85,8 +85,44 @@ spec:
                 name: jitsu-deps-urls
                 optional: true
           env:
-            {{- include "jitsu-dev.env" (dict "ctx" . "service" "bulker"
-                  "extra" (dict "HTTP_PORT" "3042")) | nindent 12 }}
+            {{- $extra := dict "HTTP_PORT" "3042" }}
+            {{- with .Values.bulker.internalMetricsDestination }}
+            {{- if .enabled }}
+            {{- /* Resolve the metrics ClickHouse connection. Per field:
+                   explicit value here > derived from env.common.CLICKHOUSE_URL >
+                   in-cluster helm-deps fallback. */ -}}
+            {{- $hosts := .hosts }}
+            {{- $database := .database }}
+            {{- $username := .username }}
+            {{- $password := .password }}
+            {{- $protocol := .protocol }}
+            {{- $chUrl := "" }}
+            {{- if $.Values.env }}{{- with $.Values.env.common }}{{- $chUrl = (.CLICKHOUSE_URL | default "") }}{{- end }}{{- end }}
+            {{- if $chUrl }}
+            {{- $u := urlParse $chUrl }}
+            {{- $host := splitList ":" $u.host | first }}
+            {{- if not $hosts }}{{- $hosts = list $host }}{{- end }}
+            {{- if not $database }}{{- $database = trimPrefix "/" $u.path }}{{- end }}
+            {{- with $u.userinfo }}
+            {{- $parts := splitList ":" . }}
+            {{- if not $username }}{{- $username = first $parts }}{{- end }}
+            {{- if and (not $password) (gt (len $parts) 1) }}{{- $password = index $parts 1 }}{{- end }}
+            {{- end }}
+            {{- if not $protocol }}{{- $protocol = ternary "clickhouse-secure" "clickhouse" (eq $u.scheme "https") }}{{- end }}
+            {{- end }}
+            {{- /* In-cluster helm-deps ClickHouse fallback for anything still unset. */ -}}
+            {{- if not $hosts }}{{- $hosts = list "clickhouse" }}{{- end }}
+            {{- $database = default "default" $database }}
+            {{- $username = default "default" $username }}
+            {{- $password = default "jitsu-dev" $password }}
+            {{- $protocol = default "clickhouse" $protocol }}
+            {{- $creds := dict "hosts" $hosts "database" $database "username" $username "password" $password "protocol" $protocol "loadAsJson" .loadAsJson }}
+            {{- if .cluster }}{{- $_ := set $creds "cluster" .cluster }}{{- end }}
+            {{- $dest := dict "id" "metrics" "special" "metrics" "usesBulker" true "type" "clickhouse" "options" .options "credentials" $creds }}
+            {{- $_ := set $extra "BULKER_INTERNAL_METRICS_DESTINATION" ($dest | toJson) }}
+            {{- end }}
+            {{- end }}
+            {{- include "jitsu-dev.env" (dict "ctx" . "service" "bulker" "extra" $extra) | nindent 12 }}
           volumeMounts:
             - name: build
               mountPath: /build
