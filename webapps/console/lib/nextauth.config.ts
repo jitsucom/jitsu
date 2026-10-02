@@ -19,8 +19,8 @@ const log = getServerLog("auth");
 const serverEnv = getServerEnv();
 
 export const githubLoginEnabled = !!serverEnv.GITHUB_CLIENT_ID;
-export const oidcLoginEnabled = !!serverEnv.AUTH_OIDC_PROVIDER;
-export const oidcLoginConfig = ParseJSONConfigFromEnv(serverEnv.AUTH_OIDC_PROVIDER as string);
+export const oidcLoginConfig = ParseJSONConfigFromEnv(serverEnv.AUTH_OIDC_PROVIDER);
+export const oidcLoginEnabled = !!oidcLoginConfig;
 export const credentialsLoginEnabled =
   serverEnv.ENABLE_CREDENTIALS_LOGIN || !!(serverEnv.SEED_USER_EMAIL && serverEnv.SEED_USER_PASSWORD);
 
