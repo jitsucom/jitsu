@@ -174,7 +174,7 @@ infrastructure.
 
 ### Quick start (Kubernetes / Minikube)
 
-The development Helm chart is the recommended way to get a complete stack running locally. You'll
+The Helm chart in `helm/` is the recommended way to get a complete stack running locally. You'll
 need [Minikube](https://minikube.sigs.k8s.io/docs/start/) (a single-node Kubernetes cluster on your
 machine) and [Helm v3+](https://helm.sh/docs/intro/install/):
 
