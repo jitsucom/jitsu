@@ -140,6 +140,13 @@ describe("assertIdentityStitchingAllowed", () => {
     await expect(assertIdentityStitchingAllowed(user, WS.id, on, off)).rejects.toMatchObject({ status: 403 });
   });
 
+  // "starter" is the Business plan's machine id (renamed, id kept), so this is
+  // the plan a real Business workspace is on.
+  it("refuses turning it on for the Business plan under its real id, starter", async () => {
+    onPlan("starter");
+    await expect(assertIdentityStitchingAllowed(user, WS.id, on, off)).rejects.toMatchObject({ status: 403 });
+  });
+
   it("allows turning it on for enterprise, and for a negotiated contract on $custom", async () => {
     onPlan("enterprise");
     await expect(assertIdentityStitchingAllowed(user, WS.id, on, off)).resolves.toBeUndefined();

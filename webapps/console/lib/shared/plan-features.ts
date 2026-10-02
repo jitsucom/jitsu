@@ -59,8 +59,16 @@ export type PlanFeatureFacts = {
  * (jitsu-cloud-billing/lib/stripe.ts), which is exactly how a negotiated
  * enterprise contract arrives, so an equality test would switch the feature off
  * for the customers paying most for it.
+ *
+ * **"starter" is the Business plan.** The product was renamed to Business but its
+ * machine id stayed "starter" (jitsu-cloud-billing lib/migration/savings.ts), so
+ * that is the id a Business workspace actually arrives under. Leaving it off this
+ * list made it read as an unrecognised plan, and unrecognised plans are allowed —
+ * which switched Identity Stitching on for Business. "business" stays listed in
+ * case an id by that name is ever issued. A new self-service plan id must be added
+ * here, or it is allowed by default.
  */
-const SELF_SERVICE_PLAN_IDS = ["free", "business"];
+const SELF_SERVICE_PLAN_IDS = ["free", "starter", "business"];
 
 /** The only plan id custom domains are denied on. */
 const FREE_PLAN_ID = "free";

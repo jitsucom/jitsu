@@ -9,6 +9,12 @@ describe("canUseCustomDomains", () => {
     expect(canUseCustomDomains({ planId: "enterprise" })).toBe(true);
   });
 
+  // The Business plan's machine id is "starter" (it was renamed, the id stayed),
+  // so this is the id a Business workspace really arrives under.
+  it("allows the Business plan under its real id, starter", () => {
+    expect(canUseCustomDomains({ planId: "starter" })).toBe(true);
+  });
+
   // Only "free" is denied, so a negotiated contract keeps the feature whatever
   // plan id it arrives under — the same regression canUseIdentityStitching
   // guards against, reached from the other direction.
@@ -65,6 +71,21 @@ describe("canUseIdentityStitching", () => {
     expect(canUseIdentityStitching({ planId: "free" })).toBe(false);
     expect(canUseIdentityStitching({ planId: "business" })).toBe(false);
     expect(canUseIdentityStitching({ planId: "enterprise" })).toBe(true);
+  });
+
+  // Regression: the Business plan's machine id is "starter" (the product was
+  // renamed, the id stayed). It was missing from the deny list, so it read as an
+  // unrecognised plan and Business got Identity Stitching. This is the id a
+  // Business workspace really arrives under — "business" alone proves nothing.
+  it("denies the Business plan under its real id, starter", () => {
+    expect(canUseIdentityStitching({ planId: "starter" })).toBe(false);
+    expect(canUseIdentityStitching({ planId: "starter", planName: "Business" } as any)).toBe(false);
+  });
+
+  it("still honours a negotiated contract or an explicit flag on starter", () => {
+    expect(canUseIdentityStitching({ planId: "starter", custom: true })).toBe(true);
+    expect(canUseIdentityStitching({ planId: "starter", identityStitchingEnabled: true })).toBe(true);
+    expect(canUseIdentityStitching({ planId: "starter", identityStitchingEnabled: false })).toBe(false);
   });
 
   // The regression this whole resolver exists to prevent: a negotiated
