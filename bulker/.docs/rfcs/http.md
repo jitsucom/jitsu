@@ -18,7 +18,7 @@ Points bulker server to a configuration source. So far it should recognize only 
 
 #### `BULKER_CONFIG_POSTGRES_QUERY`
 
-Relevent only for `postres://` config sources. Contains a query which pulls list of destinations. Example:
+Relevant only for `postres://` config sources. Contains a query which pulls list of destinations. Example:
 
 ```
 BULKER_CONFIG_POSTGRES_QUERY="select id as destination_id,config::TEXT as config from \"ConfigurationObject]" where deleted=false and type='destination'"
