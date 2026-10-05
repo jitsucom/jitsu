@@ -663,6 +663,20 @@ describe("runtime adapter", () => {
 });
 
 describe("failure messages", () => {
+  it("the rejected-row message does not send network and endpoint failures to the row data", async () => {
+    const { reverseEtlFailure } = await import("../src/reverse-etl/failure");
+    const message = reverseEtlFailure(
+      new Error("Destination rejected a row; the run stopped without skipping it")
+    )!.message;
+    expect(message.startsWith("The destination rejected a row, so the sync stopped.")).toBe(true);
+    // Network, URL, certificate and HTTP codes point at the destination, and the data advice is only the fallback.
+    expect(message).toMatch(
+      /HTTP status, the network, the URL or the certificate point at the destination's endpoint, URL or credentials, not at the data/
+    );
+    expect(message).toMatch(/Otherwise, check the row data and the sync's field mappings/);
+    expect(message).not.toMatch(/stopped\. Check the row data/);
+  });
+
   it("maps both webhook init errors to a user-readable message", async () => {
     const { reverseEtlFailure } = await import("../src/reverse-etl/failure");
     for (const reason of ["Webhook destination configuration is invalid", "Webhook sync settings are invalid"]) {

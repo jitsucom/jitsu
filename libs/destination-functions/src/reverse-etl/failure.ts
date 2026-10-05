@@ -76,7 +76,7 @@ const failures = new Map<string, string>([
   ],
   [
     "Destination rejected a row; the run stopped without skipping it",
-    "The destination rejected a row, so the sync stopped. Check the row data and the sync's field mappings. Some other rows may already have been accepted.",
+    "The destination rejected a row, so the sync stopped. If a reason code is shown below, it says why: codes for an HTTP status, the network, the URL or the certificate point at the destination's endpoint, URL or credentials, not at the data. Otherwise, check the row data and the sync's field mappings. Some other rows may already have been accepted.",
   ],
   [
     "Batch delivery is uncertain; reconcile its journal before retrying",
