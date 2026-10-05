@@ -62,6 +62,16 @@ export class ReverseEtlRejectionError extends ReverseEtlProtocolError {
   }
 }
 
+/**
+ * Stops the run at the first rejected outcome with a {@link ReverseEtlRejectionError} that carries its code. Every path
+ * that sees outcomes (the run loop, recovery of an unresolved batch, snapshot mirror delivery) uses this, so a safe
+ * provider code is shown the same way wherever the rejection is found instead of falling back to the generic message.
+ */
+export function ensureNoRejection(outcomes: ReadonlyArray<{ status: string; code?: unknown }>): void {
+  const rejected = outcomes.find(outcome => outcome.status === "rejected");
+  if (rejected) throw new ReverseEtlRejectionError(rejected.code);
+}
+
 export function validateBatchResult<Row>(batch: WriteBatch<Row>, value: unknown): BatchResult {
   const result = batchResult.safeParse(value);
   if (!result.success) throw new ReverseEtlProtocolError("Malformed writer batch response");

@@ -1,5 +1,9 @@
 import type { JsonObject, ReverseEtlContext, ResumePoint } from "@jitsu/protocols/reverse-etl";
-import { validateBatchResult, validateFinishResult } from "@jitsu/destination-functions/src/reverse-etl/meta";
+import {
+  ensureNoRejection,
+  validateBatchResult,
+  validateFinishResult,
+} from "@jitsu/destination-functions/src/reverse-etl/meta";
 import type { openPersistence } from "./persistence";
 import { ensure } from "./persistence/types";
 import type { RuntimeRecovery } from "./adapters";
@@ -62,7 +66,7 @@ export async function recoverRun(
           await run.core.acknowledgeRecovered(entry.batchId, result, store());
           pending ||= result.outcomes.some(outcome => outcome.status === "staged");
           // Known outcomes are durable before stopping on a permanent row failure.
-          ensure(!result.outcomes.some(outcome => outcome.status === "rejected"), "Destination rejected a row");
+          ensureNoRejection(result.outcomes);
         }
         after = entry.batchId;
       }

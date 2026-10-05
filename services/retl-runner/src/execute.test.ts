@@ -1802,6 +1802,64 @@ describe("rejection reporting", () => {
     expect(error).not.toContain("private-token");
     expect(await taskLogs("task")).not.toContain("private-token");
   });
+  it("shows the rejection code when recovery of an unresolved batch finds a rejected row", async () => {
+    const f = fixture();
+    f.setFailBatch(); // the response was lost: the batch is left unresolved
+    expect(await execute(f.input)).toBe("FAILED");
+    const recovery = f.adapter.recovery!;
+    // reconciliation learns the destination's answer: the row was rejected
+    f.adapter.recovery = providerState => ({
+      ...recovery(providerState),
+      reconcileBatch: async batch => ({
+        outcomes: batch.records.map(row => ({
+          operationId: row.operationId,
+          status: "rejected" as const,
+          code: "http_422",
+          safeReason: "HTTP 422 with private-token in the body",
+        })),
+      }),
+    });
+    f.input = { ...f.input, taskId: "recovery" };
+    expect(await execute(f.input)).toBe("FAILED");
+    const error = (await task("recovery")).error as string;
+    expect(error).toContain("The destination rejected a row, so the sync stopped.");
+    expect(error).toContain("Reason code: http_422.");
+    expect(error).not.toContain("private-token");
+  });
+  it("shows the rejection code when a mirror run's recovery finds a rejected row", async () => {
+    const f = fixture();
+    f.input.config.options = { ...f.input.config.options, mode: "mirror" };
+    f.setFailBatch();
+    expect(await execute(f.input)).toBe("FAILED");
+    const recovery = f.adapter.recovery!;
+    f.adapter.recovery = providerState => ({
+      ...recovery(providerState),
+      reconcileBatch: async batch => ({
+        outcomes: batch.records.map(row => ({
+          operationId: row.operationId,
+          status: "rejected" as const,
+          code: "http_422",
+          safeReason: "HTTP 422 with private-token in the body",
+        })),
+      }),
+    });
+    f.input = { ...f.input, taskId: "recovery" };
+    expect(await execute(f.input)).toBe("FAILED");
+    const error = (await task("recovery")).error as string;
+    expect(error).toContain("The destination rejected a row, so the sync stopped.");
+    expect(error).toContain("Reason code: http_422.");
+    expect(error).not.toContain("private-token");
+  });
+  it("shows the rejection code for a mirror run too", async () => {
+    const f = fixture();
+    rejectEverything(f, "http_422");
+    f.input.config.options = { ...f.input.config.options, mode: "mirror" };
+    expect(await execute(f.input)).toBe("FAILED");
+    const error = (await task()).error as string;
+    expect(error).toContain("The destination rejected a row, so the sync stopped.");
+    expect(error).toContain("Reason code: http_422.");
+    expect(error).not.toContain("private-token");
+  });
   it("drops a malformed code instead of showing it", async () => {
     const f = fixture();
     rejectEverything(f, "Bearer private-token");
