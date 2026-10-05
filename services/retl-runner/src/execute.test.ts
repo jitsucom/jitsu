@@ -1855,6 +1855,48 @@ describe("retention bucket routing through the run loop", () => {
     }
   });
 
+  it("a poison record stops the run; after its rows expire and the endpoint is fixed the next run delivers everything", async () => {
+    const main = new MemoryObjects(),
+      retention = new MemoryObjects(),
+      rdb = retentionDb(main, retention);
+    try {
+      const f = fixture();
+      f.input.db = rdb;
+      // First run: the destination rejects one record, which stops the run (a rejected batch stays in the head).
+      const createWriter = f.adapter.stream.createWriter;
+      f.adapter.stream.createWriter = async ctx => {
+        const writer = await createWriter(ctx);
+        return {
+          ...writer,
+          upsert: async batch => ({
+            outcomes: batch.records.map((record, i) =>
+              i === 0
+                ? {
+                    operationId: record.operationId,
+                    status: "rejected" as const,
+                    code: "invalid",
+                    safeReason: "Invalid",
+                  }
+                : { operationId: record.operationId, status: "accepted" as const }
+            ),
+          }),
+        };
+      };
+      expect(await execute(f.input)).toBe("FAILED");
+      expect(retention.objects.size).toBeGreaterThan(0);
+      // The window passes before anyone fixes the endpoint: the bucket's lifecycle rule deletes the rows.
+      retention.objects.clear();
+      // Endpoint fixed. The next scheduled run must not need the expired rows.
+      f.adapter.stream.createWriter = createWriter;
+      f.writes.length = 0;
+      f.input = { ...f.input, taskId: "task-after-fix" };
+      expect(await execute(f.input)).toBe("COMPLETE");
+      expect(f.writes.flatMap(batch => batch.records.map(record => (record.row as any).id)).sort()).toEqual(["a", "b"]);
+    } finally {
+      await rdb.close();
+    }
+  });
+
   it("replay refuses rows that do not match the batch manifest instead of sending them", async () => {
     const main = new MemoryObjects(),
       retention = new MemoryObjects(),
