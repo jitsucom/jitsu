@@ -1321,9 +1321,9 @@ describe("executable runner", () => {
       return f;
     };
     it.each([
-      ["enabled after startup", undefined, { bucket: "jitsu-retl-ws1" }],
-      ["disabled after startup", { bucket: "jitsu-retl-ws1" }, undefined],
-      ["pointed at another bucket", { bucket: "jitsu-retl-ws1" }, { bucket: "jitsu-retl-ws2" }],
+      // The only bucket a run may name is its own workspace's (the fixture's workspace is "workspace").
+      ["enabled after startup", undefined, { bucket: "jitsu-retl-workspace" }],
+      ["disabled after startup", { bucket: "jitsu-retl-workspace" }, undefined],
     ])(
       "refuses a run when retention was %s, before anything is constructed or sent",
       async (_name, startup, admitted) => {
