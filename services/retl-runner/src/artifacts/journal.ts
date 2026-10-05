@@ -508,22 +508,25 @@ export class ObjectJournal implements DeliveryJournal {
       .map(row => ({ batchId: row.id, status: row.status }));
   }
   async recoveryBatch(id: string) {
-    const head = this.find(id),
-      data = await this.data(head, true);
+    const head = this.find(id);
+    let data = await this.data(head);
     const receipt = head.receipt ? await this.artifacts.get<ReceiptData>(head.receipt) : undefined;
     const outcomes = new Map(receipt?.result.outcomes.map(row => [row.operationId, row.status]));
-    return {
-      batch: data.batch,
-      result: receipt?.result,
-      operations: data.batch.records.map(row => ({
-        operationId: row.operationId,
-        status:
-          outcomes.get(row.operationId) === "staged" && head.status === "cancelled"
-            ? "cancelled"
-            : outcomes.get(row.operationId) ?? head.status,
-        acceptedAt: receipt?.acceptedAt[row.operationId] ? new Date(receipt.acceptedAt[row.operationId]) : null,
-      })),
-    };
+    const operations = data.batch.records.map(row => ({
+      operationId: row.operationId,
+      status:
+        outcomes.get(row.operationId) === "staged" && head.status === "cancelled"
+          ? "cancelled"
+          : outcomes.get(row.operationId) ?? head.status,
+      acceptedAt: receipt?.acceptedAt[row.operationId] ? new Date(receipt.acceptedAt[row.operationId]) : null,
+    }));
+    // Only a batch that may have to be sent again needs its rows. Those are in the retention bucket and may have expired
+    // (then this fails closed), but the rows of a batch that was already accepted (or rejected) are never read, so their
+    // expiry cannot block recovery of a run that stopped before reaching a terminal phase.
+    if (operations.some(row => row.status !== "accepted" && row.status !== "rejected")) {
+      data = await this.data(head, true);
+    }
+    return { batch: data.batch, result: receipt?.result, operations };
   }
   async markUnknown(id: string) {
     ensure((await this.current()).phase === "running", "Cannot mark unknown in this phase");

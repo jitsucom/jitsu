@@ -500,6 +500,64 @@ describe("object journal", () => {
     expect((await recovered.core.recoveryBatch(b.batchId)).operations[0].status).toBe("accepted");
     expect((await recovered.core.recoveryStatus()).phase).toBe("running");
   });
+  it("recovery does not read the rows of a batch that was already accepted: they may have expired from the retention bucket", async () => {
+    const retention = new MemoryObjects();
+    const withRetention = () => {
+      const db = new Database(
+        { connectionString: url },
+        { objectStorage: { store: objects, signal: new AbortController().signal, retention } }
+      );
+      databases.push(db);
+      return db;
+    };
+    const run = await openPersistence(withRetention(), input(), project);
+    await init(run);
+    const accepted = batch(run, ["a", "b"]);
+    await run.delivery.prepare(accepted, {});
+    await run.delivery.acknowledge(accepted.batchId, result(accepted), {});
+    const unresolved = batch(run, ["c"], 3);
+    await run.delivery.prepare(unresolved, {});
+    expect(retention.objects.size).toBe(2);
+    // The process dies here. Before the next run the retention lifecycle rule deletes every row object.
+    retention.objects.clear();
+    const recovered = await openPersistence(withRetention(), input(), project);
+    expect((await recovered.core.recoveryStatus()).phase).toBe("running");
+    // Already accepted: its rows are not needed, so their absence must not block recovery.
+    const saved = await recovered.core.recoveryBatch(accepted.batchId);
+    expect(saved.operations.map(row => row.status)).toEqual(["accepted", "accepted"]);
+    // Still unresolved: replaying it needs its rows, and without them recovery fails closed.
+    await expect(recovered.core.recoveryBatch(unresolved.batchId)).rejects.toThrow();
+  });
+  it("recovery does not read the rows of a rejected batch either: it is not sent again", async () => {
+    const retention = new MemoryObjects();
+    const withRetention = () => {
+      const db = new Database(
+        { connectionString: url },
+        { objectStorage: { store: objects, signal: new AbortController().signal, retention } }
+      );
+      databases.push(db);
+      return db;
+    };
+    const run = await openPersistence(withRetention(), input(), project);
+    await init(run);
+    const rejected = batch(run, ["r"]);
+    await run.delivery.prepare(rejected, {});
+    await run.delivery.acknowledge(
+      rejected.batchId,
+      {
+        outcomes: [
+          { operationId: rejected.records[0].operationId, status: "rejected", code: "BAD", safeReason: "Invalid row" },
+        ],
+      },
+      {}
+    );
+    expect(retention.objects.size).toBe(1);
+    retention.objects.clear();
+    const recovered = await openPersistence(withRetention(), input(), project);
+    expect((await recovered.core.recoveryBatch(rejected.batchId)).operations.map(row => row.status)).toEqual([
+      "rejected",
+    ]);
+  });
   it("rejects corrupt recovery artifacts and legacy state rather than falling back or resetting", async () => {
     const run = await session();
     await init(run);
