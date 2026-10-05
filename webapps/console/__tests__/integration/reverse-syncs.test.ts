@@ -498,7 +498,7 @@ describe("webhook destination", () => {
     const f = await webhookFixture();
     await expect(
       f.create(f.withData({ streamOptions: { recordsPerRequest: 50, concurrency: 2, deliveryAttested: false } }))
-    ).rejects.toThrow();
+    ).rejects.toThrow("Confirm that your endpoint tolerates receiving the same record more than once");
     expect(await listReverseSyncs(f.prisma, f.workspace.id)).toEqual([]);
   });
 

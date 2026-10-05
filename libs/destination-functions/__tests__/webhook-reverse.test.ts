@@ -380,11 +380,28 @@ describe("webhook validation", () => {
     expect(() => validateWebhookReverseSettings(valid, model, destination)).not.toThrow();
   });
 
-  it("requires the delivery attestation", () => {
-    expect(() => validateWebhookReverseSettings({ ...valid, streamOptions: {} }, model, destination)).toThrow();
+  it("requires the delivery attestation and says so in plain words, never as a raw schema error", () => {
+    for (const streamOptions of [{}, { deliveryAttested: false }]) {
+      expect(() => validateWebhookReverseSettings({ ...valid, streamOptions }, model, destination)).toThrow(
+        new WebhookConfigError("Confirm that your endpoint tolerates receiving the same record more than once")
+      );
+    }
+  });
+
+  it("reports out-of-range options by name", () => {
     expect(() =>
-      validateWebhookReverseSettings({ ...valid, streamOptions: { deliveryAttested: false } }, model, destination)
-    ).toThrow();
+      validateWebhookReverseSettings(
+        { ...valid, streamOptions: { ...options, recordsPerRequest: 500 } },
+        model,
+        destination
+      )
+    ).toThrow(/^Records per request: /);
+    expect(() =>
+      validateWebhookReverseSettings({ ...valid, streamOptions: { ...options, concurrency: 0 } }, model, destination)
+    ).toThrow(/^Concurrent requests: /);
+    expect(() =>
+      validateWebhookReverseSettings({ ...valid, streamOptions: { ...options, bogus: 1 } }, model, destination)
+    ).toThrow(WebhookConfigError);
   });
 
   it("requires acknowledgement for http and accepts it when given", () => {

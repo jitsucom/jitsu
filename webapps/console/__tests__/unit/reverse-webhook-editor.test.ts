@@ -116,6 +116,26 @@ it("writes the identity mapping for every model column and shows a payload previ
   expect(saveBody().data.mapping).toEqual({ id: "id", name: "name" });
 });
 
+it("shows readable type names for Postgres type IDs and nothing for an unknown ID", async () => {
+  state.models = models;
+  columnsFor([
+    { name: "id", type: "23" },
+    { name: "name", type: "25" },
+    { name: "amount", type: "1700" },
+    { name: "odd", type: "99999" },
+    { name: "ch", type: "Nullable(String)" },
+  ]);
+  mount();
+  await chooseRows();
+  const text = (await screen.findByLabelText("Payload preview")).textContent!;
+  expect(text).toContain('"id": <int4>');
+  expect(text).toContain('"name": <text>');
+  expect(text).toContain('"amount": <numeric>');
+  expect(text).toContain('"odd": ...');
+  expect(text).toContain('"ch": <Nullable(String)>');
+  expect(text).not.toMatch(/<\d+>/);
+});
+
 it("follows the model's columns when the model changes, dropping columns that are gone", async () => {
   state.models = [
     ...models,
