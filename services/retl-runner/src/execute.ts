@@ -106,6 +106,13 @@ export async function execute(input: ExecuteOptions): Promise<TaskResult> {
         config.configRevision === input.config.configRevision,
       "Reverse configuration changed before admission"
     );
+    // The object storage was chosen from the startup configuration, and retention is deliberately outside the revision
+    // hash, so a retention bucket enabled, disabled or changed since then would be accepted here yet written with the old
+    // storage choice. Stop before anything is constructed or sent; the next run starts with the new setting.
+    ensure(
+      config.retention?.bucket === input.config.retention?.bucket,
+      "Reverse ETL retention configuration changed before admission"
+    );
     signal.throwIfAborted();
     const bind = input.adapters.get(String(config.destination.destinationType));
     ensure(bind, "Reverse destination is not enabled in this runner");

@@ -83,6 +83,14 @@ const failures = new Map<string, string>([
     "The storage for this workspace's recovery copies could not be written, so nothing was sent. Ask your Jitsu administrator to check that the workspace's retention bucket exists and is writable before retrying.",
   ],
   [
+    "Reverse ETL retention configuration changed before admission",
+    "The workspace's retention settings changed while this run was starting, so nothing was sent. The next run uses the new settings.",
+  ],
+  [
+    "Retention requires projections without row data",
+    "This destination keeps copies of row data that cannot expire, so the workspace's retention window cannot be applied to it. Contact your Jitsu administrator.",
+  ],
+  [
     "Reverse ETL retention storage is unavailable; delivery blocked",
     "This sync has recovery copies in retention storage that is no longer configured, so delivery was stopped. Contact your Jitsu administrator; do not reset sync state.",
   ],

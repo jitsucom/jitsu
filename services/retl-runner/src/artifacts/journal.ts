@@ -360,6 +360,22 @@ export class ObjectJournal implements DeliveryJournal {
       "Outstanding or rejected operation blocks new delivery"
     );
     const projected = prepared.records.map(record => effects(this.projection(prepared.action, record.row)));
+    if (this.artifacts.retainsRows) {
+      // The rows go to the retention bucket so that they expire, but the projected effects stay in the main store with
+      // no expiry: with retention on they must hold no row data, only an empty upsert and remove and a hashed identity.
+      ensure(
+        projected.every(list =>
+          list.every(
+            effect =>
+              Object.keys(effect.upsert).length === 0 &&
+              Object.keys(effect.remove).length === 0 &&
+              typeof effect.identity === "string" &&
+              /^[0-9a-f]{64}$/.test(effect.identity)
+          )
+        ),
+        "Retention requires projections without row data"
+      );
+    }
     ensure(
       Buffer.byteLength(canonicalJson(projected)) <= this.db.limits.batchBytes,
       "Projected effects exceed byte budget"

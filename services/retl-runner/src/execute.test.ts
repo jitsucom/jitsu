@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { afterEach, beforeAll, afterAll, beforeEach, describe, it, expect, vi } from "vitest";
 import { GenericContainer, Wait, type StartedTestContainer } from "testcontainers";
 import { Client } from "pg";
@@ -1307,6 +1308,35 @@ describe("executable runner", () => {
     expect(f.calls).toEqual(["lease", "release"]);
     expect((await task()).status).toBe("FAILED");
   });
+  describe("retention changed between startup and admission", () => {
+    // The object storage is fixed from the startup configuration, but retention is outside the revision hash, so an
+    // admitted configuration with a different retention bucket must not run with the old storage choice.
+    const admitting = (startup: { bucket: string } | undefined, admitted: { bucket: string } | undefined) => {
+      const f = fixture();
+      f.input.config = { ...f.input.config, ...(startup ? { retention: startup } : {}) };
+      f.input.admit = async () => ({
+        ...f.input.config,
+        ...(admitted ? { retention: admitted } : { retention: undefined }),
+      });
+      return f;
+    };
+    it.each([
+      ["enabled after startup", undefined, { bucket: "jitsu-retl-ws1" }],
+      ["disabled after startup", { bucket: "jitsu-retl-ws1" }, undefined],
+      ["pointed at another bucket", { bucket: "jitsu-retl-ws1" }, { bucket: "jitsu-retl-ws2" }],
+    ])(
+      "refuses a run when retention was %s, before anything is constructed or sent",
+      async (_name, startup, admitted) => {
+        const f = admitting(startup, admitted);
+        expect(await execute(f.input)).toBe("FAILED");
+        expect(f.calls).toEqual(["lease", "release"]);
+        expect((await task()).error).toContain("retention settings changed");
+      }
+    );
+    it("admits a run whose retention is unchanged, or absent on both sides", async () => {
+      expect(await execute(admitting(undefined, undefined).input)).toBe("COMPLETE");
+    });
+  });
   it("does not admit missing provider bindings", async () => {
     const f = fixture();
     f.input.adapters = new Map();
@@ -1773,6 +1803,12 @@ describe("executable runner", () => {
 });
 
 describe("retention bucket routing through the run loop", () => {
+  // With a retention bucket the projected effects, which stay in the main store, must hold no row data (as for webhook).
+  const payloadFree = (f: ReturnType<typeof fixture>) => {
+    f.adapter.project = (_action, row: any) => [
+      { identity: createHash("sha256").update(String(row.id)).digest("hex"), upsert: {}, remove: {} },
+    ];
+  };
   const decoded = (store: MemoryObjects) =>
     [...store.objects.entries()].map(([key, value]) => ({
       key,
@@ -1801,6 +1837,7 @@ describe("retention bucket routing through the run loop", () => {
       rdb = retentionDb(main, retention);
     try {
       const f = fixture();
+      payloadFree(f);
       f.input.db = rdb;
       expect(await execute(f.input)).toBe("COMPLETE");
       const kept = decoded(retention);
@@ -1821,11 +1858,28 @@ describe("retention bucket routing through the run loop", () => {
     }
   });
 
+  it("a destination whose projections hold row data is refused with a readable message when retention is configured", async () => {
+    const main = new MemoryObjects(),
+      retention = new MemoryObjects(),
+      rdb = retentionDb(main, retention);
+    try {
+      const f = fixture(); // the default projection keeps the row in the effects, which would never expire
+      f.input.db = rdb;
+      expect(await execute(f.input)).toBe("FAILED");
+      expect((await task()).error).toContain("cannot expire");
+      expect(retention.objects.size).toBe(0);
+      expect(f.calls).not.toContain("upsert");
+    } finally {
+      await rdb.close();
+    }
+  });
+
   it("a run without a retention bucket stores everything in the main bucket, as before", async () => {
     const main = new MemoryObjects(),
       rdb = retentionDb(main, undefined as any);
     try {
       const f = fixture();
+      payloadFree(f);
       f.input.db = rdb;
       expect(await execute(f.input)).toBe("COMPLETE");
       const all = decoded(main);
@@ -1842,6 +1896,7 @@ describe("retention bucket routing through the run loop", () => {
       rdb = retentionDb(main, retention);
     try {
       const f = fixture();
+      payloadFree(f);
       f.input.db = rdb;
       expect(await execute(f.input)).toBe("COMPLETE");
       expect(retention.objects.size).toBeGreaterThan(0);
@@ -1861,6 +1916,7 @@ describe("retention bucket routing through the run loop", () => {
       rdb = retentionDb(main, retention);
     try {
       const f = fixture();
+      payloadFree(f);
       f.input.db = rdb;
       // First run: the destination rejects one record, which stops the run (a rejected batch stays in the head).
       const createWriter = f.adapter.stream.createWriter;
@@ -1914,6 +1970,7 @@ describe("retention bucket routing through the run loop", () => {
       });
     try {
       const f = fixture();
+      payloadFree(f);
       f.input.db = rdb;
       f.setFailBatch(); // leaves the batch unknown, so the next run must replay it
       expect(await execute(f.input)).toBe("FAILED");
@@ -1938,6 +1995,7 @@ describe("retention bucket routing through the run loop", () => {
       rdb = retentionDb(main, retention);
     try {
       const f = fixture();
+      payloadFree(f);
       f.input.db = rdb;
       f.setFailBatch(); // the destination loses the response: the batch is left unknown
       expect(await execute(f.input)).toBe("FAILED");
