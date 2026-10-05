@@ -102,6 +102,14 @@ describe("isPublicAddress / isBlockedAddress", () => {
     expect(isPublicAddress(addr)).toBe(false);
   });
 
+  // The /48 is exact: its neighbours stay public.
+  it.each(["2620:4f:7fff:ffff::1", "2620:4f:8001::1", "2620:4e:8000::1", "2620:50:8000::1"])(
+    "public IPv6 next to the blocked AS112 /48: %s",
+    addr => {
+      expect(isPublicAddress(addr)).toBe(true);
+    }
+  );
+
   // Public IPv6 (global unicast outside the reserved sub-ranges).
   it.each(["2606:4700:4700::1111", "2001:4860:4860::8888", "2620:fe::fe", "2a00:1450:4001:81b::200e", "2400:cb00::1"])(
     "public IPv6: %s",
@@ -133,6 +141,10 @@ describe("isPublicAddress / isBlockedAddress", () => {
     "2002:7f00:1::1",
     "2002:a00:1::1",
     "3fff::1",
+    // Direct Delegation AS112 Service (IANA: globally reachable anycast, blocked because it is a special-purpose range).
+    "2620:4f:8000::",
+    "2620:4f:8000::1",
+    "2620:4f:8000:ffff:ffff:ffff:ffff:ffff",
     "1::1",
     "4000::1",
   ])("blocked IPv6: %s", addr => {
