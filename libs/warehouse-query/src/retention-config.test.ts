@@ -21,7 +21,11 @@ describe("run configuration retention field", () => {
     expect(ReverseRunConfig.parse(base).retention).toBeUndefined();
   });
   it("accepts a retention bucket with the jitsu-retl- prefix", () => {
-    const parsed = ReverseRunConfig.parse({ ...base, retention: { bucket: "jitsu-retl-cl9sotck40002tt2b18i2x430" } });
+    const parsed = ReverseRunConfig.parse({
+      ...base,
+      workspaceId: "cl9sotck40002tt2b18i2x430",
+      retention: { bucket: "jitsu-retl-cl9sotck40002tt2b18i2x430" },
+    });
     expect(parsed.retention).toEqual({ bucket: "jitsu-retl-cl9sotck40002tt2b18i2x430" });
   });
   it("refuses any other bucket, so a bug elsewhere cannot point the runner at an unrelated bucket", () => {
@@ -37,10 +41,28 @@ describe("run configuration retention field", () => {
     }
   });
   it("refuses unknown keys inside retention and a bucket name over 63 characters", () => {
-    expect(() => ReverseRunConfig.parse({ ...base, retention: { bucket: "jitsu-retl-abc", extra: 1 } })).toThrow();
-    expect(() => ReverseRunConfig.parse({ ...base, retention: { bucket: "jitsu-retl-" + "a".repeat(53) } })).toThrow();
-    expect(
-      ReverseRunConfig.parse({ ...base, retention: { bucket: "jitsu-retl-" + "a".repeat(52) } }).retention
-    ).toBeTruthy();
+    const ws = (id: string, extra: object = {}) => ({
+      ...base,
+      workspaceId: id,
+      retention: { bucket: `jitsu-retl-${id}`, ...extra },
+    });
+    expect(() => ReverseRunConfig.parse(ws("abc", { extra: 1 }))).toThrow();
+    expect(() => ReverseRunConfig.parse(ws("a".repeat(53)))).toThrow();
+    expect(ReverseRunConfig.parse(ws("a".repeat(52))).retention).toBeTruthy();
+  });
+  it("binds the bucket to the run's own workspace: another workspace's retention bucket is refused", () => {
+    const run = (workspaceId: string, bucket: string) => ({ ...base, workspaceId, retention: { bucket } });
+    expect(() => ReverseRunConfig.parse(run("workspace-a", "jitsu-retl-workspace-b"))).toThrow(/own workspace/);
+    expect(() => ReverseRunConfig.parse(run("workspace-a", "jitsu-retl-workspace-a2"))).toThrow();
+    expect(() => ReverseRunConfig.parse(run("workspace-a", "jitsu-retl-workspace"))).toThrow();
+    expect(ReverseRunConfig.parse(run("workspace-a", "jitsu-retl-workspace-a")).retention).toEqual({
+      bucket: "jitsu-retl-workspace-a",
+    });
+  });
+  it("a workspace id that cannot make a valid bucket name has no retention, and a run that asks for one is refused", () => {
+    expect(() =>
+      ReverseRunConfig.parse({ ...base, workspaceId: "Upper_Case", retention: { bucket: "jitsu-retl-Upper_Case" } })
+    ).toThrow();
+    expect(ReverseRunConfig.parse({ ...base, workspaceId: "Upper_Case" }).retention).toBeUndefined();
   });
 });
