@@ -50,6 +50,7 @@ export async function execute(input: ExecuteOptions): Promise<TaskResult> {
   let rejectedRows: (() => Promise<boolean>) | undefined;
   let refreshRunId: string | undefined;
   let deliveryFinished = false;
+  const recoveryReport: { rejectionCode?: string } = {};
   let reader: WarehouseReader | undefined;
   let started = false;
   let held = false;
@@ -246,7 +247,13 @@ export async function execute(input: ExecuteOptions): Promise<TaskResult> {
           )
         ).delivery;
       } else if (run.recovery)
-        result = await recoverRun(run, context, hooks, adapter.mirror!.batchDelivery === "asynchronous");
+        result = await recoverRun(
+          run,
+          context,
+          hooks,
+          adapter.mirror!.batchDelivery === "asynchronous",
+          recoveryReport
+        );
       else
         result = (
           await runSnapshotMirror({
@@ -262,7 +269,7 @@ export async function execute(input: ExecuteOptions): Promise<TaskResult> {
           })
         ).delivery;
     } else if (run.recovery)
-      result = await recoverRun(run, context, hooks, adapter.stream.batchDelivery === "asynchronous");
+      result = await recoverRun(run, context, hooks, adapter.stream.batchDelivery === "asynchronous", recoveryReport);
     else
       result = (
         await runReverseEtl({
@@ -292,7 +299,13 @@ export async function execute(input: ExecuteOptions): Promise<TaskResult> {
     const success = result === "accepted";
     const changed = await tasks.finish(
       success ? "COMPLETE" : "FAILED",
-      success ? "Reverse ETL delivery committed" : "Recovery completed cleanup; next run will restart extraction"
+      success
+        ? "Reverse ETL delivery committed"
+        : `Recovery completed cleanup; next run will restart extraction${
+            recoveryReport.rejectionCode
+              ? `. The destination rejected a row. Reason code: ${recoveryReport.rejectionCode}.`
+              : ""
+          }`
     );
     return changed && success ? "COMPLETE" : "FAILED";
   } catch (error) {
