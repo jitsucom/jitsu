@@ -45,6 +45,14 @@ describe("isPublicAddress / isBlockedAddress", () => {
     }
   });
 
+  // The neighbours of those three ranges stay public: the blocks are exactly /24s.
+  it.each(["192.31.195.255", "192.31.197.0", "192.52.192.255", "192.52.194.0", "192.175.47.255", "192.175.49.0"])(
+    "public IPv4 next to a blocked /24: %s",
+    addr => {
+      expect(isPublicAddress(addr)).toBe(true);
+    }
+  );
+
   // Special-purpose IPv4: each range's first, last and a middle address.
   it.each([
     "0.0.0.0",
@@ -66,6 +74,17 @@ describe("isPublicAddress / isBlockedAddress", () => {
     "172.31.255.255",
     "192.0.0.1",
     "192.0.2.1",
+    // AS112-v4, AMT and Direct Delegation AS112: listed in the IANA special-purpose registry (globally reachable
+    // anycast services, blocked anyway because the module promises every special-purpose range).
+    "192.31.196.0",
+    "192.31.196.1",
+    "192.31.196.255",
+    "192.52.193.0",
+    "192.52.193.77",
+    "192.52.193.255",
+    "192.175.48.0",
+    "192.175.48.42",
+    "192.175.48.255",
     "192.88.99.1",
     "192.168.0.1",
     "192.168.255.255",
