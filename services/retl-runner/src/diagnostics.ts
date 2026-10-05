@@ -1,4 +1,5 @@
 import { reverseEtlFailure } from "@jitsu/destination-functions/src/reverse-etl/failure";
+import { ReverseEtlRejectionError } from "@jitsu/destination-functions/src/reverse-etl/meta";
 
 export type FailureStage = "startup" | "lease_acquire" | "task_start" | "admission" | "execution";
 
@@ -72,5 +73,7 @@ export function failureMessage(error: unknown, taskId: string): string {
   const message =
     reverseEtlFailure(error)?.message ??
     "Reverse ETL could not complete. Contact support or your Jitsu administrator. Some changes may already have been submitted; do not reset sync state.";
-  return `${message} Run ID: ${taskId}.`;
+  // Only a code that passed ReverseEtlRejectionError's strict pattern is shown; provider text never is.
+  const code = error instanceof ReverseEtlRejectionError ? error.code : undefined;
+  return `${message}${code ? ` Reason code: ${code}.` : ""} Run ID: ${taskId}.`;
 }

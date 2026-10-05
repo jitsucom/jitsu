@@ -1769,3 +1769,48 @@ describe("executable runner", () => {
     expect((await task()).error).toContain("ownership");
   });
 });
+
+describe("rejection reporting", () => {
+  const rejectEverything = (f: ReturnType<typeof fixture>, code: string) => {
+    const create = f.adapter.stream.createWriter;
+    f.adapter.stream.createWriter = async ctx => {
+      const writer = await create(ctx);
+      writer.upsert = async batch => ({
+        outcomes: batch.records.map(row => ({
+          operationId: row.operationId,
+          status: "rejected" as const,
+          code,
+          safeReason: "HTTP 422 with private-token in the body",
+        })),
+      });
+      return writer;
+    };
+  };
+  it("shows the rejection code in the task error and never the provider's text", async () => {
+    const f = fixture();
+    rejectEverything(f, "http_422");
+    expect(await execute(f.input)).toBe("FAILED");
+    const error = (await task()).error as string;
+    expect(error).toContain("The destination rejected a row, so the sync stopped.");
+    expect(error).toContain("Reason code: http_422.");
+    expect(error).not.toContain("identifier mappings");
+    expect(error).not.toContain("private-token");
+    expect(await taskLogs("task")).not.toContain("private-token");
+  });
+  it("drops a malformed code instead of showing it", async () => {
+    const f = fixture();
+    rejectEverything(f, "Bearer private-token");
+    expect(await execute(f.input)).toBe("FAILED");
+    const error = (await task()).error as string;
+    expect(error).toContain("The destination rejected a row, so the sync stopped.");
+    expect(error).not.toContain("Reason code");
+    expect(error).not.toContain("private-token");
+  });
+  it("describes delivery counts without Google-specific wording", async () => {
+    const f = fixture();
+    expect(await execute(f.input)).toBe("COMPLETE");
+    const logs = await taskLogs("task");
+    expect(logs).toContain("Delivery counts describe records the destination's API accepted");
+    expect(logs).not.toContain("Google");
+  });
+});
