@@ -91,10 +91,15 @@ export async function readReverseSync(
   // Webhook syncs only (JITSU-242 WP7): the bucket for the stored rows. Deliberately outside the revision hash below.
   const retention = retentionConfig(link.workspaceId, destination);
   // A new run is refused when nothing could be stored for recovery. The desired-state export never refuses (one
-  // workspace must not break the export of every sync), and neither does the recovery of a saved run.
-  if (!admission.exportPending && !admission.refreshTaskId) {
+  // workspace must not break the export of every sync), and neither does the recovery of a saved run. But an exported
+  // schedule becomes a CronJob that starts a run every time it fires, so a sync whose retention forbids new runs is
+  // exported without its schedule: it stays in the feed (saved work can still be recovered and refreshed) and stops
+  // firing. Scheduling is outside the revision hash, so nothing about saved state changes.
+  let noNewRuns = false;
+  if (!admission.refreshTaskId) {
     const refusal = await webhookRetentionRefusal(db, link.workspaceId, link.workspace.featuresEnabled, destination);
-    if (refusal) throw new ApiError(refusal, { status: 409 });
+    if (refusal && !admission.exportPending) throw new ApiError(refusal, { status: 409 });
+    noNewRuns = !!refusal;
   }
   // Credentials are intentionally revision-bound in this first runtime slice.
   // Changes require the existing controlled-reset workflow; never recover an old
@@ -163,7 +168,7 @@ export async function readReverseSync(
         +link.workspace.updatedAt
       )
     ).toISOString(),
-    schedule: options.disabled ? undefined : options.schedule,
+    schedule: options.disabled || noNewRuns ? undefined : options.schedule,
     timezone: options.timezone ?? "Etc/UTC",
     ...runtime,
     ...(retention ? { retention } : {}),

@@ -160,6 +160,37 @@ describe("storage duration 0 refuses new webhook runs", () => {
     expect(await readReverseSync(f.prisma, f.link.id, undefined, { exportPending: true })).toBeDefined();
   });
 
+  it("exports a retention-0 webhook sync without a schedule, so its CronJob stops starting runs", async () => {
+    withEe();
+    const f = await webhook(); // scheduled "0 * * * *"
+    const exported = async () => {
+      let output = "";
+      await exportReverseSyncs(f.prisma, {
+        write: text => {
+          output += text;
+        },
+      });
+      return JSON.parse(output).find((row: any) => row.id === f.link.id);
+    };
+    expect((await exported()).schedule).toBe("0 * * * *");
+    await setRetention(f.prisma, f.workspace.id, { backupRetentionHours: 0 });
+    const row = await exported();
+    expect(row).toBeDefined(); // still exported: saved work can be recovered and refreshed
+    expect(row.schedule).toBeUndefined();
+    // the revision is unchanged by the schedule, so nothing about saved state is disturbed
+    await f.prisma.workspaceOptions.deleteMany({ where: { workspaceId: f.workspace.id } });
+    expect((await exported()).configRevision).toBe(row.configRevision);
+  });
+
+  it("a Google sync keeps its schedule whatever the retention", async () => {
+    withEe();
+    const f = await google();
+    await setRetention(f.prisma, f.workspace.id, { backupRetentionHours: 0 });
+    expect((await readReverseSync(f.prisma, f.link.id, f.workspace.id, { exportPending: true }))?.schedule).toBe(
+      "0 * * * *"
+    );
+  });
+
   it("does not refuse recovery of a saved run (refresh)", async () => {
     withEe();
     const f = await webhook();
