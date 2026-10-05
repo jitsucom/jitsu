@@ -1871,6 +1871,14 @@ describe("webhook destination through the runner", () => {
     expect(records.every((r: any) => r.operation === "upsert" && r.idempotencyKey)).toBe(true);
   });
 
+  it("a long URL (for example one that carries a token in its query string) does not stop the run from starting", async () => {
+    const f = webhookFixture();
+    const long = `${f.input.config.destination.url}?token=${"t".repeat(700)}`;
+    f.input.config.destination = { ...f.input.config.destination, url: long };
+    expect(await execute(f.input)).toBe("COMPLETE");
+    expect(received.flatMap(r => r.body.records).length).toBe(3);
+  });
+
   it("stops at a rejected record with its reason code, then re-sends the same keys on the next run", async () => {
     const f = webhookFixture();
     status = 400;

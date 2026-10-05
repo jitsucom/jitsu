@@ -5,7 +5,7 @@ import type {
   ReverseRuntimeAdapter,
   ReverseRuntimeRecovery,
 } from "@jitsu/protocols/reverse-etl-runtime";
-import { recordKey } from "../../reverse-etl/identity";
+import { contentHash, recordKey } from "../../reverse-etl/identity";
 import type { DeliveryDeps } from "./deliver";
 import { validateWebhookDestination, webhookRowsStreamMetadata, webhookStreamId } from "./reverse-meta";
 import { bindWebhookConfig, createWebhookWriter, invalidDestinationReason, invalidSettingsReason } from "./writer";
@@ -67,8 +67,10 @@ export function createWebhookRuntime(
   return {
     options: options as unknown as JsonObject,
     credentials: destination as unknown as JsonObject,
-    // Hashed by the runner and never logged: it may carry a token in the URL's query string.
-    targetIdentity: `webhook:POST:${destination.url}`,
+    // The runner hashes this and rejects any run scope string over 512 characters, so the URL goes in as its hash: a
+    // long URL (for example one carrying a token in its query string) must not stop the run from starting, and the
+    // token never appears in the identity at all.
+    targetIdentity: `webhook:POST:${contentHash(destination.url)}`,
     // Identity is the primary key, so an updated row replaces its own entry instead of adding one per change; the
     // payloads stay empty because the row itself is kept in the delivery journal, not in the membership.
     project: (_action, row) => [

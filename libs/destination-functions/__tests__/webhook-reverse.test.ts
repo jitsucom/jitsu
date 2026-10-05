@@ -481,8 +481,28 @@ describe("runtime adapter", () => {
     expect(a[0].identity).not.toBe(c[0].identity);
   });
 
-  it("targetIdentity names the destination without being a secret-bearing log line", () => {
-    expect(createWebhookRuntime(base).targetIdentity).toBe("webhook:POST:https://example.com/hook");
+  describe("targetIdentity", () => {
+    const identity = (url: string) =>
+      createWebhookRuntime({ ...base, destination: { ...base.destination, url } } as any).targetIdentity;
+
+    it("is stable, tells destinations apart and does not contain the URL (it may carry a token)", () => {
+      const url = "https://example.com/hook?token=secret-token";
+      expect(identity(url)).toBe(identity(url));
+      expect(identity(url)).not.toBe(identity("https://example.com/hook?token=other"));
+      expect(identity(url)).toMatch(/^webhook:POST:[0-9a-f]+$/);
+      expect(identity(url)).not.toContain("secret-token");
+    });
+
+    it("tells apart long URLs that differ only at the end", () => {
+      const prefix = `https://example.com/${"p".repeat(600)}`;
+      expect(identity(`${prefix}a`)).not.toBe(identity(`${prefix}b`));
+    });
+
+    it("stays within the runner's 512-character limit for any URL length", () => {
+      for (const length of [10, 480, 600, 5000]) {
+        expect(identity(`https://example.com/${"p".repeat(length)}`).length).toBeLessThanOrEqual(512);
+      }
+    });
   });
 
   it("refuses a model without a primary key, non-upsert mode and unattested settings", () => {
