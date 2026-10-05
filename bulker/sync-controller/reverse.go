@@ -33,6 +33,10 @@ type ReverseConfig struct {
 	Warehouse      json.RawMessage `json:"warehouse"`
 	Destination    json.RawMessage `json:"destination"`
 	Options        json.RawMessage `json:"options"`
+	// Retention names the per-workspace bucket for stored batch rows (webhook syncs only, JITSU-242). Passed through
+	// verbatim and never validated here: the runner validates it, and an invalid entry would reject the whole feed for
+	// every sync. Omitted when absent, so other syncs write exactly what they wrote before.
+	Retention json.RawMessage `json:"retention,omitempty"`
 }
 
 func (r *ReverseConfig) valid() bool {
