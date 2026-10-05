@@ -18,35 +18,61 @@ export const ArtifactRef = z
   })
   .strict();
 export type ArtifactRef = z.infer<typeof ArtifactRef>;
+/** Kinds that may be stored in the retention bucket. Only the rows of a batch are personal data; everything else stays put. */
+export type ArtifactKind = "rows";
 const digest = (data: Buffer) => createHash("sha256").update(data).digest("hex");
 
 /** Immutable, scoped, checksummed and bounded. No raw SDK errors cross this boundary. */
 export class Artifacts {
   readonly prefix: string;
-  constructor(private readonly store: ObjectStore, scope: Scope, readonly signal: AbortSignal) {
-    this.prefix = `v1/${contentHash([scope.workspaceId, scope.syncId, scope.configRevision, scope.targetIdentity])}/`;
+  /** Batch data written when a retention store is configured; read back by key prefix, so older refs are unaffected. */
+  private readonly retentionPrefix: string;
+  constructor(
+    private readonly store: ObjectStore,
+    scope: Scope,
+    readonly signal: AbortSignal,
+    private readonly retention?: ObjectStore
+  ) {
+    const scoped = contentHash([scope.workspaceId, scope.syncId, scope.configRevision, scope.targetIdentity]);
+    this.prefix = `v1/${scoped}/`;
+    this.retentionPrefix = `r1/${scoped}/`;
   }
-  async put(value: unknown): Promise<ArtifactRef> {
+  /** True when rows are kept apart, in the retention bucket, from the rest of a batch. */
+  get retainsRows() {
+    return this.retention !== undefined;
+  }
+  async put(value: unknown, kind?: ArtifactKind): Promise<ArtifactRef> {
     this.signal.throwIfAborted();
     const raw = Buffer.from(canonicalJson({ version: 1, value }));
     ensure(raw.length <= 16_000_000, "Artifact exceeds byte limit");
     const sha256 = digest(raw);
-    const key = `${this.prefix}${sha256}.json.gz`;
+    const retained = kind === "rows" && this.retention !== undefined;
+    const key = `${retained ? this.retentionPrefix : this.prefix}${sha256}.json.gz`;
     const compressed = gzipSync(raw);
     ensure(compressed.length <= 16_000_000, "Compressed artifact exceeds byte limit");
     try {
-      await this.store.put(key, compressed, AbortSignal.any([this.signal, AbortSignal.timeout(60_000)]));
+      await (retained ? this.retention! : this.store).put(
+        key,
+        compressed,
+        AbortSignal.any([this.signal, AbortSignal.timeout(60_000)])
+      );
     } catch {
-      throw new Error("Reverse ETL artifact upload failed; no delivery is authorized");
+      throw new Error(
+        retained
+          ? "Reverse ETL retention storage upload failed; no delivery is authorized"
+          : "Reverse ETL artifact upload failed; no delivery is authorized"
+      );
     }
     return { key, sha256, bytes: raw.length, compressedBytes: compressed.length };
   }
   async get<T>(input: unknown): Promise<T> {
     this.signal.throwIfAborted();
     const ref = ArtifactRef.parse(input);
-    ensure(ref.key === `${this.prefix}${ref.sha256}.json.gz`, "Artifact scope mismatch");
+    const retained = ref.key === `${this.retentionPrefix}${ref.sha256}.json.gz`;
+    ensure(retained || ref.key === `${this.prefix}${ref.sha256}.json.gz`, "Artifact scope mismatch");
+    ensure(!retained || this.retention, "Reverse ETL retention storage is unavailable; delivery blocked");
     try {
-      const compressed = await this.store.get(
+      const compressed = await (retained ? this.retention! : this.store).get(
         ref.key,
         ref.compressedBytes,
         AbortSignal.any([this.signal, AbortSignal.timeout(60_000)])

@@ -67,7 +67,7 @@ export class ObjectJournal implements DeliveryJournal {
   }
   static async open(db: Database, scope: Scope, project: Project, recovery: boolean) {
     ensure(db.objectStorage, "Object storage is required");
-    const artifacts = new Artifacts(db.objectStorage.store, scope, db.objectStorage.signal);
+    const artifacts = new Artifacts(db.objectStorage.store, scope, db.objectStorage.signal, db.objectStorage.retention);
     const control = await controlFor(db, scope).observe(value => value);
     ensure(control.artifact_head, "Artifact head is required; legacy state requires an explicit test-sync reset");
     const head = await artifacts.get<ArtifactHead>(decodeJson(control.artifact_head));
@@ -233,7 +233,7 @@ export class ObjectJournal implements DeliveryJournal {
     ensure(value, "Prepared batch not found");
     return value;
   }
-  private async data(head: BatchHead) {
+  private async data(head: BatchHead, withRows = false) {
     const stored = await this.artifacts.get<StoredBatchData>(head.data);
     ensure(stored.effects !== null || this.scope.mode === "mirror", "Missing projected effects");
     const data: BatchData = {
@@ -248,6 +248,18 @@ export class ObjectJournal implements DeliveryJournal {
         data.effects.length === data.batch.records.length,
       "Invalid batch artifact binding"
     );
+    if (withRows && stored.rows) {
+      // Replaying an unresolved batch needs its rows. They are in the retention bucket and may have expired, in which
+      // case this fails closed ("recovery artifact is missing"); anything else is verified against the manifest.
+      const { rows } = await this.artifacts.get<{ rows: unknown[] }>(stored.rows);
+      ensure(
+        Array.isArray(rows) &&
+          rows.length === data.batch.records.length &&
+          contentHash(rows) === data.batch.payloadHash,
+        "Invalid batch artifact binding"
+      );
+      data.batch = { ...data.batch, records: data.batch.records.map((record, i) => ({ ...record, row: rows[i] })) };
+    }
     return data;
   }
   private index(head: BatchHead, data: BatchData, receipt?: ReceiptData) {
@@ -450,7 +462,15 @@ export class ObjectJournal implements DeliveryJournal {
       action: prepared.action,
       first: sequence - n + 1,
       last: sequence,
-      data: await this.artifacts.put({ batch: prepared, effects: projectionRef } satisfies StoredBatchData),
+      data: await this.artifacts.put(
+        (this.artifacts.retainsRows && this.scope.mode !== "mirror"
+          ? {
+              batch: { ...prepared, records: prepared.records.map(record => ({ ...record, row: null })) },
+              effects: projectionRef,
+              rows: await this.artifacts.put({ rows: prepared.records.map(record => record.row) }, "rows"),
+            }
+          : { batch: prepared, effects: projectionRef }) satisfies StoredBatchData
+      ),
       effectBytes: projectionRef?.bytes ?? 0,
       status: "prepared",
       accepted: 0,
@@ -489,7 +509,7 @@ export class ObjectJournal implements DeliveryJournal {
   }
   async recoveryBatch(id: string) {
     const head = this.find(id),
-      data = await this.data(head);
+      data = await this.data(head, true);
     const receipt = head.receipt ? await this.artifacts.get<ReceiptData>(head.receipt) : undefined;
     const outcomes = new Map(receipt?.result.outcomes.map(row => [row.operationId, row.status]));
     return {

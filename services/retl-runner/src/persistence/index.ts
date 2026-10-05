@@ -13,7 +13,7 @@ export async function openPersistence(db: Database, input: RunInput, project: Pr
   input = { ...input };
   // Persist the empty manifest before admission, then insert its pointer atomically
   // with the new control row. Null heads are unambiguously legacy state.
-  const artifacts = new Artifacts(db.objectStorage.store, input, db.objectStorage.signal);
+  const artifacts = new Artifacts(db.objectStorage.store, input, db.objectStorage.signal, db.objectStorage.retention);
   const initialHead = encodeJson(
     await artifacts.put({ version: 1, runId: input.logicalRunId, baseline: [], batches: [] })
   );

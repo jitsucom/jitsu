@@ -17,6 +17,8 @@ import { ReverseEtlManualReconciliationError } from "@jitsu/destination-function
 import { recordKey } from "@jitsu/destination-functions/src/reverse-etl/identity";
 
 import { MemoryObjects, persisted } from "./artifacts/test-support";
+import { gunzipSync } from "node:zlib";
+import { Artifacts } from "./artifacts/store";
 const objects = new MemoryObjects();
 const storage = { objectStorage: { store: objects, signal: new AbortController().signal } };
 const durable = () => persisted(admin, objects);
@@ -1767,5 +1769,143 @@ describe("executable runner", () => {
     expect(f.calls).not.toContain("init");
     expect((await control()).phase).toBe("init_prepared");
     expect((await task()).error).toContain("ownership");
+  });
+});
+
+describe("retention bucket routing through the run loop", () => {
+  const decoded = (store: MemoryObjects) =>
+    [...store.objects.entries()].map(([key, value]) => ({
+      key,
+      value: JSON.parse(gunzipSync(value).toString()).value as any,
+    }));
+  // A batch carries rows either inline (no retention bucket) or as a separate artifact; the manifest has null rows.
+  const carriesRows = (value: any) =>
+    (Array.isArray(value?.rows) && value.rows.length > 0) ||
+    !!value?.batch?.records?.some((record: any) => record.row !== null && record.row !== undefined);
+  function retentionDb(main: MemoryObjects, retention: MemoryObjects) {
+    return new Database(
+      {
+        host: container.getHost(),
+        port: container.getMappedPort(5432),
+        database: "runner_test",
+        user: "runner_runtime",
+        password: "runtime",
+      },
+      { objectStorage: { store: main, signal: new AbortController().signal, retention } }
+    );
+  }
+
+  it("stores the rows, and only the rows, in the retention bucket", async () => {
+    const main = new MemoryObjects(),
+      retention = new MemoryObjects(),
+      rdb = retentionDb(main, retention);
+    try {
+      const f = fixture();
+      f.input.db = rdb;
+      expect(await execute(f.input)).toBe("COMPLETE");
+      const kept = decoded(retention);
+      expect(kept.length).toBeGreaterThan(0);
+      expect(kept.every(object => object.key.startsWith("r1/") && Array.isArray(object.value.rows))).toBe(true);
+      expect(kept.flatMap(object => object.value.rows.map((row: any) => row.id)).sort()).toEqual(["a", "b"]);
+      const rest = decoded(main);
+      expect(rest.length).toBeGreaterThan(0);
+      expect(rest.every(object => object.key.startsWith("v1/") && !carriesRows(object.value))).toBe(true);
+      // The batch manifest stays in the main store, with its rows replaced by a reference.
+      const manifests = rest.filter(object => object.value?.batch?.records);
+      expect(manifests.length).toBeGreaterThan(0);
+      expect(
+        manifests.every(object => object.value.rows && object.value.batch.records.every((r: any) => r.row === null))
+      ).toBe(true);
+    } finally {
+      await rdb.close();
+    }
+  });
+
+  it("a run without a retention bucket stores everything in the main bucket, as before", async () => {
+    const main = new MemoryObjects(),
+      rdb = retentionDb(main, undefined as any);
+    try {
+      const f = fixture();
+      f.input.db = rdb;
+      expect(await execute(f.input)).toBe("COMPLETE");
+      const all = decoded(main);
+      expect(all.every(object => object.key.startsWith("v1/"))).toBe(true);
+      expect(all.some(object => carriesRows(object.value))).toBe(true);
+    } finally {
+      await rdb.close();
+    }
+  });
+
+  it("after the retention window the next run still works: only an unresolved batch needs its rows", async () => {
+    const main = new MemoryObjects(),
+      retention = new MemoryObjects(),
+      rdb = retentionDb(main, retention);
+    try {
+      const f = fixture();
+      f.input.db = rdb;
+      expect(await execute(f.input)).toBe("COMPLETE");
+      expect(retention.objects.size).toBeGreaterThan(0);
+      retention.objects.clear(); // the bucket's lifecycle rule has deleted every expired row object
+      f.input = { ...f.input, taskId: "task-after-expiry" };
+      expect(await execute(f.input)).toBe("COMPLETE");
+      // The new run wrote its own rows; the expired objects were never needed.
+      expect(retention.objects.size).toBeGreaterThan(0);
+    } finally {
+      await rdb.close();
+    }
+  });
+
+  it("replay refuses rows that do not match the batch manifest instead of sending them", async () => {
+    const main = new MemoryObjects(),
+      retention = new MemoryObjects(),
+      rdb = retentionDb(main, retention);
+    // A writer bug: the stored rows artifact is internally valid but is not the batch the manifest describes.
+    const original = Artifacts.prototype.put;
+    const spy = vi
+      .spyOn(Artifacts.prototype, "put")
+      .mockImplementation(function (this: Artifacts, value: any, kind?: any) {
+        return original.call(
+          this,
+          kind === "rows" ? { rows: value.rows.map(() => ({ id: "not-the-batch" })) } : value,
+          kind
+        );
+      });
+    try {
+      const f = fixture();
+      f.input.db = rdb;
+      f.setFailBatch(); // leaves the batch unknown, so the next run must replay it
+      expect(await execute(f.input)).toBe("FAILED");
+      spy.mockRestore();
+      f.input = { ...f.input, taskId: "task-replay" };
+      f.calls.length = 0;
+      expect(await execute(f.input)).toBe("FAILED");
+      // Stopped before the provider was asked to replay anything.
+      expect(f.calls).not.toContain("reconcile");
+      expect(f.writes.every(batch => batch.records.every(record => (record.row as any).id !== "not-the-batch"))).toBe(
+        true
+      );
+    } finally {
+      spy.mockRestore();
+      await rdb.close();
+    }
+  });
+
+  it("a batch that is still unresolved when its rows expire blocks delivery with the recovery message", async () => {
+    const main = new MemoryObjects(),
+      retention = new MemoryObjects(),
+      rdb = retentionDb(main, retention);
+    try {
+      const f = fixture();
+      f.input.db = rdb;
+      f.setFailBatch(); // the destination loses the response: the batch is left unknown
+      expect(await execute(f.input)).toBe("FAILED");
+      retention.objects.clear();
+      f.input = { ...f.input, taskId: "task-after-expiry" }; // the next scheduled run starts recovery, as in production
+      const result = await execute(f.input);
+      expect(result).toBe("FAILED");
+      expect((await task("task-after-expiry")).error).toContain("Saved sync data is missing or unreadable");
+    } finally {
+      await rdb.close();
+    }
   });
 });

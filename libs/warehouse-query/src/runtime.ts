@@ -18,6 +18,14 @@ export const ReverseRunConfig = z
     warehouse: z.record(z.unknown()),
     destination: z.record(z.unknown()),
     options: ReverseSyncOptions,
+    /**
+     * Bucket for the stored batch data (the only artifact that carries full rows), whose lifecycle rule enforces the
+     * workspace's retention. Optional and outside the revision hash: a run without it behaves exactly as before.
+     */
+    retention: z
+      .object({ bucket: z.string().regex(/^jitsu-retl-[a-z0-9][a-z0-9._-]{0,51}$/) })
+      .strict()
+      .optional(),
   })
   .strict()
   .superRefine((value, ctx) => {

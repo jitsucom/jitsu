@@ -8,10 +8,13 @@ export interface BatchData {
   effects: Effect[][];
 }
 export interface StoredBatchData {
+  /** With `rows`, every record's `row` is null here: rows live in the retention bucket and expire with it. */
   batch: PreparedBatch<unknown>;
   // Mirror records already contain exact effect envelopes. Other modes keep
   // projection separately so neither artifact exceeds the per-object byte cap.
   effects: ArtifactRef | null;
+  /** The batch's rows, stored in the retention bucket. Only replaying an unresolved batch needs them. */
+  rows?: ArtifactRef;
 }
 export interface ReceiptData {
   result: BatchResult;
