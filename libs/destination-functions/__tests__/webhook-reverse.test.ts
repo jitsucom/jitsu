@@ -364,6 +364,70 @@ describe("webhook validation", () => {
     }
   });
 
+  describe("signature header names", () => {
+    const signed = (extra: object) =>
+      validateWebhookDestination({ ...destination, signatureMethod: "hmac", signatureSecret: "k", ...extra });
+    const reserved = [
+      "Host",
+      "Content-Length",
+      "Content-Type",
+      "Content-Encoding",
+      "Transfer-Encoding",
+      "Connection",
+      "User-Agent",
+      "Idempotency-Key",
+    ];
+
+    it("rejects the names Jitsu or the transport own, in any letter case, when signing is on", () => {
+      for (const name of reserved) {
+        for (const variant of [name, name.toLowerCase(), name.toUpperCase()]) {
+          expect(() => signed({ signatureHeader: variant }), variant).toThrow(WebhookConfigError);
+          expect(() => signed({ signatureHeader: variant }), variant).toThrow(/set by Jitsu|cannot be used/);
+        }
+      }
+    });
+
+    it("rejects a signature header that is also one of the destination's own headers", () => {
+      expect(() => signed({ signatureHeader: "X-Auth", headers: ["x-auth: token"] })).toThrow(/also listed/);
+    });
+
+    it("rejects a name whose timestamp companion would collide", () => {
+      expect(() => signed({ signatureHeader: "X-Sig", headers: ["X-Sig-Timestamp: 1"] })).toThrow(/also listed/);
+      // without the timestamp there is no companion header
+      expect(() =>
+        signed({ signatureHeader: "X-Sig", headers: ["X-Sig-Timestamp: 1"], signatureIncludeTimestamp: false })
+      ).not.toThrow();
+    });
+
+    it("accepts the default and ordinary custom names", () => {
+      expect(() => signed({})).not.toThrow();
+      expect(() => signed({ signatureHeader: "X-My-Signature" })).not.toThrow();
+      expect(() => signed({ signatureHeader: "Jitsu-Signature" })).not.toThrow();
+    });
+
+    it("ignores the name when signing is off, because no signature header is sent", () => {
+      expect(() => validateWebhookDestination({ ...destination, signatureHeader: "Content-Length" })).not.toThrow();
+    });
+
+    it("is enforced when the runtime binds the saved destination, not only at save time", () => {
+      expect(() =>
+        createWebhookRuntime(
+          {
+            destination: {
+              ...destination,
+              signatureMethod: "hmac",
+              signatureSecret: "k",
+              signatureHeader: "Content-Length",
+            },
+            options: { stream: "rows", mode: "upsert", streamOptions: options },
+            model: { primaryKey: ["id"] },
+          } as any,
+          undefined
+        )
+      ).toThrow(/misconfigured|destination/i);
+    });
+  });
+
   it("requires signing material for the chosen method", () => {
     expect(() => validateWebhookDestination({ ...destination, signatureMethod: "hmac" })).toThrow(/secret/);
     expect(() => validateWebhookDestination({ ...destination, signatureMethod: "ed25519" })).toThrow(/private key/);

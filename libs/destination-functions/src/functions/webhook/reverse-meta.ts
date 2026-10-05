@@ -150,7 +150,7 @@ export function validateWebhookDestination(destination: Record<string, unknown>)
     );
   }
   parseWebhookUrl(config.url);
-  parseWebhookHeaders(config.headers);
+  const ownHeaders = new Set(parseWebhookHeaders(config.headers).map(header => header.name.toLowerCase()));
   if (config.signatureMethod === "hmac" && !config.signatureSecret) {
     throw new WebhookConfigError("Request signing is HMAC but no signing secret is set");
   }
@@ -159,6 +159,27 @@ export function validateWebhookDestination(destination: Record<string, unknown>)
   }
   if (!headerName.test(config.signatureHeader)) {
     throw new WebhookConfigError("The signature header name is not a valid header name");
+  }
+  if (config.signatureMethod !== "none") {
+    // The signature headers are added after the protected ones, so a colliding name would replace Content-Length,
+    // Idempotency-Key and the like (or one of the destination's own headers) and corrupt or fail every request.
+    const signatureNames = [
+      config.signatureHeader,
+      ...(config.signatureIncludeTimestamp ? [`${config.signatureHeader}-Timestamp`] : []),
+    ];
+    for (const name of signatureNames) {
+      const lower = name.toLowerCase();
+      if (reservedHeaders.has(lower)) {
+        throw new WebhookConfigError(
+          `The signature header ${name} is set by Jitsu or the transport and cannot be used. Choose another name`
+        );
+      }
+      if (ownHeaders.has(lower)) {
+        throw new WebhookConfigError(
+          `The signature header ${name} is also listed in the destination's headers. Use a different name`
+        );
+      }
+    }
   }
   return config;
 }
