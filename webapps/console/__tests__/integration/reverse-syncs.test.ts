@@ -522,6 +522,63 @@ describe("webhook destination", () => {
     await expect(f.create(f.withData({ mapping: { name: "name" } }))).rejects.toThrow(/primary key/);
   });
 
+  describe("one dedicated destination per sync", () => {
+    it("refuses a second sync on a webhook destination that another sync already uses", async () => {
+      const f = await webhookFixture();
+      await f.create(f.input);
+      await expect(f.create(f.withData({ name: "Second" }))).rejects.toMatchObject({
+        status: 409,
+        message: expect.stringContaining("already serves another sync"),
+      });
+      expect(await listReverseSyncs(f.prisma, f.workspace.id)).toHaveLength(1);
+    });
+
+    it("a deleted sync frees its destination", async () => {
+      const f = await webhookFixture();
+      const { id } = await f.create(f.input);
+      await deleteReverseSync(f.prisma, f.workspace.id, id);
+      await expect(f.create(f.withData({ name: "Replacement" }))).resolves.toBeTruthy();
+    });
+
+    it("editing a sync's own delivery settings is not blocked by itself", async () => {
+      const f = await webhookFixture();
+      const { id } = await f.create(f.input);
+      await expect(
+        updateReverseSync(f.prisma, f.workspace.id, id, {
+          ...f.input,
+          data: {
+            ...f.input.data,
+            mapping: { email: "email" },
+            streamOptions: { ...f.input.data.streamOptions, concurrency: 3 },
+          },
+        })
+      ).resolves.toBeTruthy();
+    });
+
+    it("refuses to move a sync onto a webhook destination another sync uses", async () => {
+      const f = await webhookFixture();
+      await f.create(f.input);
+      const other = await f.prisma.configurationObject.create({
+        data: {
+          workspaceId: f.workspace.id,
+          type: "destination",
+          config: { name: "Hook 2", destinationType: "webhook", url: "https://example.com/two", method: "POST" },
+        },
+      });
+      const { id } = await f.create({ ...f.input, toId: other.id });
+      await expect(updateReverseSync(f.prisma, f.workspace.id, id, { ...f.input })).rejects.toMatchObject({
+        status: 409,
+        message: expect.stringContaining("already serves another sync"),
+      });
+    });
+
+    it("applies to webhook destinations only", async () => {
+      const f = await fixture(); // a Google destination
+      await f.create(f.input);
+      await expect(f.create(f.input)).resolves.toBeTruthy();
+    });
+  });
+
   it("rejects mirror mode", async () => {
     const f = await webhookFixture();
     await expect(f.create(f.withData({ mode: "mirror" }))).rejects.toThrow(/mirror/);

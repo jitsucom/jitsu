@@ -84,7 +84,7 @@ function schedule(input: { schedule?: string; timezone?: string }) {
   }
 }
 /** Save never queries a warehouse, OAuth or Google. */
-async function references(db: ReadDb, workspaceId: string, input: ReverseSyncInput) {
+async function references(db: ReadDb, workspaceId: string, input: ReverseSyncInput, syncId?: string) {
   await assertModelsEnabled(db, workspaceId);
   const model = await db.configurationObject.findFirst({
     where: { id: input.fromId, workspaceId, type: "model", deleted: false },
@@ -93,6 +93,24 @@ async function references(db: ReadDb, workspaceId: string, input: ReverseSyncInp
     where: { id: input.toId, workspaceId, type: "destination", deleted: false },
   });
   if (!model || !destination) throw conflict("Choose a model and destination in this workspace");
+  // One dedicated Webhook destination per sync (decision O3): a destination used by a sync cannot be edited, so sharing
+  // one would lock it for every sync using it. The workspace lock held by `mutation` makes this check-then-write safe.
+  if ((destination.config as Record<string, unknown>).destinationType === "webhook") {
+    const sharing = await db.configurationObjectLink.findFirst({
+      where: {
+        workspaceId,
+        type: "reverse-sync",
+        toId: input.toId,
+        deleted: false,
+        ...(syncId ? { id: { not: syncId } } : {}),
+      },
+      select: { id: true },
+    });
+    if (sharing)
+      throw conflict(
+        "This Webhook destination already serves another sync. Create a separate destination for this sync: a destination used by a sync cannot be edited, so sharing one would lock it for both."
+      );
+  }
   const definition = ModelDefinition.parse(model.config);
   const provider = reverseDestinationMetadata.get((destination.config as any).destinationType);
   if (!provider || !provider.streams.some(stream => stream.id === input.data.stream))
@@ -166,7 +184,7 @@ export async function updateReverseSync(prisma: PrismaClient, workspaceId: strin
     const changed = delivery(next) !== delivery(old);
     if (!(Object.keys(input).length === 1 && "disabled" in input && input.disabled === true)) {
       await assertModelsEnabled(tx, workspaceId);
-      if (changed) await references(tx, workspaceId, next);
+      if (changed) await references(tx, workspaceId, next, syncId);
       schedule(next.data);
     }
     if (changed && (await hasState(tx, workspaceId, syncId)))
