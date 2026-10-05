@@ -3,6 +3,7 @@ import { createHash } from "node:crypto";
 import { ModelDefinition, ReverseSyncOptions, supportsWarehouseReader } from "@jitsu/warehouse-query/src/schema";
 import { ReverseRunConfig } from "@jitsu/warehouse-query/src/runtime";
 import { ApiError } from "../shared/errors";
+import { retentionConfig, webhookRetentionRefusal } from "./reverse-retention";
 import { managedGoogleAudienceForSync } from "./google-audiences";
 import {
   GoogleAudienceOptions,
@@ -11,7 +12,12 @@ import {
 
 type ReadDb = Pick<
   Prisma.TransactionClient,
-  "configurationObjectLink" | "configurationObject" | "source_state" | "source_task" | "reverse_sync_control"
+  | "configurationObjectLink"
+  | "configurationObject"
+  | "source_state"
+  | "source_task"
+  | "reverse_sync_control"
+  | "workspaceOptions"
 >;
 
 /** Paused syncs are omitted unless exporting saved delivery or admitting an explicit refresh. */
@@ -82,6 +88,14 @@ export async function readReverseSync(
     }
   }
   const runtime = { model, warehouse: warehouse.config, destination, options };
+  // Webhook syncs only (JITSU-242 WP7): the bucket for the stored rows. Deliberately outside the revision hash below.
+  const retention = retentionConfig(link.workspaceId, destination);
+  // A new run is refused when nothing could be stored for recovery. The desired-state export never refuses (one
+  // workspace must not break the export of every sync), and neither does the recovery of a saved run.
+  if (!admission.exportPending && !admission.refreshTaskId) {
+    const refusal = await webhookRetentionRefusal(db, link.workspaceId, link.workspace.featuresEnabled, destination);
+    if (refusal) throw new ApiError(refusal, { status: 409 });
+  }
   // Credentials are intentionally revision-bound in this first runtime slice.
   // Changes require the existing controlled-reset workflow; never recover an old
   // logical run against a different account/query/normalization configuration.
@@ -152,6 +166,7 @@ export async function readReverseSync(
     schedule: options.disabled ? undefined : options.schedule,
     timezone: options.timezone ?? "Etc/UTC",
     ...runtime,
+    ...(retention ? { retention } : {}),
   });
   if (Buffer.byteLength(JSON.stringify(value)) > 900_000)
     throw new ApiError("Reverse configuration exceeds Secret budget", { status: 400 });

@@ -4,6 +4,7 @@ import { createRoute } from "../../../../lib/api";
 import { db } from "../../../../lib/server/db";
 import { getServerEnv } from "../../../../lib/server/serverEnv";
 import { readReverseSync } from "../../../../lib/server/reverse-sync-export";
+import { ApiError } from "../../../../lib/shared/errors";
 import { isReadOnly } from "../../../../lib/server/maintenance";
 
 /** Per-run admission, distinct from desired-state export. No billing side effects. */
@@ -37,8 +38,8 @@ export default createRoute()
         );
       if (!value) res.status(403).json({ error: "Reverse sync is missing or disabled" });
       else res.status(200).json(value);
-    } catch {
-      res.status(409).json({ error: "Reverse sync configuration is invalid" });
+    } catch (e) {
+      res.status(409).json({ error: e instanceof ApiError ? e.message : "Reverse sync configuration is invalid" });
     }
   })
   .toNextApiHandler();

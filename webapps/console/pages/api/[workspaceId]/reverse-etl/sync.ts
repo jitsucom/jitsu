@@ -4,6 +4,7 @@ import { createRoute, verifyAccessWithRole } from "../../../../lib/api";
 import { db } from "../../../../lib/server/db";
 import { ReverseSyncSettings, ReverseSyncInput } from "../../../../lib/reverse-etl";
 import { updateReverseSync, deleteReverseSync, reverseTasks } from "../../../../lib/server/reverse-syncs";
+import { provisionRetlBucketForSync } from "../../../../lib/server/reverse-retention";
 import { readReverseSync } from "../../../../lib/server/reverse-sync-export";
 import { getServerEnv } from "../../../../lib/server/serverEnv";
 import { ApiError } from "../../../../lib/shared/errors";
@@ -21,6 +22,7 @@ export const route = createRoute()
   .handler(async ({ user, query: { workspaceId, syncId }, body, req }) => {
     await verifyAccessWithRole(user, workspaceId, "editEntities");
     const result = await updateReverseSync(db.prisma(), workspaceId, syncId, body);
+    await provisionRetlBucketForSync(db.prisma(), workspaceId, syncId);
     await configObjectAuditLog(user, workspaceId, syncId, "link", "update", { newVersion: body }, req);
     return result;
   })

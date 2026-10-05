@@ -16,6 +16,7 @@ import {
 } from "../shared/data-retention";
 import { workspaceAuditLog } from "./audit-log";
 import { withProductAnalytics } from "./telemetry";
+import { provisionRetlBucketViaEe } from "./reverse-retention";
 import { eeAuthHeadersOrServiceToken, getEeServerConnection, isEEAvailable, serviceTokenHeaders } from "./ee";
 
 const log = getLog("backup-retention");
@@ -30,6 +31,8 @@ export type BackupRetentionServiceDeps = {
   verifyCapDays: (workspaceId: string, user: SessionUser, req?: NextApiRequest) => Promise<number>;
   /** Apply the new lifecycle rule to the bucket now (best-effort). */
   applyRetentionNow: (workspaceId: string) => Promise<void>;
+  /** Update the Reverse ETL retention bucket now (best-effort), for workspaces with Reverse ETL. */
+  applyReverseEtlRetentionNow: (workspaceId: string) => Promise<void>;
 };
 
 const PLAN_UNVERIFIED = "Could not verify your subscription plan. Please try again in a few minutes.";
@@ -104,6 +107,7 @@ export class BackupRetentionService {
       prisma: deps.prisma ?? db.prisma(),
       verifyCapDays: deps.verifyCapDays ?? verifyCapDaysViaEe,
       applyRetentionNow: deps.applyRetentionNow ?? applyRetentionNowViaEe,
+      applyReverseEtlRetentionNow: deps.applyReverseEtlRetentionNow ?? provisionRetlBucketViaEe,
     };
   }
 
@@ -255,6 +259,9 @@ export class BackupRetentionService {
     );
     if (retentionHours > 0) {
       await this.deps.applyRetentionNow(workspace.id);
+      if (workspace.featuresEnabled.includes("reverse-etl")) {
+        await this.deps.applyReverseEtlRetentionNow(workspace.id);
+      }
     }
     return next;
   }

@@ -15,10 +15,17 @@ function svc(opts: { capDays?: number | Error } = {}) {
     return opts.capDays ?? 7;
   });
   const applyRetentionNow = vi.fn(async () => {});
+  const applyReverseEtlRetentionNow = vi.fn(async () => {});
   return {
-    service: new BackupRetentionService({ prisma: deps().prisma, verifyCapDays, applyRetentionNow }),
+    service: new BackupRetentionService({
+      prisma: deps().prisma,
+      verifyCapDays,
+      applyRetentionNow,
+      applyReverseEtlRetentionNow,
+    }),
     verifyCapDays,
     applyRetentionNow,
+    applyReverseEtlRetentionNow,
   };
 }
 
@@ -282,5 +289,31 @@ describe("BackupRetentionService.update", () => {
       status: 403,
     });
     expect(await rows(workspace.id)).toHaveLength(0);
+  });
+});
+
+describe("BackupRetentionService.update and the Reverse ETL retention bucket (JITSU-242)", () => {
+  it("updates the bucket now for a workspace with reverse-etl, when the retention is above 0", async () => {
+    const { user, workspace } = await seedWorkspace();
+    await deps().prisma.workspace.update({ where: { id: workspace.id }, data: { featuresEnabled: ["reverse-etl"] } });
+    const { service, applyReverseEtlRetentionNow } = svc({ capDays: 7 });
+    await service.update(user, workspace.id, { retentionDays: 7 });
+    expect(applyReverseEtlRetentionNow).toHaveBeenCalledWith(workspace.id);
+  });
+
+  it("does not call it without the reverse-etl feature, or for retention 0", async () => {
+    const plain = await seedWorkspace();
+    const a = svc({ capDays: 7 });
+    await a.service.update(plain.user, plain.workspace.id, { retentionDays: 7 });
+    expect(a.applyReverseEtlRetentionNow).not.toHaveBeenCalled();
+
+    const flagged = await seedWorkspace();
+    await deps().prisma.workspace.update({
+      where: { id: flagged.workspace.id },
+      data: { featuresEnabled: ["reverse-etl"] },
+    });
+    const b = svc({ capDays: 7 });
+    await b.service.update(flagged.user, flagged.workspace.id, { retentionDays: 0, acknowledgeDataLoss: true });
+    expect(b.applyReverseEtlRetentionNow).not.toHaveBeenCalled();
   });
 });
