@@ -13,6 +13,7 @@ import {
 import { signatureHeaders } from "../src/functions/webhook/signing";
 import { createWebhookWriter } from "../src/functions/webhook/writer";
 import { reverseDestinationRuntime } from "../src/reverse-etl/runtime";
+import { ReverseEtlRejectionError } from "../src/reverse-etl/meta";
 
 const destination = { url: "https://example.com/hook", method: "POST" };
 const options = { deliveryAttested: true as const };
@@ -244,6 +245,55 @@ describe("webhook delivery", () => {
     const ts = headers["Jitsu-Signature-Timestamp"];
     const expected = createHmac("sha256", "s3cret").update(`${ts}.${requests[0].body}`).digest("hex");
     expect(headers["Jitsu-Signature"]).toBe(expected);
+  });
+});
+
+describe("rejection codes the webhook can emit", () => {
+  // The core shows a rejection code only if it passes ReverseEtlRejectionError's rule. Every code this provider emits has
+  // to pass it, or the user silently loses the reason; a new code that does not fit fails here, not in production.
+  const scenarios: Array<[string, Step, object?]> = [
+    ...[301, 302, 400, 401, 403, 404, 410, 413, 422, 408, 429, 500, 502, 503, 504, 599].map(
+      status => [`HTTP ${status}`, status] as [string, Step]
+    ),
+    ...(["invalid_url", "blocked_address", "dns_error", "tls_error", "connection_error", "timeout"] as const).flatMap(
+      code =>
+        [
+          [`${code} before a connection`, new GuardedRequestError(code, false)],
+          [`${code} after a connection`, new GuardedRequestError(code, true)],
+        ] as Array<[string, Step]>
+    ),
+  ];
+  it.each(scenarios)("%s", async (_name, step) => {
+    const outcomes = await deliver([step]).promise;
+    expect(outcomes[0].status).toBe("rejected");
+    const code = (outcomes[0] as { code: string }).code;
+    expect(code).toBeTruthy();
+    expect(new ReverseEtlRejectionError(code).code, `code ${code} would be hidden from the user`).toBe(code);
+  });
+
+  it("a record too large for any request", async () => {
+    const huge = [{ operationId: "op0", key: "k0", row: { id: 0, name: "x".repeat(1_100_000) } }];
+    const outcomes = await deliver([200], huge).promise;
+    expect((outcomes[0] as { code: string }).code).toBe("request_too_large");
+    expect(new ReverseEtlRejectionError("request_too_large").code).toBe("request_too_large");
+  });
+
+  it("an unexpected error in the sender", async () => {
+    const fake = fakeDeps([200]);
+    fake.deps.send = async () => {
+      throw new Error("boom");
+    };
+    const outcomes = await deliverBatch({
+      records: records(1),
+      action: "upsert",
+      scope,
+      config: config(),
+      options: parsedOptions(),
+      signal: new AbortController().signal,
+      deps: fake.deps,
+    });
+    expect((outcomes[0] as { code: string }).code).toBe("internal_error");
+    expect(new ReverseEtlRejectionError("internal_error").code).toBe("internal_error");
   });
 });
 
