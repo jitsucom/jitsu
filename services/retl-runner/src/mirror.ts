@@ -15,6 +15,8 @@ import {
   createBufferedSyncStore,
 } from "@jitsu/destination-functions/src/reverse-etl/identity";
 import {
+  ensureNoRejection,
+  ReverseEtlRejectionError,
   validateBatchResult,
   validateFinishResult,
   validateStream,
@@ -103,10 +105,12 @@ const mirrorFailureHints = {
 /** Only stage names and core counters are exposed, never SDK errors or source values. */
 export class MirrorRunError extends PersistenceError {
   constructor(stage: keyof typeof mirrorFailureHints, readRows: number, savedRows: number, error?: unknown) {
+    // A destination's rejection code (already pattern-checked by the error) is shown, like in the run loop.
+    const code = error instanceof ReverseEtlRejectionError && error.code ? ` Reason code: ${error.code}.` : "";
     super(
       `Snapshot mirror stopped during ${stage} (read ${readRows} rows, saved ${savedRows}). ${
         reverseEtlFailure(error)?.message ?? mirrorFailureHints[stage]
-      }`
+      }${code}`
     );
   }
 }
@@ -206,13 +210,15 @@ function validateWriter(writer: ReverseEtlWriter<JsonObject>) {
   );
 }
 function hasPending(result: BatchResult, asynchronous: boolean) {
-  ensure(!result.outcomes.some(outcome => outcome.status === "rejected"), "Destination rejected a row; mirror stopped");
+  ensureNoRejection(result.outcomes);
   const pending = result.outcomes.some(outcome => outcome.status === "staged");
   ensure(!pending || asynchronous, "Staged mirror batches require reconciliation before planning");
   ensure(!pending || result.remoteJobIds?.length, "Asynchronous batches require recoverable remote job IDs");
   return pending;
 }
-function safeError(error?: unknown): PersistenceError {
+function safeError(error?: unknown): PersistenceError | ReverseEtlRejectionError {
+  // Already a fixed core-owned reason with a pattern-checked code: keep it, so the code reaches the user.
+  if (error instanceof ReverseEtlRejectionError) return error;
   return new PersistenceError(
     reverseEtlFailure(error)?.reason ?? "Snapshot mirror stopped; inspect durable recovery state before retrying"
   );
