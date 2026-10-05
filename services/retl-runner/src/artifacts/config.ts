@@ -43,3 +43,18 @@ export function retentionStoreFromEnv(input: Record<string, string | undefined>,
   if (!config.RETL_OBJECT_STORE) throw new Error("RETL_OBJECT_STORE is required (gcs or s3)");
   return storeFor(config, bucket);
 }
+/**
+ * The object storage for one run: the shared store from the environment, plus a retention store when the run
+ * configuration names a retention bucket (JITSU-242). A run without one gets exactly what it always got. Lives here, not
+ * in main.ts, so the choice of bucket can be tested.
+ */
+export function runObjectStorage(
+  input: Record<string, string | undefined>,
+  signal: AbortSignal,
+  runConfig: { retention?: { bucket: string } }
+) {
+  return {
+    ...objectStorageFromEnv(input, signal),
+    ...(runConfig.retention ? { retention: retentionStoreFromEnv(input, runConfig.retention.bucket) } : {}),
+  };
+}

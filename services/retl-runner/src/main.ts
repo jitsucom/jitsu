@@ -7,7 +7,7 @@ import { execute } from "./execute";
 import { createAdapterRegistry } from "./adapters";
 import { createConsoleClient } from "./console-client";
 import { KubernetesLease, inClusterLeaseRequest } from "./lease";
-import { objectStorageFromEnv, retentionStoreFromEnv } from "./artifacts/config";
+import { runObjectStorage } from "./artifacts/config";
 import { reportFailure } from "./diagnostics";
 
 const Env = z.object({
@@ -38,11 +38,8 @@ async function main() {
   const db = new Database(
     { connectionString: env.RETL_DATABASE_URL },
     {
-      objectStorage: {
-        ...objectStorageFromEnv(process.env, controller.signal),
-        // Only when the run configuration names a retention bucket; a run without it is stored exactly as before.
-        ...(config.retention ? { retention: retentionStoreFromEnv(process.env, config.retention.bucket) } : {}),
-      },
+      // The run configuration's retention bucket, when it names one; a run without it is stored exactly as before.
+      objectStorage: runObjectStorage(process.env, controller.signal, config),
     }
   );
   const consoleClient = createConsoleClient(
