@@ -1541,6 +1541,19 @@ describe("executable runner", () => {
         expect((await task()).error).toContain("retention settings changed");
       }
     );
+    it("refuses retention on a mirror run at admission, before anything is extracted or stored", async () => {
+      // A mirror seals its full snapshot, with the projected provider data, before its first batch, so the per-batch guard
+      // would be too late: the combination is refused up front.
+      const f = fixture();
+      f.input.config = {
+        ...f.input.config,
+        options: { ...f.input.config.options, mode: "mirror" },
+        retention: { bucket: "jitsu-retl-workspace" },
+      };
+      expect(await execute(f.input)).toBe("FAILED");
+      expect(f.calls).toEqual(["lease", "release"]);
+      expect((await task()).error).toContain("snapshot of its data that cannot expire");
+    });
     it("admits a run whose retention is unchanged, or absent on both sides", async () => {
       expect(await execute(admitting(undefined, undefined).input)).toBe("COMPLETE");
     });

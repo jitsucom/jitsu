@@ -113,6 +113,9 @@ export async function execute(input: ExecuteOptions): Promise<TaskResult> {
       config.retention?.bucket === input.config.retention?.bucket,
       "Reverse ETL retention configuration changed before admission"
     );
+    // A mirror run seals its whole snapshot, with the projected provider data, in the main store before its first batch,
+    // so the per-batch guard on projections would come too late. Retention is for upsert streams only: refuse it up front.
+    ensure(!(config.retention && config.options.mode === "mirror"), "Retention is not supported for mirror syncs");
     signal.throwIfAborted();
     const bind = input.adapters.get(String(config.destination.destinationType));
     ensure(bind, "Reverse destination is not enabled in this runner");
