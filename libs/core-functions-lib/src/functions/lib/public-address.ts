@@ -47,6 +47,7 @@ for (const [network, prefix] of [
   ["2001::", 23], // IETF protocol assignments: Teredo, benchmarking, ORCHID
   ["2001:db8::", 32], // documentation
   ["2002::", 16], // 6to4: embeds an IPv4 address
+  ["2620:4f:8000::", 48], // Direct Delegation AS112 Service (globally reachable anycast, blocked as special-purpose)
   ["3fff::", 20], // documentation
 ] as const) {
   blockedV6.addSubnet(network, prefix, "ipv6");
