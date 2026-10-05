@@ -141,6 +141,10 @@ describe("isPublicAddress / isBlockedAddress", () => {
     "2002:7f00:1::1",
     "2002:a00:1::1",
     "3fff::1",
+    // Segment Routing (SRv6) SIDs, 5f00::/16: outside 2000::/3, so the global-unicast allow-list already excludes it.
+    "5f00::",
+    "5f00::1",
+    "5f00:ffff:ffff:ffff:ffff:ffff:ffff:ffff",
     // Direct Delegation AS112 Service (IANA: globally reachable anycast, blocked because it is a special-purpose range).
     "2620:4f:8000::",
     "2620:4f:8000::1",
