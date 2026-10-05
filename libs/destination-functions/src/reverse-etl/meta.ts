@@ -46,6 +46,22 @@ export class ReverseEtlProtocolError extends Error {
   }
 }
 
+/** Shape a provider rejection code must have to be shown to users; anything else is dropped, not sanitised. */
+const rejectionCodePattern = /^[A-Za-z0-9][A-Za-z0-9_.:-]{0,63}$/;
+
+/**
+ * A provider rejected a record. The message stays the fixed core-owned reason; only a code matching
+ * {@link rejectionCodePattern} is kept, so free text from a provider never reaches a user.
+ */
+export class ReverseEtlRejectionError extends ReverseEtlProtocolError {
+  readonly code: string | undefined;
+  constructor(code: unknown) {
+    super("Destination rejected a row; the run stopped without skipping it");
+    this.name = "ReverseEtlRejectionError";
+    this.code = typeof code === "string" && rejectionCodePattern.test(code) ? code : undefined;
+  }
+}
+
 export function validateBatchResult<Row>(batch: WriteBatch<Row>, value: unknown): BatchResult {
   const result = batchResult.safeParse(value);
   if (!result.success) throw new ReverseEtlProtocolError("Malformed writer batch response");

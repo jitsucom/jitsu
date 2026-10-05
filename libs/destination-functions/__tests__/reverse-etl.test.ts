@@ -16,7 +16,13 @@ import {
   recordKey,
   runReverseEtl,
 } from "../src/reverse-etl";
-import { validateBatchResult, validateFinishResult, validateReverseEtlConfig } from "../src/reverse-etl/meta";
+import {
+  ReverseEtlProtocolError,
+  ReverseEtlRejectionError,
+  validateBatchResult,
+  validateFinishResult,
+  validateReverseEtlConfig,
+} from "../src/reverse-etl/meta";
 
 type Row = { email: string };
 const rowType = z.object({ email: z.string().email() }).strict();
@@ -412,6 +418,46 @@ describe("Reverse ETL lifecycle", () => {
     expect(f.journal.commitCheckpoint).not.toHaveBeenCalled();
     expect(f.writer.finish).not.toHaveBeenCalled();
     expect(f.writer.abort).toHaveBeenCalledWith("error");
+  });
+  it("a rejection keeps the fixed reason and exposes the first rejected record's well-formed code", async () => {
+    const f = fixture(6);
+    vi.mocked(f.writer.upsert).mockImplementation(async batch => ({
+      outcomes: batch.records.map((r, i) =>
+        i === 0
+          ? { operationId: r.operationId, status: "accepted" }
+          : { operationId: r.operationId, status: "rejected", code: i === 1 ? "http_422" : "http_500", safeReason: "x" }
+      ),
+    }));
+    const error = await f.run().then(
+      () => undefined,
+      e => e
+    );
+    expect(error).toBeInstanceOf(ReverseEtlRejectionError);
+    expect(error).toBeInstanceOf(ReverseEtlProtocolError);
+    expect(error.message).toBe("Destination rejected a row; the run stopped without skipping it");
+    expect(error.code).toBe("http_422");
+  });
+  it.each([
+    ["spaces", "has space"],
+    ["a URL", "https://example.com/hook?token=abc"],
+    ["a secret-looking value", "Bearer abc.def"],
+    ["a line break", "bad\ncode"],
+    ["a leading separator", "-bad"],
+    ["over 64 characters", "a".repeat(65)],
+  ])("a rejection code with %s is dropped, never shown", async (_name, code) => {
+    const f = fixture(2);
+    vi.mocked(f.writer.upsert).mockImplementation(async batch => ({
+      outcomes: batch.records.map(r => ({ operationId: r.operationId, status: "rejected", code, safeReason: "x" })),
+    }));
+    const error = await f.run().then(
+      () => undefined,
+      e => e
+    );
+    expect(error).toBeInstanceOf(ReverseEtlRejectionError);
+    expect(error.code).toBeUndefined();
+  });
+  it.each(["http_422", "INVALID_GCLID", "a.b:c-d_e", "x".repeat(64)])("a rejection code like %s is kept", code => {
+    expect(new ReverseEtlRejectionError(code).code).toBe(code);
   });
   it("source validation fails before flushing an earlier buffer and hides source values", async () => {
     const f = fixture();

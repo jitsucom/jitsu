@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { ReverseEtlProtocolError, ReverseEtlRejectionError } from "@jitsu/destination-functions/src/reverse-etl/meta";
 import { failureDiagnostic, failureMessage, KubernetesHttpError } from "./diagnostics";
 import { PersistenceError } from "./persistence/types";
 import { MirrorRunError } from "./mirror";
@@ -34,6 +35,31 @@ describe("safe failure diagnostics", () => {
     expect(failureMessage(error, "task-123")).toContain("Run ID: task-123");
     expect(failureDiagnostic("execution", error).reason).toBe(reason);
     expect(JSON.stringify(failureDiagnostic("execution", error))).not.toContain("private-token");
+  });
+  it("shows a rejection's reason code with provider-neutral wording", () => {
+    const message = failureMessage(new ReverseEtlRejectionError("http_422"), "task-1");
+    expect(message).toContain("The destination rejected a row, so the sync stopped.");
+    expect(message).toContain("Reason code: http_422.");
+    expect(message).toContain("Run ID: task-1.");
+    expect(message).not.toContain("identifier mappings");
+    expect(message).not.toContain("consent");
+  });
+  it.each(["Bearer abc.def", "https://example.com/hook?token=abc", "bad\ncode", "has space"])(
+    "never shows a malformed rejection code: %j",
+    code => {
+      const message = failureMessage(new ReverseEtlRejectionError(code), "task-1");
+      expect(message).toContain("The destination rejected a row, so the sync stopped.");
+      expect(message).not.toContain("Reason code");
+      expect(message).not.toContain(code);
+    }
+  );
+  it("adds no code to a rejection message that did not come from a rejected outcome", () => {
+    const message = failureMessage(
+      new ReverseEtlProtocolError("Destination rejected a row; the run stopped without skipping it"),
+      "task-1"
+    );
+    expect(message).toContain("The destination rejected a row, so the sync stopped.");
+    expect(message).not.toContain("Reason code");
   });
   it("does not disclose unknown errors, even when they contain a known reason", () => {
     const error = new Error("Async batches require distinct member identities: private@example.com");
