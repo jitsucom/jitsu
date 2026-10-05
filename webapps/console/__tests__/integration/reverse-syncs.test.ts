@@ -443,3 +443,87 @@ describe("single-save Reverse ETL settings", () => {
       await expect(f.create({ ...f.input, data: { ...f.input.data, ...data } })).rejects.toThrow();
   });
 });
+
+describe("webhook destination", () => {
+  async function webhookFixture(destinationConfig: Record<string, unknown> = {}) {
+    const f = await fixture();
+    const destination = await f.prisma.configurationObject.create({
+      data: {
+        workspaceId: f.workspace.id,
+        type: "destination",
+        config: {
+          name: "Hook",
+          destinationType: "webhook",
+          url: "https://example.com/hook",
+          method: "POST",
+          ...destinationConfig,
+        },
+      },
+    });
+    const input = {
+      fromId: f.model.id,
+      toId: destination.id,
+      data: {
+        version: 2,
+        name: "To hook",
+        stream: "rows",
+        mode: "upsert",
+        mapping: { email: "email" },
+        streamOptions: { recordsPerRequest: 50, concurrency: 2, deliveryAttested: true },
+        schedule: "",
+        timezone: "Etc/UTC",
+        checkpointEvery: 5000,
+        disabled: true,
+      },
+    };
+    const withData = (patch: Record<string, unknown>) => ({ ...input, data: { ...input.data, ...patch } });
+    return { ...f, input, withData };
+  }
+
+  it("saves a valid webhook sync and keeps checkpointEvery", async () => {
+    const f = await webhookFixture();
+    const { id } = await f.create(f.input);
+    const link = await f.prisma.configurationObjectLink.findUniqueOrThrow({ where: { id } });
+    expect(link.toId).toBe(f.input.toId);
+    expect(link.data).toMatchObject({
+      stream: "rows",
+      mode: "upsert",
+      mapping: { email: "email" },
+      checkpointEvery: 5000,
+      streamOptions: { deliveryAttested: true },
+    });
+  });
+
+  it("rejects a sync that does not confirm repeated delivery", async () => {
+    const f = await webhookFixture();
+    await expect(
+      f.create(f.withData({ streamOptions: { recordsPerRequest: 50, concurrency: 2, deliveryAttested: false } }))
+    ).rejects.toThrow();
+    expect(await listReverseSyncs(f.prisma, f.workspace.id)).toEqual([]);
+  });
+
+  it("requires acknowledgement for an http:// URL and accepts it when given", async () => {
+    const f = await webhookFixture({ url: "http://example.com/hook" });
+    await expect(f.create(f.input)).rejects.toThrow(/unencrypted/);
+    await expect(
+      f.create(
+        f.withData({
+          streamOptions: { recordsPerRequest: 50, concurrency: 2, deliveryAttested: true, allowInsecureHttp: true },
+        })
+      )
+    ).resolves.toBeTruthy();
+  });
+
+  it("rejects a destination that is not POST, and a mapping that is not the model's columns", async () => {
+    const put = await webhookFixture({ method: "PUT" });
+    await expect(put.create(put.input)).rejects.toThrow(/POST/);
+    const f = await webhookFixture();
+    await expect(f.create(f.withData({ mapping: { other: "email" } }))).rejects.toThrow(/own names|primary key/);
+    await expect(f.create(f.withData({ mapping: { name: "name" } }))).rejects.toThrow(/primary key/);
+  });
+
+  it("rejects mirror mode", async () => {
+    const f = await webhookFixture();
+    await expect(f.create(f.withData({ mode: "mirror" }))).rejects.toThrow(/mirror/);
+  });
+});

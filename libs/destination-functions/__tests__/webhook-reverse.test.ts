@@ -645,3 +645,58 @@ describe("failure messages", () => {
     }
   });
 });
+
+describe("editor and catalog", () => {
+  it("registers webhook in the browser catalog with its Rows stream and validator", async () => {
+    const { reverseDestinationMetadata } = await import("../src/reverse-etl/catalog");
+    const entry = reverseDestinationMetadata.get("webhook")!;
+    expect(entry.streams.map(stream => stream.id)).toEqual(["rows"]);
+    expect(entry.validateSettings).toBe(validateWebhookReverseSettings);
+  });
+
+  it("the Rows stream defaults to upsert, checkpointEvery 5000, unconfirmed delivery and 50 records x 2 requests", async () => {
+    const { webhookRowsEditor } = await import("../src/functions/webhook/editor");
+    expect(webhookRowsEditor.checkpointEvery).toBe(5000);
+    expect(webhookRowsEditor.defaults()).toEqual({
+      mode: "upsert",
+      mapping: {},
+      streamOptions: { recordsPerRequest: 50, concurrency: 2, deliveryAttested: false },
+    });
+    // Unconfirmed delivery must not pass save validation.
+    expect(() =>
+      validateWebhookReverseSettings(
+        {
+          stream: "rows",
+          mode: "upsert",
+          streamOptions: webhookRowsEditor.defaults().streamOptions,
+          mapping: { id: "id" },
+        },
+        { primaryKey: ["id"] },
+        destination
+      )
+    ).toThrow();
+  });
+
+  it("the size limit shown to users is the limit that is enforced", async () => {
+    const { maxRequestBytesLabel } = await import("../src/functions/webhook/reverse-meta");
+    expect(maxRequestBytes).toBe(1024 * 1024);
+    expect(maxRequestBytesLabel).toBe("1 MiB");
+  });
+
+  it("every editor field maps back into settings that the options schema accepts", async () => {
+    const { webhookRowsEditor } = await import("../src/functions/webhook/editor");
+    let options = { ...webhookRowsEditor.defaults() };
+    // The form rebuilds its fields from the latest options after every change, so do the same here.
+    for (let i = 0; i < webhookRowsEditor.fields(options).length; i++) {
+      const field = webhookRowsEditor.fields(options)[i];
+      if (field.editor === "checkbox") options = { ...options, ...field.change(true) } as typeof options;
+      if (field.editor === "number") options = { ...options, ...field.change(field.max!) } as typeof options;
+    }
+    expect(WebhookRowsOptions.parse(options.streamOptions)).toEqual({
+      recordsPerRequest: 200,
+      concurrency: 10,
+      deliveryAttested: true,
+      allowInsecureHttp: true,
+    });
+  });
+});

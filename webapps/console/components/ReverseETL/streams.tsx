@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { Alert, Checkbox, Input, InputNumber, Select } from "antd";
 import { reverseDestinationMetadata } from "@jitsu/destination-functions/src/reverse-etl/catalog";
 import type { ReverseEditorField } from "@jitsu/protocols/reverse-etl-editor";
@@ -9,7 +9,7 @@ import { DestinationTargetSelector } from "./DestinationTargetSelector";
 export interface StreamEditor {
   id: string;
   label: string;
-  defaults(): Pick<ReverseSyncOptions, "mode" | "mapping" | "streamOptions">;
+  defaults(): Pick<ReverseSyncOptions, "mode" | "mapping" | "streamOptions" | "checkpointEvery">;
   fields(
     options: ReverseSyncOptions,
     update: (patch: Partial<ReverseSyncOptions>) => void,
@@ -102,6 +102,42 @@ function IdentifierMapping({
   );
 }
 
+const sameMapping = (a: Record<string, string>, b: Record<string, string>) => {
+  const keys = Object.keys(a);
+  return keys.length === Object.keys(b).length && keys.every(key => a[key] === b[key]);
+};
+/**
+ * Webhook payload: every model column goes out under its own name, so the mapping is the identity over the model's
+ * columns and is kept in step with them here. A column list that failed to load never overwrites a saved mapping.
+ */
+function PayloadColumns({
+  mapping,
+  disabled,
+  source,
+  onChange,
+}: {
+  mapping: Record<string, string>;
+  disabled: boolean;
+  source: { columns: WarehouseColumn[]; loading: boolean };
+  onChange: (mapping: Record<string, string>) => void;
+}) {
+  const { columns, loading } = source;
+  useEffect(() => {
+    if (disabled || loading || !columns.length) return;
+    const identity = Object.fromEntries(columns.map(column => [column.name, column.name]));
+    if (!sameMapping(identity, mapping)) onChange(identity);
+  }, [columns, loading, disabled, mapping, onChange]);
+  const shown = columns.length
+    ? columns.map(column => [column.name, column.type])
+    : Object.keys(mapping).map(n => [n, ""]);
+  if (!shown.length) return <Alert type="warning" title="Select a model to see the columns that will be sent." />;
+  return (
+    <pre className="text-xs bg-gray-50 border rounded p-3 m-0 overflow-auto max-h-80" aria-label="Payload preview">
+      {`{\n${shown.map(([name, type]) => `  ${JSON.stringify(name)}: ${type ? `<${type}>` : "..."}`).join(",\n")}\n}`}
+    </pre>
+  );
+}
+
 function renderField(
   field: ReverseEditorField,
   streamId: string,
@@ -178,6 +214,16 @@ function renderField(
         />
       );
       break;
+    case "columns":
+      component = (
+        <PayloadColumns
+          mapping={options.mapping}
+          disabled={disabled}
+          source={source}
+          onChange={mapping => update({ mapping })}
+        />
+      );
+      break;
     case "mapping":
       component = (
         <ColumnSelector
@@ -207,7 +253,7 @@ export const reverseStreamEditors: Record<string, StreamEditor[]> = Object.fromE
         ({
           id: stream.id,
           label: stream.label,
-          defaults: stream.defaults,
+          defaults: () => ({ ...stream.defaults(), checkpointEvery: stream.checkpointEvery ?? 50_000 }),
           fields: (options, update, disabled, source) =>
             stream.fields(options).map(field => renderField(field, stream.id, options, update, disabled, source)),
         } satisfies StreamEditor)

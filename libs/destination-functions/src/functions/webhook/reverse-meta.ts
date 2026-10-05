@@ -231,3 +231,6 @@ export function validateWebhookReverseSettings(
   }
   validateWebhookMapping(options.mapping, model.primaryKey);
 }
+
+/** Shown to users; keep in step with `maxRequestBytes` in deliver.ts (a test compares them). */
+export const maxRequestBytesLabel = "1 MiB";
