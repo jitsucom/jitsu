@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import React from "react";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { SyncEditor } from "../../components/ReverseETL/SyncEditor";
 import { ReverseSyncView } from "../../lib/reverse-etl";
@@ -150,6 +150,42 @@ it("keeps saved mappings visible when column discovery fails", async () => {
   await screen.findByText("Could not load model columns. Existing mappings are kept.");
   expect(screen.getByTestId("Email column").textContent).toContain("old_email");
   expect((screen.getByRole("button", { name: "Save" }) as HTMLButtonElement).disabled).toBe(false);
+});
+it("keeps a Google sync's own column mapping when the model changes (only the webhook derives its mapping)", async () => {
+  state.models = [
+    { id: "model1", name: "First model", warehouseId: "wh", query: "select email" },
+    { id: "model2", name: "Second model", warehouseId: "wh", query: "select contact" },
+  ];
+  state.rpc.mockImplementation(async (url: string, args: any) =>
+    url.endsWith("/models/columns")
+      ? {
+          columns:
+            args.query.modelId === "model1"
+              ? [{ name: "old_email", type: "text" }]
+              : [{ name: "contact", type: "text" }],
+        }
+      : { id: "saved" }
+  );
+  mount(savedSync());
+  await waitFor(() =>
+    expect(state.rpc).toHaveBeenCalledWith(
+      "/api/ws/models/columns",
+      expect.objectContaining({ query: { modelId: "model1" } })
+    )
+  );
+  fireEvent.mouseDown(within(screen.getByTestId("Model")).getByRole("combobox"));
+  fireEvent.click(screen.getByTitle("Second model"));
+  await waitFor(() =>
+    expect(state.rpc).toHaveBeenCalledWith(
+      "/api/ws/models/columns",
+      expect.objectContaining({ query: { modelId: "model2" } })
+    )
+  );
+  await act(async () => {});
+  fireEvent.click(screen.getByRole("button", { name: "Save" }));
+  await waitFor(() => expect(state.rpc.mock.calls.some(([, args]) => args?.method === "PUT")).toBe(true));
+  const put = state.rpc.mock.calls.find(([, args]) => args?.method === "PUT")![1].body;
+  expect(put.data.mapping).toEqual({ email: "old_email" });
 });
 it("loads model columns for identifiers and consent and refreshes on model selection", async () => {
   state.models = [

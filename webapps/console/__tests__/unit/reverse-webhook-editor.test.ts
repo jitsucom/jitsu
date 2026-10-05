@@ -167,6 +167,69 @@ it("follows the model's columns when the model changes, dropping columns that ar
   expect(saveBody().data.mapping).toEqual({ id: "id", total: "total" });
 });
 
+it("does not let a save carry the old model's mapping while the new model's columns are loading", async () => {
+  state.models = [
+    ...models,
+    { id: "model2", name: "Orders", warehouseId: "wh", query: "select id, total from orders" },
+  ];
+  let release!: () => void;
+  const gate = new Promise<void>(resolve => (release = resolve));
+  state.rpc.mockImplementation(async (url: string, args: any) => {
+    if (!url.endsWith("/models/columns")) return { id: "saved", sync: { id: "saved" } };
+    if (args.query.modelId === "model2") {
+      await gate;
+      return {
+        columns: [
+          { name: "id", type: "int4" },
+          { name: "total", type: "numeric" },
+        ],
+      };
+    }
+    return { columns: twoColumns };
+  });
+  mount();
+  await chooseRows();
+  await screen.findByText(/"name": <text>/);
+  fireEvent.mouseDown(within(screen.getByTestId("Model")).getByRole("combobox"));
+  fireEvent.click(screen.getByTitle("Orders"));
+  // The old mapping ({id, name}) must not be savable while the new model's columns are still loading; the model shares
+  // the primary key, so the server would accept it and the payload would silently carry the wrong fields.
+  const save = screen.getByRole("button", { name: "Save" }) as HTMLButtonElement;
+  expect(save.disabled).toBe(true);
+  fireEvent.click(save);
+  expect(saveBody()).toBeUndefined();
+  release();
+  await screen.findByText(/"total": <numeric>/);
+  await act(async () => {});
+  expect((screen.getByRole("button", { name: "Save" }) as HTMLButtonElement).disabled).toBe(false);
+  fireEvent.click(screen.getByRole("button", { name: "Save" }));
+  await waitFor(() => expect(saveBody()).toBeTruthy());
+  expect(saveBody().data.mapping).toEqual({ id: "id", total: "total" });
+});
+
+it("clears the old mapping when the model changes, so a failed column load cannot leave it behind", async () => {
+  state.models = [
+    ...models,
+    { id: "model2", name: "Orders", warehouseId: "wh", query: "select id, total from orders" },
+  ];
+  state.rpc.mockImplementation(async (url: string, args: any) => {
+    if (!url.endsWith("/models/columns")) return { id: "saved", sync: { id: "saved" } };
+    if (args.query.modelId === "model2") throw new Error("Warehouse unavailable");
+    return { columns: twoColumns };
+  });
+  mount();
+  await chooseRows();
+  await screen.findByText(/"name": <text>/);
+  fireEvent.mouseDown(within(screen.getByTestId("Model")).getByRole("combobox"));
+  fireEvent.click(screen.getByTitle("Orders"));
+  await screen.findByText("Could not load model columns. Existing mappings are kept.");
+  await act(async () => {});
+  fireEvent.click(screen.getByRole("button", { name: "Save" }));
+  await waitFor(() => expect(saveBody()).toBeTruthy());
+  // nothing from the previous model is saved: the server then refuses an empty payload with a readable message
+  expect(saveBody().data.mapping).toEqual({});
+});
+
 it("keeps a saved mapping when the columns cannot be loaded", async () => {
   state.models = models;
   state.rpc.mockImplementation(async (url: string) => {

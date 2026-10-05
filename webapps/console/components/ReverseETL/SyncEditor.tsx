@@ -84,6 +84,17 @@ export function SyncEditor({ sync, reload }: { sync?: ReverseSyncView; reload: (
     setOptions(o => ({ ...o, ...patch }));
     setDirty(true);
   };
+  const streamFields =
+    stream?.fields(options, update, disabled, {
+      columns: columns.data ?? [],
+      loading: columns.isFetching,
+      destinationId: toId,
+    }) ?? [];
+  // A "columns" field (the webhook payload) derives the mapping from the model's columns. The server never queries the
+  // warehouse at save, so a mapping left over from another model would be accepted whenever the primary key matches and
+  // the payload would silently carry the wrong fields: drop it when the model changes and hold Save until the new
+  // columns have rebuilt it.
+  const derivesMapping = stream?.derivesMapping(options) ?? false;
   const endpoint = `/api/${workspace.id}/reverse-etl/sync?syncId=${encodeURIComponent(sync?.id ?? "")}`;
   const run = async (id: string) => {
     const result = await rpc(`/api/${workspace.id}/reverse-etl/sync`, {
@@ -123,7 +134,8 @@ export function SyncEditor({ sync, reload }: { sync?: ReverseSyncView; reload: (
           }))}
           onChange={id => {
             setFromId(id);
-            setDirty(true);
+            if (derivesMapping && id !== fromId) update({ mapping: {} });
+            else setDirty(true);
           }}
         />
       ),
@@ -198,11 +210,7 @@ export function SyncEditor({ sync, reload }: { sync?: ReverseSyncView; reload: (
         />
       ),
     },
-    ...(stream?.fields(options, update, disabled, {
-      columns: columns.data ?? [],
-      loading: columns.isFetching,
-      destinationId: toId,
-    }) ?? []),
+    ...streamFields,
   ];
   return (
     <div className="max-w-5xl grow">
@@ -300,7 +308,7 @@ export function SyncEditor({ sync, reload }: { sync?: ReverseSyncView; reload: (
             type="primary"
             size="large"
             loading={busy}
-            disabled={!editable || (!enabled && (!sync || !options.disabled))}
+            disabled={!editable || (!enabled && (!sync || !options.disabled)) || (derivesMapping && columns.isFetching)}
             onClick={() =>
               perform(async () => {
                 if (!sync) {

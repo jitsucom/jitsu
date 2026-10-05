@@ -10,6 +10,8 @@ export interface StreamEditor {
   id: string;
   label: string;
   defaults(): Pick<ReverseSyncOptions, "mode" | "mapping" | "streamOptions" | "checkpointEvery">;
+  /** True when the stream builds its mapping from the model's columns (the webhook payload), not from user choices. */
+  derivesMapping(options: ReverseSyncOptions): boolean;
   fields(
     options: ReverseSyncOptions,
     update: (patch: Partial<ReverseSyncOptions>) => void,
@@ -280,6 +282,7 @@ export const reverseStreamEditors: Record<string, StreamEditor[]> = Object.fromE
           id: stream.id,
           label: stream.label,
           defaults: () => ({ ...stream.defaults(), checkpointEvery: stream.checkpointEvery ?? 50_000 }),
+          derivesMapping: options => stream.fields(options).some(field => field.editor === "columns"),
           fields: (options, update, disabled, source) =>
             stream.fields(options).map(field => renderField(field, stream.id, options, update, disabled, source)),
         } satisfies StreamEditor)
