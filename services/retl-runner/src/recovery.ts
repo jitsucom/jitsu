@@ -1,6 +1,7 @@
 import type { JsonObject, ReverseEtlContext, ResumePoint } from "@jitsu/protocols/reverse-etl";
 import {
   ensureNoRejection,
+  ReverseEtlRejectionError,
   validateBatchResult,
   validateFinishResult,
 } from "@jitsu/destination-functions/src/reverse-etl/meta";
@@ -16,7 +17,9 @@ export async function recoverRun(
   run: Session,
   ctx: ReverseEtlContext<JsonObject, JsonObject>,
   hooks?: RuntimeRecovery,
-  independentBatches = false
+  independentBatches = false,
+  /** Filled in with the first saved rejection code seen, so the caller can show it (never used to block recovery). */
+  report: { rejectionCode?: string } = {}
 ) {
   const status = await run.core.recoveryStatus();
   const store = () => ctx.store.snapshot();
@@ -51,6 +54,12 @@ export async function recoverRun(
         ctx.signal.throwIfAborted();
         const saved = await run.core.recoveryBatch(entry.batchId);
         rejected ||= saved.operations.some(op => op.status === "rejected");
+        if (rejected && report.rejectionCode === undefined) {
+          // A rejection that was acknowledged durably earlier is not raised again (that would make recovery fail every time),
+          // but its code is kept so the run that cleans up can still show it. The same pattern check as for a fresh rejection.
+          const saved_ = saved.result?.outcomes.find(outcome => outcome.status === "rejected");
+          report.rejectionCode = new ReverseEtlRejectionError(saved_?.code).code;
+        }
         if (saved.operations.some(op => ["prepared", "unknown", "staged"].includes(op.status))) {
           ensure(hooks?.reconcileBatch, "Batch requires provider reconciliation");
           // Upsert manifests already contain provider input. Mirror partial-source
