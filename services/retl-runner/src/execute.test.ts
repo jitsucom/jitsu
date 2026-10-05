@@ -16,6 +16,7 @@ import { googleAudienceStateStream } from "@jitsu/destination-functions/src/func
 import { ReverseEtlManualReconciliationError } from "@jitsu/destination-functions/src/reverse-etl/failure";
 import { recordKey } from "@jitsu/destination-functions/src/reverse-etl/identity";
 import * as http from "node:http";
+import { createHmac } from "node:crypto";
 import type { AddressInfo } from "node:net";
 import { createWarehouseReader } from "@jitsu/warehouse-query";
 import { createGuardedRequest } from "@jitsu/destination-functions/src/functions/lib/guarded-request";
@@ -2185,5 +2186,350 @@ describe("webhook destination through the runner", () => {
       expect(await execute(f.input)).toBe("COMPLETE");
       expect(received.flatMap(r => r.body.records)[0].data).toEqual({ id: 1, n_a: ["1", "2"], n_b: ["p", "q"] });
     });
+  });
+});
+
+describe("webhook delivery under faults", () => {
+  const ROWS = Number(process.env.WEBHOOK_SOAK_ROWS ?? 3000);
+  // The suite's console output is swallowed; WEBHOOK_REPORT=<file> collects the measurements instead.
+  const report = (line: string) => {
+    if (process.env.WEBHOOK_REPORT) require("node:fs").appendFileSync(process.env.WEBHOOK_REPORT, `${line}\n`);
+  };
+  const secret = "soak-secret";
+  type Action =
+    | { kind: "ok" }
+    | { kind: "status"; status: number; retryAfter?: string }
+    | { kind: "reset"; processed: boolean }
+    | { kind: "slow"; ms: number }
+    | { kind: "hang"; processed: boolean };
+  interface Info {
+    ids: number[];
+    request: number;
+  }
+  let server: http.Server;
+  let sockets: Set<import("node:net").Socket>;
+  const state = {
+    delivered: new Map<string, number>(),
+    ids: new Map<number, number>(),
+    requests: 0,
+    badSignatures: 0,
+    behaviour: (_info: Info): Action => ({ kind: "ok" }),
+    onProcessed: (_uniqueIds: number) => {},
+  };
+  const reset = () => {
+    state.delivered.clear();
+    state.ids.clear();
+    state.requests = 0;
+    state.badSignatures = 0;
+    state.behaviour = () => ({ kind: "ok" });
+    state.onProcessed = () => {};
+  };
+  // Small deterministic generator so a failing run can be reproduced.
+  const seeded = (seed: number) => () => {
+    seed = (seed + 0x6d2b79f5) | 0;
+    let t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+  beforeEach(async () => {
+    reset();
+    sockets = new Set();
+    server = http.createServer((req, res) => {
+      const chunks: Buffer[] = [];
+      req.on("data", chunk => chunks.push(chunk));
+      req.on("end", () => {
+        const text = Buffer.concat(chunks).toString();
+        const timestamp = String(req.headers["jitsu-signature-timestamp"]);
+        const expected = createHmac("sha256", secret).update(`${timestamp}.${text}`).digest("hex");
+        if (req.headers["jitsu-signature"] !== expected) state.badSignatures++;
+        const records = JSON.parse(text).records as { key: string; idempotencyKey: string; data: { id: number } }[];
+        const action = state.behaviour({ ids: records.map(r => r.data.id), request: ++state.requests });
+        const process = () => {
+          for (const record of records) {
+            state.delivered.set(record.idempotencyKey, (state.delivered.get(record.idempotencyKey) ?? 0) + 1);
+            state.ids.set(record.data.id, (state.ids.get(record.data.id) ?? 0) + 1);
+          }
+          state.onProcessed(state.ids.size);
+        };
+        switch (action.kind) {
+          case "ok":
+            process();
+            res.statusCode = 200;
+            res.end();
+            break;
+          case "slow":
+            process();
+            setTimeout(() => {
+              res.statusCode = 200;
+              res.end();
+            }, action.ms);
+            break;
+          case "status":
+            res.statusCode = action.status;
+            if (action.retryAfter) res.setHeader("retry-after", action.retryAfter);
+            res.end();
+            break;
+          case "reset":
+            if (action.processed) process();
+            req.socket.destroy();
+            break;
+          case "hang":
+            if (action.processed) process();
+            break;
+        }
+      });
+    });
+    server.on("connection", socket => {
+      sockets.add(socket);
+      socket.on("close", () => sockets.delete(socket));
+    });
+    await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
+  });
+  afterEach(async () => {
+    for (const socket of sockets) socket.destroy();
+    await new Promise<void>(resolve => server.close(() => resolve()));
+  });
+
+  function soak(rows = ROWS) {
+    const f = fixture();
+    const url = `http://127.0.0.1:${(server.address() as AddressInfo).port}/hook`;
+    f.input.config.destination = {
+      destinationType: "webhook",
+      url,
+      method: "POST",
+      signatureMethod: "hmac",
+      signatureSecret: secret,
+    };
+    f.input.config.model = {
+      ...f.input.config.model,
+      query: "SELECT id, name FROM source",
+      primaryKey: ["id"],
+      cursor: { column: "id", type: "number" },
+    } as any;
+    f.input.config.options = {
+      ...f.input.config.options,
+      stream: "rows",
+      mode: "upsert",
+      mapping: { id: "id", name: "name" },
+      checkpointEvery: 5000,
+      streamOptions: { deliveryAttested: true, allowInsecureHttp: true, recordsPerRequest: 50, concurrency: 2 },
+    };
+    const deps = {
+      ...defaultDeliveryDeps,
+      send: createGuardedRequest({ isBlocked: () => false }),
+      sleep: async () => {},
+    };
+    f.input.adapters = new Map([["webhook", cfg => createWebhookRuntime(cfg as any, undefined, deps)]]);
+    f.input.reader = () =>
+      ({
+        sql: {} as any,
+        columns: async () => [],
+        preview: async () => ({ rows: [], columns: [], truncated: false }),
+        close: async () => {},
+        stream: async function* (_model: any, after: any, signal: AbortSignal) {
+          for (let id = after ? Number(after.value) + 1 : 1; id <= rows; id++) {
+            signal.throwIfAborted();
+            yield {
+              row: { id, name: `user-${id}` },
+              deleted: false,
+              checkpoint: { value: String(id), primaryKeyValues: [String(id)] },
+            };
+          }
+        },
+      } as any);
+    let run = 0;
+    const next = () => {
+      run++;
+      f.input = { ...f.input, taskId: `soak-${run}`, controller: new AbortController() };
+      return f.input;
+    };
+    return { f, next, rows };
+  }
+  const deliveredEverything = (rows: number) => {
+    const missing: number[] = [];
+    for (let id = 1; id <= rows && missing.length < 5; id++) if (!state.ids.has(id)) missing.push(id);
+    return missing;
+  };
+  const duplicates = () => [...state.delivered.values()].reduce((sum, count) => sum + count - 1, 0);
+  // After a run is interrupted mid-request the batch is left uncertain. The next scheduled run fails once with the
+  // core's "reconcile before retrying" error and the one after it recovers (no human step). Returns each run's result
+  // and the failed runs' task errors.
+  const continueAfterInterruption = async (next: () => ExecuteOptions) => {
+    const results: string[] = [];
+    const errors: string[] = [];
+    while (results.at(-1) !== "COMPLETE" && results.length < 4) {
+      const input = next();
+      results.push(await execute(input));
+      if (results.at(-1) === "FAILED") errors.push(String((await task(input.taskId)).error));
+    }
+    return { results, errors };
+  };
+
+  it("delivers every row exactly once-or-more under 503, 429, resets and slow responses, with valid signatures", async () => {
+    const random = seeded(7);
+    state.behaviour = () => {
+      const r = random();
+      if (r < 0.015) return { kind: "status", status: 503 };
+      if (r < 0.02) return { kind: "status", status: 429, retryAfter: "0" };
+      if (r < 0.025) return { kind: "reset", processed: false };
+      if (r < 0.035) return { kind: "reset", processed: true };
+      if (r < 0.045) return { kind: "slow", ms: 30 };
+      return { kind: "ok" };
+    };
+    const { f, rows } = soak();
+    expect(await execute(f.input)).toBe("COMPLETE");
+    expect(deliveredEverything(rows)).toEqual([]);
+    expect(state.ids.size).toBe(rows);
+    expect(state.badSignatures).toBe(0);
+    // Resets after processing show up as repeats with the same idempotency key, never as different keys for one row.
+    expect(new Set([...state.delivered.keys()]).size).toBe(rows);
+    report(`SOAK rows=${rows} requests=${state.requests} duplicates=${duplicates()}`);
+  }, 600_000);
+
+  it("a poison record stops the run with its code; after the endpoint is fixed the next run delivers everything and re-sends at most one checkpoint", async () => {
+    const { f, next, rows } = soak();
+    const poison = Math.floor(rows * 0.6);
+    state.behaviour = ({ ids }) => (ids.includes(poison) ? { kind: "status", status: 400 } : { kind: "ok" });
+    expect(await execute(next())).toBe("FAILED");
+    expect((await task("soak-1")).error).toContain("Reason code: http_400");
+    expect(state.ids.has(poison)).toBe(false);
+    const deliveredBefore = state.ids.size;
+    state.behaviour = () => ({ kind: "ok" });
+    expect(await execute(next())).toBe("COMPLETE");
+    expect(deliveredEverything(rows)).toEqual([]);
+    expect(state.badSignatures).toBe(0);
+    const resent = duplicates();
+    report(`POISON rows=${rows} poison=${poison} deliveredBeforeFix=${deliveredBefore} resent=${resent}`);
+    expect(resent).toBeLessThanOrEqual(5000 + 4 * 50);
+  }, 600_000);
+
+  it("cancelling mid-run and running again delivers every row", async () => {
+    const { next, rows } = soak();
+    const run = next();
+    const cutoff = Math.floor(rows * 0.3);
+    state.onProcessed = unique => {
+      if (unique >= cutoff) run.controller.abort();
+    };
+    expect(await execute(run)).toBe("CANCELLED");
+    expect(state.ids.size).toBeLessThan(rows);
+    state.onProcessed = () => {};
+    const { results, errors } = await continueAfterInterruption(next);
+    report(`CANCEL results=${results.join(",")} errors=${JSON.stringify([...new Set(errors)])}`);
+    expect(results.at(-1)).toBe("COMPLETE");
+    expect(results.filter(result => result === "FAILED").length).toBeLessThanOrEqual(1);
+    expect(deliveredEverything(rows)).toEqual([]);
+    report(`CANCEL rows=${rows} cutoff=${cutoff} duplicates=${duplicates()}`);
+  }, 600_000);
+
+  it("an abort while a request is in flight (endpoint processed it, never answered) is replayed with the same keys and delivers every row", async () => {
+    const { next, rows } = soak();
+    const run = next();
+    const hangAt = Math.floor(rows / 2);
+    let hung = false;
+    state.behaviour = ({ ids }) => {
+      if (!hung && ids.includes(hangAt)) {
+        hung = true;
+        setTimeout(() => run.controller.abort(), 100);
+        return { kind: "hang", processed: true };
+      }
+      return { kind: "ok" };
+    };
+    expect(await execute(run)).not.toBe("COMPLETE");
+    expect(state.ids.has(hangAt)).toBe(true);
+    const { results, errors } = await continueAfterInterruption(next);
+    report(`INFLIGHT results=${results.join(",")} errors=${JSON.stringify([...new Set(errors)])}`);
+    expect(results.at(-1)).toBe("COMPLETE");
+    expect(results.filter(result => result === "FAILED").length).toBeLessThanOrEqual(1);
+    expect(deliveredEverything(rows)).toEqual([]);
+    const repeated = [...state.delivered.entries()].filter(([, count]) => count > 1);
+    expect(repeated.length).toBeGreaterThan(0);
+    report(`INFLIGHT rows=${rows} hangAt=${hangAt} duplicates=${duplicates()}`);
+  }, 600_000);
+});
+
+describe("webhook SSRF protection through the runner (real address guard, nothing bypassed)", () => {
+  let server: http.Server;
+  let hits: string[];
+  let redirectTo: string | undefined;
+  beforeEach(async () => {
+    hits = [];
+    redirectTo = undefined;
+    server = http.createServer((req, res) => {
+      hits.push(`${req.method} ${req.url}`);
+      req.resume();
+      if (redirectTo) {
+        res.statusCode = 302;
+        res.setHeader("location", redirectTo);
+      }
+      res.end();
+    });
+    await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
+  });
+  afterEach(() => new Promise<void>(resolve => server.close(() => resolve())));
+
+  function syncTo(url: string, realGuard = true) {
+    const f = fixture();
+    f.input.config.destination = { destinationType: "webhook", url, method: "POST" };
+    f.input.config.options = {
+      ...f.input.config.options,
+      stream: "rows",
+      mode: "upsert",
+      mapping: { id: "id" },
+      streamOptions: { deliveryAttested: true, allowInsecureHttp: true },
+    };
+    f.setRows([{ id: "a" }]);
+    // Production deliver path with its real guard; only the wait between retries is skipped.
+    const deps = {
+      ...defaultDeliveryDeps,
+      sleep: async () => {},
+      ...(realGuard ? {} : { send: createGuardedRequest({ isBlocked: (address: string) => address !== "127.0.0.1" }) }),
+    };
+    f.input.adapters = new Map([["webhook", cfg => createWebhookRuntime(cfg as any, undefined, deps)]]);
+    return f;
+  }
+
+  const blocked = (port: number) => [
+    `http://127.0.0.1:${port}/hook`,
+    `http://localhost:${port}/hook`,
+    `http://[::1]:${port}/hook`,
+    `http://[::ffff:127.0.0.1]:${port}/hook`,
+    `http://[::ffff:7f00:1]:${port}/hook`,
+    `http://2130706433:${port}/hook`,
+    `http://0x7f.1:${port}/hook`,
+    `http://0.0.0.0:${port}/hook`,
+    `http://[::]:${port}/hook`,
+    "http://169.254.169.254/latest/meta-data/",
+    "http://[fe80::1]/",
+    "http://10.0.0.1/",
+    "http://172.16.0.1/",
+    "http://192.168.1.1/",
+    "http://100.64.0.1/",
+    "http://224.0.0.1/",
+    "http://[64:ff9b::7f00:1]/",
+    "http://[fd00::1]/",
+  ];
+
+  it("refuses loopback, link-local, private, CGNAT, multicast, mapped and NAT64 targets with a clear code and no request", async () => {
+    const port = (server.address() as AddressInfo).port;
+    for (const url of blocked(port)) {
+      const f = syncTo(url);
+      f.input.taskId = `ssrf-${Math.random().toString(36).slice(2)}`;
+      expect(await execute(f.input), url).toBe("FAILED");
+      const error = String((await task(f.input.taskId)).error);
+      expect(error, url).toContain("Reason code: blocked_address");
+      expect(error, url).not.toContain("127.0.0.1");
+      await admin.query(
+        "TRUNCATE newjitsu.reverse_sync_control,newjitsu.reverse_sync_target_owner,newjitsu.source_state,newjitsu.source_task,newjitsu.task_log"
+      );
+    }
+    expect(hits).toEqual([]);
+  }, 300_000);
+
+  it("does not follow a redirect to an internal address", async () => {
+    redirectTo = "http://169.254.169.254/latest/meta-data/";
+    const f = syncTo(`http://127.0.0.1:${(server.address() as AddressInfo).port}/hook`, false);
+    expect(await execute(f.input)).toBe("FAILED");
+    expect(String((await task()).error)).toContain("Reason code: redirect_refused");
+    expect(hits).toEqual(["POST /hook"]);
   });
 });
