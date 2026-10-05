@@ -9,6 +9,7 @@ import {
   reverseTasks,
   reverseLogs,
 } from "../../lib/server/reverse-syncs";
+import { reverseDestinationMetadata } from "@jitsu/destination-functions/src/reverse-etl/catalog";
 import { readReverseSync } from "../../lib/server/reverse-sync-export";
 import { reverseGoogleOptions } from "../../lib/server/reverse-google-options";
 import type { NangoConfig } from "../../lib/server/oauth/nango-config";
@@ -70,6 +71,34 @@ async function fixture() {
   };
 }
 describe("single-save Reverse ETL settings", () => {
+  it("passes the saved destination configuration to the provider's settings validator", async () => {
+    const f = await fixture();
+    const provider = reverseDestinationMetadata.get("google-ads")!;
+    const validate = vi.spyOn(provider, "validateSettings");
+    try {
+      await f.create();
+      expect(validate).toHaveBeenCalledTimes(1);
+      const [options, model, destination] = validate.mock.calls[0];
+      expect(options).toMatchObject({ stream: "audience", mode: "mirror" });
+      expect(model).toMatchObject({ primaryKey: ["email"] });
+      expect(destination).toMatchObject({ destinationType: "google-ads", name: "Google" });
+    } finally {
+      validate.mockRestore();
+    }
+  });
+  it("turns a validator error into a readable conflict and saves nothing", async () => {
+    const f = await fixture();
+    const provider = reverseDestinationMetadata.get("google-ads")!;
+    const validate = vi.spyOn(provider, "validateSettings").mockImplementation(() => {
+      throw new Error("Webhook method must be POST");
+    });
+    try {
+      await expect(f.create()).rejects.toThrow("Webhook method must be POST");
+      expect(await listReverseSyncs(f.prisma, f.workspace.id)).toEqual([]);
+    } finally {
+      validate.mockRestore();
+    }
+  });
   it("uses the latest runner log for badges with deterministic ordering and sync scoping", async () => {
     const f = await fixture();
     const { id } = await f.create();
