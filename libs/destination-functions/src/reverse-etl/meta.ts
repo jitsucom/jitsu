@@ -46,8 +46,17 @@ export class ReverseEtlProtocolError extends Error {
   }
 }
 
-/** Shape a provider rejection code must have to be shown to users; anything else is dropped, not sanitised. */
-const rejectionCodePattern = /^[A-Za-z0-9][A-Za-z0-9_.:-]{0,63}$/;
+/**
+ * Which provider rejection codes may be shown to users; anything else is dropped, never sanitised. The protocol lets a
+ * provider put any string in `code`, so the shape is not a free-for-all: a code is shown only if it is
+ *  - `http_<status>` or one of the fixed codes our own delivery code emits (webhook and guarded request), or
+ *  - an UPPER_SNAKE enumeration name such as Google's `INVALID_GCLID` or our `GOOGLE_REQUEST_FAILED`.
+ * Opaque or mixed-case tokens (API keys, identifiers, free text) never match. When a provider adds a lowercase code of
+ * its own, add it here deliberately.
+ */
+const fixedRejectionCodes =
+  "redirect_refused|unconfirmed|timeout|connection_error|dns_error|tls_error|blocked_address|invalid_url|request_too_large|internal_error";
+const rejectionCodePattern = new RegExp(`^(?:http_[1-5][0-9]{2}|${fixedRejectionCodes}|[A-Z]+(?:_[A-Z0-9]+)*)$`);
 
 /**
  * A provider rejected a record. The message stays the fixed core-owned reason; only a code matching
@@ -58,7 +67,7 @@ export class ReverseEtlRejectionError extends ReverseEtlProtocolError {
   constructor(code: unknown) {
     super("Destination rejected a row; the run stopped without skipping it");
     this.name = "ReverseEtlRejectionError";
-    this.code = typeof code === "string" && rejectionCodePattern.test(code) ? code : undefined;
+    this.code = typeof code === "string" && code.length <= 64 && rejectionCodePattern.test(code) ? code : undefined;
   }
 }
 

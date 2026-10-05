@@ -444,6 +444,10 @@ describe("Reverse ETL lifecycle", () => {
     ["a line break", "bad\ncode"],
     ["a leading separator", "-bad"],
     ["over 64 characters", "a".repeat(65)],
+    ["an API key", "sk_live_51HxYz0AbCdEfGhIjKlMn"],
+    ["a mixed-case token", "AbC123xYz"],
+    ["an opaque lowercase identifier", "a1b2c3d4e5f6a7b8c9d0"],
+    ["a code that is not an enumeration or one of ours", "a.b:c-d_e"],
   ])("a rejection code with %s is dropped, never shown", async (_name, code) => {
     const f = fixture(2);
     vi.mocked(f.writer.upsert).mockImplementation(async batch => ({
@@ -456,9 +460,30 @@ describe("Reverse ETL lifecycle", () => {
     expect(error).toBeInstanceOf(ReverseEtlRejectionError);
     expect(error.code).toBeUndefined();
   });
-  it.each(["http_422", "INVALID_GCLID", "a.b:c-d_e", "x".repeat(64)])("a rejection code like %s is kept", code => {
+  it.each([
+    "http_422",
+    "http_503",
+    "INVALID_GCLID",
+    "GOOGLE_REQUEST_FAILED",
+    "redirect_refused",
+    "unconfirmed",
+    "timeout",
+    "connection_error",
+    "dns_error",
+    "tls_error",
+    "blocked_address",
+    "invalid_url",
+    "request_too_large",
+    "internal_error",
+  ])("a rejection code like %s is kept", code => {
     expect(new ReverseEtlRejectionError(code).code).toBe(code);
   });
+  it.each(["http_99", "http_600", "http_4220", "Timeout", "TIMEOUT_", "_X", "A__B", "x".repeat(64), "A".repeat(65)])(
+    "a near miss like %s is dropped",
+    code => {
+      expect(new ReverseEtlRejectionError(code).code).toBeUndefined();
+    }
+  );
   it("source validation fails before flushing an earlier buffer and hides source values", async () => {
     const f = fixture();
     f.rows[1].row.address = "private-bad-email";
