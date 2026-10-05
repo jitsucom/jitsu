@@ -17,6 +17,7 @@ import { ReverseEtlManualReconciliationError } from "@jitsu/destination-function
 import { recordKey } from "@jitsu/destination-functions/src/reverse-etl/identity";
 import * as http from "node:http";
 import type { AddressInfo } from "node:net";
+import { createWarehouseReader } from "@jitsu/warehouse-query";
 import { createGuardedRequest } from "@jitsu/destination-functions/src/functions/lib/guarded-request";
 import { defaultDeliveryDeps } from "@jitsu/destination-functions/src/functions/webhook/deliver";
 import { createWebhookRuntime } from "@jitsu/destination-functions/src/functions/webhook/runtime";
@@ -1995,5 +1996,194 @@ describe("webhook destination through the runner", () => {
     server = http.createServer();
     expect(await execute(f.input)).toBe("FAILED");
     expect((await task()).error).toMatch(/Reason code: (unconfirmed|connection_error)/);
+  });
+  describe("Postgres column types arrive as plain JSON", () => {
+    // [name, column type, value expression, expected JSON value as received by the endpoint]
+    // Expectations were reviewed one by one against the plan's type table (H11): types that fail a run without
+    // conversion (float NaN/Infinity, interval, bytea) must be converted; everything else must arrive unchanged.
+    const cases: Array<[string, string, string, unknown]> = [
+      ["int4", "int4", "42", 42],
+      ["int8", "int8", "123456789012345678", "123456789012345678"],
+      ["numeric", "numeric", "1.50", "1.50"],
+      ["float8", "float8", "1.25", 1.25],
+      ["float4", "float4", "1.5", 1.5],
+      ["float8 NaN", "float8", "'NaN'", "NaN"],
+      ["float8 Infinity", "float8", "'Infinity'", "Infinity"],
+      ["float8 -Infinity", "float8", "'-Infinity'", "-Infinity"],
+      ["float4 NaN", "float4", "'NaN'", "NaN"],
+      ["numeric NaN", "numeric", "'NaN'", "NaN"],
+      ["bool", "bool", "true", true],
+      ["text", "text", "'héllo'", "héllo"],
+      ["char(3)", "char(3)", "'a'", "a  "],
+      ["null", "text", "NULL", null],
+      ["date", "date", "'2026-01-01'", "2026-01-01"],
+      ["timestamp", "timestamp", "'2026-01-01 12:00:00.123456'", "2026-01-01 12:00:00.123456"],
+      ["timestamptz", "timestamptz", "'2026-01-01 12:00:00+00'", "2026-01-01 12:00:00+00"],
+      ["timestamptz infinity", "timestamptz", "'infinity'", "infinity"],
+      ["time", "time", "'12:34:56'", "12:34:56"],
+      ["interval", "interval", "'1 day 02:03:04'", "P0Y0M1DT2H3M4S"],
+      ["uuid", "uuid", "'11111111-2222-3333-4444-555555555555'", "11111111-2222-3333-4444-555555555555"],
+      ["json", "json", `'{"a":[1,2]}'`, { a: [1, 2] }],
+      ["jsonb", "jsonb", `'{"a":[1,2]}'`, { a: [1, 2] }],
+      ["int[]", "int[]", "ARRAY[1,2,3]", [1, 2, 3]],
+      ["text[]", "text[]", "ARRAY['a','b']", ["a", "b"]],
+      ["int8[]", "int8[]", "ARRAY[9007199254740993]", ["9007199254740993"]],
+      ["numeric[]", "numeric[]", "ARRAY[1.5,2.5]", [1.5, 2.5]],
+      ["bytea", "bytea", "'\\xdeadbeef'", "3q2+7w=="],
+      ["bytea[]", "bytea[]", "ARRAY['\\xde'::bytea]", ["3g=="]],
+      ["interval[]", "interval[]", "ARRAY['1 day'::interval]", ["P0Y0M1DT0H0M0S"]],
+      ["float8[] with NaN", "float8[]", "ARRAY['NaN'::float8, 1]", ["NaN", 1]],
+      ["jsonb[]", "jsonb[]", `ARRAY['{"a":1}'::jsonb]`, [{ a: 1 }]],
+      [
+        "2-D int[]",
+        "int[]",
+        "ARRAY[[1,2],[3,4]]",
+        [
+          [1, 2],
+          [3, 4],
+        ],
+      ],
+      ["inet", "inet", "'10.0.0.1'", "10.0.0.1"],
+      ["cidr", "cidr", "'10.0.0.0/8'", "10.0.0.0/8"],
+      ["macaddr", "macaddr", "'08:00:2b:01:02:03'", "08:00:2b:01:02:03"],
+      ["money", "money", "'$1.50'", "$1.50"],
+      ["bit(3)", "bit(3)", "B'101'", "101"],
+      ["xml", "xml", "'<a/>'", "<a/>"],
+      ["tsvector", "tsvector", "'a:1 b:2'", "'a':1 'b':2"],
+      ["int4range", "int4range", "'[1,5)'", "[1,5)"],
+      ["point", "point", "'(1,2)'", { x: 1, y: 2 }],
+      ["box", "box", "'((1,1),(2,2))'", "(2,2),(1,1)"],
+    ];
+    let n = 0;
+    it.each(cases)("%s", async (name, type, expr, expected) => {
+      const table = `webhook_type_${++n}`;
+      await admin.query(
+        `CREATE TABLE ${table} (id int PRIMARY KEY, v ${type}); INSERT INTO ${table} VALUES (1, ${expr})`
+      );
+      const f = webhookFixture();
+      f.input.config.warehouse = {
+        destinationType: "postgres",
+        host: container.getHost(),
+        port: container.getMappedPort(5432),
+        database: "runner_test",
+        username: "postgres",
+        password: "test",
+        sslMode: "disable",
+      };
+      f.input.reader = createWarehouseReader as any;
+      f.input.config.model = { ...f.input.config.model, query: `SELECT id, v FROM ${table}`, primaryKey: ["id"] };
+      f.input.config.options = { ...f.input.config.options, mapping: { id: "id", v: "v" } };
+      expect(await execute(f.input)).toBe("COMPLETE");
+      const record = received.flatMap(r => r.body.records)[0];
+      expect(record.data.id).toBe(1);
+      // Whatever arrives must survive a JSON round trip unchanged, i.e. be plain JSON.
+      expect(JSON.parse(JSON.stringify(record.data))).toEqual(record.data);
+      expect(record.data.v).toEqual(expected);
+    });
+  });
+  describe("ClickHouse column types arrive as plain JSON", () => {
+    let ch: StartedTestContainer;
+    const chRun = async (query: string) => {
+      const response = await fetch(`http://${ch.getHost()}:${ch.getMappedPort(8123)}/?user=default&password=pw`, {
+        method: "POST",
+        body: query,
+      });
+      if (!response.ok) throw new Error(await response.text());
+    };
+    beforeAll(async () => {
+      ch = await new GenericContainer("clickhouse/clickhouse-server:25.4-alpine")
+        .withExposedPorts(8123)
+        .withEnvironment({ CLICKHOUSE_DB: "default", CLICKHOUSE_USER: "default", CLICKHOUSE_PASSWORD: "pw" })
+        .withWaitStrategy(Wait.forHttp("/ping", 8123).forStatusCode(200))
+        .withStartupTimeout(120_000)
+        .start();
+    }, 150_000);
+    afterAll(async () => {
+      await ch?.stop();
+    });
+    // [name, column type, value expression, expected JSON value as received by the endpoint]
+    const cases: Array<[string, string, string, unknown]> = [
+      ["Int64", "Int64", "9223372036854775807", "9223372036854775807"],
+      ["UInt64", "UInt64", "18446744073709551615", "18446744073709551615"],
+      ["Int128", "Int128", "170141183460469231731687303715884105727", "170141183460469231731687303715884105727"],
+      [
+        "Int256",
+        "Int256",
+        "57896044618658097711785492504343953926634992332820282019728792003956564819967",
+        "57896044618658097711785492504343953926634992332820282019728792003956564819967",
+      ],
+      ["Decimal(18,4)", "Decimal(18,4)", "1.2345", "1.2345"],
+      ["Decimal256(10)", "Decimal256(10)", "123.456", "123.456"],
+      ["Float64", "Float64", "1.5", 1.5],
+      ["Float64 nan", "Float64", "nan", null],
+      ["Float64 inf", "Float64", "inf", null],
+      ["Date", "Date", "'2026-01-01'", "2026-01-01"],
+      ["Date32", "Date32", "'2026-01-01'", "2026-01-01"],
+      ["DateTime", "DateTime('UTC')", "'2026-01-01 12:00:00'", "2026-01-01 12:00:00"],
+      ["DateTime64(6)", "DateTime64(6,'UTC')", "'2026-01-01 12:00:00.123456'", "2026-01-01 12:00:00.123456"],
+      ["String", "String", "'héllo'", "héllo"],
+      ["FixedString(3)", "FixedString(3)", "'abc'", "abc"],
+      ["UUID", "UUID", "'11111111-2222-3333-4444-555555555555'", "11111111-2222-3333-4444-555555555555"],
+      ["Bool", "Bool", "true", true],
+      ["Enum8", "Enum8('a'=1,'b'=2)", "'a'", "a"],
+      ["Enum16", "Enum16('x'=1000,'y'=2)", "'x'", "x"],
+      ["LowCardinality(String)", "LowCardinality(String)", "'lc'", "lc"],
+      ["Nullable(String) NULL", "Nullable(String)", "NULL", null],
+      ["Array(Int64)", "Array(Int64)", "[1,2,9223372036854775807]", ["1", "2", "9223372036854775807"]],
+      ["Array(String)", "Array(String)", "['x']", ["x"]],
+      ["Array(Nullable(Int64))", "Array(Nullable(Int64))", "[1,NULL]", ["1", null]],
+      ["Tuple(Int64,String)", "Tuple(Int64, String)", "(7,'t')", ["7", "t"]],
+      ["named Tuple", "Tuple(a Int64, b String)", "(1,'t')", { a: "1", b: "t" }],
+      ["Map(String,Int64)", "Map(String, Int64)", "map('k', 5)", { k: "5" }],
+      ["IPv4", "IPv4", "'10.0.0.1'", "10.0.0.1"],
+      ["IPv6", "IPv6", "'::1'", "::1"],
+      ["Variant", "Variant(Int64, String)", "5", "5"],
+    ];
+    let n = 0;
+    it.each(cases)("%s", async (name, type, expr, expected) => {
+      const table = `webhook_type_${++n}`;
+      await chRun(`CREATE TABLE ${table} (id UInt32, v ${type}) ENGINE = MergeTree ORDER BY id`);
+      await chRun(`INSERT INTO ${table} VALUES (1, ${expr})`);
+      const f = webhookFixture();
+      f.input.config.warehouse = {
+        destinationType: "clickhouse",
+        protocol: "http",
+        hosts: [`${ch.getHost()}:${ch.getMappedPort(8123)}`],
+        database: "default",
+        username: "default",
+        password: "pw",
+      };
+      f.input.reader = createWarehouseReader as any;
+      f.input.config.model = { ...f.input.config.model, query: `SELECT id, v FROM ${table}`, primaryKey: ["id"] };
+      f.input.config.options = { ...f.input.config.options, mapping: { id: "id", v: "v" } };
+      expect(await execute(f.input)).toBe("COMPLETE");
+      const record = received.flatMap(r => r.body.records)[0];
+      expect(JSON.parse(JSON.stringify(record.data))).toEqual(record.data);
+      expect(record.data.v).toEqual(expected);
+    });
+    it("Nested columns arrive as arrays when aliased in the model SQL", async () => {
+      await chRun(
+        `CREATE TABLE webhook_nested (id UInt32, n Nested(a Int64, b String)) ENGINE = MergeTree ORDER BY id`
+      );
+      await chRun("INSERT INTO webhook_nested (id, `n.a`, `n.b`) VALUES (1, [1,2], ['p','q'])");
+      const f = webhookFixture();
+      f.input.config.warehouse = {
+        destinationType: "clickhouse",
+        protocol: "http",
+        hosts: [`${ch.getHost()}:${ch.getMappedPort(8123)}`],
+        database: "default",
+        username: "default",
+        password: "pw",
+      };
+      f.input.reader = createWarehouseReader as any;
+      f.input.config.model = {
+        ...f.input.config.model,
+        query: "SELECT id, `n.a` AS n_a, `n.b` AS n_b FROM webhook_nested",
+        primaryKey: ["id"],
+      };
+      f.input.config.options = { ...f.input.config.options, mapping: { id: "id", n_a: "n_a", n_b: "n_b" } };
+      expect(await execute(f.input)).toBe("COMPLETE");
+      expect(received.flatMap(r => r.body.records)[0].data).toEqual({ id: 1, n_a: ["1", "2"], n_b: ["p", "q"] });
+    });
   });
 });

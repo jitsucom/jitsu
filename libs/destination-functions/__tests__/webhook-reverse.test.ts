@@ -483,6 +483,16 @@ describe("webhook validation", () => {
     expect(() => validateWebhookDestination({ ...destination, signatureMethod: "ed25519" })).toThrow(/private key/);
   });
 
+  it("tells the user to alias a dotted ClickHouse Nested column in the model SQL", () => {
+    expect(() =>
+      validateWebhookReverseSettings(
+        { stream: "rows", mode: "upsert", streamOptions: options, mapping: { id: "id", "n.a": "n.a" } },
+        { primaryKey: ["id"] },
+        destination
+      )
+    ).toThrow(/"n\.a" cannot be sent as a field name.*Rename it in the model SQL/);
+  });
+
   it("requires primary key columns in the mapping and valid field names", () => {
     expect(() => validateWebhookReverseSettings(valid, { primaryKey: ["missing"] }, destination)).toThrow(
       /primary key/
