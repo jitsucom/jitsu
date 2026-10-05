@@ -98,7 +98,7 @@ async function references(db: ReadDb, workspaceId: string, input: ReverseSyncInp
   if (!provider || !provider.streams.some(stream => stream.id === input.data.stream))
     throw conflict("This destination stream is not supported");
   try {
-    provider.validateSettings(input.data, definition);
+    provider.validateSettings(input.data, definition, destination.config as Record<string, unknown>);
   } catch (error) {
     if (error instanceof z.ZodError) throw error;
     throw conflict(error instanceof Error ? error.message : "Invalid destination settings");
