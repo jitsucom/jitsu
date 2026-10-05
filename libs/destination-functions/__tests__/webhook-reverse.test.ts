@@ -505,6 +505,31 @@ describe("runtime adapter", () => {
     });
   });
 
+  it("enforces the unencrypted-http acknowledgement when binding the saved configuration, not only at save time", () => {
+    const http = { ...destination, url: "http://example.com/hook" };
+    const bound = (streamOptions: object) =>
+      createWebhookRuntime({ ...base, destination: http, options: { ...base.options, streamOptions } });
+    expect(() => bound({ deliveryAttested: true })).toThrow(/sync settings/);
+    expect(() => bound({ deliveryAttested: true, allowInsecureHttp: false })).toThrow(/sync settings/);
+    expect(() => bound({ deliveryAttested: true, allowInsecureHttp: true })).not.toThrow();
+    // https needs no acknowledgement
+    expect(() => createWebhookRuntime(base)).not.toThrow();
+  });
+
+  it("the writer enforces it too, so a saved configuration edited in the database cannot send over plain http", () => {
+    const http = { ...destination, url: "http://example.com/hook" };
+    const ctx = (streamOptions: object) =>
+      ({
+        credentials: http,
+        options: streamOptions,
+        syncId: "s",
+        logicalRunId: "r",
+        signal: new AbortController().signal,
+      } as any);
+    expect(() => createWebhookWriter(ctx({ deliveryAttested: true }))).toThrow(/sync settings/);
+    expect(() => createWebhookWriter(ctx({ deliveryAttested: true, allowInsecureHttp: true }))).not.toThrow();
+  });
+
   it("refuses a model without a primary key, non-upsert mode and unattested settings", () => {
     expect(() => createWebhookRuntime({ ...base, model: {} })).toThrow(/sync settings/);
     expect(() => createWebhookRuntime({ ...base, options: { ...base.options, mode: "mirror" } })).toThrow(

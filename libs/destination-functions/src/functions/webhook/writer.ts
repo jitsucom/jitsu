@@ -13,7 +13,12 @@ import {
   type DeliveryDeps,
   type DeliveryRecord,
 } from "./deliver";
-import { validateWebhookDestination, WebhookRowsOptions, type WebhookCredentials } from "./reverse-meta";
+import {
+  parseWebhookUrl,
+  validateWebhookDestination,
+  WebhookRowsOptions,
+  type WebhookCredentials,
+} from "./reverse-meta";
 
 export const invalidDestinationReason = "Webhook destination configuration is invalid";
 export const invalidSettingsReason = "Webhook sync settings are invalid";
@@ -31,6 +36,11 @@ export function bindWebhookConfig(
   }
   const parsed = WebhookRowsOptions.safeParse(options);
   if (!parsed.success) throw new Error(invalidSettingsReason);
+  // The save-time check (validateWebhookReverseSettings) is repeated here, because this is what runs on every delivery:
+  // a saved configuration changed behind the console's back must not send rows over plain http without the acknowledgement.
+  if (parseWebhookUrl(config.url).protocol === "http:" && parsed.data.allowInsecureHttp !== true) {
+    throw new Error(invalidSettingsReason);
+  }
   return { config, options: parsed.data };
 }
 
