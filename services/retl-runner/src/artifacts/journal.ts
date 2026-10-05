@@ -456,7 +456,7 @@ export class ObjectJournal implements DeliveryJournal {
     const resultBudget = n * 8192 + 512 * 1024;
     ensure(
       this.head.batches.reduce(
-        (sum, b) => sum + b.data.bytes + b.effectBytes + (b.receipt?.bytes ?? b.resultBudget),
+        (sum, b) => sum + b.data.bytes + b.effectBytes + (b.rowBytes ?? 0) + (b.receipt?.bytes ?? b.resultBudget),
         0
       ) +
         Buffer.byteLength(canonicalJson({ batch: prepared, effects: projected })) +
@@ -473,21 +473,27 @@ export class ObjectJournal implements DeliveryJournal {
         ),
         "Mirror batch must contain exact effect envelopes"
       );
+    // With a retention bucket the rows are a separate artifact, so the journal budget must count their size too.
+    const rowsRef =
+      this.artifacts.retainsRows && this.scope.mode !== "mirror"
+        ? await this.artifacts.put({ rows: prepared.records.map(record => record.row) }, "rows")
+        : undefined;
     const head: BatchHead = {
       id: prepared.batchId,
       action: prepared.action,
       first: sequence - n + 1,
       last: sequence,
       data: await this.artifacts.put(
-        (this.artifacts.retainsRows && this.scope.mode !== "mirror"
+        (rowsRef
           ? {
               batch: { ...prepared, records: prepared.records.map(record => ({ ...record, row: null })) },
               effects: projectionRef,
-              rows: await this.artifacts.put({ rows: prepared.records.map(record => record.row) }, "rows"),
+              rows: rowsRef,
             }
           : { batch: prepared, effects: projectionRef }) satisfies StoredBatchData
       ),
       effectBytes: projectionRef?.bytes ?? 0,
+      ...(rowsRef ? { rowBytes: rowsRef.bytes } : {}),
       status: "prepared",
       accepted: 0,
       staged: 0,

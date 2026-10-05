@@ -27,6 +27,8 @@ export interface BatchHead {
   last: number;
   data: ArtifactRef;
   effectBytes: number;
+  /** Size of the batch's rows artifact in the retention bucket; absent when the rows are inline in `data`. */
+  rowBytes?: number;
   receipt?: ArtifactRef;
   status: "prepared" | "unknown" | "acknowledged" | "cancelled";
   accepted: number;

@@ -2,6 +2,7 @@ import { beforeAll, afterAll, beforeEach, describe, it, expect, vi } from "vites
 import { GenericContainer, Wait, type StartedTestContainer } from "testcontainers";
 import { Client } from "pg";
 import { createRequire } from "node:module";
+import { randomBytes } from "node:crypto";
 import { execFileSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import type { PreparedBatch, BatchResult } from "@jitsu/protocols/reverse-etl";
@@ -45,9 +46,15 @@ async function init(run: Session) {
   await run.delivery.prepareInit({});
   await run.delivery.acknowledgeInit({});
 }
-function batch(run: Session, ids: string[], start = 1, action: "upsert" | "remove" = "upsert"): PreparedBatch<any> {
+function batch(
+  run: Session,
+  ids: string[],
+  start = 1,
+  action: "upsert" | "remove" = "upsert",
+  pad?: string
+): PreparedBatch<any> {
   const records = ids.map((id, i) => {
-    const row = { id },
+    const row = pad === undefined ? { id } : { id, pad },
       key = contentHash(id);
     return {
       key,
@@ -560,6 +567,54 @@ describe("object journal", () => {
       "rejected",
     ]);
   });
+  describe("journal budget with and without a retention bucket", () => {
+    // The budget bounds everything stored for recovery in one run. With a retention bucket the rows are a separate
+    // artifact, so their size must be counted too, or a long run could write far past the limit into that bucket.
+    const payloadFree = (_action: unknown, row: any) => [{ identity: contentHash(row.id), upsert: {}, remove: {} }];
+    const noisy = () => randomBytes(750_000).toString("base64"); // incompressible, about 1 MB as JSON
+    async function batchesUntilRefused(retention?: MemoryObjects) {
+      const db = new Database(
+        { connectionString: url },
+        {
+          objectStorage: { store: objects, signal: new AbortController().signal, ...(retention ? { retention } : {}) },
+          limits: { journalBytes: 3_000_000 },
+        }
+      );
+      databases.push(db);
+      const run = await openPersistence(
+        db,
+        input({ logicalRunId: retention ? "budget-retained" : "budget-inline" }),
+        payloadFree
+      );
+      await init(run);
+      let accepted = 0;
+      for (let i = 0; i < 12; i++) {
+        const b = batch(run, [`row-${i}`], i + 1, "upsert", noisy());
+        try {
+          await run.delivery.prepare(b, {});
+        } catch (error: any) {
+          expect(String(error.message)).toContain("Recovery journal budget exceeded");
+          return accepted;
+        }
+        await run.delivery.acknowledge(b.batchId, result(b), {});
+        accepted++;
+      }
+      return accepted;
+    }
+
+    it("without retention the budget stops the run after a few large batches", async () => {
+      const accepted = await batchesUntilRefused();
+      expect(accepted).toBeGreaterThan(0);
+      expect(accepted).toBeLessThan(6);
+    });
+
+    it("with a retention bucket the same budget applies: the retained rows are counted too", async () => {
+      const accepted = await batchesUntilRefused(new MemoryObjects());
+      expect(accepted).toBeGreaterThan(0);
+      expect(accepted).toBeLessThan(6);
+    });
+  });
+
   describe("retention and projected effects", () => {
     // The projected effects stay in the main store, so with a retention bucket they must hold no row data: an empty
     // upsert and remove and a hashed identity (what the webhook provider projects).
