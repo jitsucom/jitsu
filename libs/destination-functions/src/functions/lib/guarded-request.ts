@@ -179,6 +179,15 @@ export function createGuardedRequest(deps: GuardedRequestDeps = {}) {
         res.on("error", succeed);
       });
 
+      // A 101 Switching Protocols answer is delivered as an `upgrade` event, never to the response callback above, so
+      // without this handler the promise would wait for the total timeout. We never switch protocols: report the status
+      // (the caller classifies it as a rejection) and drop the connection.
+      req.on("upgrade", (res, socket) => {
+        status = res.statusCode ?? 101;
+        socket.destroy();
+        succeed();
+      });
+
       req.on("socket", socket => {
         socket.once(secure ? "secureConnect" : "connect", () => {
           connected = true;

@@ -229,6 +229,17 @@ describe("guarded request: delivery", () => {
     expect(Date.now() - started).toBeLessThan(5000);
   });
 
+  it("reports a 101 Switching Protocols answer as a status right away instead of waiting for the timeout", async () => {
+    const { port } = await listen((_req, res) => {
+      // http.request emits `upgrade`, not the response callback, for a 101: it must not be left hanging.
+      res.socket!.write("HTTP/1.1 101 Switching Protocols\r\nUpgrade: x\r\nConnection: Upgrade\r\n\r\n");
+    });
+    const started = Date.now();
+    const response = await createGuardedRequest(allowAll)({ url: local(port), body: "{}", totalTimeoutMs: 5000 });
+    expect(response.status).toBe(101);
+    expect(Date.now() - started).toBeLessThan(2000);
+  });
+
   it("returns the status even if the connection drops while the body is read", async () => {
     const { port } = await listen((_req, res) => {
       res.writeHead(202);
