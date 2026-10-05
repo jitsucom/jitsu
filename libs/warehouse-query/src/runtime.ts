@@ -29,6 +29,15 @@ export const ReverseRunConfig = z
   })
   .strict()
   .superRefine((value, ctx) => {
+    // The runner uses shared deployment credentials, so the bucket must be this run's own workspace's: a bad control-plane
+    // value must not be able to store one workspace's rows in another workspace's retention bucket.
+    if (value.retention && value.retention.bucket !== `jitsu-retl-${value.workspaceId}`) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["retention", "bucket"],
+        message: "The retention bucket must be the run's own workspace's bucket",
+      });
+    }
     try {
       validateReverseSyncModel(value.model, value.options);
       if (value.options.mode === "mirror" && value.model.deleteColumn)
