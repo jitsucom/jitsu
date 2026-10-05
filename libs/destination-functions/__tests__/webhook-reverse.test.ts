@@ -1,6 +1,6 @@
 import { createHmac, generateKeyPairSync, verify } from "node:crypto";
 import { describe, expect, it } from "vitest";
-import { deliverBatch, idempotencyKey, type DeliveryDeps } from "../src/functions/webhook/deliver";
+import { deliverBatch, idempotencyKey, maxRequestBytes, type DeliveryDeps } from "../src/functions/webhook/deliver";
 import { GuardedRequestError, type GuardedRequest, type GuardedResponse } from "../src/functions/lib/guarded-request";
 import { createWebhookRuntime, webhookRecovery } from "../src/functions/webhook/runtime";
 import {
@@ -244,6 +244,38 @@ describe("webhook delivery", () => {
     const ts = headers["Jitsu-Signature-Timestamp"];
     const expected = createHmac("sha256", "s3cret").update(`${ts}.${requests[0].body}`).digest("hex");
     expect(headers["Jitsu-Signature"]).toBe(expected);
+  });
+});
+
+describe("request size cap", () => {
+  const big = (i: number, kb: number) => ({
+    operationId: `op${i}`,
+    key: `k${i}`,
+    row: { id: i, blob: "x".repeat(kb * 1024) },
+  });
+
+  it("packs records by size so no request body exceeds the cap", async () => {
+    const recs = Array.from({ length: 10 }, (_, i) => big(i, 300));
+    const { promise, requests } = deliver([200], recs, { recordsPerRequest: 200, concurrency: 1 });
+    const outcomes = await promise;
+    expect(outcomes.every(o => o.status === "accepted")).toBe(true);
+    expect(requests.length).toBeGreaterThan(1);
+    for (const request of requests)
+      expect(Buffer.byteLength(request.body as string)).toBeLessThanOrEqual(maxRequestBytes);
+    const sent = requests.flatMap(r => JSON.parse(r.body as string).records.map((x: any) => x.key));
+    expect(sent).toEqual(recs.map(r => r.key));
+  });
+
+  it("a record that cannot fit alone is rejected as request_too_large and nothing else is affected", async () => {
+    const recs = [big(0, 1), big(1, 1200), big(2, 1)];
+    const { promise, requests } = deliver([200], recs, { recordsPerRequest: 200, concurrency: 1 });
+    const outcomes = await promise;
+    expect(outcomes.map(o => o.status)).toEqual(["accepted", "rejected", "accepted"]);
+    expect(outcomes[1]).toMatchObject({ code: "request_too_large" });
+    expect(JSON.stringify(outcomes)).not.toContain("xxxx");
+    for (const request of requests)
+      expect(Buffer.byteLength(request.body as string)).toBeLessThanOrEqual(maxRequestBytes);
+    expect(requests.flatMap(r => JSON.parse(r.body as string).records.map((x: any) => x.key))).not.toContain("k1");
   });
 });
 

@@ -33,6 +33,23 @@ export const defaultDeliveryDeps: DeliveryDeps = { send: guardedRequest, sleep, 
 export const retryDelaysMs = [1000, 2000, 4000];
 export const maxRetryAfterMs = 30_000;
 
+/** A request body never exceeds this; records are packed into requests by size as well as by count. */
+export const maxRequestBytes = 1024 * 1024;
+// Room for syncId, runId, sentAt and the surrounding JSON, which are not part of any record.
+const envelopeOverheadBytes = 1024;
+
+interface WireRecord {
+  operation: DeliveryAction;
+  key: string;
+  idempotencyKey: string;
+  data: JsonObject;
+}
+interface PreparedRecord {
+  operationId: string;
+  wire: WireRecord;
+  bytes: number;
+}
+
 export type DeliveryAction = "upsert" | "delete";
 
 export interface DeliveryRecord {
@@ -128,19 +145,17 @@ export function idempotencyKey(syncId: string, key: string, action: DeliveryActi
   return contentHash([syncId, key, action, contentHash(row)]);
 }
 
+const rejectAll = (chunk: PreparedRecord[], code: string, safeReason: string): RecordOutcome[] =>
+  chunk.map(record => ({ operationId: record.operationId, status: "rejected" as const, code, safeReason }));
+
 async function sendChunk(
-  chunk: DeliveryRecord[],
+  chunk: PreparedRecord[],
   args: DeliveryArgs,
   headers: Array<{ name: string; value: string }>
 ): Promise<RecordOutcome[]> {
   const deps = args.deps ?? defaultDeliveryDeps;
-  const { scope, config, action, signal } = args;
-  const records = chunk.map(record => ({
-    operation: action,
-    key: record.key,
-    idempotencyKey: idempotencyKey(scope.syncId, record.key, action, record.row),
-    data: record.row,
-  }));
+  const { scope, config, signal } = args;
+  const records = chunk.map(record => record.wire);
   const signing = {
     method: config.signatureMethod,
     secret: config.signatureSecret,
@@ -157,6 +172,9 @@ async function sendChunk(
       sentAt: deps.now().toISOString(),
       records,
     });
+    if (Buffer.byteLength(body) > maxRequestBytes) {
+      return rejectAll(chunk, "request_too_large", "A single record is larger than the request size limit (1 MB)");
+    }
     const request: GuardedRequest = {
       url: config.url,
       method: "POST",
@@ -180,25 +198,40 @@ async function sendChunk(
     await deps.sleep(Math.max(retryDelaysMs[attempt], last.retryAfterMs ?? 0), signal);
   }
 
-  return chunk.map(record =>
-    last.kind === "accepted"
-      ? { operationId: record.operationId, status: "accepted" as const }
-      : {
-          operationId: record.operationId,
-          status: "rejected" as const,
-          code: last.code,
-          safeReason: last.reason,
-        }
-  );
+  return last.kind === "accepted"
+    ? chunk.map(record => ({ operationId: record.operationId, status: "accepted" as const }))
+    : rejectAll(chunk, last.code, last.reason);
 }
 
 /** One outcome per record. Never throws for a failure it can classify; only an abort propagates. */
 export async function deliverBatch(args: DeliveryArgs): Promise<RecordOutcome[]> {
   const headers = parseWebhookHeaders(args.config.headers);
-  const chunks: DeliveryRecord[][] = [];
-  for (let i = 0; i < args.records.length; i += args.options.recordsPerRequest) {
-    chunks.push(args.records.slice(i, i + args.options.recordsPerRequest));
+  const { scope, action } = args;
+  const prepared: PreparedRecord[] = args.records.map(record => {
+    const wire: WireRecord = {
+      operation: action,
+      key: record.key,
+      idempotencyKey: idempotencyKey(scope.syncId, record.key, action, record.row),
+      data: record.row,
+    };
+    return { operationId: record.operationId, wire, bytes: Buffer.byteLength(JSON.stringify(wire)) + 1 };
+  });
+  // Greedy packing: up to recordsPerRequest records and maxRequestBytes per request. A record that cannot fit alone
+  // goes out as its own request and is rejected as too large, so it is reported and the run stops, never dropped.
+  const chunks: PreparedRecord[][] = [];
+  let current: PreparedRecord[] = [];
+  let size = envelopeOverheadBytes;
+  for (const record of prepared) {
+    const full = current.length >= args.options.recordsPerRequest || size + record.bytes > maxRequestBytes;
+    if (current.length && full) {
+      chunks.push(current);
+      current = [];
+      size = envelopeOverheadBytes;
+    }
+    current.push(record);
+    size += record.bytes;
   }
+  if (current.length) chunks.push(current);
   const results = await runPool(chunks, args.options.concurrency, chunk => sendChunk(chunk, args, headers));
   return results.flat();
 }
