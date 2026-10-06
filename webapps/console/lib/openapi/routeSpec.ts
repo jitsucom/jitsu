@@ -115,6 +115,14 @@ function buildSingleOperation(opts: {
   }
   if (spec.auth) {
     responses["401"] = { description: "Authorization required" };
+    // Authenticated routes can refuse an authenticated caller two ways, and
+    // the spec advertised neither: verifyAccess rejects a user with no access
+    // to the workspace, and the plan gates (JITSU-228) reject a write the
+    // workspace's plan does not include. A generated client that only handles
+    // 401 treats both as an auth failure and retries pointlessly.
+    responses["403"] = {
+      description: "Forbidden — no access to this workspace, or the workspace's plan does not include this feature",
+    };
   }
   responses["400"] = { description: "Bad request" };
   responses["500"] = { description: "Internal server error" };

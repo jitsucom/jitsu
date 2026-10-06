@@ -41,7 +41,7 @@
     "@jitsu/core-functions-lib": "workspace:*",
     "@amplitude/ua-parser-js": "^0.7.33",
     "@hubspot/api-client": "^11.1.0",
-    "undici": "^7.29.0",
+    "undici": "^7.29.1",
     "juava": "workspace:*",
     "node-cache": "^5.1.2",
     "lodash": "catalog:",

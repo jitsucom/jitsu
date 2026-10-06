@@ -1,0 +1,122 @@
+import { describe, expect, it } from "vitest";
+import { canUseCustomDomains, canUseIdentityStitching } from "../../lib/shared/plan-features";
+import { noRestrictions } from "../../lib/schema";
+
+describe("canUseCustomDomains", () => {
+  it("denies free and allows the paid self-service tiers", () => {
+    expect(canUseCustomDomains({ planId: "free" })).toBe(false);
+    expect(canUseCustomDomains({ planId: "business" })).toBe(true);
+    expect(canUseCustomDomains({ planId: "enterprise" })).toBe(true);
+  });
+
+  // The Business plan's machine id is "starter" (it was renamed, the id stayed),
+  // so this is the id a Business workspace really arrives under.
+  it("allows the Business plan under its real id, starter", () => {
+    expect(canUseCustomDomains({ planId: "starter" })).toBe(true);
+  });
+
+  // Only "free" is denied, so a negotiated contract keeps the feature whatever
+  // plan id it arrives under — the same regression canUseIdentityStitching
+  // guards against, reached from the other direction.
+  it("allows a negotiated contract whichever plan id it arrives under", () => {
+    expect(canUseCustomDomains({ planId: "$custom", customBilling: true })).toBe(true);
+    expect(canUseCustomDomains({ planId: "business", custom: true })).toBe(true);
+    expect(canUseCustomDomains({ planId: "$admin" })).toBe(true);
+    expect(canUseCustomDomains({ planId: "self-hosted" })).toBe(true);
+  });
+
+  it("allows workspaces with no billing at all (self-hosted, billing disabled)", () => {
+    expect(canUseCustomDomains(undefined)).toBe(true);
+    expect(canUseCustomDomains(null)).toBe(true);
+  });
+
+  it("lets an explicit plan flag override the plan id in both directions", () => {
+    expect(canUseCustomDomains({ planId: "free", customDomainsEnabled: true })).toBe(true);
+    expect(canUseCustomDomains({ planId: "enterprise", customDomainsEnabled: false })).toBe(false);
+  });
+
+  // The operator `misc` flag has no meaning for this gate. The resolver takes
+  // billing facts only, so a Free plan is denied however the workspace is
+  // flagged; the extra argument is ignored at runtime, which is what is pinned.
+  it("is decided by billing alone — a workspace flag cannot unlock Free", () => {
+    const resolve = canUseCustomDomains as (b: any, featuresEnabled?: string[]) => boolean;
+    expect(resolve({ planId: "free" }, ["misc"])).toBe(false);
+    expect(resolve({ planId: "free", customDomainsEnabled: false }, ["misc"])).toBe(false);
+    expect(canUseCustomDomains({ planId: "free" })).toBe(false);
+  });
+
+  // ee-api reports planId "free" for more than the Free plan: a subscription in
+  // any status other than active/past_due, and a custom contract dated in the
+  // future, both resolve to it. The intended policy is that access starts when
+  // the customer is billed.
+  //
+  // Read the second assertion narrowly. It shows the resolver honours an
+  // explicit grant *if one arrives* — it does not show that one can arrive on
+  // this path. It cannot today: the ee-api early return that sets
+  // futureSubscriptionDate drops customSettings, so no *billing* grant reaches
+  // the console for a not-yet-started contract. That gap is in billing.
+  it("denies a contract that has not started; honours an explicit grant if one reaches it", () => {
+    const futureContract = { planId: "free", futureSubscriptionDate: "2027-01-01T00:00:00.000Z" };
+    expect(canUseCustomDomains(futureContract)).toBe(false);
+    expect(canUseCustomDomains({ ...futureContract, customDomainsEnabled: true })).toBe(true);
+  });
+
+  it("treats an absent plan id as free", () => {
+    expect(canUseCustomDomains({})).toBe(false);
+  });
+});
+
+describe("canUseIdentityStitching", () => {
+  it("denies the self-service tiers and allows enterprise", () => {
+    expect(canUseIdentityStitching({ planId: "free" })).toBe(false);
+    expect(canUseIdentityStitching({ planId: "business" })).toBe(false);
+    expect(canUseIdentityStitching({ planId: "enterprise" })).toBe(true);
+  });
+
+  // Regression: the Business plan's machine id is "starter" (the product was
+  // renamed, the id stayed). It was missing from the deny list, so it read as an
+  // unrecognised plan and Business got Identity Stitching. This is the id a
+  // Business workspace really arrives under — "business" alone proves nothing.
+  it("denies the Business plan under its real id, starter", () => {
+    expect(canUseIdentityStitching({ planId: "starter" })).toBe(false);
+    expect(canUseIdentityStitching({ planId: "starter", planName: "Business" } as any)).toBe(false);
+  });
+
+  it("still honours a negotiated contract or an explicit flag on starter", () => {
+    expect(canUseIdentityStitching({ planId: "starter", custom: true })).toBe(true);
+    expect(canUseIdentityStitching({ planId: "starter", identityStitchingEnabled: true })).toBe(true);
+    expect(canUseIdentityStitching({ planId: "starter", identityStitchingEnabled: false })).toBe(false);
+  });
+
+  // The regression this whole resolver exists to prevent: a negotiated
+  // enterprise contract on custom billing arrives as planId "$custom", so
+  // `planId === "enterprise"` would switch the feature off for the customers
+  // paying most for it.
+  it("allows a negotiated contract whichever plan id it arrives under", () => {
+    expect(canUseIdentityStitching({ planId: "$custom", customBilling: true })).toBe(true);
+    expect(canUseIdentityStitching({ planId: "business", custom: true })).toBe(true);
+    expect(canUseIdentityStitching({ planId: "$admin" })).toBe(true);
+    expect(canUseIdentityStitching({ planId: "self-hosted" })).toBe(true);
+  });
+
+  it("allows workspaces with no billing at all", () => {
+    expect(canUseIdentityStitching(undefined)).toBe(true);
+    expect(canUseIdentityStitching(null)).toBe(true);
+  });
+
+  it("lets an explicit plan flag override the fallback in both directions", () => {
+    expect(canUseIdentityStitching({ planId: "business", identityStitchingEnabled: true })).toBe(true);
+    expect(canUseIdentityStitching({ planId: "enterprise", identityStitchingEnabled: false })).toBe(false);
+    // An explicit false beats the negotiated-plan allowance.
+    expect(canUseIdentityStitching({ planId: "$custom", customBilling: true, identityStitchingEnabled: false })).toBe(
+      false
+    );
+  });
+});
+
+describe("noRestrictions", () => {
+  it("grants both features, so admin workspaces are unaffected by the gates", () => {
+    expect(canUseCustomDomains(noRestrictions)).toBe(true);
+    expect(canUseIdentityStitching(noRestrictions)).toBe(true);
+  });
+});
