@@ -148,6 +148,18 @@ const BillingSettingsShape = z.object({
   /** Live Events observability export (JITSU-138); comes from stripe plan
    * metadata via billing/settings, like the other per-feature flags */
   observabilityExportsEnabled: z.boolean().default(false).optional(),
+  /**
+   * Custom domains on sites (JITSU-228) — Business and Enterprise. Absent on a
+   * plan that predates the flag, so the resolver in lib/shared/plan-features.ts
+   * falls back to the plan id rather than treating absence as "denied".
+   */
+  customDomainsEnabled: z.boolean().optional(),
+  /**
+   * The Identity Stitching connection function (JITSU-228) — Enterprise only.
+   * Deliberately its own flag and not profileBuilderEnabled: profile builders
+   * are a separate product surface that happens to share the docs term.
+   */
+  identityStitchingEnabled: z.boolean().optional(),
   isLegacyPlan: z.boolean().default(false).optional(),
   /**
    * Longest event-backup window (days) a member may select in the console
@@ -215,6 +227,8 @@ export const noRestrictions: BillingSettings = {
   destinationEvensPerMonth: 100_000_000_000,
   profileBuilderEnabled: true,
   observabilityExportsEnabled: true,
+  customDomainsEnabled: true,
+  identityStitchingEnabled: true,
 };
 
 /**

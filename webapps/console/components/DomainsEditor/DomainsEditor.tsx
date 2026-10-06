@@ -13,6 +13,9 @@ import { ReloadOutlined } from "@ant-design/icons";
 import { useRouter } from "next/router";
 import { WLink } from "../Workspace/WLink";
 import { JitsuButton } from "../JitsuButton/JitsuButton";
+import { useBilling } from "../Billing/BillingProvider";
+import { EntitlementStatus } from "../Billing/EntitlementStatus";
+import { useEntitlements } from "../../lib/entitlements";
 
 const StatusBadge: React.FC<
   PropsWithChildren<{ status: "error" | "warning" | "info" | "success" | "loading"; className?: string }>
@@ -48,11 +51,28 @@ function displayErrorFeedback(opts?: { message?: string; error?: any }) {
   });
 }
 
-const CustomDomain: React.FC<{ domain: string; deleteDomain?: () => Promise<void>; workspaceDomain?: boolean }> = ({
-  domain,
-  deleteDomain,
-  workspaceDomain,
-}) => {
+/** Why Add is locked. Shown as a tooltip, so it must stand alone. */
+export function domainsLockedTooltip(billingEnabled: boolean): string {
+  return (
+    "Custom domains are available on the Business and Enterprise plans. Your existing domains keep working. " +
+    (billingEnabled ? "Upgrade to add more." : "Contact your workspace administrator to change the plan.")
+  );
+}
+
+/** Confirmation text for removing a domain. A plan without the entitlement cannot add it back. */
+export function removeDomainConfirmation(domain: string, removalIsFinal: boolean): string {
+  return removalIsFinal
+    ? `Remove domain ${domain}? Your plan doesn't include custom domains, so you won't be able to add it back unless you upgrade to Business or Enterprise.`
+    : `Are you sure you want to remove domain ${domain}?`;
+}
+
+const CustomDomain: React.FC<{
+  domain: string;
+  deleteDomain?: () => Promise<void>;
+  workspaceDomain?: boolean;
+  /** True when the plan cannot add domains, so removing this one cannot be undone. */
+  removalIsFinal?: boolean;
+}> = ({ domain, deleteDomain, workspaceDomain, removalIsFinal = false }) => {
   const workspace = useWorkspace();
   const router = useRouter();
 
@@ -126,7 +146,7 @@ const CustomDomain: React.FC<{ domain: string; deleteDomain?: () => Promise<void
                 disabled={deleting}
                 loading={deleting}
                 onClick={async () => {
-                  if (await confirmOp(`Are you sure you want to remove domain ${domain}?`)) {
+                  if (await confirmOp(removeDomainConfirmation(domain, removalIsFinal))) {
                     try {
                       setDeleting(true);
                       await deleteDomain();
@@ -273,7 +293,18 @@ export const DomainsEditor: React.FC<
   const [addValue, setAddValue] = useState<string | undefined>();
   const [addPending, setAddPending] = useState(false);
   const workspace = useWorkspace();
+  const billing = useBilling();
+  // JITSU-228: custom domains are Business and Enterprise. Resolved by the
+  // server rather than from useBilling() — that is gated on
+  // appConfig.billingEnabled, which is false on an EE install without Firebase,
+  // where the server still enforces. Self-hosted consoles have no plans and the
+  // endpoint allows everything there. Domains already configured stay listed and
+  // removable below — only adding one is gated, which is what grandfathers a
+  // workspace that had a domain before the gate existed.
+  const entitlements = useEntitlements();
+  const planTooLow = entitlements.customDomains === false;
   const add = async () => {
+    if (disabled || entitlements.customDomains !== true) return;
     setAddPending(true);
     try {
       if (addValue?.includes("*") && context !== "workspace") {
@@ -328,30 +359,56 @@ export const DomainsEditor: React.FC<
           <div>Subdomains of these domains can be added without additional configuration.</div>
         </div>
       )}
-      <div className="flex">
-        <Input
-          placeholder="subdomain.mywebsite.com"
-          disabled={disabled}
-          value={addValue}
-          onChange={e => setAddValue(e.target.value)}
-          onKeyDown={e => {
-            if (e.key === "Enter") {
-              add();
-              e.preventDefault();
-            }
-          }}
-        />
-        <JitsuButton
-          requiredPermission={"editEntities"}
-          disabled={!addValue}
-          type={"primary"}
-          className="ml-5"
-          onClick={add}
-          loading={addPending}
-        >
-          Add
-        </JitsuButton>
-      </div>
+      {entitlements.customDomains === null ? (
+        <EntitlementStatus loading={entitlements.loading} retry={entitlements.retry} />
+      ) : (
+        <>
+          {/* A plan without custom domains keeps the control on screen, locked, so a
+              workspace that already has domains sees why it cannot add another instead
+              of the control vanishing. The server refuses the add regardless. */}
+          <div className="flex">
+            <Input
+              placeholder="subdomain.mywebsite.com"
+              disabled={disabled || planTooLow}
+              value={addValue}
+              onChange={e => setAddValue(e.target.value)}
+              onKeyDown={e => {
+                if (e.key === "Enter") {
+                  add();
+                  e.preventDefault();
+                }
+              }}
+            />
+            {/* A disabled antd button does not emit the mouse events a Tooltip needs, so
+                the tooltip sits on a wrapper. */}
+            <Tooltip title={planTooLow ? domainsLockedTooltip(billing.enabled) : undefined}>
+              <span className="ml-5 inline-block">
+                <JitsuButton
+                  requiredPermission={"editEntities"}
+                  disabled={disabled || planTooLow || !addValue}
+                  type={"primary"}
+                  onClick={add}
+                  loading={addPending}
+                >
+                  Add
+                </JitsuButton>
+              </span>
+            </Tooltip>
+          </div>
+          {/* The tooltip alone is invisible on touch and to keyboard users, so the same
+              reason is also shown inline. */}
+          {planTooLow && (
+            <div className="mt-2 text-textLight">
+              Available on <b>Business</b> and <b>Enterprise</b>.{" "}
+              {billing.enabled ? (
+                <WLink href="/settings/billing">Upgrade</WLink>
+              ) : (
+                <span>Contact your workspace administrator to change the plan.</span>
+              )}
+            </div>
+          )}
+        </>
+      )}
       <div className="mt-5">
         {(workspaceDomains ?? [])
           .filter(d => !d.includes("*"))
@@ -367,6 +424,7 @@ export const DomainsEditor: React.FC<
             <div key={domain} className="mb-4">
               <CustomDomain
                 domain={domain}
+                removalIsFinal={planTooLow}
                 deleteDomain={async () => {
                   const newVal = domains!.filter(d => d !== domain);
                   await onChange(newVal);
