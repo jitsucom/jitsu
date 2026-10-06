@@ -9,7 +9,13 @@ import type {
   WriteBatch,
 } from "@jitsu/protocols/reverse-etl";
 import { canonicalJson, contentHash } from "./identity";
-import { ReverseEtlProtocolError, validateBatchResult, validateFinishResult, validateStream } from "./meta";
+import {
+  ReverseEtlProtocolError,
+  ReverseEtlRejectionError,
+  validateBatchResult,
+  validateFinishResult,
+  validateStream,
+} from "./meta";
 import { reverseEtlFailure } from "./failure";
 
 export interface ReverseSourceRecord {
@@ -142,9 +148,8 @@ export async function runReverseEtl<C, R, O>(
     providerCallUnacknowledged = asynchronous && (staged || pending);
     if (asynchronous && pending && !result.remoteJobIds?.length)
       throw new ReverseEtlProtocolError("Asynchronous batches require recoverable remote job IDs");
-    if (result.outcomes.some(outcome => outcome.status === "rejected")) {
-      throw new ReverseEtlProtocolError("Destination rejected a row; the run stopped without skipping it");
-    }
+    const rejected = result.outcomes.find(outcome => outcome.status === "rejected");
+    if (rejected?.status === "rejected") throw new ReverseEtlRejectionError(rejected.code);
     staged ||= pending;
     batch = [];
     bytes = 0;

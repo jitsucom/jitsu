@@ -46,6 +46,41 @@ export class ReverseEtlProtocolError extends Error {
   }
 }
 
+/**
+ * Which provider rejection codes may be shown to users; anything else is dropped, never sanitised. The protocol lets a
+ * provider put any string in `code`, so the shape is not a free-for-all: a code is shown only if it is
+ *  - `http_<status>` or one of the fixed codes our own delivery code emits (webhook and guarded request), or
+ *  - an UPPER_SNAKE enumeration name such as Google's `INVALID_GCLID` or our `GOOGLE_REQUEST_FAILED`.
+ * Opaque or mixed-case tokens (API keys, identifiers, free text) never match. When a provider adds a lowercase code of
+ * its own, add it here deliberately.
+ */
+const fixedRejectionCodes =
+  "redirect_refused|unconfirmed|timeout|connection_error|dns_error|tls_error|blocked_address|invalid_url|request_too_large|internal_error";
+const rejectionCodePattern = new RegExp(`^(?:http_[1-5][0-9]{2}|${fixedRejectionCodes}|[A-Z]+(?:_[A-Z0-9]+)*)$`);
+
+/**
+ * A provider rejected a record. The message stays the fixed core-owned reason; only a code matching
+ * {@link rejectionCodePattern} is kept, so free text from a provider never reaches a user.
+ */
+export class ReverseEtlRejectionError extends ReverseEtlProtocolError {
+  readonly code: string | undefined;
+  constructor(code: unknown) {
+    super("Destination rejected a row; the run stopped without skipping it");
+    this.name = "ReverseEtlRejectionError";
+    this.code = typeof code === "string" && code.length <= 64 && rejectionCodePattern.test(code) ? code : undefined;
+  }
+}
+
+/**
+ * Stops the run at the first rejected outcome with a {@link ReverseEtlRejectionError} that carries its code. Every path
+ * that sees outcomes (the run loop, recovery of an unresolved batch, snapshot mirror delivery) uses this, so a safe
+ * provider code is shown the same way wherever the rejection is found instead of falling back to the generic message.
+ */
+export function ensureNoRejection(outcomes: ReadonlyArray<{ status: string; code?: unknown }>): void {
+  const rejected = outcomes.find(outcome => outcome.status === "rejected");
+  if (rejected) throw new ReverseEtlRejectionError(rejected.code);
+}
+
 export function validateBatchResult<Row>(batch: WriteBatch<Row>, value: unknown): BatchResult {
   const result = batchResult.safeParse(value);
   if (!result.success) throw new ReverseEtlProtocolError("Malformed writer batch response");

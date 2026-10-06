@@ -1769,3 +1769,144 @@ describe("executable runner", () => {
     expect((await task()).error).toContain("ownership");
   });
 });
+
+describe("rejection reporting", () => {
+  const rejectEverything = (f: ReturnType<typeof fixture>, code: string) => {
+    const create = f.adapter.stream.createWriter;
+    f.adapter.stream.createWriter = async ctx => {
+      const writer = await create(ctx);
+      writer.upsert = async batch => ({
+        outcomes: batch.records.map(row => ({
+          operationId: row.operationId,
+          status: "rejected" as const,
+          code,
+          safeReason: "HTTP 422 with private-token in the body",
+        })),
+      });
+      return writer;
+    };
+  };
+  it("shows the rejection code in the task error and never the provider's text", async () => {
+    const f = fixture();
+    rejectEverything(f, "http_422");
+    expect(await execute(f.input)).toBe("FAILED");
+    const error = (await task()).error as string;
+    expect(error).toContain("The destination rejected a row, so the sync stopped.");
+    expect(error).toContain("Reason code: http_422.");
+    expect(error).not.toContain("identifier mappings");
+    expect(error).not.toContain("private-token");
+    expect(await taskLogs("task")).not.toContain("private-token");
+  });
+  it("shows the rejection code when recovery of an unresolved batch finds a rejected row", async () => {
+    const f = fixture();
+    f.setFailBatch(); // the response was lost: the batch is left unresolved
+    expect(await execute(f.input)).toBe("FAILED");
+    const recovery = f.adapter.recovery!;
+    // reconciliation learns the destination's answer: the row was rejected
+    f.adapter.recovery = providerState => ({
+      ...recovery(providerState),
+      reconcileBatch: async batch => ({
+        outcomes: batch.records.map(row => ({
+          operationId: row.operationId,
+          status: "rejected" as const,
+          code: "http_422",
+          safeReason: "HTTP 422 with private-token in the body",
+        })),
+      }),
+    });
+    f.input = { ...f.input, taskId: "recovery" };
+    expect(await execute(f.input)).toBe("FAILED");
+    const error = (await task("recovery")).error as string;
+    expect(error).toContain("The destination rejected a row, so the sync stopped.");
+    expect(error).toContain("Reason code: http_422.");
+    expect(error).not.toContain("private-token");
+  });
+  it("shows the rejection code when a mirror run's recovery finds a rejected row", async () => {
+    const f = fixture();
+    f.input.config.options = { ...f.input.config.options, mode: "mirror" };
+    f.setFailBatch();
+    expect(await execute(f.input)).toBe("FAILED");
+    const recovery = f.adapter.recovery!;
+    f.adapter.recovery = providerState => ({
+      ...recovery(providerState),
+      reconcileBatch: async batch => ({
+        outcomes: batch.records.map(row => ({
+          operationId: row.operationId,
+          status: "rejected" as const,
+          code: "http_422",
+          safeReason: "HTTP 422 with private-token in the body",
+        })),
+      }),
+    });
+    f.input = { ...f.input, taskId: "recovery" };
+    expect(await execute(f.input)).toBe("FAILED");
+    const error = (await task("recovery")).error as string;
+    expect(error).toContain("The destination rejected a row, so the sync stopped.");
+    expect(error).toContain("Reason code: http_422.");
+    expect(error).not.toContain("private-token");
+  });
+  it("the run that cleans up after a rejected batch was acknowledged still shows its reason code", async () => {
+    const f = fixture();
+    f.setFailBatch(); // unresolved batch
+    expect(await execute(f.input)).toBe("FAILED");
+    const recovery = f.adapter.recovery!;
+    f.adapter.recovery = providerState => ({
+      ...recovery(providerState),
+      reconcileBatch: async batch => ({
+        outcomes: batch.records.map(row => ({
+          operationId: row.operationId,
+          status: "rejected" as const,
+          code: "http_422",
+          safeReason: "HTTP 422 with private-token in the body",
+        })),
+      }),
+    });
+    f.input = { ...f.input, taskId: "recovery-1" };
+    expect(await execute(f.input)).toBe("FAILED"); // the rejection is acknowledged durably, with its code shown
+    // The next run finds the rejection already saved: it cleans up and restarts, and must not lose the code. Raising here
+    // again would make recovery fail every time, so the code is added to the cleanup message instead.
+    f.input = { ...f.input, taskId: "recovery-2" };
+    f.calls.length = 0;
+    expect(await execute(f.input)).toBe("FAILED");
+    expect(f.calls).toContain("reconcileAbort");
+    const error = (await task("recovery-2")).error as string;
+    expect(error).toContain("Recovery completed cleanup; next run will restart extraction");
+    expect(error).toContain("Reason code: http_422.");
+    expect(error).not.toContain("private-token");
+    // and the sync is not stuck: the run after that completes (the destination is healthy again)
+    const create = f.adapter.stream.createWriter;
+    f.adapter.stream.createWriter = async ctx => {
+      const writer = await create(ctx);
+      writer.upsert = async batch => accepted(batch);
+      return writer;
+    };
+    f.input = { ...f.input, taskId: "recovery-3" };
+    expect(await execute(f.input)).toBe("COMPLETE");
+  });
+  it("shows the rejection code for a mirror run too", async () => {
+    const f = fixture();
+    rejectEverything(f, "http_422");
+    f.input.config.options = { ...f.input.config.options, mode: "mirror" };
+    expect(await execute(f.input)).toBe("FAILED");
+    const error = (await task()).error as string;
+    expect(error).toContain("The destination rejected a row, so the sync stopped.");
+    expect(error).toContain("Reason code: http_422.");
+    expect(error).not.toContain("private-token");
+  });
+  it("drops a malformed code instead of showing it", async () => {
+    const f = fixture();
+    rejectEverything(f, "Bearer private-token");
+    expect(await execute(f.input)).toBe("FAILED");
+    const error = (await task()).error as string;
+    expect(error).toContain("The destination rejected a row, so the sync stopped.");
+    expect(error).not.toContain("Reason code");
+    expect(error).not.toContain("private-token");
+  });
+  it("describes delivery counts without Google-specific wording", async () => {
+    const f = fixture();
+    expect(await execute(f.input)).toBe("COMPLETE");
+    const logs = await taskLogs("task");
+    expect(logs).toContain("Delivery counts describe records the destination's API accepted");
+    expect(logs).not.toContain("Google");
+  });
+});
