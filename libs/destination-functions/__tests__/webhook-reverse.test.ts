@@ -380,11 +380,28 @@ describe("webhook validation", () => {
     expect(() => validateWebhookReverseSettings(valid, model, destination)).not.toThrow();
   });
 
-  it("requires the delivery attestation", () => {
-    expect(() => validateWebhookReverseSettings({ ...valid, streamOptions: {} }, model, destination)).toThrow();
+  it("requires the delivery attestation and says so in plain words, never as a raw schema error", () => {
+    for (const streamOptions of [{}, { deliveryAttested: false }]) {
+      expect(() => validateWebhookReverseSettings({ ...valid, streamOptions }, model, destination)).toThrow(
+        new WebhookConfigError("Confirm that your endpoint tolerates receiving the same record more than once")
+      );
+    }
+  });
+
+  it("reports out-of-range options by name", () => {
     expect(() =>
-      validateWebhookReverseSettings({ ...valid, streamOptions: { deliveryAttested: false } }, model, destination)
-    ).toThrow();
+      validateWebhookReverseSettings(
+        { ...valid, streamOptions: { ...options, recordsPerRequest: 500 } },
+        model,
+        destination
+      )
+    ).toThrow(/^Records per request: /);
+    expect(() =>
+      validateWebhookReverseSettings({ ...valid, streamOptions: { ...options, concurrency: 0 } }, model, destination)
+    ).toThrow(/^Concurrent requests: /);
+    expect(() =>
+      validateWebhookReverseSettings({ ...valid, streamOptions: { ...options, bogus: 1 } }, model, destination)
+    ).toThrow(WebhookConfigError);
   });
 
   it("requires acknowledgement for http and accepts it when given", () => {
@@ -481,6 +498,16 @@ describe("webhook validation", () => {
   it("requires signing material for the chosen method", () => {
     expect(() => validateWebhookDestination({ ...destination, signatureMethod: "hmac" })).toThrow(/secret/);
     expect(() => validateWebhookDestination({ ...destination, signatureMethod: "ed25519" })).toThrow(/private key/);
+  });
+
+  it("tells the user to alias a dotted ClickHouse Nested column in the model SQL", () => {
+    expect(() =>
+      validateWebhookReverseSettings(
+        { stream: "rows", mode: "upsert", streamOptions: options, mapping: { id: "id", "n.a": "n.a" } },
+        { primaryKey: ["id"] },
+        destination
+      )
+    ).toThrow(/"n\.a" cannot be sent as a field name.*Rename it in the model SQL/);
   });
 
   it("requires primary key columns in the mapping and valid field names", () => {
@@ -636,6 +663,20 @@ describe("runtime adapter", () => {
 });
 
 describe("failure messages", () => {
+  it("the rejected-row message does not send network and endpoint failures to the row data", async () => {
+    const { reverseEtlFailure } = await import("../src/reverse-etl/failure");
+    const message = reverseEtlFailure(
+      new Error("Destination rejected a row; the run stopped without skipping it")
+    )!.message;
+    expect(message.startsWith("The destination rejected a row, so the sync stopped.")).toBe(true);
+    // Network, URL, certificate and HTTP codes point at the destination, and the data advice is only the fallback.
+    expect(message).toMatch(
+      /HTTP status, the network, the URL or the certificate point at the destination's endpoint, URL or credentials, not at the data/
+    );
+    expect(message).toMatch(/Otherwise, check the row data and the sync's field mappings/);
+    expect(message).not.toMatch(/stopped\. Check the row data/);
+  });
+
   it("maps both webhook init errors to a user-readable message", async () => {
     const { reverseEtlFailure } = await import("../src/reverse-etl/failure");
     for (const reason of ["Webhook destination configuration is invalid", "Webhook sync settings are invalid"]) {
@@ -643,5 +684,60 @@ describe("failure messages", () => {
       expect(failure?.reason).toBe(reason);
       expect(failure?.message).toMatch(/destination|sync/i);
     }
+  });
+});
+
+describe("editor and catalog", () => {
+  it("registers webhook in the browser catalog with its Rows stream and validator", async () => {
+    const { reverseDestinationMetadata } = await import("../src/reverse-etl/catalog");
+    const entry = reverseDestinationMetadata.get("webhook")!;
+    expect(entry.streams.map(stream => stream.id)).toEqual(["rows"]);
+    expect(entry.validateSettings).toBe(validateWebhookReverseSettings);
+  });
+
+  it("the Rows stream defaults to upsert, checkpointEvery 5000, unconfirmed delivery and 50 records x 2 requests", async () => {
+    const { webhookRowsEditor } = await import("../src/functions/webhook/editor");
+    expect(webhookRowsEditor.checkpointEvery).toBe(5000);
+    expect(webhookRowsEditor.defaults()).toEqual({
+      mode: "upsert",
+      mapping: {},
+      streamOptions: { recordsPerRequest: 50, concurrency: 2, deliveryAttested: false },
+    });
+    // Unconfirmed delivery must not pass save validation.
+    expect(() =>
+      validateWebhookReverseSettings(
+        {
+          stream: "rows",
+          mode: "upsert",
+          streamOptions: webhookRowsEditor.defaults().streamOptions,
+          mapping: { id: "id" },
+        },
+        { primaryKey: ["id"] },
+        destination
+      )
+    ).toThrow();
+  });
+
+  it("the size limit shown to users is the limit that is enforced", async () => {
+    const { maxRequestBytesLabel } = await import("../src/functions/webhook/reverse-meta");
+    expect(maxRequestBytes).toBe(1024 * 1024);
+    expect(maxRequestBytesLabel).toBe("1 MiB");
+  });
+
+  it("every editor field maps back into settings that the options schema accepts", async () => {
+    const { webhookRowsEditor } = await import("../src/functions/webhook/editor");
+    let options = { ...webhookRowsEditor.defaults() };
+    // The form rebuilds its fields from the latest options after every change, so do the same here.
+    for (let i = 0; i < webhookRowsEditor.fields(options).length; i++) {
+      const field = webhookRowsEditor.fields(options)[i];
+      if (field.editor === "checkbox") options = { ...options, ...field.change(true) } as typeof options;
+      if (field.editor === "number") options = { ...options, ...field.change(field.max!) } as typeof options;
+    }
+    expect(WebhookRowsOptions.parse(options.streamOptions)).toEqual({
+      recordsPerRequest: 200,
+      concurrency: 10,
+      deliveryAttested: true,
+      allowInsecureHttp: true,
+    });
   });
 });

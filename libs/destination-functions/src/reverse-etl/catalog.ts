@@ -1,5 +1,8 @@
 // Browser-safe catalog. Runtime registration is deliberately a separate module.
+import type { ReverseStreamEditor } from "@jitsu/protocols/reverse-etl-editor";
 import { googleAdsMetadata, validateGoogleReverseSettings } from "../functions/google-ads/meta";
+import { webhookMetadata } from "../functions/webhook/editor";
+import { validateWebhookReverseSettings } from "../functions/webhook/reverse-meta";
 
 /**
  * Validates a sync's settings at save time. `destination` is the saved destination configuration, so a provider can
@@ -12,7 +15,14 @@ export type ReverseSettingsValidator = (
   destination: Record<string, unknown>
 ) => void;
 
-export const reverseDestinationMetadata = new Map<
-  string,
-  typeof googleAdsMetadata & { validateSettings: ReverseSettingsValidator }
->([["google-ads", { ...googleAdsMetadata, validateSettings: validateGoogleReverseSettings }]]);
+export interface ReverseDestinationMetadata {
+  id: string;
+  displayName: string;
+  streams: ReverseStreamEditor[];
+  validateSettings: ReverseSettingsValidator;
+}
+
+export const reverseDestinationMetadata = new Map<string, ReverseDestinationMetadata>([
+  ["google-ads", { ...googleAdsMetadata, validateSettings: validateGoogleReverseSettings }],
+  ["webhook", { ...webhookMetadata, validateSettings: validateWebhookReverseSettings }],
+]);

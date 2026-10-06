@@ -222,7 +222,20 @@ export function validateWebhookReverseSettings(
   if (options.stream !== webhookStreamId) throw new WebhookConfigError("This webhook stream is not supported");
   if (options.mode !== "upsert")
     throw new WebhookConfigError("Webhook syncs send changes (upsert mode); mirror mode is not supported");
-  const streamOptions = WebhookRowsOptions.parse(options.streamOptions);
+  const parsed = WebhookRowsOptions.safeParse(options.streamOptions);
+  if (!parsed.success) {
+    // A raw ZodError would reach the user as a 500; say what to fix instead.
+    const issue = parsed.error.issues[0];
+    const field = String(issue.path[0] ?? "");
+    if (field === "deliveryAttested") {
+      throw new WebhookConfigError("Confirm that your endpoint tolerates receiving the same record more than once");
+    }
+    const label = (
+      { recordsPerRequest: "Records per request", concurrency: "Concurrent requests" } as Record<string, string>
+    )[field];
+    throw new WebhookConfigError(label ? `${label}: ${issue.message}` : "The stream settings are not valid");
+  }
+  const streamOptions = parsed.data;
   const config = validateWebhookDestination(destination);
   if (parseWebhookUrl(config.url).protocol === "http:" && streamOptions.allowInsecureHttp !== true) {
     throw new WebhookConfigError(
@@ -231,3 +244,6 @@ export function validateWebhookReverseSettings(
   }
   validateWebhookMapping(options.mapping, model.primaryKey);
 }
+
+/** Shown to users; keep in step with `maxRequestBytes` in deliver.ts (a test compares them). */
+export const maxRequestBytesLabel = "1 MiB";

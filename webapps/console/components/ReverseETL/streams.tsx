@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { Alert, Checkbox, Input, InputNumber, Select } from "antd";
 import { reverseDestinationMetadata } from "@jitsu/destination-functions/src/reverse-etl/catalog";
 import type { ReverseEditorField } from "@jitsu/protocols/reverse-etl-editor";
@@ -9,7 +9,9 @@ import { DestinationTargetSelector } from "./DestinationTargetSelector";
 export interface StreamEditor {
   id: string;
   label: string;
-  defaults(): Pick<ReverseSyncOptions, "mode" | "mapping" | "streamOptions">;
+  defaults(): Pick<ReverseSyncOptions, "mode" | "mapping" | "streamOptions" | "checkpointEvery">;
+  /** True when the stream builds its mapping from the model's columns (the webhook payload), not from user choices. */
+  derivesMapping(options: ReverseSyncOptions): boolean;
   fields(
     options: ReverseSyncOptions,
     update: (patch: Partial<ReverseSyncOptions>) => void,
@@ -102,6 +104,68 @@ function IdentifierMapping({
   );
 }
 
+// Postgres reports a column's type as its numeric type ID; ClickHouse and BigQuery report names.
+const postgresTypeNames: Record<string, string> = {
+  "16": "bool",
+  "17": "bytea",
+  "20": "int8",
+  "21": "int2",
+  "23": "int4",
+  "25": "text",
+  "114": "json",
+  "700": "float4",
+  "701": "float8",
+  "1042": "char",
+  "1043": "varchar",
+  "1082": "date",
+  "1083": "time",
+  "1114": "timestamp",
+  "1184": "timestamptz",
+  "1186": "interval",
+  "1700": "numeric",
+  "2950": "uuid",
+  "3802": "jsonb",
+};
+/** A readable type name, or nothing for a numeric type ID we cannot name (never show the bare number). */
+export function displayColumnType(type: string): string {
+  return /^\d+$/.test(type) ? postgresTypeNames[type] ?? "" : type;
+}
+const sameMapping = (a: Record<string, string>, b: Record<string, string>) => {
+  const keys = Object.keys(a);
+  return keys.length === Object.keys(b).length && keys.every(key => a[key] === b[key]);
+};
+/**
+ * Webhook payload: every model column goes out under its own name, so the mapping is the identity over the model's
+ * columns and is kept in step with them here. A column list that failed to load never overwrites a saved mapping.
+ */
+function PayloadColumns({
+  mapping,
+  disabled,
+  source,
+  onChange,
+}: {
+  mapping: Record<string, string>;
+  disabled: boolean;
+  source: { columns: WarehouseColumn[]; loading: boolean };
+  onChange: (mapping: Record<string, string>) => void;
+}) {
+  const { columns, loading } = source;
+  useEffect(() => {
+    if (disabled || loading || !columns.length) return;
+    const identity = Object.fromEntries(columns.map(column => [column.name, column.name]));
+    if (!sameMapping(identity, mapping)) onChange(identity);
+  }, [columns, loading, disabled, mapping, onChange]);
+  const shown = columns.length
+    ? columns.map(column => [column.name, displayColumnType(column.type)])
+    : Object.keys(mapping).map(n => [n, ""]);
+  if (!shown.length) return <Alert type="warning" title="Select a model to see the columns that will be sent." />;
+  return (
+    <pre className="text-xs bg-gray-50 border rounded p-3 m-0 overflow-auto max-h-80" aria-label="Payload preview">
+      {`{\n${shown.map(([name, type]) => `  ${JSON.stringify(name)}: ${type ? `<${type}>` : "..."}`).join(",\n")}\n}`}
+    </pre>
+  );
+}
+
 function renderField(
   field: ReverseEditorField,
   streamId: string,
@@ -178,6 +242,16 @@ function renderField(
         />
       );
       break;
+    case "columns":
+      component = (
+        <PayloadColumns
+          mapping={options.mapping}
+          disabled={disabled}
+          source={source}
+          onChange={mapping => update({ mapping })}
+        />
+      );
+      break;
     case "mapping":
       component = (
         <ColumnSelector
@@ -207,7 +281,8 @@ export const reverseStreamEditors: Record<string, StreamEditor[]> = Object.fromE
         ({
           id: stream.id,
           label: stream.label,
-          defaults: stream.defaults,
+          defaults: () => ({ ...stream.defaults(), checkpointEvery: stream.checkpointEvery ?? 50_000 }),
+          derivesMapping: options => stream.fields(options).some(field => field.editor === "columns"),
           fields: (options, update, disabled, source) =>
             stream.fields(options).map(field => renderField(field, stream.id, options, update, disabled, source)),
         } satisfies StreamEditor)

@@ -28,11 +28,15 @@ export type ReverseEditorField<Key extends string = string> = FieldBase &
     | { editor: "notice"; title: string; description: string; showIcon?: boolean }
     | { editor: "mapping"; field: Key }
     | { editor: "identifier"; raw: Key; hashed: Key }
+    /** Read-only list of the model's columns with a payload preview; writes the identity mapping (each column to itself). */
+    | { editor: "columns" }
   );
 export interface ReverseStreamEditor {
   id: string;
   label: string;
   settings: ZodType<any>;
+  /** Default for the sync's `checkpointEvery` when this stream is chosen; omitted means the platform default. */
+  checkpointEvery?: number;
   defaults(): ReverseEditorOptions;
   fields(options: ReverseEditorOptions): ReverseEditorField[];
 }

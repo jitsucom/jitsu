@@ -16,7 +16,9 @@ import { googleAudienceStateStream } from "@jitsu/destination-functions/src/func
 import { ReverseEtlManualReconciliationError } from "@jitsu/destination-functions/src/reverse-etl/failure";
 import { recordKey } from "@jitsu/destination-functions/src/reverse-etl/identity";
 import * as http from "node:http";
+import { createHmac } from "node:crypto";
 import type { AddressInfo } from "node:net";
+import { createWarehouseReader } from "@jitsu/warehouse-query";
 import { createGuardedRequest } from "@jitsu/destination-functions/src/functions/lib/guarded-request";
 import { defaultDeliveryDeps } from "@jitsu/destination-functions/src/functions/webhook/deliver";
 import { createWebhookRuntime } from "@jitsu/destination-functions/src/functions/webhook/runtime";
@@ -1995,5 +1997,539 @@ describe("webhook destination through the runner", () => {
     server = http.createServer();
     expect(await execute(f.input)).toBe("FAILED");
     expect((await task()).error).toMatch(/Reason code: (unconfirmed|connection_error)/);
+  });
+  describe("Postgres column types arrive as plain JSON", () => {
+    // [name, column type, value expression, expected JSON value as received by the endpoint]
+    // Expectations were reviewed one by one against the plan's type table (H11): types that fail a run without
+    // conversion (float NaN/Infinity, interval, bytea) must be converted; everything else must arrive unchanged.
+    const cases: Array<[string, string, string, unknown]> = [
+      ["int4", "int4", "42", 42],
+      ["int8", "int8", "123456789012345678", "123456789012345678"],
+      ["numeric", "numeric", "1.50", "1.50"],
+      ["float8", "float8", "1.25", 1.25],
+      ["float4", "float4", "1.5", 1.5],
+      ["float8 NaN", "float8", "'NaN'", "NaN"],
+      ["float8 Infinity", "float8", "'Infinity'", "Infinity"],
+      ["float8 -Infinity", "float8", "'-Infinity'", "-Infinity"],
+      ["float4 NaN", "float4", "'NaN'", "NaN"],
+      ["numeric NaN", "numeric", "'NaN'", "NaN"],
+      ["bool", "bool", "true", true],
+      ["text", "text", "'héllo'", "héllo"],
+      ["char(3)", "char(3)", "'a'", "a  "],
+      ["null", "text", "NULL", null],
+      ["date", "date", "'2026-01-01'", "2026-01-01"],
+      ["timestamp", "timestamp", "'2026-01-01 12:00:00.123456'", "2026-01-01 12:00:00.123456"],
+      ["timestamptz", "timestamptz", "'2026-01-01 12:00:00+00'", "2026-01-01 12:00:00+00"],
+      ["timestamptz infinity", "timestamptz", "'infinity'", "infinity"],
+      ["time", "time", "'12:34:56'", "12:34:56"],
+      ["interval", "interval", "'1 day 02:03:04'", "P0Y0M1DT2H3M4S"],
+      ["uuid", "uuid", "'11111111-2222-3333-4444-555555555555'", "11111111-2222-3333-4444-555555555555"],
+      ["json", "json", `'{"a":[1,2]}'`, { a: [1, 2] }],
+      ["jsonb", "jsonb", `'{"a":[1,2]}'`, { a: [1, 2] }],
+      ["int[]", "int[]", "ARRAY[1,2,3]", [1, 2, 3]],
+      ["text[]", "text[]", "ARRAY['a','b']", ["a", "b"]],
+      ["int8[]", "int8[]", "ARRAY[9007199254740993]", ["9007199254740993"]],
+      ["numeric[]", "numeric[]", "ARRAY[1.5,2.5]", [1.5, 2.5]],
+      ["bytea", "bytea", "'\\xdeadbeef'", "3q2+7w=="],
+      ["bytea[]", "bytea[]", "ARRAY['\\xde'::bytea]", ["3g=="]],
+      ["interval[]", "interval[]", "ARRAY['1 day'::interval]", ["P0Y0M1DT0H0M0S"]],
+      ["float8[] with NaN", "float8[]", "ARRAY['NaN'::float8, 1]", ["NaN", 1]],
+      ["jsonb[]", "jsonb[]", `ARRAY['{"a":1}'::jsonb]`, [{ a: 1 }]],
+      [
+        "2-D int[]",
+        "int[]",
+        "ARRAY[[1,2],[3,4]]",
+        [
+          [1, 2],
+          [3, 4],
+        ],
+      ],
+      ["inet", "inet", "'10.0.0.1'", "10.0.0.1"],
+      ["cidr", "cidr", "'10.0.0.0/8'", "10.0.0.0/8"],
+      ["macaddr", "macaddr", "'08:00:2b:01:02:03'", "08:00:2b:01:02:03"],
+      ["money", "money", "'$1.50'", "$1.50"],
+      ["bit(3)", "bit(3)", "B'101'", "101"],
+      ["xml", "xml", "'<a/>'", "<a/>"],
+      ["tsvector", "tsvector", "'a:1 b:2'", "'a':1 'b':2"],
+      ["int4range", "int4range", "'[1,5)'", "[1,5)"],
+      ["point", "point", "'(1,2)'", { x: 1, y: 2 }],
+      ["box", "box", "'((1,1),(2,2))'", "(2,2),(1,1)"],
+    ];
+    let n = 0;
+    it.each(cases)("%s", async (name, type, expr, expected) => {
+      const table = `webhook_type_${++n}`;
+      await admin.query(
+        `CREATE TABLE ${table} (id int PRIMARY KEY, v ${type}); INSERT INTO ${table} VALUES (1, ${expr})`
+      );
+      const f = webhookFixture();
+      f.input.config.warehouse = {
+        destinationType: "postgres",
+        host: container.getHost(),
+        port: container.getMappedPort(5432),
+        database: "runner_test",
+        username: "postgres",
+        password: "test",
+        sslMode: "disable",
+      };
+      f.input.reader = createWarehouseReader as any;
+      f.input.config.model = { ...f.input.config.model, query: `SELECT id, v FROM ${table}`, primaryKey: ["id"] };
+      f.input.config.options = { ...f.input.config.options, mapping: { id: "id", v: "v" } };
+      expect(await execute(f.input)).toBe("COMPLETE");
+      const record = received.flatMap(r => r.body.records)[0];
+      expect(record.data.id).toBe(1);
+      // Whatever arrives must survive a JSON round trip unchanged, i.e. be plain JSON.
+      expect(JSON.parse(JSON.stringify(record.data))).toEqual(record.data);
+      expect(record.data.v).toEqual(expected);
+    });
+  });
+  describe("ClickHouse column types arrive as plain JSON", () => {
+    let ch: StartedTestContainer;
+    const chRun = async (query: string) => {
+      const response = await fetch(`http://${ch.getHost()}:${ch.getMappedPort(8123)}/?user=default&password=pw`, {
+        method: "POST",
+        body: query,
+      });
+      if (!response.ok) throw new Error(await response.text());
+    };
+    beforeAll(async () => {
+      ch = await new GenericContainer("clickhouse/clickhouse-server:25.4-alpine")
+        .withExposedPorts(8123)
+        .withEnvironment({ CLICKHOUSE_DB: "default", CLICKHOUSE_USER: "default", CLICKHOUSE_PASSWORD: "pw" })
+        .withWaitStrategy(Wait.forHttp("/ping", 8123).forStatusCode(200))
+        .withStartupTimeout(120_000)
+        .start();
+    }, 150_000);
+    afterAll(async () => {
+      await ch?.stop();
+    });
+    // [name, column type, value expression, expected JSON value as received by the endpoint]
+    const cases: Array<[string, string, string, unknown]> = [
+      ["Int64", "Int64", "9223372036854775807", "9223372036854775807"],
+      ["UInt64", "UInt64", "18446744073709551615", "18446744073709551615"],
+      ["Int128", "Int128", "170141183460469231731687303715884105727", "170141183460469231731687303715884105727"],
+      [
+        "Int256",
+        "Int256",
+        "57896044618658097711785492504343953926634992332820282019728792003956564819967",
+        "57896044618658097711785492504343953926634992332820282019728792003956564819967",
+      ],
+      ["Decimal(18,4)", "Decimal(18,4)", "1.2345", "1.2345"],
+      ["Decimal256(10)", "Decimal256(10)", "123.456", "123.456"],
+      ["Float64", "Float64", "1.5", 1.5],
+      ["Float64 nan", "Float64", "nan", null],
+      ["Float64 inf", "Float64", "inf", null],
+      ["Date", "Date", "'2026-01-01'", "2026-01-01"],
+      ["Date32", "Date32", "'2026-01-01'", "2026-01-01"],
+      ["DateTime", "DateTime('UTC')", "'2026-01-01 12:00:00'", "2026-01-01 12:00:00"],
+      ["DateTime64(6)", "DateTime64(6,'UTC')", "'2026-01-01 12:00:00.123456'", "2026-01-01 12:00:00.123456"],
+      ["String", "String", "'héllo'", "héllo"],
+      ["FixedString(3)", "FixedString(3)", "'abc'", "abc"],
+      ["UUID", "UUID", "'11111111-2222-3333-4444-555555555555'", "11111111-2222-3333-4444-555555555555"],
+      ["Bool", "Bool", "true", true],
+      ["Enum8", "Enum8('a'=1,'b'=2)", "'a'", "a"],
+      ["Enum16", "Enum16('x'=1000,'y'=2)", "'x'", "x"],
+      ["LowCardinality(String)", "LowCardinality(String)", "'lc'", "lc"],
+      ["Nullable(String) NULL", "Nullable(String)", "NULL", null],
+      ["Array(Int64)", "Array(Int64)", "[1,2,9223372036854775807]", ["1", "2", "9223372036854775807"]],
+      ["Array(String)", "Array(String)", "['x']", ["x"]],
+      ["Array(Nullable(Int64))", "Array(Nullable(Int64))", "[1,NULL]", ["1", null]],
+      ["Tuple(Int64,String)", "Tuple(Int64, String)", "(7,'t')", ["7", "t"]],
+      ["named Tuple", "Tuple(a Int64, b String)", "(1,'t')", { a: "1", b: "t" }],
+      ["Map(String,Int64)", "Map(String, Int64)", "map('k', 5)", { k: "5" }],
+      ["IPv4", "IPv4", "'10.0.0.1'", "10.0.0.1"],
+      ["IPv6", "IPv6", "'::1'", "::1"],
+      ["Variant", "Variant(Int64, String)", "5", "5"],
+    ];
+    let n = 0;
+    it.each(cases)("%s", async (name, type, expr, expected) => {
+      const table = `webhook_type_${++n}`;
+      await chRun(`CREATE TABLE ${table} (id UInt32, v ${type}) ENGINE = MergeTree ORDER BY id`);
+      await chRun(`INSERT INTO ${table} VALUES (1, ${expr})`);
+      const f = webhookFixture();
+      f.input.config.warehouse = {
+        destinationType: "clickhouse",
+        protocol: "http",
+        hosts: [`${ch.getHost()}:${ch.getMappedPort(8123)}`],
+        database: "default",
+        username: "default",
+        password: "pw",
+      };
+      f.input.reader = createWarehouseReader as any;
+      f.input.config.model = { ...f.input.config.model, query: `SELECT id, v FROM ${table}`, primaryKey: ["id"] };
+      f.input.config.options = { ...f.input.config.options, mapping: { id: "id", v: "v" } };
+      expect(await execute(f.input)).toBe("COMPLETE");
+      const record = received.flatMap(r => r.body.records)[0];
+      expect(JSON.parse(JSON.stringify(record.data))).toEqual(record.data);
+      expect(record.data.v).toEqual(expected);
+    });
+    it("Nested columns arrive as arrays when aliased in the model SQL", async () => {
+      await chRun(
+        `CREATE TABLE webhook_nested (id UInt32, n Nested(a Int64, b String)) ENGINE = MergeTree ORDER BY id`
+      );
+      await chRun("INSERT INTO webhook_nested (id, `n.a`, `n.b`) VALUES (1, [1,2], ['p','q'])");
+      const f = webhookFixture();
+      f.input.config.warehouse = {
+        destinationType: "clickhouse",
+        protocol: "http",
+        hosts: [`${ch.getHost()}:${ch.getMappedPort(8123)}`],
+        database: "default",
+        username: "default",
+        password: "pw",
+      };
+      f.input.reader = createWarehouseReader as any;
+      f.input.config.model = {
+        ...f.input.config.model,
+        query: "SELECT id, `n.a` AS n_a, `n.b` AS n_b FROM webhook_nested",
+        primaryKey: ["id"],
+      };
+      f.input.config.options = { ...f.input.config.options, mapping: { id: "id", n_a: "n_a", n_b: "n_b" } };
+      expect(await execute(f.input)).toBe("COMPLETE");
+      expect(received.flatMap(r => r.body.records)[0].data).toEqual({ id: 1, n_a: ["1", "2"], n_b: ["p", "q"] });
+    });
+  });
+});
+
+describe("webhook delivery under faults", () => {
+  const ROWS = Number(process.env.WEBHOOK_SOAK_ROWS ?? 3000);
+  // The suite's console output is swallowed; WEBHOOK_REPORT=<file> collects the measurements instead.
+  const report = (line: string) => {
+    if (process.env.WEBHOOK_REPORT) require("node:fs").appendFileSync(process.env.WEBHOOK_REPORT, `${line}\n`);
+  };
+  const secret = "soak-secret";
+  type Action =
+    | { kind: "ok" }
+    | { kind: "status"; status: number; retryAfter?: string }
+    | { kind: "reset"; processed: boolean }
+    | { kind: "slow"; ms: number }
+    | { kind: "hang"; processed: boolean };
+  interface Info {
+    ids: number[];
+    request: number;
+  }
+  let server: http.Server;
+  let sockets: Set<import("node:net").Socket>;
+  const state = {
+    delivered: new Map<string, number>(),
+    ids: new Map<number, number>(),
+    requests: 0,
+    badSignatures: 0,
+    behaviour: (_info: Info): Action => ({ kind: "ok" }),
+    onProcessed: (_uniqueIds: number) => {},
+  };
+  const reset = () => {
+    state.delivered.clear();
+    state.ids.clear();
+    state.requests = 0;
+    state.badSignatures = 0;
+    state.behaviour = () => ({ kind: "ok" });
+    state.onProcessed = () => {};
+  };
+  // Small deterministic generator so a failing run can be reproduced.
+  const seeded = (seed: number) => () => {
+    seed = (seed + 0x6d2b79f5) | 0;
+    let t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+  beforeEach(async () => {
+    reset();
+    sockets = new Set();
+    server = http.createServer((req, res) => {
+      const chunks: Buffer[] = [];
+      req.on("data", chunk => chunks.push(chunk));
+      req.on("end", () => {
+        const text = Buffer.concat(chunks).toString();
+        const timestamp = String(req.headers["jitsu-signature-timestamp"]);
+        const expected = createHmac("sha256", secret).update(`${timestamp}.${text}`).digest("hex");
+        if (req.headers["jitsu-signature"] !== expected) state.badSignatures++;
+        const records = JSON.parse(text).records as { key: string; idempotencyKey: string; data: { id: number } }[];
+        const action = state.behaviour({ ids: records.map(r => r.data.id), request: ++state.requests });
+        const process = () => {
+          for (const record of records) {
+            state.delivered.set(record.idempotencyKey, (state.delivered.get(record.idempotencyKey) ?? 0) + 1);
+            state.ids.set(record.data.id, (state.ids.get(record.data.id) ?? 0) + 1);
+          }
+          state.onProcessed(state.ids.size);
+        };
+        switch (action.kind) {
+          case "ok":
+            process();
+            res.statusCode = 200;
+            res.end();
+            break;
+          case "slow":
+            process();
+            setTimeout(() => {
+              res.statusCode = 200;
+              res.end();
+            }, action.ms);
+            break;
+          case "status":
+            res.statusCode = action.status;
+            if (action.retryAfter) res.setHeader("retry-after", action.retryAfter);
+            res.end();
+            break;
+          case "reset":
+            if (action.processed) process();
+            req.socket.destroy();
+            break;
+          case "hang":
+            if (action.processed) process();
+            break;
+        }
+      });
+    });
+    server.on("connection", socket => {
+      sockets.add(socket);
+      socket.on("close", () => sockets.delete(socket));
+    });
+    await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
+  });
+  afterEach(async () => {
+    for (const socket of sockets) socket.destroy();
+    await new Promise<void>(resolve => server.close(() => resolve()));
+  });
+
+  function soak(rows = ROWS) {
+    const f = fixture();
+    const url = `http://127.0.0.1:${(server.address() as AddressInfo).port}/hook`;
+    f.input.config.destination = {
+      destinationType: "webhook",
+      url,
+      method: "POST",
+      signatureMethod: "hmac",
+      signatureSecret: secret,
+    };
+    f.input.config.model = {
+      ...f.input.config.model,
+      query: "SELECT id, name FROM source",
+      primaryKey: ["id"],
+      cursor: { column: "id", type: "number" },
+    } as any;
+    f.input.config.options = {
+      ...f.input.config.options,
+      stream: "rows",
+      mode: "upsert",
+      mapping: { id: "id", name: "name" },
+      checkpointEvery: 5000,
+      streamOptions: { deliveryAttested: true, allowInsecureHttp: true, recordsPerRequest: 50, concurrency: 2 },
+    };
+    const deps = {
+      ...defaultDeliveryDeps,
+      send: createGuardedRequest({ isBlocked: () => false }),
+      sleep: async () => {},
+    };
+    f.input.adapters = new Map([["webhook", cfg => createWebhookRuntime(cfg as any, undefined, deps)]]);
+    f.input.reader = () =>
+      ({
+        sql: {} as any,
+        columns: async () => [],
+        preview: async () => ({ rows: [], columns: [], truncated: false }),
+        close: async () => {},
+        stream: async function* (_model: any, after: any, signal: AbortSignal) {
+          for (let id = after ? Number(after.value) + 1 : 1; id <= rows; id++) {
+            signal.throwIfAborted();
+            yield {
+              row: { id, name: `user-${id}` },
+              deleted: false,
+              checkpoint: { value: String(id), primaryKeyValues: [String(id)] },
+            };
+          }
+        },
+      } as any);
+    let run = 0;
+    const next = () => {
+      run++;
+      f.input = { ...f.input, taskId: `soak-${run}`, controller: new AbortController() };
+      return f.input;
+    };
+    return { f, next, rows };
+  }
+  const deliveredEverything = (rows: number) => {
+    const missing: number[] = [];
+    for (let id = 1; id <= rows && missing.length < 5; id++) if (!state.ids.has(id)) missing.push(id);
+    return missing;
+  };
+  const duplicates = () => [...state.delivered.values()].reduce((sum, count) => sum + count - 1, 0);
+  // After a run is interrupted mid-request the batch is left uncertain. The next scheduled run fails once with the
+  // core's "reconcile before retrying" error and the one after it recovers (no human step). Returns each run's result
+  // and the failed runs' task errors.
+  const continueAfterInterruption = async (next: () => ExecuteOptions) => {
+    const results: string[] = [];
+    const errors: string[] = [];
+    while (results.at(-1) !== "COMPLETE" && results.length < 4) {
+      const input = next();
+      results.push(await execute(input));
+      if (results.at(-1) === "FAILED") errors.push(String((await task(input.taskId)).error));
+    }
+    return { results, errors };
+  };
+
+  it("delivers every row exactly once-or-more under 503, 429, resets and slow responses, with valid signatures", async () => {
+    const random = seeded(7);
+    state.behaviour = () => {
+      const r = random();
+      if (r < 0.015) return { kind: "status", status: 503 };
+      if (r < 0.02) return { kind: "status", status: 429, retryAfter: "0" };
+      if (r < 0.025) return { kind: "reset", processed: false };
+      if (r < 0.035) return { kind: "reset", processed: true };
+      if (r < 0.045) return { kind: "slow", ms: 30 };
+      return { kind: "ok" };
+    };
+    const { f, rows } = soak();
+    expect(await execute(f.input)).toBe("COMPLETE");
+    expect(deliveredEverything(rows)).toEqual([]);
+    expect(state.ids.size).toBe(rows);
+    expect(state.badSignatures).toBe(0);
+    // Resets after processing show up as repeats with the same idempotency key, never as different keys for one row.
+    expect(new Set([...state.delivered.keys()]).size).toBe(rows);
+    report(`SOAK rows=${rows} requests=${state.requests} duplicates=${duplicates()}`);
+  }, 600_000);
+
+  it("a poison record stops the run with its code; after the endpoint is fixed the next run delivers everything and re-sends at most one checkpoint", async () => {
+    const { f, next, rows } = soak();
+    const poison = Math.floor(rows * 0.6);
+    state.behaviour = ({ ids }) => (ids.includes(poison) ? { kind: "status", status: 400 } : { kind: "ok" });
+    expect(await execute(next())).toBe("FAILED");
+    expect((await task("soak-1")).error).toContain("Reason code: http_400");
+    expect(state.ids.has(poison)).toBe(false);
+    const deliveredBefore = state.ids.size;
+    state.behaviour = () => ({ kind: "ok" });
+    expect(await execute(next())).toBe("COMPLETE");
+    expect(deliveredEverything(rows)).toEqual([]);
+    expect(state.badSignatures).toBe(0);
+    const resent = duplicates();
+    report(`POISON rows=${rows} poison=${poison} deliveredBeforeFix=${deliveredBefore} resent=${resent}`);
+    expect(resent).toBeLessThanOrEqual(5000 + 4 * 50);
+  }, 600_000);
+
+  it("cancelling mid-run and running again delivers every row", async () => {
+    const { next, rows } = soak();
+    const run = next();
+    const cutoff = Math.floor(rows * 0.3);
+    state.onProcessed = unique => {
+      if (unique >= cutoff) run.controller.abort();
+    };
+    expect(await execute(run)).toBe("CANCELLED");
+    expect(state.ids.size).toBeLessThan(rows);
+    state.onProcessed = () => {};
+    const { results, errors } = await continueAfterInterruption(next);
+    report(`CANCEL results=${results.join(",")} errors=${JSON.stringify([...new Set(errors)])}`);
+    expect(results.at(-1)).toBe("COMPLETE");
+    expect(results.filter(result => result === "FAILED").length).toBeLessThanOrEqual(1);
+    expect(deliveredEverything(rows)).toEqual([]);
+    report(`CANCEL rows=${rows} cutoff=${cutoff} duplicates=${duplicates()}`);
+  }, 600_000);
+
+  it("an abort while a request is in flight (endpoint processed it, never answered) is replayed with the same keys and delivers every row", async () => {
+    const { next, rows } = soak();
+    const run = next();
+    const hangAt = Math.floor(rows / 2);
+    let hung = false;
+    state.behaviour = ({ ids }) => {
+      if (!hung && ids.includes(hangAt)) {
+        hung = true;
+        setTimeout(() => run.controller.abort(), 100);
+        return { kind: "hang", processed: true };
+      }
+      return { kind: "ok" };
+    };
+    expect(await execute(run)).not.toBe("COMPLETE");
+    expect(state.ids.has(hangAt)).toBe(true);
+    const { results, errors } = await continueAfterInterruption(next);
+    report(`INFLIGHT results=${results.join(",")} errors=${JSON.stringify([...new Set(errors)])}`);
+    expect(results.at(-1)).toBe("COMPLETE");
+    expect(results.filter(result => result === "FAILED").length).toBeLessThanOrEqual(1);
+    expect(deliveredEverything(rows)).toEqual([]);
+    const repeated = [...state.delivered.entries()].filter(([, count]) => count > 1);
+    expect(repeated.length).toBeGreaterThan(0);
+    report(`INFLIGHT rows=${rows} hangAt=${hangAt} duplicates=${duplicates()}`);
+  }, 600_000);
+});
+
+describe("webhook SSRF protection through the runner (real address guard, nothing bypassed)", () => {
+  let server: http.Server;
+  let hits: string[];
+  let redirectTo: string | undefined;
+  beforeEach(async () => {
+    hits = [];
+    redirectTo = undefined;
+    server = http.createServer((req, res) => {
+      hits.push(`${req.method} ${req.url}`);
+      req.resume();
+      if (redirectTo) {
+        res.statusCode = 302;
+        res.setHeader("location", redirectTo);
+      }
+      res.end();
+    });
+    await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
+  });
+  afterEach(() => new Promise<void>(resolve => server.close(() => resolve())));
+
+  function syncTo(url: string, realGuard = true) {
+    const f = fixture();
+    f.input.config.destination = { destinationType: "webhook", url, method: "POST" };
+    f.input.config.options = {
+      ...f.input.config.options,
+      stream: "rows",
+      mode: "upsert",
+      mapping: { id: "id" },
+      streamOptions: { deliveryAttested: true, allowInsecureHttp: true },
+    };
+    f.setRows([{ id: "a" }]);
+    // Production deliver path with its real guard; only the wait between retries is skipped.
+    const deps = {
+      ...defaultDeliveryDeps,
+      sleep: async () => {},
+      ...(realGuard ? {} : { send: createGuardedRequest({ isBlocked: (address: string) => address !== "127.0.0.1" }) }),
+    };
+    f.input.adapters = new Map([["webhook", cfg => createWebhookRuntime(cfg as any, undefined, deps)]]);
+    return f;
+  }
+
+  const blocked = (port: number) => [
+    `http://127.0.0.1:${port}/hook`,
+    `http://localhost:${port}/hook`,
+    `http://[::1]:${port}/hook`,
+    `http://[::ffff:127.0.0.1]:${port}/hook`,
+    `http://[::ffff:7f00:1]:${port}/hook`,
+    `http://2130706433:${port}/hook`,
+    `http://0x7f.1:${port}/hook`,
+    `http://0.0.0.0:${port}/hook`,
+    `http://[::]:${port}/hook`,
+    "http://169.254.169.254/latest/meta-data/",
+    "http://[fe80::1]/",
+    "http://10.0.0.1/",
+    "http://172.16.0.1/",
+    "http://192.168.1.1/",
+    "http://100.64.0.1/",
+    "http://224.0.0.1/",
+    "http://[64:ff9b::7f00:1]/",
+    "http://[fd00::1]/",
+  ];
+
+  it("refuses loopback, link-local, private, CGNAT, multicast, mapped and NAT64 targets with a clear code and no request", async () => {
+    const port = (server.address() as AddressInfo).port;
+    for (const url of blocked(port)) {
+      const f = syncTo(url);
+      f.input.taskId = `ssrf-${Math.random().toString(36).slice(2)}`;
+      expect(await execute(f.input), url).toBe("FAILED");
+      const error = String((await task(f.input.taskId)).error);
+      expect(error, url).toContain("Reason code: blocked_address");
+      expect(error, url).not.toContain("127.0.0.1");
+      await admin.query(
+        "TRUNCATE newjitsu.reverse_sync_control,newjitsu.reverse_sync_target_owner,newjitsu.source_state,newjitsu.source_task,newjitsu.task_log"
+      );
+    }
+    expect(hits).toEqual([]);
+  }, 300_000);
+
+  it("does not follow a redirect to an internal address", async () => {
+    redirectTo = "http://169.254.169.254/latest/meta-data/";
+    const f = syncTo(`http://127.0.0.1:${(server.address() as AddressInfo).port}/hook`, false);
+    expect(await execute(f.input)).toBe("FAILED");
+    expect(String((await task()).error)).toContain("Reason code: redirect_refused");
+    expect(hits).toEqual(["POST /hook"]);
   });
 });

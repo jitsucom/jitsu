@@ -173,7 +173,7 @@ async function sendChunk(
       records,
     });
     if (Buffer.byteLength(body) > maxRequestBytes) {
-      return rejectAll(chunk, "request_too_large", "A single record is larger than the request size limit (1 MB)");
+      return rejectAll(chunk, "request_too_large", "A single record is larger than the request size limit (1 MiB)");
     }
     const request: GuardedRequest = {
       url: config.url,
