@@ -106,10 +106,10 @@ describe("runner console OAuth and adapter binding", () => {
       await expect(client.accessToken(new AbortController().signal)).rejects.toThrow();
     }
   );
-  it("registers only code-owned Google implementation, without fetching tokens during binding", async () => {
+  it("registers only code-owned implementations (Google Ads, Webhook), without fetching tokens during binding", async () => {
     const token = vi.fn(async () => "token");
     const registry = createAdapterRegistry(token);
-    expect([...registry.keys()]).toEqual(["google-ads"]);
+    expect([...registry.keys()]).toEqual(["google-ads", "webhook"]);
     const adapter = await registry.get("google-ads")!(config);
     expect(adapter.targetIdentity).toBe("google-data-manager:1234567890:123");
     expect(adapter.stream.batchDelivery).toBe("asynchronous");

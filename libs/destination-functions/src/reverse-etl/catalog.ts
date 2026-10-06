@@ -7,8 +7,8 @@ import { googleAdsMetadata, validateGoogleReverseSettings } from "../functions/g
  * at run time. Validators that do not need it may declare fewer parameters.
  */
 export type ReverseSettingsValidator = (
-  options: { stream: string; mode: "upsert" | "mirror"; streamOptions: unknown },
-  model: { cursor?: unknown; deleteColumn?: unknown },
+  options: { stream: string; mode: "upsert" | "mirror"; streamOptions: unknown; mapping: Record<string, string> },
+  model: { cursor?: unknown; deleteColumn?: unknown; primaryKey?: string[] },
   destination: Record<string, unknown>
 ) => void;
 

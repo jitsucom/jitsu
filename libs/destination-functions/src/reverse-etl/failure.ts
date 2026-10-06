@@ -44,6 +44,14 @@ const failures = new Map<string, string>([
     "The audience settings no longer match the saved creation request. Restore the original settings or contact your Jitsu administrator; do not reset state.",
   ],
   [
+    "Webhook destination configuration is invalid",
+    "The Webhook destination is misconfigured (URL, method, headers or signing). Open the destination, fix it, then run this sync again.",
+  ],
+  [
+    "Webhook sync settings are invalid",
+    "The sync settings no longer fit the Webhook destination (delivery confirmation, mode or primary key). Edit this sync, save it, and run it again.",
+  ],
+  [
     "Model query contains duplicate primary keys",
     "The model returns multiple rows with the same primary key. Return one deterministic row per primary key, then retry. Audience-identity deduplication does not deduplicate source primary keys.",
   ],

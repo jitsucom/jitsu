@@ -48,7 +48,7 @@ export interface ReverseDestinationConfig {
   workspaceId: string;
   toId: string;
   destination: Record<string, unknown>;
-  model: { cursor?: unknown; deleteColumn?: unknown };
+  model: { cursor?: unknown; deleteColumn?: unknown; primaryKey?: string[] };
   options: { stream: string; mode: "upsert" | "mirror"; streamOptions: Record<string, any> };
 }
 /** Host-bound sync scope, not a provider-accessible database. Expected values are opaque JSON snapshots. */

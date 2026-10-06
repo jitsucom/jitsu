@@ -12,6 +12,7 @@
     "src/meta.ts",
     "src/reverse-etl/**",
     "src/functions/google-ads/**",
+    "src/functions/webhook/**",
     "src/functions/lib/**",
     "src/functions/google-ads-destination.ts"
   ],

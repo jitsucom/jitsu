@@ -15,6 +15,11 @@ import { Tasks } from "./tasks";
 import { googleAudienceStateStream } from "@jitsu/destination-functions/src/functions/google-ads/audience/state";
 import { ReverseEtlManualReconciliationError } from "@jitsu/destination-functions/src/reverse-etl/failure";
 import { recordKey } from "@jitsu/destination-functions/src/reverse-etl/identity";
+import * as http from "node:http";
+import type { AddressInfo } from "node:net";
+import { createGuardedRequest } from "@jitsu/destination-functions/src/functions/lib/guarded-request";
+import { defaultDeliveryDeps } from "@jitsu/destination-functions/src/functions/webhook/deliver";
+import { createWebhookRuntime } from "@jitsu/destination-functions/src/functions/webhook/runtime";
 
 import { MemoryObjects, persisted } from "./artifacts/test-support";
 const objects = new MemoryObjects();
@@ -1908,5 +1913,87 @@ describe("rejection reporting", () => {
     const logs = await taskLogs("task");
     expect(logs).toContain("Delivery counts describe records the destination's API accepted");
     expect(logs).not.toContain("Google");
+  });
+});
+
+describe("webhook destination through the runner", () => {
+  let server: http.Server;
+  let received: any[];
+  let status: number;
+  beforeEach(async () => {
+    received = [];
+    status = 200;
+    server = http.createServer((req, res) => {
+      const chunks: Buffer[] = [];
+      req.on("data", chunk => chunks.push(chunk));
+      req.on("end", () => {
+        received.push({ headers: req.headers, body: JSON.parse(Buffer.concat(chunks).toString()) });
+        res.statusCode = status;
+        res.end();
+      });
+    });
+    await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
+  });
+  afterEach(() => new Promise<void>(resolve => server.close(() => resolve())));
+
+  function webhookFixture() {
+    const f = fixture();
+    const url = `http://127.0.0.1:${(server.address() as AddressInfo).port}/hook`;
+    f.input.config.destination = { destinationType: "webhook", url, method: "POST" };
+    f.input.config.options = {
+      ...f.input.config.options,
+      stream: "rows",
+      mode: "upsert",
+      mapping: { id: "id" },
+      streamOptions: { deliveryAttested: true, allowInsecureHttp: true },
+    };
+    f.setRows([{ id: "a" }, { id: "b" }, { id: "c" }]);
+    // The test server is on loopback, which the real guard refuses; everything else is the production delivery path.
+    const deps = {
+      ...defaultDeliveryDeps,
+      send: createGuardedRequest({ isBlocked: () => false }),
+      sleep: async () => {},
+    };
+    f.input.adapters = new Map([["webhook", cfg => createWebhookRuntime(cfg as any, undefined, deps)]]);
+    return f;
+  }
+
+  it("delivers every row once, in the documented envelope", async () => {
+    const f = webhookFixture();
+    expect(await execute(f.input)).toBe("COMPLETE");
+    const records = received.flatMap(r => r.body.records);
+    expect(records.map((r: any) => r.data.id).sort()).toEqual(["a", "b", "c"]);
+    expect(received[0].body).toMatchObject({ syncId: "sync" });
+    expect(records.every((r: any) => r.operation === "upsert" && r.idempotencyKey)).toBe(true);
+  });
+
+  it("a long URL (for example one that carries a token in its query string) does not stop the run from starting", async () => {
+    const f = webhookFixture();
+    const long = `${f.input.config.destination.url}?token=${"t".repeat(700)}`;
+    f.input.config.destination = { ...f.input.config.destination, url: long };
+    expect(await execute(f.input)).toBe("COMPLETE");
+    expect(received.flatMap(r => r.body.records).length).toBe(3);
+  });
+
+  it("stops at a rejected record with its reason code, then re-sends the same keys on the next run", async () => {
+    const f = webhookFixture();
+    status = 400;
+    expect(await execute(f.input)).toBe("FAILED");
+    expect((await task()).error).toContain("Reason code: http_400");
+    const firstKeys = received.flatMap(r => r.body.records.map((x: any) => x.idempotencyKey)).sort();
+    received.length = 0;
+    status = 200;
+    f.input = { ...f.input, taskId: "task-2" };
+    expect(await execute(f.input)).toBe("COMPLETE");
+    const secondKeys = received.flatMap(r => r.body.records.map((x: any) => x.idempotencyKey)).sort();
+    expect([...new Set(secondKeys)]).toEqual([...new Set(firstKeys)]);
+  });
+
+  it("an unreachable endpoint fails the run with a readable code and no thrown crash", async () => {
+    const f = webhookFixture();
+    await new Promise<void>(resolve => server.close(() => resolve()));
+    server = http.createServer();
+    expect(await execute(f.input)).toBe("FAILED");
+    expect((await task()).error).toMatch(/Reason code: (unconfirmed|connection_error)/);
   });
 });
