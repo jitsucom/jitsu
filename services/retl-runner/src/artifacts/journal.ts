@@ -67,7 +67,7 @@ export class ObjectJournal implements DeliveryJournal {
   }
   static async open(db: Database, scope: Scope, project: Project, recovery: boolean) {
     ensure(db.objectStorage, "Object storage is required");
-    const artifacts = new Artifacts(db.objectStorage.store, scope, db.objectStorage.signal);
+    const artifacts = new Artifacts(db.objectStorage.store, scope, db.objectStorage.signal, db.objectStorage.retention);
     const control = await controlFor(db, scope).observe(value => value);
     ensure(control.artifact_head, "Artifact head is required; legacy state requires an explicit test-sync reset");
     const head = await artifacts.get<ArtifactHead>(decodeJson(control.artifact_head));
@@ -233,7 +233,7 @@ export class ObjectJournal implements DeliveryJournal {
     ensure(value, "Prepared batch not found");
     return value;
   }
-  private async data(head: BatchHead) {
+  private async data(head: BatchHead, withRows = false) {
     const stored = await this.artifacts.get<StoredBatchData>(head.data);
     ensure(stored.effects !== null || this.scope.mode === "mirror", "Missing projected effects");
     const data: BatchData = {
@@ -248,6 +248,18 @@ export class ObjectJournal implements DeliveryJournal {
         data.effects.length === data.batch.records.length,
       "Invalid batch artifact binding"
     );
+    if (withRows && stored.rows) {
+      // Replaying an unresolved batch needs its rows. They are in the retention bucket and may have expired, in which
+      // case this fails closed ("recovery artifact is missing"); anything else is verified against the manifest.
+      const { rows } = await this.artifacts.get<{ rows: unknown[] }>(stored.rows);
+      ensure(
+        Array.isArray(rows) &&
+          rows.length === data.batch.records.length &&
+          contentHash(rows) === data.batch.payloadHash,
+        "Invalid batch artifact binding"
+      );
+      data.batch = { ...data.batch, records: data.batch.records.map((record, i) => ({ ...record, row: rows[i] })) };
+    }
     return data;
   }
   private index(head: BatchHead, data: BatchData, receipt?: ReceiptData) {
@@ -348,6 +360,22 @@ export class ObjectJournal implements DeliveryJournal {
       "Outstanding or rejected operation blocks new delivery"
     );
     const projected = prepared.records.map(record => effects(this.projection(prepared.action, record.row)));
+    if (this.artifacts.retainsRows) {
+      // The rows go to the retention bucket so that they expire, but the projected effects stay in the main store with
+      // no expiry: with retention on they must hold no row data, only an empty upsert and remove and a hashed identity.
+      ensure(
+        projected.every(list =>
+          list.every(
+            effect =>
+              Object.keys(effect.upsert).length === 0 &&
+              Object.keys(effect.remove).length === 0 &&
+              typeof effect.identity === "string" &&
+              /^[0-9a-f]{64}$/.test(effect.identity)
+          )
+        ),
+        "Retention requires projections without row data"
+      );
+    }
     ensure(
       Buffer.byteLength(canonicalJson(projected)) <= this.db.limits.batchBytes,
       "Projected effects exceed byte budget"
@@ -428,7 +456,7 @@ export class ObjectJournal implements DeliveryJournal {
     const resultBudget = n * 8192 + 512 * 1024;
     ensure(
       this.head.batches.reduce(
-        (sum, b) => sum + b.data.bytes + b.effectBytes + (b.receipt?.bytes ?? b.resultBudget),
+        (sum, b) => sum + b.data.bytes + b.effectBytes + (b.rowBytes ?? 0) + (b.receipt?.bytes ?? b.resultBudget),
         0
       ) +
         Buffer.byteLength(canonicalJson({ batch: prepared, effects: projected })) +
@@ -445,13 +473,27 @@ export class ObjectJournal implements DeliveryJournal {
         ),
         "Mirror batch must contain exact effect envelopes"
       );
+    // With a retention bucket the rows are a separate artifact, so the journal budget must count their size too.
+    const rowsRef =
+      this.artifacts.retainsRows && this.scope.mode !== "mirror"
+        ? await this.artifacts.put({ rows: prepared.records.map(record => record.row) }, "rows")
+        : undefined;
     const head: BatchHead = {
       id: prepared.batchId,
       action: prepared.action,
       first: sequence - n + 1,
       last: sequence,
-      data: await this.artifacts.put({ batch: prepared, effects: projectionRef } satisfies StoredBatchData),
+      data: await this.artifacts.put(
+        (rowsRef
+          ? {
+              batch: { ...prepared, records: prepared.records.map(record => ({ ...record, row: null })) },
+              effects: projectionRef,
+              rows: rowsRef,
+            }
+          : { batch: prepared, effects: projectionRef }) satisfies StoredBatchData
+      ),
       effectBytes: projectionRef?.bytes ?? 0,
+      ...(rowsRef ? { rowBytes: rowsRef.bytes } : {}),
       status: "prepared",
       accepted: 0,
       staged: 0,
@@ -488,22 +530,25 @@ export class ObjectJournal implements DeliveryJournal {
       .map(row => ({ batchId: row.id, status: row.status }));
   }
   async recoveryBatch(id: string) {
-    const head = this.find(id),
-      data = await this.data(head);
+    const head = this.find(id);
+    let data = await this.data(head);
     const receipt = head.receipt ? await this.artifacts.get<ReceiptData>(head.receipt) : undefined;
     const outcomes = new Map(receipt?.result.outcomes.map(row => [row.operationId, row.status]));
-    return {
-      batch: data.batch,
-      result: receipt?.result,
-      operations: data.batch.records.map(row => ({
-        operationId: row.operationId,
-        status:
-          outcomes.get(row.operationId) === "staged" && head.status === "cancelled"
-            ? "cancelled"
-            : outcomes.get(row.operationId) ?? head.status,
-        acceptedAt: receipt?.acceptedAt[row.operationId] ? new Date(receipt.acceptedAt[row.operationId]) : null,
-      })),
-    };
+    const operations = data.batch.records.map(row => ({
+      operationId: row.operationId,
+      status:
+        outcomes.get(row.operationId) === "staged" && head.status === "cancelled"
+          ? "cancelled"
+          : outcomes.get(row.operationId) ?? head.status,
+      acceptedAt: receipt?.acceptedAt[row.operationId] ? new Date(receipt.acceptedAt[row.operationId]) : null,
+    }));
+    // Only a batch that may have to be sent again needs its rows. Those are in the retention bucket and may have expired
+    // (then this fails closed), but the rows of a batch that was already accepted (or rejected) are never read, so their
+    // expiry cannot block recovery of a run that stopped before reaching a terminal phase.
+    if (operations.some(row => row.status !== "accepted" && row.status !== "rejected")) {
+      data = await this.data(head, true);
+    }
+    return { batch: data.batch, result: receipt?.result, operations };
   }
   async markUnknown(id: string) {
     ensure((await this.current()).phase === "running", "Cannot mark unknown in this phase");

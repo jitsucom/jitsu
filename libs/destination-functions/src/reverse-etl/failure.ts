@@ -87,6 +87,26 @@ const failures = new Map<string, string>([
     "Sync progress could not be saved to object storage. Ask your Jitsu administrator to check storage connectivity and permissions before retrying. Earlier batches may already have been submitted.",
   ],
   [
+    "Reverse ETL retention storage upload failed; no delivery is authorized",
+    "The storage for this workspace's recovery copies could not be written, so nothing was sent. Ask your Jitsu administrator to check that the workspace's retention bucket exists and is writable before retrying.",
+  ],
+  [
+    "Retention is not supported for mirror syncs",
+    "A mirror sync keeps a full snapshot of its data that cannot expire, so the workspace's retention window cannot be applied to it. Contact your Jitsu administrator.",
+  ],
+  [
+    "Reverse ETL retention configuration changed before admission",
+    "The workspace's retention settings changed while this run was starting, so nothing was sent. The next run uses the new settings.",
+  ],
+  [
+    "Retention requires projections without row data",
+    "This destination keeps copies of row data that cannot expire, so the workspace's retention window cannot be applied to it. Contact your Jitsu administrator.",
+  ],
+  [
+    "Reverse ETL retention storage is unavailable; delivery blocked",
+    "This sync has recovery copies in retention storage that is no longer configured, so delivery was stopped. Contact your Jitsu administrator; do not reset sync state.",
+  ],
+  [
     "Reverse ETL recovery artifact is missing or corrupt; delivery blocked",
     "Saved sync data is missing or unreadable, so delivery was stopped. Contact support or your Jitsu administrator; do not reset sync state.",
   ],

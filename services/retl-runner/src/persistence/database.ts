@@ -7,14 +7,14 @@ export class Database {
   readonly limits: Limits;
   readonly stateTable: string;
   private readonly searchPath: string;
-  readonly objectStorage: { store: ObjectStore; signal: AbortSignal };
+  readonly objectStorage: { store: ObjectStore; signal: AbortSignal; retention?: ObjectStore };
   private readonly cleanups: Array<() => Promise<void>> = [];
   constructor(
     config: PoolConfig,
     options: {
       sourceSchema?: string;
       limits?: Partial<Limits>;
-      objectStorage: { store: ObjectStore; signal: AbortSignal };
+      objectStorage: { store: ObjectStore; signal: AbortSignal; retention?: ObjectStore };
     }
   ) {
     ensure(options?.objectStorage, "Reverse ETL requires object storage configuration");

@@ -43,6 +43,77 @@ describe("immutable artifacts", () => {
     await expect(new Artifacts(new MemoryObjects(), scope, signal).put({})).rejects.toThrow();
   });
 });
+describe("retention bucket routing", () => {
+  const signal = () => new AbortController().signal;
+  const batch = { rows: [{ email: "private@example.test" }] };
+
+  it("stores rows in the retention store under r1/ and everything else in the main store under v1/", async () => {
+    const main = new MemoryObjects(),
+      retention = new MemoryObjects(),
+      a = new Artifacts(main, scope, signal(), retention);
+    const data = await a.put(batch, "rows");
+    const other = await a.put({ baseline: [] });
+    expect(data.key.startsWith("r1/")).toBe(true);
+    expect(other.key.startsWith("v1/")).toBe(true);
+    expect([...retention.objects.keys()]).toEqual([data.key]);
+    expect([...main.objects.keys()]).toEqual([other.key]);
+    expect(await a.get(data)).toEqual(batch);
+    expect(await a.get(other)).toEqual({ baseline: [] });
+  });
+
+  it("without a retention store everything is stored exactly as before, rows included", async () => {
+    const main = new MemoryObjects(),
+      a = new Artifacts(main, scope, signal());
+    const data = await a.put(batch, "rows");
+    expect(data.key.startsWith("v1/")).toBe(true);
+    expect([...main.objects.keys()]).toEqual([data.key]);
+  });
+
+  it("reads references written before retention was configured, from the main store", async () => {
+    const main = new MemoryObjects(),
+      before = await new Artifacts(main, scope, signal()).put(batch, "rows");
+    const after = new Artifacts(main, scope, signal(), new MemoryObjects());
+    expect(before.key.startsWith("v1/")).toBe(true);
+    expect(await after.get(before)).toEqual(batch);
+  });
+
+  it("an expired retention object fails closed with the existing recovery message and leaks nothing", async () => {
+    const retention = new MemoryObjects(),
+      a = new Artifacts(new MemoryObjects(), scope, signal(), retention);
+    const ref = await a.put(batch, "rows");
+    retention.objects.delete(ref.key); // what the bucket's lifecycle rule does at the end of the window
+    const error = (await a.get(ref).catch((e: unknown) => e)) as Error;
+    expect(String(error.message)).toBe("Reverse ETL recovery artifact is missing or corrupt; delivery blocked");
+    expect(String(error.message)).not.toContain("private@example.test");
+  });
+
+  it("a retention reference cannot be read once retention is no longer configured", async () => {
+    const retention = new MemoryObjects(),
+      ref = await new Artifacts(new MemoryObjects(), scope, signal(), retention).put(batch, "rows");
+    await expect(new Artifacts(new MemoryObjects(), scope, signal()).get(ref)).rejects.toThrow(
+      "Reverse ETL retention storage is unavailable; delivery blocked"
+    );
+  });
+
+  it("a retention write failure says so, and nothing is written to the main store instead", async () => {
+    const main = new MemoryObjects(),
+      retention = new MemoryObjects();
+    retention.failPut = true;
+    const a = new Artifacts(main, scope, signal(), retention);
+    await expect(a.put(batch, "rows")).rejects.toThrow(
+      "Reverse ETL retention storage upload failed; no delivery is authorized"
+    );
+    expect(main.objects.size).toBe(0);
+  });
+
+  it("keeps scope binding: another sync cannot read a retention reference", async () => {
+    const retention = new MemoryObjects(),
+      ref = await new Artifacts(new MemoryObjects(), scope, signal(), retention).put(batch, "rows");
+    await expect(
+      new Artifacts(new MemoryObjects(), { ...scope, syncId: "other" }, signal(), retention).get(ref)
+    ).rejects.toThrow("scope mismatch");
+  });
+});
 describe("local snapshot indexing", () => {
   const effect = (id: string) => effects([{ identity: id, upsert: { id }, remove: { id } }])[0];
   it("counts new, changed, expired, unchanged and removed identities separately", async () => {

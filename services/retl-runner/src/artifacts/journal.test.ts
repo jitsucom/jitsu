@@ -2,6 +2,7 @@ import { beforeAll, afterAll, beforeEach, describe, it, expect, vi } from "vites
 import { GenericContainer, Wait, type StartedTestContainer } from "testcontainers";
 import { Client } from "pg";
 import { createRequire } from "node:module";
+import { randomBytes } from "node:crypto";
 import { execFileSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import type { PreparedBatch, BatchResult } from "@jitsu/protocols/reverse-etl";
@@ -28,6 +29,8 @@ const input = (extra: Partial<RunInput> = {}): RunInput => ({
   ...extra,
 });
 const project = (_action: unknown, row: any) => [{ identity: row.id, upsert: row, remove: { id: row.id } }];
+// What the webhook provider projects: no row data, so it can be used with a retention bucket.
+const payloadFree = (_action: unknown, row: any) => [{ identity: contentHash(row.id), upsert: {}, remove: {} }];
 const database = () => {
   const db = new Database(
     { connectionString: url },
@@ -43,9 +46,15 @@ async function init(run: Session) {
   await run.delivery.prepareInit({});
   await run.delivery.acknowledgeInit({});
 }
-function batch(run: Session, ids: string[], start = 1, action: "upsert" | "remove" = "upsert"): PreparedBatch<any> {
+function batch(
+  run: Session,
+  ids: string[],
+  start = 1,
+  action: "upsert" | "remove" = "upsert",
+  pad?: string
+): PreparedBatch<any> {
   const records = ids.map((id, i) => {
-    const row = { id },
+    const row = pad === undefined ? { id } : { id, pad },
       key = contentHash(id);
     return {
       key,
@@ -499,6 +508,157 @@ describe("object journal", () => {
     const recovered = await session();
     expect((await recovered.core.recoveryBatch(b.batchId)).operations[0].status).toBe("accepted");
     expect((await recovered.core.recoveryStatus()).phase).toBe("running");
+  });
+  it("recovery does not read the rows of a batch that was already accepted: they may have expired from the retention bucket", async () => {
+    const retention = new MemoryObjects();
+    const withRetention = () => {
+      const db = new Database(
+        { connectionString: url },
+        { objectStorage: { store: objects, signal: new AbortController().signal, retention } }
+      );
+      databases.push(db);
+      return db;
+    };
+    const run = await openPersistence(withRetention(), input(), payloadFree);
+    await init(run);
+    const accepted = batch(run, ["a", "b"]);
+    await run.delivery.prepare(accepted, {});
+    await run.delivery.acknowledge(accepted.batchId, result(accepted), {});
+    const unresolved = batch(run, ["c"], 3);
+    await run.delivery.prepare(unresolved, {});
+    expect(retention.objects.size).toBe(2);
+    // The process dies here. Before the next run the retention lifecycle rule deletes every row object.
+    retention.objects.clear();
+    const recovered = await openPersistence(withRetention(), input(), payloadFree);
+    expect((await recovered.core.recoveryStatus()).phase).toBe("running");
+    // Already accepted: its rows are not needed, so their absence must not block recovery.
+    const saved = await recovered.core.recoveryBatch(accepted.batchId);
+    expect(saved.operations.map(row => row.status)).toEqual(["accepted", "accepted"]);
+    // Still unresolved: replaying it needs its rows, and without them recovery fails closed.
+    await expect(recovered.core.recoveryBatch(unresolved.batchId)).rejects.toThrow();
+  });
+  it("recovery does not read the rows of a rejected batch either: it is not sent again", async () => {
+    const retention = new MemoryObjects();
+    const withRetention = () => {
+      const db = new Database(
+        { connectionString: url },
+        { objectStorage: { store: objects, signal: new AbortController().signal, retention } }
+      );
+      databases.push(db);
+      return db;
+    };
+    const run = await openPersistence(withRetention(), input(), payloadFree);
+    await init(run);
+    const rejected = batch(run, ["r"]);
+    await run.delivery.prepare(rejected, {});
+    await run.delivery.acknowledge(
+      rejected.batchId,
+      {
+        outcomes: [
+          { operationId: rejected.records[0].operationId, status: "rejected", code: "BAD", safeReason: "Invalid row" },
+        ],
+      },
+      {}
+    );
+    expect(retention.objects.size).toBe(1);
+    retention.objects.clear();
+    const recovered = await openPersistence(withRetention(), input(), payloadFree);
+    expect((await recovered.core.recoveryBatch(rejected.batchId)).operations.map(row => row.status)).toEqual([
+      "rejected",
+    ]);
+  });
+  describe("journal budget with and without a retention bucket", () => {
+    // The budget bounds everything stored for recovery in one run. With a retention bucket the rows are a separate
+    // artifact, so their size must be counted too, or a long run could write far past the limit into that bucket.
+    const payloadFree = (_action: unknown, row: any) => [{ identity: contentHash(row.id), upsert: {}, remove: {} }];
+    const noisy = () => randomBytes(750_000).toString("base64"); // incompressible, about 1 MB as JSON
+    async function batchesUntilRefused(retention?: MemoryObjects) {
+      const db = new Database(
+        { connectionString: url },
+        {
+          objectStorage: { store: objects, signal: new AbortController().signal, ...(retention ? { retention } : {}) },
+          limits: { journalBytes: 3_000_000 },
+        }
+      );
+      databases.push(db);
+      const run = await openPersistence(
+        db,
+        input({ logicalRunId: retention ? "budget-retained" : "budget-inline" }),
+        payloadFree
+      );
+      await init(run);
+      let accepted = 0;
+      for (let i = 0; i < 12; i++) {
+        const b = batch(run, [`row-${i}`], i + 1, "upsert", noisy());
+        try {
+          await run.delivery.prepare(b, {});
+        } catch (error: any) {
+          expect(String(error.message)).toContain("Recovery journal budget exceeded");
+          return accepted;
+        }
+        await run.delivery.acknowledge(b.batchId, result(b), {});
+        accepted++;
+      }
+      return accepted;
+    }
+
+    it("without retention the budget stops the run after a few large batches", async () => {
+      const accepted = await batchesUntilRefused();
+      expect(accepted).toBeGreaterThan(0);
+      expect(accepted).toBeLessThan(6);
+    });
+
+    it("with a retention bucket the same budget applies: the retained rows are counted too", async () => {
+      const accepted = await batchesUntilRefused(new MemoryObjects());
+      expect(accepted).toBeGreaterThan(0);
+      expect(accepted).toBeLessThan(6);
+    });
+  });
+
+  describe("retention and projected effects", () => {
+    // The projected effects stay in the main store, so with a retention bucket they must hold no row data: an empty
+    // upsert and remove and a hashed identity (what the webhook provider projects).
+    const withRetention = (retention: MemoryObjects) => {
+      const db = new Database(
+        { connectionString: url },
+        { objectStorage: { store: objects, signal: new AbortController().signal, retention } }
+      );
+      databases.push(db);
+      return db;
+    };
+
+    it("a projection that holds row data is refused before anything is stored", async () => {
+      const retention = new MemoryObjects();
+      const run = await openPersistence(withRetention(retention), input(), project); // upsert: the raw row
+      await init(run);
+      await expect(run.delivery.prepare(batch(run, ["a"]), {})).rejects.toThrow("Retention requires");
+      expect(retention.objects.size).toBe(0);
+      expect(await run.core.recoveryPage()).toEqual([]);
+    });
+
+    it.each([
+      ["a payload in upsert", (_a: unknown, row: any) => [{ identity: contentHash(row.id), upsert: row, remove: {} }]],
+      ["a payload in remove", (_a: unknown, row: any) => [{ identity: contentHash(row.id), upsert: {}, remove: row }]],
+      ["a raw identity", (_a: unknown, row: any) => [{ identity: row.id, upsert: {}, remove: {} }]],
+      [
+        "a non-hash string identity",
+        (_a: unknown, row: any) => [{ identity: "user@example.com", upsert: {}, remove: {} }],
+      ],
+    ])("also refuses %s", async (_name, projection) => {
+      const retention = new MemoryObjects();
+      const run = await openPersistence(withRetention(retention), input(), projection as any);
+      await init(run);
+      await expect(run.delivery.prepare(batch(run, ["a"]), {})).rejects.toThrow("Retention requires");
+    });
+
+    it("a payload-free projection works with retention", async () => {
+      const retention = new MemoryObjects();
+      const run = await openPersistence(withRetention(retention), input(), payloadFree);
+      await init(run);
+      const b = batch(run, ["a"]);
+      await run.delivery.prepare(b, {});
+      expect(retention.objects.size).toBe(1);
+    });
   });
   it("rejects corrupt recovery artifacts and legacy state rather than falling back or resetting", async () => {
     const run = await session();

@@ -7,7 +7,7 @@ import { execute } from "./execute";
 import { createAdapterRegistry } from "./adapters";
 import { createConsoleClient } from "./console-client";
 import { KubernetesLease, inClusterLeaseRequest } from "./lease";
-import { objectStorageFromEnv } from "./artifacts/config";
+import { runObjectStorage } from "./artifacts/config";
 import { reportFailure } from "./diagnostics";
 
 const Env = z.object({
@@ -37,7 +37,10 @@ async function main() {
   // eslint-disable-next-line no-restricted-properties -- deployment-owned storage configuration.
   const db = new Database(
     { connectionString: env.RETL_DATABASE_URL },
-    { objectStorage: objectStorageFromEnv(process.env, controller.signal) }
+    {
+      // The run configuration's retention bucket, when it names one; a run without it is stored exactly as before.
+      objectStorage: runObjectStorage(process.env, controller.signal, config),
+    }
   );
   const consoleClient = createConsoleClient(
     env.RETL_CONSOLE_URL,
