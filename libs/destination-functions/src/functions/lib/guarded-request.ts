@@ -2,6 +2,7 @@ import * as dns from "node:dns";
 import * as http from "node:http";
 import * as https from "node:https";
 import * as net from "node:net";
+import * as tls from "node:tls";
 import { isBlockedAddress } from "@jitsu/core-functions-lib";
 
 /**
@@ -69,7 +70,20 @@ export interface GuardedRequestDeps {
   isBlocked?: (address: string) => boolean;
   /** Extra trusted certificate authorities (PEM); for tests only. */
   ca?: string;
+  /**
+   * Reuse connections between requests (default). A delivery run sends many requests to one endpoint, and a new TCP and
+   * TLS connection for each one costs time and, at high rates, gets refused or delayed by the endpoint's network. Tests
+   * that need a fresh connection for every request turn it off.
+   */
+  keepAlive?: boolean;
 }
+
+/**
+ * Pool settings. Idle connections are closed after 4 s, before the 5 s that common servers (Node's own default among
+ * them) allow, so a request is rarely sent on a connection the server has just closed. Idle sockets are unreferenced by
+ * Node, so a finished run does not keep the process alive.
+ */
+const poolOptions = { keepAlive: true, maxSockets: 32, maxFreeSockets: 8, timeout: 4_000 };
 
 const tlsCodes = new Set([
   "DEPTH_ZERO_SELF_SIGNED_CERT",
@@ -91,6 +105,12 @@ export function createGuardedRequest(deps: GuardedRequestDeps = {}) {
     deps.resolve ??
     (async (hostname: string) => (await dns.promises.lookup(hostname, { all: true, verbatim: true })) as Resolved[]);
   const isBlocked = deps.isBlocked ?? isBlockedAddress;
+  // One pool per protocol per guarded request function; connections are keyed by host and port, so two destinations
+  // never share one. The address check in `lookup` runs whenever a connection is opened; a pooled connection stays on
+  // the address that was checked when it was opened.
+  const pooled = deps.keepAlive !== false;
+  const httpsAgent = pooled ? new https.Agent({ ...poolOptions, ca: deps.ca }) : undefined;
+  const httpAgent = pooled ? new http.Agent(poolOptions) : undefined;
 
   // Node calls lookup with { all: true } when it picks between address families, so both shapes are supported.
   const lookup = (hostname: string, options: dns.LookupOptions, callback: (...args: any[]) => void) => {
@@ -171,7 +191,9 @@ export function createGuardedRequest(deps: GuardedRequestDeps = {}) {
         method: request.method ?? "POST",
         headers,
         lookup: lookup as any,
-        agent: secure ? new https.Agent({ keepAlive: false, ca: deps.ca }) : new http.Agent({ keepAlive: false }),
+        agent: secure
+          ? httpsAgent ?? new https.Agent({ keepAlive: false, ca: deps.ca })
+          : httpAgent ?? new http.Agent({ keepAlive: false }),
       };
       const req = (secure ? https : http).request(options, res => {
         status = res.statusCode ?? 0;
@@ -199,6 +221,13 @@ export function createGuardedRequest(deps: GuardedRequestDeps = {}) {
       });
 
       req.on("socket", socket => {
+        // A pooled socket is already connected (and, for https, past the handshake), so no connect event will follow:
+        // the request may reach the server from the moment it is written, which is what `connected` stands for.
+        if (!socket.connecting && (!secure || (socket as tls.TLSSocket).encrypted)) {
+          connected = true;
+          clearTimeout(connectTimer);
+          return;
+        }
         socket.once(secure ? "secureConnect" : "connect", () => {
           connected = true;
           clearTimeout(connectTimer);
