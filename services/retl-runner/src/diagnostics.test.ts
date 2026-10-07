@@ -3,8 +3,30 @@ import { ReverseEtlProtocolError, ReverseEtlRejectionError } from "@jitsu/destin
 import { failureDiagnostic, failureMessage, KubernetesHttpError } from "./diagnostics";
 import { PersistenceError } from "./persistence/types";
 import { MirrorRunError } from "./mirror";
+import {
+  invalidMetaConversion,
+  metaConversionValidationErrors,
+} from "@jitsu/destination-functions/src/functions/facebook/validation-errors";
 
 describe("safe failure diagnostics", () => {
+  it.each(Object.keys(metaConversionValidationErrors) as Array<keyof typeof metaConversionValidationErrors>)(
+    "preserves the fixed Meta validation hint for %s, but not appended values",
+    reason => {
+      let error: unknown;
+      try {
+        invalidMetaConversion(reason);
+      } catch (e) {
+        error = e;
+      }
+      expect(failureMessage(error, "task")).toContain(metaConversionValidationErrors[reason]);
+      expect(failureMessage(error, "task")).toContain("Earlier batches may already have been submitted");
+      expect(failureDiagnostic("execution", error).reason).toBe((error as Error).message);
+      const unsafe = new Error(`${(error as Error).message} private@example.com token=secret`);
+      expect(failureDiagnostic("execution", unsafe).reason).toBeUndefined();
+      expect(failureMessage(unsafe, "task")).not.toContain("private@example.com");
+      expect(failureMessage(unsafe, "task")).not.toContain("token=secret");
+    }
+  );
   it("preserves actionable mirror failure hints and counters without retaining raw causes", () => {
     const cause = new PersistenceError("Reverse ETL artifact upload failed; no delivery is authorized", {
       cause: new Error("private-token"),

@@ -1,3 +1,5 @@
+import { metaConversionValidationErrors } from "../functions/facebook/validation-errors";
+
 /** Terminal uncertainty: retain receipts, but do not keep polling a final, ambiguous result. */
 export class ReverseEtlManualReconciliationError extends Error {
   constructor() {
@@ -6,6 +8,7 @@ export class ReverseEtlManualReconciliationError extends Error {
 }
 
 const terminalReplacementReasons = new Set([
+  "Meta delivery results require manual reconciliation; no replay",
   "Google replacement cutoff is missing or bound to another run; do not reset or replay",
   "Google replacement cleanup receipt unavailable; manual reconciliation required, no automatic replay",
   "Malformed Google replacement status; manual reconciliation required",
@@ -23,6 +26,25 @@ export function requiresManualReconciliation(error: unknown): boolean {
 
 /** Exact core-owned reasons only. Never expose arbitrary SDK/SQL messages or causes. */
 const failures = new Map<string, string>([
+  ...Object.values(metaConversionValidationErrors).map(detail => {
+    const reason = `Invalid Meta conversion: ${detail}`;
+    return [reason, `${reason} This row was not submitted. Earlier batches may already have been submitted.`] as [
+      string,
+      string
+    ];
+  }),
+  [
+    "Invalid Meta row mapping or identifier",
+    "A source row has an invalid Meta identifier or mapping. Check the mapped identifiers and raw versus SHA-256 settings. This row was not submitted; earlier batches may already have been submitted.",
+  ],
+  [
+    "Meta delivery results require manual reconciliation; no replay",
+    "Meta did not provide complete delivery evidence. Some changes may have been accepted. Contact your Jitsu administrator with this run ID; saved requests are retained and will not be uploaded again automatically.",
+  ],
+  [
+    "Meta audience creation is unconfirmed; retry discovery without resetting state",
+    "Meta audience creation is not confirmed. Run this same sync again to discover the original audience. Do not reset state or create another sync to retry it.",
+  ],
   [
     "Mobile audiences require an App ID and mobile platform",
     "Set the App ID and mobile platform before creating a mobile audience. No audience creation was attempted; edit this sync and try again.",

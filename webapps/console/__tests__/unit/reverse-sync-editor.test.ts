@@ -103,15 +103,14 @@ it("disables fields while Save is pending", async () => {
   await waitFor(() => expect(state.route.push).toHaveBeenCalledWith("/ws/reverse-syncs"));
 });
 
-it("opens the committed sync when Run after save cannot be confirmed", async () => {
-  state.rpc.mockResolvedValueOnce({ id: "saved" }).mockRejectedValueOnce(new Error("Controller unavailable"));
+it("creates a sync and returns to the list without starting a run", async () => {
+  state.rpc.mockResolvedValue({ id: "saved" });
   mount();
-  fireEvent.click(screen.getByRole("checkbox", { name: "Run sync after save" }));
+  expect(screen.queryByRole("checkbox", { name: "Run sync after save" })).toBeNull();
   fireEvent.click(screen.getByRole("button", { name: "Save" }));
-  await waitFor(() =>
-    expect(state.route.push).toHaveBeenCalledWith("/ws/reverse-syncs?id=saved&runStartUnconfirmed=1")
-  );
-  expect(state.rpc).toHaveBeenCalledTimes(2);
+  await waitFor(() => expect(state.route.push).toHaveBeenCalledWith("/ws/reverse-syncs"));
+  expect(state.rpc).toHaveBeenCalledTimes(1);
+  expect(state.rpc).toHaveBeenCalledWith("/api/ws/reverse-etl/syncs", expect.objectContaining({ method: "POST" }));
 });
 
 function savedSync() {
@@ -138,10 +137,24 @@ it("returns to the list after editing a saved sync", async () => {
   mount(savedSync());
   fireEvent.click(screen.getByRole("button", { name: "Save" }));
   await waitFor(() => expect(state.route.push).toHaveBeenCalledWith("/ws/reverse-syncs"));
+  expect(state.rpc).toHaveBeenCalledTimes(1);
   expect(state.rpc).toHaveBeenCalledWith(
     expect.stringContaining("syncId=saved"),
     expect.objectContaining({ method: "PUT" })
   );
+});
+it("still starts a saved sync explicitly with Run now", async () => {
+  state.rpc.mockResolvedValue({ taskId: "task" });
+  mount(savedSync());
+  fireEvent.click(screen.getByRole("button", { name: "Run now" }));
+  await waitFor(() =>
+    expect(state.route.push).toHaveBeenCalledWith("/ws/reverse-syncs/logs?syncId=saved&taskId=task&starting=1")
+  );
+  expect(state.rpc).toHaveBeenCalledWith("/api/ws/reverse-etl/sync", {
+    method: "POST",
+    query: { syncId: "saved" },
+    body: { action: "run" },
+  });
 });
 it("keeps saved mappings visible when column discovery fails", async () => {
   state.models = [{ id: "model1", name: "Model", warehouseId: "wh", query: "select email" }];

@@ -3,6 +3,8 @@ import type { ReverseStreamEditor } from "@jitsu/protocols/reverse-etl-editor";
 import { googleAdsMetadata, validateGoogleReverseSettings } from "../functions/google-ads/meta";
 import { webhookMetadata } from "../functions/webhook/editor";
 import { validateWebhookReverseSettings } from "../functions/webhook/reverse-meta";
+import { metaAdsMetadata } from "../functions/facebook/editor";
+import { validateMetaReverseSettings } from "../functions/facebook/reverse-meta";
 
 /**
  * Validates a sync's settings at save time. `destination` is the saved destination configuration, so a provider can
@@ -25,4 +27,5 @@ export interface ReverseDestinationMetadata {
 export const reverseDestinationMetadata = new Map<string, ReverseDestinationMetadata>([
   ["google-ads", { ...googleAdsMetadata, validateSettings: validateGoogleReverseSettings }],
   ["webhook", { ...webhookMetadata, validateSettings: validateWebhookReverseSettings }],
+  ["facebook-conversions", { ...metaAdsMetadata, validateSettings: validateMetaReverseSettings }],
 ]);

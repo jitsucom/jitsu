@@ -32,6 +32,160 @@ const storage = { objectStorage: { store: objects, signal: new AbortController()
 const durable = () => persisted(admin, objects);
 afterEach(() => vi.useRealTimers());
 
+describe("Meta Reverse ETL runner integration", () => {
+  const metaResponse = (body: unknown) =>
+    new Response(JSON.stringify(body)) as Awaited<ReturnType<typeof globalThis.fetch>>;
+  it("logs a missing website user-agent mapping without leaking row data or submitting events", async () => {
+    const f = fixture();
+    f.input.config.destination = { destinationType: "facebook-conversions", accessToken: "private-meta-token" };
+    f.input.config.model.cursor = undefined;
+    f.input.config.options = {
+      ...f.input.config.options,
+      stream: "conversions",
+      mode: "upsert",
+      mapping: { email: "id", eventSourceUrl: "url" },
+      streamOptions: { pixelId: "789", actionSource: "website", eventName: "Lead" },
+    };
+    f.input.adapters = createAdapterRegistry(vi.fn());
+    const rows = [{ id: "private@example.com", url: "https://example.com/private-path" }];
+    f.setRows(rows);
+    const wire = vi.spyOn(globalThis, "fetch").mockRejectedValue(new Error("Unexpected provider request"));
+    try {
+      expect(await execute(f.input)).toBe("FAILED");
+      expect(wire).not.toHaveBeenCalled();
+      const errors = (await admin.query("SELECT message FROM newjitsu.task_log WHERE level='ERROR'")).rows;
+      expect(errors).toHaveLength(1);
+      expect(errors[0].message).toContain('Client user agent is required when Action source is "website"');
+      expect(errors[0].message).toContain("Map a column to Client user agent");
+      expect(errors[0].message).toContain("This row was not submitted");
+      expect(errors[0].message).not.toContain("private");
+      const task = (await admin.query("SELECT error FROM newjitsu.source_task WHERE task_id=$1", [f.input.taskId]))
+        .rows[0];
+      expect(task.error).toBe(errors[0].message);
+    } finally {
+      wire.mockRestore();
+    }
+  });
+  it.each([false, true])(
+    "provisions once and mirrors snapshots with additions before removals (lost receipt: %s)",
+    async lostReceipt => {
+      const f = fixture();
+      f.input.config.destination = { destinationType: "facebook-conversions", accessToken: "meta-token" };
+      f.input.config.model.cursor = undefined;
+      f.input.config.options = {
+        ...f.input.config.options,
+        stream: "audience",
+        mode: "mirror",
+        mapping: { email: "id" },
+        streamOptions: {
+          accountId: "123",
+          audience: { kind: "managed", name: "Test" },
+          exclusiveManagementConfirmed: true,
+        },
+      };
+      const token = vi.fn(async () => "unused-oauth");
+      f.input.adapters = createAdapterRegistry(token);
+      let marker = "";
+      let loseResponse = lostReceipt;
+      let lastSession: { session_id: string; num_received: number; num_invalid_entries: number } | undefined;
+      const calls: { method: string; payload?: any }[] = [];
+      const wire = vi.spyOn(globalThis, "fetch").mockImplementation(async (url, init) => {
+        const method = init!.method!;
+        const body = init?.body ? JSON.parse(String(init.body)) : undefined;
+        if (String(url).includes("/customaudiences") && method === "POST") {
+          marker = body.description;
+          calls.push({ method: "create" });
+          return metaResponse({ id: "456" });
+        }
+        if (String(url).includes("/456/users")) {
+          calls.push({ method, payload: body.payload });
+          lastSession = {
+            session_id: String(body.session.session_id),
+            num_received: body.payload.data.length,
+            num_invalid_entries: 0,
+          };
+          if (loseResponse) {
+            loseResponse = false;
+            throw new Error("Response lost after ingestion");
+          }
+          return metaResponse({ audience_id: "456", ...lastSession });
+        }
+        if (String(url).includes("/456/sessions")) {
+          expect(String(url)).toContain(`session_id=${lastSession!.session_id}`);
+          return metaResponse({ data: [lastSession] });
+        }
+        return metaResponse({
+          id: "456",
+          account_id: "123",
+          subtype: "CUSTOM",
+          is_value_based: false,
+          description: marker,
+        });
+      });
+      try {
+        f.setRows([{ id: "a@example.com" }, { id: "b@example.com" }]);
+        expect(await execute(f.input)).toBe(lostReceipt ? "FAILED" : "COMPLETE");
+        if (lostReceipt) {
+          f.input.taskId = "meta-resume";
+          f.calls.length = 0;
+          expect(await execute(f.input)).toBe("COMPLETE");
+          expect(f.calls).not.toContain("reader");
+        }
+        f.input.taskId = "meta-second";
+        f.setRows([{ id: "b@example.com" }, { id: "c@example.com" }]);
+        expect(await execute(f.input)).toBe("COMPLETE");
+        expect(calls.map(c => c.method)).toEqual(["create", "POST", "POST", "DELETE"]);
+        expect(calls.slice(1).map(c => c.payload.data.length)).toEqual([2, 1, 1]);
+        f.input.taskId = "meta-empty";
+        f.setRows([]);
+        expect(await execute(f.input)).toBe("COMPLETE");
+        expect(calls.at(-1)).toMatchObject({ method: "DELETE" });
+        expect(calls.at(-1)!.payload.data).toHaveLength(2);
+        expect((await durable()).members).toHaveLength(0);
+        expect(token).not.toHaveBeenCalled();
+      } finally {
+        wire.mockRestore();
+      }
+    }
+  );
+  it("deduplicates Meta conversion source keys across runs without audience state or OAuth", async () => {
+    const f = fixture();
+    f.input.config.destination = { destinationType: "facebook-conversions", accessToken: "meta-token" };
+    f.input.config.model.cursor = undefined;
+    f.input.config.options = {
+      ...f.input.config.options,
+      stream: "conversions",
+      mode: "upsert",
+      mapping: { email: "id" },
+      streamOptions: { pixelId: "789", actionSource: "physical_store", eventName: "Lead" },
+    };
+    const token = vi.fn(async () => "unused-oauth");
+    f.input.adapters = createAdapterRegistry(token);
+    const uploads: any[][] = [];
+    const wire = vi.spyOn(globalThis, "fetch").mockImplementation(async (url, init) => {
+      expect(String(url)).toBe("https://graph.facebook.com/v26.0/789/events");
+      const body = JSON.parse(String(init!.body));
+      uploads.push(body.data);
+      return metaResponse({ events_received: body.data.length });
+    });
+    try {
+      f.setRows([{ id: "a@example.com" }, { id: "b@example.com" }]);
+      expect(await execute(f.input)).toBe("COMPLETE");
+      f.input.taskId = "meta-conversions-next";
+      f.setRows([{ id: "a@example.com" }, { id: "b@example.com" }, { id: "c@example.com" }]);
+      expect(await execute(f.input)).toBe("COMPLETE");
+      expect(uploads.map(batch => batch.length)).toEqual([2, 1]);
+      expect(token).not.toHaveBeenCalled();
+      expect(
+        (await admin.query("SELECT count(*) FROM newjitsu.source_state WHERE stream='_REVERSE_ETL_META_AUDIENCE_' "))
+          .rows[0].count
+      ).toBe("0");
+    } finally {
+      wire.mockRestore();
+    }
+  });
+});
+
 describe("runner-owned Google audience provisioning", () => {
   it("does not persist an impossible mobile audience creation intent", async () => {
     const f = fixture();

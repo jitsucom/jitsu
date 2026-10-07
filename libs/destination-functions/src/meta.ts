@@ -2,8 +2,17 @@ import { z } from "zod";
 
 import { eventsParamDescription } from "./functions/lib/metadata";
 export const FacebookConversionApiCredentials = z.object({
-  pixelId: z.string().describe("Facebook Pixel ID"),
-  accessToken: z.string().describe("Facebook Access Token"),
+  pixelId: z
+    .string()
+    .optional()
+    .describe(
+      "Pixel / Dataset ID. Required for ordinary event connections. Reverse ETL conversions configure their data source on the sync; audiences do not use a pixel."
+    ),
+  accessToken: z
+    .string()
+    .describe(
+      "Meta Access Token. For Reverse ETL, use a system-user token with access to the selected ad account or pixel/dataset."
+    ),
   actionSource: z
     .enum(["email", "website", "app", "phone_call", "chat", "physical_store", "system_generated", "other"])
     .default("website")
