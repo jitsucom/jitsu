@@ -73,9 +73,11 @@ async function listen(handler: Handler, tls = false) {
   };
   const server = tls ? https.createServer({ key, cert }, onRequest) : http.createServer(onRequest);
   servers.push(server);
+  let connections = 0;
+  server.on("connection", () => connections++);
   await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
   const port = (server.address() as AddressInfo).port;
-  return { port, requests };
+  return { port, requests, connections: () => connections };
 }
 
 const allowAll = { isBlocked: () => false };
@@ -148,6 +150,7 @@ describe("guarded request: address checks", () => {
       // First answer is treated as public, the second as private: same name, different address.
       resolve: async () => [{ address: ++answers === 1 ? "127.0.0.1" : "127.0.0.2", family: 4 }],
       isBlocked: address => address === "127.0.0.2",
+      keepAlive: false, // one connection per request, so the second request resolves the name again
     });
     const url = `http://rebind.example:${port}/`;
     expect((await request({ url })).status).toBe(200);
@@ -250,15 +253,85 @@ describe("guarded request: delivery", () => {
   });
 });
 
+describe("guarded request: connection reuse", () => {
+  it("sends sequential requests over one connection", async () => {
+    const { port, requests, connections } = await listen((_req, res) => res.writeHead(204).end());
+    const request = createGuardedRequest(allowAll);
+    for (let i = 0; i < 5; i++) expect((await request({ url: local(port), body: "{}" })).status).toBe(204);
+    expect(requests).toHaveLength(5);
+    expect(connections()).toBe(1);
+  });
+
+  it("opens a connection per request when reuse is turned off", async () => {
+    const { port, connections } = await listen((_req, res) => res.writeHead(204).end());
+    const request = createGuardedRequest({ ...allowAll, keepAlive: false });
+    for (let i = 0; i < 3; i++) await request({ url: local(port), body: "{}" });
+    expect(connections()).toBe(3);
+  });
+
+  it("reuses one TLS connection too", async () => {
+    const { port, connections } = await listen((_req, res) => res.writeHead(204).end(), true);
+    const request = createGuardedRequest({ ...allowAll, ca: cert });
+    for (let i = 0; i < 3; i++) {
+      expect((await request({ url: `https://localhost:${port}/`, body: "{}" })).status).toBe(204);
+    }
+    expect(connections()).toBe(1);
+  });
+
+  it("opens a new connection when the server closed the pooled one, and checks the address again", async () => {
+    const { port, connections } = await listen((_req, res) => {
+      res.setHeader("connection", "close"); // the server ends the connection after this answer
+      res.end();
+    });
+    let answers = 0;
+    const request = createGuardedRequest({
+      resolve: async () => [{ address: ++answers === 1 ? "127.0.0.1" : "127.0.0.2", family: 4 }],
+      isBlocked: address => address === "127.0.0.2",
+    });
+    const url = `http://rebind.example:${port}/`;
+    expect((await request({ url })).status).toBe(200);
+    expect(connections()).toBe(1);
+    expect((await failure(request({ url }))).code).toBe("blocked_address");
+    expect(connections()).toBe(1);
+  });
+
+  it("replaces a pooled connection the server closed while it was idle", async () => {
+    const { port, connections } = await listen((req, res) => {
+      res.writeHead(204).end();
+      setTimeout(() => req.socket.destroy(), 10);
+    });
+    const request = createGuardedRequest(allowAll);
+    expect((await request({ url: local(port), body: "{}" })).status).toBe(204);
+    await new Promise(resolve => setTimeout(resolve, 100));
+    expect((await request({ url: local(port), body: "{}" })).status).toBe(204);
+    expect(connections()).toBe(2);
+  });
+
+  it("reports a reset on a reused connection as maybe delivered", async () => {
+    let seen = 0;
+    const { port } = await listen((req, res) => {
+      if (++seen === 1) return res.writeHead(204).end();
+      req.socket.destroy(); // the request arrived and the connection dies without an answer
+    });
+    const request = createGuardedRequest(allowAll);
+    expect((await request({ url: local(port), body: "{}" })).status).toBe(204);
+    const error = await failure(request({ url: local(port), body: "{}" }));
+    expect(error.code).toBe("connection_error");
+    expect(error.maybeDelivered).toBe(true);
+    expect(error.detail).toBe("ECONNRESET");
+  });
+});
+
 describe("guarded request: failures", () => {
   it("times out when the server never answers, and says a connection existed", async () => {
     const { port } = await listen(() => undefined);
     const error = await failure(createGuardedRequest(allowAll)({ url: local(port), totalTimeoutMs: 150 }));
     expect(error.code).toBe("timeout");
     expect(error.maybeDelivered).toBe(true);
+    expect(error.detail).toBeUndefined();
   });
 
-  it("reports a refused connection as not delivered", async () => {
+  it("reports a refused connection as not delivered, with the system error code as detail", async () => {
     const { port } = await listen((_req, res) => res.end());
     await Promise.all(
       servers.splice(0).map(s => new Promise<void>(resolve => (s.closeAllConnections(), s.close(() => resolve()))))
@@ -266,13 +339,17 @@ describe("guarded request: failures", () => {
     const error = await failure(createGuardedRequest(allowAll)({ url: local(port) }));
     expect(error.code).toBe("connection_error");
     expect(error.maybeDelivered).toBe(false);
+    expect(error.detail).toBe("ECONNREFUSED");
+    expect(error.message).toBe("connection_error"); // the detail never becomes part of the message
   });
 
-  it("reports a reset after the connection as maybe delivered", async () => {
+  it("reports a reset after the connection as maybe delivered, with the system error code as detail", async () => {
     const { port } = await listen(req => req.socket.destroy());
     const error = await failure(createGuardedRequest(allowAll)({ url: local(port), body: "{}" }));
     expect(error.code).toBe("connection_error");
     expect(error.maybeDelivered).toBe(true);
+    expect(error.detail).toBe("ECONNRESET");
+    expect(error.message).toBe("connection_error");
   });
 
   it("honours an abort signal", async () => {

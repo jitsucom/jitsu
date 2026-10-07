@@ -2,6 +2,7 @@ import * as dns from "node:dns";
 import * as http from "node:http";
 import * as https from "node:https";
 import * as net from "node:net";
+import * as tls from "node:tls";
 import { isBlockedAddress } from "@jitsu/core-functions-lib";
 
 /**
@@ -12,7 +13,9 @@ import { isBlockedAddress } from "@jitsu/core-functions-lib";
  *
  * Errors carry a stable code and `maybeDelivered`: false when the request provably never left (blocked address, DNS,
  * connection or TLS failure before the connection was established), true once a connection existed. Messages are the code
- * only, so a URL, header or body never ends up in a log.
+ * only, so a URL, header or body never ends up in a log. `detail` is the operating-system error code behind a transport
+ * failure (for example `ECONNRESET`), kept only when it looks like one, so a run that fails with a bare `connection_error`
+ * can still be diagnosed; it never carries free text.
  */
 
 export type GuardedRequestErrorCode =
@@ -25,10 +28,18 @@ export type GuardedRequestErrorCode =
   | "aborted";
 
 export class GuardedRequestError extends Error {
-  constructor(readonly code: GuardedRequestErrorCode, readonly maybeDelivered: boolean) {
+  constructor(readonly code: GuardedRequestErrorCode, readonly maybeDelivered: boolean, readonly detail?: string) {
     super(code);
     this.name = "GuardedRequestError";
   }
+}
+
+const systemErrorCodePattern = /^[A-Z][A-Z0-9_]{1,31}$/;
+
+/** The error's `code` if it is an UPPER_SNAKE token such as `ECONNRESET`; anything else is dropped, never sanitised. */
+function systemErrorCode(error: unknown): string | undefined {
+  const code = (error as NodeJS.ErrnoException | undefined)?.code;
+  return typeof code === "string" && systemErrorCodePattern.test(code) ? code : undefined;
 }
 
 export interface GuardedRequest {
@@ -59,7 +70,20 @@ export interface GuardedRequestDeps {
   isBlocked?: (address: string) => boolean;
   /** Extra trusted certificate authorities (PEM); for tests only. */
   ca?: string;
+  /**
+   * Reuse connections between requests (default). A delivery run sends many requests to one endpoint, and a new TCP and
+   * TLS connection for each one costs time and, at high rates, gets refused or delayed by the endpoint's network. Tests
+   * that need a fresh connection for every request turn it off.
+   */
+  keepAlive?: boolean;
 }
+
+/**
+ * Pool settings. Idle connections are closed after 4 s, before the 5 s that common servers (Node's own default among
+ * them) allow, so a request is rarely sent on a connection the server has just closed. Idle sockets are unreferenced by
+ * Node, so a finished run does not keep the process alive.
+ */
+const poolOptions = { keepAlive: true, maxSockets: 32, maxFreeSockets: 8, timeout: 4_000 };
 
 const tlsCodes = new Set([
   "DEPTH_ZERO_SELF_SIGNED_CERT",
@@ -81,6 +105,12 @@ export function createGuardedRequest(deps: GuardedRequestDeps = {}) {
     deps.resolve ??
     (async (hostname: string) => (await dns.promises.lookup(hostname, { all: true, verbatim: true })) as Resolved[]);
   const isBlocked = deps.isBlocked ?? isBlockedAddress;
+  // One pool per protocol per guarded request function; connections are keyed by host and port, so two destinations
+  // never share one. The address check in `lookup` runs whenever a connection is opened; a pooled connection stays on
+  // the address that was checked when it was opened.
+  const pooled = deps.keepAlive !== false;
+  const httpsAgent = pooled ? new https.Agent({ ...poolOptions, ca: deps.ca }) : undefined;
+  const httpAgent = pooled ? new http.Agent(poolOptions) : undefined;
 
   // Node calls lookup with { all: true } when it picks between address families, so both shapes are supported.
   const lookup = (hostname: string, options: dns.LookupOptions, callback: (...args: any[]) => void) => {
@@ -145,12 +175,12 @@ export function createGuardedRequest(deps: GuardedRequestDeps = {}) {
         cleanup();
         resolvePromise({ status, retryAfter, truncated });
       };
-      const fail = (code: GuardedRequestErrorCode) => {
+      const fail = (code: GuardedRequestErrorCode, detail?: string) => {
         if (settled) return;
         if (status !== undefined) return succeed(); // a definite status beats a late transport error
         settled = true;
         cleanup();
-        rejectPromise(new GuardedRequestError(code, connected));
+        rejectPromise(new GuardedRequestError(code, connected, detail));
       };
 
       const headers: Record<string, string | number> = { ...request.headers, "content-length": body.byteLength };
@@ -161,7 +191,9 @@ export function createGuardedRequest(deps: GuardedRequestDeps = {}) {
         method: request.method ?? "POST",
         headers,
         lookup: lookup as any,
-        agent: secure ? new https.Agent({ keepAlive: false, ca: deps.ca }) : new http.Agent({ keepAlive: false }),
+        agent: secure
+          ? httpsAgent ?? new https.Agent({ keepAlive: false, ca: deps.ca })
+          : httpAgent ?? new http.Agent({ keepAlive: false }),
       };
       const req = (secure ? https : http).request(options, res => {
         status = res.statusCode ?? 0;
@@ -189,6 +221,13 @@ export function createGuardedRequest(deps: GuardedRequestDeps = {}) {
       });
 
       req.on("socket", socket => {
+        // A pooled socket is already connected (and, for https, past the handshake), so no connect event will follow:
+        // the request may reach the server from the moment it is written, which is what `connected` stands for.
+        if (!socket.connecting && (!secure || (socket as tls.TLSSocket).encrypted)) {
+          connected = true;
+          clearTimeout(connectTimer);
+          return;
+        }
         socket.once(secure ? "secureConnect" : "connect", () => {
           connected = true;
           clearTimeout(connectTimer);
@@ -197,9 +236,9 @@ export function createGuardedRequest(deps: GuardedRequestDeps = {}) {
       req.on("error", (error: NodeJS.ErrnoException) => {
         if (error.code === "EBLOCKED") return fail("blocked_address");
         if (error.code === "ENOTFOUND" || error.code === "EAI_AGAIN" || error.code === "EAI_FAIL")
-          return fail("dns_error");
-        if (isTlsError(error)) return fail("tls_error");
-        return fail("connection_error");
+          return fail("dns_error", systemErrorCode(error));
+        if (isTlsError(error)) return fail("tls_error", systemErrorCode(error));
+        return fail("connection_error", systemErrorCode(error));
       });
 
       connectTimer = setTimeout(() => {

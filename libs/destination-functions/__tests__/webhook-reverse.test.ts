@@ -175,6 +175,31 @@ describe("webhook delivery", () => {
     expect((await promise)[0]).toMatchObject({ status: "rejected", code: "dns_error" });
   });
 
+  it("logs one line per failed attempt with the code and the system error, and nothing about the request", async () => {
+    const fake = fakeDeps([
+      new GuardedRequestError("connection_error", false, "EHOSTUNREACH"),
+      new GuardedRequestError("timeout", true),
+      200,
+    ]);
+    const lines: string[] = [];
+    fake.deps.log = line => lines.push(line);
+    const outcomes = await deliverBatch({
+      records: records(1),
+      action: "upsert",
+      scope,
+      config: config({ url: "https://secret-host.example.com/hook?token=abc" }),
+      options: parsedOptions(),
+      signal: new AbortController().signal,
+      deps: fake.deps,
+    });
+    expect(outcomes[0]).toMatchObject({ status: "accepted" });
+    expect(lines).toEqual([
+      "reverse-etl webhook attempt failed: code=connection_error detail=EHOSTUNREACH delivered=false attempt=1/4",
+      "reverse-etl webhook attempt failed: code=timeout detail=none delivered=true attempt=2/4",
+    ]);
+    expect(lines.join("\n")).not.toMatch(/secret-host|token|abc/);
+  });
+
   it("blocked addresses and TLS errors are not retried", async () => {
     for (const code of ["blocked_address", "tls_error"] as const) {
       const { promise, requests } = deliver([new GuardedRequestError(code, false)]);
