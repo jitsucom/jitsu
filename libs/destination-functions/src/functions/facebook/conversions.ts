@@ -10,13 +10,17 @@ import { MetaApiError, metaLog, metaRequest } from "./client";
 import { accepted, assertContext, Context, MetaUncertainDelivery, rejected, savedReceipt } from "./delivery";
 
 const wire = z.object({ key: z.string().regex(/^[a-f0-9]{64}$/), payload: z.record(z.unknown()) }).strict();
+const isoEventTime = z.string().datetime({ offset: true });
 function eventTime(value: unknown) {
   if (value == null) return Math.floor(Date.now() / 1000);
   if (typeof value === "number" && Number.isSafeInteger(value) && value > 0 && value < 1e11) return value;
   if (typeof value === "string" && /^\d{1,10}$/.test(value)) return eventTime(Number(value));
-  if (typeof value !== "string" || !/(Z|[+-]\d{2}:\d{2})$/.test(value) || !Number.isFinite(Date.parse(value)))
+  // Date.parse normalizes impossible dates (e.g. February 30); validate the calendar before conversion.
+  if (typeof value !== "string" || !isoEventTime.safeParse(value).success || !/(Z|[+-]\d{2}:\d{2})$/.test(value))
     invalidMetaConversion("eventTime");
-  return Math.floor(Date.parse(value) / 1000);
+  const milliseconds = Date.parse(value);
+  if (!Number.isFinite(milliseconds)) invalidMetaConversion("eventTime");
+  return Math.floor(milliseconds / 1000);
 }
 export function normalizeMetaConversion(
   input: unknown,

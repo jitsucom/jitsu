@@ -414,6 +414,38 @@ describe("Meta conversion mappings", () => {
     expect(f.adapter.insertOnly).toBe(true);
     expect(f.adapter.stream.capabilities.supportsExplicitRemove).toBe(false);
   });
+  it.each([
+    "2026-02-30T00:00:00Z",
+    "2026-02-29T00:00:00Z",
+    "2100-02-29T00:00:00Z",
+    "2026-04-31T12:00:00+04:00",
+    "2026-02-30T23:00:00-05:00",
+    "2026-00-01T00:00:00Z",
+    "2026-01-00T00:00:00Z",
+    "2026-09-24T24:00:00Z",
+    "2026-09-24T12:60:00Z",
+    "2026-09-24T12:00:00+24:00",
+    "2026-09-24T12:00:00+04:60",
+    "2026-09-24T12:00:00",
+  ])("rejects invalid conversion timestamps without exposing the value: %s", eventTime => {
+    const f = fixture("conversions");
+    expect(() => f.batch({ email: "a@example.com", eventTime })).toThrow(
+      `Invalid Meta conversion: ${metaConversionValidationErrors.eventTime}`
+    );
+    expect(f.fetch).not.toHaveBeenCalled();
+  });
+  it.each([
+    ["2024-02-29T12:00:00Z", "2024-02-29T12:00:00Z"],
+    ["2000-02-29T12:00:00Z", "2000-02-29T12:00:00Z"],
+    ["2026-03-01T00:30:00+04:00", "2026-02-28T20:30:00Z"],
+    ["2024-02-29T23:30:00-05:00", "2024-03-01T04:30:00Z"],
+    ["2026-09-24T12:00:00.999Z", "2026-09-24T12:00:00Z"],
+    [1790251200, "2026-09-24T12:00:00Z"],
+    ["1790251200", "2026-09-24T12:00:00Z"],
+  ])("preserves valid conversion timestamp %s", (eventTime, utc) => {
+    const payload = fixture("conversions").batch({ email: "a@example.com", eventTime }).records[0].row.payload;
+    expect(payload).toMatchObject({ event_time: Date.parse(utc) / 1000 });
+  });
   it("enforces conditional web/app requirements but not unnecessary contact fields", () => {
     const f = fixture("conversions", { actionSource: "website" });
     expect(() => f.batch({ email: "a@example.com" })).toThrow();
