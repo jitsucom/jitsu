@@ -12,7 +12,9 @@ import { isBlockedAddress } from "@jitsu/core-functions-lib";
  *
  * Errors carry a stable code and `maybeDelivered`: false when the request provably never left (blocked address, DNS,
  * connection or TLS failure before the connection was established), true once a connection existed. Messages are the code
- * only, so a URL, header or body never ends up in a log.
+ * only, so a URL, header or body never ends up in a log. `detail` is the operating-system error code behind a transport
+ * failure (for example `ECONNRESET`), kept only when it looks like one, so a run that fails with a bare `connection_error`
+ * can still be diagnosed; it never carries free text.
  */
 
 export type GuardedRequestErrorCode =
@@ -25,10 +27,18 @@ export type GuardedRequestErrorCode =
   | "aborted";
 
 export class GuardedRequestError extends Error {
-  constructor(readonly code: GuardedRequestErrorCode, readonly maybeDelivered: boolean) {
+  constructor(readonly code: GuardedRequestErrorCode, readonly maybeDelivered: boolean, readonly detail?: string) {
     super(code);
     this.name = "GuardedRequestError";
   }
+}
+
+const systemErrorCodePattern = /^[A-Z][A-Z0-9_]{1,31}$/;
+
+/** The error's `code` if it is an UPPER_SNAKE token such as `ECONNRESET`; anything else is dropped, never sanitised. */
+function systemErrorCode(error: unknown): string | undefined {
+  const code = (error as NodeJS.ErrnoException | undefined)?.code;
+  return typeof code === "string" && systemErrorCodePattern.test(code) ? code : undefined;
 }
 
 export interface GuardedRequest {
@@ -145,12 +155,12 @@ export function createGuardedRequest(deps: GuardedRequestDeps = {}) {
         cleanup();
         resolvePromise({ status, retryAfter, truncated });
       };
-      const fail = (code: GuardedRequestErrorCode) => {
+      const fail = (code: GuardedRequestErrorCode, detail?: string) => {
         if (settled) return;
         if (status !== undefined) return succeed(); // a definite status beats a late transport error
         settled = true;
         cleanup();
-        rejectPromise(new GuardedRequestError(code, connected));
+        rejectPromise(new GuardedRequestError(code, connected, detail));
       };
 
       const headers: Record<string, string | number> = { ...request.headers, "content-length": body.byteLength };
@@ -197,9 +207,9 @@ export function createGuardedRequest(deps: GuardedRequestDeps = {}) {
       req.on("error", (error: NodeJS.ErrnoException) => {
         if (error.code === "EBLOCKED") return fail("blocked_address");
         if (error.code === "ENOTFOUND" || error.code === "EAI_AGAIN" || error.code === "EAI_FAIL")
-          return fail("dns_error");
-        if (isTlsError(error)) return fail("tls_error");
-        return fail("connection_error");
+          return fail("dns_error", systemErrorCode(error));
+        if (isTlsError(error)) return fail("tls_error", systemErrorCode(error));
+        return fail("connection_error", systemErrorCode(error));
       });
 
       connectTimer = setTimeout(() => {

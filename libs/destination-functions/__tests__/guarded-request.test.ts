@@ -256,9 +256,10 @@ describe("guarded request: failures", () => {
     const error = await failure(createGuardedRequest(allowAll)({ url: local(port), totalTimeoutMs: 150 }));
     expect(error.code).toBe("timeout");
     expect(error.maybeDelivered).toBe(true);
+    expect(error.detail).toBeUndefined();
   });
 
-  it("reports a refused connection as not delivered", async () => {
+  it("reports a refused connection as not delivered, with the system error code as detail", async () => {
     const { port } = await listen((_req, res) => res.end());
     await Promise.all(
       servers.splice(0).map(s => new Promise<void>(resolve => (s.closeAllConnections(), s.close(() => resolve()))))
@@ -266,13 +267,17 @@ describe("guarded request: failures", () => {
     const error = await failure(createGuardedRequest(allowAll)({ url: local(port) }));
     expect(error.code).toBe("connection_error");
     expect(error.maybeDelivered).toBe(false);
+    expect(error.detail).toBe("ECONNREFUSED");
+    expect(error.message).toBe("connection_error"); // the detail never becomes part of the message
   });
 
-  it("reports a reset after the connection as maybe delivered", async () => {
+  it("reports a reset after the connection as maybe delivered, with the system error code as detail", async () => {
     const { port } = await listen(req => req.socket.destroy());
     const error = await failure(createGuardedRequest(allowAll)({ url: local(port), body: "{}" }));
     expect(error.code).toBe("connection_error");
     expect(error.maybeDelivered).toBe(true);
+    expect(error.detail).toBe("ECONNRESET");
+    expect(error.message).toBe("connection_error");
   });
 
   it("honours an abort signal", async () => {

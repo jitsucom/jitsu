@@ -10,6 +10,8 @@ export interface DeliveryDeps {
   send: Sender;
   sleep: (ms: number, signal?: AbortSignal) => Promise<void>;
   now: () => Date;
+  /** One diagnostic line per failed attempt, for the runner's own log. Codes only: no URL, header or body. */
+  log?: (line: string) => void;
 }
 
 function sleep(ms: number, signal?: AbortSignal): Promise<void> {
@@ -27,7 +29,12 @@ function sleep(ms: number, signal?: AbortSignal): Promise<void> {
   });
 }
 
-export const defaultDeliveryDeps: DeliveryDeps = { send: guardedRequest, sleep, now: () => new Date() };
+export const defaultDeliveryDeps: DeliveryDeps = {
+  send: guardedRequest,
+  sleep,
+  now: () => new Date(),
+  log: line => process.stderr.write(`${line}\n`),
+};
 
 /** Waits before attempts 2, 3 and 4; a Retry-After longer than this is capped. */
 export const retryDelaysMs = [1000, 2000, 4000];
@@ -61,7 +68,7 @@ export interface DeliveryRecord {
 type AttemptResult =
   | { kind: "accepted" }
   | { kind: "rejected"; code: string; reason: string }
-  | { kind: "retry"; code: string; reason: string; retryAfterMs?: number };
+  | { kind: "retry"; code: string; reason: string; retryAfterMs?: number; detail?: string };
 
 function parseRetryAfter(value: string | undefined, now: Date): number | undefined {
   if (!value) return undefined;
@@ -106,7 +113,7 @@ function classifyError(error: unknown): AttemptResult {
     // After a connection existed the request may have been processed: report it as unconfirmed, not as a failure.
     const code = error.maybeDelivered ? "unconfirmed" : error.code;
     const reason = error.maybeDelivered ? "The endpoint did not confirm receipt" : errorReasons[error.code];
-    return { kind: "retry", code, reason };
+    return { kind: "retry", code, reason, detail: error.detail };
   }
   return { kind: "rejected", code: error.code, reason: errorReasons[error.code] ?? "Delivery failed" };
 }
@@ -193,6 +200,12 @@ async function sendChunk(
     } catch (error) {
       if (signal.aborted || (error instanceof GuardedRequestError && error.code === "aborted")) throw error;
       last = classifyError(error);
+      if (error instanceof GuardedRequestError) {
+        deps.log?.(
+          `reverse-etl webhook attempt failed: code=${error.code} detail=${error.detail ?? "none"} ` +
+            `delivered=${error.maybeDelivered} attempt=${attempt + 1}/${retryDelaysMs.length + 1}`
+        );
+      }
     }
     if (last.kind !== "retry" || attempt === retryDelaysMs.length) break;
     await deps.sleep(Math.max(retryDelaysMs[attempt], last.retryAfterMs ?? 0), signal);
