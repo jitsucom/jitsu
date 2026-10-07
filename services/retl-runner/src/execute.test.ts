@@ -35,6 +35,37 @@ afterEach(() => vi.useRealTimers());
 describe("Meta Reverse ETL runner integration", () => {
   const metaResponse = (body: unknown) =>
     new Response(JSON.stringify(body)) as Awaited<ReturnType<typeof globalThis.fetch>>;
+  it("logs a missing website user-agent mapping without leaking row data or submitting events", async () => {
+    const f = fixture();
+    f.input.config.destination = { destinationType: "facebook-conversions", accessToken: "private-meta-token" };
+    f.input.config.model.cursor = undefined;
+    f.input.config.options = {
+      ...f.input.config.options,
+      stream: "conversions",
+      mode: "upsert",
+      mapping: { email: "id", eventSourceUrl: "url" },
+      streamOptions: { pixelId: "789", actionSource: "website", eventName: "Lead" },
+    };
+    f.input.adapters = createAdapterRegistry(vi.fn());
+    const rows = [{ id: "private@example.com", url: "https://example.com/private-path" }];
+    f.setRows(rows);
+    const wire = vi.spyOn(globalThis, "fetch").mockRejectedValue(new Error("Unexpected provider request"));
+    try {
+      expect(await execute(f.input)).toBe("FAILED");
+      expect(wire).not.toHaveBeenCalled();
+      const errors = (await admin.query("SELECT message FROM newjitsu.task_log WHERE level='ERROR'")).rows;
+      expect(errors).toHaveLength(1);
+      expect(errors[0].message).toContain('Client user agent is required when Action source is "website"');
+      expect(errors[0].message).toContain("Map a column to Client user agent");
+      expect(errors[0].message).toContain("This row was not submitted");
+      expect(errors[0].message).not.toContain("private");
+      const task = (await admin.query("SELECT error FROM newjitsu.source_task WHERE task_id=$1", [f.input.taskId]))
+        .rows[0];
+      expect(task.error).toBe(errors[0].message);
+    } finally {
+      wire.mockRestore();
+    }
+  });
   it.each([false, true])(
     "provisions once and mirrors snapshots with additions before removals (lost receipt: %s)",
     async lostReceipt => {

@@ -4,6 +4,7 @@ import type { DestinationServices, ReverseRuntimeAdapter } from "@jitsu/protocol
 import { contentHash } from "../../reverse-etl/identity";
 import { MetaConversionOptions, MetaConversionRow } from "./reverse-meta";
 import { metaInvalid, metaUserData } from "./identifiers";
+import { invalidMetaConversion } from "./validation-errors";
 import { metaPrivacy } from "./audience";
 import { MetaApiError, metaLog, metaRequest } from "./client";
 import { accepted, assertContext, Context, MetaUncertainDelivery, rejected, savedReceipt } from "./delivery";
@@ -14,7 +15,7 @@ function eventTime(value: unknown) {
   if (typeof value === "number" && Number.isSafeInteger(value) && value > 0 && value < 1e11) return value;
   if (typeof value === "string" && /^\d{1,10}$/.test(value)) return eventTime(Number(value));
   if (typeof value !== "string" || !/(Z|[+-]\d{2}:\d{2})$/.test(value) || !Number.isFinite(Date.parse(value)))
-    metaInvalid();
+    invalidMetaConversion("eventTime");
   return Math.floor(Date.parse(value) / 1000);
 }
 export function normalizeMetaConversion(
@@ -31,25 +32,26 @@ export function normalizeMetaConversion(
         !["client_user_agent", "page_id", "instagram_business_account_id", "whatsapp_business_account_id"].includes(k)
     )
   )
-    metaInvalid();
+    invalidMetaConversion("userData");
   const actionSource = row.actionSource ?? settings.actionSource;
   const channel = row.messagingChannel ?? settings.messagingChannel;
   if (actionSource === "business_messaging") {
-    if (
-      !channel ||
-      (channel === "messenger" && (!row.pageId || !row.pageScopedUserId)) ||
-      (channel === "whatsapp" && (!row.whatsappBusinessAccountId || !row.ctwaClid)) ||
-      (channel === "instagram" && (!row.instagramAccountId || !row.instagramScopedId))
-    )
-      metaInvalid();
+    if (!channel) invalidMetaConversion("messagingChannel");
+    if (channel === "messenger" && (!row.pageId || !row.pageScopedUserId)) invalidMetaConversion("messenger");
+    if (channel === "whatsapp" && (!row.whatsappBusinessAccountId || !row.ctwaClid)) invalidMetaConversion("whatsapp");
+    if (channel === "instagram" && (!row.instagramAccountId || !row.instagramScopedId))
+      invalidMetaConversion("instagram");
   }
   if (
     row.dataProcessingOptions?.includes("LDU") &&
     (row.dataProcessingCountry == null ||
       ((!row.clientIpAddress || row.dataProcessingCountry !== 0) && row.dataProcessingState == null))
   )
-    metaInvalid();
-  if (actionSource === "website" && (!row.eventSourceUrl || !row.clientUserAgent)) metaInvalid();
+    invalidMetaConversion("privacy");
+  if (actionSource === "website") {
+    if (!row.eventSourceUrl) invalidMetaConversion("sourceUrl");
+    if (!row.clientUserAgent) invalidMetaConversion("userAgent");
+  }
   if (actionSource === "app") {
     const app = row.appData;
     if (
@@ -60,10 +62,10 @@ export function normalizeMetaConversion(
       app.extinfo.length !== 16 ||
       !["i2", "a2"].includes(app.extinfo[0])
     )
-      metaInvalid();
+      invalidMetaConversion("appData");
   }
   const name = row.eventName || settings.eventName;
-  if (!name || name.length > 256) metaInvalid();
+  if (!name || name.length > 256) invalidMetaConversion("eventName");
   const custom = { ...row.customData };
   for (const [source, target] of [
     ["value", "value"],
@@ -80,7 +82,10 @@ export function normalizeMetaConversion(
     ["searchString", "search_string"],
   ])
     if (row[source] != null) custom[target] = source === "currency" ? row[source].toUpperCase() : row[source];
-  if (name === "Purchase" && (custom.value == null || !custom.currency)) metaInvalid();
+  if (name === "Purchase") {
+    if (custom.value == null) invalidMetaConversion("purchaseValue");
+    if (!custom.currency) invalidMetaConversion("purchaseCurrency");
+  }
   return JSON.parse(
     JSON.stringify({
       key: row.__sourceKey,

@@ -16,6 +16,7 @@ import { reverseDestinationMetadata } from "../src/reverse-etl/catalog";
 import { createBufferedSyncStore, contentHash } from "../src/reverse-etl/identity";
 import { requiresManualReconciliation } from "../src/reverse-etl/failure";
 import { runReverseEtl } from "../src/reverse-etl/run";
+import { metaConversionValidationErrors } from "../src/functions/facebook/validation-errors";
 
 const hash = (v: string) => createHash("sha256").update(v).digest("hex");
 const credentials = { accessToken: "secret-meta-token" };
@@ -79,6 +80,26 @@ function fixture(stream: "audience" | "conversions" = "audience", settings: Reco
 }
 
 describe("Meta stream metadata and normalization", () => {
+  it.each([
+    [{ actionSource: "website" }, {}, "sourceUrl"],
+    [{ actionSource: "website" }, { eventSourceUrl: "https://example.com/private" }, "userAgent"],
+    [{}, { eventTime: "not-a-timestamp-private" }, "eventTime"],
+    [{ eventName: "" }, {}, "eventName"],
+    [{ eventName: "Purchase" }, { currency: "USD" }, "purchaseValue"],
+    [{ eventName: "Purchase" }, { value: 0 }, "purchaseCurrency"],
+    [{ actionSource: "app" }, {}, "appData"],
+    [{ actionSource: "business_messaging" }, {}, "messagingChannel"],
+    [{ actionSource: "business_messaging", messagingChannel: "messenger" }, {}, "messenger"],
+    [{ actionSource: "business_messaging", messagingChannel: "whatsapp" }, {}, "whatsapp"],
+    [{ actionSource: "business_messaging", messagingChannel: "instagram" }, {}, "instagram"],
+    [{}, { dataProcessingOptions: ["LDU"] }, "privacy"],
+    [{}, { email: undefined }, "userData"],
+  ] as const)("explains conversion validation without row values: %j %j", (settings, row, reason) => {
+    const f = fixture("conversions", settings);
+    expect(() => f.batch({ email: "private@example.com", ...row })).toThrow(
+      `Invalid Meta conversion: ${metaConversionValidationErrors[reason]}`
+    );
+  });
   it("exposes two isolated forms with schema-backed mappings and no internal source-key control", () => {
     const streams = reverseDestinationMetadata.get("facebook-conversions")!.streams;
     expect(streams.map(s => s.id)).toEqual(["audience", "conversions"]);
