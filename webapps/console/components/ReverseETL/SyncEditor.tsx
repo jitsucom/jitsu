@@ -1,5 +1,5 @@
 import React, { useRef, useState } from "react";
-import { Alert, Button, Checkbox, Select, Switch } from "antd";
+import { Alert, Button, Select, Switch } from "antd";
 import { useRouter } from "next/router";
 import { useQuery } from "@tanstack/react-query";
 import { rpc } from "juava";
@@ -57,8 +57,7 @@ export function SyncEditor({ sync, reload }: { sync?: ReverseSyncView; reload: (
     };
   });
   const [busy, setBusy] = useState(false),
-    [dirty, setDirty] = useState(false),
-    [runAfterSave, setRunAfterSave] = useState(false);
+    [dirty, setDirty] = useState(false);
   const [error, setError] = useState<unknown>();
   const requestId = useRef<string>();
   const editable = role.editEntities && !maintenance && !busy,
@@ -251,13 +250,6 @@ export function SyncEditor({ sync, reload }: { sync?: ReverseSyncView; reload: (
           }
         />
       )}
-      {sync && router.query.runStartUnconfirmed === "1" && (
-        <Alert
-          className="mb-4"
-          type="warning"
-          title="Sync saved, but the run could not be confirmed. Check Logs before trying again."
-        />
-      )}
       {locked && (
         <Alert
           className="mb-4"
@@ -294,13 +286,6 @@ export function SyncEditor({ sync, reload }: { sync?: ReverseSyncView; reload: (
           )}
         </div>
         <div className="flex gap-4 items-center">
-          <Checkbox
-            disabled={!editable || !enabled || options.disabled}
-            checked={runAfterSave}
-            onChange={e => setRunAfterSave(e.target.checked)}
-          >
-            Run sync after save
-          </Checkbox>
           <Button size="large" disabled={busy} onClick={() => router.push(`/${workspace.slugOrId}/reverse-syncs`)}>
             Cancel
           </Button>
@@ -329,23 +314,15 @@ export function SyncEditor({ sync, reload }: { sync?: ReverseSyncView; reload: (
                 }
                 const body = { fromId, toId, data: options };
                 // No preview, validation request or intermediate save. The API checks the submitted settings.
-                const result = sync
-                  ? await rpc(endpoint, { method: "PUT", body: !enabled ? { disabled: true } : body })
-                  : await rpc(`/api/${workspace.id}/reverse-etl/syncs`, {
+                await (sync
+                  ? rpc(endpoint, { method: "PUT", body: !enabled ? { disabled: true } : body })
+                  : rpc(`/api/${workspace.id}/reverse-etl/syncs`, {
                       method: "POST",
                       body: { requestId: requestId.current, sync: body },
-                    });
+                    }));
                 setDirty(false);
                 await reload();
-                if (runAfterSave && !options.disabled) {
-                  try {
-                    await run(result.id);
-                  } catch {
-                    // Creation committed even if controller admission/response failed.
-                    // Open the saved sync rather than trapping edits behind its create request ID.
-                    await router.push(`/${workspace.slugOrId}/reverse-syncs?id=${result.id}&runStartUnconfirmed=1`);
-                  }
-                } else await router.push(`/${workspace.slugOrId}/reverse-syncs`);
+                await router.push(`/${workspace.slugOrId}/reverse-syncs`);
               })
             }
           >
