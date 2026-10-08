@@ -36,6 +36,7 @@ function fixture() {
     return Response.json(String(url).includes("?") ? { userLists: remote ? [remote] : [] } : remote);
   });
   const services: DestinationServices = {
+    validateSource: vi.fn(async () => {}),
     signal: new AbortController().signal,
     getAccessToken: vi.fn(async () => "token"),
     fetch: request,
@@ -58,6 +59,15 @@ function fixture() {
   return { config, services, request, state: () => state };
 }
 describe("provider provisioning with host-scoped state", () => {
+  it("does not save a creation intent or call Google until source validation succeeds", async () => {
+    const f = fixture();
+    f.services.validateSource = vi.fn(async () => {
+      throw new Error("invalid source");
+    });
+    await expect(resolveGoogleAudience(f.config, f.services)).rejects.toThrow("invalid source");
+    expect(f.state()).toBeUndefined();
+    expect(f.request).not.toHaveBeenCalled();
+  });
   it("persists the same ready state and reuses it after restart", async () => {
     const f = fixture();
     const resolved = await resolveGoogleAudience(f.config, f.services);

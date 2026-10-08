@@ -190,7 +190,7 @@ async function setup<C, Row, O>(input: MirrorOptions<C, Row, O>) {
   };
 }
 
-function validatePayloads(effect: Effect, stream: ReverseEtlStream<any, JsonObject, any>) {
+export function validatePayloads(effect: Effect, stream: ReverseEtlStream<any, JsonObject, any>) {
   for (const [schema, value] of [
     [stream.rowType, effect.upsert],
     [stream.removeRowType!, effect.remove],
