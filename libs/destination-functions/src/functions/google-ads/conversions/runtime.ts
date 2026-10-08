@@ -18,6 +18,7 @@ import {
   googleConversionRows,
 } from "./meta";
 import type { GoogleAccessToken } from "../audience/runtime";
+import { GoogleRequestError, googleRequestError } from "../clients/errors";
 
 type Context = ReverseEtlContext<JsonObject, JsonObject>;
 const wire = z.object({ key: hex, payload: z.record(z.unknown()) }).strict();
@@ -130,6 +131,7 @@ export function googleAdsOutcomes(batch: WriteBatch<JsonObject>, value: unknown)
   if (errors.size !== batch.records.length && (!response.results || response.results.length !== batch.records.length))
     fail("Google conversion response is incomplete; no replay");
   return {
+    submitted: true,
     outcomes: batch.records.map(({ operationId }, index) => {
       const code = errors.get(index);
       if (code)
@@ -318,9 +320,13 @@ export function createGoogleConversions(
         ...(body ? { body: JSON.stringify(body) } : {}),
       });
       if (!response.ok)
-        fail(`Google conversion API HTTP ${response.status}; check credentials and saved request status`);
+        throw await googleRequestError(
+          response,
+          path.includes("googleAds:search") ? "custom-variable lookup" : body ? "conversion upload" : "status lookup"
+        );
       return await response.json();
-    } catch {
+    } catch (error) {
+      if (error instanceof GoogleRequestError) throw error;
       return fail("Google conversion request failed; delivery may be uncertain, no automatic replay");
     }
   }
@@ -364,19 +370,22 @@ export function createGoogleConversions(
   }
   const binding = (ctx: Context, batch: WriteBatch<JsonObject>) =>
     contentHash({ targetIdentity, revision: ctx.configRevision, batch });
-  async function submit(ctx: Context, batch: WriteBatch<JsonObject>): Promise<BatchResult> {
+  async function submitRequest(ctx: Context, batch: WriteBatch<JsonObject>): Promise<BatchResult> {
     if (!batch.records.length || batch.records.length > 2000) fail("Invalid Google conversion batch size");
     let payloads = batch.records.map(r => wire.parse(r.row).payload);
     // Auth and read-only lookup failures are known non-submissions, not uncertain writes.
     try {
       await getToken(ctx.signal);
       if (!dataManager) payloads = await resolveVariables(ctx, payloads);
-    } catch {
+    } catch (error) {
       return {
         outcomes: batch.records.map(r => ({
           operationId: r.operationId,
           status: "rejected",
-          code: "GOOGLE_SETUP_FAILED",
+          code:
+            error instanceof GoogleRequestError
+              ? `GOOGLE_HTTP_${error.httpStatus}_${error.providerCode ?? "UNKNOWN"}`
+              : "GOOGLE_SETUP_FAILED",
           safeReason:
             "Check Google authorization, developer token and custom-variable mappings; no conversions submitted",
         })),
@@ -404,6 +413,7 @@ export function createGoogleConversions(
       .object({ requestId: z.string().min(1), fieldWarnings: z.array(z.unknown()).optional() })
       .parse(await request(ctx, "events:ingest", { destinations: [destination], events: payloads, encoding: "HEX" }));
     return {
+      submitted: true,
       outcomes: batch.records.map(r => ({ operationId: r.operationId, status: "staged" })),
       remoteJobIds: [response.requestId],
       providerCheckpoint: {
@@ -412,6 +422,22 @@ export function createGoogleConversions(
         warnings: !!response.fieldWarnings?.length,
       },
     };
+  }
+  async function submit(ctx: Context, batch: WriteBatch<JsonObject>): Promise<BatchResult> {
+    try {
+      return await submitRequest(ctx, batch);
+    } catch (error) {
+      if (!(error instanceof GoogleRequestError) || !error.definitiveRejection) throw error;
+      return {
+        submitted: true,
+        outcomes: batch.records.map(r => ({
+          operationId: r.operationId,
+          status: "rejected",
+          code: `GOOGLE_HTTP_${error.httpStatus}_${error.providerCode}`,
+          safeReason: error.message,
+        })),
+      };
+    }
   }
   async function reconcileBatch(
     batch: WriteBatch<JsonObject>,

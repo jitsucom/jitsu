@@ -208,6 +208,31 @@ describe("ConfigObjectsService", () => {
   });
 
   describe("Meta event connection credentials", () => {
+    it("allows Google audiences without an action, but requires event routing before creating a connection", async () => {
+      const { user, workspace } = await seedWorkspace();
+      const { id } = await svc().create(
+        user,
+        workspace.id,
+        "destination",
+        {
+          name: "Google audiences",
+          destinationType: "google-ads",
+          customerId: "1234567890",
+        },
+        { generateId: true }
+      );
+      const stream = await deps().prisma.configurationObject.create({
+        data: { workspaceId: workspace.id, type: "stream", config: { name: "site" } },
+      });
+      await expect(svc().upsertLink(user, workspace.id, { fromId: stream.id, toId: id })).rejects.toThrow(
+        "Conversion Action ID"
+      );
+      await svc().update(user, workspace.id, "destination", id, { conversionActions: [" Purchase = 123 "] });
+      await svc().upsertLink(user, workspace.id, { fromId: stream.id, toId: id });
+      await expect(svc().update(user, workspace.id, "destination", id, { conversionActions: [] })).rejects.toThrow(
+        "Conversion Action ID"
+      );
+    });
     async function seedMeta(pixelId?: string) {
       const { user, workspace } = await seedWorkspace();
       const { id } = await svc().create(

@@ -320,6 +320,13 @@ export async function execute(input: ExecuteOptions): Promise<TaskResult> {
     return changed && success ? "COMPLETE" : "FAILED";
   } catch (error) {
     reportFailure(stage, error);
+    if (!started && stage === "lease_acquire")
+      await tasks
+        .admissionFailed(
+          input.trigger,
+          `Worker could not acquire the sync lease. ${failureMessage(error, tasks.taskId)}`
+        )
+        .catch(() => undefined);
     stopped = true;
     clearTimeout(timer);
     await renewing;

@@ -23,6 +23,8 @@ export type RecordOutcome =
   | { operationId: OperationId; status: "rejected"; code: string; safeReason: string };
 export interface BatchResult {
   outcomes: RecordOutcome[];
+  /** Provider response confirms receipt of the entire batch, including rejected records. Not local validation. */
+  submitted?: boolean;
   remoteJobIds?: string[];
   providerCheckpoint?: JsonObject;
 }

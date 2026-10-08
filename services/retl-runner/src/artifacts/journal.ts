@@ -615,7 +615,7 @@ export class ObjectJournal implements DeliveryJournal {
       rejected: result.outcomes.filter(row => row.status === "rejected").length,
       submittedRecords: Math.max(
         old.submittedRecords ?? old.accepted + old.staged,
-        result.remoteJobIds?.length
+        result.submitted || result.remoteJobIds?.length
           ? result.outcomes.length
           : result.outcomes.filter(row => row.status !== "rejected").length
       ),

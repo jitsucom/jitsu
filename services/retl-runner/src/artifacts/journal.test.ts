@@ -140,7 +140,7 @@ describe("object journal", () => {
       stderr.mockRestore();
     }
   });
-  it.each([false, true])(
+  it.each([false, true, "synchronous"])(
     "counts rejected records as submitted only with evidence (remote receipt=%s)",
     async remote => {
       const run = await session();
@@ -156,7 +156,7 @@ describe("object journal", () => {
             code: "REJECTED",
             safeReason: "Rejected",
           })),
-          ...(remote ? { remoteJobIds: ["job"] } : {}),
+          ...(remote === "synchronous" ? { submitted: true } : remote ? { remoteJobIds: ["job"] } : {}),
         },
         {}
       );

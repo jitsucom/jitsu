@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { ReverseEtlProtocolError, ReverseEtlRejectionError } from "@jitsu/destination-functions/src/reverse-etl/meta";
 import { failureDiagnostic, failureMessage, KubernetesHttpError } from "./diagnostics";
+import { googleRequestError } from "@jitsu/destination-functions/src/functions/google-ads/clients/errors";
 import { PersistenceError } from "./persistence/types";
 import { MirrorRunError } from "./mirror";
 import {
@@ -9,6 +10,19 @@ import {
 } from "@jitsu/destination-functions/src/functions/facebook/validation-errors";
 
 describe("safe failure diagnostics", () => {
+  it("retains structured Google diagnostics across the uncertain-delivery wrapper", async () => {
+    const google = await googleRequestError(
+      new Response(JSON.stringify({ error: { status: "UNAVAILABLE", message: "private-secret" } }), { status: 503 }),
+      "conversion upload"
+    );
+    const error = new ReverseEtlProtocolError(
+      "Batch delivery is uncertain; reconcile its journal before retrying",
+      google
+    );
+    expect(failureDiagnostic("execution", error)).toMatchObject({ httpStatus: 503, code: "UNAVAILABLE" });
+    expect(failureMessage(error, "task")).toContain("HTTP 503 (UNAVAILABLE)");
+    expect(failureMessage(error, "task")).not.toContain("private");
+  });
   it.each(Object.keys(metaConversionValidationErrors) as Array<keyof typeof metaConversionValidationErrors>)(
     "preserves the fixed Meta validation hint for %s, but not appended values",
     reason => {

@@ -48,6 +48,28 @@ function fixture(name: GoogleConversionStream = "click-conversions", options: Re
   return { adapter, fetch, ctx, batch };
 }
 describe("Google Reverse ETL conversion streams", () => {
+  it("persists an explicit API rejection as submitted, without disclosing the response message", async () => {
+    const f = fixture();
+    f.fetch.mockResolvedValue(
+      new Response(
+        JSON.stringify({ error: { status: "INVALID_ARGUMENT", message: "private@example.com token=secret" } }),
+        { status: 400 }
+      )
+    );
+    const writer = await f.adapter.stream.createWriter(f.ctx);
+    const result = await writer.upsert(f.batch({ conversionTimestamp: time, gclid: "click" }));
+    expect(result).toMatchObject({
+      submitted: true,
+      outcomes: [{ status: "rejected", code: "GOOGLE_HTTP_400_INVALID_ARGUMENT" }],
+    });
+    expect(JSON.stringify(result)).not.toContain("private");
+  });
+  it("does not turn a proxy failure into a definite rejection", async () => {
+    const f = fixture();
+    f.fetch.mockResolvedValue(new Response("private proxy error", { status: 502 }));
+    const writer = await f.adapter.stream.createWriter(f.ctx);
+    await expect(writer.upsert(f.batch({ conversionTimestamp: time, gclid: "click" }))).rejects.toThrow("HTTP 502");
+  });
   it("accepts lossless SQL numeric strings and namespaces generated order IDs by sync", () => {
     const f = fixture();
     const input = {
