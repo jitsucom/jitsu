@@ -139,6 +139,7 @@ describe("local snapshot indexing", () => {
         newMembers: 1,
         changedMembers: 1,
         refreshMembers: 1,
+        unconfirmedRefreshMembers: 0,
         unchangedMembers: 1,
         removals: 1,
       });

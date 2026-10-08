@@ -111,7 +111,7 @@ export function ReverseTasksList() {
               collapsed: true,
               icon: <RefreshCw className="w-4 h-4" />,
               requiredPermission: "editEntities" as const,
-              disabled: busy || maintenance || !enabled || !sync || sync.options.disabled,
+              disabled: busy || maintenance || !enabled || !sync,
               onClick: () => void perform(task, "refresh"),
             },
           ]

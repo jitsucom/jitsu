@@ -165,7 +165,17 @@ export class RunProgress {
               p.uniqueMembers
             } members will be uploaded, including unchanged members. Older audience membership is cleaned up only after every upload is accepted.`
           : p
-          ? `Mirror comparison (entire logical run): ${p.baselineMembers} previously acknowledged members; ${p.newMembers} new, ${p.changedMembers} changed, ${p.refreshMembers} unchanged due for expiry refresh, ${p.unchangedMembers} unchanged skipped, ${p.removals} to remove. Snapshot: ${snapshot.keys} source rows, ${p.uniqueMembers} unique members` +
+          ? `Mirror comparison (entire logical run): ${p.baselineMembers} baseline members; ${p.newMembers} new, ${
+              p.changedMembers
+            } changed, ${
+              p.unconfirmedRefreshMembers === undefined
+                ? `${p.refreshMembers} unchanged requiring refresh (reason unavailable in this saved snapshot)`
+                : `${p.refreshMembers - p.unconfirmedRefreshMembers} unchanged due for expiry refresh, ${
+                    p.unconfirmedRefreshMembers
+                  } unconfirmed requiring refresh`
+            }, ${p.unchangedMembers} unchanged skipped, ${p.removals} to remove. Snapshot: ${
+              snapshot.keys
+            } source rows, ${p.uniqueMembers} unique members` +
             (p.projectedMembers === undefined
               ? "; original duplicate count unavailable"
               : `, ${p.projectedMembers} projected members, ${

@@ -66,12 +66,26 @@ func (t *TaskManager) recordReverseRefreshFailure(ctx context.Context, syncID, t
 		return nil
 	}
 	now := time.Now().UTC()
+	// Node may never start for an old schedule. Upgrade its original 24h window here too.
+	if _, exists := schedule["startedAt"]; !exists {
+		if deadlineText, ok := schedule["deadline"].(string); ok {
+			if deadline, err := time.Parse(time.RFC3339Nano, deadlineText); err == nil {
+				schedule["startedAt"] = deadline.Add(-24 * time.Hour).Format(time.RFC3339Nano)
+				schedule["deadline"] = deadline.Add(24 * time.Hour).Format(time.RFC3339Nano)
+			}
+		}
+	}
 	if attempt >= math.MaxInt32 {
 		schedule["suspended"] = true
 	} else {
 		attempt++
 	}
 	delay := time.Duration(math.Min(60, 30*math.Pow(1.3, attempt)) * float64(time.Minute))
+	if startedText, ok := schedule["startedAt"].(string); ok {
+		if started, err := time.Parse(time.RFC3339Nano, startedText); err == nil && !now.Before(started.Add(24*time.Hour)) {
+			delay = 2 * time.Hour
+		}
+	}
 	next := now.Add(delay)
 	if deadlineText, ok := schedule["deadline"].(string); ok {
 		if deadline, err := time.Parse(time.RFC3339Nano, deadlineText); err == nil {

@@ -143,6 +143,7 @@ func TestReverseRecoverySchedulerDatabase(t *testing.T) {
 	}
 	recorder = httptest.NewRecorder()
 	request, _ = gin.CreateTestContext(recorder)
+	exec(`UPDATE source_task SET metrics=jsonb_set(metrics,'{reverseRecovery,deadline}',to_jsonb('2099-01-01T00:00:00.000Z'::text))`)
 	request.Request = httptest.NewRequest("POST", "/read?syncId=sync&workspaceId=workspace&taskId=waiting", nil)
 	tm.ReverseReadHandler(request)
 	entry.Reverse.Options = options
@@ -150,6 +151,10 @@ func TestReverseRecoverySchedulerDatabase(t *testing.T) {
 		t.Fatalf("manual refresh failed: %s", recorder.Body.String())
 	}
 	var count int
+	var deadline string
+	if err := pool.QueryRow(ctx, "SELECT metrics->'reverseRecovery'->>'deadline' FROM source_task WHERE task_id='waiting'").Scan(&deadline); err != nil || deadline != "2099-01-01T00:00:00.000Z" {
+		t.Fatalf("manual refresh changed original polling deadline: %s %v", deadline, err)
+	}
 	if err := pool.QueryRow(ctx, "SELECT count(*) FROM source_task").Scan(&count); err != nil || count != 1 {
 		t.Fatal("manual refresh created another task", err)
 	}
@@ -170,6 +175,8 @@ func TestReverseRecoverySchedulerDatabase(t *testing.T) {
 	exec(`UPDATE source_task SET status='PENDING',metrics=jsonb_set(jsonb_set(metrics #- '{reverseRecovery,previousStatus}',
  '{reverseWorker}','{"id":"prior-worker","active":false}'),'{reverseRecovery,attempt}','5')`)
 	failedWorker := reverseResourceName(entry.ID + ":refresh:waiting:5")
+	exec(`UPDATE source_task SET metrics=jsonb_set(metrics #- '{reverseRecovery,startedAt}',
+ '{reverseRecovery,deadline}',to_jsonb(now()-interval '1 hour'))`)
 	failedStatus := &TaskStatus{TaskDescriptor: TaskDescriptor{
 		SyncID: "sync", TaskID: "waiting", StartedBy: `{"trigger":"recovery"}`}, PodName: failedWorker}
 	for i := 0; i < 2; i++ {
@@ -178,6 +185,13 @@ func TestReverseRecoverySchedulerDatabase(t *testing.T) {
 		}
 	}
 	var attempt int
+	var remaining, nextDelay float64
+	if err := pool.QueryRow(ctx, `SELECT
+ extract(epoch FROM ((metrics->'reverseRecovery'->>'deadline')::timestamptz-now())),
+ extract(epoch FROM ((metrics->'reverseRecovery'->>'nextCheckAt')::timestamptz-now()))
+ FROM source_task WHERE task_id='waiting'`).Scan(&remaining, &nextDelay); err != nil || remaining < 22*3600 || remaining > 23*3600 || nextDelay < 7190 || nextDelay > 7200 {
+		t.Fatalf("legacy schedule not upgraded once with slower checks: remaining=%f next=%f err=%v", remaining, nextDelay, err)
+	}
 	if err := pool.QueryRow(ctx, `SELECT status,(metrics->'reverseRecovery'->>'attempt')::int
  FROM source_task WHERE task_id='waiting'`).Scan(&status, &attempt); err != nil || status != "PENDING" || attempt != 6 {
 		t.Fatalf("startup failure lost pending run: %s attempt=%d err=%v", status, attempt, err)
@@ -258,6 +272,12 @@ func TestReverseRecoverySchedulerDatabase(t *testing.T) {
 			}
 			if status != want {
 				t.Fatalf("%s cancel from %s got %s, want %s", initial, workspace, status, want)
+			}
+			if workspace == "workspace" {
+				var logs int
+				if err := pool.QueryRow(ctx, "SELECT count(*) FROM task_log WHERE task_id='waiting' AND message LIKE 'Run cancelled;%'").Scan(&logs); err != nil || logs == 0 {
+					t.Fatalf("cancellation audit missing: %d %v", logs, err)
+				}
 			}
 		}
 	}

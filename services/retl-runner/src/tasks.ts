@@ -141,13 +141,13 @@ export class Tasks {
       return result.rows[0] ? RecoverySchedule.parse(result.rows[0].schedule) : undefined;
     });
     const schedule = nextRecoveryCheck(runId, revision, previous);
-    const status = schedule ? "PENDING" : "FAILED";
+    const status = "PENDING";
     const changed = await this.finish(
       status,
       schedule
         ? `Provider processing pending; next check at ${schedule.nextCheckAt}`
-        : "Provider processing still pending after 24 hours; automatic checks stopped, delivery state retained",
-      schedule ?? previous
+        : "Provider processing still pending after 48 hours; automatic checks stopped. Use Refresh status to check again; delivery state retained",
+      schedule ?? (previous ? { ...previous, suspended: true } : undefined)
     );
     return changed ? status : "FAILED";
   }

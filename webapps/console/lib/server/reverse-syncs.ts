@@ -30,6 +30,7 @@ function taskView(task: Prisma.source_taskGetPayload<{ select: typeof taskSelect
   const trigger = z.enum(["manual", "scheduled", "recovery"]).safeParse(startedBy?.trigger);
   return ReverseTask.parse({
     ...task,
+    checksStopped: (metrics?.reverseRecovery as any)?.suspended === true,
     canRefresh:
       ["WAITING", "PENDING", "FAILED", "CANCELLED"].includes(task.status) &&
       typeof (metrics?.reverseRecovery as any)?.runId === "string" &&

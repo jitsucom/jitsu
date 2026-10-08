@@ -147,7 +147,7 @@ describe("redacted run progress", () => {
     await progress.summarize(head());
     const text = messages.join("\n");
     for (const expected of [
-      "4183 previously acknowledged",
+      "4183 baseline members",
       "64 new",
       "4180 unchanged skipped",
       "3 to remove",
@@ -213,7 +213,7 @@ describe("redacted run progress", () => {
     await nextAttempt.observe(h);
     expect(resumed).toHaveLength(1);
     await nextAttempt.summarize(h);
-    expect(resumed[0]).toContain("4183 previously acknowledged");
+    expect(resumed[0]).toContain("4183 baseline members");
     expect(resumed[1]).toContain("including earlier attempts");
   });
   it.each(["prepared", "unknown"] as const)(
