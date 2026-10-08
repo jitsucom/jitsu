@@ -105,8 +105,7 @@ func (t *TaskManager) refreshReverseTask(c *gin.Context, ctx context.Context, en
       metrics=jsonb_set(t.metrics,'{reverseRecovery}',t.metrics->'reverseRecovery' || jsonb_build_object(
         'previousStatus',CASE WHEN t.status='CANCELLED' THEN t.status ELSE COALESCE(t.metrics->'reverseRecovery'->>'previousStatus',t.status) END,'suspended',false,
         'attempt',COALESCE((t.metrics->'reverseRecovery'->>'attempt')::int,0)+1,
-        'nextCheckAt',to_char(clock_timestamp() AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'),
-        'deadline',to_char((clock_timestamp()+interval '24 hours') AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')))
+        'nextCheckAt',to_char(clock_timestamp() AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')))
       FROM reverse_sync_control c WHERE t.sync_id=$1 AND t.task_id=$2 AND t.package='jitsu/retl-runner'
       AND t.status IN ('PENDING','WAITING','FAILED','CANCELLED') AND COALESCE((t.metrics->'reverseWorker'->>'active')::boolean,false)=false
       AND COALESCE((t.metrics->'reverseRecovery'->>'attempt')::int,0)<2147483647
@@ -158,10 +157,12 @@ func (t *TaskManager) ReverseCancelHandler(c *gin.Context) {
 	// RUNNING -> WAITING transition cannot slip between this write and Pod lookup.
 	// The workspace binding remains valid after the entity/rollout is disabled.
 	ctx, cancel := context.WithTimeout(c.Request.Context(), 5*time.Second)
-	_, err := t.dbpool.Exec(ctx, `UPDATE source_task SET status='CANCELLED',updated_at=clock_timestamp(),
- description='Automatic recovery cancelled; unresolved delivery retained'
+	_, err := t.dbpool.Exec(ctx, `WITH cancelled AS (UPDATE source_task SET status='CANCELLED',updated_at=clock_timestamp(),
+ description='Automatic status checks cancelled; unresolved delivery retained'
  WHERE sync_id=$1 AND task_id=$2 AND package='jitsu/retl-runner' AND status IN ('RUNNING','WAITING','PENDING')
- AND started_by->>'workspaceId'=$3`, syncID, taskID, workspaceID)
+ AND started_by->>'workspaceId'=$3 RETURNING sync_id,task_id)
+ INSERT INTO task_log(id,level,logger,message,sync_id,task_id)
+ SELECT gen_random_uuid()::text,'INFO','retl-runner','Run cancelled; automatic status checks stopped, unresolved delivery retained',sync_id,task_id FROM cancelled`, syncID, taskID, workspaceID)
 	cancel()
 	if err != nil {
 		c.JSON(http.StatusServiceUnavailable, gin.H{"ok": false})
@@ -183,8 +184,10 @@ func (t *TaskManager) ReverseCancelHandler(c *gin.Context) {
 		// Insert CANCELLED as well when cancellation beats Node task creation.
 		// The runner's INSERT DO NOTHING gate then prohibits starting this task.
 		ctx, cancel := context.WithTimeout(c.Request.Context(), 5*time.Second)
-		_, err = t.dbpool.Exec(ctx, `INSERT INTO source_task(sync_id,task_id,package,version,status) VALUES($1,$2,'jitsu/retl-runner','1','CANCELLED')
-   ON CONFLICT(task_id) DO UPDATE SET status='CANCELLED',updated_at=clock_timestamp() WHERE source_task.sync_id=$1 AND source_task.status IN ('RUNNING','WAITING','PENDING')`, syncID, taskID)
+		_, err = t.dbpool.Exec(ctx, `WITH cancelled AS (INSERT INTO source_task(sync_id,task_id,package,version,status,started_by) VALUES($1,$2,'jitsu/retl-runner','1','CANCELLED',jsonb_build_object('workspaceId',$3::text,'kind','reverse'))
+   ON CONFLICT(task_id) DO UPDATE SET status='CANCELLED',updated_at=clock_timestamp() WHERE source_task.sync_id=$1 AND source_task.status IN ('RUNNING','WAITING','PENDING') RETURNING sync_id,task_id)
+ INSERT INTO task_log(id,level,logger,message,sync_id,task_id)
+ SELECT gen_random_uuid()::text,'INFO','retl-runner','Run cancelled; automatic status checks stopped, unresolved delivery retained',sync_id,task_id FROM cancelled`, syncID, taskID, workspaceID)
 		cancel()
 		if err != nil {
 			c.JSON(http.StatusServiceUnavailable, gin.H{"ok": false})

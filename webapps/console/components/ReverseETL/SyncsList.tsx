@@ -39,7 +39,7 @@ export function ReverseSyncsList() {
         v?.toLowerCase().includes(search.trim().toLowerCase())
       )
   );
-  const perform = async (sync: ReverseSyncView, action: "run" | "pause" | "enable" | "delete") => {
+  const perform = async (sync: ReverseSyncView, action: "run" | "refresh" | "pause" | "enable" | "delete") => {
     if (busy) return;
     if (
       action === "delete" &&
@@ -53,10 +53,17 @@ export function ReverseSyncsList() {
     try {
       const result = await rpc(`/api/${workspace.id}/reverse-etl/sync`, {
         query: { syncId: sync.id },
-        method: action === "run" ? "POST" : action === "delete" ? "DELETE" : "PUT",
+        method: action === "run" || action === "refresh" ? "POST" : action === "delete" ? "DELETE" : "PUT",
         ...(action === "delete"
           ? {}
-          : { body: action === "run" ? { action: "run" } : { disabled: action === "pause" } }),
+          : {
+              body:
+                action === "refresh"
+                  ? { action, taskId: sync.latestTask!.task_id }
+                  : action === "run"
+                  ? { action: "run" }
+                  : { disabled: action === "pause" },
+            }),
       });
       await syncs.refetch();
       if (action === "run")
@@ -82,6 +89,18 @@ export function ReverseSyncsList() {
         onClick: () => void perform(sync, "run"),
       },
       { label: "Logs", icon: <ListMinusIcon className="w-5 h-5" />, href: `/reverse-syncs/tasks?syncId=${sync.id}` },
+      ...(sync.latestTask?.canRefresh
+        ? [
+            {
+              label: "Refresh status",
+              icon: <RefreshCw className="w-4 h-4" />,
+              collapsed: true,
+              requiredPermission: "editEntities" as const,
+              disabled: maintenance || !!busy || !enabled,
+              onClick: () => void perform(sync, "refresh"),
+            },
+          ]
+        : []),
       {
         label: "Edit",
         icon: <Edit3 className="w-4 h-4" />,

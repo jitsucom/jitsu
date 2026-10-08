@@ -15,17 +15,31 @@ describe("provider recovery backoff", () => {
     for (const minutes of [30, 39, 50.7, 60, 60]) {
       const next = RecoverySchedule.parse(nextRecoveryCheck("run", "revision", previous, now));
       expect(Date.parse(next.nextCheckAt) - now).toBe(minutes * 60_000);
-      expect(next.deadline).toBe("2026-09-17T00:00:00.000Z");
+      expect(next.deadline).toBe("2026-09-18T00:00:00.000Z");
       now = Date.parse(next.nextCheckAt);
       previous = next;
     }
   });
-  it("schedules a final check at the deadline and never extends the 24-hour window", () => {
+  it("schedules a final check at the deadline and never extends the 48-hour window", () => {
     const first = nextRecoveryCheck("run", "revision", undefined, 0)!;
     const deadline = Date.parse(first.deadline);
     const last = nextRecoveryCheck("run", "revision", first, deadline - 1000)!;
     expect(last.nextCheckAt).toBe(first.deadline);
     expect(nextRecoveryCheck("run", "revision", last, deadline)).toBeUndefined();
     expect(nextRecoveryCheck("run", "revision", last, deadline + 1)).toBeUndefined();
+  });
+  it("slows to two hours after day one and upgrades legacy schedules only once", () => {
+    const day = 24 * 60 * 60_000;
+    const legacy = {
+      runId: "run",
+      revision: "rev",
+      attempt: 25,
+      deadline: new Date(day).toISOString(),
+      nextCheckAt: new Date(day).toISOString(),
+    };
+    const next = nextRecoveryCheck("run", "rev", legacy, day)!;
+    expect(next.nextCheckAt).toBe(new Date(day + 2 * 60 * 60_000).toISOString());
+    expect(next.deadline).toBe(new Date(2 * day).toISOString());
+    expect(nextRecoveryCheck("run", "rev", next, 2 * day)).toBeUndefined();
   });
 });

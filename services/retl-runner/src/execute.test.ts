@@ -1364,22 +1364,32 @@ describe("executable runner", () => {
     await execute(f.input);
     await makeDue();
     await admin.query(
-      `UPDATE newjitsu.source_task SET metrics=jsonb_set(metrics,'{reverseRecovery,deadline}',to_jsonb('2000-01-02T00:00:00.000Z'::text))`
+      `UPDATE newjitsu.source_task SET metrics=jsonb_set(jsonb_set(metrics,'{reverseRecovery,startedAt}',to_jsonb('2000-01-01T00:00:00.000Z'::text)),'{reverseRecovery,deadline}',to_jsonb('2000-01-03T00:00:00.000Z'::text))`
     );
     f.input.trigger = "recovery";
     f.input.recoveryOf = "task";
     f.input.taskId = "last-check";
-    expect(await execute(f.input)).toBe("FAILED");
-    expect((await task()).error).toContain("after 24 hours");
+    expect(await execute(f.input)).toBe("PENDING");
+    expect((await task()).description).toContain("after 48 hours");
+    expect((await task()).error).toBeNull();
+    expect((await task()).metrics.reverseRecovery.suspended).toBe(true);
     expect((await control()).phase).toBe("batches_pending");
     expect((await durable()).batches.length).toBe(1);
-    expect((await admin.query("SELECT 1 FROM newjitsu.source_task WHERE status='PENDING'")).rowCount).toBe(0);
+    expect((await admin.query("SELECT 1 FROM newjitsu.source_task WHERE status='PENDING'")).rowCount).toBe(1);
+    const expiredSchedule = (await task()).metrics.reverseRecovery;
+    await admin.query(
+      `UPDATE newjitsu.source_task SET metrics=jsonb_set(metrics,'{reverseRecovery,suspended}','false') WHERE task_id='task'`
+    );
+    f.input.taskId = "explicit-after-deadline";
+    expect(await execute(f.input)).toBe("PENDING");
+    expect((await task()).metrics.reverseRecovery).toEqual(expiredSchedule);
+    expect(f.writes).toHaveLength(1);
     // A new extraction has its own deadline; it does not reopen this expired run.
     f.input.trigger = "manual";
     f.input.taskId = "manual-after-timeout";
     delete f.input.recoveryOf;
     expect(await execute(f.input)).toBe("PENDING");
-    expect((await task()).status).toBe("FAILED");
+    expect((await task()).status).toBe("PENDING");
   });
   it("still cleans up incomplete legacy finish-staged sessions through verified abort", async () => {
     const f = asynchronousFixture();
@@ -1607,7 +1617,7 @@ describe("executable runner", () => {
     expect(await execute(f.input)).toBe("PENDING");
     const initialLogs = await taskLogs("diff");
     expect(initialLogs).toContain(
-      "2 previously acknowledged members; 1 new, 0 changed, 0 unchanged due for expiry refresh, 1 unchanged skipped, 1 to remove"
+      "2 baseline members; 1 new, 0 changed, 0 unchanged due for expiry refresh, 0 unconfirmed requiring refresh, 1 unchanged skipped, 1 to remove"
     );
     expect(initialLogs).toContain("3 source rows, 2 unique members, 3 projected members, 1 duplicates collapsed");
     expect(initialLogs).toContain("1 confirmed submitted in 1 batches; 0 accepted, 1 pending");
@@ -1621,7 +1631,7 @@ describe("executable runner", () => {
     expect(await execute(f.input)).toBe("COMPLETE");
     const resumedLogs = await taskLogs("diff");
     expect(resumedLogs).toContain("warehouse SQL is not re-read");
-    expect(resumedLogs).toContain("2 previously acknowledged members; 1 new");
+    expect(resumedLogs).toContain("2 baseline members; 1 new");
     expect(resumedLogs).toContain("Removals: 1 confirmed submitted in 1 batches; 1 accepted, 0 pending");
     expect(resumedLogs.match(/Delivery totals/g)).toHaveLength(2);
     expect(resumedLogs).toContain("Preparing 1 removals.");
@@ -1853,12 +1863,16 @@ describe("executable runner", () => {
       f.input.taskId = "refresh";
       expect(await execute(f.input)).toBe("PENDING");
       expect(submits).toBe(2);
-      expect(await taskLogs("refresh")).toContain("1 unchanged due for expiry refresh, 0 unchanged skipped");
+      expect(await taskLogs("refresh")).toContain(
+        "1 unchanged due for expiry refresh, 0 unconfirmed requiring refresh, 0 unchanged skipped"
+      );
       expect(bodies[1]).toEqual(bodies[0]);
       expect(JSON.stringify(bodies)).not.toContain("Private.Person");
       await refresh(f, "refresh-resume", "refresh");
       expect(await execute(f.input)).toBe("COMPLETE");
-      expect(await taskLogs("refresh")).toContain("1 unchanged due for expiry refresh, 0 unchanged skipped");
+      expect(await taskLogs("refresh")).toContain(
+        "1 unchanged due for expiry refresh, 0 unconfirmed requiring refresh, 0 unchanged skipped"
+      );
       expect(await taskLogs("refresh")).toContain("1 confirmed submitted in 1 batches; 1 accepted, 0 pending");
     } finally {
       wire.mockRestore();

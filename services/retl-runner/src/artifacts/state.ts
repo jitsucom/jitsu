@@ -59,6 +59,8 @@ export interface SnapshotHead {
     newMembers: number;
     changedMembers: number;
     refreshMembers: number;
+    /** Subset of refreshMembers; absent on snapshots created before this distinction was recorded. */
+    unconfirmedRefreshMembers?: number;
     unchangedMembers: number;
     removals: number;
     projectedMembers?: number;

@@ -63,7 +63,7 @@ export function ReverseRuns() {
   });
   const task = taskId ? tasks.data?.tasks[0] : undefined;
   const sync = syncs.data?.find(s => s.id === task?.sync_id);
-  const cancel = async () => {
+  const perform = async (action: "cancel" | "refresh") => {
     if (!task) return;
     setBusy(true);
     setError(undefined);
@@ -71,7 +71,7 @@ export function ReverseRuns() {
       await rpc(`/api/${workspace.id}/reverse-etl/sync`, {
         method: "POST",
         query: { syncId: task.sync_id },
-        body: { action: "cancel", taskId: task.task_id },
+        body: { action, taskId: task.task_id },
       });
       await tasks.refetch();
     } catch (e) {
@@ -101,25 +101,38 @@ export function ReverseRuns() {
           <Panel title={<ReverseSyncTitle sync={sync} syncId={task.sync_id} link={false} />}>
             <div className="flex justify-between items-center mb-5">
               <ReverseTaskStatusTag status={task.status} />
-              <Button
-                danger
-                loading={busy}
-                disabled={
-                  !role.editEntities || !!maintenance || !["RUNNING", "WAITING", "PENDING"].includes(task.status)
-                }
-                onClick={() =>
-                  Modal.confirm({
-                    title: "Cancel this attempt?",
-                    content:
-                      "Google requests already in flight may still finish. Accepted changes and recovery evidence are kept.",
-                    okText: "Cancel attempt",
-                    okButtonProps: { danger: true },
-                    onOk: cancel,
-                  })
-                }
-              >
-                Cancel attempt
-              </Button>
+              <div className="flex gap-2">
+                {task.canRefresh && (
+                  <Button
+                    loading={busy}
+                    disabled={
+                      !role.editEntities || !!maintenance || !workspace.featuresEnabled.includes("reverse-etl") || !sync
+                    }
+                    onClick={() => void perform("refresh")}
+                  >
+                    Refresh status
+                  </Button>
+                )}
+                <Button
+                  danger
+                  loading={busy}
+                  disabled={
+                    !role.editEntities || !!maintenance || !["RUNNING", "WAITING", "PENDING"].includes(task.status)
+                  }
+                  onClick={() =>
+                    Modal.confirm({
+                      title: "Cancel this attempt?",
+                      content:
+                        "Google requests already in flight may still finish. Accepted changes and recovery evidence are kept.",
+                      okText: "Cancel attempt",
+                      okButtonProps: { danger: true },
+                      onOk: () => perform("cancel"),
+                    })
+                  }
+                >
+                  Cancel attempt
+                </Button>
+              </div>
             </div>
             <Descriptions
               column={1}
@@ -140,9 +153,15 @@ export function ReverseRuns() {
           {["WAITING", "PENDING"].includes(task.status) && (
             <Alert
               className="mb-5"
-              type="success"
-              title="Pending"
-              description="Submitted changes are still processing. Status refreshes continue automatically while the sync is enabled."
+              type={task.checksStopped ? "warning" : "success"}
+              title={task.checksStopped ? "Pending — automatic status checks stopped" : "Pending"}
+              description={
+                task.checksStopped
+                  ? "Delivery is still unconfirmed; this does not mean it failed. Use Refresh status to check saved requests again without uploading them again."
+                  : sync?.options.disabled
+                  ? "This sync is paused. Use Refresh status to check submitted changes without uploading them again."
+                  : "Submitted changes are still processing. Automatic checks run for up to 48 hours, every two hours after the first day. Manual Refresh status is also available."
+              }
             />
           )}
           {task.status === "RESUMED" && (

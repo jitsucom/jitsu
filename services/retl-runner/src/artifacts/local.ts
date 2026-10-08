@@ -129,7 +129,8 @@ export class LocalIndex {
         `SELECT count(*) AS desired,
       coalesce(sum(m.value IS NULL),0) AS added,
       coalesce(sum(m.value IS NOT NULL AND m.payload<>d.payload),0) AS changed,
-      coalesce(sum(m.value IS NOT NULL AND m.payload=d.payload AND (m.uncertain=1 OR m.accepted_at<=?)),0) AS refresh
+      coalesce(sum(m.value IS NOT NULL AND m.payload=d.payload AND (m.uncertain=1 OR m.accepted_at<=?)),0) AS refresh,
+      coalesce(sum(m.value IS NOT NULL AND m.payload=d.payload AND m.uncertain=1),0) AS unconfirmed
       FROM desired d LEFT JOIN members m ON m.identity=d.identity`
       )
       .get(refreshBefore)!;
@@ -150,6 +151,7 @@ export class LocalIndex {
       newMembers,
       changedMembers,
       refreshMembers,
+      unconfirmedRefreshMembers: Number(row.unconfirmed),
       unchangedMembers: uniqueMembers - newMembers - changedMembers - refreshMembers,
       removals: Number(previous.removed),
     };
