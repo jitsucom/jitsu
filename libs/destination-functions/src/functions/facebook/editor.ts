@@ -64,11 +64,15 @@ export const metaAudienceEditor: ReverseStreamEditor = {
     const audience = settings.audience ?? { kind: "managed", name: "" };
     const managed = audience.kind === "managed";
     const items: ReverseEditorField[] = [
-      text(
-        "accountId",
-        "Ad account ID",
-        "Numeric Meta ad account ID; the act_ prefix is optional. The system user needs access and Custom Audience terms must be accepted."
-      ),
+      {
+        editor: "target",
+        name: "Ad account ID",
+        targetKind: "meta-account",
+        value: settings.accountId ?? "",
+        documentation:
+          "Choose an account or enter its ID (act_ is optional). Assign the account to your system user and accept Custom Audience terms.",
+        change: accountId => change({ accountId, audience: managed ? audience : { kind: "existing", audienceId: "" } }),
+      },
       {
         editor: "select",
         name: "Audience",
@@ -87,7 +91,9 @@ export const metaAudienceEditor: ReverseStreamEditor = {
         }),
       },
       {
-        editor: "text",
+        editor: managed ? "text" : "target",
+        targetKind: "meta-audience",
+        lookupParams: { accountId: settings.accountId ?? "", valueBased: String(settings.valueBased === true) },
         name: managed ? "Audience name" : "Audience ID",
         value: managed ? audience.name ?? "" : audience.audienceId ?? "",
         documentation: managed
@@ -177,7 +183,7 @@ export const metaConversionEditor: ReverseStreamEditor = {
       text(
         "pixelId",
         "Pixel / dataset ID",
-        "Find the ID in Meta Events Manager. The destination token must have access to this data source."
+        "Use the Dataset ID from Events Manager → your data source → Settings, not the App ID from Meta Developers. Assign this dataset to the token's system user."
       ),
       {
         editor: "notice",

@@ -18,6 +18,7 @@ import { EditorToolbar } from "../EditorToolbar/EditorToolbar";
 import { Failure } from "./shared";
 import { ScheduleEditor } from "./ScheduleEditor";
 import { reverseStreamEditors } from "./streams";
+import { MetaTargetCheck } from "./MetaTargetCheck";
 import { ModelTitle } from "./ModelTitle";
 
 export function SyncEditor({ sync, reload }: { sync?: ReverseSyncView; reload: () => Promise<unknown> }) {
@@ -65,6 +66,7 @@ export function SyncEditor({ sync, reload }: { sync?: ReverseSyncView; reload: (
   const locked = !!sync?.settingsLocked,
     disabled = !editable || !enabled || locked;
   const streams = reverseStreamEditors[destinations.find(d => d.id === toId)?.destinationType ?? ""] ?? [];
+  const isMeta = destinations.find(d => d.id === toId)?.destinationType === "facebook-conversions";
   const stream = streams.find(s => s.id === options.stream);
   const model = models.find(m => m.id === fromId);
   const columns = useQuery({
@@ -259,6 +261,14 @@ export function SyncEditor({ sync, reload }: { sync?: ReverseSyncView; reload: (
         />
       )}
       <FieldListEditorLayout items={items} />
+      {isMeta && stream && (
+        <MetaTargetCheck
+          destinationId={toId}
+          stream={options.stream}
+          streamOptions={options.streamOptions}
+          disabled={!editable || !enabled}
+        />
+      )}
       <div className="flex justify-between pt-6 gap-4">
         <div>
           {sync && (
@@ -313,7 +323,23 @@ export function SyncEditor({ sync, reload }: { sync?: ReverseSyncView; reload: (
                   );
                 }
                 const body = { fromId, toId, data: options };
-                // No preview, validation request or intermediate save. The API checks the submitted settings.
+                // Read-only Meta preflight catches target setup mistakes before the first delivery.
+                // Pauses and schedule/mapping-only edits stay available if Meta is unavailable.
+                if (
+                  isMeta &&
+                  !locked &&
+                  enabled &&
+                  !options.disabled &&
+                  (!sync ||
+                    sync.options.disabled ||
+                    toId !== sync.toId ||
+                    options.stream !== sync.options.stream ||
+                    JSON.stringify(options.streamOptions) !== JSON.stringify(sync.options.streamOptions))
+                )
+                  await rpc(`/api/${workspace.id}/reverse-etl/meta-check`, {
+                    method: "POST",
+                    body: { destinationId: toId, stream: options.stream, streamOptions: options.streamOptions },
+                  });
                 await (sync
                   ? rpc(endpoint, { method: "PUT", body: !enabled ? { disabled: true } : body })
                   : rpc(`/api/${workspace.id}/reverse-etl/syncs`, {

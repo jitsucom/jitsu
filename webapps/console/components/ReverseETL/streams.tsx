@@ -191,6 +191,7 @@ function renderField(
         <DestinationTargetSelector
           destinationId={source.destinationId}
           kind={field.targetKind}
+          lookupParams={field.lookupParams}
           disabled={disabled}
           value={field.value}
           onChange={value => update(field.change(value))}
