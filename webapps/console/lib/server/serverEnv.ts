@@ -255,6 +255,8 @@ const ServerEnvSchema = ClientEnvSchema.extend({
   // `https://ee${JITSU_BRANCH_SUFFIX}.jitsu.localhost/` to follow the current
   // branch (see lib/server/ee.ts).
   EE_CONNECTION: z.string().optional(),
+  // Server-only billing URL. EE_CONNECTION remains the browser-visible URL.
+  EE_CONNECTION_INTERNAL: z.string().optional(),
 
   // Static service token for console's server-to-server calls to ee-api that
   // have no signed-in user (the scheduled-sync quota check, the bulker
@@ -393,9 +395,6 @@ const ServerEnvSchema = ClientEnvSchema.extend({
   // Slack webhook URL for notifications
   SLACK_WEBHOOK_URL: z.string().optional(),
 
-  // Enable full environment diagnostics (dangerous - exposes all env vars!)
-  __DANGEROUS_ENABLE_FULL_DIAGNOSTICS: z.coerce.boolean().default(false),
-
   // ============================================
   // API Rate Limiting (per-minute, sliding window)
   // ============================================
@@ -426,6 +425,22 @@ const ServerEnvSchema = ClientEnvSchema.extend({
 export type ServerEnv = z.infer<typeof ServerEnvSchema>;
 
 let serverEnvCache: ServerEnv | undefined;
+
+/**
+ * Sets NEXTAUTH_URL if it isn't already, and invalidates the cache so the
+ * next getServerEnv() picks it up. next-auth's own origin detection
+ * (utils/detect-origin.js) reads process.env.NEXTAUTH_URL directly — there's
+ * no NextAuthOptions-level override — so this has to be a real env mutation,
+ * not just a value threaded through our own config. Centralized here (the
+ * only module allowed to touch process.env directly) rather than in
+ * nextauth.config.ts itself.
+ */
+export function ensureNextAuthUrl(fallback: string): void {
+  if (!process.env.NEXTAUTH_URL) {
+    process.env.NEXTAUTH_URL = fallback;
+    serverEnvCache = undefined;
+  }
+}
 
 /**
  * Gets validated server environment variables.

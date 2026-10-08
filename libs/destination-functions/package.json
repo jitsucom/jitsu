@@ -9,7 +9,13 @@
     "access": "public"
   },
   "files": [
-    "src/meta.ts"
+    "src/meta.ts",
+    "src/reverse-etl/**",
+    "src/functions/google-ads/**",
+    "src/functions/webhook/**",
+    "src/functions/facebook/**",
+    "src/functions/lib/**",
+    "src/functions/google-ads-destination.ts"
   ],
   "license": "MIT",
   "private": false,
@@ -36,7 +42,7 @@
     "@jitsu/core-functions-lib": "workspace:*",
     "@amplitude/ua-parser-js": "^0.7.33",
     "@hubspot/api-client": "^11.1.0",
-    "undici": "^7.29.0",
+    "undici": "^7.29.1",
     "juava": "workspace:*",
     "node-cache": "^5.1.2",
     "lodash": "catalog:",

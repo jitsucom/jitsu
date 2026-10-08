@@ -1,4 +1,6 @@
 import { useWorkspace, useWorkspaceRole } from "../../lib/context";
+import { EntitlementStatus } from "../Billing/EntitlementStatus";
+import { useEntitlements } from "../../lib/entitlements";
 import { get } from "../../lib/useApi";
 import { DestinationConfig, FunctionConfig, StreamConfig } from "../../lib/schema";
 import React, { useEffect, useState } from "react";
@@ -12,6 +14,12 @@ import { confirmOp, copyTextToClipboard, feedbackError, feedbackSuccess } from "
 import FieldListEditorLayout, { EditorItem } from "../FieldListEditorLayout/FieldListEditorLayout";
 import { DataLayoutType } from "@jitsu/protocols/analytics";
 import { Activity, Copy } from "lucide-react";
+import { useBilling } from "../Billing/BillingProvider";
+import {
+  hasIdentityStitching,
+  IDENTITY_STITCHING_FUNCTION_ID,
+  IDENTITY_STITCHING_OFF_WARNING,
+} from "../../lib/shared/plan-features";
 import styles from "./ConnectionEditorPage.module.css";
 import { Htmlizer } from "../Htmlizer/Htmlizer";
 import { FunctionsSelector } from "../FunctionsSelector/FunctionsSelector";
@@ -46,7 +54,7 @@ const DataLayoutEditor: EditorComponent<DataLayoutType, { fileStorage?: boolean 
     onChange={val => props.onChange(val.target.value)}
   >
     <div className={"flex flex-col gap-2"}>
-      {props.fileStorage && (
+      {(props.fileStorage || props.value === "passthrough") && (
         <Radio value="passthrough">
           <div>
             <div className={``}>Original</div>
@@ -229,6 +237,13 @@ function ConnectionEditor({
   const workspace = useWorkspace();
   const role = useWorkspaceRole();
   const canEdit = role.editEntities;
+  const billing = useBilling();
+  // JITSU-228: Identity Stitching is Enterprise-only. Resolved by the server
+  // rather than from useBilling(), which is unavailable on an EE install
+  // without Firebase, where the server still enforces. Self-hosted consoles have
+  // no plans and the endpoint allows everything there.
+  const entitlements = useEntitlements();
+  const identityStitchingPlanTooLow = entitlements.identityStitching === false;
   const [dstId, setDstId] = useState(existingLink?.toId || destinations[0].id);
   const [srcId, setSrcId] = useState(existingLink?.fromId || streams[0].id);
 
@@ -489,7 +504,7 @@ function ConnectionEditor({
               let functions = connectionOptions.functions ?? [];
               if (!deduplicate) {
                 // remove user recognition function when deduplication is disabled
-                functions = functions.filter(f => f.functionId !== "builtin.transformation.user-recognition");
+                functions = functions.filter(f => f.functionId !== IDENTITY_STITCHING_FUNCTION_ID);
               }
               updateOptions({ deduplicate, functions });
             }}
@@ -563,6 +578,18 @@ function ConnectionEditor({
     });
   }
   if (hasZodFields(connectionOptionsZodType, "functions", "deduplicate") && !limitations?.identityStitchingDisabled) {
+    // JITSU-228: a connection that already has Identity Stitching on keeps it —
+    // only switching it on is gated, matching assertIdentityStitchingAllowed on
+    // the server. That leaves a grandfathered connection free to turn it off,
+    // and the server will refuse to turn it back on afterwards — so turning it
+    // off on such a plan asks first.
+    const identityStitchingOn = hasIdentityStitching(connectionOptions);
+    // What the stored connection has, not the form: the server compares against
+    // the stored connection, so switching it off and back on before Save is a
+    // no-op there. Locking on the form state instead would grey the switch the
+    // instant it was turned off and leave the mistake impossible to undo.
+    const identityStitchingSaved = hasIdentityStitching(existingLink?.data);
+    const identityStitchingLocked = entitlements.identityStitching !== true && !identityStitchingSaved;
     configItems.push({
       group: "Advanced",
       documentation: (
@@ -573,26 +600,51 @@ function ConnectionEditor({
       ),
       name: "Identity Stitching",
       component: (
-        <SwitchComponent
-          disabled={!canEdit || connectionOptions.primaryKey === "" || !connectionOptions.deduplicate}
-          className="max-w-xs"
-          value={
-            typeof (connectionOptions.functions ?? []).find(
-              f => f.functionId === "builtin.transformation.user-recognition"
-            ) !== "undefined"
-          }
-          onChange={ur => {
-            const f = (connectionOptions.functions ?? []).filter(
-              f => f.functionId !== "builtin.transformation.user-recognition"
-            );
-            if (ur) {
-              f.push({
-                functionId: "builtin.transformation.user-recognition",
-              });
+        <div data-testid="identity-stitching">
+          {identityStitchingPlanTooLow && !identityStitchingSaved && (
+            // Inline, not in `documentation`: that is rendered behind a help
+            // icon by DocumentedLabel, so a locked user would see a greyed-out
+            // switch and no reason for it — and no hover at all on touch.
+            <div className="mb-2 text-textLight">
+              Available on the <b className="uppercase">Enterprise</b> plan.{" "}
+              <a href="https://jitsu.com/contact?utm_source=app" target="_blank" rel="noopener noreferrer">
+                Contact sales
+              </a>{" "}
+              to enable it.
+            </div>
+          )}
+          {entitlements.identityStitching === null && !identityStitchingSaved && (
+            <EntitlementStatus loading={entitlements.loading} retry={entitlements.retry} />
+          )}
+          <SwitchComponent
+            disabled={
+              !canEdit ||
+              connectionOptions.primaryKey === "" ||
+              !connectionOptions.deduplicate ||
+              identityStitchingLocked
             }
-            updateOptions({ functions: f });
-          }}
-        />
+            className="max-w-xs"
+            value={identityStitchingOn}
+            onChange={async ur => {
+              // Only on an explicit "plan too low": with the lookup unknown (null)
+              // nothing is known about whether it could be turned back on.
+              if (!ur && identityStitchingOn && identityStitchingPlanTooLow) {
+                if (!(await confirmOp(IDENTITY_STITCHING_OFF_WARNING))) {
+                  return;
+                }
+              }
+              const f = (connectionOptions.functions ?? []).filter(
+                f => f.functionId !== IDENTITY_STITCHING_FUNCTION_ID
+              );
+              if (ur) {
+                f.push({
+                  functionId: IDENTITY_STITCHING_FUNCTION_ID,
+                });
+              }
+              updateOptions({ functions: f });
+            }}
+          />
+        </div>
       ),
     });
   }

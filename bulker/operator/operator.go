@@ -2,7 +2,6 @@ package main
 
 import (
 	"bytes"
-	"compress/gzip"
 	"context"
 	"crypto/sha256"
 	"encoding/json"
@@ -18,6 +17,9 @@ import (
 	"github.com/jitsucom/bulker/jitsubase/pg"
 	"github.com/jitsucom/bulker/jitsubase/safego"
 	"github.com/jitsucom/bulker/jitsubase/utils"
+	// Drop-in for compress/gzip: emits standard gzip, so existing consumers
+	// of the stored objects are unaffected.
+	"github.com/klauspost/compress/gzip"
 	appsv1 "k8s.io/api/apps/v1"
 	autoscalingv2 "k8s.io/api/autoscaling/v2"
 	corev1 "k8s.io/api/core/v1"
@@ -1699,6 +1701,32 @@ func (o *Operator) buildDeploymentFromData(data *DeploymentData) *appsv1.Deploym
 				},
 			},
 		},
+		// Holds liveness and readiness off until the server is actually serving.
+		// Without it, liveness starts counting at 10s and kills the container
+		// after 5 failures — a ~60s budget — while startup is still loading
+		// every workspace's connections and functions. On the shared free-tier
+		// shards that is not enough: measured start-to-ready ranged 26s when
+		// two pods start, to 61s when a config change rolled 32 at once, which
+		// crash-looped the whole deployment for half an hour on 21 Sep 2026.
+		//
+		// The budget here is periodSeconds x failureThreshold = 300s, roughly
+		// five times the worst case observed. A pod that genuinely cannot serve
+		// after five minutes should be restarted; one that is merely slow
+		// because thirty of its siblings booted at the same instant should not.
+		StartupProbe: &corev1.Probe{
+			ProbeHandler: corev1.ProbeHandler{
+				HTTPGet: &corev1.HTTPGetAction{
+					Path: "/health",
+					Port: intstr.FromInt(o.config.FunctionsServerPort),
+				},
+			},
+			InitialDelaySeconds: 5,
+			PeriodSeconds:       5,
+			TimeoutSeconds:      3,
+			FailureThreshold:    60,
+		},
+		// Only starts once StartupProbe has succeeded, so InitialDelaySeconds
+		// here is measured from that point, not from container start.
 		LivenessProbe: &corev1.Probe{
 			ProbeHandler: corev1.ProbeHandler{
 				HTTPGet: &corev1.HTTPGetAction{

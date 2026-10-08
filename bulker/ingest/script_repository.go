@@ -2,10 +2,12 @@ package main
 
 import (
 	"bytes"
-	"compress/gzip"
 	"fmt"
 	"github.com/gin-gonic/gin"
 	"github.com/jitsucom/bulker/jitsubase/appbase"
+	// Drop-in for compress/gzip: emits standard gzip, so the served script
+	// stays readable by every browser.
+	"github.com/klauspost/compress/gzip"
 	"io"
 	"net/http"
 	"sync/atomic"

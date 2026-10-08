@@ -17,6 +17,8 @@ export {
   createFilter,
 } from "./functions/lib/index";
 
+export { isBlockedAddress, isPublicAddress } from "./functions/lib/public-address";
+
 export type {
   MetricsMeta,
   RotorMetrics,

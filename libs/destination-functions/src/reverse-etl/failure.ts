@@ -1,0 +1,178 @@
+import { metaConversionValidationErrors } from "../functions/facebook/validation-errors";
+
+/** Terminal uncertainty: retain receipts, but do not keep polling a final, ambiguous result. */
+export class ReverseEtlManualReconciliationError extends Error {
+  constructor() {
+    super("Google conversion results require manual reconciliation; no replay");
+  }
+}
+
+const terminalReplacementReasons = new Set([
+  "Meta delivery results require manual reconciliation; no replay",
+  "Google replacement cutoff is missing or bound to another run; do not reset or replay",
+  "Google replacement cleanup receipt unavailable; manual reconciliation required, no automatic replay",
+  "Malformed Google replacement status; manual reconciliation required",
+  "Google replacement status target mismatch",
+  "Google replacement cleanup failed or is unverified; manual reconciliation required, no automatic replay",
+]);
+
+/** Mirror recovery wraps provider errors; exact redacted reasons retain terminal semantics. */
+export function requiresManualReconciliation(error: unknown): boolean {
+  return (
+    error instanceof ReverseEtlManualReconciliationError ||
+    (error instanceof Error && terminalReplacementReasons.has(error.message))
+  );
+}
+
+/** Exact core-owned reasons only. Never expose arbitrary SDK/SQL messages or causes. */
+const failures = new Map<string, string>([
+  [
+    "Reverse sync already running",
+    "Another worker is running this sync. This worker submitted no changes; wait for it to finish and try again.",
+  ],
+  [
+    "Unresolved artifact batches require recovery",
+    "A previous batch has no confirmed outcome. Refresh its status if a provider receipt is available. Without a receipt, Jitsu cannot query its status or safely upload it again. Contact your Jitsu administrator; do not reset state.",
+  ],
+  ...Object.values(metaConversionValidationErrors).map(detail => {
+    const reason = `Invalid Meta conversion: ${detail}`;
+    return [reason, `${reason} This row was not submitted. Earlier batches may already have been submitted.`] as [
+      string,
+      string
+    ];
+  }),
+  [
+    "Invalid Meta row mapping or identifier",
+    "A source row has an invalid Meta identifier or mapping. Check the mapped identifiers and raw versus SHA-256 settings. This row was not submitted; earlier batches may already have been submitted.",
+  ],
+  [
+    "Meta delivery results require manual reconciliation; no replay",
+    "Meta did not provide complete delivery evidence. Some changes may have been accepted. Contact your Jitsu administrator with this run ID; saved requests are retained and will not be uploaded again automatically.",
+  ],
+  [
+    "Meta audience creation is unconfirmed; retry discovery without resetting state",
+    "Meta audience creation is not confirmed. Run this same sync again to discover the original audience. Do not reset state or create another sync to retry it.",
+  ],
+  [
+    "Mobile audiences require an App ID and mobile platform",
+    "Set the App ID and mobile platform before creating a mobile audience. No audience creation was attempted; edit this sync and try again.",
+  ],
+  [
+    "Google conversion results require manual reconciliation; no replay",
+    "Google returned partial or unverified conversion results. Some events may have been accepted. Contact your Jitsu administrator with this run ID; saved requests are retained and will not be uploaded again automatically.",
+  ],
+  [
+    "Google audience creation is unconfirmed; retry status discovery without resetting state",
+    "Google has not confirmed audience creation. Run this same sync again to check for the audience; do not reset state or create another sync to retry it.",
+  ],
+  [
+    "Managed audience state is missing; preserve delivery state and reconcile",
+    "The saved Google audience identity is missing. Ask your Jitsu administrator to restore or migrate its runtime state; do not reset this sync.",
+  ],
+  [
+    "Managed audience configuration changed; preserve provisioning state and reconcile",
+    "The audience settings no longer match the saved creation request. Restore the original settings or contact your Jitsu administrator; do not reset state.",
+  ],
+  [
+    "Webhook destination configuration is invalid",
+    "The Webhook destination is misconfigured (URL, method, headers or signing). Open the destination, fix it, then run this sync again.",
+  ],
+  [
+    "Webhook sync settings are invalid",
+    "The sync settings no longer fit the Webhook destination (delivery confirmation, mode or primary key). Edit this sync, save it, and run it again.",
+  ],
+  [
+    "Model query contains duplicate primary keys",
+    "The model returns multiple rows with the same primary key. Return one deterministic row per primary key, then retry. Audience-identity deduplication does not deduplicate source primary keys.",
+  ],
+  [
+    "Async batches require distinct member identities",
+    "Multiple source rows identify the same audience member. Update the model to return one row per normalized audience identity (for example, email or phone), then retry.",
+  ],
+  ...[
+    "Audience is exclusively managed by a mirror sync",
+    "Audience already belongs to another mirror sync",
+    "Audience already belongs to another mirror or upsert sync",
+  ].map(
+    reason =>
+      [
+        reason,
+        "This audience is reserved by another sync. Choose a different audience or ask your Jitsu administrator to review and release the previous sync's ownership.",
+      ] as [string, string]
+  ),
+  [
+    "Source row failed destination validation",
+    "A source row has invalid identifiers or consent. Check the model output, field mappings and raw versus hashed identifier settings, then retry.",
+  ],
+  [
+    "Destination rejected a row; the run stopped without skipping it",
+    "The destination rejected a row, so the sync stopped. If a reason code is shown below, it says why: codes for an HTTP status, the network, the URL or the certificate point at the destination's endpoint, URL or credentials, not at the data. Otherwise, check the row data and the sync's field mappings. Some other rows may already have been accepted.",
+  ],
+  [
+    "Batch delivery is uncertain; reconcile its journal before retrying",
+    "The destination did not confirm a submitted batch. Some changes may have been accepted. Refresh status if a provider receipt is available. Without a receipt, status cannot be queried and uploading again could duplicate delivery. Contact your Jitsu administrator; do not reset sync state.",
+  ],
+  [
+    "Reverse ETL artifact upload failed; no delivery is authorized",
+    "Sync progress could not be saved to object storage. Ask your Jitsu administrator to check storage connectivity and permissions before retrying. Earlier batches may already have been submitted.",
+  ],
+  [
+    "Reverse ETL retention storage upload failed; no delivery is authorized",
+    "The storage for this workspace's recovery copies could not be written, so nothing was sent. Ask your Jitsu administrator to check that the workspace's retention bucket exists and is writable before retrying.",
+  ],
+  [
+    "Retention is not supported for mirror syncs",
+    "A mirror sync keeps a full snapshot of its data that cannot expire, so the workspace's retention window cannot be applied to it. Contact your Jitsu administrator.",
+  ],
+  [
+    "Reverse ETL retention configuration changed before admission",
+    "The workspace's retention settings changed while this run was starting, so nothing was sent. The next run uses the new settings.",
+  ],
+  [
+    "Retention requires projections without row data",
+    "This destination keeps copies of row data that cannot expire, so the workspace's retention window cannot be applied to it. Contact your Jitsu administrator.",
+  ],
+  [
+    "Reverse ETL retention storage is unavailable; delivery blocked",
+    "This sync has recovery copies in retention storage that is no longer configured, so delivery was stopped. Contact your Jitsu administrator; do not reset sync state.",
+  ],
+  [
+    "Reverse ETL recovery artifact is missing or corrupt; delivery blocked",
+    "Saved sync data is missing or unreadable, so delivery was stopped. Contact support or your Jitsu administrator; do not reset sync state.",
+  ],
+  [
+    "Target/config changes require controlled reset",
+    "This configuration is incompatible with the saved sync state. Revert the configuration change or contact your Jitsu administrator before resetting state.",
+  ],
+  [
+    "Previous logical run requires recovery",
+    "A previous run still has unresolved work. Contact support or your Jitsu administrator to finish that run before starting another; do not reset sync state.",
+  ],
+  [
+    "Previous conversion run requires status refresh before new extraction",
+    "A previous conversion run is still unresolved. Refresh its delivery status before starting another run. No new conversions were submitted by this attempt.",
+  ],
+  [
+    "Google replacement cutoff unavailable; no audience changes submitted",
+    "Jitsu could not verify Google's clock and audience identity before replacement. No audience changes were submitted by this attempt. Ask your Jitsu administrator to check Google API access and connectivity, then retry.",
+  ],
+  ...[
+    "Google replacement cutoff is missing or bound to another run; do not reset or replay",
+    "Google replacement cleanup receipt unavailable; manual reconciliation required, no automatic replay",
+    "Malformed Google replacement status; manual reconciliation required",
+    "Google replacement status target mismatch",
+    "Google replacement cleanup failed or is unverified; manual reconciliation required, no automatic replay",
+  ].map(
+    reason =>
+      [
+        reason,
+        "Google audience replacement could not be confirmed. Uploaded members may already be present, but cleanup is not confirmed. Contact support or your Jitsu administrator with the run ID; do not reset state or start another replacement.",
+      ] as [string, string]
+  ),
+]);
+
+export function reverseEtlFailure(error: unknown): { reason: string; message: string } | undefined {
+  if (!(error instanceof Error)) return;
+  const message = failures.get(error.message);
+  if (message) return { reason: error.message, message };
+}

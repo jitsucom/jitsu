@@ -5,7 +5,7 @@ import { LogFactory, randomId, requireDefined, rpc } from "juava";
 import { getServerLog } from "./log";
 import { getAppEndpoint } from "../domains";
 import { NextApiRequest } from "next";
-import { eeAuthHeadersOrServiceToken, getEeConnection, isEEAvailable } from "./ee";
+import { eeAuthHeadersOrServiceToken, getEeServerConnection, isEEAvailable } from "./ee";
 import { SessionUser } from "../schema";
 import { randomUUID } from "crypto";
 import omit from "lodash/omit";
@@ -122,7 +122,7 @@ export async function checkQuota(opts: {
   taskId?: string;
 }): Promise<ScheduleSyncError | undefined> {
   try {
-    const { host } = getEeConnection();
+    const { host } = getEeServerConnection();
     const quotaCheck = `${host}api/quotas/sync`;
     // Forward the Firebase cookie only when the inbound caller was actually
     // authenticated by Firebase (`user.authType === "firebase"`). API-key

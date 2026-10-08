@@ -260,10 +260,10 @@ export const blockStorageSettings = z.object({
       "Format of the files stored in the block storage: <b>ndjson</b> - Newline Delimited JSON, <b>ndjson_flat</b> - Newline Delimited JSON flattened, <b>csv</b> - CSV"
     ),
   compression: z
-    .enum(["gzip", "none"])
+    .enum(["gzip", "zstd", "none"])
     .default("gzip")
     .describe(
-      "Compression mode used for the files stored in the block storage:<br/><b>gzip</b> - files will be compressed and have <code>.gz</code> filename suffix and <code>Content-Type: application/gzip</code><br/><b>none</b> - no compression, <code>Content-Type</code> and file extension will be set according to the format"
+      "Compression mode used for the files stored in the block storage:<br/><b>gzip</b> - files will be compressed and have <code>.gz</code> filename suffix and <code>Content-Type: application/gzip</code><br/><b>zstd</b> - Zstandard compression, <code>.zst</code> filename suffix and <code>Content-Type: application/zstd</code>. Smaller and faster than gzip, but check your downstream tooling can read it<br/><b>none</b> - no compression, <code>Content-Type</code> and file extension will be set according to the format"
     ),
 });
 
@@ -667,6 +667,19 @@ export const coreDestinations: DestinationType<any>[] = [
         .describe(
           "Dataset::BigQuery <a target='_blank' rel='noreferrer noopener' href='https://cloud.google.com/bigquery/docs/datasets-intro'>Dataset</a>"
         ),
+      location: z
+        .string()
+        .optional()
+        .describe(
+          "Query location::Optional BigQuery region for Reverse ETL. If omitted, Jitsu reads the configured dataset's location."
+        ),
+      maximumBytesBilled: z
+        .string()
+        .regex(/^[1-9]\d*$/)
+        .optional()
+        .describe(
+          "Maximum bytes billed per query::Optional Reverse ETL query cost limit, in bytes. Without a limit, normal BigQuery query pricing applies. LIMIT in a preview does not limit bytes scanned."
+        ),
       keyFile: z
         .string()
         .describe(
@@ -1035,12 +1048,13 @@ export const coreDestinations: DestinationType<any>[] = [
   {
     id: "facebook-conversions",
     icon: facebookIcon,
-    title: "Facebook Conversions API",
+    title: "Meta Ads (Facebook & Instagram)",
     tags: "Product Analytics",
     connectionOptions: CloudDestinationsConnectionOptions,
     credentials: meta.FacebookConversionApiCredentials,
     credentialsUi: meta.FacebookConversionApiCredentialsUi,
-    description: "Facebook Conversion API is a tool for sending events to Facebook Ads Manager.",
+    description:
+      "Send conversions to Meta or sync warehouse models to Facebook and Instagram Custom Audiences through Reverse ETL.",
   },
   {
     id: "google-ads",

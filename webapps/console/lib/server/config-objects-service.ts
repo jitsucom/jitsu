@@ -8,14 +8,49 @@ import { getCoreDestinationTypeNonStrict, MASKED_SECRET } from "../schema/destin
 import { verifyAccess, verifyAccessWithRole } from "../api";
 import { prepareZodObjectForDeserialization } from "../zod";
 import { ApiError } from "../shared/errors";
+import { assertCustomDomainsAllowed, assertIdentityStitchingAllowed } from "./plan-gate";
 import { configObjectAuditLog } from "./audit-log";
 import { productTelemetryEnabled, trackTelemetryEvent, withProductAnalytics } from "./telemetry";
 import { scheduleSync, validateSyncSchedule } from "./sync";
-import { getEeConnection, isEEAvailable, serviceTokenHeaders } from "./ee";
+import { getEeServerConnection, isEEAvailable, serviceTokenHeaders } from "./ee";
 import { omitDeletedList } from "./omit-deleted";
 import { getServerLog } from "./log";
+import {
+  guardModelReferences,
+  guardReverseDeliveryChanges,
+  validateModelForSave,
+  modelMutation,
+  recheckModelWarehouse,
+} from "./reverse-etl-models";
+import { supportsWarehouseReader } from "@jitsu/warehouse-query/src/schema";
 
 const log = getServerLog("config-objects-service");
+
+function missingMetaEventPixel(config: any): boolean {
+  return (
+    config?.destinationType === "facebook-conversions" && (typeof config.pixelId !== "string" || !config.pixelId.trim())
+  );
+}
+
+const metaEventPixelError = () =>
+  new ApiError("Meta event connections require a Pixel / Dataset ID on the destination", { status: 400 });
+
+function eventDestinationError(config: any): ApiError | undefined {
+  if (missingMetaEventPixel(config)) return metaEventPixelError();
+  if (
+    config?.destinationType === "google-ads" &&
+    !config.conversionActionId?.trim() &&
+    !config.conversionActions?.some((value: unknown) => {
+      if (typeof value !== "string") return false;
+      const equals = value.indexOf("=");
+      return equals > 0 && !!value.slice(0, equals).trim() && /^\d+$/.test(value.slice(equals + 1).trim());
+    })
+  )
+    return new ApiError(
+      "Google Ads event connections require a default Conversion Action ID or per-event conversion actions",
+      { status: 400 }
+    );
+}
 
 export interface ConfigObjectsServiceDeps {
   prisma: PrismaClient;
@@ -142,6 +177,7 @@ export class ConfigObjectsService {
   /** Backs `config/[type]/index.ts` GET. */
   async list(user: SessionUser, workspaceId: string, type: string): Promise<any[]> {
     await verifyAccess(user, workspaceId);
+    // Reading existing models remains available for cleanup when rollout is off.
     this.assertKnownType(type);
     const configObjectType = getConfigObjectType(type);
     const objects = await this.prisma.configurationObject.findMany({
@@ -209,14 +245,23 @@ export class ConfigObjectsService {
         }
       }
     }
+    // JITSU-228: *before* inputFilter, not after. The stream filter calls
+    // checkOrAddToIngress() for every submitted domain, which provisions it —
+    // so gating afterwards returns 403 to the caller while the externally
+    // visible side effect has already happened. Nothing is lost by checking
+    // first: domainsOf() trims and lowercases exactly as the filter does.
+    await assertCustomDomainsAllowed(user, workspace, type, object, undefined, opts.req);
     object = await configObjectType.inputFilter(object, "create", workspace);
+    const inspectedWarehouse =
+      type === "model" ? await validateModelForSave(this.prisma, workspaceId, object) : undefined;
     const id = object.id;
     delete object.id;
     delete object.workspaceId;
     delete object.cloneId;
 
-    const created = await this.prisma.configurationObject.create({
-      data: { id, workspaceId, config: object, type },
+    const created = await modelMutation(this.prisma, workspaceId, type, async tx => {
+      if (type === "model") await recheckModelWarehouse(tx, workspaceId, object.warehouseId, inspectedWarehouse);
+      return tx.configurationObject.create({ data: { id, workspaceId, config: object, type } });
     });
 
     if (["destination", "service"].includes(type)) {
@@ -259,7 +304,7 @@ export class ConfigObjectsService {
       // eeRpc call in ConfigEditor). Best-effort: the hourly backup-retention-sync
       // job on ee-api is the backstop, so a failure must not fail stream creation.
       try {
-        await rpc(`${getEeConnection().host}api/s3-init?workspaceId=${encodeURIComponent(workspaceId)}`, {
+        await rpc(`${getEeServerConnection().host}api/s3-init?workspaceId=${encodeURIComponent(workspaceId)}`, {
           method: "GET",
           headers: { "Content-Type": "application/json", ...serviceTokenHeaders() },
           // This await sits on the stream-creation response path; a hung
@@ -301,10 +346,45 @@ export class ConfigObjectsService {
     const prevVersion = deepCopy(object.config);
     const merged = await configObjectType.merge(object.config, { ...body, id, workspaceId });
     const parsed = parseObject(type, merged);
+    // JITSU-228: before inputFilter, for the same reason as in create — the
+    // filter provisions the domain in ingress before we have decided whether
+    // the caller may have it. Only a domain that is not already on the object
+    // is refused.
+    await assertCustomDomainsAllowed(user, workspace, type, parsed, prevVersion, opts.req);
     const filtered = await configObjectType.inputFilter(parsed, "update", workspace);
+    const inspectedWarehouse =
+      type === "model" ? await validateModelForSave(this.prisma, workspaceId, filtered) : undefined;
     delete filtered.id;
     delete filtered.workspaceId;
-    await this.prisma.configurationObject.update({ where: { id }, data: { config: filtered } });
+    await modelMutation(this.prisma, workspaceId, type, async tx => {
+      await guardReverseDeliveryChanges(tx, workspaceId, id, type);
+      if (type === "model") await recheckModelWarehouse(tx, workspaceId, filtered.warehouseId, inspectedWarehouse);
+      if (type === "destination") {
+        // merge() can mutate object.config, and another request may have updated
+        // the destination since we read it. Compare the row under the lock.
+        const current = await tx.configurationObject.findFirstOrThrow({
+          where: { id, workspaceId, type, deleted: false },
+        });
+        if (
+          eventDestinationError(filtered) &&
+          (await tx.configurationObjectLink.count({
+            where: { workspaceId, toId: id, deleted: false, from: { type: "stream" } },
+          })) > 0
+        ) {
+          throw eventDestinationError(filtered)!;
+        }
+        if (
+          !supportsWarehouseReader(filtered) ||
+          filtered.destinationType !== (current.config as any).destinationType
+        ) {
+          await guardModelReferences(tx, workspaceId, id, type);
+        }
+      }
+      await tx.configurationObject.update({
+        where: { id, workspaceId, type, deleted: false },
+        data: { config: filtered },
+      });
+    });
     await trackTelemetryEvent("config-object-update", { objectType: type });
     // Emit for HTTP and MCP callers alike; origin (ui/api/cli/mcp) is stamped by withProductAnalytics.
     await withProductAnalytics(p => p.track("update_object", objectAnalyticsProps(type, id, filtered)), {
@@ -332,11 +412,15 @@ export class ConfigObjectsService {
     if (!object) {
       return null;
     }
+    // Rollout flags gate use, not cleanup. Roles and live references still apply.
     const configObjectType = getConfigObjectType(type);
-    if (configObjectType.onDelete) {
-      await configObjectType.onDelete(object, { strict: opts.strict === true, cascade: opts.cascade === true });
-    }
-    await this.prisma.configurationObject.update({ where: { id: object.id }, data: { deleted: true } });
+    await modelMutation(this.prisma, workspaceId, type, async tx => {
+      await guardModelReferences(tx, workspaceId, id, type);
+      if (configObjectType.onDelete) {
+        await configObjectType.onDelete(object, { strict: opts.strict === true, cascade: opts.cascade === true });
+      }
+      await tx.configurationObject.update({ where: { id: object.id }, data: { deleted: true } });
+    });
     await trackTelemetryEvent("config-object-delete", { objectType: type });
     // Emit for HTTP and MCP callers alike (origin is stamped by withProductAnalytics).
     // delete() doesn't otherwise load the workspace — fetch it only when telemetry is on
@@ -427,6 +511,11 @@ export class ConfigObjectsService {
   ): Promise<{ id: string; created: boolean }> {
     const { id, toId, fromId, data = undefined, type = "push" } = body;
     await verifyAccessWithRole(user, workspaceId, "editEntities");
+    if (type === "reverse-sync") {
+      throw new ApiError("Reverse sync execution is not available yet; models can be created and previewed", {
+        status: 400,
+      });
+    }
 
     if (type === "sync" && data) {
       try {
@@ -451,6 +540,9 @@ export class ConfigObjectsService {
     if (!id && existingLink) {
       throw new ApiError(`Link from '${fromId}' to '${toId}' already exists`, { status: 400 });
     }
+    if (existingLink?.type === "reverse-sync") {
+      throw new ApiError("Use the Reverse ETL sync endpoint to change this connection", { status: 400 });
+    }
 
     const co = this.prisma.configurationObject;
     if (!(await co.findFirst({ where: { workspaceId, type: fromType, id: fromId, deleted: false } }))) {
@@ -464,12 +556,17 @@ export class ConfigObjectsService {
       });
     }
 
+    // JITSU-228: refuse switching Identity Stitching on without the entitlement.
+    await assertIdentityStitchingAllowed(user, workspaceId, data, existingLink?.data, opts.req);
+
     let createdOrUpdated: any;
     if (existingLink) {
-      createdOrUpdated = await this.prisma.configurationObjectLink.update({
-        where: { id: existingLink.id },
-        data: { data, deleted: false, workspaceId },
-      });
+      createdOrUpdated = await this.mutateEventLink(workspaceId, existingLink.toId, existingLink.type ?? "push", tx =>
+        tx.configurationObjectLink.update({
+          where: { id: existingLink.id },
+          data: { data, deleted: false, workspaceId },
+        })
+      );
       await configObjectAuditLog(
         user,
         workspaceId,
@@ -480,16 +577,20 @@ export class ConfigObjectsService {
         opts.req
       );
     } else {
-      createdOrUpdated = await this.prisma.configurationObjectLink.create({
-        data: {
-          id: `${workspaceId}-${fromId.substring(fromId.length - 4)}-${toId.substring(toId.length - 4)}-${randomId(6)}`,
-          workspaceId,
-          fromId,
-          toId,
-          data,
-          type,
-        },
-      });
+      createdOrUpdated = await this.mutateEventLink(workspaceId, toId, type, tx =>
+        tx.configurationObjectLink.create({
+          data: {
+            id: `${workspaceId}-${fromId.substring(fromId.length - 4)}-${toId.substring(toId.length - 4)}-${randomId(
+              6
+            )}`,
+            workspaceId,
+            fromId,
+            toId,
+            data,
+            type,
+          },
+        })
+      );
       await configObjectAuditLog(
         user,
         workspaceId,
@@ -537,6 +638,9 @@ export class ConfigObjectsService {
     // delete + create). Reject a mismatched patch.type rather than validate against one
     // type and persist another.
     const type = existing.type ?? "push";
+    if (type === "reverse-sync") {
+      throw new ApiError("Use the Reverse ETL sync endpoint to change this connection", { status: 400 });
+    }
     if (patch.type && patch.type !== type) {
       throw new ApiError(`connection ${id} is '${type}'; its type can't be changed to '${patch.type}'`, {
         status: 400,
@@ -551,7 +655,11 @@ export class ConfigObjectsService {
       }
     }
     await this.validateLinkData(workspaceId, type, existing.toId, data);
-    const updated = await this.prisma.configurationObjectLink.update({ where: { id: existing.id }, data: { data } });
+    // JITSU-228: a connection that already has it keeps it; only turning it on is gated.
+    await assertIdentityStitchingAllowed(user, workspaceId, data, existing.data, opts.req);
+    const updated = await this.mutateEventLink(workspaceId, existing.toId, type, tx =>
+      tx.configurationObjectLink.update({ where: { id: existing.id }, data: { data } })
+    );
     await configObjectAuditLog(
       user,
       workspaceId,
@@ -562,6 +670,29 @@ export class ConfigObjectsService {
       opts.req
     );
     return { id: updated.id, updated: true };
+  }
+
+  /**
+   * Check event credentials even without strict/options validation. Share the destination
+   * mutation lock so creating a connection cannot race with removing its pixel ID.
+   * Audit/telemetry and network calls stay outside this short transaction.
+   */
+  private async mutateEventLink<T>(
+    workspaceId: string,
+    toId: string,
+    type: string,
+    write: (db: Pick<PrismaClient, "configurationObjectLink">) => Promise<T>
+  ): Promise<T> {
+    if (type === "sync") return write(this.prisma);
+    return modelMutation(this.prisma, workspaceId, "destination", async tx => {
+      const destination = await tx.configurationObject.findFirst({
+        where: { workspaceId, id: toId, type: "destination", deleted: false },
+      });
+      if (!destination) throw new ApiError("Destination not found", { status: 400 });
+      const error = eventDestinationError(destination.config);
+      if (error) throw error;
+      return write(tx);
+    });
   }
 
   /** Validate connection `data` against the destination's connection options / sync schema. No-op if undefined. */
@@ -605,6 +736,20 @@ export class ConfigObjectsService {
   ): Promise<{ deleted: boolean }> {
     const { id, fromId, toId } = sel;
     await verifyAccessWithRole(user, workspaceId, "deleteEntities");
+    if (
+      await this.prisma.configurationObjectLink.count({
+        where: {
+          workspaceId,
+          deleted: false,
+          type: "reverse-sync",
+          ...(id ? { id } : fromId && toId ? { fromId, toId } : { id: "" }),
+        },
+      })
+    ) {
+      throw new ApiError("Use the Reverse ETL sync endpoint to pause and delete this connection safely", {
+        status: 400,
+      });
+    }
     if (id) {
       if (fromId || toId) {
         throw new ApiError("You can't specify 'fromId' or 'toId' with 'id'", { status: 400 });

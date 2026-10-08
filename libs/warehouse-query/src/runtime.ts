@@ -1,0 +1,50 @@
+import { z } from "zod";
+import { ModelDefinition, ReverseSyncOptions, validateReverseSyncModel } from "./schema";
+
+/** Versioned console -> syncctl Secret -> Node contract. Credentials stay in Secrets. */
+export const ReverseRunConfig = z
+  .object({
+    version: z.literal(1),
+    kind: z.literal("reverse"),
+    id: z.string().regex(/^[a-zA-Z0-9_-]{1,128}$/),
+    workspaceId: z.string().min(1).max(128),
+    fromId: z.string().min(1),
+    toId: z.string().min(1),
+    configRevision: z.string().regex(/^[a-f0-9]{64}$/),
+    updatedAt: z.string().datetime(),
+    schedule: z.string().optional(),
+    timezone: z.string().default("Etc/UTC"),
+    model: ModelDefinition,
+    warehouse: z.record(z.unknown()),
+    destination: z.record(z.unknown()),
+    options: ReverseSyncOptions,
+    /**
+     * Bucket for the stored batch data (the only artifact that carries full rows), whose lifecycle rule enforces the
+     * workspace's retention. Optional and outside the revision hash: a run without it behaves exactly as before.
+     */
+    retention: z
+      .object({ bucket: z.string().regex(/^jitsu-retl-[a-z0-9][a-z0-9._-]{0,51}$/) })
+      .strict()
+      .optional(),
+  })
+  .strict()
+  .superRefine((value, ctx) => {
+    // The runner uses shared deployment credentials, so the bucket must be this run's own workspace's: a bad control-plane
+    // value must not be able to store one workspace's rows in another workspace's retention bucket.
+    if (value.retention && value.retention.bucket !== `jitsu-retl-${value.workspaceId}`) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["retention", "bucket"],
+        message: "The retention bucket must be the run's own workspace's bucket",
+      });
+    }
+    try {
+      validateReverseSyncModel(value.model, value.options);
+      if (value.options.mode === "mirror" && value.model.deleteColumn)
+        throw new Error("Mirror uses full membership, not tombstones");
+      // Paused configs may resume saved delivery; admission must prohibit new extraction.
+    } catch {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Invalid reverse run configuration" });
+    }
+  });
+export type ReverseRunConfig = z.infer<typeof ReverseRunConfig>;

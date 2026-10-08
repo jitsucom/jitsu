@@ -1,0 +1,16 @@
+# Test-only build of RELEASE.2025-09-07T16-13-09Z. Upstream's prebuilt
+# images are no longer publicly pullable. Pin both source and build inputs.
+FROM golang:1.26.8-bookworm@sha256:a688600ca24f8a4d3ca77f95b0dd40704a9fc787c826660eb7ba0b641b8b175d AS build
+WORKDIR /src
+RUN curl -fsSL --retry 3 https://codeload.github.com/minio/minio/tar.gz/07c3a429bfed433e49018cb0f78a52145d4bedeb -o /tmp/minio.tar.gz \
+    && echo '8819e3e7817e46b7b3798f8f200ead208562e571563c2e040352378031abe9f2  /tmp/minio.tar.gz' | sha256sum -c - \
+    && tar -xzf /tmp/minio.tar.gz --strip-components=1 \
+    && rm /tmp/minio.tar.gz
+RUN CGO_ENABLED=0 go build -mod=readonly -trimpath -o /minio .
+
+FROM alpine:3.22@sha256:5291449c3df73caf6ed85e649dec1b9e818b39a5d8c871e97afc13e9cd5e8fa8
+COPY --from=build /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/ca-certificates.crt
+COPY --from=build /src/LICENSE /licenses/minio/LICENSE
+COPY --from=build /minio /usr/bin/minio
+EXPOSE 9000
+ENTRYPOINT ["/usr/bin/minio"]

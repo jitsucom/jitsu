@@ -214,7 +214,7 @@ func (ps *AbstractFileStorageStream) flushBatchFile(ctx context.Context) (err er
 		}
 		if len(ps.batchFileSkipLines) > 0 || needToConvert {
 			var writer io.WriteCloser
-			var gzipWriter io.WriteCloser
+			var compressWriter io.WriteCloser
 			workingFile, err = os.CreateTemp("", path.Base(ps.batchFile.Name())+"_2")
 			if err != nil {
 				return errorj.Decorate(err, "failed to create tmp file for deduplication")
@@ -232,10 +232,23 @@ func (ps *AbstractFileStorageStream) flushBatchFile(ctx context.Context) (err er
 					return errorj.Decorate(err, "failed to write header for converted batch file")
 				}
 			} else {
-				if ps.targetMarshaller.Compression() == types2.FileCompressionGZIP {
-					gzipWriter = gzip.NewWriter(writer)
-					writer = gzipWriter
-					defer func() { _ = gzipWriter.Close() }()
+				// Deliberate asymmetry: gzip here stays on stdlib compress/gzip at
+				// its default level. This site was not part of the klauspost swap,
+				// and routing it through the shared helper would change existing
+				// gzip output as a side effect of adding zstd.
+				switch ps.targetMarshaller.Compression() {
+				case types2.FileCompressionGZIP:
+					compressWriter = gzip.NewWriter(writer)
+					writer = compressWriter
+					defer func() { _ = compressWriter.Close() }()
+				case types2.FileCompressionZSTD:
+					zstdWriter, err := types2.NewArchiveZstdWriter(writer)
+					if err != nil {
+						return err
+					}
+					compressWriter = zstdWriter
+					writer = zstdWriter
+					defer func() { _ = zstdWriter.Close() }()
 				}
 			}
 			file, err := os.Open(ps.batchFile.Name())
@@ -274,8 +287,8 @@ func (ps *AbstractFileStorageStream) flushBatchFile(ctx context.Context) (err er
 				return errorj.Decorate(err, "failed to read batch file")
 			}
 			_ = ps.targetMarshaller.Flush()
-			if gzipWriter != nil {
-				_ = gzipWriter.Close()
+			if compressWriter != nil {
+				_ = compressWriter.Close()
 			}
 			_ = workingFile.Sync()
 		}

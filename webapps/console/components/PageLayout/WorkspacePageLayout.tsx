@@ -43,12 +43,12 @@ import {
 import { NextRouter, useRouter } from "next/router";
 import Link from "next/link";
 import { getDomains, useAppConfig, useUser, useUserSessionControls, useWorkspace } from "../../lib/context";
-import { useApi } from "../../lib/useApi";
-import { useQueryClient } from "@tanstack/react-query";
+import { useApi, useConfigApi } from "../../lib/useApi";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { Overlay } from "../Overlay/Overlay";
 import { WorkspaceNameAndSlugEditor } from "../WorkspaceNameAndSlugEditor/WorkspaceNameAndSlugEditor";
-import { getLog } from "juava";
+import { getLog, rpc } from "juava";
 import classNames from "classnames";
 import { BillingBanners } from "../Billing/BillingBanners";
 import { useJitsu } from "@jitsu/jitsu-react";
@@ -448,6 +448,21 @@ const UserProfileButton: React.FC<{}> = () => {
 function PageHeader() {
   const appConfig = useAppConfig();
   const workspace = useWorkspace();
+  const reverseEtlEnabled = workspace.featuresEnabled?.includes("reverse-etl");
+  const modelsApi = useConfigApi("model");
+  // Share the Models page's cache to keep cleanup reachable while models exist.
+  const cleanupModels = useQuery({
+    queryKey: ["reverse-etl-models", workspace.id],
+    queryFn: () => modelsApi.list(),
+    enabled: !reverseEtlEnabled,
+    staleTime: 60_000,
+  });
+  const cleanupSyncs = useQuery({
+    queryKey: ["reverse-etl-cleanup-syncs", workspace.id],
+    queryFn: async (): Promise<unknown[]> => rpc(`/api/${workspace.id}/reverse-etl/syncs`),
+    enabled: !reverseEtlEnabled,
+    staleTime: 60_000,
+  });
   const items: (TabsMenuItem | TabsMenuGroup | undefined | false)[] = [
     { title: "Overview", path: "/", aliases: "/overview", icon: <LayoutDashboard className="w-full h-full" /> },
     {
@@ -472,6 +487,15 @@ function PageHeader() {
       title: "Customers",
       icon: <User className="w-full h-full" />,
       items: [{ title: "Profile Builder", path: "/profile-builder", icon: <UserRoundPen className="w-full h-full" /> }],
+    },
+    (reverseEtlEnabled || !!cleanupModels.data?.length || !!cleanupSyncs.data?.length) && {
+      title: "Reverse ETL",
+      icon: <Share2 className="w-full h-full" />,
+      items: [
+        { title: "Models", path: "/models", icon: <SearchCode className="w-full h-full" /> },
+        { title: "Syncs", path: "/reverse-syncs", icon: <Share2 className="w-full h-full" /> },
+        { title: "All Logs", path: "/reverse-syncs/tasks", icon: <ScrollText className="w-full h-full" /> },
+      ],
     },
     { title: "Functions", path: "/functions", icon: <FunctionSquare className="w-full h-full" /> },
     { title: "Destinations", path: "/destinations", icon: <Server className="w-full h-full" /> },

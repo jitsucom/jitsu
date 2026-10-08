@@ -16,7 +16,8 @@ import {
 } from "../shared/data-retention";
 import { workspaceAuditLog } from "./audit-log";
 import { withProductAnalytics } from "./telemetry";
-import { eeAuthHeadersOrServiceToken, getEeConnection, isEEAvailable, serviceTokenHeaders } from "./ee";
+import { provisionRetlBucketViaEe } from "./reverse-retention";
+import { eeAuthHeadersOrServiceToken, getEeServerConnection, isEEAvailable, serviceTokenHeaders } from "./ee";
 
 const log = getLog("backup-retention");
 
@@ -30,6 +31,8 @@ export type BackupRetentionServiceDeps = {
   verifyCapDays: (workspaceId: string, user: SessionUser, req?: NextApiRequest) => Promise<number>;
   /** Apply the new lifecycle rule to the bucket now (best-effort). */
   applyRetentionNow: (workspaceId: string) => Promise<void>;
+  /** Update the Reverse ETL retention bucket now (best-effort), for workspaces with Reverse ETL. */
+  applyReverseEtlRetentionNow: (workspaceId: string) => Promise<void>;
 };
 
 const PLAN_UNVERIFIED = "Could not verify your subscription plan. Please try again in a few minutes.";
@@ -47,7 +50,7 @@ export async function verifyCapDaysViaEe(
   // that fails the BillingSettings parse — is the same outcome for the
   // caller: the plan is unverified, 503.
   try {
-    const settings: any = await rpc(`${getEeConnection().host}api/billing/settings`, {
+    const settings: any = await rpc(`${getEeServerConnection().host}api/billing/settings`, {
       method: "GET",
       query: { workspaceId, email: user.email },
       headers: {
@@ -78,7 +81,7 @@ export async function applyRetentionNowViaEe(workspaceId: string): Promise<void>
     return;
   }
   try {
-    await rpc(`${getEeConnection().host}api/s3-init?workspaceId=${encodeURIComponent(workspaceId)}`, {
+    await rpc(`${getEeServerConnection().host}api/s3-init?workspaceId=${encodeURIComponent(workspaceId)}`, {
       method: "GET",
       headers: { "Content-Type": "application/json", ...serviceTokenHeaders() },
       signal: AbortSignal.timeout(5_000),
@@ -104,6 +107,7 @@ export class BackupRetentionService {
       prisma: deps.prisma ?? db.prisma(),
       verifyCapDays: deps.verifyCapDays ?? verifyCapDaysViaEe,
       applyRetentionNow: deps.applyRetentionNow ?? applyRetentionNowViaEe,
+      applyReverseEtlRetentionNow: deps.applyReverseEtlRetentionNow ?? provisionRetlBucketViaEe,
     };
   }
 
@@ -255,6 +259,9 @@ export class BackupRetentionService {
     );
     if (retentionHours > 0) {
       await this.deps.applyRetentionNow(workspace.id);
+      if (workspace.featuresEnabled.includes("reverse-etl")) {
+        await this.deps.applyReverseEtlRetentionNow(workspace.id);
+      }
     }
     return next;
   }

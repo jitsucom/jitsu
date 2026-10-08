@@ -8,6 +8,7 @@ import {
   DestinationConfig,
   FunctionConfig,
   MiscEntity,
+  ModelConfig,
   NotificationChannel,
   ServiceConfig,
   StreamConfig,
@@ -148,6 +149,17 @@ export const getConfigObjectType: (type: string) => Required<ConfigObjectType> =
 };
 
 const configObjectTypes: Record<string, ConfigObjectType> = {
+  model: {
+    schema: ModelConfig,
+    // Preserve explicit replacement/clearing of optional cursor/delete fields.
+    merge: async (original, patch) => {
+      const merged = { ...original, ...patch };
+      // JSON null is the API's explicit clearing operation for optional fields.
+      if (merged.cursor === null) delete merged.cursor;
+      if (merged.deleteColumn === null) delete merged.deleteColumn;
+      return merged;
+    },
+  },
   destination: {
     schema: DestinationConfig,
     outputFilter: async (obj: DestinationConfig) => {

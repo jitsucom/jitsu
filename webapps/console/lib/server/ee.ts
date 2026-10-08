@@ -59,8 +59,23 @@ export function getEeConnection(): EeConnection {
     throw new Error("EE is not available");
   }
   const raw = requireDefined(getServerEnv().EE_CONNECTION, `env EE_CONNECTION is not set. Call isEEAvailable()`);
+  return parseEeConnection(raw);
+}
+
+/** Server-only billing URL; never advertise this address in app-config. */
+export function getEeServerConnection(): EeConnection {
+  if (!isEEAvailable()) {
+    throw new Error("EE is not available");
+  }
+  const internal = getServerEnv().EE_CONNECTION_INTERNAL;
+  return internal ? parseEeConnection(internal) : getEeConnection();
+}
+
+function parseEeConnection(raw: string): EeConnection {
   const url = new URL(expandEnvTemplate(raw));
   url.search = "";
+  url.hash = "";
+  url.pathname = `${url.pathname.replace(/\/+$/, "")}/`;
   return { host: url.toString() };
 }
 
@@ -106,7 +121,7 @@ export async function onUserCreated(opts: { email: string; name?: string }) {
   if (!isEEAvailable()) {
     return;
   }
-  const { host } = getEeConnection();
+  const { host } = getEeServerConnection();
   try {
     await rpc(`${host}api/user-created`, {
       method: "POST",

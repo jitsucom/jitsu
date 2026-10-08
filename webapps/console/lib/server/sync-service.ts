@@ -148,6 +148,7 @@ export class SyncService {
           workspaceId,
           syncId: opts.syncId,
           taskId: opts.taskId,
+          ...(sync.type === "reverse-sync" ? { kind: "reverse" } : {}),
           package: (sync.from?.config as any)?.package ?? "",
         },
       });

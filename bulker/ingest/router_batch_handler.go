@@ -1,7 +1,6 @@
 package main
 
 import (
-	"compress/gzip"
 	"fmt"
 	"math"
 	"net/http"
@@ -17,6 +16,9 @@ import (
 	"github.com/jitsucom/bulker/jitsubase/types"
 	"github.com/jitsucom/bulker/jitsubase/utils"
 	"github.com/jitsucom/bulker/jitsubase/uuid"
+	// Drop-in for compress/gzip: identical API, standard gzip output, ~33% cheaper
+	// to decode. Reads whatever a client sent, same as before.
+	"github.com/klauspost/compress/gzip"
 )
 
 // significantClockSkew is the minimum |receivedAt - sentAt| below which we

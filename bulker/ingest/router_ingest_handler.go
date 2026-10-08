@@ -1,7 +1,6 @@
 package main
 
 import (
-	"compress/gzip"
 	"fmt"
 	"io"
 	"net/http"
@@ -16,6 +15,9 @@ import (
 	"github.com/jitsucom/bulker/jitsubase/types"
 	"github.com/jitsucom/bulker/jitsubase/utils"
 	"github.com/jitsucom/bulker/jitsubase/uuid"
+	// Drop-in for compress/gzip: emits standard gzip, so responses stay
+	// readable by any client.
+	"github.com/klauspost/compress/gzip"
 )
 
 func (r *Router) IngestHandler(c *gin.Context) {

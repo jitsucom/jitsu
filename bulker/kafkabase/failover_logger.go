@@ -16,8 +16,10 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/confluentinc/confluent-kafka-go/v2/kafka"
 	"github.com/jitsucom/bulker/jitsubase/appbase"
+	"github.com/jitsucom/bulker/jitsubase/compression"
 	"github.com/jitsucom/bulker/jitsubase/safego"
 	"github.com/jitsucom/bulker/jitsubase/utils"
+	"github.com/klauspost/compress/zstd"
 )
 
 // FailoverDestination represents where to store rotated logs
@@ -65,11 +67,10 @@ func (l *LocalFileDestination) Store(filePath string) error {
 }
 
 func (l *LocalFileDestination) cleanupOldFiles() error {
-	// Look for both compressed and uncompressed failover files
-	patterns := []string{
-		filepath.Join(l.basePath, "*.ndjson.gz"),
-		filepath.Join(l.basePath, "*.ndjson"),
-	}
+	// Every form we may have written, uncompressed and each compression suffix.
+	// Enumerated from the shared list rather than by hand: a suffix missing here
+	// means those files are never cleaned up, and local disk grows without bound.
+	patterns := compression.Globs(l.basePath, "*.ndjson")
 
 	var allFiles []string
 	for _, pattern := range patterns {
@@ -170,6 +171,8 @@ type FailoverLoggerConfig struct {
 	MaxSize          int64 // Max size in bytes
 	Destinations     []FailoverDestination
 	CompressOnRotate bool
+	// "gzip" (default) or "zstd". Anything else falls back to gzip.
+	CompressionCodec string
 }
 
 // FailoverLogger handles failed Kafka messages
@@ -376,7 +379,7 @@ func (f *FailoverLogger) processRotatedFile(rotatedPath string) {
 	// Compress if needed
 	finalPath := rotatedPath
 	if f.config.CompressOnRotate {
-		compressedPath := rotatedPath + ".gz"
+		compressedPath := rotatedPath + f.compressionSuffix()
 		if err := f.compressFile(rotatedPath, compressedPath); err != nil {
 			f.Errorf("Failed to compress file: %v", err)
 			return
@@ -394,6 +397,19 @@ func (f *FailoverLogger) processRotatedFile(rotatedPath string) {
 	}
 }
 
+// compressionSuffix is the suffix for the configured codec. It must agree with
+// compressFile: a file compressed with one codec and named for another is not
+// merely mislabelled, it is invisible to the discovery filters in admin and to
+// cleanup here.
+func (f *FailoverLogger) compressionSuffix() string {
+	if f.config.CompressionCodec == codecZstd {
+		return compression.SuffixZstd
+	}
+	return compression.SuffixGzip
+}
+
+const codecZstd = "zstd"
+
 func (f *FailoverLogger) compressFile(src, dst string) error {
 	srcFile, err := os.Open(src)
 	if err != nil {
@@ -407,14 +423,26 @@ func (f *FailoverLogger) compressFile(src, dst string) error {
 	}
 	defer dstFile.Close()
 
-	gzWriter := gzip.NewWriter(dstFile)
-	defer gzWriter.Close()
+	var writer io.WriteCloser
+	if f.config.CompressionCodec == codecZstd {
+		// SpeedDefault: failover files are write-once-read-once and then deleted.
+		enc, err := zstd.NewWriter(dstFile,
+			zstd.WithEncoderLevel(zstd.SpeedDefault),
+			zstd.WithEncoderConcurrency(1))
+		if err != nil {
+			return err
+		}
+		writer = enc
+	} else {
+		writer = gzip.NewWriter(dstFile)
+	}
 
-	if _, err := io.Copy(gzWriter, srcFile); err != nil {
+	if _, err := io.Copy(writer, srcFile); err != nil {
+		_ = writer.Close()
 		return err
 	}
 
-	return nil
+	return writer.Close()
 }
 
 func (f *FailoverLogger) openNewFile() error {

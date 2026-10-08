@@ -17,6 +17,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/jitsucom/bulker/jitsubase/appbase"
+	"github.com/jitsucom/bulker/jitsubase/compression"
 	"github.com/jitsucom/bulker/jitsubase/uuid"
 	"google.golang.org/api/iterator"
 )
@@ -675,7 +676,7 @@ func (m *ReprocessingJobManager) listS3Files(ctx context.Context, s3Path string)
 
 		for _, obj := range page.Contents {
 			key := *obj.Key
-			if strings.HasSuffix(key, ".ndjson") || strings.HasSuffix(key, ".ndjson.gz") {
+			if compression.Matches(key, ".ndjson") {
 				files = append(files, FileItem{
 					Path:         fmt.Sprintf("s3://%s/%s", bucket, key),
 					Size:         *obj.Size,
@@ -717,7 +718,7 @@ func (m *ReprocessingJobManager) listGCSFiles(ctx context.Context, gcsPath strin
 		if err != nil {
 			return nil, err
 		}
-		if strings.HasSuffix(attrs.Name, ".ndjson") || strings.HasSuffix(attrs.Name, ".ndjson.gz") {
+		if compression.Matches(attrs.Name, ".ndjson") {
 			files = append(files, FileItem{
 				Path:         fmt.Sprintf("gs://%s/%s", bucket, attrs.Name),
 				Size:         attrs.Size,
@@ -761,8 +762,8 @@ func (m *ReprocessingJobManager) listLocalFiles(localPath string) ([]FileItem, e
 			return nil
 		}
 
-		// Only include ndjson and ndjson.gz files
-		if strings.HasSuffix(path, ".ndjson") || strings.HasSuffix(path, ".ndjson.gz") {
+		// Any ndjson file, compressed or not
+		if compression.Matches(path, ".ndjson") {
 			files = append(files, FileItem{
 				Path:         path,
 				Size:         info.Size(),

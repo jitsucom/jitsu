@@ -1,8 +1,12 @@
 package testcontainers
 
 import (
+	"archive/tar"
+	"bytes"
 	"context"
+	_ "embed"
 	"fmt"
+	"os"
 
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/credentials"
@@ -14,6 +18,9 @@ import (
 	"github.com/testcontainers/testcontainers-go"
 	tcWait "github.com/testcontainers/testcontainers-go/wait"
 )
+
+//go:embed Dockerfile.minio
+var minioDockerfile []byte
 
 const (
 	minioAccessKey = "test_minio_access_key"
@@ -39,9 +46,27 @@ func NewMinioContainer(ctx context.Context, bucketName string) (*MinioContainer,
 
 	hostPort := fmt.Sprintf("%d", utils.GetPort())
 
+	// Embed the build context so tests also work from a compiled test binary.
+	// Docker caches the source build locally; no private image registry is needed.
+	var buildContext bytes.Buffer
+	tw := tar.NewWriter(&buildContext)
+	if err := tw.WriteHeader(&tar.Header{Name: "Dockerfile", Mode: 0644, Size: int64(len(minioDockerfile))}); err != nil {
+		return nil, err
+	}
+	if _, err := tw.Write(minioDockerfile); err != nil {
+		return nil, err
+	}
+	if err := tw.Close(); err != nil {
+		return nil, err
+	}
+
 	container, err := testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
 		ContainerRequest: testcontainers.ContainerRequest{
-			Image:        "minio/minio:latest",
+			FromDockerfile: testcontainers.FromDockerfile{
+				ContextArchive: bytes.NewReader(buildContext.Bytes()),
+				KeepImage:      true,
+				BuildLogWriter: os.Stdout,
+			},
 			Cmd:          []string{"server", "/data"},
 			ExposedPorts: []string{"9000/tcp"},
 			HostConfigModifier: func(hc *container.HostConfig) {

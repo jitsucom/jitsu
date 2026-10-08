@@ -1,5 +1,6 @@
 import { createRoute, verifyAdmin } from "../../../../../lib/api";
 import { db } from "../../../../../lib/server/db";
+import { exportReverseSyncs } from "../../../../../lib/server/reverse-sync-export";
 import { getErrorMessage, getLog, hash as juavaHash, isTruish, requireDefined, rpc } from "juava";
 import { z } from "zod";
 import { getCoreDestinationTypeNonStrict } from "../../../../../lib/schema/destinations";
@@ -9,7 +10,7 @@ import {
   RotorConnectionRow,
   RotorDestinationRow,
 } from "../../../../../lib/schema/export-contracts";
-import { getEeConnection, isEEAvailable, serviceTokenHeaders } from "../../../../../lib/server/ee";
+import { getEeServerConnection, isEEAvailable, serviceTokenHeaders } from "../../../../../lib/server/ee";
 import omit from "lodash/omit";
 import { NextApiRequest } from "next";
 import hash from "object-hash";
@@ -349,7 +350,7 @@ async function exportBulkerConnections(writer: Writer) {
   //silently disarming archiving fleet-wide.
   let backupConnections: unknown[] = [];
   if (isEEAvailable()) {
-    const url = `${getEeConnection().host}api/s3-connections`;
+    const url = `${getEeServerConnection().host}api/s3-connections`;
     const response: unknown = await rpc(url, {
       method: "GET",
       headers: {
@@ -1528,6 +1529,11 @@ const exports: Export[] = [
     name: "syncs",
     lastModified: getLastUpdated,
     data: exportSyncs,
+  },
+  {
+    name: "reverse-syncs",
+    lastModified: getLastUpdated,
+    data: writer => exportReverseSyncs(db.prisma(), writer),
   },
 ];
 

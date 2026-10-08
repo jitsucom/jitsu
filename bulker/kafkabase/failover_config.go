@@ -26,6 +26,11 @@ type FailoverLoggerEnvConfig struct {
 	FailoverLoggerMaxSizeMB             int64 `mapstructure:"FAILOVER_LOGGER_MAX_SIZE_MB" default:"100"`
 	FailoverLoggerCompressOnRotate      bool  `mapstructure:"FAILOVER_LOGGER_COMPRESS" default:"true"`
 
+	// Codec used when compressing on rotate: "gzip" or "zstd".
+	// Defaults to gzip so deploying this changes nothing at runtime - the switch is
+	// an explicit config change, made only once every reader understands zstd.
+	FailoverLoggerCompressionCodec string `mapstructure:"FAILOVER_LOGGER_COMPRESSION_CODEC" default:"gzip"`
+
 	// Local destination settings
 	FailoverLoggerLocalMaxOldFiles int `mapstructure:"FAILOVER_LOGGER_LOCAL_MAX_OLD_FILES" default:"10"`
 
@@ -49,6 +54,7 @@ func (c *FailoverLoggerEnvConfig) ToFailoverLoggerConfig() (*FailoverLoggerConfi
 		RotationPeriod:   time.Duration(c.FailoverLoggerRotationPeriodMinutes) * time.Minute,
 		MaxSize:          c.FailoverLoggerMaxSizeMB * 1024 * 1024, // Convert MB to bytes
 		CompressOnRotate: c.FailoverLoggerCompressOnRotate,
+		CompressionCodec: c.FailoverLoggerCompressionCodec,
 		Destinations:     []FailoverDestination{},
 	}
 

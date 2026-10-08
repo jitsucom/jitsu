@@ -33,6 +33,23 @@ describe("buildRouteFragment", () => {
     expect(fragment.routes[0].request?.query).toBeUndefined();
   });
 
+  it("declares 403 on authenticated routes and omits it on open ones", () => {
+    const authed: StoredMethodSpec = {
+      auth: true,
+      query: z.object({ workspaceId: z.string() }),
+      result: z.object({ ok: z.boolean() }),
+      summary: "Create thing",
+      tags: ["thing"],
+    };
+    const open: StoredMethodSpec = { result: z.object({ ok: z.boolean() }), summary: "Ping", tags: ["meta"] };
+    const authedResponses = buildRouteFragment("/api/{workspaceId}/things", { POST: authed }).routes[0].responses;
+    expect(Object.keys(authedResponses)).toContain("403");
+    expect(Object.keys(authedResponses)).toContain("401");
+    const openResponses = buildRouteFragment("/api/ping", { GET: open }).routes[0].responses;
+    expect(Object.keys(openResponses)).not.toContain("403");
+    expect(Object.keys(openResponses)).not.toContain("401");
+  });
+
   it("emits N operations when expand has N values", () => {
     const types = ["destination", "stream", "function"];
     const spec: StoredMethodSpec = {

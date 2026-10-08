@@ -34,6 +34,27 @@ import {
 import * as dns from "node:dns";
 import * as net from "node:net";
 import NodeCache from "node-cache";
+// Node's global fetch uses whatever undici ships with the running Node version. On
+// Node 24 that's undici 7.x, which has a keepalive connection-pool regression
+// (nodejs/undici#5910): once a server responds with `Connection: close`, every
+// later request to that host opens a fresh connection instead of reusing the pool,
+// and the stale ones are never reclaimed. Under sustained load against destinations
+// that close connections, this leaks sockets over time (rotor's active Socket/TCP
+// handle counts climb for hours, only resetting on a pod restart). Fixed upstream
+// in 8.11.0 — import undici's own fetch, pinned to that floor, instead of relying
+// on whatever the Node runtime happens to bundle.
+import { fetch as undiciFetch, type RequestInit as UndiciRequestInit } from "undici";
+
+// This module also runs inside the Deno-based functions-server (UDF sandbox), which
+// monkey-patches globalThis.fetch with its own tuned connection pool (Deno.createHttpClient,
+// see functions-server.ts) for proxied UDF fetch calls — but only after its own top-level
+// code runs, which happens *after* this module is imported and evaluated. So the Deno check
+// itself is safe to do once here, but globalThis.fetch must be read fresh at call time below,
+// not captured into a module-level constant — capturing it here would grab the pre-wrap
+// native fetch and silently skip the pool configuration for the module's whole lifetime.
+const isDeno = typeof (globalThis as any).Deno !== "undefined";
+const platformFetch: typeof undiciFetch = (...args) =>
+  (isDeno ? (globalThis.fetch as unknown as typeof undiciFetch) : undiciFetch)(...args);
 
 const log = getLog("functions-context");
 
@@ -581,12 +602,12 @@ export const makeFetch = (
         e.name = "ThrottleError";
         throw e;
       }
-      const internalInit: RequestInit = {
+      const internalInit: UndiciRequestInit = {
         ...init,
         keepalive: true,
         signal: AbortSignal.timeout(fetchTimeoutMs),
       };
-      fetchResult = await fetch(url, internalInit);
+      fetchResult = await platformFetch(url, internalInit);
       throttle.success();
     } catch (err: any) {
       if (err.name === "TimeoutError") {

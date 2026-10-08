@@ -4,6 +4,7 @@ import { UserProfileDbModel, WorkspaceDbModel } from "../../prisma/schema";
 import { WorkspaceRolesZodType } from "../workspace-roles";
 import { ConfigApiDeleteOptions } from "../useApi";
 import { monthlyEventsQuota } from "../events-quota";
+import { ModelDefinition } from "@jitsu/warehouse-query/src/schema";
 
 export const SessionUser = z.object({
   name: z.string(),
@@ -147,6 +148,18 @@ const BillingSettingsShape = z.object({
   /** Live Events observability export (JITSU-138); comes from stripe plan
    * metadata via billing/settings, like the other per-feature flags */
   observabilityExportsEnabled: z.boolean().default(false).optional(),
+  /**
+   * Custom domains on sites (JITSU-228) — Business and Enterprise. Absent on a
+   * plan that predates the flag, so the resolver in lib/shared/plan-features.ts
+   * falls back to the plan id rather than treating absence as "denied".
+   */
+  customDomainsEnabled: z.boolean().optional(),
+  /**
+   * The Identity Stitching connection function (JITSU-228) — Enterprise only.
+   * Deliberately its own flag and not profileBuilderEnabled: profile builders
+   * are a separate product surface that happens to share the docs term.
+   */
+  identityStitchingEnabled: z.boolean().optional(),
   isLegacyPlan: z.boolean().default(false).optional(),
   /**
    * Longest event-backup window (days) a member may select in the console
@@ -214,6 +227,8 @@ export const noRestrictions: BillingSettings = {
   destinationEvensPerMonth: 100_000_000_000,
   profileBuilderEnabled: true,
   observabilityExportsEnabled: true,
+  customDomainsEnabled: true,
+  identityStitchingEnabled: true,
 };
 
 /**
@@ -229,6 +244,7 @@ export const CreateUserResult = z.discriminatedUnion("ok", [
 export type CreateUserResult = z.infer<typeof CreateUserResult>;
 
 export const AppConfig = z.object({
+  googleAdsDeveloperTokenConfigured: z.boolean().optional(),
   docsUrl: z.string().optional(),
   websiteUrl: z.string().optional(),
   maintenance: z
@@ -312,6 +328,12 @@ export const ConfigEntityBase = z.object({
   cloneId: z.string().optional(),
 });
 export type ConfigEntityBase = z.infer<typeof ConfigEntityBase>;
+
+export const ModelConfig = ConfigEntityBase.merge(ModelDefinition).extend({
+  type: z.literal("model"),
+  name: z.string().trim().min(1).max(200),
+});
+export type ModelConfig = z.infer<typeof ModelConfig>;
 
 export const ApiKey = z.object({
   plaintext: z.string().nullish(),

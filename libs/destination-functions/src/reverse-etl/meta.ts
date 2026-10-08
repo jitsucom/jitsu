@@ -1,0 +1,159 @@
+// Browser-safe: types and Zod only. Do not re-export server writers from here.
+import { z } from "zod";
+import type {
+  BatchResult,
+  FinishResult,
+  Json,
+  ReverseEtlStreamMetadata,
+  WriteBatch,
+} from "@jitsu/protocols/reverse-etl";
+
+const id = z.string().min(1).max(512);
+const jsonValue: z.ZodType<Json> = z.lazy(() =>
+  z.union([z.null(), z.boolean(), z.number().finite(), z.string(), z.array(jsonValue), z.record(jsonValue)])
+);
+const jsonObject = z
+  .record(jsonValue)
+  .refine(
+    value => new TextEncoder().encode(JSON.stringify(value)).length <= 65536,
+    "Provider checkpoint exceeds its byte limit"
+  );
+const outcome = z.discriminatedUnion("status", [
+  z.object({ operationId: id, status: z.literal("accepted") }).strict(),
+  z.object({ operationId: id, status: z.literal("staged") }).strict(),
+  z
+    .object({
+      operationId: id,
+      status: z.literal("rejected"),
+      code: z.string().min(1).max(128),
+      safeReason: z.string().max(1024),
+    })
+    .strict(),
+]);
+const batchResult = z
+  .object({
+    outcomes: z.array(outcome).max(10000),
+    submitted: z.boolean().optional(),
+    remoteJobIds: z.array(id).max(100).optional(),
+    providerCheckpoint: jsonObject.optional(),
+  })
+  .strict();
+const finishResult = batchResult
+  .omit({ outcomes: true, submitted: true })
+  .extend({ delivery: z.enum(["accepted", "pending"]) });
+
+export class ReverseEtlProtocolError extends Error {
+  constructor(message: string, cause?: unknown) {
+    super(message, cause === undefined ? undefined : { cause });
+    this.name = "ReverseEtlProtocolError";
+  }
+}
+
+/**
+ * Which provider rejection codes may be shown to users; anything else is dropped, never sanitised. The protocol lets a
+ * provider put any string in `code`, so the shape is not a free-for-all: a code is shown only if it is
+ *  - `http_<status>` or one of the fixed codes our own delivery code emits (webhook and guarded request), or
+ *  - an UPPER_SNAKE enumeration name such as Google's `INVALID_GCLID` or our `GOOGLE_REQUEST_FAILED`.
+ * Opaque or mixed-case tokens (API keys, identifiers, free text) never match. When a provider adds a lowercase code of
+ * its own, add it here deliberately.
+ */
+const fixedRejectionCodes =
+  "redirect_refused|unconfirmed|timeout|connection_error|dns_error|tls_error|blocked_address|invalid_url|request_too_large|internal_error";
+const rejectionCodePattern = new RegExp(`^(?:http_[1-5][0-9]{2}|${fixedRejectionCodes}|[A-Z]+(?:_[A-Z0-9]+)*)$`);
+
+/**
+ * A provider rejected a record. The message stays the fixed core-owned reason; only a code matching
+ * {@link rejectionCodePattern} is kept, so free text from a provider never reaches a user.
+ */
+export class ReverseEtlRejectionError extends ReverseEtlProtocolError {
+  readonly code: string | undefined;
+  constructor(code: unknown) {
+    super("Destination rejected a row; the run stopped without skipping it");
+    this.name = "ReverseEtlRejectionError";
+    this.code = typeof code === "string" && code.length <= 64 && rejectionCodePattern.test(code) ? code : undefined;
+  }
+}
+
+/**
+ * Stops the run at the first rejected outcome with a {@link ReverseEtlRejectionError} that carries its code. Every path
+ * that sees outcomes (the run loop, recovery of an unresolved batch, snapshot mirror delivery) uses this, so a safe
+ * provider code is shown the same way wherever the rejection is found instead of falling back to the generic message.
+ */
+export function ensureNoRejection(outcomes: ReadonlyArray<{ status: string; code?: unknown }>): void {
+  const rejected = outcomes.find(outcome => outcome.status === "rejected");
+  if (rejected) throw new ReverseEtlRejectionError(rejected.code);
+}
+
+export function validateBatchResult<Row>(batch: WriteBatch<Row>, value: unknown): BatchResult {
+  const result = batchResult.safeParse(value);
+  if (!result.success) throw new ReverseEtlProtocolError("Malformed writer batch response");
+  const expected = new Set(batch.records.map(record => record.operationId));
+  if (expected.size !== batch.records.length) throw new ReverseEtlProtocolError("Duplicate input operation IDs");
+  const seen = new Set<string>();
+  for (const record of result.data.outcomes) {
+    if (!expected.has(record.operationId) || seen.has(record.operationId))
+      throw new ReverseEtlProtocolError("Foreign or duplicate outcome operation ID");
+    seen.add(record.operationId);
+  }
+  if (seen.size !== expected.size) throw new ReverseEtlProtocolError("Writer omitted operation outcomes");
+  return result.data as BatchResult;
+}
+
+export function validateFinishResult(value: unknown): FinishResult {
+  const result = finishResult.safeParse(value);
+  if (!result.success) throw new ReverseEtlProtocolError("Malformed writer finish response");
+  if (result.data.delivery === "pending" && !result.data.remoteJobIds?.length) {
+    throw new ReverseEtlProtocolError("Pending finish requires recoverable remote job IDs");
+  }
+  return result.data as FinishResult;
+}
+
+export function validateStream(stream: ReverseEtlStreamMetadata<any, any>) {
+  if (!stream.name || !Number.isSafeInteger(stream.batchSize) || stream.batchSize < 1 || stream.batchSize > 10000) {
+    throw new ReverseEtlProtocolError("Stream requires a name and batch size between 1 and 10000");
+  }
+  if (stream.capabilities.supportsExplicitRemove && !stream.removeRowType) {
+    throw new ReverseEtlProtocolError("Explicit remove requires a removal schema");
+  }
+}
+
+export function validateReverseEtlConfig<Row, Options>(
+  stream: ReverseEtlStreamMetadata<Row, Options>,
+  input: {
+    mode: "upsert" | "mirror";
+    cursor?: unknown;
+    deleteColumn?: string;
+    mapping: Record<string, string>;
+    columns: string[];
+    options: unknown;
+  }
+): Options {
+  validateStream(stream);
+  if (!stream.capabilities.supportsUpsert) throw new ReverseEtlProtocolError("Stream does not support upserts");
+  if (input.mode === "mirror" && (input.cursor || stream.capabilities.mirror === "none"))
+    throw new ReverseEtlProtocolError("Mirror requires a full model and mirror-capable stream");
+  if (input.deleteColumn && !stream.capabilities.supportsExplicitRemove)
+    throw new ReverseEtlProtocolError("Delete-column models require explicit remove support");
+  if (
+    !Object.keys(input.mapping).length ||
+    Object.values(input.mapping).some(column => !input.columns.includes(column))
+  ) {
+    throw new ReverseEtlProtocolError("Mappings must reference projected model columns");
+  }
+  let schema: z.ZodTypeAny = stream.rowType;
+  while (schema instanceof z.ZodEffects) schema = schema.innerType();
+  if (schema instanceof z.ZodObject) {
+    const shape = schema.shape;
+    if (
+      Object.keys(input.mapping).some(field => !Object.hasOwn(shape, field)) ||
+      Object.entries(shape).some(
+        ([field, value]) => !(value as z.ZodTypeAny).isOptional() && !Object.hasOwn(input.mapping, field)
+      )
+    ) {
+      throw new ReverseEtlProtocolError("Mapping must include required stream fields and no unknown fields");
+    }
+  }
+  const options = stream.options.safeParse(input.options);
+  if (!options.success) throw new ReverseEtlProtocolError("Invalid reverse stream options");
+  return options.data;
+}
