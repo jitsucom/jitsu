@@ -31,7 +31,18 @@ export function batchStatistics(head: ArtifactHead): ReverseDeliveryStats {
     records: { accepted: 0, pending: 0, rejected: 0 },
     recordCounts,
     ...(head.snapshot?.sealed && head.snapshot.summary
-      ? { snapshot: { sourceRows: head.snapshot.keys, uniqueMembers: head.snapshot.summary.uniqueMembers } }
+      ? {
+          snapshot: {
+            sourceRows: head.snapshot.keys,
+            uniqueMembers: head.snapshot.summary.uniqueMembers,
+            ...(head.snapshot.summary.projectedMembers === undefined
+              ? {}
+              : { projectedMembers: head.snapshot.summary.projectedMembers }),
+            ...(head.snapshot.summary.excludedRows === undefined
+              ? {}
+              : { excludedRows: head.snapshot.summary.excludedRows }),
+          },
+        }
       : {}),
     ...(head.snapshot?.strategy === "native-replace"
       ? { replacement: head.snapshot.replacementStatus ?? "not_started" }

@@ -57,7 +57,12 @@ describe("redacted run progress", () => {
     await progress.observe(h, true);
     h.snapshot!.sealed = true;
     await progress.observe(h);
-    expect(writeStats.mock.calls.at(-1)![0].snapshot).toEqual({ sourceRows: 4601, uniqueMembers: 4244 });
+    expect(writeStats.mock.calls.at(-1)![0].snapshot).toEqual({
+      sourceRows: 4601,
+      uniqueMembers: 4244,
+      projectedMembers: 4601,
+      excludedRows: 0,
+    });
     expect(progress.deliveryChanged).toBe(false);
     h.batches[0] = batch({ accepted: 64, staged: 0 });
     await progress.observe(h);

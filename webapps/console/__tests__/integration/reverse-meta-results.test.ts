@@ -76,7 +76,7 @@ async function fixture(managed = true, stream = "audience") {
     upsert: counts,
     remove: counts,
     records: { accepted: 0, pending: 0, rejected: 0 },
-    snapshot: { sourceRows: 5000, uniqueMembers: 5000 },
+    snapshot: { sourceRows: 5000, uniqueMembers: 5000, projectedMembers: 5000, excludedRows: 0 },
   };
   await prisma.source_task.create({
     data: {

@@ -16,7 +16,13 @@ export type MetaResultTarget =
       valueBased: boolean;
       managed?: boolean;
       ownershipMarker?: string;
-      snapshot?: { sourceRows: number; uniqueMembers: number; observedAt: string };
+      snapshot?: {
+        sourceRows: number;
+        uniqueMembers: number;
+        projectedMembers?: number;
+        excludedRows?: number;
+        observedAt: string;
+      };
     }
   | { stream: "conversions"; pixelId: string };
 const missing = { status: "unavailable", reason: "not-reported" } as const;
@@ -96,7 +102,13 @@ export async function readMetaResults(
       const snapshot = target.snapshot;
       if (snapshot) {
         if (!snapshot.sourceRows) matchRate = { status: "unavailable", reason: "empty-snapshot" };
-        else if (snapshot.sourceRows !== snapshot.uniqueMembers)
+        else if (snapshot.projectedMembers === undefined || snapshot.excludedRows === undefined)
+          matchRate = { status: "unavailable", reason: "no-snapshot" };
+        else if (
+          snapshot.excludedRows !== 0 ||
+          snapshot.projectedMembers !== snapshot.sourceRows ||
+          snapshot.uniqueMembers !== snapshot.projectedMembers
+        )
           matchRate = { status: "unavailable", reason: "not-eligible" };
         else if (data.operation_status?.code !== 200) matchRate = { status: "unavailable", reason: "processing" };
         else if (size.status === "unavailable") matchRate = size;

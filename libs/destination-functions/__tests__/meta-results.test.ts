@@ -3,7 +3,13 @@ import { readMetaResults, type MetaResultTarget } from "../src/functions/faceboo
 import { MetaDestinationResults } from "../src/functions/facebook/results-meta";
 import type { MetaFetch } from "../src/functions/facebook/client";
 const credentials = { accessToken: "private-token" };
-const snapshot = { sourceRows: 5000, uniqueMembers: 5000, observedAt: "2026-10-08T00:00:00Z" };
+const snapshot = {
+  sourceRows: 5000,
+  uniqueMembers: 5000,
+  projectedMembers: 5000,
+  excludedRows: 0,
+  observedAt: "2026-10-08T00:00:00Z",
+};
 const target: MetaResultTarget = {
   stream: "audience",
   audienceId: "456",
@@ -72,6 +78,21 @@ describe("current Meta destination metrics", () => {
     expect(await readMetaResults(credentials, target, request({ ...data, ...patch }))).toMatchObject({
       matchRate: { status: "unavailable", reason },
     });
+  });
+  it("rejects compensating fan-out/exclusions even when source and unique counts agree", async () => {
+    for (const extra of [
+      { excludedRows: 1 },
+      { projectedMembers: 5001 },
+      { projectedMembers: undefined },
+      { excludedRows: undefined },
+    ]) {
+      const result = await readMetaResults(
+        credentials,
+        { ...target, snapshot: { ...snapshot, ...extra } } as MetaResultTarget,
+        request(data)
+      );
+      expect(result).toMatchObject({ kind: "audience", matchRate: { status: "unavailable" } });
+    }
   });
   it("verifies account, subtype, value-based type and managed ownership marker", async () => {
     for (const patch of [{ id: "457" }, { account_id: "124" }, { subtype: "LOOKALIKE" }, { is_value_based: true }])

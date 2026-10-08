@@ -2,7 +2,7 @@
 
 The console reads current audience/dataset metrics separately from delivery receipts. Refreshing results makes only Graph API GET requests; it does not queue a runner, submit events, provision an audience, or alter synchronization state. Metrics apply to the whole target, including other senders, and are not a historical report for the selected execution attempt.
 
-Custom Audiences report approximate lower/upper size bounds and processing/ad-eligibility status codes. The match range is an estimate using those bounds divided by the source-row count of the latest successful, completed, exclusive managed mirror snapshot. It is unavailable for existing audiences, incomplete or failed runs, older runs without aggregate counts, empty or deduplicated snapshots, privacy-limited estimates, and estimates inconsistent with the snapshot. It is not a measured upload match rate.
+Custom Audiences report approximate lower/upper size bounds and processing/ad-eligibility status codes. The match range is an estimate using those bounds divided by the source-row count of the latest successful, completed, exclusive managed mirror snapshot. It is unavailable for existing audiences, incomplete or failed runs, older runs without all aggregate counts, empty or excluded/deduplicated/fan-out snapshots, privacy-limited estimates, and estimates inconsistent with the snapshot. It is not a measured upload match rate.
 
 The runner records optional sealed snapshot aggregates in existing task statistics. They contain no row data and are never delivery/recovery authorization. They become available on a subsequent run with the updated runner; no state reset is needed. The console does not download snapshot artifacts to obtain a denominator.
 
