@@ -187,6 +187,64 @@ describe("Meta Reverse ETL runner integration", () => {
 });
 
 describe("runner-owned Google audience provisioning", () => {
+  it.each(["invalid-row", "duplicate-key", "source-failure", "identifier-type"])(
+    "validates the whole first snapshot before creating an audience: %s",
+    async scenario => {
+      const f = fixture();
+      f.input.config.destination = {
+        destinationType: "google-ads",
+        authorized: true,
+        oauthConnectionId: "destination.destination",
+        customerId: "1234567890",
+      };
+      f.input.config.options = {
+        ...f.input.config.options,
+        mode: "mirror",
+        mapping: { email: "email" },
+        streamOptions: {
+          audience: { kind: "managed", displayName: "Test" },
+          customerMatchTermsAccepted: true,
+          exclusiveManagementConfirmed: true,
+        },
+      };
+      f.input.adapters = createAdapterRegistry(async () => "token");
+      if (scenario === "identifier-type") f.input.config.options.streamOptions.identifierType = "CRM_ID";
+      const inputRows = [
+        { id: "a", email: "good@example.com" },
+        {
+          id: scenario === "duplicate-key" ? "a" : "b",
+          email: scenario === "invalid-row" ? "invalid" : "valid@example.com",
+        },
+      ];
+      f.setRows(inputRows);
+      if (scenario === "source-failure") {
+        const reader = f.input.reader;
+        f.input.reader = config => {
+          const original = reader(config);
+          return {
+            ...original,
+            stream: async function* (model, after, signal) {
+              yield* original.stream(model, after, signal);
+              throw new Error("private SQL error");
+            },
+          };
+        };
+      }
+      const wire = vi.spyOn(globalThis, "fetch").mockRejectedValue(new Error("Unexpected Google call"));
+      try {
+        expect(await execute(f.input)).toBe("FAILED");
+        expect(wire).not.toHaveBeenCalled();
+        expect(
+          (await admin.query("SELECT count(*) FROM newjitsu.source_state WHERE stream=$1", [googleAudienceStateStream]))
+            .rows[0].count
+        ).toBe("0");
+        expect(await control()).toBeUndefined();
+        expect(await taskLogs("task")).not.toContain("private SQL");
+      } finally {
+        wire.mockRestore();
+      }
+    }
+  );
   it("does not persist an impossible mobile audience creation intent", async () => {
     const f = fixture();
     f.input.config.destination = {
@@ -386,6 +444,7 @@ describe("runner-owned Google audience provisioning", () => {
       });
       try {
         expect(await execute(f.input)).toBe(scenario === "normal" ? "COMPLETE" : "FAILED");
+        expect(f.calls.filter(call => call === "reader")).toHaveLength(1);
         expect((await saved()).phase).toBe(
           scenario === "normal" ? "ready" : scenario === "oauth-failure" ? "prepared" : "submitting"
         );

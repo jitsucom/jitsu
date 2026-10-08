@@ -59,6 +59,10 @@ export interface ScopedTargetState {
   compareAndSet(expected: JsonObject, value: JsonObject): Promise<boolean>;
 }
 export interface DestinationServices {
+  /** Host stages/validates the source before a first target creation; never available in delivery context. */
+  validateSource?(
+    validation: Pick<NonNullable<ReverseRuntimeAdapter["mirror"]>, "stream" | "projection">
+  ): Promise<void>;
   targetState?(key: string): ScopedTargetState;
   getAccessToken(signal: AbortSignal): Promise<string>;
   fetch: typeof fetch;

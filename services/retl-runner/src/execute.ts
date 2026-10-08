@@ -15,6 +15,7 @@ import { Tasks, type TaskResult } from "./tasks";
 import { recoverRun } from "./recovery";
 import { failureMessage, reportFailure, type FailureStage } from "./diagnostics";
 import { RunProgress } from "./progress";
+import { prepareSource } from "./source-preflight";
 
 export interface ExecuteOptions {
   config: ReverseRunConfig;
@@ -52,6 +53,7 @@ export async function execute(input: ExecuteOptions): Promise<TaskResult> {
   let deliveryFinished = false;
   const recoveryReport: { rejectionCode?: string } = {};
   let reader: WarehouseReader | undefined;
+  let preparedSource: Awaited<ReturnType<typeof prepareSource>> | undefined;
   let started = false;
   let held = false;
   let timer: ReturnType<typeof setTimeout> | undefined;
@@ -124,7 +126,19 @@ export async function execute(input: ExecuteOptions): Promise<TaskResult> {
     timer = setTimeout(() => {
       renewing = tick();
     }, input.heartbeatMs ?? 10_000);
-    const adapter = await bind(config, { db, signal, log: message => progress.log(message) });
+    const adapter = await bind(config, {
+      db,
+      signal,
+      log: message => progress.log(message),
+      validateSource: async validation => {
+        ensure(!preparedSource && input.trigger !== "recovery", "Cannot extract source during status refresh");
+        await progress.log(
+          "Validating warehouse snapshot before creating an audience; no audience changes submitted yet."
+        );
+        preparedSource = await prepareSource(config, validation, input.reader(config.warehouse), signal, db.limits);
+        await progress.log(`Validated ${preparedSource.count} source rows; using this same snapshot for delivery.`);
+      },
+    });
     ensure(adapter.stream.name === config.options.stream, "Reverse stream does not match adapter");
     if (config.options.mode === "mirror")
       ensure(
@@ -197,6 +211,11 @@ export async function execute(input: ExecuteOptions): Promise<TaskResult> {
     };
     const source = async function* (after: CompositeCursor | undefined, sourceSignal: AbortSignal) {
       sourceSignal.throwIfAborted();
+      if (preparedSource) {
+        ensure(!after, "Validated mirror source cannot resume from a cursor");
+        yield* preparedSource.rows(sourceSignal);
+        return;
+      }
       reader = input.reader(config.warehouse);
       let rows = 0,
         deleted = 0,
@@ -378,6 +397,7 @@ export async function execute(input: ExecuteOptions): Promise<TaskResult> {
     clearTimeout(timer);
     await renewing;
     await reader?.close().catch(() => undefined);
+    await preparedSource?.close().catch(() => undefined);
     if (held) await lease.release().catch(() => undefined);
   }
 }

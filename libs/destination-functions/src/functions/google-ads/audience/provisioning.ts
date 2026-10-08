@@ -3,6 +3,7 @@ import { z } from "zod";
 import type { ReverseDestinationConfig, DestinationServices } from "@jitsu/protocols/reverse-etl-runtime";
 import { GoogleAudienceCredentials, GoogleAudienceSettings, GoogleManagedAudience } from "./meta";
 import { createGoogleAudienceManagement } from "./management";
+import { createGoogleDataManager, projectGoogleAudience } from "./runtime";
 function ensure(value: unknown, message: string): asserts value {
   if (!value) throw new Error(message);
 }
@@ -50,6 +51,28 @@ export async function resolveGoogleAudience<C extends ReverseDestinationConfig>(
   const state = services.targetState(googleAudienceStateStream);
   const read = () => state.read();
   let raw = await read();
+  // A prepared intent has not submitted creation yet. Validate again after a restart,
+  // but never re-read the warehouse while discovering a submitted/ready audience.
+  if (!raw || State.parse(raw).phase === "prepared") {
+    ensure(services.validateSource, "Managed audience creation requires source validation");
+    const google = createGoogleDataManager(getToken);
+    const memberKey =
+      settings.identifierType === "CRM_ID"
+        ? "userIdData"
+        : settings.identifierType === "MOBILE_ADVERTISING_ID"
+        ? "mobileData"
+        : "userData";
+    await services.validateSource({
+      stream: google.mirrorStream,
+      projection: {
+        rowType: google.stream.rowType.refine(
+          row => !!row[memberKey],
+          "Audience mapping does not match the selected identifier type"
+        ),
+        project: row => projectGoogleAudience("upsert", row),
+      },
+    });
+  }
   if (!raw) {
     signal.throwIfAborted();
     const nonce = randomBytes(32).toString("hex");

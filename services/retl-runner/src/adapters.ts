@@ -1,5 +1,9 @@
 import type { ReverseRunConfig } from "@jitsu/warehouse-query/src/runtime";
-import type { ReverseRuntimeAdapter, ReverseRuntimeRecovery } from "@jitsu/protocols/reverse-etl-runtime";
+import type {
+  ReverseRuntimeAdapter,
+  ReverseRuntimeRecovery,
+  DestinationServices,
+} from "@jitsu/protocols/reverse-etl-runtime";
 import { reverseDestinationRuntime } from "@jitsu/destination-functions/src/reverse-etl/runtime";
 import type { Database } from "./persistence/database";
 import { createTargetState } from "./target-state";
@@ -9,6 +13,7 @@ export interface AdapterRuntime {
   db: Database;
   signal: AbortSignal;
   log(message: string): Promise<unknown>;
+  validateSource?: DestinationServices["validateSource"];
 }
 export type AdapterRegistry = ReadonlyMap<
   string,
@@ -30,6 +35,7 @@ export function createAdapterRegistry(
           log: runtime?.log ?? (async () => {}),
           targetState: runtime ? key => createTargetState(runtime.db, config, key) : undefined,
           developerToken: process.env.GOOGLE_ADS_DEVELOPER_TOKEN,
+          validateSource: runtime?.validateSource,
         }),
     ])
   );
