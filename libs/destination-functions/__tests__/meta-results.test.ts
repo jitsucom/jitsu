@@ -8,7 +8,6 @@ const snapshot = {
   uniqueMembers: 5000,
   projectedMembers: 5000,
   excludedRows: 0,
-  observedAt: "2026-10-08T00:00:00Z",
 };
 const target: MetaResultTarget = {
   stream: "audience",
@@ -42,6 +41,7 @@ describe("current Meta destination metrics", () => {
       denominatorRows: 5000,
     });
     expect(JSON.stringify(result)).not.toContain("never-return");
+    expect(result).not.toHaveProperty("snapshotAt");
     expect(fetch.mock.calls[0][1]).toMatchObject({
       method: "GET",
       redirect: "error",

@@ -110,7 +110,7 @@ export async function reverseMetaResults(
           select: { run_id: true },
         }))
       )
-        target.snapshot = { ...stats.data.snapshot, observedAt: stats.data.observedAt };
+        target.snapshot = stats.data.snapshot;
     }
   } else return unavailable("unsupported", "This Meta stream does not support result reporting.");
   return readMetaResults(config, target, request);

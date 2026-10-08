@@ -90,14 +90,14 @@ it("shows an approximate audience range and the completed snapshot denominator",
     size: { status: "available", lower: 2900, upper: 3100 },
     matchRate: { status: "available", lower: 58, upper: 62 },
     denominatorRows: 5000,
-    snapshotAt: observedAt,
     operationCode: 200,
     deliveryCode: 200,
   });
   mount();
   await screen.findByText("2,900 – 3,100");
   expect(screen.getByText("58% – 62%")).toBeTruthy();
-  expect(screen.getByText(/5,000 \(recorded/)).toBeTruthy();
+  expect(screen.getByText("5,000")).toBeTruthy();
+  expect(screen.queryByText(/recorded/)).toBeNull();
   expect(screen.getByText("Ready for ads")).toBeTruthy();
   expect(screen.getByText(/estimate, not a measured upload match rate/)).toBeTruthy();
 });

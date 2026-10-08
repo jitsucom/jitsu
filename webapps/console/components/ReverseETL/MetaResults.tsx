@@ -101,9 +101,7 @@ export function MetaResults({ syncId, configurationKey }: { syncId: string; conf
                           {
                             key: "denominator",
                             label: "Completed snapshot source rows",
-                            children: `${result.denominatorRows.toLocaleString()} (recorded ${new Date(
-                              result.snapshotAt!
-                            ).toLocaleString()})`,
+                            children: result.denominatorRows.toLocaleString(),
                           },
                         ]
                       : []),

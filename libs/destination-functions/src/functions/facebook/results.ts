@@ -21,7 +21,6 @@ export type MetaResultTarget =
         uniqueMembers: number;
         projectedMembers?: number;
         excludedRows?: number;
-        observedAt: string;
       };
     }
   | { stream: "conversions"; pixelId: string };
@@ -128,9 +127,7 @@ export async function readMetaResults(
         targetId: audienceId,
         size,
         matchRate,
-        ...(snapshot && snapshot.sourceRows > 0
-          ? { denominatorRows: snapshot.sourceRows, snapshotAt: snapshot.observedAt }
-          : {}),
+        ...(snapshot && snapshot.sourceRows > 0 ? { denominatorRows: snapshot.sourceRows } : {}),
         ...(data.operation_status ? { operationCode: data.operation_status.code } : {}),
         ...(data.delivery_status ? { deliveryCode: data.delivery_status.code } : {}),
       };

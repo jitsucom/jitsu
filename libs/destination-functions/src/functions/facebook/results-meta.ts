@@ -47,7 +47,6 @@ export const MetaDestinationResults = z.discriminatedUnion("kind", [
     size: MetaRangeMetric,
     matchRate: MetaRangeMetric,
     denominatorRows: z.number().int().positive().optional(),
-    snapshotAt: observedAt.optional(),
     operationCode: z.number().int().nonnegative().optional(),
     deliveryCode: z.number().int().nonnegative().optional(),
   }),
