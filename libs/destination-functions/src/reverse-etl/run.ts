@@ -134,11 +134,11 @@ export async function runReverseEtl<C, R, O>(
     try {
       const raw = action === "upsert" ? await writer!.upsert(prepared) : await writer!.remove!(prepared);
       result = validateBatchResult(prepared, raw);
-    } catch {
+    } catch (error) {
       // A malformed response/throw can follow successful provider acceptance.
       // Keep the prepared manifest; never retry an ambiguous call blindly.
       await journal.markUnknown(prepared.batchId);
-      throw new ReverseEtlProtocolError("Batch delivery is uncertain; reconcile its journal before retrying");
+      throw new ReverseEtlProtocolError("Batch delivery is uncertain; reconcile its journal before retrying", error);
     }
     // Persist known outcomes even if cancellation arrived during the request, or
     // one row was rejected. Only the journal records durable acceptance/billing.

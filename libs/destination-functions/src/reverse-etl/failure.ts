@@ -26,6 +26,14 @@ export function requiresManualReconciliation(error: unknown): boolean {
 
 /** Exact core-owned reasons only. Never expose arbitrary SDK/SQL messages or causes. */
 const failures = new Map<string, string>([
+  [
+    "Reverse sync already running",
+    "Another worker is running this sync. This worker submitted no changes; wait for it to finish and try again.",
+  ],
+  [
+    "Unresolved artifact batches require recovery",
+    "A previous batch has no confirmed outcome. Refresh its status if a provider receipt is available. Without a receipt, Jitsu cannot query its status or safely upload it again. Contact your Jitsu administrator; do not reset state.",
+  ],
   ...Object.values(metaConversionValidationErrors).map(detail => {
     const reason = `Invalid Meta conversion: ${detail}`;
     return [reason, `${reason} This row was not submitted. Earlier batches may already have been submitted.`] as [
@@ -102,7 +110,7 @@ const failures = new Map<string, string>([
   ],
   [
     "Batch delivery is uncertain; reconcile its journal before retrying",
-    "The destination did not confirm a submitted batch. Some changes may have been accepted. Contact support or your Jitsu administrator before retrying; do not reset sync state.",
+    "The destination did not confirm a submitted batch. Some changes may have been accepted. Refresh status if a provider receipt is available. Without a receipt, status cannot be queried and uploading again could duplicate delivery. Contact your Jitsu administrator; do not reset sync state.",
   ],
   [
     "Reverse ETL artifact upload failed; no delivery is authorized",

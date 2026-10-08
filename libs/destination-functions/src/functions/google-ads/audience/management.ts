@@ -3,6 +3,7 @@ import { ReverseEtlProtocolError } from "../../../reverse-etl/meta";
 import { GoogleAudienceCredentials, GoogleManagedAudience, googleAudienceMembershipDays } from "./meta";
 import type { GoogleAccessToken } from "./runtime";
 import { dataManagerBaseUrl, dataManagerHeaders } from "../clients/data-manager";
+import { GoogleRequestError, googleRequestError } from "../clients/errors";
 
 const id = z.string().regex(/^[1-9]\d{0,19}$/);
 const userList = z.object({
@@ -80,9 +81,10 @@ export function createGoogleAudienceManagement(
         headers: dataManagerHeaders(token, c.loginCustomerId),
         ...(body ? { body: JSON.stringify(body) } : {}),
       });
-      if (!response.ok) return fail();
+      if (!response.ok) throw await googleRequestError(response, "audience management");
       return await response.json();
-    } catch {
+    } catch (error) {
+      if (error instanceof GoogleRequestError) throw error;
       return fail();
     }
   }

@@ -1492,15 +1492,28 @@ describe("executable runner", () => {
     expect(await execute(f.input)).toBe("FAILED");
     expect(await task("do-not-duplicate-pending")).toBeUndefined();
   });
-  it("does not open persistence or start a task when Kubernetes admission is denied", async () => {
+  it("records lease contention without opening delivery persistence", async () => {
     const f = fixture();
     f.input.lease.acquire = async () => {
-      throw new Error("Another worker holds the lease");
+      throw new Error("Reverse sync already running");
     };
     expect(await execute(f.input)).toBe("FAILED");
     expect(await control()).toBeUndefined();
-    expect(await task()).toBeUndefined();
+    expect(await task()).toMatchObject({ status: "FAILED" });
+    const logs = (await admin.query("SELECT message FROM newjitsu.task_log WHERE task_id=$1", [f.input.taskId])).rows;
+    expect(logs).toHaveLength(1);
+    expect(logs[0].message).toContain("Another worker is running this sync");
     expect(f.calls).toEqual([]);
+  });
+  it("does not overwrite an existing task when a duplicate worker loses admission", async () => {
+    const f = fixture();
+    expect(await execute(f.input)).toBe("COMPLETE");
+    const before = await task();
+    f.input.lease.acquire = async () => {
+      throw new Error("Reverse sync already running");
+    };
+    expect(await execute(f.input)).toBe("FAILED");
+    expect(await task()).toEqual(before);
   });
   it("shares an in-flight heartbeat renewal when slow provisioning finishes", async () => {
     const f = fixture();

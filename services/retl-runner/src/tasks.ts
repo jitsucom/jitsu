@@ -14,6 +14,32 @@ export class Tasks {
     readonly workspaceId?: string,
     readonly workerId: string = taskId
   ) {}
+  /** Admission failure has no worker ownership. Never mutate an existing task or its delivery state. */
+  async admissionFailed(trigger: "manual" | "scheduled" | "recovery", message: string) {
+    await this.db.transaction(async client => {
+      if (trigger === "recovery") {
+        await client.query(
+          `INSERT INTO task_log(id,level,logger,message,sync_id,task_id)
+           SELECT $1,'ERROR','retl-runner',$2,sync_id,task_id FROM source_task
+           WHERE sync_id=$3 AND task_id=$4 AND package='jitsu/retl-runner'
+           AND started_by->>'workspaceId'=$5`,
+          [randomUUID(), message, this.syncId, this.taskId, this.workspaceId]
+        );
+        return;
+      }
+      const inserted = await client.query(
+        `INSERT INTO source_task(sync_id,task_id,package,version,status,started_by,description,error)
+         VALUES($1,$2,'jitsu/retl-runner','1','FAILED',$3,$4,$4)
+         ON CONFLICT(task_id) DO NOTHING RETURNING 1`,
+        [this.syncId, this.taskId, { trigger, kind: "reverse", workspaceId: this.workspaceId }, message]
+      );
+      if (inserted.rowCount)
+        await client.query(
+          "INSERT INTO task_log(id,level,logger,message,sync_id,task_id) VALUES($1,'ERROR','retl-runner',$2,$3,$4)",
+          [randomUUID(), message, this.syncId, this.taskId]
+        );
+    });
+  }
   // Called only while holding the Kubernetes lease. The conditional parent
   // transition also makes cancellation win over an already queued recovery Pod.
   async start(

@@ -58,6 +58,7 @@ export const GoogleAdsCredentials = z.object({
 
   conversionActionId: z
     .string()
+    .optional()
     .describe(
       "Conversion Action ID::The default conversion action for events without a per-event override." +
         "<ol>" +

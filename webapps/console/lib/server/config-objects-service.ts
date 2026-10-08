@@ -35,6 +35,23 @@ function missingMetaEventPixel(config: any): boolean {
 const metaEventPixelError = () =>
   new ApiError("Meta event connections require a Pixel / Dataset ID on the destination", { status: 400 });
 
+function eventDestinationError(config: any): ApiError | undefined {
+  if (missingMetaEventPixel(config)) return metaEventPixelError();
+  if (
+    config?.destinationType === "google-ads" &&
+    !config.conversionActionId?.trim() &&
+    !config.conversionActions?.some((value: unknown) => {
+      if (typeof value !== "string") return false;
+      const equals = value.indexOf("=");
+      return equals > 0 && !!value.slice(0, equals).trim() && /^\d+$/.test(value.slice(equals + 1).trim());
+    })
+  )
+    return new ApiError(
+      "Google Ads event connections require a default Conversion Action ID or per-event conversion actions",
+      { status: 400 }
+    );
+}
+
 export interface ConfigObjectsServiceDeps {
   prisma: PrismaClient;
 }
@@ -349,12 +366,12 @@ export class ConfigObjectsService {
           where: { id, workspaceId, type, deleted: false },
         });
         if (
-          missingMetaEventPixel(filtered) &&
+          eventDestinationError(filtered) &&
           (await tx.configurationObjectLink.count({
             where: { workspaceId, toId: id, deleted: false, from: { type: "stream" } },
           })) > 0
         ) {
-          throw metaEventPixelError();
+          throw eventDestinationError(filtered)!;
         }
         if (
           !supportsWarehouseReader(filtered) ||
@@ -672,7 +689,8 @@ export class ConfigObjectsService {
         where: { workspaceId, id: toId, type: "destination", deleted: false },
       });
       if (!destination) throw new ApiError("Destination not found", { status: 400 });
-      if (missingMetaEventPixel(destination.config)) throw metaEventPixelError();
+      const error = eventDestinationError(destination.config);
+      if (error) throw error;
       return write(tx);
     });
   }

@@ -33,15 +33,18 @@ const outcome = z.discriminatedUnion("status", [
 const batchResult = z
   .object({
     outcomes: z.array(outcome).max(10000),
+    submitted: z.boolean().optional(),
     remoteJobIds: z.array(id).max(100).optional(),
     providerCheckpoint: jsonObject.optional(),
   })
   .strict();
-const finishResult = batchResult.omit({ outcomes: true }).extend({ delivery: z.enum(["accepted", "pending"]) });
+const finishResult = batchResult
+  .omit({ outcomes: true, submitted: true })
+  .extend({ delivery: z.enum(["accepted", "pending"]) });
 
 export class ReverseEtlProtocolError extends Error {
-  constructor(message: string) {
-    super(message);
+  constructor(message: string, cause?: unknown) {
+    super(message, cause === undefined ? undefined : { cause });
     this.name = "ReverseEtlProtocolError";
   }
 }
