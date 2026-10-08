@@ -324,8 +324,18 @@ export function SyncEditor({ sync, reload }: { sync?: ReverseSyncView; reload: (
                 }
                 const body = { fromId, toId, data: options };
                 // Read-only Meta preflight catches target setup mistakes before the first delivery.
-                // Locked syncs keep scheduling/pause edits available even if Meta is unavailable.
-                if (isMeta && !locked && enabled)
+                // Pauses and schedule/mapping-only edits stay available if Meta is unavailable.
+                if (
+                  isMeta &&
+                  !locked &&
+                  enabled &&
+                  !options.disabled &&
+                  (!sync ||
+                    sync.options.disabled ||
+                    toId !== sync.toId ||
+                    options.stream !== sync.options.stream ||
+                    JSON.stringify(options.streamOptions) !== JSON.stringify(sync.options.streamOptions))
+                )
                   await rpc(`/api/${workspace.id}/reverse-etl/meta-check`, {
                     method: "POST",
                     body: { destinationId: toId, stream: options.stream, streamOptions: options.streamOptions },

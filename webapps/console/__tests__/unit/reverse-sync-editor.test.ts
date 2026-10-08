@@ -257,6 +257,7 @@ it("checks a Meta target before saving, and failed checks prevent saving", async
   state.destinations = [{ id: "meta", destinationType: "facebook-conversions" }];
   state.rpc.mockRejectedValue(new Error("This is a Meta App ID, not a Pixel / Dataset ID"));
   mount(metaSync());
+  fireEvent.change(within(screen.getByTestId("Pixel / dataset ID")).getByRole("textbox"), { target: { value: "790" } });
   fireEvent.click(screen.getByRole("button", { name: "Save" }));
   await screen.findByText("This is a Meta App ID, not a Pixel / Dataset ID");
   expect(state.rpc).toHaveBeenCalledTimes(1);
@@ -267,7 +268,7 @@ it("checks a Meta target before saving, and failed checks prevent saving", async
       body: {
         destinationId: "meta",
         stream: "conversions",
-        streamOptions: { pixelId: "789", actionSource: "website" },
+        streamOptions: { pixelId: "790", actionSource: "website" },
       },
     }),
   ]);
@@ -277,6 +278,7 @@ it("saves Meta settings after a successful check without starting a run", async 
   state.destinations = [{ id: "meta", destinationType: "facebook-conversions" }];
   state.rpc.mockResolvedValue({ name: "Pixel", message: "Read access verified", id: "saved" });
   mount(metaSync());
+  fireEvent.change(within(screen.getByTestId("Pixel / dataset ID")).getByRole("textbox"), { target: { value: "790" } });
   fireEvent.click(screen.getByRole("button", { name: "Save" }));
   await waitFor(() => expect(state.route.push).toHaveBeenCalledWith("/ws/reverse-syncs"));
   expect(state.rpc.mock.calls.map(([url]) => url)).toEqual([
@@ -292,4 +294,41 @@ it("keeps locked Meta scheduling edits independent of provider availability", as
   await waitFor(() => expect(state.route.push).toHaveBeenCalledWith("/ws/reverse-syncs"));
   expect(state.rpc).toHaveBeenCalledTimes(1);
   expect(state.rpc.mock.calls[0][0]).toContain("syncId=saved");
+});
+
+it("pauses an unlocked active Meta sync without checking an unavailable provider", async () => {
+  state.destinations = [{ id: "meta", destinationType: "facebook-conversions" }];
+  state.rpc.mockImplementation(async (url: string) => {
+    if (url.endsWith("/meta-check")) throw new Error("Meta unavailable");
+    return { id: "saved" };
+  });
+  mount(metaSync());
+  fireEvent.click(screen.getByRole("switch"));
+  fireEvent.click(screen.getByRole("button", { name: "Save" }));
+  await waitFor(() => expect(state.route.push).toHaveBeenCalledWith("/ws/reverse-syncs"));
+  expect(state.rpc).toHaveBeenCalledTimes(1);
+  expect(state.rpc.mock.calls[0][1].body.data.disabled).toBe(true);
+});
+it("saves unlocked Meta schedule-only changes without a provider check", async () => {
+  state.destinations = [{ id: "meta", destinationType: "facebook-conversions" }];
+  state.rpc.mockResolvedValue({ id: "saved" });
+  mount(metaSync());
+  fireEvent.mouseDown(screen.getByRole("combobox", { name: "Schedule frequency" }));
+  fireEvent.click(screen.getByText("Every hour"));
+  fireEvent.click(screen.getByRole("button", { name: "Save" }));
+  await waitFor(() => expect(state.route.push).toHaveBeenCalledWith("/ws/reverse-syncs"));
+  expect(state.rpc).toHaveBeenCalledTimes(1);
+  expect(state.rpc.mock.calls[0][1].body.data.schedule).toBe("0 * * * *");
+});
+it("checks Meta when re-enabling an unlocked sync even if target settings are unchanged", async () => {
+  state.destinations = [{ id: "meta", destinationType: "facebook-conversions" }];
+  state.rpc.mockRejectedValue(new Error("Meta unavailable"));
+  const sync = metaSync();
+  sync.options.disabled = true;
+  mount(sync);
+  fireEvent.click(screen.getByRole("switch"));
+  fireEvent.click(screen.getByRole("button", { name: "Save" }));
+  await screen.findByText("Meta unavailable");
+  expect(state.rpc).toHaveBeenCalledTimes(1);
+  expect(state.rpc.mock.calls[0][0]).toBe("/api/ws/reverse-etl/meta-check");
 });
