@@ -92,7 +92,7 @@ export class LocalIndex {
     action: "upsert" | "remove",
     sequence: number,
     acceptedAt: string,
-    uncertain: boolean
+    uncertain = false
   ) {
     put.run(
       effect.identityHash,
