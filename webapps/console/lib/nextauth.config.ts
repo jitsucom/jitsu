@@ -9,12 +9,24 @@ import { getServerLog } from "./server/log";
 import { trackAuthEvent, withProductAnalytics } from "./server/telemetry";
 import { NextApiRequest } from "next";
 import { onUserCreated } from "./server/ee";
-import { getServerEnv } from "./server/serverEnv";
+import { ensureNextAuthUrl, getServerEnv } from "./server/serverEnv";
 import { authAuditLog } from "./server/audit-log";
+import { getPublicOrigin } from "./server/origin";
 
 const crypto = require("crypto");
 
 const log = getServerLog("auth");
+
+// next-auth's own origin detection (utils/detect-origin.js) reads
+// process.env.NEXTAUTH_URL directly and, failing that, only falls back to
+// the request's Host header when VERCEL or AUTH_TRUST_HOST is set — neither
+// is true on our GKE deployments. Left unset, every /api/auth/* response
+// (signin redirects, cookies, the providers endpoint) defaults to a literal
+// http://localhost:3000, and useSecureCookies below stays false in
+// production. Falling back to the same canonical URL the rest of the app
+// already uses for this (see getPublicOrigin) fixes both without requiring
+// a new env var anywhere self-hosted deployments aren't already setting.
+ensureNextAuthUrl(getPublicOrigin());
 
 const serverEnv = getServerEnv();
 
@@ -136,6 +148,9 @@ function generateSecret(base: (string | undefined)[]) {
 }
 
 const authCookieDomain = serverEnv.AUTH_COOKIE_DOMAIN;
+// Safe to read via serverEnv here: ensureNextAuthUrl() above invalidates the
+// memoized cache when it sets the var, so this getServerEnv() call (line 34)
+// already re-parsed with the fallback applied.
 const useSecureCookies = !!serverEnv.NEXTAUTH_URL?.startsWith("https://");
 
 const sharedCookieOptions = authCookieDomain
