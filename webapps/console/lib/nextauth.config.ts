@@ -9,7 +9,7 @@ import { getServerLog } from "./server/log";
 import { trackAuthEvent, withProductAnalytics } from "./server/telemetry";
 import { NextApiRequest } from "next";
 import { onUserCreated } from "./server/ee";
-import { getServerEnv } from "./server/serverEnv";
+import { ensureNextAuthUrl, getServerEnv } from "./server/serverEnv";
 import { authAuditLog } from "./server/audit-log";
 import { getPublicOrigin } from "./server/origin";
 
@@ -26,9 +26,7 @@ const log = getServerLog("auth");
 // production. Falling back to the same canonical URL the rest of the app
 // already uses for this (see getPublicOrigin) fixes both without requiring
 // a new env var anywhere self-hosted deployments aren't already setting.
-if (!process.env.NEXTAUTH_URL) {
-  process.env.NEXTAUTH_URL = getPublicOrigin();
-}
+ensureNextAuthUrl(getPublicOrigin());
 
 const serverEnv = getServerEnv();
 
@@ -150,12 +148,10 @@ function generateSecret(base: (string | undefined)[]) {
 }
 
 const authCookieDomain = serverEnv.AUTH_COOKIE_DOMAIN;
-// Reads process.env directly rather than serverEnv.NEXTAUTH_URL: getServerEnv()
-// memoizes its result process-wide on first call, so if anything else in the
-// app called it before this module's fallback above ran, the cached object
-// could still show NEXTAUTH_URL as unset even though the env var itself is
-// now set.
-const useSecureCookies = !!process.env.NEXTAUTH_URL?.startsWith("https://");
+// Safe to read via serverEnv here: ensureNextAuthUrl() above invalidates the
+// memoized cache when it sets the var, so this getServerEnv() call (line 34)
+// already re-parsed with the fallback applied.
+const useSecureCookies = !!serverEnv.NEXTAUTH_URL?.startsWith("https://");
 
 const sharedCookieOptions = authCookieDomain
   ? {

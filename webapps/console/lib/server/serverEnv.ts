@@ -427,6 +427,22 @@ export type ServerEnv = z.infer<typeof ServerEnvSchema>;
 let serverEnvCache: ServerEnv | undefined;
 
 /**
+ * Sets NEXTAUTH_URL if it isn't already, and invalidates the cache so the
+ * next getServerEnv() picks it up. next-auth's own origin detection
+ * (utils/detect-origin.js) reads process.env.NEXTAUTH_URL directly — there's
+ * no NextAuthOptions-level override — so this has to be a real env mutation,
+ * not just a value threaded through our own config. Centralized here (the
+ * only module allowed to touch process.env directly) rather than in
+ * nextauth.config.ts itself.
+ */
+export function ensureNextAuthUrl(fallback: string): void {
+  if (!process.env.NEXTAUTH_URL) {
+    process.env.NEXTAUTH_URL = fallback;
+    serverEnvCache = undefined;
+  }
+}
+
+/**
  * Gets validated server environment variables.
  * Includes all client environment variables plus server-only configuration.
  * This function caches the result to avoid repeated validation.
