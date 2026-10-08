@@ -47,6 +47,15 @@ export const ReverseDeliveryStats = z.object({
   records: z.object({ accepted: count, pending: count, rejected: count }),
   /** Optional for older attempts that only retained batch counts per operation. */
   recordCounts: z.object({ upsert: ReverseRecordCounts, remove: ReverseRecordCounts }).optional(),
+  /** Sealed source-snapshot aggregates; never accepted-record totals or delivery authorization. */
+  snapshot: z
+    .object({
+      sourceRows: count,
+      uniqueMembers: count,
+      projectedMembers: count.optional(),
+      excludedRows: count.optional(),
+    })
+    .optional(),
   replacement: z.enum(["not_started", "prepared", "pending", "accepted"]).optional(),
 });
 export type ReverseBatchCounts = z.infer<typeof ReverseBatchCounts>;

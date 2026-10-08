@@ -39,6 +39,7 @@ export const ReverseSyncView = z.object({
   toId: z.string(),
   modelName: z.string(),
   destinationName: z.string(),
+  destinationType: z.string().optional(),
   options: ReverseSyncOptions,
   settingsLocked: z.boolean(),
   audienceName: z.string().optional(),
