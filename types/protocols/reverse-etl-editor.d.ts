@@ -16,7 +16,13 @@ interface FieldBase {
 export type ReverseEditorField<Key extends string = string> = FieldBase &
   (
     | { editor: "text"; value: string; change(value: string): ReverseEditorPatch }
-    | { editor: "target"; value: string; targetKind: string; change(value: string): ReverseEditorPatch }
+    | {
+        editor: "target";
+        value: string;
+        targetKind: string;
+        lookupParams?: Record<string, string>;
+        change(value: string): ReverseEditorPatch;
+      }
     | {
         editor: "select";
         value?: string;

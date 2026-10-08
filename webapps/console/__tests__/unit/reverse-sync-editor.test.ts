@@ -9,6 +9,7 @@ import { ReverseSyncView } from "../../lib/reverse-etl";
 const state = vi.hoisted(() => ({
   rpc: vi.fn(),
   route: { query: { id: "new" } as Record<string, string>, push: vi.fn(), replace: vi.fn() },
+  destinations: [{ id: "google", destinationType: "google-ads" }],
   models: [] as { id: string; name: string; warehouseId: string; query: string }[],
 }));
 vi.mock("juava", async original => ({ ...(await original<typeof import("juava")>()), rpc: state.rpc }));
@@ -20,8 +21,7 @@ vi.mock("../../lib/context", () => ({
 }));
 vi.mock("../../lib/ui", () => ({ useUnsavedChanges() {}, confirmOp: vi.fn() }));
 vi.mock("../../lib/store", () => ({
-  useConfigObjectList: (type: string) =>
-    type === "model" ? state.models : [{ id: "google", destinationType: "google-ads" }],
+  useConfigObjectList: (type: string) => (type === "model" ? state.models : state.destinations),
 }));
 vi.mock("../../components/Selectors/DestinationSelector", () => ({ DestinationSelector: () => null }));
 vi.mock("../../components/BackButton/BackButton", () => ({ BackButton: () => null }));
@@ -40,6 +40,7 @@ vi.mock("../../components/FieldListEditorLayout/FieldListEditorLayout", () => ({
 beforeEach(() => {
   vi.clearAllMocks();
   state.models = [];
+  state.destinations = [{ id: "google", destinationType: "google-ads" }];
   state.route.query = { id: "new" };
   state.route.replace.mockImplementation(async ({ query }: any) => {
     state.route.query = query;
@@ -241,4 +242,54 @@ it("loads model columns for identifiers and consent and refreshes on model selec
   await waitFor(() => expect(screen.getAllByText("contact").length).toBeGreaterThan(0));
   // Existing mapping is not silently cleared by the model switch.
   expect(screen.getAllByText("email_address").length).toBeGreaterThan(0);
+});
+
+function metaSync(locked = false) {
+  const sync = savedSync();
+  return {
+    ...sync,
+    toId: "meta",
+    settingsLocked: locked,
+    options: { ...sync.options, stream: "conversions", streamOptions: { pixelId: "789", actionSource: "website" } },
+  } as ReverseSyncView;
+}
+it("checks a Meta target before saving, and failed checks prevent saving", async () => {
+  state.destinations = [{ id: "meta", destinationType: "facebook-conversions" }];
+  state.rpc.mockRejectedValue(new Error("This is a Meta App ID, not a Pixel / Dataset ID"));
+  mount(metaSync());
+  fireEvent.click(screen.getByRole("button", { name: "Save" }));
+  await screen.findByText("This is a Meta App ID, not a Pixel / Dataset ID");
+  expect(state.rpc).toHaveBeenCalledTimes(1);
+  expect(state.rpc.mock.calls[0]).toEqual([
+    "/api/ws/reverse-etl/meta-check",
+    expect.objectContaining({
+      method: "POST",
+      body: {
+        destinationId: "meta",
+        stream: "conversions",
+        streamOptions: { pixelId: "789", actionSource: "website" },
+      },
+    }),
+  ]);
+  expect(state.route.push).not.toHaveBeenCalled();
+});
+it("saves Meta settings after a successful check without starting a run", async () => {
+  state.destinations = [{ id: "meta", destinationType: "facebook-conversions" }];
+  state.rpc.mockResolvedValue({ name: "Pixel", message: "Read access verified", id: "saved" });
+  mount(metaSync());
+  fireEvent.click(screen.getByRole("button", { name: "Save" }));
+  await waitFor(() => expect(state.route.push).toHaveBeenCalledWith("/ws/reverse-syncs"));
+  expect(state.rpc.mock.calls.map(([url]) => url)).toEqual([
+    "/api/ws/reverse-etl/meta-check",
+    expect.stringContaining("syncId=saved"),
+  ]);
+});
+it("keeps locked Meta scheduling edits independent of provider availability", async () => {
+  state.destinations = [{ id: "meta", destinationType: "facebook-conversions" }];
+  state.rpc.mockResolvedValue({ id: "saved" });
+  mount(metaSync(true));
+  fireEvent.click(screen.getByRole("button", { name: "Save" }));
+  await waitFor(() => expect(state.route.push).toHaveBeenCalledWith("/ws/reverse-syncs"));
+  expect(state.rpc).toHaveBeenCalledTimes(1);
+  expect(state.rpc.mock.calls[0][0]).toContain("syncId=saved");
 });

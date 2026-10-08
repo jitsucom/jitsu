@@ -8,12 +8,14 @@ import { useWorkspace } from "../../lib/context";
 export function DestinationTargetSelector({
   destinationId,
   kind,
+  lookupParams,
   value,
   onChange,
   disabled,
 }: {
   destinationId?: string;
   kind: string;
+  lookupParams?: Record<string, string>;
   value: string;
   onChange: (value: string) => void;
   disabled: boolean;
@@ -21,10 +23,10 @@ export function DestinationTargetSelector({
   const workspace = useWorkspace();
   const [requested, setRequested] = useState(false);
   const lookup = useQuery({
-    queryKey: ["reverse-destination-options", workspace.id, destinationId, kind],
-    enabled: requested && !!destinationId && !disabled,
+    queryKey: ["reverse-destination-options", workspace.id, destinationId, kind, lookupParams],
+    enabled: requested && !!destinationId && !disabled && (kind !== "meta-audience" || !!lookupParams?.accountId),
     queryFn: ({ signal }) =>
-      rpc(`/api/${workspace.id}/reverse-etl/options`, { query: { destinationId, kind }, signal }),
+      rpc(`/api/${workspace.id}/reverse-etl/options`, { query: { destinationId, kind, ...lookupParams }, signal }),
     retry: false,
     staleTime: 60_000,
     refetchOnWindowFocus: false,
@@ -46,8 +48,21 @@ export function DestinationTargetSelector({
         }
       />
       {lookup.isFetching && <div className="text-xs text-textSecondary mt-1">Loading targets…</div>}
+      {lookup.data?.truncated && (
+        <div className="text-xs text-textSecondary mt-1">
+          More targets are available. Enter an ID manually if it is not listed.
+        </div>
+      )}
+      {kind === "meta-audience" && !lookupParams?.accountId && (
+        <div className="text-xs text-textSecondary mt-1">
+          Choose an ad account to browse its customer-list audiences.
+        </div>
+      )}
       {lookup.isError && (
-        <div className="text-xs text-textSecondary mt-1">Target lookup unavailable. You can enter the ID manually.</div>
+        <div className="text-xs text-textSecondary mt-1">
+          {lookup.error instanceof Error ? lookup.error.message : "Target lookup unavailable."} You can enter the ID
+          manually.
+        </div>
       )}
     </div>
   );
