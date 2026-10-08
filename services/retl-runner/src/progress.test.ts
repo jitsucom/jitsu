@@ -48,6 +48,22 @@ const head = (): ArtifactHead => ({
 });
 
 describe("redacted run progress", () => {
+  it("reports sealed snapshot aggregates without treating them as a delivery change", async () => {
+    const h = head();
+    h.snapshot!.sealed = false;
+    expect(batchStatistics(h).snapshot).toBeUndefined();
+    const writeStats = vi.fn().mockResolvedValue(undefined);
+    const progress = new RunProgress(async () => {}, writeStats);
+    await progress.observe(h, true);
+    h.snapshot!.sealed = true;
+    await progress.observe(h);
+    expect(writeStats.mock.calls.at(-1)![0].snapshot).toEqual({ sourceRows: 4601, uniqueMembers: 4244 });
+    expect(progress.deliveryChanged).toBe(false);
+    h.batches[0] = batch({ accepted: 64, staged: 0 });
+    await progress.observe(h);
+    expect(progress.deliveryChanged).toBe(true);
+  });
+
   it("counts each batch once per action, with pending and mixed outcomes distinct", () => {
     const h = head();
     h.batches = [

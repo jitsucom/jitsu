@@ -30,6 +30,9 @@ export function batchStatistics(head: ArtifactHead): ReverseDeliveryStats {
     remove: empty(),
     records: { accepted: 0, pending: 0, rejected: 0 },
     recordCounts,
+    ...(head.snapshot?.sealed && head.snapshot.summary
+      ? { snapshot: { sourceRows: head.snapshot.keys, uniqueMembers: head.snapshot.summary.uniqueMembers } }
+      : {}),
     ...(head.snapshot?.strategy === "native-replace"
       ? { replacement: head.snapshot.replacementStatus ?? "not_started" }
       : {}),
@@ -144,7 +147,7 @@ export class RunProgress {
 
   /** Restored batches seed progress without presenting earlier submissions as new uploads. */
   async observe(head: ArtifactHead, restored = false) {
-    const { observedAt, ...delivery } = batchStatistics(head);
+    const { observedAt, snapshot: _snapshot, ...delivery } = batchStatistics(head);
     const fingerprint = JSON.stringify(delivery);
     if (!restored && this.deliveryBaseline !== undefined && fingerprint !== this.deliveryBaseline)
       this.deliveryChanged = true;

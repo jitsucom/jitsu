@@ -11,6 +11,7 @@ import { Failure, Panel, useReverseSyncs } from "./shared";
 
 import { ReverseTaskStatusTag } from "./TaskStatus";
 import { ReverseDeliveryStatistics } from "./DeliveryStatistics";
+import { MetaResults } from "./MetaResults";
 import { ReverseSyncTitle } from "./SyncTitle";
 
 const resultSchema = z.object({
@@ -176,6 +177,13 @@ export function ReverseRuns() {
           <Panel title="Record delivery statistics">
             <ReverseDeliveryStatistics task={task} />
           </Panel>
+          {sync?.destinationType === "facebook-conversions" && (
+            <MetaResults
+              key={sync.id}
+              syncId={sync.id}
+              configurationKey={JSON.stringify([sync.toId, sync.options.stream, sync.options.streamOptions])}
+            />
+          )}
           <Panel
             title="Logs"
             description="Core lifecycle messages only. Source rows, identifiers and provider recovery payloads are not displayed."

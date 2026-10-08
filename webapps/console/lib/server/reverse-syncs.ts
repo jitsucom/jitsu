@@ -234,6 +234,7 @@ export async function listReverseSyncs(prisma: PrismaClient, workspaceId: string
         toId: link.toId,
         modelName: (link.from.config as any).name || link.from.id,
         destinationName: (link.to.config as any).name || link.to.id,
+        destinationType: (link.to.config as any).destinationType,
         options: link.data,
         settingsLocked: await hasState(prisma, workspaceId, link.id),
         latestTask: latestTask ? taskView(latestTask) : null,
