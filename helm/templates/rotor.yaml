@@ -4,7 +4,7 @@ kind: Deployment
 metadata:
   name: rotor
   labels:
-    {{- include "jitsu-dev.labels" . | nindent 4 }}
+    {{- include "jitsu.labels" . | nindent 4 }}
     app.kubernetes.io/name: rotor
 spec:
   replicas: {{ .Values.scaling.rotor.replicas }}
@@ -40,7 +40,7 @@ spec:
                 name: jitsu-deps-urls
                 optional: true
           env:
-            {{- include "jitsu-dev.env" (dict "ctx" . "service" "rotor") | nindent 12 }}
+            {{- include "jitsu.env" (dict "ctx" . "service" "rotor") | nindent 12 }}
           volumeMounts:
             - name: node-cache
               mountPath: /cache
@@ -66,7 +66,7 @@ kind: Service
 metadata:
   name: rotor
   labels:
-    {{- include "jitsu-dev.labels" . | nindent 4 }}
+    {{- include "jitsu.labels" . | nindent 4 }}
     app.kubernetes.io/name: rotor
 spec:
   type: LoadBalancer

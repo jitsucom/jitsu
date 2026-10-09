@@ -1,4 +1,4 @@
-{{- include "jitsu-dev.validateReverseEtl" . -}}
+{{- include "jitsu.validateReverseEtl" . -}}
 {{- if gt (int .Values.scaling.syncctl.replicas) 0 }}
 {{- $reverse := .Values.reverseEtl | default dict }}
 apiVersion: apps/v1
@@ -6,7 +6,7 @@ kind: Deployment
 metadata:
   name: syncctl
   labels:
-    {{- include "jitsu-dev.labels" . | nindent 4 }}
+    {{- include "jitsu.labels" . | nindent 4 }}
     app.kubernetes.io/name: syncctl
 spec:
   replicas: {{ .Values.scaling.syncctl.replicas }}
@@ -98,7 +98,7 @@ spec:
             - name: SYNCCTL_REVERSE_RUNTIME_SECRET
               value: {{ .Values.reverseEtl.runtimeSecret | quote }}
             - name: SYNCCTL_REVERSE_SERVICE_ACCOUNT
-              value: {{ include "jitsu-dev.reverseServiceAccount" . | quote }}
+              value: {{ include "jitsu.reverseServiceAccount" . | quote }}
             - name: SYNCCTL_REVERSE_RUNNER_RESOURCES
               value: {{ .Values.reverseEtl.resources | toJson | quote }}
             - name: SYNCCTL_REVERSE_SCRATCH_SIZE_LIMIT
@@ -111,7 +111,7 @@ spec:
             # least-privilege SA bound only to coordination.k8s.io/leases.
             # Separating it from syncctl's own SA keeps the pod-side blast
             # radius tiny (no pod create/delete, no Secret read, no log access).
-            {{- include "jitsu-dev.env" (dict "ctx" . "service" "syncctl"
+            {{- include "jitsu.env" (dict "ctx" . "service" "syncctl"
                   "extra" (dict "HTTP_PORT" "3043" "PODS_SERVICE_ACCOUNT" "sync-pod")
                   "exclude" (list "KUBERNETES_NAMESPACE")) | nindent 12 }}
           volumeMounts:
@@ -133,7 +133,7 @@ spec:
       volumes:
         - name: project
           hostPath:
-            path: {{ .Values.syncctlProjectRoot | default (include "jitsu-dev.projectRoot" .) | quote }}
+            path: {{ .Values.syncctlProjectRoot | default (include "jitsu.projectRoot" .) | quote }}
             type: Directory
         - name: build
           emptyDir: {}
@@ -148,7 +148,7 @@ kind: Service
 metadata:
   name: syncctl
   labels:
-    {{- include "jitsu-dev.labels" . | nindent 4 }}
+    {{- include "jitsu.labels" . | nindent 4 }}
     app.kubernetes.io/name: syncctl
 spec:
   # Controller authentication is optional; never expose its control plane by default.
@@ -171,14 +171,14 @@ kind: ServiceAccount
 metadata:
   name: syncctl
   labels:
-    {{- include "jitsu-dev.labels" . | nindent 4 }}
+    {{- include "jitsu.labels" . | nindent 4 }}
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
   name: {{ .Release.Name }}-syncctl
   labels:
-    {{- include "jitsu-dev.labels" . | nindent 4 }}
+    {{- include "jitsu.labels" . | nindent 4 }}
 rules:
   - apiGroups: [""]
     resources: ["pods", "services", "configmaps", "secrets"]
@@ -206,7 +206,7 @@ kind: ClusterRoleBinding
 metadata:
   name: {{ .Release.Name }}-syncctl
   labels:
-    {{- include "jitsu-dev.labels" . | nindent 4 }}
+    {{- include "jitsu.labels" . | nindent 4 }}
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: ClusterRole
@@ -226,14 +226,14 @@ kind: ServiceAccount
 metadata:
   name: sync-pod
   labels:
-    {{- include "jitsu-dev.labels" . | nindent 4 }}
+    {{- include "jitsu.labels" . | nindent 4 }}
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata:
   name: {{ .Release.Name }}-sync-pod
   labels:
-    {{- include "jitsu-dev.labels" . | nindent 4 }}
+    {{- include "jitsu.labels" . | nindent 4 }}
 rules:
   - apiGroups: ["coordination.k8s.io"]
     resources: ["leases"]
@@ -244,7 +244,7 @@ kind: RoleBinding
 metadata:
   name: {{ .Release.Name }}-sync-pod
   labels:
-    {{- include "jitsu-dev.labels" . | nindent 4 }}
+    {{- include "jitsu.labels" . | nindent 4 }}
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: Role

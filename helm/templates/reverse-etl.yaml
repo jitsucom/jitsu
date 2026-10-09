@@ -3,9 +3,9 @@
 apiVersion: v1
 kind: ServiceAccount
 metadata:
-  name: {{ include "jitsu-dev.reverseServiceAccount" . }}
+  name: {{ include "jitsu.reverseServiceAccount" . }}
   labels:
-    {{- include "jitsu-dev.labels" . | nindent 4 }}
+    {{- include "jitsu.labels" . | nindent 4 }}
   {{- with .Values.reverseEtl.serviceAccount.annotations }}
   annotations:
     {{- toYaml . | nindent 4 }}
@@ -19,7 +19,7 @@ kind: Role
 metadata:
   name: {{ .Release.Name }}-retl-runner
   labels:
-    {{- include "jitsu-dev.labels" . | nindent 4 }}
+    {{- include "jitsu.labels" . | nindent 4 }}
 rules:
   - apiGroups: ["coordination.k8s.io"]
     resources: ["leases"]
@@ -30,13 +30,13 @@ kind: RoleBinding
 metadata:
   name: {{ .Release.Name }}-retl-runner
   labels:
-    {{- include "jitsu-dev.labels" . | nindent 4 }}
+    {{- include "jitsu.labels" . | nindent 4 }}
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: Role
   name: {{ .Release.Name }}-retl-runner
 subjects:
   - kind: ServiceAccount
-    name: {{ include "jitsu-dev.reverseServiceAccount" . }}
+    name: {{ include "jitsu.reverseServiceAccount" . }}
     namespace: {{ .Release.Namespace }}
 {{- end }}
