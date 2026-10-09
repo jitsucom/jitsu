@@ -135,7 +135,12 @@ async function hasState(db: ReadDb, workspaceId: string, syncId: string) {
       select: { sync_id: true },
     })) ||
     !!(await db.source_state.findFirst({
-      where: { sync_id: syncId, stream: { in: ["_REVERSE_ETL_GOOGLE_AUDIENCE_", "_REVERSE_ETL_META_AUDIENCE_"] } },
+      where: {
+        sync_id: syncId,
+        stream: {
+          in: ["_REVERSE_ETL_GOOGLE_AUDIENCE_", "_REVERSE_ETL_META_AUDIENCE_", "__jitsu_microsoft_audience_v1"],
+        },
+      },
       select: { sync_id: true },
     })) ||
     !!(await db.source_task.findFirst({

@@ -4,6 +4,8 @@ import { GoogleAudienceCredentials } from "@jitsu/destination-functions/src/func
 import { readReverseSync } from "./reverse-sync-export";
 import type { NangoConfig } from "./oauth/nango-config";
 import { readGoogleAudienceConnectionToken } from "./google-audience-oauth";
+import { MicrosoftRuntimeCredentials } from "@jitsu/destination-functions/src/functions/microsoft-ads/meta";
+import { readMicrosoftAdsToken } from "./microsoft-ads-oauth";
 
 export function authorizeReverseRunner(authorization: string | undefined, secret: string | undefined) {
   if (!secret) return false;
@@ -13,7 +15,7 @@ export function authorizeReverseRunner(authorization: string | undefined, secret
 }
 
 /** No caller-supplied Nango connection/integration/host; resolve from the current scoped sync. */
-export async function readReverseGoogleToken(
+export async function readReverseSyncToken(
   prisma: PrismaClient,
   input: { syncId: string; workspaceId: string; configRevision: string; refreshTaskId?: string },
   nango: NangoConfig,
@@ -21,7 +23,8 @@ export async function readReverseGoogleToken(
   signal: AbortSignal = AbortSignal.timeout(15_000)
 ) {
   // This error intentionally carries no provider response, credentials or config values.
-  const denied = () => new Error("Reverse sync OAuth unavailable; verify admission, revision and Google authorization");
+  const denied = () =>
+    new Error("Reverse sync OAuth unavailable; verify admission, revision and destination authorization");
   try {
     const read = () =>
       prisma.$transaction(
@@ -35,12 +38,20 @@ export async function readReverseGoogleToken(
       !nango.enabled ||
       !config ||
       config.configRevision !== input.configRevision ||
-      config.destination.destinationType !== "google-ads"
+      !["google-ads", "microsoft-ads"].includes(String(config.destination.destinationType))
     )
       throw denied();
-    const credentials = GoogleAudienceCredentials.safeParse(config.destination);
+    const microsoft = config.destination.destinationType === "microsoft-ads";
+    const credentials = (microsoft ? MicrosoftRuntimeCredentials : GoogleAudienceCredentials).safeParse(
+      config.destination
+    );
     if (!credentials.success || credentials.data.oauthConnectionId !== `destination.${config.toId}`) throw denied();
-    const token = await readGoogleAudienceConnectionToken(credentials.data.oauthConnectionId, nango, request, signal);
+    const token = await (microsoft ? readMicrosoftAdsToken : readGoogleAudienceConnectionToken)(
+      credentials.data.oauthConnectionId,
+      nango,
+      request,
+      signal
+    );
     // Recheck after Nango I/O: saved-run scope and revision must still be valid.
     const current = await read();
     if (!current || current.configRevision !== input.configRevision || current.toId !== config.toId) throw denied();

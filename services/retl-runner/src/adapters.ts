@@ -34,7 +34,8 @@ export function createAdapterRegistry(
           signal: runtime?.signal ?? new AbortController().signal,
           log: runtime?.log ?? (async () => {}),
           targetState: runtime ? key => createTargetState(runtime.db, config, key) : undefined,
-          developerToken: process.env.GOOGLE_ADS_DEVELOPER_TOKEN,
+          developerToken:
+            id === "microsoft-ads" ? process.env.MICROSOFT_ADS_DEVELOPER_TOKEN : process.env.GOOGLE_ADS_DEVELOPER_TOKEN,
           validateSource: runtime?.validateSource,
         }),
     ])

@@ -19,6 +19,10 @@ import sendgridIcon from "./icons/sendgrid";
 import statsigIcon from "./icons/statsig";
 
 import * as meta from "@jitsu/destination-functions/src/meta";
+import {
+  MicrosoftAdsCredentials,
+  MicrosoftAdsCredentialsUi,
+} from "@jitsu/destination-functions/src/functions/microsoft-ads/meta";
 import { HubspotCredentials } from "@jitsu/destination-functions/src/meta";
 import { branding } from "../branding";
 import { ValidationMessages } from "./config-editor-errors";
@@ -219,6 +223,8 @@ export type InternalPluginDescriptor = {
 export type DeviceOptions = AnalyticsPluginDescriptor | InternalPluginDescriptor;
 
 export type DestinationType<T = any> = {
+  /** Only model-to-destination syncs, not ordinary event connections. */
+  reverseEtlOnly?: boolean;
   id: string;
   title: string;
   isSynchronous?: boolean;
@@ -1035,6 +1041,17 @@ export const coreDestinations: DestinationType<any>[] = [
         other events Jitsu sends them as custom events to Intercom
       </>
     ),
+  },
+  {
+    id: "microsoft-ads",
+    title: "Microsoft Advertising (Bing Ads)",
+    tags: "Advertising",
+    reverseEtlOnly: true,
+    credentials: MicrosoftAdsCredentials,
+    credentialsUi: MicrosoftAdsCredentialsUi,
+    connectionOptions: CloudDestinationsConnectionOptions,
+    description:
+      "Sync warehouse models to Customer Match audiences and offline conversion goals. Reverse ETL only; no UET browser tag is required.",
   },
   {
     id: "facebook-conversions",
