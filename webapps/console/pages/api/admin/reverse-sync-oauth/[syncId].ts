@@ -3,7 +3,7 @@ import { createRoute } from "../../../../lib/api";
 import { db } from "../../../../lib/server/db";
 import { getServerEnv } from "../../../../lib/server/serverEnv";
 import { nangoConfig } from "../../../../lib/server/oauth/nango-config";
-import { authorizeReverseRunner, readReverseGoogleToken } from "../../../../lib/server/reverse-sync-oauth";
+import { authorizeReverseRunner, readReverseSyncToken } from "../../../../lib/server/reverse-sync-oauth";
 import { isReadOnly } from "../../../../lib/server/maintenance";
 
 /** Service-to-service OAuth for an admitted sync, not a general Nango credential proxy. */
@@ -30,7 +30,7 @@ export default createRoute()
       return;
     }
     try {
-      res.status(200).json(await readReverseGoogleToken(db.prisma(), query, nangoConfig));
+      res.status(200).json(await readReverseSyncToken(db.prisma(), query, nangoConfig));
     } catch {
       res.status(409).json({ error: "Reverse sync OAuth unavailable; verify configuration and authorization" });
     }

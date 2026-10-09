@@ -1,10 +1,12 @@
 import { WorkspacePageLayout } from "../../../components/PageLayout/WorkspacePageLayout";
 import React from "react";
+import { Alert } from "antd";
 import ConnectionEditorPage from "../../../components/ConnectionEditorPage/ConnectionEditorPage";
 import { FunctionConfig } from "../../../lib/schema";
 import { useConfigObjectLinks, useConfigObjectList } from "../../../lib/store";
 import { z } from "zod";
 import { ConfigurationObjectLinkDbModel } from "../../../prisma/schema";
+import { getCoreDestinationTypeNonStrict } from "../../../lib/schema/destinations";
 
 type FunctionAPIResult = {
   functions: FunctionConfig[];
@@ -14,8 +16,18 @@ type FunctionAPIResult = {
 const Loader = () => {
   const links = useConfigObjectLinks({ withData: true });
   const streams = useConfigObjectList("stream");
-  const destinations = useConfigObjectList("destination");
+  const destinations = useConfigObjectList("destination").filter(
+    d => !getCoreDestinationTypeNonStrict(d.destinationType)?.reverseEtlOnly
+  );
   const functions = useConfigObjectList("function").filter(f => f.kind !== "profile");
+  if (!destinations.length) {
+    return (
+      <Alert
+        type="info"
+        message="Add an event destination before creating a connection. Microsoft Ads is available in Reverse ETL syncs."
+      />
+    );
+  }
   return (
     <ConnectionEditorPage
       streams={streams}

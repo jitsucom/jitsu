@@ -3,7 +3,7 @@ import { http, HttpResponse } from "msw";
 import { deps, seedWorkspace } from "./support/harness";
 import { server } from "./support/msw";
 import { readReverseSync } from "../../lib/server/reverse-sync-export";
-import { readReverseGoogleToken, authorizeReverseRunner } from "../../lib/server/reverse-sync-oauth";
+import { readReverseSyncToken, authorizeReverseRunner } from "../../lib/server/reverse-sync-oauth";
 import type { NangoConfig } from "../../lib/server/oauth/nango-config";
 import { seedPendingReverseRun } from "./support/reverse-pending";
 
@@ -15,7 +15,7 @@ const nango: NangoConfig = {
   nangoAppHost: "https://nango.test.local",
   callback: "https://console.test.local",
 };
-async function fixture() {
+async function fixture(destinationType = "google-ads") {
   const { workspace } = await seedWorkspace();
   const { prisma } = deps();
   await prisma.workspace.update({ where: { id: workspace.id }, data: { featuresEnabled: ["reverse-etl"] } });
@@ -37,10 +37,13 @@ async function fixture() {
     data: { workspaceId: workspace.id, type: "destination", config: {} },
   });
   const credentials = {
-    destinationType: "google-ads",
+    destinationType,
     authorized: true,
     oauthConnectionId: `destination.${destination.id}`,
     customerId: "1234567890",
+    ...(destinationType === "microsoft-ads"
+      ? { accountId: "123", oauthIntegrationId: "jitsu-cloud-dst-microsoft-ads" }
+      : {}),
   };
   await prisma.configurationObject.update({ where: { id: destination.id }, data: { config: credentials } });
   const options = { version: 2, stream: "audience", mode: "upsert", mapping: { email: "email" } };
@@ -55,7 +58,8 @@ async function fixture() {
   let calls = 0;
   const oauth = {
     connection_id: credentials.oauthConnectionId,
-    provider_config_key: "jitsu-cloud-dst-google-ads",
+    provider_config_key:
+      destinationType === "microsoft-ads" ? "jitsu-cloud-dst-microsoft-ads" : "jitsu-cloud-dst-google-ads",
     credentials: {
       access_token: "google-token",
       refresh_token: "never-return",
@@ -67,15 +71,60 @@ async function fixture() {
     http.get("https://nango.test.local/connection/:id", ({ request, params }) => {
       calls++;
       expect(params.id).toBe(credentials.oauthConnectionId);
-      expect(new URL(request.url).searchParams.get("provider_config_key")).toBe("jitsu-cloud-dst-google-ads");
+      expect(new URL(request.url).searchParams.get("provider_config_key")).toBe(
+        destinationType === "microsoft-ads" ? "jitsu-cloud-dst-microsoft-ads" : "jitsu-cloud-dst-google-ads"
+      );
       expect(request.headers.get("authorization")).toBe("Bearer nango-secret");
       return HttpResponse.json(oauth);
     })
   );
-  const read = () => readReverseGoogleToken(prisma, input, nango);
+  const read = () => readReverseSyncToken(prisma, input, nango);
   return { prisma, workspace, destination, credentials, link, options, input, oauth, read, calls: () => calls };
 }
-describe("reverse sync scoped Google OAuth", () => {
+describe("reverse sync scoped provider OAuth", () => {
+  it("resolves Microsoft OAuth only through its fixed integration and excludes refresh credentials", async () => {
+    const f = await fixture("microsoft-ads");
+    f.oauth.credentials.access_token = "microsoft-token";
+    const token = await f.read();
+    expect(token.accessToken).toBe("microsoft-token");
+    expect(Object.keys(token).sort()).toEqual(["accessToken", "expiresAt"]);
+    expect(JSON.stringify(token)).not.toContain("never-return");
+    f.oauth.provider_config_key = "jitsu-cloud-dst-google-ads";
+    await expect(f.read()).rejects.toThrow("OAuth unavailable");
+  });
+  it.each(["foreign-connection", "foreign-integration", "expired", "disable-during-fetch"])(
+    "rejects Microsoft %s",
+    async kind => {
+      const f = await fixture("microsoft-ads");
+      if (kind === "expired") f.oauth.credentials.expires_at = new Date(0).toISOString();
+      if (kind === "disable-during-fetch")
+        server.use(
+          http.get("https://nango.test.local/connection/:id", async () => {
+            await f.prisma.configurationObjectLink.update({
+              where: { id: f.link.id },
+              data: { data: { ...f.options, disabled: true } },
+            });
+            return HttpResponse.json(f.oauth);
+          })
+        );
+      if (kind.startsWith("foreign")) {
+        await f.prisma.configurationObject.update({
+          where: { id: f.destination.id },
+          data: {
+            config: {
+              ...f.credentials,
+              ...(kind === "foreign-connection"
+                ? { oauthConnectionId: "destination.other" }
+                : { oauthIntegrationId: "jitsu-cloud-dst-google-ads" }),
+            },
+          },
+        });
+        f.input.configRevision = (await readReverseSync(f.prisma, f.link.id))!.configRevision;
+      }
+      await expect(f.read()).rejects.toThrow("OAuth unavailable");
+      if (kind.startsWith("foreign")) expect(f.calls()).toBe(0);
+    }
+  );
   it("allows paused saved-task OAuth but denies ordinary token requests and rechecks completion", async () => {
     const f = await fixture();
     const admission = await seedPendingReverseRun(f.prisma, f.link.id, f.workspace.id, f.input.configRevision);
@@ -84,7 +133,7 @@ describe("reverse sync scoped Google OAuth", () => {
       data: { data: { ...f.options, disabled: true } },
     });
     await expect(f.read()).rejects.toThrow("OAuth unavailable");
-    expect((await readReverseGoogleToken(f.prisma, { ...f.input, ...admission }, nango)).accessToken).toBe(
+    expect((await readReverseSyncToken(f.prisma, { ...f.input, ...admission }, nango)).accessToken).toBe(
       "google-token"
     );
     server.use(
@@ -93,7 +142,7 @@ describe("reverse sync scoped Google OAuth", () => {
         return HttpResponse.json(f.oauth);
       })
     );
-    await expect(readReverseGoogleToken(f.prisma, { ...f.input, ...admission }, nango)).rejects.toThrow(
+    await expect(readReverseSyncToken(f.prisma, { ...f.input, ...admission }, nango)).rejects.toThrow(
       "OAuth unavailable"
     );
   });
@@ -172,7 +221,7 @@ describe("reverse sync scoped Google OAuth", () => {
           )
         );
       await expect(f.read()).rejects.toThrow(
-        /^Reverse sync OAuth unavailable; verify admission, revision and Google authorization$/
+        /^Reverse sync OAuth unavailable; verify admission, revision and destination authorization$/
       );
     }
   );

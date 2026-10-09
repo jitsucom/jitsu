@@ -8,6 +8,7 @@ export class ReverseEtlManualReconciliationError extends Error {
 }
 
 const terminalReplacementReasons = new Set([
+  "Microsoft Ads delivery is unconfirmed; manual reconciliation required, no automatic replay",
   "Meta delivery results require manual reconciliation; no replay",
   "Google replacement cutoff is missing or bound to another run; do not reset or replay",
   "Google replacement cleanup receipt unavailable; manual reconciliation required, no automatic replay",
@@ -26,6 +27,18 @@ export function requiresManualReconciliation(error: unknown): boolean {
 
 /** Exact core-owned reasons only. Never expose arbitrary SDK/SQL messages or causes. */
 const failures = new Map<string, string>([
+  [
+    "Microsoft Ads delivery is unconfirmed; manual reconciliation required, no automatic replay",
+    "Microsoft did not confirm delivery. Some records may have been accepted. Contact your Jitsu administrator with this run ID; no automatic replay will occur. Do not reset sync state.",
+  ],
+  [
+    "Invalid Microsoft Ads row identifiers or conversion fields",
+    "Check Microsoft Ads identifier mappings, raw versus SHA-256 selection, E.164 phone format and conversion timestamps. This row was not submitted; earlier batches may have been accepted.",
+  ],
+  [
+    "Microsoft audience creation is unconfirmed; retry discovery without resetting state",
+    "Microsoft audience creation is unconfirmed. Run this same sync again to discover the original audience; do not reset state or create another sync.",
+  ],
   [
     "Reverse sync already running",
     "Another worker is running this sync. This worker submitted no changes; wait for it to finish and try again.",

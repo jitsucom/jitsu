@@ -417,8 +417,8 @@ const EditorComponent: React.FC<EditorComponentProps> = props => {
   const uiSchema = getUiSchema(schema, fields, formState?.formData || object, isNew);
   if (
     type === "destination" &&
-    object.destinationType === "google-ads" &&
-    appConfig.googleAdsDeveloperTokenConfigured
+    ((object.destinationType === "google-ads" && appConfig.googleAdsDeveloperTokenConfigured) ||
+      (object.destinationType === "microsoft-ads" && appConfig.microsoftAdsDeveloperTokenConfigured))
   ) {
     uiSchema.developerToken = { ...uiSchema.developerToken, "ui:widget": "hidden" };
   }
