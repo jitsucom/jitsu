@@ -3,11 +3,11 @@ import { ApiError } from "./shared/errors";
 
 export interface OIDCProfile extends Record<string, any> {
   sub: string;
-  name: string;
-  preferred_username: string;
-  nickname: string;
-  email: string;
-  picture: string;
+  name?: string | null;
+  preferred_username?: string | null;
+  nickname?: string | null;
+  email?: string | null;
+  picture?: string | null;
 }
 
 export type OIDCConfig<P> = OAuthUserConfig<P> & Required<Pick<OAuthConfig<P>, "issuer">>;
@@ -41,7 +41,7 @@ export function OIDCProvider<P extends OIDCProfile>(options: OIDCConfig<P>): OAu
   return {
     id: "oidc",
     name: "OIDC",
-    wellKnown: `${options.issuer}/.well-known/openid-configuration`,
+    wellKnown: `${options.issuer.replace(/\/+$/, "")}/.well-known/openid-configuration`,
     type: "oauth",
     authorization: { params: { scope: "openid email profile" } },
     checks: ["pkce", "state"],
@@ -50,6 +50,8 @@ export function OIDCProvider<P extends OIDCProfile>(options: OIDCConfig<P>): OAu
       return {
         id: profile.sub,
         name: profile.name ?? profile.preferred_username ?? profile.nickname,
+        // Do not fall back to preferred_username: it is mutable and is not
+        // guaranteed to be an email address, while Jitsu uses email for invitations.
         email: profile.email,
         image: profile.picture,
       };
@@ -58,9 +60,9 @@ export function OIDCProvider<P extends OIDCProfile>(options: OIDCConfig<P>): OAu
   };
 }
 
-export function ParseJSONConfigFromEnv<P extends OIDCProfile>(env: string): OIDCConfig<P> | undefined {
+export function ParseJSONConfigFromEnv<P extends OIDCProfile>(env?: string): OIDCConfig<P> | undefined {
   try {
-    return env && env != '""' ? (JSON.parse(env) as OIDCConfig<P>) : undefined;
+    return env && env !== '""' ? (JSON.parse(env) as OIDCConfig<P>) : undefined;
   } catch (error: unknown) {
     console.error("Failed to parse JSON config from env", error);
     return undefined;
