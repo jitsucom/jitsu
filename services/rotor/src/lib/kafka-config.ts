@@ -57,28 +57,54 @@ export function getCredentialsFromEnv(): KafkaCredentials {
   };
 }
 
-export function connectToKafka(opts: { defaultAppId: string } & KafkaCredentials): KafkaJS.Kafka {
+const clientLogLevels: Record<string, KafkaJS.logLevel> = {
+  nothing: KafkaJS.logLevel.NOTHING,
+  error: KafkaJS.logLevel.ERROR,
+  warn: KafkaJS.logLevel.WARN,
+  info: KafkaJS.logLevel.INFO,
+  debug: KafkaJS.logLevel.DEBUG,
+};
+
+export function kafkaClientLogLevel(configured?: string): KafkaJS.logLevel {
+  return clientLogLevels[(configured || "").toLowerCase()] ?? KafkaJS.logLevel.ERROR;
+}
+
+export type KafkaDiagnostics = {
+  debug?: string;
+  logLevel?: string;
+};
+
+export function buildKafkaConfig(
+  opts: { defaultAppId: string } & KafkaCredentials,
+  diagnostics: KafkaDiagnostics = {}
+): any {
   const sasl = opts.sasl
     ? {
         sasl: opts.sasl as any,
       }
     : {};
-  log.atDebug().log("SASL config", JSON.stringify(opts.sasl));
-  return new KafkaJS.Kafka({
+  return {
     kafkaJS: {
-      logLevel: KafkaJS.logLevel.ERROR,
-      // logCreator: logLevel => log => {
-      //   translateLevel(logLevel).log(
-      //     `${log.namespace ? `${log.namespace} # ` : ""}${JSON.stringify(omit(log.log, "timestamp", "logger"))}`
-      //   );
-      // },
+      logLevel: kafkaClientLogLevel(diagnostics.logLevel),
+      logCreator: () => (entry: any) =>
+        translateLevel(entry.level).log(
+          `${entry.log?.fac ? `[${entry.log.fac}] ` : ""}${entry.log?.message ?? JSON.stringify(entry.log)}`
+        ),
       clientId: serverEnv.APPLICATION_ID || opts.defaultAppId,
       brokers: typeof opts.brokers === "string" ? (opts.brokers as string).split(",") : opts.brokers,
       ...(opts.ssl ? { ssl: true } : {}),
       ...sasl,
     },
+    ...(diagnostics.debug ? { debug: diagnostics.debug } : {}),
     ...opts.ssl,
-  });
+  };
+}
+
+export function connectToKafka(opts: { defaultAppId: string } & KafkaCredentials): KafkaJS.Kafka {
+  log.atDebug().log("SASL config", JSON.stringify(opts.sasl));
+  return new KafkaJS.Kafka(
+    buildKafkaConfig(opts, { debug: serverEnv.KAFKA_DEBUG, logLevel: serverEnv.KAFKA_CLIENT_LOG_LEVEL })
+  );
 }
 
 export function destinationMessagesTopic(): string {
