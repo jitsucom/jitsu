@@ -192,6 +192,47 @@ describe("Microsoft Ads Reverse ETL", () => {
     await writer.abort("error");
     expect(f.fetch.mock.calls.length).toBe(count);
   });
+  it.each(["Account", "Customer"])("allows an accessible existing %s list owned elsewhere", async Scope => {
+    const f = fixture();
+    Object.assign(f.remote()[0], { Scope, ParentId: "999" });
+    const { adapter, writer } = await f.init();
+    expect(adapter.targetIdentity).toBe("microsoft-audience:789");
+    expect(adapter.mirror).toBeUndefined();
+    expect(adapter.stream.capabilities.mirror).toBe("none");
+    expect(f.state()).toBeUndefined();
+    expect(JSON.parse(f.fetch.mock.calls[0][1].body)).toEqual({ Type: "CustomerList", AudienceIds: ["789"] });
+    const b = batch([{ email: hash("test@example.com") }]);
+    expect((await writer.upsert(b)).outcomes[0].status).toBe("accepted");
+    expect((await writer.remove!(b)).outcomes[0].status).toBe("accepted");
+    // Read access does not imply write access; preserve provider rejections.
+    f.fetch.mockResolvedValueOnce(response({ Errors: [{ Code: 106 }] }, 403));
+    expect((await writer.upsert(b)).outcomes[0]).toMatchObject({ status: "rejected", code: "MICROSOFT_106" });
+  });
+  it.each([
+    { Audiences: [], PartialErrors: [] },
+    { Audiences: [{ Id: "998", Type: "CustomerList", Scope: "Account", ParentId: "999" }], PartialErrors: [] },
+    { Audiences: [{ Id: "789", Type: "RemarketingList", Scope: "Account", ParentId: "999" }], PartialErrors: [] },
+    { Audiences: [null], PartialErrors: [{ Index: 0, Code: 106 }] },
+  ])("rejects missing, mismatched or inaccessible existing lists: %j", async result => {
+    const f = fixture();
+    f.fetch.mockResolvedValueOnce(response(result));
+    await expect(f.init()).rejects.toThrow();
+    expect(f.fetch).toHaveBeenCalledTimes(1);
+    expect(f.state()).toBeUndefined();
+  });
+  it.each([
+    { ParentId: "999" },
+    { Scope: "Customer", ParentId: credentials.customerId },
+    { Description: "changed marker" },
+    { MembershipDuration: 30 },
+  ])("retains managed-list ownership and baseline checks: %j", async patch => {
+    const f = fixture(true);
+    const { adapter } = await f.init();
+    Object.assign(f.remote()[0], patch);
+    await expect(adapter.verifyMirrorBaseline!(f.services.signal)).rejects.toThrow("scope or ownership");
+    await expect(f.init()).rejects.toThrow("scope or ownership");
+    expect(f.fetch.mock.calls.filter(([url]) => String(url).endsWith("/Audiences"))).toHaveLength(1);
+  });
   it("preserves indexed partial successes and never exposes provider row text", async () => {
     const f = fixture();
     const { writer } = await f.init();

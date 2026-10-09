@@ -40,6 +40,11 @@ scope, parent account, type and membership policy must match. No match/multiple 
 block creation recovery. Existing lists are never treated as empty or cleared to seed
 a mirror. An empty managed model removes tracked members through the core.
 
+Existing lists are validated by ID, Customer List type and authenticated API lookup,
+not by matching their owner to the configured account/customer. Shared-list lookup
+access does not imply write permission: Microsoft enforces that on each add/remove.
+Managed-list owner, marker, scope and expiration checks remain strict.
+
 Customer Match terms must already be accepted in Microsoft UI, or the user must
 explicitly select acceptance in sync settings. Never accept terms implicitly.
 Offline goals must exist for at least two hours before upload. Conversion times must

@@ -53,9 +53,14 @@ export async function resolveMicrosoftAudience(
     const matches = (await lookup(id)).filter(a => a.Id === id);
     if (matches.length !== 1) throw new Error("Microsoft audience lookup did not return the requested target");
     const found = matches[0];
+    // Lookup establishes access to existing lists, including shared ones. Only managed
+    // lists must belong to this account; Microsoft still enforces permission on writes.
     if (
-      found.ParentId !== (found.Scope === "Account" ? accountId : customerId) ||
-      (marker && (found.Description !== marker || found.Scope !== "Account" || found.MembershipDuration !== -1))
+      marker !== undefined &&
+      (found.ParentId !== accountId ||
+        found.Description !== marker ||
+        found.Scope !== "Account" ||
+        found.MembershipDuration !== -1)
     )
       throw new Error("Microsoft audience scope or ownership does not match saved state");
   };
