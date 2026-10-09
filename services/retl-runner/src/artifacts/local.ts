@@ -68,24 +68,40 @@ export class LocalIndex {
     });
   }
   restoreMembers(values: Member[]) {
-    for (const { effect, acceptedAt, uncertain } of values) this.apply(effect, "upsert", 0, acceptedAt, uncertain);
+    // One statement and one transaction per page: restoring a long baseline row by row costs a compile and a write each.
+    const put = this.upsertMember();
+    this.transaction(() => {
+      for (const { effect, acceptedAt, uncertain } of values)
+        this.putMember(put, effect, "upsert", 0, acceptedAt, uncertain);
+    });
   }
   apply(effect: Effect, action: "upsert" | "remove", sequence: number, acceptedAt: string, uncertain = false) {
+    this.putMember(this.upsertMember(), effect, action, sequence, acceptedAt, uncertain);
+  }
+  private upsertMember() {
     // Keep tombstones until the next run, so late acceptance cannot resurrect an older write.
-    this.sql
-      .prepare(
-        `INSERT INTO members VALUES (?,?,?,?,?,?) ON CONFLICT(identity) DO UPDATE SET
+    return this.sql.prepare(
+      `INSERT INTO members VALUES (?,?,?,?,?,?) ON CONFLICT(identity) DO UPDATE SET
       payload=excluded.payload,value=excluded.value,accepted_at=excluded.accepted_at,sequence=excluded.sequence,uncertain=excluded.uncertain
       WHERE excluded.sequence>members.sequence`
-      )
-      .run(
-        effect.identityHash,
-        action === "upsert" ? effect.payloadHash : null,
-        action === "upsert" ? canonicalJson(effect) : null,
-        acceptedAt,
-        sequence,
-        uncertain ? 1 : 0
-      );
+    );
+  }
+  private putMember(
+    put: ReturnType<DatabaseSync["prepare"]>,
+    effect: Effect,
+    action: "upsert" | "remove",
+    sequence: number,
+    acceptedAt: string,
+    uncertain = false
+  ) {
+    put.run(
+      effect.identityHash,
+      action === "upsert" ? effect.payloadHash : null,
+      action === "upsert" ? canonicalJson(effect) : null,
+      acceptedAt,
+      sequence,
+      uncertain ? 1 : 0
+    );
   }
   page(
     kind: "additions" | "removals",
