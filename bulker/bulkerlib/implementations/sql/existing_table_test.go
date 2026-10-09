@@ -95,7 +95,7 @@ func TestExistingTable2(t *testing.T) {
 				{"id": 1, "data": 1, "_unmapped_data": nil},
 				{"id": 2, "data": 0, "_unmapped_data": "{\"data\":\"string_id\"}"},
 			},
-			configIds: utils.ArrayIntersection(allBulkerConfigs, []string{ClickHouseBulkerTypeId, ClickHouseBulkerTypeId + "_cluster", ClickHouseBulkerTypeId + "_cluster_noshards"}),
+			configIds: utils.ArrayIntersection(allBulkerConfigs, []string{ClickHouseBulkerTypeId, ClickHouseBulkerTypeId + "_cluster", ClickHouseBulkerTypeId + "_cluster_noshards", ClickHouseBulkerTypeId + "_replicated_db", ClickHouseBulkerTypeId + "_replicated_db_sharded"}),
 		},
 		{
 			name:                "existing_table2_add_events",
