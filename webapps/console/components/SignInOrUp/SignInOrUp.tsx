@@ -275,6 +275,12 @@ export const SignInOrUp: React.FC<SigninProps> = ({ signup }) => {
         setError("Invalid email or password");
         return;
       }
+      // Mirrors the plain password-login path below: signIn() itself doesn't
+      // record the login event (see its own comment) — resolveUser({
+      // recordLogin: true }) is what actually fires it, once internalId is
+      // resolvable. Skipping this call was a real gap: linking via password
+      // silently missed the audit/telemetry login event every other path fires.
+      await firebaseSession!.resolveUser(undefined, { recordLogin: true }).user;
       const result = await firebaseSession!.linkPendingCredential(linkPrompt.pendingCredential);
       if (result.status !== "authenticated" && result.status !== "email-not-verified") {
         setError((result as any).message || "Linking failed");
