@@ -10,7 +10,7 @@ import { useFirebaseSession } from "../../lib/firebase-client";
 import { useJitsu } from "@jitsu/jitsu-react";
 import { useAppConfig } from "../../lib/context";
 import { safeRedirect } from "../../lib/auth-redirect";
-import { Alert, Button, Modal } from "antd";
+import { Alert, Button, Input, Modal } from "antd";
 
 export type AuthType =
   | "firebase-password"
@@ -80,6 +80,11 @@ export const SignInOrUp: React.FC<SigninProps> = ({ signup }) => {
     pendingCredential: Parameters<ReturnType<typeof useFirebaseSession>["linkPendingCredential"]>[0];
   } | null>(null);
   const [linking, setLinking] = useState(false);
+  // Only used when linkPrompt.existingProvider === "password" — the modal
+  // collects the password itself (see handleLinkWithPassword) rather than
+  // relying on the page's own email/password form, which sits behind the
+  // modal's mask and can't be interacted with while it's open.
+  const [linkPassword, setLinkPassword] = useState("");
 
   const callbackUrl = (router.query.callbackUrl as string) || "/";
 
@@ -128,18 +133,6 @@ export const SignInOrUp: React.FC<SigninProps> = ({ signup }) => {
           // verification screen.
           safeRedirect(router, callbackUrl);
           return;
-        }
-        // JITSU-244: this password sign-in may be completing a link prompt
-        // (the user's existing account is password-backed) rather than a
-        // plain login — finish the link before redirecting so the pending
-        // OAuth credential isn't silently dropped.
-        if (linkPrompt?.existingProvider === "password") {
-          const linkResult = await firebaseSession!.linkPendingCredential(linkPrompt.pendingCredential);
-          if (linkResult.status !== "authenticated" && linkResult.status !== "email-not-verified") {
-            setError((linkResult as any).message || "Linking failed");
-            return;
-          }
-          setLinkPrompt(null);
         }
         // `login` is tracked server-side (fb-auth/audit-login) — see telemetry.trackAuthEvent.
         safeRedirect(router, callbackUrl);
@@ -266,6 +259,37 @@ export const SignInOrUp: React.FC<SigninProps> = ({ signup }) => {
     }
   };
 
+  // JITSU-244: the password-account counterpart to handleLinkConfirm. Can't
+  // reuse the page's own email/password form for this — it's rendered behind
+  // the modal's mask and the user can't reach it while the modal is open (the
+  // earlier version relied on closing the modal first, which cleared
+  // linkPrompt before the form submission could see it — caught in review).
+  // So this collects the password itself and completes sign-in + link
+  // without ever closing the modal in between.
+  const handleLinkWithPassword = async () => {
+    if (!linkPrompt) return;
+    setLinking(true);
+    try {
+      const success = await firebaseSession!.signIn(linkPrompt.email, linkPassword);
+      if (!success) {
+        setError("Invalid email or password");
+        return;
+      }
+      const result = await firebaseSession!.linkPendingCredential(linkPrompt.pendingCredential);
+      if (result.status !== "authenticated" && result.status !== "email-not-verified") {
+        setError((result as any).message || "Linking failed");
+        return;
+      }
+      setLinkPrompt(null);
+      setLinkPassword("");
+      safeRedirect(router, callbackUrl);
+    } catch (e: any) {
+      setError(handleFirebaseError(e));
+    } finally {
+      setLinking(false);
+    }
+  };
+
   return (
     <>
       <SigninLayout
@@ -329,12 +353,24 @@ export const SignInOrUp: React.FC<SigninProps> = ({ signup }) => {
       <Modal
         open={!!linkPrompt}
         title="Account already exists"
-        onCancel={() => setLinkPrompt(null)}
+        onCancel={() => {
+          setLinkPrompt(null);
+          setLinkPassword("");
+        }}
         footer={
           linkPrompt?.existingProvider === "password"
             ? [
-                <Button key="close" onClick={() => setLinkPrompt(null)}>
-                  Close
+                <Button
+                  key="cancel"
+                  onClick={() => {
+                    setLinkPrompt(null);
+                    setLinkPassword("");
+                  }}
+                >
+                  Cancel
+                </Button>,
+                <Button key="confirm" type="primary" loading={linking} onClick={handleLinkWithPassword}>
+                  Sign in and link
                 </Button>,
               ]
             : [
@@ -348,10 +384,19 @@ export const SignInOrUp: React.FC<SigninProps> = ({ signup }) => {
         }
       >
         {linkPrompt?.existingProvider === "password" ? (
-          <p>
-            An account for <strong>{linkPrompt?.email}</strong> already exists using email and password. Sign in with
-            your password below, then connect this provider from your account settings.
-          </p>
+          <>
+            <p>
+              An account for <strong>{linkPrompt?.email}</strong> already exists using email and password. Enter your
+              password to sign in and link this provider.
+            </p>
+            <Input.Password
+              placeholder="Password"
+              value={linkPassword}
+              onChange={e => setLinkPassword(e.target.value)}
+              onPressEnter={handleLinkWithPassword}
+              autoFocus
+            />
+          </>
         ) : (
           <p>
             An account for <strong>{linkPrompt?.email}</strong> already exists, signed in with{" "}
