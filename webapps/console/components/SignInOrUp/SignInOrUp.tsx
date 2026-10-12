@@ -129,6 +129,18 @@ export const SignInOrUp: React.FC<SigninProps> = ({ signup }) => {
           safeRedirect(router, callbackUrl);
           return;
         }
+        // JITSU-244: this password sign-in may be completing a link prompt
+        // (the user's existing account is password-backed) rather than a
+        // plain login — finish the link before redirecting so the pending
+        // OAuth credential isn't silently dropped.
+        if (linkPrompt?.existingProvider === "password") {
+          const linkResult = await firebaseSession!.linkPendingCredential(linkPrompt.pendingCredential);
+          if (linkResult.status !== "authenticated" && linkResult.status !== "email-not-verified") {
+            setError((linkResult as any).message || "Linking failed");
+            return;
+          }
+          setLinkPrompt(null);
+        }
         // `login` is tracked server-side (fb-auth/audit-login) — see telemetry.trackAuthEvent.
         safeRedirect(router, callbackUrl);
       } else if (type === "nextauth-credentials") {

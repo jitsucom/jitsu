@@ -327,7 +327,13 @@ export function useFirebaseSession(): FirebaseSession {
                 ? auth.GithubAuthProvider.credentialFromError(e)
                 : auth.GoogleAuthProvider.credentialFromError(e);
             if (email && pendingCredential) {
-              const existingProviders = await auth.fetchSignInMethodsForEmail(a.getAuth(), email);
+              // fetchSignInMethodsForEmail (client SDK) always returns [] on this
+              // project — email-enumeration protection is enabled (JITSU-019).
+              // Look it up server-side via the Admin SDK instead.
+              const signInMethods: { providers: string[] } = await rpc(`/api/fb-auth/sign-in-methods`, {
+                body: { email },
+              });
+              const existingProviders = signInMethods.providers;
               return { status: "account-exists-different-credential", email, existingProviders, pendingCredential };
             }
           }
