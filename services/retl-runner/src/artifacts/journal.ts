@@ -23,6 +23,24 @@ import type { ArtifactHead, BatchHead, BatchData, ReceiptData, StoredBatchData }
 const receiptKey = (result: BatchResult) =>
   canonicalJson({ ...result, outcomes: Object.fromEntries(result.outcomes.map(row => [row.operationId, row])) });
 const copy = <T>(value: T): T => JSON.parse(canonicalJson(value));
+/**
+ * Opening a journal reads (and, for a new run, writes) one artifact per stored page or batch. Done one at a time that costs
+ * a full object-store round trip each, so a finished full-table run (hundreds of batches) took minutes to start the next
+ * one. These calls do not depend on each other, so `work` runs for a group of items at once, then `apply` is called for the
+ * group's items in their original order: what is restored is exactly what the sequential loop restored.
+ */
+const STARTUP_GROUP = 16;
+async function inGroups<T, R>(
+  items: readonly T[],
+  work: (item: T) => Promise<R>,
+  apply: (item: T, result: R) => void
+): Promise<void> {
+  for (let i = 0; i < items.length; i += STARTUP_GROUP) {
+    const group = items.slice(i, i + STARTUP_GROUP);
+    const results = await Promise.all(group.map(work));
+    group.forEach((item, j) => apply(item, results[j]));
+  }
+}
 class TransitionConflict extends PersistenceError {}
 type Changes = Partial<
   Pick<
@@ -86,25 +104,39 @@ export class ObjectJournal implements DeliveryJournal {
         );
         // Pending memberships are candidates, not acknowledged baseline. Preserve
         // them for later removals and force a refresh if desired by the newer run.
-        for (const batch of head.batches.filter(batch => batch.staged > 0)) {
-          const data = await journal.data(batch);
-          const receipt = await artifacts.get<ReceiptData>(batch.receipt);
-          const pending = new Set(
-            receipt.result.outcomes.filter(row => row.status === "staged").map(row => row.operationId)
-          );
-          data.batch.records.forEach((record, i) => {
-            if (pending.has(record.operationId))
-              for (const effect of data.effects[i])
-                local.apply(effect, "upsert", record.sourceSequence, new Date(0).toISOString(), true);
-          });
-        }
+        await inGroups(
+          head.batches.filter(batch => batch.staged > 0),
+          async batch => {
+            const [data, receipt] = await Promise.all([journal.data(batch), artifacts.get<ReceiptData>(batch.receipt)]);
+            return { data, receipt };
+          },
+          (_batch, { data, receipt }) => {
+            const pending = new Set(
+              receipt.result.outcomes.filter(row => row.status === "staged").map(row => row.operationId)
+            );
+            data.batch.records.forEach((record, i) => {
+              if (pending.has(record.operationId))
+                for (const effect of data.effects[i])
+                  local.apply(effect, "upsert", record.sourceSequence, new Date(0).toISOString(), true);
+            });
+          }
+        );
         if (
           head.batches.some(batch => batch.staged > 0) ||
           (head.snapshot?.strategy === "native-replace" && head.snapshot.replacementStatus !== "accepted")
         )
           local.sql.exec("UPDATE members SET uncertain=1");
         const baseline: ArtifactRef[] = [];
-        for (const page of local.memberPages()) baseline.push(await artifacts.put(page));
+        let pages: Member[][] = [];
+        const flush = async () => baseline.push(...(await Promise.all(pages.map(page => artifacts.put(page)))));
+        for (const page of local.memberPages()) {
+          pages.push(page);
+          if (pages.length >= STARTUP_GROUP) {
+            await flush();
+            pages = [];
+          }
+        }
+        if (pages.length) await flush();
         journal.head = { version: 1, runId: scope.logicalRunId, baseline, batches: [] };
         local.sql.exec(
           "DELETE FROM desired; DELETE FROM operations; DELETE FROM touched; DELETE FROM members WHERE value IS NULL; UPDATE members SET sequence=0;"
@@ -119,14 +151,28 @@ export class ObjectJournal implements DeliveryJournal {
     }
   }
   private async restore() {
-    for (const ref of this.head.baseline) this.local.restoreMembers(await this.artifacts.get<Member[]>(ref));
+    await inGroups(
+      this.head.baseline,
+      ref => this.artifacts.get<Member[]>(ref),
+      (_ref, members) => this.local.restoreMembers(members)
+    );
     if (this.head.snapshot?.sealed)
-      for (const ref of this.head.snapshot.parts) this.local.restoreDesired(await this.artifacts.get<Effect[]>(ref));
-    for (const batch of [...this.head.batches].sort((a, b) => a.first - b.first)) {
-      const data = await this.data(batch);
-      const receipt = batch.receipt ? await this.artifacts.get<ReceiptData>(batch.receipt) : undefined;
-      this.index(batch, data, receipt);
-    }
+      await inGroups(
+        this.head.snapshot.parts,
+        ref => this.artifacts.get<Effect[]>(ref),
+        (_ref, desired) => this.local.restoreDesired(desired)
+      );
+    await inGroups(
+      [...this.head.batches].sort((a, b) => a.first - b.first),
+      async batch => {
+        const [data, receipt] = await Promise.all([
+          this.data(batch),
+          batch.receipt ? this.artifacts.get<ReceiptData>(batch.receipt) : Promise.resolve(undefined),
+        ]);
+        return { data, receipt };
+      },
+      (batch, { data, receipt }) => this.index(batch, data, receipt)
+    );
     if (this.head.snapshot?.strategy === "native-replace" && this.head.snapshot.replacementStatus === "accepted")
       this.local.applyReplacement();
   }
