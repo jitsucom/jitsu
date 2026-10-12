@@ -76,10 +76,17 @@ export const api: Api = {
         const user = await firebase().auth().getUserByEmail(email);
         return { providers: user.providerData.map(p => p.providerId) };
       } catch (err: any) {
-        if (err?.code !== "auth/user-not-found") {
-          log.atError().withCause(err).log("Error looking up Firebase sign-in methods");
+        // Only a genuine "no such user" is a legitimate empty result. Any other
+        // failure (Admin SDK unavailable, network, etc.) must not be reported
+        // the same way — the caller treats an empty list as "no account", and
+        // signInWith falls through to Google regardless of the real provider,
+        // which is actively misleading for a transient failure rather than a
+        // real absence.
+        if (err?.code === "auth/user-not-found") {
+          return { providers: [] };
         }
-        return { providers: [] };
+        log.atError().withCause(err).log("Error looking up Firebase sign-in methods");
+        throw new ApiError("Failed to look up sign-in methods", { status: 500 });
       }
     },
   },

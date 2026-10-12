@@ -338,7 +338,17 @@ export function useFirebaseSession(): FirebaseSession {
                 body: { provider: type, accessToken: pendingCredential.accessToken },
               });
               const existingProviders = signInMethods.providers;
-              return { status: "account-exists-different-credential", email, existingProviders, pendingCredential };
+              // The lookup endpoint now only returns [] for a genuine
+              // auth/user-not-found (a narrow race — the error above already
+              // means Firebase just confirmed this email has an account; any
+              // other failure throws instead of returning an empty list, see
+              // sign-in-methods.ts). With no real provider to offer, don't
+              // build a prompt around an undefined one — it would default to
+              // Google regardless of the actual provider. Fall through to the
+              // original error instead.
+              if (existingProviders.length > 0) {
+                return { status: "account-exists-different-credential", email, existingProviders, pendingCredential };
+              }
             }
           }
           throw e;
