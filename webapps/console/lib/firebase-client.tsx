@@ -21,11 +21,30 @@ export type FirebaseProviderInstance =
  * - `personal-email-rejected` — the server refused a personal-email signup and
  *   already deleted the orphaned Firebase account (JITSU-70); the caller should
  *   surface `message` and sign the stale client session out.
+ * - `account-exists-different-credential` — the email is already linked to a
+ *   different provider (JITSU-244); Firebase refuses to link silently. The
+ *   caller should prompt the user to sign in with `existingProviders[0]` and
+ *   then pass `pendingCredential` to `linkPendingCredential`.
  */
 export type FirebaseAuthResult =
   | { status: "authenticated"; user: ContextApiResponse["user"] }
   | { status: "email-not-verified"; email: string }
-  | { status: "personal-email-rejected"; message: string };
+  | { status: "personal-email-rejected"; message: string }
+  | {
+      status: "account-exists-different-credential";
+      email: string;
+      existingProviders: string[];
+      pendingCredential: auth.AuthCredential;
+    };
+
+/**
+ * `account-exists-different-credential` can only come from an explicit
+ * `signInWith`/`linkPendingCredential` call reacting to a popup error —
+ * passive session resolution (`resolveUser`, on every page load) never
+ * produces it. Excluded here so callers of `resolveUser` don't have to
+ * handle a status that can't actually occur for them.
+ */
+export type PassiveFirebaseAuthResult = Exclude<FirebaseAuthResult, { status: "account-exists-different-credential" }>;
 
 const FirebaseContext = createContext<FirebaseProviderInstance | null>(null);
 
@@ -61,6 +80,16 @@ export interface FirebaseSession {
 
   signInWith(type: string): Promise<FirebaseAuthResult>;
 
+  /**
+   * Completes the account-linking flow started by a `signInWith` call that
+   * returned `account-exists-different-credential`. Must be called only after
+   * the caller has re-authenticated via `signInWith(existingProviders[0])` —
+   * `linkWithCredential` links to whichever user is currently signed in, so
+   * calling this without that re-auth would link the credential to the wrong
+   * account. See JITSU-244.
+   */
+  linkPendingCredential(pendingCredential: auth.AuthCredential): Promise<FirebaseAuthResult>;
+
   signOut(): Promise<void>;
 
   resetPassword(username: string): Promise<void>;
@@ -94,7 +123,7 @@ export interface FirebaseSession {
   resolveUser(
     token?: string,
     opts?: { recordLogin?: boolean }
-  ): { user: Promise<FirebaseAuthResult | null>; cleanup: () => void };
+  ): { user: Promise<PassiveFirebaseAuthResult | null>; cleanup: () => void };
 }
 
 export function getFirebaseAuth(config: FirebaseClientSettings): typeof auth {
@@ -130,7 +159,7 @@ function emailActionSettings(): auth.ActionCodeSettings | undefined {
   return undefined;
 }
 
-async function getUserFromFirebase(currentUser: auth.User): Promise<FirebaseAuthResult> {
+async function getUserFromFirebase(currentUser: auth.User): Promise<PassiveFirebaseAuthResult> {
   const email = requireDefined(currentUser.email, "email of firebase user is undefined");
   // JITSU-018: email+password sign-up issues a valid Firebase JWT before the
   // address is verified. Block such accounts here — before any internal user or
@@ -248,6 +277,9 @@ export function useFirebaseSession(): FirebaseSession {
       signInWith: async () => {
         throw new Error("Firebase auth is not enabled");
       },
+      linkPendingCredential: async () => {
+        throw new Error("Firebase auth is not enabled");
+      },
       signOut: async () => {
         throw new Error("Firebase auth is not enabled");
       },
@@ -278,11 +310,28 @@ export function useFirebaseSession(): FirebaseSession {
 
   return {
     async signInWith(type: string): Promise<FirebaseAuthResult> {
+      const provider = type === "github.com" ? new auth.GithubAuthProvider() : new auth.GoogleAuthProvider();
       try {
-        if (type === "github.com") {
-          await a.signInWithPopup(a.getAuth(), new auth.GithubAuthProvider());
-        } else {
-          await a.signInWithPopup(a.getAuth(), new auth.GoogleAuthProvider());
+        try {
+          await a.signInWithPopup(a.getAuth(), provider);
+        } catch (e: any) {
+          // JITSU-244: Firebase refuses to silently link a second provider to an
+          // email that already has an account under a different one. Surface it
+          // as a result (not a thrown error) so the caller can prompt the user
+          // to re-auth with the existing provider and link, instead of just
+          // showing a dead-end error message.
+          if (e?.code === "auth/account-exists-with-different-credential") {
+            const email: string | undefined = e?.customData?.email;
+            const pendingCredential =
+              type === "github.com"
+                ? auth.GithubAuthProvider.credentialFromError(e)
+                : auth.GoogleAuthProvider.credentialFromError(e);
+            if (email && pendingCredential) {
+              const existingProviders = await auth.fetchSignInMethodsForEmail(a.getAuth(), email);
+              return { status: "account-exists-different-credential", email, existingProviders, pendingCredential };
+            }
+          }
+          throw e;
         }
         const result = await getUserFromFirebase(a.getAuth().currentUser!);
         if (result.status === "authenticated") {
@@ -301,9 +350,26 @@ export function useFirebaseSession(): FirebaseSession {
         throw e;
       }
     },
+    async linkPendingCredential(pendingCredential: auth.AuthCredential): Promise<FirebaseAuthResult> {
+      try {
+        const currentUser = requireDefined(
+          a.getAuth().currentUser,
+          "linkPendingCredential called without an active Firebase sign-in"
+        );
+        await auth.linkWithCredential(currentUser, pendingCredential);
+        const result = await getUserFromFirebase(a.getAuth().currentUser!);
+        if (result.status === "authenticated") {
+          await analytics.identify(result.user.internalId, { email: result.user.email, name: result.user.name });
+        }
+        return result;
+      } catch (e) {
+        log.atError().withCause(e).log(`Can't link pending credential`);
+        throw e;
+      }
+    },
     resolveUser(token?: string, opts?: { recordLogin?: boolean }) {
       log.atDebug().log("Authorizing through firebase...");
-      const userPromise: Promise<FirebaseAuthResult | null> = new Promise(async (resolve, reject) => {
+      const userPromise: Promise<PassiveFirebaseAuthResult | null> = new Promise(async (resolve, reject) => {
         if (token) {
           await auth.signInWithCustomToken(auth.getAuth(), token);
         }

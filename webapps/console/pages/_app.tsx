@@ -25,7 +25,7 @@ import { AntdTheme } from "../components/AntdTheme/AntdTheme";
 import { AntdModalProvider } from "../lib/modal";
 import Head from "next/head";
 import { JitsuProvider, useJitsu } from "@jitsu/jitsu-react";
-import { FirebaseAuthResult, FirebaseProvider, useFirebaseSession } from "../lib/firebase-client";
+import { FirebaseProvider, PassiveFirebaseAuthResult, useFirebaseSession } from "../lib/firebase-client";
 import { VerifyEmailGate } from "../components/SignInOrUp/VerifyEmailGate";
 import { FirebaseSignup } from "../components/SignInOrUp/FirebaseSignup";
 import { JitsuButton } from "../components/JitsuButton/JitsuButton";
@@ -79,7 +79,7 @@ export function Analytics({ user }: { user?: SessionUser }) {
 
 const FirebaseAuthorizer: React.FC<PropsWithChildren<{}>> = ({ children }) => {
   const session = useFirebaseSession();
-  const [result, setResult] = useState<FirebaseAuthResult | null>();
+  const [result, setResult] = useState<PassiveFirebaseAuthResult | null>();
   const [loading, setLoading] = useState<boolean>(true);
   const [authError, setAuthError] = useState<any>(undefined);
   const router = useRouter();

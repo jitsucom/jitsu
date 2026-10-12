@@ -10,7 +10,7 @@ import { useFirebaseSession } from "../../lib/firebase-client";
 import { useJitsu } from "@jitsu/jitsu-react";
 import { useAppConfig } from "../../lib/context";
 import { safeRedirect } from "../../lib/auth-redirect";
-import { Alert } from "antd";
+import { Alert, Button, Modal } from "antd";
 
 export type AuthType =
   | "firebase-password"
@@ -21,6 +21,13 @@ export type AuthType =
   | "nextauth-oidc"
   | "dynamic-oidc"
   | "none";
+
+function providerDisplayName(providerId: string): string {
+  if (providerId === "google.com") return "Google";
+  if (providerId === "github.com") return "GitHub";
+  if (providerId === "password") return "email and password";
+  return providerId;
+}
 
 function JitsuLogo() {
   return (
@@ -65,6 +72,14 @@ export const SignInOrUp: React.FC<SigninProps> = ({ signup }) => {
   const firebaseSession = useFirebaseSession();
   const { analytics } = useJitsu();
   const [error, setError] = useState<string | null>(null);
+  // JITSU-244: set when signInWith reports the email already has an account
+  // under a different provider. Drives the "sign in with X to link Y" prompt.
+  const [linkPrompt, setLinkPrompt] = useState<{
+    email: string;
+    existingProvider: string;
+    pendingCredential: Parameters<ReturnType<typeof useFirebaseSession>["linkPendingCredential"]>[0];
+  } | null>(null);
+  const [linking, setLinking] = useState(false);
 
   const callbackUrl = (router.query.callbackUrl as string) || "/";
 
@@ -166,6 +181,16 @@ export const SignInOrUp: React.FC<SigninProps> = ({ signup }) => {
             await firebaseSession!.signOut();
             return;
           }
+          if (result.status === "account-exists-different-credential") {
+            // JITSU-244: can't link silently — ask the user to re-auth with
+            // whichever provider the email is already on.
+            setLinkPrompt({
+              email: result.email,
+              existingProvider: result.existingProviders[0],
+              pendingCredential: result.pendingCredential,
+            });
+            return;
+          }
           // `login` is tracked server-side (fb-auth/audit-login) — see telemetry.trackAuthEvent.
           // authenticated, or email-not-verified (the route gate handles that)
           safeRedirect(router, callbackUrl);
@@ -196,6 +221,36 @@ export const SignInOrUp: React.FC<SigninProps> = ({ signup }) => {
       } else {
         setError(e.message || "Authentication failed");
       }
+    }
+  };
+
+  // JITSU-244: completes the account-linking prompt — re-authenticates with
+  // the existing provider, then links the credential the first attempt
+  // produced. linkPrompt must already be set (the button that calls this is
+  // only rendered while it is).
+  const handleLinkConfirm = async () => {
+    if (!linkPrompt) return;
+    setLinking(true);
+    try {
+      const reauth = await firebaseSession!.signInWith(linkPrompt.existingProvider);
+      if (reauth.status !== "authenticated" && reauth.status !== "email-not-verified") {
+        // personal-email-rejected or (defensively) another linking prompt —
+        // neither is expected here since this provider already has an
+        // account; surface whatever message is available and bail.
+        setError((reauth as any).message || "Sign in failed");
+        return;
+      }
+      const result = await firebaseSession!.linkPendingCredential(linkPrompt.pendingCredential);
+      if (result.status !== "authenticated" && result.status !== "email-not-verified") {
+        setError((result as any).message || "Linking failed");
+        return;
+      }
+      setLinkPrompt(null);
+      safeRedirect(router, callbackUrl);
+    } catch (e: any) {
+      setError(handleFirebaseError(e));
+    } finally {
+      setLinking(false);
     }
   };
 
@@ -259,6 +314,39 @@ export const SignInOrUp: React.FC<SigninProps> = ({ signup }) => {
           </div>
         )}
       </SigninLayout>
+      <Modal
+        open={!!linkPrompt}
+        title="Account already exists"
+        onCancel={() => setLinkPrompt(null)}
+        footer={
+          linkPrompt?.existingProvider === "password"
+            ? [
+                <Button key="close" onClick={() => setLinkPrompt(null)}>
+                  Close
+                </Button>,
+              ]
+            : [
+                <Button key="cancel" onClick={() => setLinkPrompt(null)}>
+                  Cancel
+                </Button>,
+                <Button key="confirm" type="primary" loading={linking} onClick={handleLinkConfirm}>
+                  Sign in with {providerDisplayName(linkPrompt?.existingProvider || "")}
+                </Button>,
+              ]
+        }
+      >
+        {linkPrompt?.existingProvider === "password" ? (
+          <p>
+            An account for <strong>{linkPrompt?.email}</strong> already exists using email and password. Sign in with
+            your password below, then connect this provider from your account settings.
+          </p>
+        ) : (
+          <p>
+            An account for <strong>{linkPrompt?.email}</strong> already exists, signed in with{" "}
+            {providerDisplayName(linkPrompt?.existingProvider || "")}. Sign in with that to link this account.
+          </p>
+        )}
+      </Modal>
     </>
   );
 };
