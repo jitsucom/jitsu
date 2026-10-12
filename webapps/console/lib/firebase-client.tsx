@@ -326,12 +326,16 @@ export function useFirebaseSession(): FirebaseSession {
               type === "github.com"
                 ? auth.GithubAuthProvider.credentialFromError(e)
                 : auth.GoogleAuthProvider.credentialFromError(e);
-            if (email && pendingCredential) {
+            if (email && pendingCredential && pendingCredential.accessToken) {
               // fetchSignInMethodsForEmail (client SDK) always returns [] on this
               // project — email-enumeration protection is enabled (JITSU-019).
-              // Look it up server-side via the Admin SDK instead.
+              // Look it up server-side instead. The endpoint takes the access
+              // token, not the email — it independently verifies the email via
+              // the provider's own API rather than trusting client input, so
+              // this can't be turned into an email-enumeration oracle. See
+              // sign-in-methods.ts for why that distinction matters.
               const signInMethods: { providers: string[] } = await rpc(`/api/fb-auth/sign-in-methods`, {
-                body: { email },
+                body: { provider: type, accessToken: pendingCredential.accessToken },
               });
               const existingProviders = signInMethods.providers;
               return { status: "account-exists-different-credential", email, existingProviders, pendingCredential };
