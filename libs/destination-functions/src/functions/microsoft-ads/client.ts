@@ -6,8 +6,12 @@ import { MicrosoftRuntimeCredentials } from "./meta";
 const baseUrl = "https://campaign.api.bingads.microsoft.com/CampaignManagement/v13";
 /** The provider fetch has not been called; safe to retry a saved creation intent. */
 export class MicrosoftNotSubmittedError extends Error {
-  constructor() {
-    super("Microsoft Ads request was not submitted; verify developer token and OAuth authorization");
+  constructor(reason: "developer-token" | "oauth" = "oauth") {
+    super(
+      reason === "developer-token"
+        ? "Microsoft Ads developer token is missing"
+        : "Microsoft Ads OAuth token is unavailable"
+    );
   }
 }
 export class MicrosoftUncertainDelivery extends ReverseEtlManualReconciliationError {
@@ -30,12 +34,13 @@ export function microsoftClient(
   credentials: z.infer<typeof MicrosoftRuntimeCredentials>,
   services: DestinationServices
 ) {
+  // Fail before model extraction or saving an audience-creation intent.
+  const developerToken = services.developerToken?.trim() || credentials.developerToken?.trim();
+  if (!developerToken) throw new MicrosoftNotSubmittedError("developer-token");
   return async (path: string, body: unknown, signal: AbortSignal = services.signal): Promise<Record<string, any>> => {
-    const developerToken = services.developerToken?.trim() || credentials.developerToken;
     let token: string;
     try {
       signal.throwIfAborted();
-      if (!developerToken) throw new Error();
       token = await services.getAccessToken(signal);
       if (!token) throw new Error();
       signal.throwIfAborted();

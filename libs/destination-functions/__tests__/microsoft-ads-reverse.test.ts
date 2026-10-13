@@ -9,7 +9,7 @@ import {
   validateMicrosoftSettings,
 } from "../src/functions/microsoft-ads/meta";
 import { normalizeMicrosoftAudience, normalizeMicrosoftConversion } from "../src/functions/microsoft-ads/normalize";
-import { microsoftClient } from "../src/functions/microsoft-ads/client";
+import { microsoftClient, MicrosoftNotSubmittedError } from "../src/functions/microsoft-ads/client";
 import { reverseDestinationMetadata } from "../src/reverse-etl/catalog";
 import { createBufferedSyncStore } from "../src/reverse-etl/identity";
 import { requiresManualReconciliation } from "../src/reverse-etl/failure";
@@ -309,13 +309,62 @@ describe("Microsoft Ads Reverse ETL", () => {
         vi.mocked(f.services.getAccessToken).mockRejectedValueOnce(new Error("private refresh token"));
       if (kind === "provider-rejection") f.fetch.mockResolvedValueOnce(response({ Errors: [{ Code: 106 }] }, 403));
       await expect(f.init()).rejects.toThrow();
-      expect(f.state()?.phase).toBe("prepared");
+      if (kind === "missing-developer-token") {
+        expect(f.state()).toBeUndefined();
+        expect(f.services.validateSource).not.toHaveBeenCalled();
+      } else expect(f.state()?.phase).toBe("prepared");
       if (kind !== "provider-rejection") expect(f.fetch).not.toHaveBeenCalled();
       f.services.developerToken = "developer-secret";
       await f.init();
       expect(f.state()?.phase).toBe("ready");
     }
   );
+  it("reports a missing token before model validation, OAuth or provider IO", async () => {
+    const f = fixture(true);
+    f.services.developerToken = " ";
+    await expect(f.init()).rejects.toThrow("Microsoft Ads developer token is missing");
+    expect(f.services.validateSource).not.toHaveBeenCalled();
+    expect(f.services.getAccessToken).not.toHaveBeenCalled();
+    expect(f.fetch).not.toHaveBeenCalled();
+    expect(f.state()).toBeUndefined();
+  });
+  it("uses the destination token when the runtime token is absent", async () => {
+    const f = fixture();
+    f.services.developerToken = undefined;
+    f.config.destination.developerToken = "destination-token";
+    await f.init();
+    expect(f.fetch.mock.calls[0][1].headers.DeveloperToken).toBe("destination-token");
+  });
+  it("preserves an existing creation intent when a later worker lacks the developer token", async () => {
+    const f = fixture(true);
+    vi.mocked(f.services.getAccessToken).mockRejectedValueOnce(new Error("private-refresh-token"));
+    await expect(f.init()).rejects.toThrow("Microsoft Ads OAuth token is unavailable");
+    const saved = structuredClone(f.state());
+    expect(saved?.phase).toBe("prepared");
+    f.services.developerToken = undefined;
+    await expect(f.init()).rejects.toThrow("Microsoft Ads developer token is missing");
+    expect(f.state()).toEqual(saved);
+    expect(f.fetch).not.toHaveBeenCalled();
+    f.services.developerToken = "developer-secret";
+    await f.init();
+    expect(f.state()?.marker).toBe(saved?.marker);
+    expect(f.state()?.phase).toBe("ready");
+  });
+  it("reports OAuth failure separately without retaining the private error", async () => {
+    const f = fixture(true);
+    vi.mocked(f.services.getAccessToken).mockRejectedValue(new Error("private-refresh-token"));
+    let error: unknown;
+    try {
+      await f.init();
+    } catch (e) {
+      error = e;
+    }
+    expect(error).toBeInstanceOf(MicrosoftNotSubmittedError);
+    expect((error as Error).message).toBe("Microsoft Ads OAuth token is unavailable");
+    expect((error as Error).cause).toBeUndefined();
+    expect(f.fetch).not.toHaveBeenCalled();
+    expect(f.state()?.phase).toBe("prepared");
+  });
   it("retains unconfirmed creation when discovery has no match; never submits again", async () => {
     const f = fixture(true);
     f.fetch.mockRejectedValueOnce(new Error("timeout"));

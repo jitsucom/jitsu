@@ -28,6 +28,22 @@ export function requiresManualReconciliation(error: unknown): boolean {
 /** Exact core-owned reasons only. Never expose arbitrary SDK/SQL messages or causes. */
 const failures = new Map<string, string>([
   [
+    "Microsoft Ads developer token is missing",
+    "Microsoft Ads requires a developer token. Set Developer Token on the destination, or configure MICROSOFT_ADS_DEVELOPER_TOKEN in the runner runtime Secret and deploy a syncctl version that forwards it. This worker submitted no Microsoft requests. Preserve existing sync state and retry after fixing the configuration.",
+  ],
+  [
+    "Microsoft Ads OAuth token is unavailable",
+    "Jitsu could not obtain a Microsoft Ads OAuth access token. Check the runner's connection to the console and the Nango integration, and reconnect the destination if authorization expired. This request was not submitted; earlier requests may have succeeded. Preserve sync state.",
+  ],
+  [
+    "Reverse console admission/OAuth request denied or unavailable",
+    "The runner could not reach or authenticate with the console, or the console rejected this sync's configuration. Check RETL_CONSOLE_URL and RETL_CONSOLE_TOKEN in the runtime Secret and confirm the sync is still enabled and authorized. For a local console, verify its current listening port is reachable from minikube. This request was not completed; preserve existing sync state.",
+  ],
+  [
+    "Reverse destination is not enabled in this runner",
+    "This runner version does not support the selected destination. Deploy a compatible runner image and update syncctl's runner image setting, then retry. This worker submitted no destination changes.",
+  ],
+  [
     "Microsoft Ads delivery is unconfirmed; manual reconciliation required, no automatic replay",
     "Microsoft did not confirm delivery. Some records may have been accepted. Contact your Jitsu administrator with this run ID; no automatic replay will occur. Do not reset sync state.",
   ],
