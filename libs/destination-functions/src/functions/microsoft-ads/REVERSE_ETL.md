@@ -62,8 +62,39 @@ implementation was found in Syncmaven's current tree. Segment's direct audience 
 is the API reference; its separate UET CAPI connector is not an offline-import adapter.
 RudderStack uses asynchronous Bulk uploads and additionally supports conversion
 restatements/retractions. Native audience replacement, adjustments, UET CAPI, array
-email fan-out and account/audience pickers are not part of this initial implementation.
-IDs are entered explicitly. Provider approval/live tests are not implied by mock tests.
+email fan-out are not part of this initial implementation. Provider approval/live tests
+are not implied by mock tests.
+
+## Discovery and destination results
+
+The saved destination editor can discover accessible accounts and fill customer/account
+IDs together. Authorize and save a new destination first (IDs may be omitted during
+setup), then reopen it to select the account. Sync creation and runtime credentials
+still require both IDs. Audience selectors show Customer Lists; conversion selectors
+show offline goals and store their exact names, not IDs. Manual entry remains available.
+
+Run logs have a separate, manually refreshed Microsoft Advertising results panel:
+
+- Audiences: current Search and Audience Network sizes, with missing values shown as
+  unavailable rather than zero. These are not per-upload match rates; matching can take
+  up to 48 hours. Managed targets must match preserved provisioning state and ownership.
+- Conversions: goal-level all-conversions and revenue totals, across all senders, for
+  the last 30 **completed Pacific days**. These are Microsoft campaign attribution
+  totals by ad-interaction date, not Jitsu upload/acceptance counts. Recent figures may
+  change. Currency totals stay separate; an empty report is not represented as zero.
+- Reporting is asynchronous: Refresh starts a report; Check report status reuses it.
+  Continuations expire after one hour and are bound to workspace, sync, destination
+  configuration and goal ID. Reporting never creates delivery tasks or changes state.
+
+CampaignPerformance summary with Goal/GoalType avoids the Shopping campaign exclusion
+of ConversionPerformance. AllConversionsQualified includes fractional conversions and
+goals excluded from bidding; deprecated AllConversions is not requested. Signed report
+downloads require HTTPS/public DNS, no redirects, verified TLS, and bounded ZIP/CSV data.
+
+- [Account discovery](https://learn.microsoft.com/en-us/advertising/customer-management-service/searchaccounts?view=bingads-13)
+- [Goal discovery](https://learn.microsoft.com/en-us/advertising/campaign-management-service/getconversiongoalsbyids?view=bingads-13)
+- [Campaign reporting columns](https://learn.microsoft.com/en-us/advertising/reporting-service/campaignperformancereportcolumn?view=bingads-13)
+- [Report generation](https://learn.microsoft.com/en-us/advertising/guides/request-download-report?view=bingads-13)
 
 - [Audience writes](https://learn.microsoft.com/en-us/advertising/campaign-management-service/applycustomerlistuserdata?view=bingads-13)
 - [Customer List and expiration](https://learn.microsoft.com/en-us/advertising/campaign-management-service/customerlist?view=bingads-13)

@@ -24,9 +24,14 @@ matching `env.common.KAFKA_BOOTSTRAP_SERVERS` / `DATABASE_URL` /
 ## Mac-hosted console over local HTTPS
 
 For a portless console, use its single-prefix `https://console-<branch>.jitsu.localhost`
-URL in `env.syncctl.CONSOLE_URL`, `REPOSITORY_BASE_URL`, and `REPOSITORY_URL`.
-Set `RETL_CONSOLE_URL` in the existing Reverse ETL runtime Secret to the same origin.
-This avoids depending on the console's changing development port.
+origin with these settings in `env.syncctl`:
+
+- `CONSOLE_URL`: `https://console-<branch>.jitsu.localhost`
+- `REPOSITORY_BASE_URL`: `https://console-<branch>.jitsu.localhost/api/admin/export`
+- `REPOSITORY_URL`: `https://console-<branch>.jitsu.localhost/api/admin/export/streams-with-destinations`
+
+Set `RETL_CONSOLE_URL` in the existing Reverse ETL runtime Secret to the same origin
+as `CONSOLE_URL`. This avoids depending on the console's changing development port.
 
 Pods need two additional pieces of local configuration:
 

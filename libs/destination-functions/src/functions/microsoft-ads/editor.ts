@@ -36,7 +36,8 @@ const audience: ReverseStreamEditor = {
         }),
       },
       {
-        editor: "text",
+        editor: managed ? "text" : "target",
+        targetKind: "microsoft-audience",
         name: managed ? "Audience name" : "Audience ID",
         value: managed ? target.name ?? "" : target.audienceId ?? "",
         documentation: managed
@@ -89,7 +90,8 @@ const conversions: ReverseStreamEditor = {
   fields({ streamOptions }) {
     const fields: ReverseEditorField[] = [
       {
-        editor: "text",
+        editor: "target",
+        targetKind: "microsoft-goal",
         name: "Conversion goal name",
         value: streamOptions.conversionName ?? "",
         change: conversionName => ({ streamOptions: { conversionName } }),

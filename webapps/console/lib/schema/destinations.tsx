@@ -1047,7 +1047,9 @@ export const coreDestinations: DestinationType<any>[] = [
     title: "Microsoft Advertising (Bing Ads)",
     tags: "Advertising",
     reverseEtlOnly: true,
-    credentials: MicrosoftAdsCredentials,
+    // Saving an OAuth connection before selecting an account enables secure discovery.
+    // Runtime validation still requires both IDs before any sync can be created/run.
+    credentials: MicrosoftAdsCredentials.partial({ customerId: true, accountId: true }),
     credentialsUi: MicrosoftAdsCredentialsUi,
     connectionOptions: CloudDestinationsConnectionOptions,
     description:
