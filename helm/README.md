@@ -21,6 +21,30 @@ matching `env.common.KAFKA_BOOTSTRAP_SERVERS` / `DATABASE_URL` /
 `CLICKHOUSE_URL` / `MONGODB_URL` of this chart at it (see
 `values-custom.example.yaml`) — explicit env wins over the published URLs.
 
+## Mac-hosted console over local HTTPS
+
+For a portless console, use its single-prefix `https://console-<branch>.jitsu.localhost`
+URL in `env.syncctl.CONSOLE_URL`, `REPOSITORY_BASE_URL`, and `REPOSITORY_URL`.
+Set `RETL_CONSOLE_URL` in the existing Reverse ETL runtime Secret to the same origin.
+This avoids depending on the console's changing development port.
+
+Pods need two additional pieces of local configuration:
+
+- Add that exact hostname to Minikube CoreDNS's existing `hosts` block, using
+  the IP already assigned there to `host.minikube.internal`. This is the Mac's
+  gateway address, **not** the Minikube node IP. The mapping must be refreshed
+  if the gateway changes; it is local cluster configuration, not chart-owned.
+- Create a ConfigMap with key `ca.crt` from portless's public `ca.pem` (never
+  copy `ca-key.pem`), then set `syncctlExtraCAConfigMap` to its name. For example:
+  `kubectl --context minikube -n default create configmap jitsu-portless-ca --from-file=ca.crt=/Users/<user>/.portless/ca.pem`.
+
+The chart mounts this CA into syncctl; syncctl also mounts it into all newly
+created Reverse ETL runner pods. TLS verification remains enabled. This optional
+CA extends runner-wide trust, so use only a CA you control. Restart syncctl and
+start new runner pods after rotating the certificate. Ordinary syncs' admission
+containers also receive the CA to reach the same console; source connectors do
+not. Leave it empty in environments using publicly trusted HTTPS.
+
 ## Quick Start
 
 ```bash

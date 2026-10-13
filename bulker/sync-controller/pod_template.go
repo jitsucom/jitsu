@@ -450,9 +450,9 @@ func buildSyncPodTemplate(c *Config, pc PodCtx, secretName string) v1.PodTemplat
 	}
 
 	labels := map[string]string{
-		k8sCreatorLabel:  k8sCreatorLabelValue,
-		labelManagedBy:   managedByValue,
-		labelAppName:     appLabel,
+		k8sCreatorLabel: k8sCreatorLabelValue,
+		labelManagedBy:  managedByValue,
+		labelAppName:    appLabel,
 	}
 	if syncID != "" {
 		labels[labelSyncID] = syncID
@@ -501,6 +501,18 @@ func buildSyncPodTemplate(c *Config, pc PodCtx, secretName string) v1.PodTemplat
 		},
 	}
 
+	if c.ExtraCAConfigMap != "" && pc.needsAdmission() {
+		volumes = append(volumes, v1.Volume{Name: "extra-ca", VolumeSource: v1.VolumeSource{ConfigMap: &v1.ConfigMapVolumeSource{
+			LocalObjectReference: v1.LocalObjectReference{Name: c.ExtraCAConfigMap},
+			Items:                []v1.KeyToPath{{Key: "ca.crt", Path: "ca.crt"}},
+		}}})
+		for i := range initContainers {
+			if initContainers[i].Name == "admission" {
+				initContainers[i].VolumeMounts = append(initContainers[i].VolumeMounts, v1.VolumeMount{Name: "extra-ca", MountPath: "/etc/jitsu-ca", ReadOnly: true})
+				initContainers[i].Env = append(initContainers[i].Env, v1.EnvVar{Name: "SSL_CERT_FILE", Value: "/etc/jitsu-ca/ca.crt"})
+			}
+		}
+	}
 	return v1.PodTemplateSpec{
 		ObjectMeta: metav1.ObjectMeta{
 			Labels:      labels,
