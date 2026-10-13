@@ -13,6 +13,9 @@ not access/refresh tokens. `MICROSOFT_ADS_DEVELOPER_TOKEN` on the runner is the 
 default; self-hosted installations may supply a destination developer token. Configure
 the same environment variable on console to hide the token field. Microsoft must grant
 the OAuth user access to the account and issue an API developer token.
+With syncctl, put `MICROSOFT_ADS_DEVELOPER_TOKEN` in the Secret named by
+`SYNCCTL_REVERSE_RUNTIME_SECRET`; the controller projects it into runner pods.
+Setting it only on console or on the syncctl process does not configure the runner.
 
 ## Streams
 

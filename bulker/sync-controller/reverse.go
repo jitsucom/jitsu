@@ -81,8 +81,8 @@ func buildReversePodTemplate(c *Config, entry *SyncEntry, secret, taskID string)
 		env = append(env, v1.EnvVar{Name: key, ValueFrom: &v1.EnvVarSource{SecretKeyRef: &v1.SecretKeySelector{LocalObjectReference: v1.LocalObjectReference{Name: c.ReverseRuntimeSecret}, Key: key}}})
 	}
 	// Optional runtime configuration: object storage and provider-level credential fallback.
-	// The Ads token is unnecessary for Data Manager streams or destinations with their own token.
-	for _, key := range []string{"RETL_OBJECT_PREFIX", "RETL_S3_ENDPOINT", "RETL_S3_REGION", "AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY", "AWS_SESSION_TOKEN", "GOOGLE_ADS_DEVELOPER_TOKEN"} {
+	// Ads tokens are optional for streams that do not need them or destinations with their own token.
+	for _, key := range []string{"RETL_OBJECT_PREFIX", "RETL_S3_ENDPOINT", "RETL_S3_REGION", "AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY", "AWS_SESSION_TOKEN", "GOOGLE_ADS_DEVELOPER_TOKEN", "MICROSOFT_ADS_DEVELOPER_TOKEN"} {
 		env = append(env, v1.EnvVar{Name: key, ValueFrom: &v1.EnvVarSource{SecretKeyRef: &v1.SecretKeySelector{LocalObjectReference: v1.LocalObjectReference{Name: c.ReverseRuntimeSecret}, Key: key, Optional: ptr.To(true)}}})
 	}
 	return v1.PodTemplateSpec{ObjectMeta: metav1.ObjectMeta{Labels: map[string]string{k8sCreatorLabel: k8sCreatorLabelValue, labelManagedBy: managedByValue, labelSyncID: entry.ID, labelWorkspaceID: entry.WorkspaceID, labelSyncKind: "reverse", labelAppName: cronJobAppValue}, Annotations: td.ExtractAnnotations()}, Spec: v1.PodSpec{

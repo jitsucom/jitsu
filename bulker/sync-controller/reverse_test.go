@@ -104,7 +104,7 @@ func TestReversePodContract(t *testing.T) {
 			optionalKeys[env.Name] = true
 		}
 	}
-	if len(optionalKeys) != 7 || !optionalKeys["RETL_OBJECT_PREFIX"] || !optionalKeys["AWS_SECRET_ACCESS_KEY"] || !optionalKeys["GOOGLE_ADS_DEVELOPER_TOKEN"] {
+	if len(optionalKeys) != 8 || !optionalKeys["RETL_OBJECT_PREFIX"] || !optionalKeys["AWS_SECRET_ACCESS_KEY"] || !optionalKeys["GOOGLE_ADS_DEVELOPER_TOKEN"] || !optionalKeys["MICROSOFT_ADS_DEVELOPER_TOKEN"] {
 		t.Fatal("optional runtime settings are missing")
 	}
 	if len(runtimeKeys) != 5 || !runtimeKeys["RETL_DATABASE_URL"] || !runtimeKeys["RETL_CONSOLE_URL"] || !runtimeKeys["RETL_CONSOLE_TOKEN"] || !runtimeKeys["RETL_OBJECT_STORE"] || !runtimeKeys["RETL_OBJECT_BUCKET"] {
@@ -122,12 +122,12 @@ func TestReverseDeveloperTokenUsesOptionalRuntimeSecret(t *testing.T) {
 			cfg := reverseTestConfig()
 			cfg.GoogleAdsDeveloperToken = "controller-token-must-not-be-copied"
 			pod := buildReversePodTemplate(cfg, reverseFixture(), "config", taskID)
-			found := 0
+			found := map[string]int{}
 			for _, env := range pod.Spec.Containers[0].Env {
-				if env.Name != "GOOGLE_ADS_DEVELOPER_TOKEN" {
+				if env.Name != "GOOGLE_ADS_DEVELOPER_TOKEN" && env.Name != "MICROSOFT_ADS_DEVELOPER_TOKEN" {
 					continue
 				}
-				found++
+				found[env.Name]++
 				if env.Value != "" || env.ValueFrom == nil || env.ValueFrom.SecretKeyRef == nil {
 					t.Fatal("developer token must use a Secret reference, not a literal")
 				}
@@ -136,8 +136,8 @@ func TestReverseDeveloperTokenUsesOptionalRuntimeSecret(t *testing.T) {
 					t.Fatal("developer token must be optional and sourced from the runner runtime Secret")
 				}
 			}
-			if found != 1 {
-				t.Fatalf("expected one developer token projection, got %d", found)
+			if found["GOOGLE_ADS_DEVELOPER_TOKEN"] != 1 || found["MICROSOFT_ADS_DEVELOPER_TOKEN"] != 1 {
+				t.Fatalf("expected one projection for each developer token, got %v", found)
 			}
 		})
 	}
