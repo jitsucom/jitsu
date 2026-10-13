@@ -132,6 +132,22 @@ export const FirebaseSignup: React.FC<{ initialError?: ReactNode }> = ({ initial
         await firebaseSession.signOut();
         return;
       }
+      if (result.status === "account-exists-different-credential") {
+        // JITSU-244: this is signup, not sign-in — point the user at sign-in
+        // (where the account-linking prompt lives) rather than building a
+        // second copy of that flow here. The credential is simply dropped;
+        // signing in with GitHub/Google again from /signin re-derives it.
+        setError(
+          <>
+            An account with this email already exists.{" "}
+            <Link className="font-bold underline" href={`/signin${queryStringCopy}`}>
+              Sign in
+            </Link>{" "}
+            instead.
+          </>
+        );
+        return;
+      }
       safeRedirect(router, callbackUrl);
     } catch (e: any) {
       setError(handleFirebaseError(e));
