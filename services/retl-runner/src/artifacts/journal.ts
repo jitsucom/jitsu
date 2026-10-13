@@ -33,12 +33,14 @@ const STARTUP_GROUP = 16;
 async function inGroups<T, R>(
   items: readonly T[],
   work: (item: T) => Promise<R>,
-  apply: (item: T, result: R) => void
+  apply: (item: T, result: R) => void,
+  /** Runs a group's applies together, so the local index commits once per group instead of once per item. */
+  within: (run: () => void) => void = run => run()
 ): Promise<void> {
   for (let i = 0; i < items.length; i += STARTUP_GROUP) {
     const group = items.slice(i, i + STARTUP_GROUP);
     const results = await Promise.all(group.map(work));
-    group.forEach((item, j) => apply(item, results[j]));
+    within(() => group.forEach((item, j) => apply(item, results[j])));
   }
 }
 class TransitionConflict extends PersistenceError {}
@@ -171,7 +173,8 @@ export class ObjectJournal implements DeliveryJournal {
         ]);
         return { data, receipt };
       },
-      (batch, { data, receipt }) => this.index(batch, data, receipt)
+      (batch, { data, receipt }) => this.index(batch, data, receipt),
+      run => this.local.transaction(run)
     );
     if (this.head.snapshot?.strategy === "native-replace" && this.head.snapshot.replacementStatus === "accepted")
       this.local.applyReplacement();
