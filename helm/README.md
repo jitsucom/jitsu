@@ -1,6 +1,12 @@
-# Jitsu Dev Kubernetes Helm Chart
+# Jitsu Kubernetes Helm Chart
 
-Development Helm chart for deploying Jitsu services to Minikube. Services are built inside containers via init containers - no local build step required.
+Helm chart for deploying Jitsu services to Kubernetes.
+
+**Today this chart targets local development on Minikube**: services are built
+inside containers via init containers from a hostPath-mounted checkout, so no
+local build step is required. A production mode — published images instead of
+source builds, no hostPath — is tracked in `JITSU-48`; until it lands, do not
+deploy this chart to a shared or production cluster.
 
 ## Prerequisites
 

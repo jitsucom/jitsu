@@ -4,7 +4,7 @@ kind: Deployment
 metadata:
   name: ingest
   labels:
-    {{- include "jitsu-dev.labels" . | nindent 4 }}
+    {{- include "jitsu.labels" . | nindent 4 }}
     app.kubernetes.io/name: ingest
 spec:
   replicas: {{ .Values.scaling.ingest.replicas }}
@@ -80,7 +80,7 @@ spec:
                 name: jitsu-deps-urls
                 optional: true
           env:
-            {{- include "jitsu-dev.env" (dict "ctx" . "service" "ingest"
+            {{- include "jitsu.env" (dict "ctx" . "service" "ingest"
                   "extra" (dict "HTTP_PORT" "3049")) | nindent 12 }}
           volumeMounts:
             - name: build
@@ -101,7 +101,7 @@ spec:
       volumes:
         - name: project
           hostPath:
-            path: {{ include "jitsu-dev.projectRoot" . }}
+            path: {{ include "jitsu.projectRoot" . }}
             type: Directory
         - name: build
           emptyDir: {}
@@ -116,7 +116,7 @@ kind: Service
 metadata:
   name: ingest
   labels:
-    {{- include "jitsu-dev.labels" . | nindent 4 }}
+    {{- include "jitsu.labels" . | nindent 4 }}
     app.kubernetes.io/name: ingest
 spec:
   type: LoadBalancer
