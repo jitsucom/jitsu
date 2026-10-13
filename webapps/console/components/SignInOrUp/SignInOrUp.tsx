@@ -188,7 +188,9 @@ export const SignInOrUp: React.FC<SigninProps> = ({ signup }) => {
           }
           if (result.status === "account-exists-different-credential") {
             // JITSU-244: can't link silently — ask the user to re-auth with
-            // whichever provider the email is already on.
+            // whichever provider the email is already on. Clear any stale
+            // page-level error so it doesn't appear to come from this flow.
+            setError(null);
             setLinkPrompt({
               email: result.email,
               existingProvider: result.existingProviders[0],
@@ -389,6 +391,13 @@ export const SignInOrUp: React.FC<SigninProps> = ({ signup }) => {
               ]
         }
       >
+        {error && (
+          // Ildar: the page-level error Alert below renders behind this
+          // modal's mask, invisible while the modal is open — wrong
+          // password / linking failures showed no feedback at all. Mirror
+          // it here too.
+          <Alert type="error" message={error} closable onClose={() => setError(null)} className="mb-3" />
+        )}
         {linkPrompt?.existingProvider === "password" ? (
           <>
             <p>
