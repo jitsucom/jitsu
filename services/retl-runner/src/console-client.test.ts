@@ -27,7 +27,10 @@ const config = ReverseRunConfig.parse({
     streamOptions: { audienceId: "123", customerMatchTermsAccepted: true },
   },
 });
-afterEach(() => vi.useRealTimers());
+afterEach(() => {
+  vi.useRealTimers();
+  vi.unstubAllEnvs();
+});
 describe("runner console OAuth and adapter binding", () => {
   it("binds refresh admission and OAuth to the original task", async () => {
     const urls: URL[] = [];
@@ -107,6 +110,8 @@ describe("runner console OAuth and adapter binding", () => {
     }
   );
   it("registers code-owned Microsoft, Google, Webhook, and Meta implementations, without fetching tokens for conversion binding", async () => {
+    // Local runtime credentials must not hide an incomplete adapter fixture in CI.
+    vi.stubEnv("MICROSOFT_ADS_DEVELOPER_TOKEN", undefined);
     const token = vi.fn(async () => "token");
     const registry = createAdapterRegistry(token);
     expect([...registry.keys()]).toEqual(["microsoft-ads", "google-ads", "webhook", "facebook-conversions"]);
@@ -132,6 +137,7 @@ describe("runner console OAuth and adapter binding", () => {
       ...config,
       destination: {
         destinationType: "microsoft-ads",
+        developerToken: "microsoft-test-developer-token",
         accountId: "123",
         customerId: "456",
         oauthIntegrationId: "jitsu-cloud-dst-microsoft-ads",
