@@ -1,5 +1,5 @@
 import React, { useId, useState } from "react";
-import { Select } from "antd";
+import { Select, Spin } from "antd";
 import { useQuery } from "@tanstack/react-query";
 import { rpc } from "juava";
 import { useWorkspace } from "../../lib/context";
@@ -121,16 +121,39 @@ export function OAuthAccountSelector({
       <Select
         id={fieldId}
         aria-describedby={`${fieldId}-help`}
+        aria-busy={query.isFetching}
         className="w-full"
         showSearch
         labelInValue
         optionFilterProp="label"
         disabled={disabled || (isNew && !(draftGrant && authorized))}
         loading={query.isFetching}
+        notFoundContent={
+          query.isFetching ? (
+            <div role="status" className="flex items-center justify-center gap-2 py-3">
+              <Spin size="small" /> Loading accounts…
+            </div>
+          ) : query.isError ? (
+            "Unable to load accounts. See details below."
+          ) : query.data ? (
+            query.data.options.length ? (
+              "No matching accounts."
+            ) : query.data.partial || query.data.truncated ? (
+              "No accounts loaded. See details below."
+            ) : (
+              "No accounts found."
+            )
+          ) : (
+            "Waiting to load accounts…"
+          )
+        }
         value={selectedValue ? { value: selectedValue, label: selectedLabel } : undefined}
         placeholder="Choose an advertising account"
         options={query.data?.options}
         onFocus={() => setRequested(true)}
+        onDropdownVisibleChange={open => {
+          if (open) setRequested(true);
+        }}
         onChange={(value, option) => {
           if (!Array.isArray(option) && option?.customerId) onChange(option);
         }}

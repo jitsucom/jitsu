@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import React from "react";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MicrosoftResults } from "../../components/ReverseETL/MicrosoftResults";
 import { OAuthAccountSelector } from "../../components/ConfigObjectEditor/OAuthAccountSelector";
@@ -40,6 +40,63 @@ afterEach(() => {
 function mount(node: React.ReactNode) {
   return render(React.createElement(QueryClientProvider, { client }, node));
 }
+it.each(["microsoft-ads", "google-ads"] as const)(
+  "shows loading inside the %s account dropdown until accounts arrive",
+  async provider => {
+    let finish!: (value: unknown) => void;
+    rpc.mockImplementation(
+      () =>
+        new Promise(resolve => {
+          finish = resolve;
+        })
+    );
+    mount(
+      React.createElement(OAuthAccountSelector, {
+        provider,
+        destinationId: "dest",
+        isNew: false,
+        disabled: false,
+        onChange: vi.fn(),
+      })
+    );
+    const account = screen.getByRole("combobox");
+    fireEvent.mouseDown(account);
+    expect(await screen.findByRole("status")).toHaveProperty("textContent", " Loading accounts…");
+    expect(account.getAttribute("aria-busy")).toBe("true");
+    expect(screen.queryByText("No data")).toBeNull();
+    expect(screen.queryByText("No accounts found.")).toBeNull();
+    await act(async () =>
+      finish({ options: [{ value: "456", label: "Loaded account", customerId: "123", accountId: "456" }] })
+    );
+    expect((await screen.findAllByText("Loaded account")).length).toBeGreaterThan(0);
+    await waitFor(() => expect(screen.queryByRole("status")).toBeNull());
+    expect(account.getAttribute("aria-busy")).toBe("false");
+  }
+);
+
+it.each(["empty", "error", "partial"])("distinguishes %s account lookup from loading", async outcome => {
+  if (outcome === "error") rpc.mockRejectedValue(new Error("Lookup unavailable"));
+  else rpc.mockResolvedValue({ options: [], partial: outcome === "partial" });
+  mount(
+    React.createElement(OAuthAccountSelector, {
+      provider: "google-ads",
+      destinationId: "dest",
+      isNew: false,
+      disabled: false,
+      onChange: vi.fn(),
+    })
+  );
+  fireEvent.mouseDown(screen.getByRole("combobox"));
+  await screen.findByText(
+    outcome === "error"
+      ? "Unable to load accounts. See details below."
+      : outcome === "partial"
+      ? "No accounts loaded. See details below."
+      : "No accounts found."
+  );
+  expect(screen.queryByRole("status")).toBeNull();
+  expect(screen.queryByText("No data")).toBeNull();
+});
 const common = { accountId: "456", observedAt: "2026-10-13T00:00:00Z" };
 const pending = {
   ...common,
