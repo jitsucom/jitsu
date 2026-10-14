@@ -27,7 +27,7 @@ export async function microsoftReadAuth(
     credentials.data.oauthIntegrationId !== microsoftOAuthIntegration ||
     credentials.data.oauthConnectionId !== `destination.${destinationId}`
   )
-    throw new ApiError("Authorize and save this Microsoft Ads destination before browsing targets or results.", {
+    throw new ApiError("Authorize this Microsoft Ads destination before browsing targets or results.", {
       status: 409,
     });
   try {
@@ -38,7 +38,7 @@ export async function microsoftReadAuth(
       developerToken: developerToken?.trim() || credentials.data.developerToken?.trim() || "",
     };
   } catch {
-    throw new ApiError("Microsoft OAuth is unavailable. Reauthorize and save this destination.", { status: 409 });
+    throw new ApiError("Microsoft OAuth is unavailable. Reauthorize this destination.", { status: 409 });
   }
 }
 export async function reverseMicrosoftOptions(
@@ -57,6 +57,18 @@ export async function reverseMicrosoftOptions(
   const config = destination?.config as Record<string, unknown> | undefined;
   if (config?.destinationType !== "microsoft-ads")
     throw new ApiError("Microsoft Ads destination not found", { status: 404 });
+  return microsoftOptionsForConfig(config, destinationId, kind, nango, developerToken, request);
+}
+
+/** Callers must establish ownership of the saved destination or signed draft before using this helper. */
+export async function microsoftOptionsForConfig(
+  config: unknown,
+  destinationId: string,
+  kind: "microsoft-account" | "microsoft-audience" | "microsoft-goal",
+  nango: NangoConfig,
+  developerToken?: string,
+  request: typeof fetch = fetch
+) {
   const signal = AbortSignal.timeout(25_000);
   const auth = await microsoftReadAuth(config, destinationId, nango, developerToken, request, signal);
   try {

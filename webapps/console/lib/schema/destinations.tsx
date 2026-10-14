@@ -8,6 +8,7 @@ import ClickhouseIcon from "./icons/clickhouse";
 import devnullIcon from "./icons/devnull";
 import facebookIcon from "./icons/facebook";
 import googleAdsIcon from "./icons/google-ads";
+import microsoftAdsIcon from "./icons/microsoft-ads";
 import gcsIcon from "./icons/gcs";
 import hubspotIcon from "./icons/hubspot";
 import juneIcon from "./icons/june";
@@ -1044,10 +1045,11 @@ export const coreDestinations: DestinationType<any>[] = [
   },
   {
     id: "microsoft-ads",
+    icon: microsoftAdsIcon,
     title: "Microsoft Advertising (Bing Ads)",
     tags: "Advertising",
     reverseEtlOnly: true,
-    // Saving an OAuth connection before selecting an account enables secure discovery.
+    // Allow authorizing and browsing accounts before entering the IDs.
     // Runtime validation still requires both IDs before any sync can be created/run.
     credentials: MicrosoftAdsCredentials.partial({ customerId: true, accountId: true }),
     credentialsUi: MicrosoftAdsCredentialsUi,

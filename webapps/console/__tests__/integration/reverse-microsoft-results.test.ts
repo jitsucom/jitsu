@@ -80,7 +80,7 @@ it("denies foreign workspace, deleted destination, disabled feature and wrong OA
     data: { deleted: false, config: { ...f.config, oauthConnectionId: "destination.foreign" } },
   });
   await expect(reverseMicrosoftResults(f.prisma, f.workspace.id, f.link.id, undefined, options)).rejects.toThrow(
-    "Authorize and save"
+    "Authorize this Microsoft Ads destination"
   );
   await f.prisma.workspace.update({ where: { id: f.workspace.id }, data: { featuresEnabled: [] } });
   await expect(reverseMicrosoftResults(f.prisma, f.workspace.id, f.link.id, undefined, options)).rejects.toThrow(

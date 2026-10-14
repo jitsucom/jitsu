@@ -1,10 +1,10 @@
 import React, { createContext, PropsWithChildren, ReactNode, useContext, useEffect, useRef, useState } from "react";
 import { Button, Col, Form as AntdForm, Input, Row, Switch, Table } from "antd";
 import { FaCaretDown, FaCaretRight, FaClone, FaPlus } from "react-icons/fa";
-import { ZodType } from "zod";
+import { z, ZodType } from "zod";
 import { ConfigApiDeleteOptions, getConfigApi } from "../../lib/useApi";
 import { useRouter } from "next/router";
-import { asFunction, FunctionLike, getErrorMessage, getLog, requireDefined } from "juava";
+import { asFunction, FunctionLike, getErrorMessage, getLog, requireDefined, rpc } from "juava";
 
 import zodToJsonSchema from "zod-to-json-schema";
 
@@ -64,7 +64,8 @@ import {
 import { CustomWidgetProps, PasswordEditor } from "./Editors";
 import { WorkspacePermissionsType } from "../../lib/workspace-roles";
 import { oauthDecorators } from "../../lib/server/oauth/destinations";
-import { MicrosoftAccountSelector } from "../ReverseETL/MicrosoftAccountSelector";
+import { OAuthAccountSelector } from "./OAuthAccountSelector";
+import { AccountDiscoveryProvider } from "../../lib/schema/destination-accounts";
 import Nango from "@nangohq/frontend";
 import { transformConfigErrors, ValidationMessages } from "../../lib/schema/config-editor-errors";
 import {
@@ -402,6 +403,7 @@ const EditorComponent: React.FC<EditorComponentProps> = props => {
   const appConfig = useAppConfig();
   const formRef = useRef<any>();
   const role = useWorkspaceRole();
+  const workspace = useWorkspace();
   const [loading, setLoading] = useState<boolean>(false);
   const [testing, setTesting] = useState<boolean>(false);
   const objectTypeFactory = asFunction<ZodType, any>(objectType);
@@ -432,6 +434,47 @@ const EditorComponent: React.FC<EditorComponentProps> = props => {
       setFormState(formRef.current.state);
     }
   }, []);
+
+  const discovery = AccountDiscoveryProvider.safeParse(type === "destination" ? object.destinationType : undefined);
+  const accountProvider = discovery.success ? discovery.data : undefined;
+  const needsOAuthDraft = !!(isNew && accountProvider && oauthConnector && role.editEntities);
+  const [oauthDraft, setOAuthDraft] = useState<{ destinationId: string; grant: string }>();
+  const [authorizationRevision, setAuthorizationRevision] = useState(0);
+  const [draftError, setDraftError] = useState<string>();
+  const [draftRetry, setDraftRetry] = useState(0);
+  const draftBaseObject = useRef(object);
+  const preparingDraft = needsOAuthDraft && !oauthDraft && !draftError;
+  useEffect(() => {
+    if (!needsOAuthDraft) return;
+    let cancelled = false;
+    setDraftError(undefined);
+    // Prepare before the click so nango.auth still opens its popup within a browser user gesture.
+    rpc(`/api/${workspace.id}/destination-accounts`, {
+      method: "POST",
+      body: { action: "prepare", provider: accountProvider },
+    })
+      .then(result => {
+        if (cancelled) return;
+        const draft = z.object({ destinationId: z.string(), grant: z.string() }).parse(result);
+        setOAuthDraft(draft);
+        setFormState(current => ({
+          ...current,
+          formData: {
+            ...(current?.formData || draftBaseObject.current),
+            id: draft.destinationId,
+            authorized: false,
+            oauthIntegrationId: undefined,
+            oauthConnectionId: undefined,
+          },
+        }));
+      })
+      .catch(error => {
+        if (!cancelled) setDraftError(getErrorMessage(error));
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [needsOAuthDraft, accountProvider, workspace.id, draftRetry]);
 
   const onFormChange = state => {
     setFormState(state);
@@ -465,7 +508,7 @@ const EditorComponent: React.FC<EditorComponentProps> = props => {
               size={"large"}
               ghost={true}
               loading={nangoLoading}
-              disabled={loading || testing}
+              disabled={!role.editEntities || loading || testing || (needsOAuthDraft && !oauthDraft)}
               onClick={() => {
                 const nango = new Nango({
                   publicKey: appConfig.nango!.publicKey,
@@ -477,6 +520,7 @@ const EditorComponent: React.FC<EditorComponentProps> = props => {
                 nango
                   .auth(oauthIntegrationId, oauthConnectionId)
                   .then(result => {
+                    setAuthorizationRevision(value => value + 1);
                     setFormState(current => ({
                       ...current,
                       formData: {
@@ -505,7 +549,16 @@ const EditorComponent: React.FC<EditorComponentProps> = props => {
             </JitsuButton>
           </div>
           <div className={"w-full flex flex-row items-center py-1 px-2 text-text"} style={{ minHeight: 32 }}>
-            {nangoError ? (
+            {draftError ? (
+              <span className="text-red-600">
+                {draftError}{" "}
+                <Button type="link" onClick={() => setDraftRetry(value => value + 1)}>
+                  Retry
+                </Button>
+              </span>
+            ) : preparingDraft ? (
+              <span>Preparing authorization…</span>
+            ) : nangoError ? (
               <span className={"text-red-600"}>OAuth2 error: {nangoError}</span>
             ) : (formState?.formData || object).authorized ? (
               <>
@@ -526,16 +579,37 @@ const EditorComponent: React.FC<EditorComponentProps> = props => {
           </div>
         </div>
       )}
-      {type === "destination" && object.destinationType === "microsoft-ads" && (
-        <MicrosoftAccountSelector
+      {accountProvider && (
+        <OAuthAccountSelector
+          provider={accountProvider}
           destinationId={(formState?.formData || object).id}
           isNew={isNew}
+          draftGrant={oauthDraft?.grant}
+          developerToken={
+            (
+              accountProvider === "google-ads"
+                ? appConfig.googleAdsDeveloperTokenConfigured
+                : appConfig.microsoftAdsDeveloperTokenConfigured
+            )
+              ? undefined
+              : (formState?.formData || object).developerToken
+          }
+          authorized={(formState?.formData || object).authorized}
           accountId={(formState?.formData || object).accountId}
-          disabled={!role.editEntities || loading || testing}
-          onChange={(accountId, customerId) => {
+          customerId={(formState?.formData || object).customerId}
+          loginCustomerId={(formState?.formData || object).loginCustomerId}
+          authorizationRevision={authorizationRevision}
+          disabled={!role.editEntities || loading || testing || nangoLoading || preparingDraft}
+          onChange={account => {
             setFormState(current => ({
               ...current,
-              formData: { ...(current?.formData || object), accountId, customerId },
+              formData: {
+                ...(current?.formData || object),
+                customerId: account.customerId,
+                ...(accountProvider === "google-ads"
+                  ? { loginCustomerId: account.loginCustomerId || "" }
+                  : { accountId: account.accountId }),
+              },
             }));
             setTouched(true);
           }}
@@ -559,7 +633,7 @@ const EditorComponent: React.FC<EditorComponentProps> = props => {
           customValidate={(formData, errors) => applyClientFieldValidation(formData, errors, fields)}
           transformErrors={errors => transformConfigErrors(errors, fields)}
           onSubmit={async ({ formData }) => {
-            if (nangoLoading) return;
+            if (nangoLoading || preparingDraft) return;
             if (
               onTest &&
               (typeof testConnectionEnabled === "undefined" || testConnectionEnabled(formData || object) === true)
@@ -593,7 +667,7 @@ const EditorComponent: React.FC<EditorComponentProps> = props => {
           uiSchema={uiSchema}
         >
           <EditorButtons
-            loading={loading || nangoLoading}
+            loading={loading || nangoLoading || preparingDraft}
             testing={testing}
             isNew={isNew}
             isTouched={isTouched}
