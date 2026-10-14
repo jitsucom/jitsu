@@ -32,7 +32,7 @@
   },
   "dependencies": {
     "esbuild": "catalog:",
-    "figlet": "^1.6.0",
+    "figlet": "^1.11.3",
     "jest-cli": "^29.7.0",
     "tslib": "catalog:",
     "typescript": "catalog:"

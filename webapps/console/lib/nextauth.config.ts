@@ -36,11 +36,69 @@ export const oidcLoginConfig = ParseJSONConfigFromEnv(serverEnv.AUTH_OIDC_PROVID
 export const credentialsLoginEnabled =
   serverEnv.ENABLE_CREDENTIALS_LOGIN || !!(serverEnv.SEED_USER_EMAIL && serverEnv.SEED_USER_PASSWORD);
 
+// next-auth wraps any error from the token exchange / userinfo fetch into a
+// bare OAuthCallbackError before it reaches our logger, dropping the
+// underlying openid-client OPError's `.response` (status, body, request url)
+// in the process — so a real GitHub-side failure shows up in logs as just
+// "expected 200 OK, got: 500 Internal Server Error" with no way to tell which
+// call failed or what GitHub actually said. Log it here, before next-auth
+// gets a chance to discard it.
+function logOAuthHttpError(step: "token-exchange" | "userinfo", error: any) {
+  const response = error?.response;
+  log.atError().log(`GitHub OAuth ${step} failed`, {
+    status: response?.statusCode,
+    url: response?.url,
+    body: response?.body,
+    message: error?.message,
+  });
+}
+
 const githubProvider = githubLoginEnabled
-  ? GithubProvider({
-      clientId: serverEnv.GITHUB_CLIENT_ID as string,
-      clientSecret: serverEnv.GITHUB_CLIENT_SECRET as string,
-    })
+  ? (() => {
+      const base = GithubProvider({
+        clientId: serverEnv.GITHUB_CLIENT_ID as string,
+        clientSecret: serverEnv.GITHUB_CLIENT_SECRET as string,
+      });
+      return {
+        ...base,
+        token: {
+          url: "https://github.com/login/oauth/access_token",
+          async request({ provider, params, checks, client }) {
+            try {
+              const tokens = await client.oauthCallback(provider.callbackUrl, params, checks);
+              return { tokens };
+            } catch (error) {
+              logOAuthHttpError("token-exchange", error);
+              throw error;
+            }
+          },
+        },
+        userinfo: {
+          url: "https://api.github.com/user",
+          async request({ client, tokens }) {
+            let profile;
+            try {
+              profile = await client.userinfo(tokens.access_token as string);
+            } catch (error) {
+              logOAuthHttpError("userinfo", error);
+              throw error;
+            }
+            if (!profile.email) {
+              const res = await fetch("https://api.github.com/user/emails", {
+                headers: { Authorization: `token ${tokens.access_token}` },
+              });
+              if (res.ok) {
+                const emails = await res.json();
+                profile.email = (emails.find((e: any) => e.primary) ?? emails[0])?.email;
+              } else {
+                log.atWarn().log("GitHub /user/emails fetch failed", { status: res.status });
+              }
+            }
+            return profile;
+          },
+        },
+      };
+    })()
   : undefined;
 
 const oidcProvider = oidcLoginConfig ? OIDCProvider(oidcLoginConfig) : undefined;

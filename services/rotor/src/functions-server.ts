@@ -1118,7 +1118,7 @@ async function main() {
         try {
           const chain = await buildFunctionChain(conEntityStore, connection, functions);
           runtimes.set(connectionId, new InProcessRuntime(chain));
-          log.atInfo().log(`✓ Prebuilt chain for connection: ${connectionId} (${chain.functions.length} functions)`);
+          log.atDebug().log(`✓ Prebuilt chain for connection: ${connectionId} (${chain.functions.length} functions)`);
         } catch (e: any) {
           log.atError().log(`✗ Failed to prebuild chain for ${connectionId}: ${e.message}`);
         }

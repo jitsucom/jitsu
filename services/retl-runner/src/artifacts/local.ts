@@ -21,7 +21,7 @@ export class LocalIndex {
       const file = join(dir, "index.sqlite");
       const sql = new DatabaseSync(file);
       await chmod(file, 0o600);
-      sql.exec(`PRAGMA journal_mode=MEMORY; PRAGMA temp_store=FILE; PRAGMA cache_size=-16384; PRAGMA max_page_count=262144;
+      sql.exec(`PRAGMA journal_mode=MEMORY; PRAGMA synchronous=OFF; PRAGMA temp_store=FILE; PRAGMA cache_size=-16384; PRAGMA max_page_count=262144;
         CREATE TABLE source_keys (key TEXT PRIMARY KEY);
         CREATE TABLE desired (identity TEXT PRIMARY KEY, payload TEXT NOT NULL, value TEXT NOT NULL);
         CREATE TABLE members (identity TEXT PRIMARY KEY, payload TEXT, value TEXT, accepted_at TEXT, sequence INTEGER NOT NULL, uncertain INTEGER NOT NULL DEFAULT 0);
@@ -34,8 +34,19 @@ export class LocalIndex {
       throw error;
     }
   }
+  private depth = 0;
+  /** Re-entrant: a nested call joins the outer transaction, so a caller can commit once for many small steps. */
   transaction<T>(work: () => T): T {
+    if (this.depth > 0) {
+      this.depth++;
+      try {
+        return work();
+      } finally {
+        this.depth--;
+      }
+    }
     this.sql.exec("BEGIN");
+    this.depth = 1;
     try {
       const result = work();
       this.sql.exec("COMMIT");
@@ -43,6 +54,8 @@ export class LocalIndex {
     } catch (error) {
       this.sql.exec("ROLLBACK");
       throw error;
+    } finally {
+      this.depth = 0;
     }
   }
   append(rows: { key: string; effects: Effect[] }[]) {
@@ -68,24 +81,42 @@ export class LocalIndex {
     });
   }
   restoreMembers(values: Member[]) {
-    for (const { effect, acceptedAt, uncertain } of values) this.apply(effect, "upsert", 0, acceptedAt, uncertain);
+    // One transaction per page: restoring a long baseline row by row costs a write each.
+    const put = this.upsertMember();
+    this.transaction(() => {
+      for (const { effect, acceptedAt, uncertain } of values)
+        this.putMember(put, effect, "upsert", 0, acceptedAt, uncertain);
+    });
   }
   apply(effect: Effect, action: "upsert" | "remove", sequence: number, acceptedAt: string, uncertain = false) {
+    this.putMember(this.upsertMember(), effect, action, sequence, acceptedAt, uncertain);
+  }
+  private upsert?: ReturnType<DatabaseSync["prepare"]>;
+  /** Prepared once: `apply` runs for every record of every stored batch when a run starts. */
+  private upsertMember() {
     // Keep tombstones until the next run, so late acceptance cannot resurrect an older write.
-    this.sql
-      .prepare(
-        `INSERT INTO members VALUES (?,?,?,?,?,?) ON CONFLICT(identity) DO UPDATE SET
+    return (this.upsert ??= this.sql.prepare(
+      `INSERT INTO members VALUES (?,?,?,?,?,?) ON CONFLICT(identity) DO UPDATE SET
       payload=excluded.payload,value=excluded.value,accepted_at=excluded.accepted_at,sequence=excluded.sequence,uncertain=excluded.uncertain
       WHERE excluded.sequence>members.sequence`
-      )
-      .run(
-        effect.identityHash,
-        action === "upsert" ? effect.payloadHash : null,
-        action === "upsert" ? canonicalJson(effect) : null,
-        acceptedAt,
-        sequence,
-        uncertain ? 1 : 0
-      );
+    ));
+  }
+  private putMember(
+    put: ReturnType<DatabaseSync["prepare"]>,
+    effect: Effect,
+    action: "upsert" | "remove",
+    sequence: number,
+    acceptedAt: string,
+    uncertain = false
+  ) {
+    put.run(
+      effect.identityHash,
+      action === "upsert" ? effect.payloadHash : null,
+      action === "upsert" ? canonicalJson(effect) : null,
+      acceptedAt,
+      sequence,
+      uncertain ? 1 : 0
+    );
   }
   page(
     kind: "additions" | "removals",
