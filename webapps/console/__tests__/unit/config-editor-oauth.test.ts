@@ -12,6 +12,15 @@ const state = vi.hoisted(() => ({
   update: vi.fn(),
   source: {} as any,
   developerTokenConfigured: false,
+  rpc: vi.fn(),
+  selector: vi.fn(),
+}));
+vi.mock("juava", async original => ({ ...(await original<typeof import("juava")>()), rpc: state.rpc }));
+vi.mock("../../components/ReverseETL/MicrosoftAccountSelector", () => ({
+  MicrosoftAccountSelector: (props: any) => {
+    state.selector(props);
+    return null;
+  },
 }));
 vi.mock("next/router", () => ({ useRouter: () => state.route }));
 vi.mock("@nangohq/frontend", () => ({
@@ -43,8 +52,8 @@ vi.mock("../../components/ConfigObjectEditor/EditorButtons", () => ({
   EditorButtons: ({ loading }: any) => React.createElement("button", { type: "submit", disabled: loading }, "Save"),
 }));
 vi.mock("../../components/JitsuButton/JitsuButton", () => ({
-  JitsuButton: ({ children, onClick, loading }: any) =>
-    React.createElement("button", { type: "button", onClick, disabled: loading }, children),
+  JitsuButton: ({ children, onClick, loading, disabled }: any) =>
+    React.createElement("button", { type: "button", onClick, disabled: loading || disabled }, children),
 }));
 // Keep the real editor's identity, OAuth callback, React state and save path;
 // replace only the JSON-schema form renderer with an observable form boundary.
@@ -95,6 +104,7 @@ beforeEach(() => {
   state.developerTokenConfigured = false;
   state.route.query = { id: "new" };
   state.auth.mockResolvedValue({});
+  state.rpc.mockResolvedValue({ destinationId: "server-draft", grant: "signed-grant" });
   state.create.mockResolvedValue({});
   state.update.mockResolvedValue({});
   state.source = {
@@ -109,6 +119,60 @@ beforeEach(() => {
   };
 });
 afterEach(cleanup);
+
+it("authorizes a server-minted Microsoft draft, enables account lookup, and saves once without persisting the grant", async () => {
+  render(
+    React.createElement(ConfigEditor, {
+      ...props,
+      newObject: (): Partial<z.infer<typeof schema>> => ({ name: "Microsoft", destinationType: "microsoft-ads" }),
+    })
+  );
+  await waitFor(() => expect(form().id).toBe("server-draft"));
+  expect(state.create).not.toHaveBeenCalled();
+  fireEvent.click(screen.getByRole("button", { name: "Authorize" }));
+  await screen.findByRole("button", { name: "Re-Sign In" });
+  expect(state.auth).toHaveBeenCalledWith("jitsu-cloud-dst-microsoft-ads", "destination.server-draft");
+  expect(state.selector).toHaveBeenLastCalledWith(
+    expect.objectContaining({
+      destinationId: "server-draft",
+      draftGrant: "signed-grant",
+      authorized: true,
+      disabled: false,
+    })
+  );
+  fireEvent.click(screen.getByRole("button", { name: "Save" }));
+  await waitFor(() => expect(state.create).toHaveBeenCalledOnce());
+  expect(state.create.mock.calls[0][0]).toMatchObject({
+    id: "server-draft",
+    oauthConnectionId: "destination.server-draft",
+  });
+  expect(JSON.stringify(state.create.mock.calls[0][0])).not.toContain("signed-grant");
+});
+
+it("preserves edits during Microsoft draft preparation and can retry a failed preparation", async () => {
+  state.rpc.mockRejectedValueOnce(new Error("Preparation unavailable"));
+  let finish!: (value: unknown) => void;
+  state.rpc.mockImplementationOnce(
+    () =>
+      new Promise(resolve => {
+        finish = resolve;
+      })
+  );
+  render(
+    React.createElement(ConfigEditor, {
+      ...props,
+      newObject: (): Partial<z.infer<typeof schema>> => ({ name: "Microsoft", destinationType: "microsoft-ads" }),
+    })
+  );
+  fireEvent.click(await screen.findByRole("button", { name: "Retry" }));
+  await waitFor(() => expect(state.rpc).toHaveBeenCalledTimes(2));
+  expect((screen.getByRole("button", { name: "Authorize" }) as HTMLButtonElement).disabled).toBe(true);
+  expect((screen.getByRole("button", { name: "Save" }) as HTMLButtonElement).disabled).toBe(true);
+  fireEvent.change(screen.getByLabelText("Name"), { target: { value: "Renamed Microsoft" } });
+  finish({ destinationId: "retry-draft", grant: "retry-grant" });
+  await waitFor(() => expect(form().id).toBe("retry-draft"));
+  expect(form().name).toBe("Renamed Microsoft");
+});
 
 it.each([true, false])(
   "hides the Google developer token only when a shared token is configured: %s",

@@ -1,10 +1,10 @@
 import React, { createContext, PropsWithChildren, ReactNode, useContext, useEffect, useRef, useState } from "react";
 import { Button, Col, Form as AntdForm, Input, Row, Switch, Table } from "antd";
 import { FaCaretDown, FaCaretRight, FaClone, FaPlus } from "react-icons/fa";
-import { ZodType } from "zod";
+import { z, ZodType } from "zod";
 import { ConfigApiDeleteOptions, getConfigApi } from "../../lib/useApi";
 import { useRouter } from "next/router";
-import { asFunction, FunctionLike, getErrorMessage, getLog, requireDefined } from "juava";
+import { asFunction, FunctionLike, getErrorMessage, getLog, requireDefined, rpc } from "juava";
 
 import zodToJsonSchema from "zod-to-json-schema";
 
@@ -402,6 +402,7 @@ const EditorComponent: React.FC<EditorComponentProps> = props => {
   const appConfig = useAppConfig();
   const formRef = useRef<any>();
   const role = useWorkspaceRole();
+  const workspace = useWorkspace();
   const [loading, setLoading] = useState<boolean>(false);
   const [testing, setTesting] = useState<boolean>(false);
   const objectTypeFactory = asFunction<ZodType, any>(objectType);
@@ -432,6 +433,46 @@ const EditorComponent: React.FC<EditorComponentProps> = props => {
       setFormState(formRef.current.state);
     }
   }, []);
+
+  const needsMicrosoftDraft = !!(
+    isNew &&
+    object.destinationType === "microsoft-ads" &&
+    oauthConnector &&
+    role.editEntities
+  );
+  const [microsoftDraft, setMicrosoftDraft] = useState<{ destinationId: string; grant: string }>();
+  const [draftError, setDraftError] = useState<string>();
+  const [draftRetry, setDraftRetry] = useState(0);
+  const draftBaseObject = useRef(object);
+  const preparingDraft = needsMicrosoftDraft && !microsoftDraft && !draftError;
+  useEffect(() => {
+    if (!needsMicrosoftDraft) return;
+    let cancelled = false;
+    setDraftError(undefined);
+    // Prepare before the click so nango.auth still opens its popup within a browser user gesture.
+    rpc(`/api/${workspace.id}/reverse-etl/microsoft-draft`, { method: "POST", body: { action: "prepare" } })
+      .then(result => {
+        if (cancelled) return;
+        const draft = z.object({ destinationId: z.string(), grant: z.string() }).parse(result);
+        setMicrosoftDraft(draft);
+        setFormState(current => ({
+          ...current,
+          formData: {
+            ...(current?.formData || draftBaseObject.current),
+            id: draft.destinationId,
+            authorized: false,
+            oauthIntegrationId: undefined,
+            oauthConnectionId: undefined,
+          },
+        }));
+      })
+      .catch(error => {
+        if (!cancelled) setDraftError(getErrorMessage(error));
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [needsMicrosoftDraft, workspace.id, draftRetry]);
 
   const onFormChange = state => {
     setFormState(state);
@@ -465,7 +506,7 @@ const EditorComponent: React.FC<EditorComponentProps> = props => {
               size={"large"}
               ghost={true}
               loading={nangoLoading}
-              disabled={loading || testing}
+              disabled={!role.editEntities || loading || testing || (needsMicrosoftDraft && !microsoftDraft)}
               onClick={() => {
                 const nango = new Nango({
                   publicKey: appConfig.nango!.publicKey,
@@ -505,7 +546,16 @@ const EditorComponent: React.FC<EditorComponentProps> = props => {
             </JitsuButton>
           </div>
           <div className={"w-full flex flex-row items-center py-1 px-2 text-text"} style={{ minHeight: 32 }}>
-            {nangoError ? (
+            {draftError ? (
+              <span className="text-red-600">
+                {draftError}{" "}
+                <Button type="link" onClick={() => setDraftRetry(value => value + 1)}>
+                  Retry
+                </Button>
+              </span>
+            ) : preparingDraft ? (
+              <span>Preparing Microsoft authorization…</span>
+            ) : nangoError ? (
               <span className={"text-red-600"}>OAuth2 error: {nangoError}</span>
             ) : (formState?.formData || object).authorized ? (
               <>
@@ -530,8 +580,13 @@ const EditorComponent: React.FC<EditorComponentProps> = props => {
         <MicrosoftAccountSelector
           destinationId={(formState?.formData || object).id}
           isNew={isNew}
+          draftGrant={microsoftDraft?.grant}
+          developerToken={
+            appConfig.microsoftAdsDeveloperTokenConfigured ? undefined : (formState?.formData || object).developerToken
+          }
+          authorized={(formState?.formData || object).authorized}
           accountId={(formState?.formData || object).accountId}
-          disabled={!role.editEntities || loading || testing}
+          disabled={!role.editEntities || loading || testing || nangoLoading || preparingDraft}
           onChange={(accountId, customerId) => {
             setFormState(current => ({
               ...current,
@@ -559,7 +614,7 @@ const EditorComponent: React.FC<EditorComponentProps> = props => {
           customValidate={(formData, errors) => applyClientFieldValidation(formData, errors, fields)}
           transformErrors={errors => transformConfigErrors(errors, fields)}
           onSubmit={async ({ formData }) => {
-            if (nangoLoading) return;
+            if (nangoLoading || preparingDraft) return;
             if (
               onTest &&
               (typeof testConnectionEnabled === "undefined" || testConnectionEnabled(formData || object) === true)
@@ -593,7 +648,7 @@ const EditorComponent: React.FC<EditorComponentProps> = props => {
           uiSchema={uiSchema}
         >
           <EditorButtons
-            loading={loading || nangoLoading}
+            loading={loading || nangoLoading || preparingDraft}
             testing={testing}
             isNew={isNew}
             isTouched={isTouched}

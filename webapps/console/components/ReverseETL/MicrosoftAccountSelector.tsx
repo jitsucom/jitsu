@@ -10,12 +10,18 @@ import { EditorField } from "../ConfigObjectEditor/EditorField";
 export function MicrosoftAccountSelector({
   destinationId,
   isNew,
+  draftGrant,
+  developerToken,
+  authorized,
   accountId,
   disabled,
   onChange,
 }: {
   destinationId: string;
   isNew: boolean;
+  draftGrant?: string;
+  developerToken?: string;
+  authorized?: boolean;
   accountId?: string;
   disabled: boolean;
   onChange: (accountId: string, customerId: string) => void;
@@ -24,8 +30,8 @@ export function MicrosoftAccountSelector({
   const fieldId = useId();
   const [requested, setRequested] = useState(false);
   const query = useQuery({
-    queryKey: ["microsoft-accounts", workspace.id, destinationId],
-    enabled: requested && !isNew && !disabled,
+    queryKey: ["microsoft-accounts", workspace.id, destinationId, isNew, authorized, developerToken],
+    enabled: requested && (!isNew || !!(draftGrant && authorized)) && !disabled,
     queryFn: async ({ signal }) =>
       z
         .object({
@@ -33,10 +39,16 @@ export function MicrosoftAccountSelector({
           truncated: z.boolean().optional(),
         })
         .parse(
-          await rpc(`/api/${workspace.id}/reverse-etl/options`, {
-            query: { destinationId, kind: "microsoft-account" },
-            signal,
-          })
+          isNew
+            ? await rpc(`/api/${workspace.id}/reverse-etl/microsoft-draft`, {
+                method: "POST",
+                body: { action: "accounts", grant: draftGrant, developerToken: developerToken || undefined },
+                signal,
+              })
+            : await rpc(`/api/${workspace.id}/reverse-etl/options`, {
+                query: { destinationId, kind: "microsoft-account" },
+                signal,
+              })
         ),
     retry: false,
     staleTime: 60_000,
@@ -49,8 +61,8 @@ export function MicrosoftAccountSelector({
       help={
         <div id={`${fieldId}-help`}>
           <p>
-            {isNew
-              ? "Authorize and save the destination first; you can leave account/customer IDs empty, then reopen it to choose an account."
+            {isNew && !authorized
+              ? "Authorize Microsoft above to choose an account before saving. Manual IDs are also supported."
               : "Selecting an account fills both IDs below. Save to apply the selection; manual IDs are also supported."}
           </p>
           {query.isError && (
@@ -70,7 +82,7 @@ export function MicrosoftAccountSelector({
         className="w-full"
         showSearch
         optionFilterProp="label"
-        disabled={disabled || isNew}
+        disabled={disabled || (isNew && !(draftGrant && authorized))}
         loading={query.isFetching}
         value={accountId || undefined}
         placeholder="Choose an account to fill account and customer IDs"

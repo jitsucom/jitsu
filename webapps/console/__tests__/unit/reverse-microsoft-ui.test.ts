@@ -140,3 +140,47 @@ it("keeps exact goal-name entry available when lookup fails", async () => {
   fireEvent.change(screen.getByRole("combobox"), { target: { value: "Purchase" } });
   expect(change.mock.calls[0][0]).toBe("Purchase");
 });
+
+it("browses accounts before saving using the draft grant and fills both IDs", async () => {
+  rpc.mockResolvedValue({ options: [{ value: "456", label: "Draft account", customerId: "123" }] });
+  const change = vi.fn();
+  mount(
+    React.createElement(MicrosoftAccountSelector, {
+      destinationId: "draft",
+      isNew: true,
+      draftGrant: "signed",
+      authorized: true,
+      developerToken: "self-hosted-token",
+      disabled: false,
+      onChange: change,
+    })
+  );
+  const account = screen.getByRole("combobox");
+  fireEvent.focus(account);
+  fireEvent.mouseDown(account);
+  const labels = await screen.findAllByText("Draft account");
+  fireEvent.click(labels[labels.length - 1]);
+  expect(rpc).toHaveBeenCalledWith(
+    "/api/ws/reverse-etl/microsoft-draft",
+    expect.objectContaining({
+      method: "POST",
+      body: { action: "accounts", grant: "signed", developerToken: "self-hosted-token" },
+    })
+  );
+  expect(change).toHaveBeenCalledWith("456", "123");
+});
+
+it("does not browse an unauthorized draft", () => {
+  mount(
+    React.createElement(MicrosoftAccountSelector, {
+      destinationId: "draft",
+      isNew: true,
+      draftGrant: "signed",
+      authorized: false,
+      disabled: false,
+      onChange: vi.fn(),
+    })
+  );
+  expect((screen.getByRole("combobox") as HTMLInputElement).disabled).toBe(true);
+  expect(rpc).not.toHaveBeenCalled();
+});
