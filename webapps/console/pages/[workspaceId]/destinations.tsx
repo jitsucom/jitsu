@@ -29,19 +29,7 @@ import { SnippedEditor } from "../../components/CodeEditor/SnippedEditor";
 import { MultiSelectWithCustomOptions } from "../../components/MultiSelectWithCustomOptions/MultiSelectWithCustomOptions";
 import { LoadingAnimation } from "../../components/GlobalLoader/GlobalLoader";
 import { useQuery } from "@tanstack/react-query";
-import {
-  AlertTriangle,
-  Check,
-  Copy,
-  Eye,
-  FileKey,
-  Loader2,
-  Share2,
-  ShieldAlert,
-  TerminalSquare,
-  XCircle,
-  Zap,
-} from "lucide-react";
+import { Copy, Eye, FileKey, Loader2, Share2, ShieldAlert, TerminalSquare, XCircle, Zap } from "lucide-react";
 import { ClickhouseConnectionCredentials } from "../../lib/schema/clickhouse-connection-credentials";
 import { CodeBlock } from "../../components/CodeBlock/CodeBlock";
 import { useBilling } from "../../components/Billing/BillingProvider";
@@ -55,6 +43,8 @@ import { CustomWidgetProps } from "../../components/ConfigObjectEditor/Editors";
 import { Htmlizer } from "../../components/Htmlizer/Htmlizer";
 import omit from "lodash/omit";
 import { EditorToolbar } from "../../components/EditorToolbar/EditorToolbar";
+import { DestinationConnections } from "../../components/DestinationConnections/DestinationConnections";
+import { reverseDestinationMetadata } from "@jitsu/destination-functions/src/reverse-etl/catalog";
 
 const log = getLog("destinations");
 const Loader: React.FC<{}> = () => {
@@ -581,50 +571,6 @@ const ProvisionedDestinations = (props: any) => {
   );
 };
 
-const ConnectionsList: React.FC<{ streams: any[]; service: any[]; destinationId: string; syncSupported: boolean }> = ({
-  streams,
-  service,
-  destinationId,
-  syncSupported,
-}) => {
-  const workspace = useWorkspace();
-  if (streams.length === 0 && service.length === 0) {
-    return (
-      <div className="flex items-center flex-nowrap">
-        <AlertTriangle className="h-4 w-4 mr-1 text-warning" />{" "}
-        <span className="text-sm">
-          Create <Link href={`/${workspace.slugOrId}/syncs/edit?destination=${destinationId}`}>sync</Link> or{" "}
-          <Link href={`/${workspace.slugOrId}/connections/edit?destinationId=${destinationId}`}>
-            connect destination to a site
-          </Link>{" "}
-          to start seeing data
-        </span>
-      </div>
-    );
-  } else {
-    return (
-      <div className="flex items-center flex-nowrap">
-        <Check className="h-4 w-4 mr-1 text-success" />{" "}
-        <span className="text-sm">
-          Connected to{" "}
-          <Link href={`/${workspace.slugOrId}/connections?destination=${destinationId}`}>
-            {streams.length} site{streams.length > 1 ? "s" : ""}
-          </Link>
-          {syncSupported && (
-            <>
-              {" "}
-              and{" "}
-              <Link href={`/${workspace.slugOrId}/syncs?destination=${destinationId}`}>
-                {service.length} sync{service.length > 1 ? "s" : ""}
-              </Link>
-            </>
-          )}
-        </span>
-      </div>
-    );
-  }
-};
-
 const DestinationsList: React.FC<{ type?: string }> = ({ type }) => {
   const destinationCatalogRef = useRef<DestinationCatalogHandle>(null);
   const [showCatalog, setShowCatalog] = useQueryStringState<boolean>("showCatalog", {
@@ -649,6 +595,11 @@ const DestinationsList: React.FC<{ type?: string }> = ({ type }) => {
     retry: false,
     cacheTime: 0,
   });
+  const canViewReverseSyncs = (d: DestinationConfig) =>
+    (workspace.featuresEnabled.includes("reverse-etl") && reverseDestinationMetadata.has(d.destinationType)) ||
+    !!links.data?.links.some(
+      (link: { toId: string; type: string }) => link.toId === d.id && link.type === "reverse-sync"
+    );
 
   const [refresh, setRefresh] = useState(new Date());
   const config: ConfigEditorProps<DestinationConfig> = {
@@ -679,6 +630,14 @@ const DestinationsList: React.FC<{ type?: string }> = ({ type }) => {
         key: "syncs",
         link: (d: DestinationConfig) => `/syncs?search=${encodeURIComponent(d.name)}`,
       },
+      {
+        title: "Reverse ETL Syncs",
+        collapsed: true,
+        icon: <Share2 className="h-4 w-4" />,
+        key: "reverse-syncs",
+        link: (d: DestinationConfig) => `/reverse-syncs?destinationId=${encodeURIComponent(d.id)}`,
+        disabled: (d: DestinationConfig) => !canViewReverseSyncs(d),
+      },
     ],
     filter: (obj: DestinationConfig) => !obj.provisioned,
     icon: (d: DestinationConfig) => {
@@ -699,14 +658,7 @@ const DestinationsList: React.FC<{ type?: string }> = ({ type }) => {
                     <span>Can't load links</span>
                   </div>
                 )}
-                {links.data && (
-                  <ConnectionsList
-                    destinationId={d.id}
-                    syncSupported={!!coreDestinationsMap[d.destinationType]?.usesBulker}
-                    service={links.data.links.filter((l: any) => l.toId === d.id && l.type === "sync")}
-                    streams={links.data.links.filter((l: any) => l.toId === d.id && l.type === "push")}
-                  />
-                )}
+                {links.data && <DestinationConnections destination={d} links={links.data.links} />}
               </>
             </div>
           );
@@ -798,11 +750,11 @@ const DestinationsList: React.FC<{ type?: string }> = ({ type }) => {
                       href: `/${workspace.slugOrId}/sql?destinationId=${obj.id}`,
                     }
                   : undefined,
-                obj.destinationType === "google-ads" && workspace.featuresEnabled.includes("reverse-etl")
+                canViewReverseSyncs(obj)
                   ? {
-                      title: "Reverse ETL audiences · Data Manager API",
-                      icon: <TerminalSquare className="w-full h-full" />,
-                      href: `/${workspace.slugOrId}/reverse-syncs?destinationId=${obj.id}`,
+                      title: "Reverse ETL Syncs",
+                      icon: <Share2 className="w-full h-full" />,
+                      href: `/${workspace.slugOrId}/reverse-syncs?destinationId=${encodeURIComponent(obj.id)}`,
                     }
                   : undefined,
               ].filter(Boolean) as any
@@ -814,12 +766,14 @@ const DestinationsList: React.FC<{ type?: string }> = ({ type }) => {
               className="mb-5"
               type="info"
               showIcon
-              title="Customer Match audiences · Reverse ETL"
+              title="Google Ads · Reverse ETL"
               description={
                 <div>
                   <p>
-                    Use this connection with the Google Data Manager API to sync email and phone audiences. Reconnect
-                    Google OAuth if this connection was authorized before Data Manager access was added.
+                    Use this destination for Customer Match audiences and conversion streams. Select the stream,
+                    mappings and schedule when creating a Reverse ETL sync. Audience delivery uses the Google Data
+                    Manager API; reconnect Google OAuth if this connection was authorized before Data Manager access was
+                    added.
                   </p>
                   <p className="mt-2">
                     Customer account: <code>{String(obj.customerId || "Not configured")}</code>
@@ -831,10 +785,10 @@ const DestinationsList: React.FC<{ type?: string }> = ({ type }) => {
                     ) : null}
                   </p>
                   <Link href={`/${workspace.slugOrId}/reverse-syncs?destinationId=${obj.id}`}>
-                    View audience syncs →
+                    View Reverse ETL syncs →
                   </Link>
                   <span className="text-textLight block mt-2">
-                    Event conversion settings below are independent from your audience sync mappings and schedules.
+                    Event conversion settings below are independent from your Reverse ETL sync mappings and schedules.
                   </span>
                 </div>
               }

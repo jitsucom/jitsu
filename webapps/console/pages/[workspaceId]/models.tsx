@@ -41,7 +41,7 @@ function ModelsList() {
     listTitle: "Models",
     objectType: ModelConfig,
     fields: {},
-    explanation: "Reusable warehouse queries for Reverse ETL audiences.",
+    explanation: "Reusable warehouse queries for Reverse ETL destination streams.",
     icon: model => <ModelIcon model={model} />,
     addDisabled: !enabled || maintenance || !warehouses.length,
     deleteDisabled: maintenance,
@@ -234,9 +234,7 @@ function ModelEditor() {
             title={
               !enabled ? "View model" : editing === "new" ? "New model" : <ModelTitle model={editing} size="large" />
             }
-            subtitle={
-              <p className="text-textLight mb-6">Define the audience once. Reuse it across destination syncs.</p>
-            }
+            subtitle={<p className="text-textLight mb-6">Define the model once. Reuse it across destination syncs.</p>}
             onBack={() => void router.push(`/${workspace.slugOrId}/models`)}
           />
           {dependencies.length > 0 && (
