@@ -434,7 +434,7 @@ const EditorComponent: React.FC<EditorComponentProps> = props => {
     }
   }, []);
 
-  const needsMicrosoftDraft = !!(
+  const needsOAuthDraft = !!(
     isNew &&
     object.destinationType === "microsoft-ads" &&
     oauthConnector &&
@@ -444,9 +444,9 @@ const EditorComponent: React.FC<EditorComponentProps> = props => {
   const [draftError, setDraftError] = useState<string>();
   const [draftRetry, setDraftRetry] = useState(0);
   const draftBaseObject = useRef(object);
-  const preparingDraft = needsMicrosoftDraft && !microsoftDraft && !draftError;
+  const preparingDraft = needsOAuthDraft && !microsoftDraft && !draftError;
   useEffect(() => {
-    if (!needsMicrosoftDraft) return;
+    if (!needsOAuthDraft) return;
     let cancelled = false;
     setDraftError(undefined);
     // Prepare before the click so nango.auth still opens its popup within a browser user gesture.
@@ -472,7 +472,7 @@ const EditorComponent: React.FC<EditorComponentProps> = props => {
     return () => {
       cancelled = true;
     };
-  }, [needsMicrosoftDraft, workspace.id, draftRetry]);
+  }, [needsOAuthDraft, workspace.id, draftRetry]);
 
   const onFormChange = state => {
     setFormState(state);
@@ -506,7 +506,7 @@ const EditorComponent: React.FC<EditorComponentProps> = props => {
               size={"large"}
               ghost={true}
               loading={nangoLoading}
-              disabled={!role.editEntities || loading || testing || (needsMicrosoftDraft && !microsoftDraft)}
+              disabled={!role.editEntities || loading || testing || (needsOAuthDraft && !microsoftDraft)}
               onClick={() => {
                 const nango = new Nango({
                   publicKey: appConfig.nango!.publicKey,
