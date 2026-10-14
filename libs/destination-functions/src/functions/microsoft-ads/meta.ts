@@ -55,10 +55,12 @@ export const MicrosoftConversionRow = z
       .regex(/^[a-f0-9]{64}$/)
       .optional(),
     conversionTime: z.string().datetime({ offset: true }),
+    // MSCLKID is opaque: bound input size without changing its format or case.
     microsoftClickId: z
       .string()
-      .trim()
-      .regex(/^[a-f0-9]{32}$/i)
+      .min(1)
+      .max(1024)
+      .refine(value => value.trim().length > 0, "Microsoft click ID must not be blank")
       .nullish(),
     email: optionalIdentifier,
     hashedEmail: optionalIdentifier,

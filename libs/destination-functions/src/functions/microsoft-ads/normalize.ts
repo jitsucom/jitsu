@@ -65,7 +65,7 @@ export function normalizeMicrosoftConversion(input: unknown, name: string, now =
     payload: {
       ConversionName: name,
       ConversionTime: new Date(time).toISOString(),
-      ...(row.microsoftClickId ? { MicrosoftClickId: row.microsoftClickId.toLowerCase() } : {}),
+      ...(row.microsoftClickId ? { MicrosoftClickId: row.microsoftClickId } : {}),
       ...(email ? { HashedEmailAddress: email } : {}),
       ...(phone ? { HashedPhoneNumber: phone } : {}),
       ...(row.conversionValue != null ? { ConversionValue: row.conversionValue } : {}),

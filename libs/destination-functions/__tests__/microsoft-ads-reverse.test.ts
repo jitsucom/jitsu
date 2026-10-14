@@ -148,6 +148,15 @@ describe("Microsoft Ads Reverse ETL", () => {
         )
       ).toThrow();
   });
+  it.each(["", "   ", "\t\n", "x".repeat(1025)])("rejects blank or oversized click IDs (%#)", microsoftClickId => {
+    expect(() =>
+      normalizeMicrosoftConversion(
+        { __sourceKey: "a".repeat(64), conversionTime: "2026-10-08T12:00:00Z", microsoftClickId },
+        "Sale",
+        Date.parse("2026-10-09T00:00:00Z")
+      )
+    ).toThrow();
+  });
   it("keeps both stream editors isolated and validates modes and mappings", () => {
     const [audience, conversion] = reverseDestinationMetadata.get("microsoft-ads")!.streams;
     expect(audience.defaults().mode).toBe("mirror");
@@ -404,6 +413,22 @@ describe("Microsoft Ads Reverse ETL", () => {
     await writer.upsert(batch([row]));
     expect(f.fetch.mock.calls[0][0]).toContain("/OfflineConversions/Apply");
   });
+  it.each(["ABCDEF0123456789ABCDEF0123456789", "Opaque-Click_ID+AbC/123=", "  MixedCase-ID  ", "X".repeat(1024)])(
+    "preserves opaque click IDs through normalization and delivery (%#)",
+    async microsoftClickId => {
+      const f = fixture(false, true);
+      f.config.options.mapping = { conversionTime: "time", microsoftClickId: "click_id" };
+      const { adapter, writer } = await f.init();
+      const row = adapter.stream.rowType.parse({
+        __sourceKey: "a".repeat(64),
+        conversionTime: new Date(Date.now() - 60_000).toISOString(),
+        microsoftClickId,
+      });
+      const result = await writer.upsert(batch([row]));
+      expect(result.outcomes[0].status).toBe("accepted");
+      expect(JSON.parse(f.fetch.mock.calls[0][1].body).OfflineConversions[0].MicrosoftClickId).toBe(microsoftClickId);
+    }
+  );
   it("redacts structured request failures and does not retry 5xx or cancellation", async () => {
     const f = fixture();
     const { writer } = await f.init();
