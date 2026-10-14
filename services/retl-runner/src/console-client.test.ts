@@ -27,7 +27,10 @@ const config = ReverseRunConfig.parse({
     streamOptions: { audienceId: "123", customerMatchTermsAccepted: true },
   },
 });
-afterEach(() => vi.useRealTimers());
+afterEach(() => {
+  vi.useRealTimers();
+  vi.unstubAllEnvs();
+});
 describe("runner console OAuth and adapter binding", () => {
   it("binds refresh admission and OAuth to the original task", async () => {
     const urls: URL[] = [];
@@ -106,10 +109,12 @@ describe("runner console OAuth and adapter binding", () => {
       await expect(client.accessToken(new AbortController().signal)).rejects.toThrow();
     }
   );
-  it("registers code-owned Google, Webhook, and Meta implementations, without fetching tokens during binding", async () => {
+  it("registers code-owned Microsoft, Google, Webhook, and Meta implementations, without fetching tokens for conversion binding", async () => {
+    // Local runtime credentials must not hide an incomplete adapter fixture in CI.
+    vi.stubEnv("MICROSOFT_ADS_DEVELOPER_TOKEN", undefined);
     const token = vi.fn(async () => "token");
     const registry = createAdapterRegistry(token);
-    expect([...registry.keys()]).toEqual(["google-ads", "webhook", "facebook-conversions"]);
+    expect([...registry.keys()]).toEqual(["microsoft-ads", "google-ads", "webhook", "facebook-conversions"]);
     const adapter = await registry.get("google-ads")!(config);
     expect(adapter.targetIdentity).toBe("google-data-manager:1234567890:123");
     expect(adapter.stream.batchDelivery).toBe("asynchronous");
@@ -128,6 +133,26 @@ describe("runner console OAuth and adapter binding", () => {
     });
     expect(meta.targetIdentity).toBe("meta-conversions:456");
     expect(meta.stream.name).toBe("conversions");
+    const microsoft = await registry.get("microsoft-ads")!({
+      ...config,
+      destination: {
+        destinationType: "microsoft-ads",
+        developerToken: "microsoft-test-developer-token",
+        accountId: "123",
+        customerId: "456",
+        oauthIntegrationId: "jitsu-cloud-dst-microsoft-ads",
+        oauthConnectionId: `destination.${config.toId}`,
+      },
+      options: {
+        ...config.options,
+        stream: "offline-conversions",
+        mode: "upsert",
+        mapping: { email: "email", conversionTime: "time" },
+        streamOptions: { conversionName: "Sale" },
+      },
+    });
+    expect(microsoft.insertOnly).toBe(true);
+    expect(microsoft.stream.name).toBe("offline-conversions");
     expect(token).not.toHaveBeenCalled();
     expect(() => registry.get("google-ads")!({ ...config, toId: "other" })).toThrow("OAuth binding");
   });

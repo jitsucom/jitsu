@@ -14,6 +14,7 @@
     "src/functions/google-ads/**",
     "src/functions/webhook/**",
     "src/functions/facebook/**",
+    "src/functions/microsoft-ads/**",
     "src/functions/lib/**",
     "src/functions/google-ads-destination.ts"
   ],
@@ -32,22 +33,25 @@
     "@jitsu/sdk-js": "^3.1.5",
     "@types/lodash": "catalog:",
     "@types/node": "catalog:",
+    "@types/yauzl": "^3.4.0",
     "@vitest/ui": "catalog:",
     "json5": "^2.1.0",
     "msw": "^2.15.0",
-    "vitest": "catalog:",
-    "vite": "^6.4.3"
+    "vite": "^6.4.3",
+    "vitest": "catalog:"
   },
   "dependencies": {
-    "@jitsu/core-functions-lib": "workspace:*",
     "@amplitude/ua-parser-js": "^0.7.33",
     "@hubspot/api-client": "^11.1.0",
-    "undici": "^7.29.1",
+    "@jitsu/core-functions-lib": "workspace:*",
+    "csv-parse": "^7.0.3",
     "juava": "workspace:*",
-    "node-cache": "^5.1.2",
     "lodash": "catalog:",
+    "node-cache": "^5.1.2",
     "posthog-node": "^5.44.0",
     "tslib": "catalog:",
+    "undici": "^7.29.1",
+    "yauzl": "^3.4.0",
     "zod": "^3.23.8"
   }
 }

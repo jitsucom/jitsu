@@ -103,6 +103,7 @@ const ServerEnvSchema = ClientEnvSchema.extend({
 
   // Google Ads API developer token
   GOOGLE_ADS_DEVELOPER_TOKEN: z.string().optional(),
+  MICROSOFT_ADS_DEVELOPER_TOKEN: z.string().optional(),
 
   // JWT signing secret for NextAuth sessions (required)
   JWT_SECRET: z.string(),

@@ -64,6 +64,7 @@ import {
 import { CustomWidgetProps, PasswordEditor } from "./Editors";
 import { WorkspacePermissionsType } from "../../lib/workspace-roles";
 import { oauthDecorators } from "../../lib/server/oauth/destinations";
+import { MicrosoftAccountSelector } from "../ReverseETL/MicrosoftAccountSelector";
 import Nango from "@nangohq/frontend";
 import { transformConfigErrors, ValidationMessages } from "../../lib/schema/config-editor-errors";
 import {
@@ -417,8 +418,8 @@ const EditorComponent: React.FC<EditorComponentProps> = props => {
   const uiSchema = getUiSchema(schema, fields, formState?.formData || object, isNew);
   if (
     type === "destination" &&
-    object.destinationType === "google-ads" &&
-    appConfig.googleAdsDeveloperTokenConfigured
+    ((object.destinationType === "google-ads" && appConfig.googleAdsDeveloperTokenConfigured) ||
+      (object.destinationType === "microsoft-ads" && appConfig.microsoftAdsDeveloperTokenConfigured))
   ) {
     uiSchema.developerToken = { ...uiSchema.developerToken, "ui:widget": "hidden" };
   }
@@ -524,6 +525,21 @@ const EditorComponent: React.FC<EditorComponentProps> = props => {
             {/*</JitsuButton>*/}
           </div>
         </div>
+      )}
+      {type === "destination" && object.destinationType === "microsoft-ads" && (
+        <MicrosoftAccountSelector
+          destinationId={(formState?.formData || object).id}
+          isNew={isNew}
+          accountId={(formState?.formData || object).accountId}
+          disabled={!role.editEntities || loading || testing}
+          onChange={(accountId, customerId) => {
+            setFormState(current => ({
+              ...current,
+              formData: { ...(current?.formData || object), accountId, customerId },
+            }));
+            setTouched(true);
+          }}
+        />
       )}
       <EditorComponentContext.Provider value={{ displayInlineErrors: !isNew || submitCount > 0 }}>
         <Form

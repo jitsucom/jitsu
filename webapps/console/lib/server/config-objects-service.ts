@@ -36,6 +36,8 @@ const metaEventPixelError = () =>
   new ApiError("Meta event connections require a Pixel / Dataset ID on the destination", { status: 400 });
 
 function eventDestinationError(config: any): ApiError | undefined {
+  if (getCoreDestinationTypeNonStrict(config?.destinationType)?.reverseEtlOnly)
+    return new ApiError("This destination supports Reverse ETL only, not event connections", { status: 400 });
   if (missingMetaEventPixel(config)) return metaEventPixelError();
   if (
     config?.destinationType === "google-ads" &&

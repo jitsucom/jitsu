@@ -4,12 +4,24 @@ import { failureDiagnostic, failureMessage, KubernetesHttpError } from "./diagno
 import { googleRequestError } from "@jitsu/destination-functions/src/functions/google-ads/clients/errors";
 import { PersistenceError } from "./persistence/types";
 import { MirrorRunError } from "./mirror";
+import { MicrosoftNotSubmittedError } from "@jitsu/destination-functions/src/functions/microsoft-ads/client";
 import {
   invalidMetaConversion,
   metaConversionValidationErrors,
 } from "@jitsu/destination-functions/src/functions/facebook/validation-errors";
 
 describe("safe failure diagnostics", () => {
+  it.each(["developer-token", "oauth"] as const)("explains Microsoft %s failures safely", reason => {
+    const error = new MicrosoftNotSubmittedError(reason);
+    const message = failureMessage(error, "task-ms");
+    expect(message).toContain(reason === "developer-token" ? "MICROSOFT_ADS_DEVELOPER_TOKEN" : "OAuth access token");
+    expect(message).toContain("Run ID: task-ms");
+    expect(message).not.toContain("Contact support");
+    expect(failureDiagnostic("execution", error).reason).toBe(error.message);
+    const unsafe = new Error(`${error.message}: private-token`);
+    expect(failureMessage(unsafe, "task-ms")).not.toContain("private-token");
+    expect(failureDiagnostic("execution", unsafe).reason).toBeUndefined();
+  });
   it("retains structured Google diagnostics across the uncertain-delivery wrapper", async () => {
     const google = await googleRequestError(
       new Response(JSON.stringify({ error: { status: "UNAVAILABLE", message: "private-secret" } }), { status: 503 }),
@@ -52,6 +64,8 @@ describe("safe failure diagnostics", () => {
     expect(JSON.stringify(error)).not.toContain("private-token");
   });
   it.each([
+    ["Reverse console admission/OAuth request denied or unavailable", "Check RETL_CONSOLE_URL and RETL_CONSOLE_TOKEN"],
+    ["Reverse destination is not enabled in this runner", "Deploy a compatible runner image"],
     ["Model query contains duplicate primary keys", "Return one deterministic row per primary key"],
     ["Async batches require distinct member identities", "Multiple source rows identify the same audience member"],
     ["Audience is exclusively managed by a mirror sync", "This audience is reserved by another sync"],

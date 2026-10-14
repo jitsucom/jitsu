@@ -70,6 +70,24 @@ class ReverseEtlChartTest(unittest.TestCase):
                 self.assertEqual(http["port"], 3043)
                 self.assertEqual(http["targetPort"], "http")
 
+    def test_extra_ca_is_opt_in_and_shared_with_runner(self):
+        for ca in ["", "portless-ca"]:
+            docs = self.manifests({"syncctlExtraCAConfigMap": ca})
+            pod = docs[("Deployment", "syncctl")]["spec"]["template"]["spec"]
+            env = self.controller_env(docs)
+            self.assertEqual(env["SYNCCTL_EXTRA_CA_CONFIG_MAP"], ca)
+            volumes = [v for v in pod["volumes"] if v["name"] == "extra-ca"]
+            mounts = [v for v in pod["containers"][0]["volumeMounts"] if v["name"] == "extra-ca"]
+            if ca:
+                self.assertEqual(volumes[0]["configMap"], {
+                    "name": ca, "items": [{"key": "ca.crt", "path": "ca.crt"}]})
+                self.assertTrue(mounts[0]["readOnly"])
+                self.assertEqual(env["SSL_CERT_FILE"], mounts[0]["mountPath"] + "/ca.crt")
+            else:
+                self.assertEqual(volumes, [])
+                self.assertEqual(mounts, [])
+                self.assertNotIn("SSL_CERT_FILE", env)
+
     def test_enabled_resources_and_identity(self):
         annotations = {"iam.gke.io/gcp-service-account": "runner@example.iam.gserviceaccount.com"}
         docs = self.manifests(enabled(serviceAccount={"annotations": annotations},

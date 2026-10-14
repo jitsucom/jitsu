@@ -21,6 +21,35 @@ matching `env.common.KAFKA_BOOTSTRAP_SERVERS` / `DATABASE_URL` /
 `CLICKHOUSE_URL` / `MONGODB_URL` of this chart at it (see
 `values-custom.example.yaml`) — explicit env wins over the published URLs.
 
+## Mac-hosted console over local HTTPS
+
+For a portless console, use its single-prefix `https://console-<branch>.jitsu.localhost`
+origin with these settings in `env.syncctl`:
+
+- `CONSOLE_URL`: `https://console-<branch>.jitsu.localhost`
+- `REPOSITORY_BASE_URL`: `https://console-<branch>.jitsu.localhost/api/admin/export`
+- `REPOSITORY_URL`: `https://console-<branch>.jitsu.localhost/api/admin/export/streams-with-destinations`
+
+Set `RETL_CONSOLE_URL` in the existing Reverse ETL runtime Secret to the same origin
+as `CONSOLE_URL`. This avoids depending on the console's changing development port.
+
+Pods need two additional pieces of local configuration:
+
+- Add that exact hostname to Minikube CoreDNS's existing `hosts` block, using
+  the IP already assigned there to `host.minikube.internal`. This is the Mac's
+  gateway address, **not** the Minikube node IP. The mapping must be refreshed
+  if the gateway changes; it is local cluster configuration, not chart-owned.
+- Create a ConfigMap with key `ca.crt` from portless's public `ca.pem` (never
+  copy `ca-key.pem`), then set `syncctlExtraCAConfigMap` to its name. For example:
+  `kubectl --context minikube -n default create configmap jitsu-portless-ca --from-file=ca.crt=/Users/<user>/.portless/ca.pem`.
+
+The chart mounts this CA into syncctl; syncctl also mounts it into all newly
+created Reverse ETL runner pods. TLS verification remains enabled. This optional
+CA extends runner-wide trust, so use only a CA you control. Restart syncctl and
+start new runner pods after rotating the certificate. Ordinary syncs' admission
+containers also receive the CA to reach the same console; source connectors do
+not. Leave it empty in environments using publicly trusted HTTPS.
+
 ## Quick Start
 
 ```bash
@@ -119,8 +148,9 @@ Provision a Kubernetes Secret containing `RETL_DATABASE_URL`, `RETL_CONSOLE_URL`
 The bucket must already exist, with credentials or workload identity that let the
 runner read/write its artifacts. See [object-storage authentication](REVERSE_ETL.md#cloud-authentication)
 for cloud setup and the optional prefix, region, endpoint and AWS credential keys.
-For Google Ads API streams, optionally add `GOOGLE_ADS_DEVELOPER_TOKEN` to this
-runtime Secret as the fallback when a destination has no developer token. A
+For Google Ads API streams, optionally add `GOOGLE_ADS_DEVELOPER_TOKEN`; for Microsoft
+Ads, add `MICROSOFT_ADS_DEVELOPER_TOKEN` to this runtime Secret as the fallback when
+a destination has no developer token. Both keys are passed to newly created runner pods. A
 controller/console token is not automatically inherited by runner pods.
 Use the restricted database grants from
 [`services/retl-runner/README.md`](../services/retl-runner/README.md), the same

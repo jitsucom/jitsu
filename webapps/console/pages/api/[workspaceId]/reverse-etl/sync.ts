@@ -1,5 +1,4 @@
 import { z } from "zod";
-import { rpc } from "juava";
 import { createRoute, verifyAccessWithRole } from "../../../../lib/api";
 import { db } from "../../../../lib/server/db";
 import { ReverseSyncSettings, ReverseSyncInput } from "../../../../lib/reverse-etl";
@@ -9,6 +8,8 @@ import { readReverseSync } from "../../../../lib/server/reverse-sync-export";
 import { getServerEnv } from "../../../../lib/server/serverEnv";
 import { ApiError } from "../../../../lib/shared/errors";
 import { configObjectAuditLog } from "../../../../lib/server/audit-log";
+import { requestReverseController } from "../../../../lib/server/reverse-controller";
+import { getServerLog } from "../../../../lib/server/log";
 
 const query = z.object({ workspaceId: z.string(), syncId: z.string() });
 export const route = createRoute()
@@ -86,9 +87,10 @@ export const route = createRoute()
     if (!env.SYNCCTL_URL) throw new ApiError("Sync controller is not configured", { status: 503 });
     let result;
     try {
-      result = await rpc(`${env.SYNCCTL_URL}/${body.action !== "cancel" ? "read" : "cancel"}`, {
-        method: body.action !== "cancel" ? "POST" : "GET",
-        headers: env.SYNCCTL_AUTH_KEY ? { Authorization: `Bearer ${env.SYNCCTL_AUTH_KEY}` } : {},
+      result = await requestReverseController({
+        baseUrl: env.SYNCCTL_URL,
+        token: env.SYNCCTL_AUTH_KEY,
+        action: body.action,
         query: {
           kind: "reverse",
           workspaceId,
@@ -97,13 +99,16 @@ export const route = createRoute()
           ...(body.action !== "run" ? { taskId: body.taskId } : {}),
         },
       });
-    } catch {
-      throw new ApiError("Controller response unavailable. Check attempts before retrying.", { status: 503 });
+    } catch (error) {
+      if (error instanceof ApiError) {
+        getServerLog("reverse-controller").atError().log(`${body.action} failed for sync ${syncId}: ${error.message}`);
+        throw error;
+      }
+      throw new ApiError(
+        "Sync controller request could not be prepared. Ask your administrator to check SYNCCTL_URL.",
+        { status: 503 }
+      );
     }
-    if (!result.ok)
-      throw new ApiError("Controller could not confirm the operation. Check attempts before retrying.", {
-        status: 409,
-      });
     await configObjectAuditLog(
       user,
       workspaceId,

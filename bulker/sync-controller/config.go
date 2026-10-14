@@ -40,7 +40,9 @@ type Config struct {
 	// Pre-provisioned runtime-only Secret: RETL_DATABASE_URL, RETL_CONSOLE_URL,
 	// RETL_CONSOLE_TOKEN, RETL_OBJECT_STORE and RETL_OBJECT_BUCKET. Never use schema-owner credentials.
 	ReverseRuntimeSecret string `mapstructure:"REVERSE_RUNTIME_SECRET"`
-	PodsServiceAccount   string `mapstructure:"PODS_SERVICE_ACCOUNT"`
+	// Optional additional trusted CA bundle (ca.crt) for runner HTTPS and sync admission.
+	ExtraCAConfigMap   string `mapstructure:"EXTRA_CA_CONFIG_MAP"`
+	PodsServiceAccount string `mapstructure:"PODS_SERVICE_ACCOUNT"`
 	// Separate identity for bucket access; falls back to PodsServiceAccount outside Helm.
 	ReverseServiceAccount string `mapstructure:"REVERSE_SERVICE_ACCOUNT"`
 	// JSON requests/limits for cpu, memory and ephemeral-storage; omitted entries use defaults.

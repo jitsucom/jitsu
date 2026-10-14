@@ -81,11 +81,11 @@ func buildReversePodTemplate(c *Config, entry *SyncEntry, secret, taskID string)
 		env = append(env, v1.EnvVar{Name: key, ValueFrom: &v1.EnvVarSource{SecretKeyRef: &v1.SecretKeySelector{LocalObjectReference: v1.LocalObjectReference{Name: c.ReverseRuntimeSecret}, Key: key}}})
 	}
 	// Optional runtime configuration: object storage and provider-level credential fallback.
-	// The Ads token is unnecessary for Data Manager streams or destinations with their own token.
-	for _, key := range []string{"RETL_OBJECT_PREFIX", "RETL_S3_ENDPOINT", "RETL_S3_REGION", "AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY", "AWS_SESSION_TOKEN", "GOOGLE_ADS_DEVELOPER_TOKEN"} {
+	// Ads tokens are optional for streams that do not need them or destinations with their own token.
+	for _, key := range []string{"RETL_OBJECT_PREFIX", "RETL_S3_ENDPOINT", "RETL_S3_REGION", "AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY", "AWS_SESSION_TOKEN", "GOOGLE_ADS_DEVELOPER_TOKEN", "MICROSOFT_ADS_DEVELOPER_TOKEN"} {
 		env = append(env, v1.EnvVar{Name: key, ValueFrom: &v1.EnvVarSource{SecretKeyRef: &v1.SecretKeySelector{LocalObjectReference: v1.LocalObjectReference{Name: c.ReverseRuntimeSecret}, Key: key, Optional: ptr.To(true)}}})
 	}
-	return v1.PodTemplateSpec{ObjectMeta: metav1.ObjectMeta{Labels: map[string]string{k8sCreatorLabel: k8sCreatorLabelValue, labelManagedBy: managedByValue, labelSyncID: entry.ID, labelWorkspaceID: entry.WorkspaceID, labelSyncKind: "reverse", labelAppName: cronJobAppValue}, Annotations: td.ExtractAnnotations()}, Spec: v1.PodSpec{
+	pod := v1.PodTemplateSpec{ObjectMeta: metav1.ObjectMeta{Labels: map[string]string{k8sCreatorLabel: k8sCreatorLabelValue, labelManagedBy: managedByValue, labelSyncID: entry.ID, labelWorkspaceID: entry.WorkspaceID, labelSyncKind: "reverse", labelAppName: cronJobAppValue}, Annotations: td.ExtractAnnotations()}, Spec: v1.PodSpec{
 		RestartPolicy: v1.RestartPolicyNever, ServiceAccountName: c.reverseServiceAccount(), TerminationGracePeriodSeconds: ptr.To(int64(60)),
 		NodeSelector: parseNodeSelector(c.KubernetesNodeSelector),
 		Containers: []v1.Container{{Name: "retl-runner", Image: c.ReverseRunnerImage, Env: env, Resources: *settings.resources.DeepCopy(),
@@ -94,4 +94,14 @@ func buildReversePodTemplate(c *Config, entry *SyncEntry, secret, taskID string)
 		}},
 		Volumes: []v1.Volume{{Name: "config", VolumeSource: v1.VolumeSource{Secret: &v1.SecretVolumeSource{SecretName: secret}}}, {Name: "tmp", VolumeSource: v1.VolumeSource{EmptyDir: &v1.EmptyDirVolumeSource{SizeLimit: ptr.To(settings.scratch.DeepCopy())}}}},
 	}}
+	if c.ExtraCAConfigMap != "" {
+		pod.Spec.Volumes = append(pod.Spec.Volumes, v1.Volume{Name: "extra-ca", VolumeSource: v1.VolumeSource{ConfigMap: &v1.ConfigMapVolumeSource{
+			LocalObjectReference: v1.LocalObjectReference{Name: c.ExtraCAConfigMap},
+			Items:                []v1.KeyToPath{{Key: "ca.crt", Path: "ca.crt"}},
+		}}})
+		container := &pod.Spec.Containers[0]
+		container.VolumeMounts = append(container.VolumeMounts, v1.VolumeMount{Name: "extra-ca", MountPath: "/etc/jitsu-ca", ReadOnly: true})
+		container.Env = append(container.Env, v1.EnvVar{Name: "NODE_EXTRA_CA_CERTS", Value: "/etc/jitsu-ca/ca.crt"})
+	}
+	return pod
 }

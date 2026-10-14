@@ -40,7 +40,9 @@ export function DestinationTargetSelector({
         onChange={onChange}
         onFocus={() => setRequested(true)}
         options={lookup.data?.options ?? []}
-        placeholder="Choose a target or enter its ID"
+        placeholder={
+          kind === "microsoft-goal" ? "Choose a goal or enter its exact name" : "Choose a target or enter its ID"
+        }
         filterOption={(input, option) =>
           String(option?.label ?? "")
             .toLowerCase()
@@ -50,7 +52,8 @@ export function DestinationTargetSelector({
       {lookup.isFetching && <div className="text-xs text-textSecondary mt-1">Loading targets…</div>}
       {lookup.data?.truncated && (
         <div className="text-xs text-textSecondary mt-1">
-          More targets are available. Enter an ID manually if it is not listed.
+          More targets are available. Enter the {kind === "microsoft-goal" ? "goal name" : "ID"} manually if it is not
+          listed.
         </div>
       )}
       {kind === "meta-audience" && !lookupParams?.accountId && (
@@ -60,8 +63,8 @@ export function DestinationTargetSelector({
       )}
       {lookup.isError && (
         <div className="text-xs text-textSecondary mt-1">
-          {lookup.error instanceof Error ? lookup.error.message : "Target lookup unavailable."} You can enter the ID
-          manually.
+          {lookup.error instanceof Error ? lookup.error.message : "Target lookup unavailable."} You can enter the{" "}
+          {kind === "microsoft-goal" ? "goal name" : "ID"} manually.
         </div>
       )}
     </div>

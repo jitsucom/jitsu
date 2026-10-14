@@ -104,7 +104,7 @@ func TestReversePodContract(t *testing.T) {
 			optionalKeys[env.Name] = true
 		}
 	}
-	if len(optionalKeys) != 7 || !optionalKeys["RETL_OBJECT_PREFIX"] || !optionalKeys["AWS_SECRET_ACCESS_KEY"] || !optionalKeys["GOOGLE_ADS_DEVELOPER_TOKEN"] {
+	if len(optionalKeys) != 8 || !optionalKeys["RETL_OBJECT_PREFIX"] || !optionalKeys["AWS_SECRET_ACCESS_KEY"] || !optionalKeys["GOOGLE_ADS_DEVELOPER_TOKEN"] || !optionalKeys["MICROSOFT_ADS_DEVELOPER_TOKEN"] {
 		t.Fatal("optional runtime settings are missing")
 	}
 	if len(runtimeKeys) != 5 || !runtimeKeys["RETL_DATABASE_URL"] || !runtimeKeys["RETL_CONSOLE_URL"] || !runtimeKeys["RETL_CONSOLE_TOKEN"] || !runtimeKeys["RETL_OBJECT_STORE"] || !runtimeKeys["RETL_OBJECT_BUCKET"] {
@@ -116,18 +116,50 @@ func TestReversePodContract(t *testing.T) {
 	}
 }
 
+func TestReverseExtraCATrustIsOptIn(t *testing.T) {
+	for _, taskID := range []string{"", "manual-task", "refresh-task"} {
+		cfg := reverseTestConfig()
+		without := buildReversePodTemplate(cfg, reverseFixture(), "config", taskID)
+		cfg.ExtraCAConfigMap = "local-ca"
+		with := buildReversePodTemplate(cfg, reverseFixture(), "config", taskID)
+		if len(with.Spec.Volumes) != len(without.Spec.Volumes)+1 {
+			t.Fatal("CA volume must be opt-in")
+		}
+		volume := with.Spec.Volumes[len(with.Spec.Volumes)-1]
+		if volume.ConfigMap.Name != "local-ca" || len(volume.ConfigMap.Items) != 1 || volume.ConfigMap.Items[0].Key != "ca.crt" {
+			t.Fatal("expected a public CA ConfigMap projection")
+		}
+		container := with.Spec.Containers[0]
+		mount := container.VolumeMounts[len(container.VolumeMounts)-1]
+		if mount.Name != volume.Name || mount.MountPath != "/etc/jitsu-ca" || !mount.ReadOnly {
+			t.Fatal("CA must be mounted read-only")
+		}
+		env := container.Env[len(container.Env)-1]
+		if env.Name != "NODE_EXTRA_CA_CERTS" || env.Value != mount.MountPath+"/ca.crt" {
+			t.Fatal("Node must extend its trusted roots with the mounted CA")
+		}
+	}
+	c := &CronJobController{config: reverseTestConfig(), reverse: true}
+	entry := reverseFixture()
+	initial := c.configHash(entry)
+	c.config.ExtraCAConfigMap = "local-ca"
+	if c.configHash(entry) == initial {
+		t.Fatal("CA configuration drift missed")
+	}
+}
+
 func TestReverseDeveloperTokenUsesOptionalRuntimeSecret(t *testing.T) {
 	for _, taskID := range []string{"", "manual-task", "refresh-task"} {
 		t.Run(taskID, func(t *testing.T) {
 			cfg := reverseTestConfig()
 			cfg.GoogleAdsDeveloperToken = "controller-token-must-not-be-copied"
 			pod := buildReversePodTemplate(cfg, reverseFixture(), "config", taskID)
-			found := 0
+			found := map[string]int{}
 			for _, env := range pod.Spec.Containers[0].Env {
-				if env.Name != "GOOGLE_ADS_DEVELOPER_TOKEN" {
+				if env.Name != "GOOGLE_ADS_DEVELOPER_TOKEN" && env.Name != "MICROSOFT_ADS_DEVELOPER_TOKEN" {
 					continue
 				}
-				found++
+				found[env.Name]++
 				if env.Value != "" || env.ValueFrom == nil || env.ValueFrom.SecretKeyRef == nil {
 					t.Fatal("developer token must use a Secret reference, not a literal")
 				}
@@ -136,8 +168,8 @@ func TestReverseDeveloperTokenUsesOptionalRuntimeSecret(t *testing.T) {
 					t.Fatal("developer token must be optional and sourced from the runner runtime Secret")
 				}
 			}
-			if found != 1 {
-				t.Fatalf("expected one developer token projection, got %d", found)
+			if found["GOOGLE_ADS_DEVELOPER_TOKEN"] != 1 || found["MICROSOFT_ADS_DEVELOPER_TOKEN"] != 1 {
+				t.Fatalf("expected one projection for each developer token, got %v", found)
 			}
 		})
 	}

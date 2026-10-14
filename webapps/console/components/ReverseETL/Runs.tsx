@@ -12,6 +12,7 @@ import { Failure, Panel, useReverseSyncs } from "./shared";
 import { ReverseTaskStatusTag } from "./TaskStatus";
 import { ReverseDeliveryStatistics } from "./DeliveryStatistics";
 import { MetaResults } from "./MetaResults";
+import { MicrosoftResults } from "./MicrosoftResults";
 import { ReverseSyncTitle } from "./SyncTitle";
 
 const resultSchema = z.object({
@@ -182,6 +183,12 @@ export function ReverseRuns() {
               key={sync.id}
               syncId={sync.id}
               configurationKey={JSON.stringify([sync.toId, sync.options.stream, sync.options.streamOptions])}
+            />
+          )}
+          {sync?.destinationType === "microsoft-ads" && (
+            <MicrosoftResults
+              key={JSON.stringify([sync.id, sync.toId, sync.options.stream, sync.options.streamOptions])}
+              syncId={sync.id}
             />
           )}
           <Panel

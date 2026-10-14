@@ -18,6 +18,11 @@ export type OauthDecorator = {
 };
 
 export const oauthDecorators: Record<string, OauthDecorator> = {
+  "microsoft-ads": {
+    destinationType: "microsoft-ads",
+    nangoProvider: () => "microsoft-ads",
+    nangoIntegrationId: () => "jitsu-cloud-dst-microsoft-ads",
+  },
   "google-ads": {
     destinationType: "google-ads",
     nangoProvider: () => "google",

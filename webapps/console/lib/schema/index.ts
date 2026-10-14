@@ -245,6 +245,7 @@ export type CreateUserResult = z.infer<typeof CreateUserResult>;
 
 export const AppConfig = z.object({
   googleAdsDeveloperTokenConfigured: z.boolean().optional(),
+  microsoftAdsDeveloperTokenConfigured: z.boolean().optional(),
   docsUrl: z.string().optional(),
   websiteUrl: z.string().optional(),
   maintenance: z
