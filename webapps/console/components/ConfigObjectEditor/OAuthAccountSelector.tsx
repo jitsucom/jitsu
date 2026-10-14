@@ -110,11 +110,6 @@ export function OAuthAccountSelector({
           {query.data?.partial && (
             <p className="mt-1">Some accounts could not be loaded. Check permissions or enter IDs manually.</p>
           )}
-          {google && (
-            <p className="mt-1">
-              Discovery uses the Google Ads API and requires a developer token, including for Data Manager destinations.
-            </p>
-          )}
         </div>
       }
     >
