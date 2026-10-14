@@ -4,7 +4,7 @@ import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MicrosoftResults } from "../../components/ReverseETL/MicrosoftResults";
-import { MicrosoftAccountSelector } from "../../components/ReverseETL/MicrosoftAccountSelector";
+import { OAuthAccountSelector } from "../../components/ConfigObjectEditor/OAuthAccountSelector";
 import { DestinationTargetSelector } from "../../components/ReverseETL/DestinationTargetSelector";
 const rpc = vi.hoisted(() => vi.fn());
 vi.mock("juava", async original => ({ ...(await original<typeof import("juava")>()), rpc }));
@@ -101,10 +101,11 @@ it("shows missing audience size independently from zero", async () => {
   expect(screen.getByText(/not a per-upload match rate/)).toBeTruthy();
 });
 it("fills account and customer together from a lazy account lookup", async () => {
-  rpc.mockResolvedValue({ options: [{ value: "456", label: "Account (456)", customerId: "123" }] });
+  rpc.mockResolvedValue({ options: [{ value: "456", label: "Account (456)", customerId: "123", accountId: "456" }] });
   const change = vi.fn();
   mount(
-    React.createElement(MicrosoftAccountSelector, {
+    React.createElement(OAuthAccountSelector, {
+      provider: "microsoft-ads",
       destinationId: "dest",
       isNew: false,
       disabled: false,
@@ -121,7 +122,9 @@ it("fills account and customer together from a lazy account lookup", async () =>
   fireEvent.mouseDown(account);
   const text = await screen.findAllByText("Account (456)");
   fireEvent.click(text[text.length - 1]);
-  await waitFor(() => expect(change).toHaveBeenCalledWith("456", "123"));
+  await waitFor(() =>
+    expect(change).toHaveBeenCalledWith(expect.objectContaining({ accountId: "456", customerId: "123" }))
+  );
 });
 it("keeps exact goal-name entry available when lookup fails", async () => {
   rpc.mockRejectedValue(new Error("Lookup unavailable"));
@@ -142,10 +145,11 @@ it("keeps exact goal-name entry available when lookup fails", async () => {
 });
 
 it("browses accounts before saving using the draft grant and fills both IDs", async () => {
-  rpc.mockResolvedValue({ options: [{ value: "456", label: "Draft account", customerId: "123" }] });
+  rpc.mockResolvedValue({ options: [{ value: "456", label: "Draft account", customerId: "123", accountId: "456" }] });
   const change = vi.fn();
   mount(
-    React.createElement(MicrosoftAccountSelector, {
+    React.createElement(OAuthAccountSelector, {
+      provider: "microsoft-ads",
       destinationId: "draft",
       isNew: true,
       draftGrant: "signed",
@@ -161,18 +165,24 @@ it("browses accounts before saving using the draft grant and fills both IDs", as
   const labels = await screen.findAllByText("Draft account");
   fireEvent.click(labels[labels.length - 1]);
   expect(rpc).toHaveBeenCalledWith(
-    "/api/ws/reverse-etl/microsoft-draft",
+    "/api/ws/destination-accounts",
     expect.objectContaining({
       method: "POST",
-      body: { action: "accounts", grant: "signed", developerToken: "self-hosted-token" },
+      body: {
+        action: "draft-accounts",
+        provider: "microsoft-ads",
+        grant: "signed",
+        developerToken: "self-hosted-token",
+      },
     })
   );
-  expect(change).toHaveBeenCalledWith("456", "123");
+  expect(change).toHaveBeenCalledWith(expect.objectContaining({ accountId: "456", customerId: "123" }));
 });
 
 it("does not browse an unauthorized draft", () => {
   mount(
-    React.createElement(MicrosoftAccountSelector, {
+    React.createElement(OAuthAccountSelector, {
+      provider: "microsoft-ads",
       destinationId: "draft",
       isNew: true,
       draftGrant: "signed",
@@ -183,4 +193,47 @@ it("does not browse an unauthorized draft", () => {
   );
   expect((screen.getByRole("combobox") as HTMLInputElement).disabled).toBe(true);
   expect(rpc).not.toHaveBeenCalled();
+});
+
+it("selects a Google manager access route and refreshes cached accounts after reauthorization", async () => {
+  const managed = {
+    value: "2222222222:1111111111",
+    label: "Ads via manager",
+    customerId: "2222222222",
+    loginCustomerId: "1111111111",
+  };
+  rpc.mockResolvedValue({ options: [managed], partial: true, truncated: true });
+  const change = vi.fn();
+  const props = {
+    provider: "google-ads" as const,
+    destinationId: "draft",
+    isNew: true,
+    draftGrant: "grant",
+    authorized: true,
+    disabled: false,
+    onChange: change,
+  };
+  const view = mount(React.createElement(OAuthAccountSelector, props));
+  const account = screen.getByRole("combobox", { name: "Google Ads account" });
+  fireEvent.focus(account);
+  fireEvent.mouseDown(account);
+  const labels = await screen.findAllByText("Ads via manager");
+  fireEvent.click(labels[labels.length - 1]);
+  expect(change).toHaveBeenCalledWith(expect.objectContaining(managed));
+  expect(rpc).toHaveBeenCalledWith(
+    "/api/ws/destination-accounts",
+    expect.objectContaining({
+      body: { action: "draft-accounts", provider: "google-ads", grant: "grant", developerToken: undefined },
+    })
+  );
+  expect(screen.getByText(/Some accounts could not be loaded/)).toBeTruthy();
+  expect(screen.getByText(/Account discovery reached its limit/)).toBeTruthy();
+  view.rerender(
+    React.createElement(
+      QueryClientProvider,
+      { client },
+      React.createElement(OAuthAccountSelector, { ...props, authorizationRevision: 1 })
+    )
+  );
+  await waitFor(() => expect(rpc).toHaveBeenCalledTimes(2));
 });

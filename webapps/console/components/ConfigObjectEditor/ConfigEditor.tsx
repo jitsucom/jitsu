@@ -64,7 +64,8 @@ import {
 import { CustomWidgetProps, PasswordEditor } from "./Editors";
 import { WorkspacePermissionsType } from "../../lib/workspace-roles";
 import { oauthDecorators } from "../../lib/server/oauth/destinations";
-import { MicrosoftAccountSelector } from "../ReverseETL/MicrosoftAccountSelector";
+import { OAuthAccountSelector } from "./OAuthAccountSelector";
+import { AccountDiscoveryProvider } from "../../lib/schema/destination-accounts";
 import Nango from "@nangohq/frontend";
 import { transformConfigErrors, ValidationMessages } from "../../lib/schema/config-editor-errors";
 import {
@@ -434,27 +435,28 @@ const EditorComponent: React.FC<EditorComponentProps> = props => {
     }
   }, []);
 
-  const needsOAuthDraft = !!(
-    isNew &&
-    object.destinationType === "microsoft-ads" &&
-    oauthConnector &&
-    role.editEntities
-  );
-  const [microsoftDraft, setMicrosoftDraft] = useState<{ destinationId: string; grant: string }>();
+  const discovery = AccountDiscoveryProvider.safeParse(type === "destination" ? object.destinationType : undefined);
+  const accountProvider = discovery.success ? discovery.data : undefined;
+  const needsOAuthDraft = !!(isNew && accountProvider && oauthConnector && role.editEntities);
+  const [oauthDraft, setOAuthDraft] = useState<{ destinationId: string; grant: string }>();
+  const [authorizationRevision, setAuthorizationRevision] = useState(0);
   const [draftError, setDraftError] = useState<string>();
   const [draftRetry, setDraftRetry] = useState(0);
   const draftBaseObject = useRef(object);
-  const preparingDraft = needsOAuthDraft && !microsoftDraft && !draftError;
+  const preparingDraft = needsOAuthDraft && !oauthDraft && !draftError;
   useEffect(() => {
     if (!needsOAuthDraft) return;
     let cancelled = false;
     setDraftError(undefined);
     // Prepare before the click so nango.auth still opens its popup within a browser user gesture.
-    rpc(`/api/${workspace.id}/reverse-etl/microsoft-draft`, { method: "POST", body: { action: "prepare" } })
+    rpc(`/api/${workspace.id}/destination-accounts`, {
+      method: "POST",
+      body: { action: "prepare", provider: accountProvider },
+    })
       .then(result => {
         if (cancelled) return;
         const draft = z.object({ destinationId: z.string(), grant: z.string() }).parse(result);
-        setMicrosoftDraft(draft);
+        setOAuthDraft(draft);
         setFormState(current => ({
           ...current,
           formData: {
@@ -472,7 +474,7 @@ const EditorComponent: React.FC<EditorComponentProps> = props => {
     return () => {
       cancelled = true;
     };
-  }, [needsOAuthDraft, workspace.id, draftRetry]);
+  }, [needsOAuthDraft, accountProvider, workspace.id, draftRetry]);
 
   const onFormChange = state => {
     setFormState(state);
@@ -506,7 +508,7 @@ const EditorComponent: React.FC<EditorComponentProps> = props => {
               size={"large"}
               ghost={true}
               loading={nangoLoading}
-              disabled={!role.editEntities || loading || testing || (needsOAuthDraft && !microsoftDraft)}
+              disabled={!role.editEntities || loading || testing || (needsOAuthDraft && !oauthDraft)}
               onClick={() => {
                 const nango = new Nango({
                   publicKey: appConfig.nango!.publicKey,
@@ -518,6 +520,7 @@ const EditorComponent: React.FC<EditorComponentProps> = props => {
                 nango
                   .auth(oauthIntegrationId, oauthConnectionId)
                   .then(result => {
+                    setAuthorizationRevision(value => value + 1);
                     setFormState(current => ({
                       ...current,
                       formData: {
@@ -554,7 +557,7 @@ const EditorComponent: React.FC<EditorComponentProps> = props => {
                 </Button>
               </span>
             ) : preparingDraft ? (
-              <span>Preparing Microsoft authorization…</span>
+              <span>Preparing authorization…</span>
             ) : nangoError ? (
               <span className={"text-red-600"}>OAuth2 error: {nangoError}</span>
             ) : (formState?.formData || object).authorized ? (
@@ -576,21 +579,37 @@ const EditorComponent: React.FC<EditorComponentProps> = props => {
           </div>
         </div>
       )}
-      {type === "destination" && object.destinationType === "microsoft-ads" && (
-        <MicrosoftAccountSelector
+      {accountProvider && (
+        <OAuthAccountSelector
+          provider={accountProvider}
           destinationId={(formState?.formData || object).id}
           isNew={isNew}
-          draftGrant={microsoftDraft?.grant}
+          draftGrant={oauthDraft?.grant}
           developerToken={
-            appConfig.microsoftAdsDeveloperTokenConfigured ? undefined : (formState?.formData || object).developerToken
+            (
+              accountProvider === "google-ads"
+                ? appConfig.googleAdsDeveloperTokenConfigured
+                : appConfig.microsoftAdsDeveloperTokenConfigured
+            )
+              ? undefined
+              : (formState?.formData || object).developerToken
           }
           authorized={(formState?.formData || object).authorized}
           accountId={(formState?.formData || object).accountId}
+          customerId={(formState?.formData || object).customerId}
+          loginCustomerId={(formState?.formData || object).loginCustomerId}
+          authorizationRevision={authorizationRevision}
           disabled={!role.editEntities || loading || testing || nangoLoading || preparingDraft}
-          onChange={(accountId, customerId) => {
+          onChange={account => {
             setFormState(current => ({
               ...current,
-              formData: { ...(current?.formData || object), accountId, customerId },
+              formData: {
+                ...(current?.formData || object),
+                customerId: account.customerId,
+                ...(accountProvider === "google-ads"
+                  ? { loginCustomerId: account.loginCustomerId || "" }
+                  : { accountId: account.accountId }),
+              },
             }));
             setTouched(true);
           }}

@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import React from "react";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { z } from "zod";
 import { ConfigEditor } from "../../components/ConfigObjectEditor/ConfigEditor";
 
@@ -16,8 +16,8 @@ const state = vi.hoisted(() => ({
   selector: vi.fn(),
 }));
 vi.mock("juava", async original => ({ ...(await original<typeof import("juava")>()), rpc: state.rpc }));
-vi.mock("../../components/ReverseETL/MicrosoftAccountSelector", () => ({
-  MicrosoftAccountSelector: (props: any) => {
+vi.mock("../../components/ConfigObjectEditor/OAuthAccountSelector", () => ({
+  OAuthAccountSelector: (props: any) => {
     state.selector(props);
     return null;
   },
@@ -99,12 +99,18 @@ const props = {
   newObject: (): Partial<z.infer<typeof schema>> => ({ name: "Google", destinationType: "google-ads" }),
 };
 const form = () => JSON.parse(screen.getByTestId("form-data").textContent!);
+const ready = () =>
+  waitFor(() => expect((screen.getByRole("button", { name: "Authorize" }) as HTMLButtonElement).disabled).toBe(false));
 beforeEach(() => {
   vi.clearAllMocks();
   state.developerTokenConfigured = false;
   state.route.query = { id: "new" };
   state.auth.mockResolvedValue({});
-  state.rpc.mockResolvedValue({ destinationId: "server-draft", grant: "signed-grant" });
+  let drafts = 0;
+  state.rpc.mockImplementation(async () => ({
+    destinationId: drafts++ ? `server-draft-${drafts}` : "server-draft",
+    grant: "signed-grant",
+  }));
   state.create.mockResolvedValue({});
   state.update.mockResolvedValue({});
   state.source = {
@@ -120,34 +126,41 @@ beforeEach(() => {
 });
 afterEach(cleanup);
 
-it("authorizes a server-minted Microsoft draft, enables account lookup, and saves once without persisting the grant", async () => {
-  render(
-    React.createElement(ConfigEditor, {
-      ...props,
-      newObject: (): Partial<z.infer<typeof schema>> => ({ name: "Microsoft", destinationType: "microsoft-ads" }),
-    })
-  );
-  await waitFor(() => expect(form().id).toBe("server-draft"));
-  expect(state.create).not.toHaveBeenCalled();
-  fireEvent.click(screen.getByRole("button", { name: "Authorize" }));
-  await screen.findByRole("button", { name: "Re-Sign In" });
-  expect(state.auth).toHaveBeenCalledWith("jitsu-cloud-dst-microsoft-ads", "destination.server-draft");
-  expect(state.selector).toHaveBeenLastCalledWith(
-    expect.objectContaining({
-      destinationId: "server-draft",
-      draftGrant: "signed-grant",
-      authorized: true,
-      disabled: false,
-    })
-  );
-  fireEvent.click(screen.getByRole("button", { name: "Save" }));
-  await waitFor(() => expect(state.create).toHaveBeenCalledOnce());
-  expect(state.create.mock.calls[0][0]).toMatchObject({
-    id: "server-draft",
-    oauthConnectionId: "destination.server-draft",
-  });
-  expect(JSON.stringify(state.create.mock.calls[0][0])).not.toContain("signed-grant");
-});
+it.each(["microsoft-ads", "google-ads"])(
+  "authorizes a server-minted %s draft, enables account lookup, and saves once without persisting the grant",
+  async provider => {
+    render(
+      React.createElement(ConfigEditor, {
+        ...props,
+        newObject: (): Partial<z.infer<typeof schema>> => ({ name: "Advertising", destinationType: provider }),
+      })
+    );
+    await waitFor(() => expect(form().id).toBe("server-draft"));
+    expect(state.create).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "Authorize" }));
+    await screen.findByRole("button", { name: "Re-Sign In" });
+    expect(state.auth).toHaveBeenCalledWith(`jitsu-cloud-dst-${provider}`, "destination.server-draft");
+    expect(state.rpc).toHaveBeenCalledWith("/api/ws/destination-accounts", {
+      method: "POST",
+      body: { action: "prepare", provider },
+    });
+    expect(state.selector).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        destinationId: "server-draft",
+        draftGrant: "signed-grant",
+        authorized: true,
+        disabled: false,
+      })
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    await waitFor(() => expect(state.create).toHaveBeenCalledOnce());
+    expect(state.create.mock.calls[0][0]).toMatchObject({
+      id: "server-draft",
+      oauthConnectionId: "destination.server-draft",
+    });
+    expect(JSON.stringify(state.create.mock.calls[0][0])).not.toContain("signed-grant");
+  }
+);
 
 it("preserves edits during Microsoft draft preparation and can retry a failed preparation", async () => {
   state.rpc.mockRejectedValueOnce(new Error("Preparation unavailable"));
@@ -198,6 +211,7 @@ it("does not hide another destination's developer token", async () => {
 
 it("keeps a new destination ID stable through rerenders, OAuth, and saving", async () => {
   const view = render(React.createElement(ConfigEditor, props));
+  await ready();
   await screen.findByTestId("form-data");
   const id = form().id;
   view.rerender(React.createElement(ConfigEditor, { ...props }));
@@ -223,6 +237,7 @@ it("preserves edits made while OAuth is pending and blocks saving until it compl
       })
   );
   render(React.createElement(ConfigEditor, props));
+  await ready();
   fireEvent.click(await screen.findByRole("button", { name: "Authorize" }));
   expect((screen.getByRole("button", { name: "Save" }) as HTMLButtonElement).disabled).toBe(true);
   fireEvent.change(screen.getByLabelText("Name"), { target: { value: "Renamed" } });
@@ -234,6 +249,7 @@ it("preserves edits made while OAuth is pending and blocks saving until it compl
 it("gives a clone a stable new ID and requires its own OAuth authorization", async () => {
   state.route.query = { id: "new", clone: "original" };
   const view = render(React.createElement(ConfigEditor, props));
+  await ready();
   await screen.findByTestId("form-data");
   const id = form().id;
   expect(id).not.toBe("original");
@@ -268,6 +284,7 @@ it("reauthorizes an existing mismatched destination under its saved ID", async (
 it("starts a fresh draft when navigating to another clone", async () => {
   state.route.query = { id: "new", clone: "original" };
   const view = render(React.createElement(ConfigEditor, props));
+  await ready();
   await screen.findByTestId("form-data");
   const id = form().id;
   state.route.query = { id: "new", clone: "other" };
@@ -275,4 +292,27 @@ it("starts a fresh draft when navigating to another clone", async () => {
   view.rerender(React.createElement(ConfigEditor, props));
   await waitFor(() => expect(form().id).not.toBe(id));
   expect(form().name).toBe("Other (copy)");
+});
+
+it("fills Google customer and manager IDs together and clears the manager for direct access", async () => {
+  render(React.createElement(ConfigEditor, props));
+  await ready();
+  await act(async () =>
+    state.selector.mock.lastCall![0].onChange({
+      value: "1234567890:9999999999",
+      label: "Managed",
+      customerId: "1234567890",
+      loginCustomerId: "9999999999",
+    })
+  );
+  expect(form()).toMatchObject({ customerId: "1234567890", loginCustomerId: "9999999999" });
+  await act(async () =>
+    state.selector.mock.lastCall![0].onChange({
+      value: "1234567890:",
+      label: "Direct",
+      customerId: "1234567890",
+      loginCustomerId: "",
+    })
+  );
+  expect(form()).toMatchObject({ customerId: "1234567890", loginCustomerId: "" });
 });
