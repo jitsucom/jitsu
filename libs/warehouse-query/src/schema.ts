@@ -70,6 +70,7 @@ export const warehouseReaderDescriptions = [
   "HTTP(S) ClickHouse (including Jitsu-provisioned ClickHouse)",
   "BigQuery with a service-account key",
   "Snowflake with key-pair authentication",
+  "Redshift with database password authentication",
 ];
 export const warehouseReaderSupportDescription = `Models support ${warehouseReaderDescriptions.join(
   ", "
@@ -79,6 +80,8 @@ export function supportsWarehouseReader(config: Record<string, any>): boolean {
   if (config.provisioned) return config.provisioned === true && config.destinationType === "clickhouse";
   return (
     (config.destinationType === "snowflake" && config.authenticationMethod === "key-pair") ||
+    (config.destinationType === "redshift" &&
+      (!config.authenticationMethod || config.authenticationMethod === "password")) ||
     config.destinationType === "bigquery" ||
     (config.destinationType === "postgres" &&
       (!config.authenticationMethod || config.authenticationMethod === "password")) ||

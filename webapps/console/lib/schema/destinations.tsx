@@ -783,11 +783,17 @@ export const coreDestinations: DestinationType<any>[] = [
         ),
       externalID: z.string().optional().describe("External ID::IAM external ID"),
       host: z.string().optional().describe("Redshift host"),
+      port: z.number().int().min(1).max(65535).default(5439).describe("Redshift port"),
       database: z.string().describe("Redshift database name"),
       defaultSchema: z.string().default("PUBLIC").describe("Schema::Redshift schema"),
       username: z.string().optional().describe("Redshift username"),
       password: z.string().optional().describe("Redshift password"),
-      bucket: z.string().describe("S3 Bucket Name::S3 Bucket Name"),
+      bucket: z
+        .string()
+        .optional()
+        .describe(
+          "S3 Bucket Name::Required for ingestion connections and ordinary syncs. Not needed when this warehouse is only a Reverse ETL model source."
+        ),
       accessKeyId: z
         .string()
         .optional()

@@ -54,6 +54,14 @@ function eventDestinationError(config: any): ApiError | undefined {
     );
 }
 
+function ingestionDestinationError(config: any): ApiError | undefined {
+  if (config?.destinationType === "redshift" && !config.bucket?.trim())
+    return new ApiError(
+      "Redshift ingestion connections and ordinary syncs require an S3 staging bucket. A source-only Reverse ETL warehouse does not.",
+      { status: 400 }
+    );
+}
+
 export interface ConfigObjectsServiceDeps {
   prisma: PrismaClient;
 }
@@ -367,6 +375,18 @@ export class ConfigObjectsService {
         const current = await tx.configurationObject.findFirstOrThrow({
           where: { id, workspaceId, type, deleted: false },
         });
+        if (
+          ingestionDestinationError(filtered) &&
+          (await tx.configurationObjectLink.count({
+            where: {
+              workspaceId,
+              toId: id,
+              deleted: false,
+              OR: [{ type: { in: ["push", "sync"] } }, { type: null }],
+            },
+          })) > 0
+        )
+          throw ingestionDestinationError(filtered)!;
         if (
           eventDestinationError(filtered) &&
           (await tx.configurationObjectLink.count({
@@ -685,13 +705,14 @@ export class ConfigObjectsService {
     type: string,
     write: (db: Pick<PrismaClient, "configurationObjectLink">) => Promise<T>
   ): Promise<T> {
-    if (type === "sync") return write(this.prisma);
     return modelMutation(this.prisma, workspaceId, "destination", async tx => {
       const destination = await tx.configurationObject.findFirst({
         where: { workspaceId, id: toId, type: "destination", deleted: false },
       });
       if (!destination) throw new ApiError("Destination not found", { status: 400 });
-      const error = eventDestinationError(destination.config);
+      const error =
+        ingestionDestinationError(destination.config) ??
+        (type === "sync" ? undefined : eventDestinationError(destination.config));
       if (error) throw error;
       return write(tx);
     });
