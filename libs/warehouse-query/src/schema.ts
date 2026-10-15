@@ -71,6 +71,7 @@ export const warehouseReaderDescriptions = [
   "BigQuery with a service-account key",
   "Snowflake with key-pair authentication",
   "Redshift with database password authentication",
+  "MySQL 8+ with password authentication",
 ];
 export const warehouseReaderSupportDescription = `Models support ${warehouseReaderDescriptions.join(
   ", "
@@ -79,6 +80,8 @@ export const warehouseReaderSupportDescription = `Models support ${warehouseRead
 export function supportsWarehouseReader(config: Record<string, any>): boolean {
   if (config.provisioned) return config.provisioned === true && config.destinationType === "clickhouse";
   return (
+    (config.destinationType === "mysql" &&
+      (!config.authenticationMethod || config.authenticationMethod === "password")) ||
     (config.destinationType === "snowflake" && config.authenticationMethod === "key-pair") ||
     (config.destinationType === "redshift" &&
       (!config.authenticationMethod || config.authenticationMethod === "password")) ||

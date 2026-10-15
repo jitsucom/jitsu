@@ -1,0 +1,88 @@
+name: Reverse ETL warehouse readers
+on:
+  pull_request:
+    paths:
+      - "libs/warehouse-query/**"
+      - "pnpm-lock.yaml"
+      - ".github/workflows/warehouse-readers.yml"
+  push:
+    branches: [newjitsu]
+    paths:
+      - "libs/warehouse-query/**"
+      - "pnpm-lock.yaml"
+      - ".github/workflows/warehouse-readers.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: warehouse-readers-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  mysql:
+    name: MySQL 8.4 live reader
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      mysql:
+        image: mysql:8.4
+        env:
+          MYSQL_ROOT_PASSWORD: retl-ci-only
+          MYSQL_DATABASE: retl_test
+        ports: ["3306:3306"]
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1"
+          --health-interval=5s --health-timeout=5s --health-retries=30
+    steps:
+      - uses: actions/checkout@v6
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile --ignore-scripts
+      - name: Unit and live MySQL reader contracts
+        working-directory: libs/warehouse-query
+        env:
+          TEST_RETL_MYSQL: '{"host":"127.0.0.1","port":3306,"username":"root","password":"retl-ci-only","database":"retl_test","parameters":{"tls":"false"}}'
+        run: pnpm exec vitest run src/mysql.test.ts src/mysql.live.test.ts
+
+  cloud:
+    name: ${{ matrix.warehouse }} live reader
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        warehouse: [snowflake, redshift]
+    steps:
+      - uses: actions/checkout@v6
+      - name: Check test configuration availability
+        id: config
+        env:
+          TEST_CONFIG: ${{ matrix.warehouse == 'snowflake' && secrets.BULKER_TEST_SNOWFLAKE || matrix.warehouse == 'redshift' && secrets.BULKER_TEST_REDSHIFT || '' }}
+        run: |
+          if [ -n "$TEST_CONFIG" ]; then
+            echo "available=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "::notice::No compatible ${{ matrix.warehouse }} test credentials; live reader test NOT RUN. Redshift requires BULKER_TEST_REDSHIFT password credentials, not BULKER_TEST_REDSHIFT_IAM."
+          fi
+      - uses: pnpm/action-setup@v4
+        if: steps.config.outputs.available == 'true'
+      - uses: actions/setup-node@v6
+        if: steps.config.outputs.available == 'true'
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile --ignore-scripts
+        if: steps.config.outputs.available == 'true'
+      - name: Read-only live contract (no table mutations)
+        if: steps.config.outputs.available == 'true'
+        working-directory: libs/warehouse-query
+        env:
+          TEST_RETL_SNOWFLAKE: ${{ matrix.warehouse == 'snowflake' && secrets.BULKER_TEST_SNOWFLAKE || '' }}
+          TEST_RETL_REDSHIFT: ${{ matrix.warehouse == 'redshift' && secrets.BULKER_TEST_REDSHIFT || '' }}
+        run: pnpm exec vitest run src/${{ matrix.warehouse }}.live.test.ts
