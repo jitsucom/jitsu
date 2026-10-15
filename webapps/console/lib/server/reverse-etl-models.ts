@@ -1,7 +1,11 @@
 import type { PrismaClient } from "@prisma/client";
 import { isDeepStrictEqual } from "node:util";
 import { createWarehouseReader, getWarehouseSqlDialect } from "@jitsu/warehouse-query";
-import { ModelDefinition, supportsWarehouseReader } from "@jitsu/warehouse-query/src/schema";
+import {
+  ModelDefinition,
+  supportsWarehouseReader,
+  warehouseReaderSupportDescription,
+} from "@jitsu/warehouse-query/src/schema";
 import { ApiError } from "../shared/errors";
 import { warehouseErrorMessage } from "./warehouse-errors";
 
@@ -52,12 +56,9 @@ export async function getModelWarehouse(prisma: ModelDb, workspaceId: string, wa
   if (!object) throw new ApiError("Warehouse destination not found in this workspace", { status: 404 });
   const config = object.config as Record<string, any>;
   if (!supportsWarehouseReader(config)) {
-    throw new ApiError(
-      "Models support Postgres password connections, HTTP(S) or Jitsu-provisioned ClickHouse, and BigQuery service accounts",
-      {
-        status: 400,
-      }
-    );
+    throw new ApiError(warehouseReaderSupportDescription, {
+      status: 400,
+    });
   }
   return config;
 }

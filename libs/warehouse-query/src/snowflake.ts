@@ -1,0 +1,232 @@
+import { createPrivateKey } from "node:crypto";
+import { Parser } from "node-sql-parser";
+import { z } from "zod";
+import type { Connection, RowStatement } from "snowflake-sdk";
+import { ModelDefinition, WarehouseColumn } from "./schema";
+import { createSqlDialect } from "./sql";
+import { boundedPreview, decodeRecord, previewRowLimit, previewByteLimit, previewSizeError } from "./reader";
+import { StreamDeadline } from "./stream-deadline";
+import type { WarehouseReader } from "./types";
+
+const credentials = z.object({
+  authenticationMethod: z.literal("key-pair"),
+  account: z.string().regex(/^[a-zA-Z0-9_-]+(?:\.[a-zA-Z0-9_-]+)*$/),
+  username: z.string().min(1),
+  privateKey: z.string().min(1),
+  privateKeyPassphrase: z.string().optional(),
+  warehouse: z.string().min(1),
+  database: z.string().min(1),
+  defaultSchema: z.string().default("PUBLIC"),
+  parameters: z.record(z.string()).optional(),
+});
+const scalar = /^(?:NUMBER\(\d+,\d+\)|REAL|TEXT|BOOLEAN|DATE|TIME|TIMESTAMP_NTZ|TIMESTAMP_LTZ|TIMESTAMP_TZ)$/;
+const parser = new Parser();
+export const snowflakeSql = createSqlDialect({
+  parse: query => parser.astify(query, { database: "Snowflake" }),
+  lineCommentPrefixes: ["--", "//"],
+  backslashEscapes: (_query, index) => _query[index] === "'",
+  dollarQuote: (query, index) => (query.startsWith("$$", index) ? "$$" : undefined),
+  quoteColumn: name => '"' + name.replaceAll('"', '""') + '"',
+  supportsPrimaryKeyType: type => scalar.test(type),
+  supportsDeleteType: type => /^(?:NUMBER\(\d+,\d+\)|REAL|TEXT|BOOLEAN)$/.test(type),
+  supportsCursorType: (cursor, type) =>
+    ({
+      timestamp: /^(DATE|TIMESTAMP_NTZ|TIMESTAMP_LTZ|TIMESTAMP_TZ)$/,
+      number: /^(NUMBER\(\d+,\d+\)|REAL)$/,
+      string: /^TEXT$/,
+    }[cursor].test(type)),
+  createParameters() {
+    const values: string[] = [];
+    return {
+      values,
+      queryParams: {},
+      bind(value, type) {
+        if (!scalar.test(type)) throw new Error("Unsupported Snowflake checkpoint type");
+        values.push(value);
+        return `CAST(:${values.length} AS ${type})`;
+      },
+    };
+  },
+  lookbackPredicate: (column, parameter, seconds) => `${column} >= DATEADD(second, -${seconds}, ${parameter})`,
+});
+
+function columnsOf(statement: RowStatement): WarehouseColumn[] {
+  const columns = statement.getColumns();
+  if (!columns) throw new Error("Snowflake did not return query metadata");
+  return columns.map(column => ({
+    name: column.getName(),
+    type:
+      column.getType() === "fixed"
+        ? `NUMBER(${column.getPrecision()},${column.getScale()})`
+        : column.getType().toUpperCase(),
+  }));
+}
+
+export function createSnowflakeReader(input: Record<string, any>): WarehouseReader {
+  const config = credentials.parse(input);
+  // Convert encrypted keys locally; never pass arbitrary saved parameters as SDK
+  // options (they could override authentication, endpoint or TLS policy).
+  const key = createPrivateKey({ key: config.privateKey, passphrase: config.privateKeyPassphrase });
+  if (key.asymmetricKeyType !== "rsa") throw new Error("Snowflake requires an RSA private key");
+  const privateKey = key.export({ type: "pkcs8", format: "pem" }).toString();
+  const active = new Set<AbortController>();
+  let closed = false;
+  async function session(parent: AbortSignal | undefined, streaming: boolean) {
+    if (closed) throw new Error("Reader is closed");
+    const controller = new AbortController();
+    active.add(controller);
+    const deadline = new StreamDeadline(
+      AbortSignal.any([controller.signal, ...(parent ? [parent] : [])]),
+      30_000,
+      streaming ? 2 * 60 * 60 * 1000 : 30_000
+    );
+    let connection: Connection | undefined;
+    let current: RowStatement | undefined;
+    let rows: ReturnType<RowStatement["streamRows"]> | undefined;
+    const abort = () => {
+      rows?.destroy();
+      try {
+        current?.cancel(() => {});
+      } catch {
+        /* Connection may already be closed. */
+      }
+      try {
+        connection?.destroy(() => {});
+      } catch {
+        /* Best effort; statement timeout is the backstop. */
+      }
+    };
+    deadline.signal.addEventListener("abort", abort, { once: true });
+    const release = () => {
+      deadline.close();
+      deadline.signal.removeEventListener("abort", abort);
+      active.delete(controller);
+    };
+    try {
+      const { default: sdk } = await deadline.read(() => import("snowflake-sdk"));
+      deadline.signal.throwIfAborted();
+      connection = sdk.createConnection({
+        account: config.account,
+        username: config.username,
+        authenticator: "SNOWFLAKE_JWT",
+        privateKey,
+        warehouse: config.warehouse,
+        database: config.database,
+        schema: config.defaultSchema,
+        role: config.parameters?.role,
+        clientSessionKeepAlive: false,
+        timeout: 30_000,
+      });
+      await deadline.read(
+        () =>
+          new Promise<void>((resolve, reject) =>
+            connection!.connect(error => {
+              if (deadline.signal.aborted) {
+                abort();
+                reject(deadline.signal.reason);
+              } else if (error) reject(error);
+              else resolve();
+            })
+          )
+      );
+      const execute = async (sqlText: string, binds: string[] = []) => {
+        current = await deadline.read(
+          () =>
+            new Promise<RowStatement>((resolve, reject) => {
+              current = connection!.execute({
+                sqlText,
+                binds,
+                streamResult: true,
+                rowMode: "array",
+                fetchAsString: ["Number", "Date", "JSON"],
+                parameters: {
+                  MULTI_STATEMENT_COUNT: 1,
+                  STATEMENT_TIMEOUT_IN_SECONDS: streaming ? 7200 : 30,
+                  TIMEZONE: "UTC",
+                  TIME_OUTPUT_FORMAT: "HH24:MI:SS.FF9",
+                  TIMESTAMP_NTZ_OUTPUT_FORMAT: "YYYY-MM-DD HH24:MI:SS.FF9",
+                  TIMESTAMP_LTZ_OUTPUT_FORMAT: "YYYY-MM-DD HH24:MI:SS.FF9 TZH:TZM",
+                  TIMESTAMP_TZ_OUTPUT_FORMAT: "YYYY-MM-DD HH24:MI:SS.FF9 TZH:TZM",
+                  DATE_OUTPUT_FORMAT: "YYYY-MM-DD",
+                },
+                complete(error, statement) {
+                  if (error) reject(error);
+                  else resolve(statement);
+                },
+              });
+            })
+        );
+        return current;
+      };
+      async function* read(statement: RowStatement) {
+        const columns = columnsOf(statement);
+        rows = statement.streamRows();
+        const iterator = rows[Symbol.asyncIterator]();
+        try {
+          for (;;) {
+            const result = await deadline.read(() => iterator.next());
+            if (result.done) break;
+            const values = result.value as unknown[];
+            if (!Array.isArray(values) || values.length !== columns.length)
+              throw new Error("Snowflake row does not match its schema");
+            yield Object.fromEntries(columns.map((column, index) => [column.name, values[index]]));
+          }
+        } finally {
+          rows.destroy();
+          rows = undefined;
+        }
+      }
+      return { execute, read, release };
+    } catch (error) {
+      release();
+      throw error;
+    }
+  }
+  return {
+    sql: snowflakeSql,
+    async columns(query, signal) {
+      const sql = snowflakeSql.validateQuery(query);
+      const s = await session(signal, false);
+      try {
+        return columnsOf(await s.execute(`SELECT * FROM (${sql}\n) AS model LIMIT 0`));
+      } finally {
+        s.release();
+      }
+    },
+    async preview(query, signal) {
+      const sql = snowflakeSql.validateQuery(query);
+      const s = await session(signal, false);
+      try {
+        const statement = await s.execute(`SELECT * FROM (${sql}\n) AS model LIMIT ${previewRowLimit + 1}`);
+        const rows: Record<string, unknown>[] = [];
+        let bytes = 0;
+        for await (const row of s.read(statement)) {
+          bytes += Buffer.byteLength(JSON.stringify(row));
+          if (bytes > previewByteLimit) throw new Error(previewSizeError);
+          rows.push(row);
+        }
+        return boundedPreview(columnsOf(statement), rows);
+      } finally {
+        s.release();
+      }
+    },
+    async *stream(input, after, signal) {
+      const model = ModelDefinition.parse(input);
+      const sql = snowflakeSql.validateQuery(model.query);
+      const s = await session(signal, true);
+      try {
+        const columns = columnsOf(await s.execute(`SELECT * FROM (${sql}\n) AS model LIMIT 0`));
+        const compiled = snowflakeSql.compileModel(model, columns, after);
+        const statement = await s.execute(compiled.query, compiled.values);
+        for await (const row of s.read(statement)) yield decodeRecord(model, row);
+      } finally {
+        s.release();
+      }
+    },
+    async close() {
+      closed = true;
+      for (const controller of active) controller.abort();
+      active.clear();
+    },
+  };
+}

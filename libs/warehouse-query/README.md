@@ -9,6 +9,7 @@ putting execution methods on a SQL-only consumer.
 - `postgres.ts`: PostgreSQL connections, exact scalar decoding, and SQL rules.
 - `clickhouse.ts`: ClickHouse connections, result formats, and SQL rules.
 - `bigquery.ts`: GoogleSQL, service-account authentication, dry-run metadata and paginated query jobs.
+- `snowflake.ts`: Snowflake SELECT dialect, key-pair authentication and streamed results.
 
 Jitsu-provisioned ClickHouse is supported. The browser's masked config only
 advertises capability; preview and runner execution use the existing server-held
@@ -103,3 +104,30 @@ requests target this reader's jobs; server job timeouts remain a backstop if the
 cancel request fails. Read-only SQL parsing is defense in depth; use least-privilege
 service accounts. The supported dialect is node-sql-parser's GoogleSQL subset,
 not arbitrary scripts, DDL, DML, or an unparsed-query fallback.
+
+## Snowflake
+
+Use the existing Snowflake destination with explicit `authenticationMethod: "key-pair"`,
+`account`, `username`, `warehouse`, `database`, `defaultSchema`, `privateKey` and optional
+`privateKeyPassphrase`. Password/interactive OAuth and private networking are not supported
+by this reader yet. Only `parameters.role` is forwarded from additional parameters;
+arbitrary driver options cannot override authentication, TLS, endpoint or timeouts.
+Grant USAGE on the warehouse/database/schema and SELECT on source tables/views to a
+read-only role. Parsing is defense in depth, not a substitute for restricted permissions.
+
+The SDK streams one extraction result with backpressure, never re-runs OFFSET pages.
+NUMBER values are strings, timestamps retain nanoseconds with UTC session timezone, and
+structured values are returned as JSON text to avoid rounding nested numbers. Structured
+keys/cursors require a SQL cast. Snowflake's parser-supported SELECT subset is accepted;
+there is no unparsed fallback for unsupported syntax.
+
+Preview retains at most 100 rows / 2 MB (plus the truncation marker); the SDK can receive
+a larger individual row or transport chunk before the decoded-size guard rejects it.
+Use projections appropriate for preview. Reads time out after 30 seconds; extraction
+has a two-hour deadline and server-side statement timeout. Cancellation/close requests
+cancel only this reader's statement and destroy its dedicated connection.
+
+Run the opt-in read-only smoke test with `TEST_RETL_SNOWFLAKE` containing a JSON destination
+configuration: `pnpm exec vitest run src/snowflake.live.test.ts`. The default suite mocks
+the SDK and cannot certify real account permissions or SQL compatibility. Deploy the
+new runner before console support; no state migration is necessary.
