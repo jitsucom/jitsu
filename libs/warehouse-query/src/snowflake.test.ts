@@ -275,6 +275,49 @@ async function collect(model = testModel()) {
   }
 }
 
+it.each(["__jitsu_retl_key_count", "__JITSU_RETL_KEY_COUNT"])(
+  "decodes internal count %s without changing user column names or checkpoints",
+  async countName => {
+    const fields = [field("ID", "fixed"), field("PAYLOAD", "object")];
+    const f = fixture([
+      { fields, rows: [] },
+      {
+        fields: [field("ID", "fixed"), field("PAYLOAD"), field(countName, "fixed")],
+        rows: [["1", '{"value":9007199254740993}', "1"]],
+      },
+    ]);
+    const records = await collect(testModel({ primaryKey: ["ID"], cursor: { column: "ID", type: "number" } }));
+    expect(records).toEqual([
+      {
+        row: { ID: "1", PAYLOAD: '{"value":9007199254740993}' },
+        deleted: false,
+        checkpoint: { value: "1", primaryKeyValues: ["1"] },
+      },
+    ]);
+    const options = f.connection.execute.mock.calls[1][0];
+    expect(options.sqlText).toContain('TO_JSON(TO_VARIANT("PAYLOAD")) AS "PAYLOAD"');
+    expect(options.parameters).not.toHaveProperty("QUOTED_IDENTIFIERS_IGNORE_CASE");
+  }
+);
+
+it("still rejects duplicate keys when Snowflake uppercases the internal count", async () => {
+  fixture([
+    { fields: [field("ID", "fixed")], rows: [] },
+    { fields: [field("ID", "fixed"), field("__JITSU_RETL_KEY_COUNT", "fixed")], rows: [["1", "2"]] },
+  ]);
+  await expect(collect(testModel({ primaryKey: ["ID"] }))).rejects.toThrow("duplicate primary keys");
+});
+
+it.each(["__jitsu_retl_key_count", "__JITSU_RETL_KEY_COUNT", "__Jitsu_Retl_Key_Count"])(
+  "rejects source columns colliding with reserved alias %s before extraction",
+  async name => {
+    const f = fixture([{ fields: [field("ID", "fixed"), field(name, "fixed")], rows: [] }]);
+    await expect(collect(testModel({ primaryKey: ["ID"] }))).rejects.toThrow("reserved");
+    expect(f.connection.execute).toHaveBeenCalledTimes(1);
+    expect(f.connection.destroy).toHaveBeenCalled();
+  }
+);
+
 it("disables actual SDK value-bearing warnings before preview and extraction connections", async () => {
   const realSdk = (await vi.importActual<{ default: typeof import("snowflake-sdk") }>("snowflake-sdk")).default;
   const winston = require(require.resolve("winston", { paths: [sdkDirectory] }));

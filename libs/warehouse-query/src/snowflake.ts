@@ -64,7 +64,9 @@ function columnsOf(statement: RowStatement): WarehouseColumn[] {
   const columns = statement.getColumns();
   if (!columns) throw new Error("Snowflake did not return query metadata");
   return columns.map(column => ({
-    name: column.getName(),
+    // QUOTED_IDENTIFIERS_IGNORE_CASE can uppercase our generated alias. Normalize
+    // only this reserved name, also rejecting case variants in source metadata.
+    name: column.getName().toLowerCase() === keyCountColumn ? keyCountColumn : column.getName(),
     type:
       column.getType() === "fixed"
         ? `NUMBER(${column.getPrecision()},${column.getScale()})`

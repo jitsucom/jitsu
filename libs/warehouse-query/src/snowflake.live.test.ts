@@ -4,6 +4,48 @@ import { ModelDefinition } from "./schema";
 import type { SourceRecord } from "./types";
 
 it.skipIf(!process.env.TEST_RETL_SNOWFLAKE)(
+  "Snowflake live: extraction and duplicate detection with either quoted identifier case setting",
+  async () => {
+    const { default: sdk } = await import("snowflake-sdk");
+    const createConnection = sdk.createConnection.bind(sdk);
+    const reader = createSnowflakeReader(JSON.parse(process.env.TEST_RETL_SNOWFLAKE!));
+    let ignoreCase = false;
+    vi.spyOn(sdk, "createConnection").mockImplementation(options => {
+      const connection = createConnection(options);
+      const execute = connection.execute.bind(connection);
+      vi.spyOn(connection, "execute").mockImplementation(options =>
+        execute({
+          ...options,
+          parameters: { ...options.parameters, QUOTED_IDENTIFIERS_IGNORE_CASE: ignoreCase },
+        })
+      );
+      return connection;
+    });
+    try {
+      for (ignoreCase of [false, true]) {
+        const query = "SELECT 1 AS id, OBJECT_CONSTRUCT('value', 9007199254740993) AS payload";
+        const model = ModelDefinition.parse({ warehouseId: "live", query, primaryKey: ["ID"] });
+        const preview = await reader.preview(query);
+        const records: SourceRecord[] = [];
+        for await (const record of reader.stream(model)) records.push(record);
+        expect(records).toHaveLength(1);
+        expect(records[0].row).toEqual(preview.rows[0]);
+        expect(records[0].row).toEqual({ ID: "1", PAYLOAD: expect.stringContaining("9007199254740993") });
+        await expect(async () => {
+          for await (const _ of reader.stream({ ...model, query: `${query} UNION ALL ${query}` })) {
+            /* consume */
+          }
+        }).rejects.toThrow("duplicate primary keys");
+      }
+    } finally {
+      await reader.close();
+      vi.restoreAllMocks();
+    }
+  },
+  120_000
+);
+
+it.skipIf(!process.env.TEST_RETL_SNOWFLAKE)(
   "Snowflake live: temporal checkpoint resume ignores custom input formats",
   async () => {
     const { default: sdk } = await import("snowflake-sdk");
