@@ -92,10 +92,19 @@ export const parseQuery = (qs?: string): Record<string, string> => {
   let pairs = (queryString[0] === "?" ? queryString.substr(1) : queryString).split("&");
   for (let i = 0; i < pairs.length; i++) {
     let pair = pairs[i].split("=");
-    query[decodeURIComponent(pair[0])] = decodeURIComponent(pair[1] || "");
+    query[safeDecodeURIComponent(pair[0])] = safeDecodeURIComponent(pair[1] || "");
   }
   return query;
 };
+
+//a stray % (e.g. ?discount=50%) makes decodeURIComponent throw, which would drop the whole event
+function safeDecodeURIComponent(value: string): string {
+  try {
+    return decodeURIComponent(value);
+  } catch (e) {
+    return value;
+  }
+}
 
 function utmToKey(key) {
   const name = key.substring("utm_".length);
