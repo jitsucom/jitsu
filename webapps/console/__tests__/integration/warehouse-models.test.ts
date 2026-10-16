@@ -269,7 +269,7 @@ describe("Postgres preview server-side byte guard", () => {
         c0: "2026-01-01 00:00:00.123456+00",
         enabled: true,
         missing: null,
-        obj: { x: 1 },
+        obj: '{"x": 1}',
       },
     ]);
     expect(result.columns.map(c => c.name)).toEqual(["n", "oversized", "c0", "enabled", "missing", "obj"]);
