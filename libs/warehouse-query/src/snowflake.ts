@@ -165,7 +165,9 @@ export function createSnowflakeReader(input: Record<string, any>): WarehouseRead
           )
       );
       const execute = async (sqlText: string, binds: string[] = []) => {
-        current = await deadline.read(
+        // SDK progress polling happens before complete(), even with streamResult.
+        // A running/queued query is not a stalled row read; keep the overall limit.
+        current = await deadline.wait(
           () =>
             new Promise<RowStatement>((resolve, reject) => {
               current = connection!.execute({

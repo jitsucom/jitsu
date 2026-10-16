@@ -10,6 +10,7 @@ import type { SourceRecord } from "./types";
 const sdk = vi.hoisted(() => ({ createConnection: vi.fn() }));
 vi.mock("snowflake-sdk", () => ({ default: sdk }));
 afterEach(() => vi.resetAllMocks());
+afterEach(() => vi.useRealTimers());
 const { privateKey } = generateKeyPairSync("rsa", { modulusLength: 2048 });
 const config = {
   destinationType: "snowflake",
@@ -26,15 +27,29 @@ const field = (name: string, type = "text", scale = 0) => ({
   getScale: () => scale,
   getPrecision: () => 38,
 });
-function fixture(results: { fields: ReturnType<typeof field>[]; rows: unknown[][]; error?: Error }[]) {
+function fixture(
+  results: {
+    fields: ReturnType<typeof field>[];
+    rows: unknown[][];
+    error?: Error;
+    delayMs?: number;
+    stream?: Readable;
+  }[]
+) {
   const cancel = vi.fn(callback => callback?.());
   const connection = {
     connect: vi.fn(callback => callback()),
     destroy: vi.fn(callback => callback()),
     execute: vi.fn(options => {
       const result = results.shift()!;
-      const statement = { getColumns: () => result.fields, streamRows: () => Readable.from(result.rows), cancel };
-      queueMicrotask(() => options.complete(result.error, statement));
+      const statement = {
+        getColumns: () => result.fields,
+        streamRows: () => result.stream ?? Readable.from(result.rows),
+        cancel,
+      };
+      const complete = () => options.complete(result.error, statement);
+      if (result.delayMs !== undefined) setTimeout(complete, result.delayMs);
+      else queueMicrotask(complete);
       return statement;
     }),
   };
@@ -323,6 +338,112 @@ it("cancels an in-flight statement when closed", async () => {
   expect(f.cancel).toHaveBeenCalled();
   expect(f.connection.destroy).toHaveBeenCalled();
   await expect(reader.columns("SELECT 1")).rejects.toThrow(/closed/);
+});
+
+function executionFixture(delayMs: number, stream?: Readable) {
+  return fixture([
+    { fields: [field("id")], rows: [] },
+    {
+      fields: [field("id"), field("__jitsu_retl_key_count", "fixed")],
+      rows: [["a", "1"]],
+      delayMs,
+      stream,
+    },
+  ]);
+}
+
+it("allows extraction execution beyond 30 seconds before streaming rows", async () => {
+  vi.useFakeTimers();
+  const f = executionFixture(35_000);
+  const pending = collect(testModel());
+  const resolved = expect(pending).resolves.toMatchObject([{ row: { id: "a" } }]);
+  await vi.advanceTimersByTimeAsync(30_001);
+  expect(f.connection.execute).toHaveBeenCalledTimes(2);
+  expect(f.cancel).not.toHaveBeenCalled();
+  await vi.advanceTimersByTimeAsync(4_999);
+  await resolved;
+  expect(f.connection.destroy).toHaveBeenCalled();
+  expect(vi.getTimerCount()).toBe(0);
+});
+
+it("keeps the overall extraction deadline across consecutive executions", async () => {
+  vi.useFakeTimers();
+  const f = fixture([
+    { fields: [field("id")], rows: [], delayMs: 35_000 },
+    { fields: [field("id")], rows: [], delayMs: 2 * 60 * 60 * 1000 },
+  ]);
+  const rejected = expect(collect(testModel())).rejects.toThrow("Warehouse extraction deadline exceeded");
+  await vi.advanceTimersByTimeAsync(2 * 60 * 60 * 1000);
+  await rejected;
+  expect(f.connection.execute).toHaveBeenCalledTimes(2);
+  expect(f.cancel).toHaveBeenCalled();
+  expect(f.connection.destroy).toHaveBeenCalled();
+  // A late SDK callback cannot start reading after the extraction was aborted.
+  await vi.advanceTimersByTimeAsync(35_000);
+  expect(vi.getTimerCount()).toBe(0);
+});
+
+it("keeps preview execution bounded to 30 seconds", async () => {
+  vi.useFakeTimers();
+  const f = executionFixture(35_000);
+  const reader = createSnowflakeReader(config);
+  const rejected = expect(reader.preview("SELECT id FROM source")).rejects.toThrow(
+    "Warehouse extraction deadline exceeded"
+  );
+  await vi.advanceTimersByTimeAsync(30_000);
+  await rejected;
+  expect(f.cancel).toHaveBeenCalled();
+  expect(f.connection.destroy).toHaveBeenCalled();
+  await vi.advanceTimersByTimeAsync(5_000);
+  await reader.close();
+  expect(vi.getTimerCount()).toBe(0);
+});
+
+it("cancels a long-running extraction on parent abort and ignores late completion", async () => {
+  vi.useFakeTimers();
+  const stream = new Readable({ objectMode: true, read() {} });
+  const f = executionFixture(35_000, stream);
+  const parent = new AbortController();
+  const reader = createSnowflakeReader(config);
+  const iterator = reader.stream(testModel(), undefined, parent.signal)[Symbol.asyncIterator]();
+  const rejected = expect(iterator.next()).rejects.toThrow("cancelled by user");
+  await vi.advanceTimersByTimeAsync(31_000);
+  parent.abort(new Error("cancelled by user"));
+  await rejected;
+  expect(f.cancel).toHaveBeenCalled();
+  expect(f.connection.destroy).toHaveBeenCalled();
+  await vi.advanceTimersByTimeAsync(4_000);
+  expect(stream.readableFlowing).toBeNull();
+  stream.destroy();
+  await reader.close();
+  expect(vi.getTimerCount()).toBe(0);
+});
+
+it("still times out stalled row reads after a long execution", async () => {
+  vi.useFakeTimers();
+  const stream = new Readable({ objectMode: true, read() {} });
+  const f = executionFixture(35_000, stream);
+  const rejected = expect(collect(testModel())).rejects.toThrow("Warehouse read timed out");
+  await vi.advanceTimersByTimeAsync(35_000);
+  expect(f.cancel).not.toHaveBeenCalled();
+  await vi.advanceTimersByTimeAsync(30_000);
+  await rejected;
+  expect(stream.destroyed).toBe(true);
+  expect(f.cancel).toHaveBeenCalled();
+  expect(f.connection.destroy).toHaveBeenCalled();
+  expect(vi.getTimerCount()).toBe(0);
+});
+
+it("still bounds connection establishment to 30 seconds", async () => {
+  vi.useFakeTimers();
+  const f = fixture([]);
+  f.connection.connect.mockImplementation(() => {});
+  const rejected = expect(collect(testModel())).rejects.toThrow("Warehouse read timed out");
+  await vi.advanceTimersByTimeAsync(30_000);
+  await rejected;
+  expect(f.connection.execute).not.toHaveBeenCalled();
+  expect(f.connection.destroy).toHaveBeenCalled();
+  expect(vi.getTimerCount()).toBe(0);
 });
 
 it("preserves fractional TIME keys through the real SDK decoder", async () => {
