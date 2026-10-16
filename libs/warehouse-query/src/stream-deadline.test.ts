@@ -40,4 +40,29 @@ describe("stream read deadlines", () => {
     deadline.close();
     expect(vi.getTimerCount()).toBe(0);
   });
+  it("waits for execution beyond the read timeout but enforces the overall deadline", async () => {
+    vi.useFakeTimers();
+    const deadline = new StreamDeadline(undefined, 100, 1000);
+    const rejected = expect(deadline.wait(() => new Promise(() => {}))).rejects.toThrow(
+      "Warehouse extraction deadline exceeded"
+    );
+    await vi.advanceTimersByTimeAsync(101);
+    expect(deadline.signal.aborted).toBe(false);
+    await vi.advanceTimersByTimeAsync(899);
+    await rejected;
+    deadline.close();
+    expect(vi.getTimerCount()).toBe(0);
+  });
+  it.each(["read", "wait"] as const)("does not dispatch %s after immediate cancellation", async method => {
+    vi.useFakeTimers();
+    const parent = new AbortController();
+    const deadline = new StreamDeadline(parent.signal);
+    const operation = vi.fn(async () => 1);
+    const rejected = expect(deadline[method](operation)).rejects.toThrow("cancelled");
+    parent.abort(new Error("cancelled"));
+    await rejected;
+    expect(operation).not.toHaveBeenCalled();
+    deadline.close();
+    expect(vi.getTimerCount()).toBe(0);
+  });
 });

@@ -14,17 +14,28 @@ export class StreamDeadline {
   async read<T>(operation: () => Promise<T>): Promise<T> {
     this.signal.throwIfAborted();
     const timer = setTimeout(() => this.controller.abort(new Error("Warehouse read timed out")), this.readMs);
+    try {
+      return await this.wait(operation);
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+  /** Wait for server-side execution under the overall deadline, not the read timeout. */
+  async wait<T>(operation: () => Promise<T>): Promise<T> {
+    this.signal.throwIfAborted();
     let onAbort: () => void;
     try {
       return await Promise.race([
-        Promise.resolve().then(operation),
+        Promise.resolve().then(() => {
+          this.signal.throwIfAborted();
+          return operation();
+        }),
         new Promise<never>((_, reject) => {
           onAbort = () => reject(this.signal.reason);
           this.signal.addEventListener("abort", onAbort, { once: true });
         }),
       ]);
     } finally {
-      clearTimeout(timer);
       this.signal.removeEventListener("abort", onAbort!);
     }
   }
