@@ -30,6 +30,8 @@ function withBodyOpts(cmd: Command): Command {
         '  --credentials.keys=\'["a","b"]\'',
         'Values starting with [, {, " or matching number/boolean/null are parsed as JSON;',
         "everything else is a plain string. -f, --json, and --field flags merge in that order.",
+        "On update, omitted fields keep their stored value - except free-form maps (e.g. a warehouse's",
+        "`parameters`), which are replaced by what you send, so pass the whole map, not one entry.",
       ].join("\n")
     );
 }
