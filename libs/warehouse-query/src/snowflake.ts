@@ -3,7 +3,7 @@ import { Parser } from "node-sql-parser";
 import { z } from "zod";
 import type { Connection, RowStatement } from "snowflake-sdk";
 import { ModelDefinition, WarehouseColumn } from "./schema";
-import { createSqlDialect } from "./sql";
+import { createSqlDialect, decodeDelete, keyCountColumn } from "./sql";
 import { boundedPreview, decodeRecord, previewRowLimit, previewByteLimit, previewSizeError } from "./reader";
 import { StreamDeadline } from "./stream-deadline";
 import type { WarehouseReader } from "./types";
@@ -20,13 +20,14 @@ const credentials = z.object({
   parameters: z.record(z.string()).optional(),
 });
 const scalar = /^(?:NUMBER\(\d+,\d+\)|REAL|TEXT|BOOLEAN|DATE|TIME|TIMESTAMP_NTZ|TIMESTAMP_LTZ|TIMESTAMP_TZ)$/;
+const quote = (name: string) => '"' + name.replaceAll('"', '""') + '"';
 const parser = new Parser();
 export const snowflakeSql = createSqlDialect({
   parse: query => parser.astify(query, { database: "Snowflake" }),
   lineCommentPrefixes: ["--", "//"],
   backslashEscapes: (_query, index) => _query[index] === "'",
   dollarQuote: (query, index) => (query.startsWith("$$", index) ? "$$" : undefined),
-  quoteColumn: name => '"' + name.replaceAll('"', '""') + '"',
+  quoteColumn: quote,
   supportsPrimaryKeyType: type => scalar.test(type),
   supportsDeleteType: type => /^(?:NUMBER\(\d+,\d+\)|REAL|TEXT|BOOLEAN)$/.test(type),
   supportsCursorType: (cursor, type) =>
@@ -60,6 +61,39 @@ function columnsOf(statement: RowStatement): WarehouseColumn[] {
         ? `NUMBER(${column.getPrecision()},${column.getScale()})`
         : column.getType().toUpperCase(),
   }));
+}
+
+/** Serialize in Snowflake: SDK string fetching still parses typed containers first. */
+function losslessQuery(query: string, columns: WarehouseColumn[], order: string[] = []): string {
+  if (!columns.some(column => /^(OBJECT|ARRAY|MAP)$/.test(column.type))) return query;
+  if (new Set(columns.map(column => column.name)).size !== columns.length)
+    throw new Error("Query returns duplicate column names; use unique aliases");
+  return `SELECT ${columns
+    .map(column => {
+      const name = quote(column.name);
+      return /^(OBJECT|ARRAY|MAP)$/.test(column.type) ? `TO_JSON(TO_VARIANT(${name})) AS ${name}` : name;
+    })
+    .join(", ")} FROM (${query}\n) AS lossless_model${
+    order.length ? ` ORDER BY ${order.map(name => `${quote(name)} ASC`).join(", ")}` : ""
+  }`;
+}
+
+/** Recognize exact numeric 0/1 without rounding decimal strings through Number. */
+function numericDeleteValue(value: unknown): unknown {
+  if (typeof value !== "string") return value;
+  const match = /^([+-]?)(\d*)(?:\.(\d*))?(?:[eE]([+-]?\d+))?$/.exec(value);
+  if (!match || !(match[2] || match[3])) return value;
+  const fraction = match[3] ?? "";
+  const digits = (match[2] + fraction).replace(/^0+/, "");
+  if (!digits) return false;
+  const significant = digits.replace(/0+$/, "");
+  if (
+    match[1] !== "-" &&
+    significant === "1" &&
+    BigInt(match[4] ?? "0") + BigInt(digits.length - significant.length) === BigInt(fraction.length)
+  )
+    return true;
+  return value;
 }
 
 export function createSnowflakeReader(input: Record<string, any>): WarehouseReader {
@@ -115,6 +149,7 @@ export function createSnowflakeReader(input: Record<string, any>): WarehouseRead
         schema: config.defaultSchema,
         role: config.parameters?.role,
         clientSessionKeepAlive: false,
+        representNullAsStringNull: false,
         timeout: 30_000,
       });
       await deadline.read(
@@ -197,7 +232,10 @@ export function createSnowflakeReader(input: Record<string, any>): WarehouseRead
       const sql = snowflakeSql.validateQuery(query);
       const s = await session(signal, false);
       try {
-        const statement = await s.execute(`SELECT * FROM (${sql}\n) AS model LIMIT ${previewRowLimit + 1}`);
+        const columns = columnsOf(await s.execute(`SELECT * FROM (${sql}\n) AS model LIMIT 0`));
+        const statement = await s.execute(
+          `SELECT * FROM (${losslessQuery(sql, columns)}\n) AS model LIMIT ${previewRowLimit + 1}`
+        );
         const rows: Record<string, unknown>[] = [];
         let bytes = 0;
         for await (const row of s.read(statement)) {
@@ -205,7 +243,7 @@ export function createSnowflakeReader(input: Record<string, any>): WarehouseRead
           if (bytes > previewByteLimit) throw new Error(previewSizeError);
           rows.push(row);
         }
-        return boundedPreview(columnsOf(statement), rows);
+        return boundedPreview(columns, rows);
       } finally {
         s.release();
       }
@@ -216,9 +254,26 @@ export function createSnowflakeReader(input: Record<string, any>): WarehouseRead
       const s = await session(signal, true);
       try {
         const columns = columnsOf(await s.execute(`SELECT * FROM (${sql}\n) AS model LIMIT 0`));
+        // Validate the original query and types; generated projection SQL only
+        // contains quoted metadata names, never an unparsed user-query fallback.
         const compiled = snowflakeSql.compileModel(model, columns, after);
-        const statement = await s.execute(compiled.query, compiled.values);
-        for await (const row of s.read(statement)) yield decodeRecord(model, row);
+        const query = losslessQuery(
+          compiled.query,
+          [...columns, { name: keyCountColumn, type: "NUMBER(38,0)" }],
+          model.cursor ? [model.cursor.column, ...model.primaryKey] : model.primaryKey
+        );
+        const statement = await s.execute(query, compiled.values);
+        const numericDelete = /^(NUMBER\(\d+,\d+\)|REAL)$/.test(
+          columns.find(c => c.name === model.deleteColumn)?.type ?? ""
+        );
+        for await (const row of s.read(statement)) {
+          const record = decodeRecord({ ...model, deleteColumn: undefined }, row);
+          if (model.deleteColumn) {
+            const value = row[model.deleteColumn];
+            record.deleted = decodeDelete(numericDelete ? numericDeleteValue(value) : value);
+          }
+          yield record;
+        }
       } finally {
         s.release();
       }
