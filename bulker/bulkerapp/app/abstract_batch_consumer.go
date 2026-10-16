@@ -263,15 +263,14 @@ func (bc *AbstractBatchConsumer) ConsumeAll() (counters BatchCounters, err error
 	}
 
 	maxBatchSize, maxBatchSizeBytes, retryBatchSize := bc.batchSizeFunc(streamOptions)
-	created, err := bc.initConsumer()
+	_, err = bc.initConsumer()
 	if err != nil {
 		bc.errorMetric("resume_error")
 		return BatchCounters{}, bc.NewError("Failed to resume kafka consumer: %v", err)
 	}
-	assignmentWait := time.Duration(0)
-	if created {
-		assignmentWait = time.Duration(bc.config.KafkaSessionTimeoutMs) * time.Millisecond
-	}
+	// A background replacement may still be joining. The runtime only waits
+	// while an assignment is pending; a confirmed empty assignment is healthy.
+	assignmentWait := time.Duration(bc.config.KafkaSessionTimeoutMs) * time.Millisecond
 	assignments, consumerEpoch, err := bc.consumer.assignment(assignmentWait)
 	if err != nil {
 		bc.errorMetric("assignment_error")

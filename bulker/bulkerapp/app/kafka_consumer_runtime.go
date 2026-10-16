@@ -82,6 +82,8 @@ type consumerSession struct {
 
 	consumer groupConsumer
 	wanted   bool
+	// False after an assignment callback, even when this member receives no partitions.
+	assignmentPending bool
 	//pauseRequested is the desired state. Keep it separate from pauseApplied
 	//so a failed Pause does not also disable the maintenance polls that retry it.
 	pauseRequested   bool
@@ -197,7 +199,7 @@ func (runtime *consumerRuntime) assignment(wait time.Duration) (partitions []kaf
 			default:
 			}
 			partitions, err = session.consumer.Assignment()
-			if err != nil || len(partitions) > 0 || wait <= 0 || !time.Now().Before(deadline) {
+			if err != nil || len(partitions) > 0 || !session.assignmentPending || wait <= 0 || !time.Now().Before(deadline) {
 				epoch = session.epoch
 				return
 			}
@@ -402,6 +404,7 @@ func (session *consumerSession) open() error {
 		return err
 	}
 	session.consumer = consumer
+	session.assignmentPending = true
 	session.pauseApplied = false
 	session.pending = nil
 	session.reconnectAt = time.Time{}
@@ -567,12 +570,14 @@ func (session *consumerSession) onAssigned(partitions []kafka.TopicPartition) er
 		}
 		session.pauseApplied = true
 	}
+	session.assignmentPending = false
 	session.runtime.hooks.debugf("Consumer assigned partitions at epoch %d: %v", session.epoch, partitions)
 	return nil
 }
 
 func (session *consumerSession) onRevoked(partitions []kafka.TopicPartition) (lost bool, err error) {
 	lost = session.consumer.AssignmentLost()
+	session.assignmentPending = true
 	session.epoch++
 	session.pending = nil
 	if session.consumer.GetRebalanceProtocol() == "COOPERATIVE" {

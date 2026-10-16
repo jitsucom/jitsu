@@ -280,10 +280,17 @@ func TestConsumerRuntimeTreatsEmptyAssignmentAsHealthy(t *testing.T) {
 
 	_, err := runtime.init()
 	require.NoError(t, err)
-	partitions, _, err := runtime.assignment(10 * time.Millisecond)
+	consumer.events <- kafka.AssignedPartitions{}
+	partitions, _, err := runtime.assignment(time.Second)
 	require.NoError(t, err)
 	assert.Empty(t, partitions)
 	assert.Equal(t, int64(1), factoryCalls.Load())
+	assert.Equal(t, int64(1), consumer.pollCount.Load(), "stop waiting once an empty assignment is confirmed")
+	polls := consumer.pollCount.Load()
+	partitions, _, err = runtime.assignment(time.Second)
+	require.NoError(t, err)
+	assert.Empty(t, partitions)
+	assert.Equal(t, polls, consumer.pollCount.Load(), "a healthy idle member must not wait again")
 }
 
 func TestConsumerRuntimeKeepsMessageReadWhileWaitingForAssignment(t *testing.T) {
@@ -508,4 +515,16 @@ func TestConsumerRuntimeClosesConsumerExactlyOnce(t *testing.T) {
 	require.NoError(t, runtime.close())
 	require.NoError(t, runtime.close())
 	assert.Equal(t, int64(1), consumer.closeCount.Load())
+}
+
+func TestConsumerRuntimeAssignmentWaitTimesOut(t *testing.T) {
+	consumer := newFakeGroupConsumer()
+	runtime := newTestConsumerRuntime(func(*kafka.ConfigMap) (groupConsumer, error) { return consumer, nil })
+	t.Cleanup(func() { require.NoError(t, runtime.close()) })
+	_, err := runtime.init()
+	require.NoError(t, err)
+	partitions, _, err := runtime.assignment(10 * time.Millisecond)
+	require.NoError(t, err)
+	assert.Empty(t, partitions)
+	assert.Positive(t, consumer.pollCount.Load())
 }
