@@ -3,9 +3,17 @@ import Cursor from "pg-cursor";
 import { z } from "zod";
 import { Parser } from "node-sql-parser";
 import { ModelDefinition } from "./schema";
-import { createSqlDialect } from "./sql";
-import { boundedPreview, decodeRecord, previewByteLimit, previewRowLimit, previewSizeError } from "./reader";
+import { createSqlDialect, decodeDelete } from "./sql";
+import {
+  boundedPreview,
+  decodeRecord,
+  numericDeleteValue,
+  previewByteLimit,
+  previewRowLimit,
+  previewSizeError,
+} from "./reader";
 import type { WarehouseReader } from "./types";
+import { StreamDeadline } from "./stream-deadline";
 const pgCredentials = z.object({
   host: z.string().min(1),
   port: z.number().int().min(1).max(65535).default(5432),
@@ -25,11 +33,18 @@ const pgCredentials = z.object({
  * apply the process timezone. Models need exact keys, checkpoint values and
  * destination payloads across reads/resumes, so these values stay strings.
  * Keep the override local to this reader and pass it to both Client and Cursor:
- * pg-cursor owns its result decoding too. Other types use pg's normal parsers.
+ * pg-cursor owns its result decoding too. Known arrays of these types retain
+ * string elements and nulls; other types use pg's normal parsers.
  */
 export const losslessTypes = {
   getTypeParser(oid: number, format?: string) {
     if ([20, 1700, 1082, 1114, 1184].includes(oid)) return (value: string) => value;
+    // Use pg's text-array parser to retain nested shape/nulls without converting
+    // exact numeric or temporal elements through Number/Date.
+    if ([1016, 1231, 1182, 1115, 1185].includes(oid)) {
+      const textArrayOid: number = 1009; // Array OIDs are absent from pg-types' builtins enum.
+      return types.getTypeParser(textArrayOid, "text");
+    }
     return types.getTypeParser(oid, format as "text");
   },
 };
@@ -101,7 +116,7 @@ export function createPostgresReader(input: Record<string, any>): WarehouseReade
   const config = pgCredentials.parse(input);
   const clients = new Set<Client>();
   let closed = false;
-  async function connect(signal?: AbortSignal) {
+  async function connect(signal?: AbortSignal, streaming = false) {
     signal?.throwIfAborted();
     if (closed) throw new Error("Reader is closed");
     const client = new Client({
@@ -121,7 +136,7 @@ export function createPostgresReader(input: Record<string, any>): WarehouseReade
               ...(config.sslMode === "verify-ca" ? { checkServerIdentity: () => undefined } : {}),
             },
       connectionTimeoutMillis: 10_000,
-      statement_timeout: 30_000,
+      statement_timeout: streaming ? 7_200_000 : 30_000,
       types: losslessTypes,
       options: "-c default_transaction_read_only=on -c timezone=UTC -c standard_conforming_strings=on",
     });
@@ -184,24 +199,42 @@ export function createPostgresReader(input: Record<string, any>): WarehouseReade
     async *stream(input, after, signal) {
       const model = ModelDefinition.parse(input);
       const sql = postgresSql.validateQuery(model.query);
-      const { client, release } = await connect(signal);
+      const time = new StreamDeadline(signal);
+      let release: (() => Promise<void>) | undefined;
       try {
-        const columns = await probe(client, sql);
+        const connection = await connect(time.signal, true);
+        release = connection.release;
+        const { client } = connection;
+        const columns = await time.read(() => probe(client, sql));
         const compiled = postgresSql.compileModel(model, columns, after);
+        const numericDelete = /^(20|21|23|26|700|701|1700)$/.test(
+          columns.find(c => c.name === model.deleteColumn)?.type ?? ""
+        );
         const cursor = client.query(new Cursor(compiled.query, compiled.values, { types: losslessTypes }));
+        let first = true;
         while (true) {
-          signal?.throwIfAborted();
-          const rows = await cursor.read(model.pageSize);
+          // The first fetch performs the sort/window query, which may legitimately
+          // take longer than a stalled socket read. Keep the overall deadline.
+          const rows = await (first
+            ? time.wait(() => cursor.read(model.pageSize))
+            : time.read(() => cursor.read(model.pageSize)));
+          first = false;
           if (!rows.length) break;
           for (const row of rows) {
-            signal?.throwIfAborted();
-            yield decodeRecord(model, row);
+            time.signal.throwIfAborted();
+            const record = decodeRecord({ ...model, deleteColumn: undefined }, row);
+            if (model.deleteColumn) {
+              const value = row[model.deleteColumn];
+              record.deleted = decodeDelete(numericDelete ? numericDeleteValue(value) : value);
+            }
+            yield record;
           }
         }
       } finally {
         // This dedicated connection owns the transaction and portal. Closing it
         // releases both; cursor.close() would wait forever after a socket abort.
-        await release();
+        time.close();
+        await release?.();
       }
     },
     async close() {

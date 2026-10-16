@@ -33,6 +33,29 @@ both direct queries and cursors. Exact values matter for stable keys, checkpoint
 resumption, and destination payloads; JavaScript numbers and dates can lose
 precision or change timezone interpretation.
 
+The corresponding bigint/numeric/date/timestamp arrays also preserve exact text
+elements, nested array shape, and SQL nulls. This intentionally returns strings
+where the default driver would return rounded numbers or JavaScript Dates.
+
+Numeric delete flags are decoded by metadata: exact numeric zero/one (including
+scaled decimal strings) are accepted without rewriting source rows or checkpoints.
+Text flags remain strict; strings such as `"1.00"` are not numeric flags.
+
+Non-finite ClickHouse floats stay strings instead of silently becoming SQL null;
+keys/cursors/delete flags reject them.
+
+Known audit follow-ups: PostgreSQL JSON/JSONB decoding can round nested numbers;
+returning raw JSON text needs an explicit payload-shape decision. ClickHouse
+local-time DateTime output can collapse distinct instants during DST fallback;
+switching to UTC ISO text requires a compatibility plan for persisted mirror keys.
+Neither output-contract change is included here. For a new model, explicitly select
+UTC timestamps or lossless text in SQL where appropriate; do not change an existing
+model's key representation without migrating its acknowledged state.
+
+PostgreSQL and ClickHouse initial extraction execution uses the two-hour overall
+deadline, not the 30-second preview/read limit. Metadata, previews, and subsequent
+stalled reads retain short limits, and cancellation still closes dedicated resources.
+
 Model saves validate every primary-key column's metadata, including full-query
 and lookback models: keys must decode as strings, numbers, or booleans. PostgreSQL
 uses a conservative scalar OID allowlist; ClickHouse accepts supported JSON scalar

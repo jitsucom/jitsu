@@ -320,4 +320,16 @@ describe("PostgreSQL lossless text decoding", () => {
     expect(losslessTypes.getTypeParser(23, "text")("42")).toBe(42);
     expect(losslessTypes.getTypeParser(16, "text")("t")).toBe(true);
   });
+  it.each([
+    [1016, "9007199254740993"],
+    [1231, "12345678901234567890.123456789"],
+    [1182, "2026-01-01"],
+    [1115, "2026-01-01 00:00:00.123456"],
+    [1185, "2026-01-01 00:00:00.123456+00"],
+  ] as const)("preserves exact nested array elements and nulls for OID %i", (oid, value) => {
+    expect(losslessTypes.getTypeParser(oid, "text")(`{{"${value}",NULL},{NULL,"${value}"}}`)).toEqual([
+      [value, null],
+      [null, value],
+    ]);
+  });
 });

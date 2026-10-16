@@ -218,6 +218,33 @@ it("fails on duplicate keys", async () => {
   await expect(collect(reader.stream(model))).rejects.toThrow(/duplicate primary keys/);
   await reader.close();
 });
+it.each([
+  ["NUMERIC", "0.000", false],
+  ["NUMERIC", "1.000", true],
+  ["BIGNUMERIC", "1.00000000000000000000000000000000000000", true],
+  ["NUMERIC", "1.000000001", undefined],
+  ["STRING", "1.00", undefined],
+])("decodes %s delete flag %s without changing the payload", async (type, value, expected) => {
+  const columns = [fields[0], { name: "removed", type }];
+  stubRequests((_url, body) =>
+    body?.configuration?.dryRun ? Response.json({ statistics: { query: { schema: { fields: columns } } } }) : undefined
+  );
+  resultPages = [
+    {
+      jobComplete: true,
+      schema: { fields: [...columns, { name: "__jitsu_retl_key_count", type: "INTEGER" }] },
+      rows: [{ f: [{ v: "1" }, { v: value }, { v: "1" }] }],
+    },
+  ];
+  const reader = createBigQueryReader(config);
+  try {
+    const result = collect(reader.stream({ ...model, deleteColumn: "removed" }));
+    if (expected === undefined) await expect(result).rejects.toThrow(/0\/1/);
+    else expect((await result)[0]).toMatchObject({ row: { removed: value }, deleted: expected });
+  } finally {
+    await reader.close();
+  }
+});
 it.each(["NaN", "Infinity", "-Infinity"])("rejects non-finite numeric checkpoints: %s", async value => {
   const floatFields = [fields[0], { name: "changed", type: "FLOAT" }];
   stubRequests((_url, body) =>
