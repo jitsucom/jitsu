@@ -80,8 +80,9 @@ type consumerRuntime struct {
 type consumerSession struct {
 	runtime *consumerRuntime
 
-	consumer groupConsumer
-	wanted   bool
+	consumer    groupConsumer
+	wanted      bool
+	terminalErr error
 	// False after an assignment callback, even when this member receives no partitions.
 	assignmentPending bool
 	//pauseRequested is the desired state. Keep it separate from pauseApplied
@@ -146,7 +147,7 @@ func (runtime *consumerRuntime) run() {
 			session.maintain()
 		case <-runtime.stop:
 			session.wanted = false
-			runtime.closeErr = session.closeCurrent()
+			runtime.closeErr = session.closeCurrent(true)
 			return
 		}
 	}
@@ -170,6 +171,10 @@ func (runtime *consumerRuntime) execute(run func(*consumerSession)) error {
 
 func (runtime *consumerRuntime) init() (created bool, err error) {
 	executeErr := runtime.execute(func(session *consumerSession) {
+		if session.terminalErr != nil {
+			err = session.terminalErr
+			return
+		}
 		session.wanted = true
 		if session.consumer != nil {
 			return
@@ -185,6 +190,10 @@ func (runtime *consumerRuntime) init() (created bool, err error) {
 
 func (runtime *consumerRuntime) assignment(wait time.Duration) (partitions []kafka.TopicPartition, epoch uint64, err error) {
 	executeErr := runtime.execute(func(session *consumerSession) {
+		if session.terminalErr != nil {
+			err = session.terminalErr
+			return
+		}
 		if session.consumer == nil {
 			err = errConsumerNotStarted
 			return
@@ -199,6 +208,7 @@ func (runtime *consumerRuntime) assignment(wait time.Duration) (partitions []kaf
 			default:
 			}
 			partitions, err = session.consumer.Assignment()
+			err = session.checkFencing(err)
 			if err != nil || len(partitions) > 0 || !session.assignmentPending || wait <= 0 || !time.Now().Before(deadline) {
 				epoch = session.epoch
 				return
@@ -255,6 +265,7 @@ func (runtime *consumerRuntime) queryWatermarkOffsets(topic string, partition in
 			return
 		}
 		low, high, err = session.consumer.QueryWatermarkOffsets(topic, partition, timeoutMs)
+		err = session.checkFencing(err)
 	})
 	if executeErr != nil {
 		err = executeErr
@@ -268,6 +279,7 @@ func (runtime *consumerRuntime) committed(partitions []kafka.TopicPartition, tim
 			return
 		}
 		offsets, err = session.consumer.Committed(partitions, timeoutMs)
+		err = session.checkFencing(err)
 	})
 	if executeErr != nil {
 		err = executeErr
@@ -281,6 +293,7 @@ func (runtime *consumerRuntime) seekPartitions(partitions []kafka.TopicPartition
 			return
 		}
 		result, err = session.consumer.SeekPartitions(partitions)
+		err = session.checkFencing(err)
 		if err == nil {
 			session.discardPending(result)
 		}
@@ -297,6 +310,7 @@ func (runtime *consumerRuntime) commitMessage(message *kafka.Message, expectedEp
 			return
 		}
 		result, err = session.consumer.CommitMessage(message)
+		err = session.checkFencing(err)
 	})
 	if executeErr != nil {
 		err = executeErr
@@ -310,6 +324,7 @@ func (runtime *consumerRuntime) groupMetadata(expectedEpoch uint64) (metadata *k
 			return
 		}
 		metadata, err = session.consumer.GetConsumerGroupMetadata()
+		err = session.checkFencing(err)
 	})
 	if executeErr != nil {
 		err = executeErr
@@ -320,6 +335,7 @@ func (runtime *consumerRuntime) groupMetadata(expectedEpoch uint64) (metadata *k
 func (runtime *consumerRuntime) pause() (err error) {
 	executeErr := runtime.execute(func(session *consumerSession) {
 		err = session.setPaused(true)
+		err = session.checkFencing(err)
 	})
 	if executeErr != nil {
 		err = executeErr
@@ -330,6 +346,7 @@ func (runtime *consumerRuntime) pause() (err error) {
 func (runtime *consumerRuntime) resume() (err error) {
 	executeErr := runtime.execute(func(session *consumerSession) {
 		err = session.setPaused(false)
+		err = session.checkFencing(err)
 	})
 	if executeErr != nil {
 		err = executeErr
@@ -341,7 +358,7 @@ func (runtime *consumerRuntime) suspend() (err error) {
 	executeErr := runtime.execute(func(session *consumerSession) {
 		session.wanted = false
 		session.pauseRequested = false
-		err = session.closeCurrent()
+		err = session.checkFencing(session.closeCurrent(true))
 	})
 	if executeErr != nil {
 		err = executeErr
@@ -351,8 +368,17 @@ func (runtime *consumerRuntime) suspend() (err error) {
 
 func (runtime *consumerRuntime) restart(beforeOpen func()) (err error) {
 	executeErr := runtime.execute(func(session *consumerSession) {
+		if session.terminalErr != nil {
+			err = session.terminalErr
+			return
+		}
 		session.wanted = true
-		if closeErr := session.closeCurrent(); closeErr != nil {
+		// Offset repair needs an explicit departure; ordinary replacement retains
+		// the static member until its successor rejoins with the same identity.
+		if closeErr := session.closeCurrent(beforeOpen != nil); closeErr != nil {
+			if err = session.checkFencing(closeErr); session.terminalErr != nil {
+				return
+			}
 			runtime.hooks.errorf("Failed to close Kafka consumer before restart: %v", closeErr)
 		}
 		if beforeOpen != nil {
@@ -384,6 +410,9 @@ func (runtime *consumerRuntime) close() error {
 }
 
 func (session *consumerSession) open() error {
+	if session.terminalErr != nil {
+		return session.terminalErr
+	}
 	if session.consumer != nil {
 		return nil
 	}
@@ -413,7 +442,7 @@ func (session *consumerSession) open() error {
 	return nil
 }
 
-func (session *consumerSession) closeCurrent() error {
+func (session *consumerSession) closeCurrent(leaveGroup bool) error {
 	consumer := session.consumer
 	if consumer == nil {
 		return nil
@@ -424,7 +453,10 @@ func (session *consumerSession) closeCurrent() error {
 	session.pending = nil
 	session.pauseApplied = false
 	session.epoch++
-	unsubscribeErr := consumer.Unsubscribe()
+	var unsubscribeErr error
+	if leaveGroup {
+		unsubscribeErr = consumer.Unsubscribe()
+	}
 	closeErr := consumer.Close()
 	session.closing = false
 	session.rebalanceLost, session.rebalanceErr = false, nil
@@ -484,6 +516,9 @@ func (session *consumerSession) poll(timeout time.Duration) (*kafka.Message, err
 		rebalanceLost, rebalanceErr := session.rebalanceLost, session.rebalanceErr
 		session.rebalanceLost, session.rebalanceErr = false, nil
 		if rebalanceLost || rebalanceErr != nil {
+			if err := session.checkFencing(rebalanceErr); session.terminalErr != nil {
+				return nil, err
+			}
 			if err := session.recreate(); err != nil {
 				session.runtime.hooks.errorf("Failed to recreate Kafka consumer after rebalance failure: %v", err)
 			}
@@ -494,6 +529,9 @@ func (session *consumerSession) poll(timeout time.Duration) (*kafka.Message, err
 		}
 		if len(session.rewindPartitions) > 0 {
 			if err := session.rewindAssignment(); err != nil {
+				if err = session.checkFencing(err); session.terminalErr != nil {
+					return nil, err
+				}
 				if recreateErr := session.recreate(); recreateErr != nil {
 					session.runtime.hooks.errorf("Failed to recreate Kafka consumer after rewind failure: %v", recreateErr)
 				}
@@ -527,11 +565,34 @@ func (session *consumerSession) poll(timeout time.Duration) (*kafka.Message, err
 
 func (session *consumerSession) handleKafkaError(kafkaErr kafka.Error) {
 	session.runtime.hooks.onKafkaError(kafkaErr)
+	if session.checkFencing(kafkaErr); session.terminalErr != nil {
+		return
+	}
 	if shouldRecreateConsumer(kafkaErr) {
 		if err := session.recreate(); err != nil {
 			session.runtime.hooks.errorf("Failed to recreate Kafka consumer: %v", err)
 		}
 	}
+}
+
+// Fencing means another process owns this static identity. Recreating here would
+// fence that process in turn. ErrFatal from synchronous APIs hides the underlying
+// cause, so it must also stop rather than risk rejoining or repairing offsets.
+func (session *consumerSession) checkFencing(err error) error {
+	if session.terminalErr != nil {
+		return session.terminalErr
+	}
+	var kafkaErr kafka.Error
+	if !errors.As(err, &kafkaErr) || (kafkaErr.Code() != kafka.ErrFencedInstanceID && kafkaErr.Code() != kafka.ErrFenced && kafkaErr.Code() != kafka.ErrFatal) {
+		return err
+	}
+	session.terminalErr = fmt.Errorf("%w: static consumer stopped; another instance may own its identity: %w", errConsumerAssignmentChanged, err)
+	session.wanted = false
+	session.runtime.hooks.errorf("%v", session.terminalErr)
+	if closeErr := session.closeCurrent(false); closeErr != nil {
+		session.runtime.hooks.errorf("Failed to close fenced Kafka consumer: %v", closeErr)
+	}
+	return session.terminalErr
 }
 
 func (session *consumerSession) handleRebalance(event kafka.Event) (lost bool, err error) {
@@ -716,6 +777,9 @@ func (session *consumerSession) discardPending(partitions []kafka.TopicPartition
 }
 
 func (session *consumerSession) validateEpoch(expected uint64) error {
+	if session.terminalErr != nil {
+		return session.terminalErr
+	}
 	if session.consumer == nil {
 		return errConsumerNotStarted
 	}
@@ -726,8 +790,14 @@ func (session *consumerSession) validateEpoch(expected uint64) error {
 }
 
 func (session *consumerSession) recreate() error {
+	if session.terminalErr != nil {
+		return session.terminalErr
+	}
 	session.wanted = true
-	if err := session.closeCurrent(); err != nil {
+	if err := session.closeCurrent(false); err != nil {
+		if err = session.checkFencing(err); session.terminalErr != nil {
+			return err
+		}
 		session.runtime.hooks.errorf("Failed to close unusable Kafka consumer: %v", err)
 	}
 	return session.open()

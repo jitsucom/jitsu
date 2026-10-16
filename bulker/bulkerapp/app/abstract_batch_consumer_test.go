@@ -56,7 +56,7 @@ func TestBatchConsumerWaitsForBackgroundReplacementAssignment(t *testing.T) {
 	require.NoError(t, err)
 	assignRuntime(t, runtime, first)
 	require.NoError(t, runtime.pause())
-	first.events <- kafka.NewError(kafka.ErrFatal, "replace idle consumer", true)
+	first.events <- kafka.NewError(kafka.ErrAllBrokersDown, "replace idle consumer", true)
 	require.NoError(t, runtime.execute(func(session *consumerSession) { session.maintain() }))
 	require.Equal(t, 2, calls)
 	created, err := runtime.init()

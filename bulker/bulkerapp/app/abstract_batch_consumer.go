@@ -82,6 +82,7 @@ func NewAbstractBatchConsumer(repository *Repository, destinationId string, batc
 
 	consumerConfig := kafka.ConfigMap(utils.MapPutAll(kafka.ConfigMap{
 		"group.id":                        topicId,
+		"group.instance.id":               abstract.GetInstanceId(),
 		"auto.offset.reset":               "earliest",
 		"allow.auto.create.topics":        false,
 		"enable.auto.commit":              false,

@@ -15,19 +15,22 @@ import (
 type fakeGroupConsumer struct {
 	mu sync.Mutex
 
-	events         chan kafka.Event
-	assignment     []kafka.TopicPartition
-	paused         bool
-	closed         bool
-	assignmentLost bool
-	protocol       string
-	pauseErr       error
-	subscribeErr   error
-	rebalanceCb    kafka.RebalanceCb
-	pollCount      atomic.Int64
-	closeCount     atomic.Int64
-	inCallback     atomic.Bool
-	closedInCb     atomic.Bool
+	events           chan kafka.Event
+	assignment       []kafka.TopicPartition
+	paused           bool
+	closed           bool
+	assignmentLost   bool
+	protocol         string
+	pauseErr         error
+	subscribeErr     error
+	rebalanceCb      kafka.RebalanceCb
+	pollCount        atomic.Int64
+	closeCount       atomic.Int64
+	unsubscribeCount atomic.Int64
+	commitErr        error
+	closeErr         error
+	inCallback       atomic.Bool
+	closedInCb       atomic.Bool
 }
 
 func newFakeGroupConsumer() *fakeGroupConsumer {
@@ -155,14 +158,17 @@ func (consumer *fakeGroupConsumer) SeekPartitions(partitions []kafka.TopicPartit
 }
 
 func (consumer *fakeGroupConsumer) CommitMessage(message *kafka.Message) ([]kafka.TopicPartition, error) {
-	return []kafka.TopicPartition{message.TopicPartition}, nil
+	return []kafka.TopicPartition{message.TopicPartition}, consumer.commitErr
 }
 
 func (consumer *fakeGroupConsumer) GetConsumerGroupMetadata() (*kafka.ConsumerGroupMetadata, error) {
 	return nil, nil
 }
 
-func (consumer *fakeGroupConsumer) Unsubscribe() error { return nil }
+func (consumer *fakeGroupConsumer) Unsubscribe() error {
+	consumer.unsubscribeCount.Add(1)
+	return nil
+}
 
 func (consumer *fakeGroupConsumer) Close() error {
 	consumer.closeCount.Add(1)
@@ -172,7 +178,7 @@ func (consumer *fakeGroupConsumer) Close() error {
 	consumer.mu.Lock()
 	consumer.closed = true
 	consumer.mu.Unlock()
-	return nil
+	return consumer.closeErr
 }
 
 func (consumer *fakeGroupConsumer) String() string { return "fake-consumer" }
@@ -415,7 +421,7 @@ func TestConsumerRuntimeRecreatesFatalConsumerInsideOwnerLoop(t *testing.T) {
 	_, err := runtime.init()
 	require.NoError(t, err)
 	epoch := assignRuntime(t, runtime, first)
-	first.events <- kafka.NewError(kafka.ErrFatal, "fatal consumer failure", true)
+	first.events <- kafka.NewError(kafka.ErrAllBrokersDown, "fatal consumer failure", true)
 
 	_, err = runtime.readMessage(20*time.Millisecond, epoch)
 	require.Error(t, err)
@@ -438,7 +444,7 @@ func TestConsumerRuntimeKeepsReplacementPaused(t *testing.T) {
 	require.NoError(t, err)
 	assignRuntime(t, runtime, first)
 	require.NoError(t, runtime.pause())
-	first.events <- kafka.NewError(kafka.ErrFatal, "fatal consumer failure", true)
+	first.events <- kafka.NewError(kafka.ErrAllBrokersDown, "fatal consumer failure", true)
 
 	require.Eventually(t, func() bool {
 		return factoryCalls.Load() == 2
@@ -527,4 +533,129 @@ func TestConsumerRuntimeAssignmentWaitTimesOut(t *testing.T) {
 	require.NoError(t, err)
 	assert.Empty(t, partitions)
 	assert.Positive(t, consumer.pollCount.Load())
+}
+
+func TestConsumerRuntimeStaticMemberCloseModes(t *testing.T) {
+	for _, mode := range []string{"restart", "recreate", "offset-repair", "suspend", "retire"} {
+		t.Run(mode, func(t *testing.T) {
+			first, second := newFakeGroupConsumer(), newFakeGroupConsumer()
+			var calls int
+			runtime := newTestConsumerRuntime(func(config *kafka.ConfigMap) (groupConsumer, error) {
+				assert.Equal(t, "bulker-0", (*config)["group.instance.id"])
+				calls++
+				if calls == 1 {
+					return first, nil
+				}
+				assert.Equal(t, int64(1), first.closeCount.Load(), "old handle must close before replacement")
+				return second, nil
+			})
+			runtime.config["group.instance.id"] = "bulker-0"
+			t.Cleanup(func() { require.NoError(t, runtime.close()) })
+			_, err := runtime.init()
+			require.NoError(t, err)
+			switch mode {
+			case "restart":
+				require.NoError(t, runtime.restart(nil))
+			case "recreate":
+				require.NoError(t, runtime.execute(func(session *consumerSession) { err = session.recreate() }))
+				require.NoError(t, err)
+			case "offset-repair":
+				called := false
+				require.NoError(t, runtime.restart(func() {
+					called = true
+					assert.Equal(t, int64(1), first.unsubscribeCount.Load())
+					assert.Equal(t, int64(1), first.closeCount.Load())
+					assert.Equal(t, 1, calls)
+				}))
+				require.True(t, called)
+			case "suspend":
+				require.NoError(t, runtime.suspend())
+			case "retire":
+				require.NoError(t, runtime.close())
+			}
+			wantUnsubscribe := int64(1)
+			if mode == "restart" || mode == "recreate" {
+				wantUnsubscribe = 0
+			}
+			assert.Equal(t, wantUnsubscribe, first.unsubscribeCount.Load())
+			assert.Equal(t, int64(1), first.closeCount.Load())
+		})
+	}
+}
+
+func TestConsumerRuntimeFencingIsTerminal(t *testing.T) {
+	for _, source := range []string{"poll", "commit", "commit-fatal", "local-fence"} {
+		t.Run(source, func(t *testing.T) {
+			consumer := newFakeGroupConsumer()
+			var calls atomic.Int64
+			runtime := newTestConsumerRuntime(func(*kafka.ConfigMap) (groupConsumer, error) {
+				calls.Add(1)
+				return consumer, nil
+			})
+			runtime.maintenanceInterval = time.Hour
+			t.Cleanup(func() { require.NoError(t, runtime.close()) })
+			_, err := runtime.init()
+			require.NoError(t, err)
+			epoch := assignRuntime(t, runtime, consumer)
+			code := kafka.ErrFencedInstanceID
+			if source == "commit-fatal" {
+				code = kafka.ErrFatal
+			}
+			if source == "local-fence" {
+				code = kafka.ErrFenced
+			}
+			fenced := kafka.NewError(code, "duplicate static identity", true)
+			if source == "commit" || source == "commit-fatal" {
+				consumer.commitErr = fenced
+				_, err = runtime.commitMessage(&kafka.Message{}, epoch)
+			} else {
+				consumer.events <- fenced
+				_, err = runtime.readMessage(time.Second, epoch)
+			}
+			require.ErrorIs(t, err, errConsumerAssignmentChanged)
+			assert.Equal(t, int64(1), consumer.closeCount.Load())
+			assert.Zero(t, consumer.unsubscribeCount.Load())
+			require.NoError(t, runtime.execute(func(session *consumerSession) { session.maintain() }))
+			_, err = runtime.init()
+			require.ErrorIs(t, err, errConsumerAssignmentChanged)
+			called := false
+			err = runtime.restart(func() { called = true })
+			require.ErrorIs(t, err, errConsumerAssignmentChanged)
+			assert.False(t, called, "fenced member must not repair offsets")
+			_, err = runtime.commitMessage(&kafka.Message{}, epoch)
+			require.ErrorIs(t, err, errConsumerAssignmentChanged)
+			assert.Equal(t, int64(1), calls.Load(), "fenced member must not rejoin")
+		})
+	}
+}
+
+func TestConsumerRuntimeFencingDuringClosePreventsReplacement(t *testing.T) {
+	for _, mode := range []string{"restart", "recreate", "suspend"} {
+		t.Run(mode, func(t *testing.T) {
+			consumer := newFakeGroupConsumer()
+			var calls atomic.Int64
+			runtime := newTestConsumerRuntime(func(*kafka.ConfigMap) (groupConsumer, error) {
+				calls.Add(1)
+				return consumer, nil
+			})
+			runtime.maintenanceInterval = time.Hour
+			t.Cleanup(func() { require.NoError(t, runtime.close()) })
+			_, err := runtime.init()
+			require.NoError(t, err)
+			consumer.closeErr = kafka.NewError(kafka.ErrFencedInstanceID, "fenced during close", true)
+			called := false
+			if mode == "restart" {
+				err = runtime.restart(func() { called = true })
+			} else if mode == "suspend" {
+				err = runtime.suspend()
+			} else {
+				require.NoError(t, runtime.execute(func(session *consumerSession) { err = session.recreate() }))
+			}
+			require.ErrorIs(t, err, errConsumerAssignmentChanged)
+			assert.False(t, called)
+			_, err = runtime.init()
+			require.ErrorIs(t, err, errConsumerAssignmentChanged)
+			assert.Equal(t, int64(1), calls.Load())
+		})
+	}
 }
