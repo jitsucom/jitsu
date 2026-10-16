@@ -88,6 +88,8 @@ it.skipIf(!process.env.TEST_RETL_SNOWFLAKE)(
         const initial: SourceRecord[] = [];
         for await (const record of reader.stream(model)) initial.push(record);
         expect(initial.map(r => r.row.id)).toEqual(["a", "b"]);
+        for (const temporal of ["TIME", "TIMESTAMP_NTZ", "TIMESTAMP_LTZ", "TIMESTAMP_TZ"])
+          expect(initial[0].row[temporal]).toContain(".123456789");
         const resumed: SourceRecord[] = [];
         for await (const record of reader.stream(model, initial[0].checkpoint)) resumed.push(record);
         expect(resumed).toEqual([initial[1]]);

@@ -81,18 +81,22 @@ function columnsOf(statement: RowStatement): WarehouseColumn[] {
   }));
 }
 
-/** Serialize in Snowflake: SDK string fetching still parses typed containers first. */
+/** Serialize in Snowflake: SDK decoding can lose temporal/structured precision. */
 function losslessQuery(query: string, columns: WarehouseColumn[], order: string[] = []): string {
-  if (!columns.some(column => /^(OBJECT|ARRAY|MAP)$/.test(column.type))) return query;
+  if (!columns.some(column => temporalFormats[column.type] || /^(OBJECT|ARRAY|MAP)$/.test(column.type))) return query;
   if (new Set(columns.map(column => column.name)).size !== columns.length)
     throw new Error("Query returns duplicate column names; use unique aliases");
   return `SELECT ${columns
     .map(column => {
       const name = quote(column.name);
+      // Statement parameters are not guaranteed to become SDK result formatting
+      // parameters. Return VARCHAR so fractional seconds never pass through it.
+      if (temporalFormats[column.type]) return `TO_CHAR(${name}, '${temporalFormats[column.type]}') AS ${name}`;
       return /^(OBJECT|ARRAY|MAP)$/.test(column.type) ? `TO_JSON(TO_VARIANT(${name})) AS ${name}` : name;
     })
     .join(", ")} FROM (${query}\n) AS lossless_model${
-    order.length ? ` ORDER BY ${order.map(name => `${quote(name)} ASC`).join(", ")}` : ""
+    // Sort original typed values, not the formatted projection aliases (notably TZ).
+    order.length ? ` ORDER BY ${order.map(name => `lossless_model.${quote(name)} ASC`).join(", ")}` : ""
   }`;
 }
 
