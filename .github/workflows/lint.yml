@@ -149,6 +149,12 @@ jobs:
           - shard: local
             packages: ./bulkerlib/implementations/sql
             configs: postgres,mysql,clickhouse,clickhouse_cluster,clickhouse_cluster_noshards
+          - shard: clickhouse-replicated
+            packages: ./bulkerlib/implementations/sql
+            configs: clickhouse_replicated_db
+          - shard: clickhouse-replicated-sharded
+            packages: ./bulkerlib/implementations/sql
+            configs: clickhouse_replicated_db_sharded
           - shard: bigquery
             packages: ./bulkerlib/implementations/sql
             configs: bigquery
