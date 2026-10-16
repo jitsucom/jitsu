@@ -122,6 +122,13 @@ structured values are returned as JSON text to avoid rounding nested numbers. St
 keys/cursors require a SQL cast. Snowflake's parser-supported SELECT subset is accepted;
 there is no unparsed fallback for unsupported syntax.
 
+SQL NULLs remain null, including when numbers and dates are fetched as strings.
+OBJECT/ARRAY/MAP payloads are serialized in Snowflake with TO_JSON(TO_VARIANT(...))
+before SDK decoding (adding SDK string-fetch categories alone does not protect typed
+containers). Preview metadata keeps the original types, and extraction preserves its
+final key/cursor ordering. Numeric tombstones accept exact decimal/scientific zero/one
+without rounding or changing the original payload/checkpoint; TEXT flags stay strict.
+
 Preview retains at most 100 rows / 2 MB (plus the truncation marker); the SDK can receive
 a larger individual row or transport chunk before the decoded-size guard rejects it.
 Use projections appropriate for preview. Reads time out after 30 seconds; extraction
