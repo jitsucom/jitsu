@@ -3,6 +3,7 @@ import { createRedshiftReader, redshiftSql } from "./redshift";
 import { readerDialectContract } from "./reader-contract";
 import { ModelDefinition } from "./schema";
 import type { SourceRecord } from "./types";
+import { losslessTypes } from "./postgres";
 
 const pg = vi.hoisted(() => ({ Client: vi.fn() }));
 vi.mock("pg", async original => ({ ...(await original<typeof import("pg")>()), Client: pg.Client }));
@@ -13,16 +14,16 @@ const fields = [
   { name: "updated", dataTypeID: 1700 },
   { name: "deleted", dataTypeID: 16 },
 ];
-function fixture(pages: any[][][] = []) {
+function fixture(pages: any[][][] = [], metadata = fields) {
   const client = {
     connect: vi.fn(async () => {}),
     end: vi.fn(async () => {}),
     on: vi.fn(),
     query: vi.fn(async ({ text }: { text: string }) => {
-      if (text.includes("LIMIT 0")) return { fields, rows: [] };
+      if (text.includes("LIMIT 0")) return { fields: metadata, rows: [] };
       if (text.startsWith("FETCH"))
-        return { fields: [...fields, { name: "__jitsu_retl_key_count", dataTypeID: 20 }], rows: pages.shift() ?? [] };
-      if (text.includes("LIMIT 101")) return { fields, rows: pages.shift() ?? [] };
+        return { fields: [...metadata, { name: "__jitsu_retl_key_count", dataTypeID: 20 }], rows: pages.shift() ?? [] };
+      if (text.includes("LIMIT 101")) return { fields: metadata, rows: pages.shift() ?? [] };
       return { fields: [], rows: [] };
     }),
   };
@@ -32,6 +33,58 @@ function fixture(pages: any[][][] = []) {
   return client;
 }
 readerDialectContract("Redshift", redshiftSql, { key: "1043", number: "1700", timestamp: "1184", structured: "4000" });
+
+async function tombstoneRecords(value: unknown, oid = 1700, checkpoint = false) {
+  fixture(
+    [[["a", "1", value, "1"]]],
+    fields.map(field => (field.name === "deleted" ? { ...field, dataTypeID: oid } : field))
+  );
+  const reader = createRedshiftReader(config);
+  try {
+    const records: SourceRecord[] = [];
+    for await (const record of reader.stream(
+      ModelDefinition.parse({
+        warehouseId: "wh",
+        query: "SELECT id, updated, deleted FROM source",
+        deleteColumn: "deleted",
+        primaryKey: checkpoint ? ["id", "deleted"] : ["id"],
+        ...(checkpoint ? { cursor: { column: "deleted", type: "number" } } : {}),
+      })
+    ))
+      records.push(record);
+    return records;
+  } finally {
+    await reader.close();
+  }
+}
+it.each([
+  ["0.00", false],
+  ["1.00", true],
+  ["-0.000", false],
+  ["+1.0", true],
+  ["1e0", true],
+  ["10e-1", true],
+  ["0e1000", false],
+] as const)("decodes decimal tombstone %s without rewriting payloads or checkpoints", async (value, deleted) => {
+  const decoded = losslessTypes.getTypeParser(1700, "text")(value);
+  const [record] = await tombstoneRecords(decoded, 1700, true);
+  expect(record.deleted).toBe(deleted);
+  expect(record.row.deleted).toBe(value);
+  expect(record.checkpoint).toEqual({ value, primaryKeyValues: ["a", value] });
+});
+it.each(["1.00000000000000000001", "0.00000000000000000001", "2.00", "-1.00", "1e-1000", "NaN"])(
+  "rejects numeric tombstone %s without rounding",
+  async value => {
+    await expect(tombstoneRecords(value)).rejects.toThrow(/0\/1/);
+  }
+);
+it.each([25, 1042, 1043])("does not normalize decimal-looking text for OID %s", async oid => {
+  await expect(tombstoneRecords("1.00", oid)).rejects.toThrow(/0\/1/);
+});
+it("keeps null numeric and boolean tombstone behavior", async () => {
+  expect((await tombstoneRecords(null))[0].deleted).toBe(false);
+  expect((await tombstoneRecords(true, 16))[0].deleted).toBe(true);
+});
 it("uses verified TLS and read-only transaction, fetches one result and preserves exact checkpoints", async () => {
   const client = fixture([[["a", "9007199254740993", false, "1"]], [["b", "9007199254740994", true, "1"]]]);
   const reader = createRedshiftReader(config);

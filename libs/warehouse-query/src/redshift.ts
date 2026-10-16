@@ -2,9 +2,9 @@ import { Client } from "pg";
 import { Parser } from "node-sql-parser";
 import { z } from "zod";
 import { ModelDefinition } from "./schema";
-import { createSqlDialect } from "./sql";
+import { createSqlDialect, decodeDelete } from "./sql";
 import { losslessTypes } from "./postgres";
-import { boundedPreview, decodeRecord } from "./reader";
+import { boundedPreview, decodeRecord, numericDeleteValue } from "./reader";
 import { StreamDeadline } from "./stream-deadline";
 import type { WarehouseReader } from "./types";
 
@@ -133,6 +133,9 @@ export function createRedshiftReader(input: Record<string, any>): WarehouseReade
       try {
         const columns = columnsOf(await s.query(`SELECT * FROM (${sql}\n) AS model LIMIT 0`));
         const compiled = redshiftSql.compileModel(model, columns, after);
+        const numericDelete = /^(20|21|23|700|701|1700)$/.test(
+          columns.find(c => c.name === model.deleteColumn)?.type ?? ""
+        );
         // One cursor/result in one read-only transaction. Redshift materializes
         // cursors on its leader node; cluster cursor limits still apply.
         await s.query(`DECLARE jitsu_model CURSOR FOR ${compiled.query}`, compiled.values);
@@ -142,7 +145,12 @@ export function createRedshiftReader(input: Record<string, any>): WarehouseReade
           if (!result.rows.length) break;
           for (const row of rowsOf(result)) {
             signal?.throwIfAborted();
-            yield decodeRecord(model, row);
+            const record = decodeRecord({ ...model, deleteColumn: undefined }, row);
+            if (model.deleteColumn) {
+              const value = row[model.deleteColumn];
+              record.deleted = decodeDelete(numericDelete ? numericDeleteValue(value) : value);
+            }
+            yield record;
           }
         }
       } finally {

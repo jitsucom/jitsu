@@ -6,6 +6,24 @@ export const previewRowLimit = 100;
 export const previewByteLimit = 2_000_000;
 export const previewSizeError = "Preview exceeds 2 MB; select fewer or smaller columns";
 
+/** Recognize exact numeric 0/1 without rounding decimal strings through Number. */
+export function numericDeleteValue(value: unknown): unknown {
+  if (typeof value !== "string") return value;
+  const match = /^([+-]?)(\d*)(?:\.(\d*))?(?:[eE]([+-]?\d+))?$/.exec(value);
+  if (!match || !(match[2] || match[3])) return value;
+  const fraction = match[3] ?? "";
+  const digits = (match[2] + fraction).replace(/^0+/, "");
+  if (!digits) return false;
+  const significant = digits.replace(/0+$/, "");
+  if (
+    match[1] !== "-" &&
+    significant === "1" &&
+    BigInt(match[4] ?? "0") + BigInt(digits.length - significant.length) === BigInt(fraction.length)
+  )
+    return true;
+  return value;
+}
+
 export function decodeRecord(model: ModelDefinition, record: Record<string, unknown>): SourceRecord {
   if (String(record[keyCountColumn]) !== "1") throw new Error("Model query contains duplicate primary keys");
   delete record[keyCountColumn];

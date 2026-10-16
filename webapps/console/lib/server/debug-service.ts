@@ -10,11 +10,14 @@ import { httpAgent, httpsAgent } from "./http-agent";
 import { getServerEnv } from "./serverEnv";
 import { getServerLog } from "./log";
 import { assertCustomDomainsAllowed } from "./plan-gate";
+import { createWarehouseReader } from "@jitsu/warehouse-query";
+import { warehouseErrorMessage } from "./warehouse-errors";
 
 const log = getServerLog("debug-service");
 
 export interface DebugServiceDeps {
   prisma: PrismaClient;
+  createWarehouseReader?: typeof createWarehouseReader;
 }
 
 // Class priority order: premium > dedicated > free (same as function/run.ts).
@@ -48,13 +51,15 @@ const runtimeNotReady = (what: string): FunctionRunResult => ({
  */
 export class DebugService {
   private readonly prisma: PrismaClient;
+  private readonly createWarehouseReader: typeof createWarehouseReader;
 
   constructor(deps: DebugServiceDeps) {
     this.prisma = deps.prisma;
+    this.createWarehouseReader = deps.createWarehouseReader ?? createWarehouseReader;
   }
 
   /**
-   * Synchronous credential test via bulker `/test` (mirrors `config/[type]/test.ts`). Either
+   * Credential test via Bulker, or the read-only reader for source-only Redshift. Either
    * pass a full `config` (masked secrets are unmasked from the stored object referenced by
    * `config.id`/`config.cloneId`) or just `id` to test an existing object as stored.
    */
@@ -68,10 +73,6 @@ export class DebugService {
     // domain provisioning is one), so it requires the same permission as a
     // configuration write.
     await verifyAccessWithRole(user, workspaceId, "editEntities");
-    const serverEnv = getServerEnv();
-    const bulkerURLEnv = requireDefined(serverEnv.BULKER_URL, "env BULKER_URL is not defined");
-    const bulkerAuthKey = serverEnv.BULKER_AUTH_KEY ?? "";
-    const isHttps = bulkerURLEnv.startsWith("https://");
     const workspace = requireDefined(
       await this.prisma.workspace.findFirst({ where: { id: workspaceId } }),
       `Workspace ${workspaceId} not found`
@@ -112,6 +113,26 @@ export class DebugService {
     await assertCustomDomainsAllowed(user, workspace, type, object, testedExisting?.config, opts.req);
     object = await configObjectType.inputFilter(object, "create", workspace);
 
+    if (type === "destination" && object.destinationType === "redshift" && !object.bucket?.trim()) {
+      // No ingestion/S3 staging is involved. Test the same TLS/password path the
+      // runner uses, after authorization, parsing and stored-secret unmasking.
+      try {
+        const reader = this.createWarehouseReader(object);
+        try {
+          await reader.preview("SELECT 1 AS jitsu_connection_test", AbortSignal.timeout(30_000));
+          return { ok: true };
+        } finally {
+          await reader.close();
+        }
+      } catch (error) {
+        return { ok: false, error: warehouseErrorMessage(error, object, "Warehouse connection test failed.") };
+      }
+    }
+
+    const serverEnv = getServerEnv();
+    const bulkerURLEnv = requireDefined(serverEnv.BULKER_URL, "env BULKER_URL is not defined");
+    const bulkerAuthKey = serverEnv.BULKER_AUTH_KEY ?? "";
+    const isHttps = bulkerURLEnv.startsWith("https://");
     const options: any = {
       method: "POST",
       agent: (isHttps ? httpsAgent : httpAgent)(),
