@@ -27,6 +27,6 @@ jobs:
       AI_CODE_REVIEW_PRIVATE_KEY: ${{ secrets.AI_CODE_REVIEW_PRIVATE_KEY }}
     with:
       review_model: gpt-6.1-sol
-      review_effort: medium
+      review_effort: high
       pr_number: ${{ inputs.pr_number }}
       commit_sha: ${{ inputs.commit_sha }}
