@@ -4,7 +4,14 @@ import { z } from "zod";
 import type { Connection, RowStatement } from "snowflake-sdk";
 import { ModelDefinition, WarehouseColumn } from "./schema";
 import { createSqlDialect, decodeDelete, keyCountColumn } from "./sql";
-import { boundedPreview, decodeRecord, previewRowLimit, previewByteLimit, previewSizeError } from "./reader";
+import {
+  boundedPreview,
+  decodeRecord,
+  numericDeleteValue,
+  previewRowLimit,
+  previewByteLimit,
+  previewSizeError,
+} from "./reader";
 import { StreamDeadline } from "./stream-deadline";
 import type { WarehouseReader } from "./types";
 
@@ -87,24 +94,6 @@ function losslessQuery(query: string, columns: WarehouseColumn[], order: string[
     .join(", ")} FROM (${query}\n) AS lossless_model${
     order.length ? ` ORDER BY ${order.map(name => `${quote(name)} ASC`).join(", ")}` : ""
   }`;
-}
-
-/** Recognize exact numeric 0/1 without rounding decimal strings through Number. */
-function numericDeleteValue(value: unknown): unknown {
-  if (typeof value !== "string") return value;
-  const match = /^([+-]?)(\d*)(?:\.(\d*))?(?:[eE]([+-]?\d+))?$/.exec(value);
-  if (!match || !(match[2] || match[3])) return value;
-  const fraction = match[3] ?? "";
-  const digits = (match[2] + fraction).replace(/^0+/, "");
-  if (!digits) return false;
-  const significant = digits.replace(/0+$/, "");
-  if (
-    match[1] !== "-" &&
-    significant === "1" &&
-    BigInt(match[4] ?? "0") + BigInt(digits.length - significant.length) === BigInt(fraction.length)
-  )
-    return true;
-  return value;
 }
 
 export function createSnowflakeReader(input: Record<string, any>): WarehouseReader {

@@ -10,6 +10,7 @@ putting execution methods on a SQL-only consumer.
 - `clickhouse.ts`: ClickHouse connections, result formats, and SQL rules.
 - `bigquery.ts`: GoogleSQL, service-account authentication, dry-run metadata and paginated query jobs.
 - `snowflake.ts`: Snowflake SELECT dialect, key-pair authentication and streamed results.
+- `redshift.ts`: Redshift SQL dialect, password/TLS connections and single-cursor extraction.
 
 Jitsu-provisioned ClickHouse is supported. The browser's masked config only
 advertises capability; preview and runner execution use the existing server-held
@@ -138,3 +139,30 @@ Run the opt-in read-only smoke test with `TEST_RETL_SNOWFLAKE` containing a JSON
 configuration: `pnpm exec vitest run src/snowflake.live.test.ts`. The default suite mocks
 the SDK and cannot certify real account permissions or SQL compatibility. Deploy the
 new runner before console support; no state migration is necessary.
+
+## Redshift
+
+Use a Redshift destination with database password authentication, host, port (default
+5439), database, username, password and defaultSchema. Provisioned clusters and
+Serverless endpoints use the same direct SQL path. IAM credentials/Data API and
+private-network provisioning are deferred. TLS certificate verification is always on.
+The source-only configuration does not need an S3 bucket; creating ordinary ingestion
+connections/syncs still requires one, and clearing a bucket used by those links is blocked.
+
+Each operation has a dedicated read-only transaction. Extraction declares one cursor
+and fetches it in bounded row batches, without re-running the source query for later
+pages. Redshift materializes cursor results on the leader node: its cluster-specific
+cursor size/resource limits still apply. Errors fail the run; there is no silent OFFSET
+fallback or partial success. Large extracts may require a future UNLOAD/S3 path.
+See https://docs.aws.amazon.com/redshift/latest/dg/declare.html.
+
+BIGINT/DECIMAL and date/timestamps retain wire-text precision via the shared PG decoders;
+SUPER/VARBYTE keys require explicit casts. Preview retains 100 rows / 2 MB after fetching
+at most 101 rows. Transport can allocate a larger fetch before that check. Cancellation
+closes the dedicated connection. Per-read timeout is 30 seconds and extraction deadline
+is two hours. Restricted warehouse credentials remain required.
+
+`TEST_RETL_REDSHIFT` accepts JSON destination credentials for the opt-in live test:
+`pnpm exec vitest run src/redshift.live.test.ts`. It runs only literal SELECTs and a
+read-only cursor, without creating tables. Mock tests are not a substitute for testing
+the real Redshift cursor protocol. Deploy the updated runner before console.
