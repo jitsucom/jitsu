@@ -34,14 +34,17 @@ const pgCredentials = z.object({
  * destination payloads across reads/resumes, so these values stay strings.
  * Keep the override local to this reader and pass it to both Client and Cursor:
  * pg-cursor owns its result decoding too. Known arrays of these types retain
- * string elements and nulls; other types use pg's normal parsers.
+ * string elements and nulls. JSON/JSONB also stay wire-text strings: JSON.parse
+ * would silently round nested numbers. SQL arrays of JSON retain their shape,
+ * with JSON-text elements (including "null") distinct from SQL nulls.
+ * Other types use pg's normal parsers.
  */
 export const losslessTypes = {
   getTypeParser(oid: number, format?: string) {
-    if ([20, 1700, 1082, 1114, 1184].includes(oid)) return (value: string) => value;
+    if ([20, 1700, 1082, 1114, 1184, 114, 3802].includes(oid)) return (value: string) => value;
     // Use pg's text-array parser to retain nested shape/nulls without converting
     // exact numeric or temporal elements through Number/Date.
-    if ([1016, 1231, 1182, 1115, 1185].includes(oid)) {
+    if ([1016, 1231, 1182, 1115, 1185, 199, 3807].includes(oid)) {
       const textArrayOid: number = 1009; // Array OIDs are absent from pg-types' builtins enum.
       return types.getTypeParser(textArrayOid, "text");
     }

@@ -118,7 +118,7 @@ describe("checkpoint queries", () => {
       { value: "2026-01-01 00:00:00.123456", primaryKeyValues: ["a"] }
     );
     expect(result.queryParams).toEqual({ p0: "2026-01-01 00:00:00.123456" });
-    expect(result.query).toContain("`changed` >= subtractSeconds({p0: DateTime64(6)}, 0)");
+    expect(result.query).toContain("`changed` >= subtractSeconds(parseDateTime64BestEffort({p0: String}, 6), 0)");
   });
   it("ClickHouse parameters use trusted scalar metadata types", () => {
     const result = clickhouseSql.compileModel(

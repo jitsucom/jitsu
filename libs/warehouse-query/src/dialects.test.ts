@@ -68,7 +68,9 @@ describe("warehouse-owned SQL", () => {
     );
     expect(result.queryParams).toEqual({ p0: "2026-01-01 00:00:00.123456" });
     expect(result.values).toEqual([]);
-    expect(result.query).toContain("`changed` >= subtractSeconds({p0: DateTime64(6, 'UTC')}, 60)");
+    expect(result.query).toContain(
+      "`changed` >= subtractSeconds(parseDateTime64BestEffort({p0: String}, 6, 'UTC'), 60)"
+    );
   });
 
   it("rejects unsafe ClickHouse checkpoint metadata before inserting it into SQL", () => {
@@ -108,8 +110,13 @@ describe("ClickHouse checkpoint compatibility", () => {
       value: "2026-01-01 00:00:00",
       primaryKeyValues: ["2026-01-01 00:00:00"],
     });
-    expect(result.query).toContain("{p0: " + type + "}");
-    expect(result.query).toContain("{p1: " + type + "}");
+    for (const index of [0, 1]) {
+      expect(result.query).toContain(
+        type.startsWith("DateTime64")
+          ? `parseDateTime64BestEffort({p${index}: String}, 6, 'Etc/GMT+3')`
+          : `parseDateTimeBestEffort({p${index}: String}, 'Etc/GMT+3')`
+      );
+    }
   });
   it.each(["DateTime('Etc/GMT+3'); DROP TABLE t", "DateTime64(6, 'Etc/GMT+3'} )", "DateTime64(6, 'Etc/GMT+3\\')"])(
     "still rejects unsafe timezone metadata %s",
@@ -307,6 +314,23 @@ describe.each([
 });
 
 describe("PostgreSQL lossless text decoding", () => {
+  it.each([114, 3802])("preserves JSON wire text for OID %s", oid => {
+    for (const value of [
+      '{"id":9007199254740993,"amount":1.234567890123456789}',
+      "[9007199254740993]",
+      "null",
+      "true",
+      '"hello"',
+    ])
+      expect(losslessTypes.getTypeParser(oid, "text")(value)).toBe(value);
+  });
+  it.each([199, 3807])("preserves JSON text within SQL arrays for OID %s", oid => {
+    expect(losslessTypes.getTypeParser(oid, "text")('{"[9007199254740993]","null",NULL}')).toEqual([
+      "[9007199254740993]",
+      "null",
+      null,
+    ]);
+  });
   it.each([
     [20, "9007199254740993"],
     [1700, "12345678901234567890.12345678901234567890"],

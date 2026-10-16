@@ -79,6 +79,16 @@ export const clickhouseSql = createSqlDialect({
       bind(value, type, index) {
         const parameterType = checkpointType(type);
         queryParams["p" + index] = value;
+        // ISO output carries the exact UTC instant. Native timestamp parameters
+        // expect wall-clock text; parse explicitly without losing fractional digits.
+        const scalar = parameterType.replace(/^Nullable\((.*)\)$/, "$1");
+        const timestamp = scalar.match(/^DateTime64\((\d+)(?:,\s*('[^']+'))?\)$/);
+        if (timestamp)
+          return `parseDateTime64BestEffort({p${index}: String}, ${timestamp[1]}${
+            timestamp[2] ? `, ${timestamp[2]}` : ""
+          })`;
+        const seconds = scalar.match(/^DateTime(?:\(('[^']+')\))?$/);
+        if (seconds) return `parseDateTimeBestEffort({p${index}: String}${seconds[1] ? `, ${seconds[1]}` : ""})`;
         return "{p" + index + ": " + parameterType + "}";
       },
     };
@@ -112,6 +122,9 @@ export function createClickHouseReader(input: Record<string, any>): WarehouseRea
       output_format_json_quote_decimals: 1,
       // Otherwise NaN/Infinity become JSON null, hiding invalid flags/keys.
       output_format_json_quote_denormals: 1,
+      // Local wall-clock output collapses distinct instants during DST fallback.
+      // Preserve timezone and subsecond precision in payloads, keys and cursors.
+      date_time_output_format: "iso" as const,
     },
   } satisfies NonNullable<Parameters<typeof createClient>[0]>;
   const client = createClient(clientOptions);
