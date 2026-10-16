@@ -178,7 +178,9 @@ function decodedFixture(metadata: any[], rawRows: unknown[][]) {
     const probe = options.sqlText.endsWith("LIMIT 0");
     const counted = options.sqlText.includes("count(*) OVER");
     const wireMetadata = metadata.map(column =>
-      !probe && options.sqlText.includes(`TO_JSON(TO_VARIANT("${column.name.replaceAll('"', '""')}"))`)
+      !probe &&
+      (options.sqlText.includes(`TO_JSON(TO_VARIANT("${column.name.replaceAll('"', '""')}"))`) ||
+        options.sqlText.includes(`TO_CHAR("${column.name.replaceAll('"', '""')}",`))
         ? { ...column, type: "text", fields: undefined }
         : column
     );
@@ -239,6 +241,8 @@ it.each([
     }
     const options = f.connection.execute.mock.calls[1][0];
     expect(options.sqlText).toContain(`TO_${type}(:2, '${format}')`);
+    expect(options.sqlText).toContain(`TO_CHAR("id", '${format}') AS "id"`);
+    expect(options.sqlText).toMatch(/ORDER BY lossless_model\."updated" ASC, lossless_model\."id" ASC$/);
     expect(options.sqlText).not.toContain(value);
     expect(options.binds).toEqual(["1", value]);
     expect(options.parameters[`${type}_OUTPUT_FORMAT`]).toBe(format);
@@ -260,6 +264,26 @@ it.each([
           expect(compiled.query).toContain(`DATEADD(second, -60, TO_${type}(:1, '${format}'))`);
       }
     }
+  } finally {
+    await reader.close();
+  }
+});
+it.each([
+  ["date", "2026-01-01"],
+  ["time", "12:34:56.123456789"],
+  ["timestamp_ntz", "2026-01-01 12:34:56.123456789"],
+  ["timestamp_ltz", "2026-01-01 12:34:56.123456789 +00:00"],
+  ["timestamp_tz", "2026-01-01 12:34:56.123456789 -07:00"],
+])("returns %s as server-formatted text while keeping original metadata", async (type, value) => {
+  const f = decodedFixture([{ name: "id", type, scale: 9 }], [[value], [null]]);
+  const reader = createSnowflakeReader(config);
+  try {
+    const result = await reader.preview("SELECT id FROM source");
+    expect(result.columns).toEqual([{ name: "id", type: type.toUpperCase() }]);
+    expect(result.rows).toEqual([{ id: value }, { id: null }]);
+    expect(f.connection.execute.mock.calls[1][0].sqlText).toContain('TO_CHAR("id",');
+    decodedFixture([{ name: "id", type, scale: 9 }], [[value]]);
+    expect((await collect())[0].row.id).toBe(value);
   } finally {
     await reader.close();
   }
@@ -458,7 +482,7 @@ it.each(["object", "array", "map"])(
       expect((await collect()).map(r => r.row['pay"load'])).toEqual([payload, null]);
       const query = f.connection.execute.mock.calls.at(-1)![0].sqlText;
       expect(query).toContain('TO_JSON(TO_VARIANT("pay""load")) AS "pay""load"');
-      expect(query).toMatch(/ORDER BY "id" ASC$/);
+      expect(query).toMatch(/ORDER BY lossless_model\."id" ASC$/);
     } finally {
       await reader.close();
     }

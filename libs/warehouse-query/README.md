@@ -11,6 +11,7 @@ putting execution methods on a SQL-only consumer.
 - `bigquery.ts`: GoogleSQL, service-account authentication, dry-run metadata and paginated query jobs.
 - `snowflake.ts`: Snowflake SELECT dialect, key-pair authentication and streamed results.
 - `redshift.ts`: Redshift SQL dialect, password/TLS connections and single-cursor extraction.
+- `mysql.ts`: MySQL 8+ SQL dialect, password/TLS connections and prepared-query extraction.
 
 Jitsu-provisioned ClickHouse is supported. The browser's masked config only
 advertises capability; preview and runner execution use the existing server-held
@@ -166,3 +167,42 @@ is two hours. Restricted warehouse credentials remain required.
 `pnpm exec vitest run src/redshift.live.test.ts`. It runs only literal SELECTs and a
 read-only cursor, without creating tables. Mock tests are not a substitute for testing
 the real Redshift cursor protocol. Deploy the updated runner before console.
+
+## MySQL
+
+Reuse a MySQL destination with host, port (3306), database, username and password.
+MySQL 8.0+ is required for window functions; MariaDB and IAM authentication are not
+supported yet. Grant SELECT only on source tables/views. Extraction uses one
+read-only, repeatable-read transaction and one prepared query result. Consistent
+snapshots apply to InnoDB, not nontransactional tables. The session uses UTC and
+standard backslash string escaping, independent of the server's default SQL mode.
+
+TLS is verified by default, including when `parameters.tls` is `preferred`: reads
+never silently fall back to plaintext. Explicit `false` disables TLS (local tests),
+and explicit `skip-verify` disables certificate verification (not recommended).
+Verified TLS currently requires the certificate's DNS hostname, not an IP literal,
+because the driver does not pass IP hosts to TLS identity verification correctly.
+Other additional connection parameters are not forwarded. Custom CA/client
+certificates, IAM and network provisioning are follow-ups.
+
+BIGINT, DECIMAL and date/time values retain exact text; JSON is returned as text
+to avoid rounding nested numbers. Checkpoints use typed, server-prepared bindings,
+including repeated parameters in composite-key comparisons. FLOAT/DOUBLE, binary,
+JSON and unknown key types require an explicit SQL cast. SELECT INTO, locking reads,
+multiple statements and executable version comments are rejected. Use a read-only
+account as the actual permission boundary.
+
+The one result is drained to the same private, ephemeral, 512-MiB JSONL spool used
+for ClickHouse. This prevents a slow destination from stalling the MySQL socket;
+it is not persisted recovery state. Preview fetches at most 101 rows and checks
+the decoded 2-MB limit afterward (large individual rows can allocate more before
+rejection). Cancellation destroys the dedicated connection. Reads have a 30-second
+timeout and extraction has a two-hour deadline.
+
+Run `pnpm exec vitest run src/mysql.live.test.ts` with `TEST_RETL_MYSQL` containing
+JSON destination credentials. These tests use literal SELECTs only. CI runs them
+against disposable MySQL 8.4, and also runs Snowflake with the existing
+`BULKER_TEST_SNOWFLAKE` secret. Redshift live tests require `BULKER_TEST_REDSHIFT`
+(password authentication); IAM-only credentials cannot certify the direct reader.
+Missing cloud credentials are reported explicitly, not treated as a live pass.
+Deploy the updated runner before console; no state migration is needed.
