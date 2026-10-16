@@ -3,8 +3,8 @@ import { isIP } from "node:net";
 import { Parser } from "node-sql-parser";
 import { z } from "zod";
 import { ModelDefinition, type WarehouseColumn } from "./schema";
-import { createSqlDialect } from "./sql";
-import { boundedPreview, decodeRecord } from "./reader";
+import { createSqlDialect, decodeDelete } from "./sql";
+import { boundedPreview, decodeRecord, numericDeleteValue } from "./reader";
 import { StreamDeadline } from "./stream-deadline";
 import { spoolJsonRows } from "./stream-spool";
 import type { WarehouseReader } from "./types";
@@ -48,6 +48,10 @@ const dialect = createSqlDialect({
         if (!scalar(type)) throw new Error("Unsupported MySQL checkpoint type");
         const name = `jitsu_checkpoint_${index}`;
         queryParams[name] = value;
+        // Text parameters inherit the compared column's collation. CAST AS CHAR
+        // instead gives them the connection collation with equal coercibility,
+        // which can conflict with the source (or change comparison semantics).
+        if (type === "CHAR") return `:${name}`;
         return `CAST(:${name} AS ${type})`;
       },
     };
@@ -220,7 +224,9 @@ export function createMySqlReader(input: Record<string, any>): WarehouseReader {
       const s = await session(signal, true);
       try {
         const [, fields] = await s.execute(`SELECT * FROM (${sql}\n) AS model LIMIT 0`);
-        const compiled = mysqlSql.compileModel(model, mysqlColumns(fields), after);
+        const columns = mysqlColumns(fields);
+        const compiled = mysqlSql.compileModel(model, columns, after);
+        const numericDelete = numberType.test(columns.find(column => column.name === model.deleteColumn)?.type ?? "");
         // Prepared execution, not client-side '?' interpolation: literals must
         // remain untouched. Repeated checkpoints have positional bindings.
         const command = s.connection.execute({ sql: compiled.query, values: compiled.values });
@@ -247,8 +253,14 @@ export function createMySqlReader(input: Record<string, any>): WarehouseReader {
         try {
           // Drain the socket before destination delivery can stall the consumer.
           // Re-querying pages would risk mixing warehouse snapshots.
-          for await (const row of spoolJsonRows<Record<string, unknown>>(encoded(), s.deadline.signal))
-            yield decodeRecord(model, row);
+          for await (const row of spoolJsonRows<Record<string, unknown>>(encoded(), s.deadline.signal)) {
+            const record = decodeRecord({ ...model, deleteColumn: undefined }, row);
+            if (model.deleteColumn) {
+              const value = row[model.deleteColumn];
+              record.deleted = decodeDelete(numericDelete ? numericDeleteValue(value) : value);
+            }
+            yield record;
+          }
         } finally {
           s.deadline.signal.removeEventListener("abort", cancelRows);
           rows.destroy();

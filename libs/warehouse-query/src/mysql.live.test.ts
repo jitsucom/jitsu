@@ -3,7 +3,7 @@ import { createMySqlReader } from "./mysql";
 import { ModelDefinition } from "./schema";
 import type { WarehouseReader, SourceRecord } from "./types";
 
-// Literal-only queries: safe for a read-only test account; never creates tables.
+// Read-only queries; optional collation fixtures are seeded separately in disposable CI MySQL.
 describe.skipIf(!process.env.TEST_RETL_MYSQL)("MySQL live reader", () => {
   const readers: WarehouseReader[] = [];
   const reader = () => {
@@ -21,6 +21,31 @@ describe.skipIf(!process.env.TEST_RETL_MYSQL)("MySQL live reader", () => {
     for await (const row of r.stream(m, after)) rows.push(row);
     return rows;
   }
+  it.skipIf(!process.env.TEST_RETL_MYSQL_COLLATION_FIXTURE)(
+    "resumes table-backed text checkpoints using each source column's collation",
+    async () => {
+      const r = reader();
+      const query = "SELECT id, binary_id, latin_id, sequence_id, updated FROM checkpoint_collations";
+      for (const [key, expected] of [
+        ["id", ["a", "é", "z"]],
+        ["binary_id", ["Z", "a", "z"]],
+        ["latin_id", ["a", "é", "z"]],
+      ] as const) {
+        for (const cursor of [
+          { column: key, type: "string" },
+          { column: "sequence_id", type: "number" },
+          { column: "updated", type: "timestamp" },
+        ]) {
+          const m = model(query, { primaryKey: [key], cursor });
+          const initial = await collect(r, m);
+          expect(initial.map(record => record.row[key])).toEqual(expected);
+          for (let i = 0; i < initial.length; i++) {
+            expect(await collect(r, m, initial[i].checkpoint)).toEqual(initial.slice(i + 1));
+          }
+        }
+      }
+    }
+  );
   it("preserves unsigned bigint, decimal(65,0), JSON numbers and timestamp microseconds", async () => {
     const r = reader();
     const huge = "9".repeat(65);
@@ -88,6 +113,20 @@ describe.skipIf(!process.env.TEST_RETL_MYSQL)("MySQL live reader", () => {
     await expect(collect(r, model("SELECT 'a' AS id, 7 AS deleted", { deleteColumn: "deleted" }))).rejects.toThrow(
       /0\/1/
     );
+  });
+  it("decodes exact decimal tombstones without changing source payloads", async () => {
+    const r = reader();
+    const query = "SELECT 'a' AS id, CAST('0.00' AS DECIMAL(10,2)) AS deleted UNION ALL SELECT 'b', 1.00";
+    const rows = await collect(r, model(query, { deleteColumn: "deleted" }));
+    expect(rows.map(record => [record.row.deleted, record.deleted])).toEqual([
+      ["0.00", false],
+      ["1.00", true],
+    ]);
+    for (const deleted of ["CAST('1.01' AS DECIMAL(10,2))", "'1.00'"]) {
+      await expect(
+        collect(r, model(`SELECT 'a' AS id, ${deleted} AS deleted`, { deleteColumn: "deleted" }))
+      ).rejects.toThrow(/0\/1/);
+    }
   });
   it("bounds previews and permits empty full-query extraction", async () => {
     const r = reader();

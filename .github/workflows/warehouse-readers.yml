@@ -37,6 +37,8 @@ jobs:
           --health-interval=5s --health-timeout=5s --health-retries=30
     steps:
       - uses: actions/checkout@v6
+      - name: Seed collation regression fixture in disposable MySQL
+        run: docker exec -i -e MYSQL_PWD=retl-ci-only ${{ job.services.mysql.id }} mysql -uroot retl_test < libs/warehouse-query/src/mysql.collations.fixture.sql
       - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v6
         with:
@@ -47,6 +49,7 @@ jobs:
         working-directory: libs/warehouse-query
         env:
           TEST_RETL_MYSQL: '{"host":"127.0.0.1","port":3306,"username":"root","password":"retl-ci-only","database":"retl_test","parameters":{"tls":"false"}}'
+          TEST_RETL_MYSQL_COLLATION_FIXTURE: "1"
         run: pnpm exec vitest run src/mysql.test.ts src/mysql.live.test.ts
 
   cloud:

@@ -105,6 +105,9 @@ it("only binds generated parameters, preserving comments, literals and backtick 
   expect(result.query).toContain("':jitsu_checkpoint_0 ?'");
   expect(result.query).toContain("/* source:prod ? */");
   expect(result.values).toEqual(["1", "1", "a"]);
+  expect(result.query).toContain("`id:source` > ?");
+  expect(result.query).not.toContain("AS CHAR");
+  expect(result.query).toContain("CAST(? AS SIGNED)");
   expect(mysqlSql.validateQuery("SELECT 1--1 AS id;")).toBe("SELECT 1--1 AS id");
 });
 it("propagates query failures arriving before spool file initialization without an unhandled error", async () => {

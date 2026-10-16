@@ -76,7 +76,7 @@ it.skipIf(!process.env.TEST_RETL_SNOWFLAKE)(
       TO_TIMESTAMP_NTZ('2026-01-01 12:34:56.123456789', 'YYYY-MM-DD HH24:MI:SS.FF9') AS "TIMESTAMP_NTZ",
       TO_TIMESTAMP_LTZ('2026-01-01 12:34:56.123456789 +00:00', 'YYYY-MM-DD HH24:MI:SS.FF9 TZH:TZM') AS "TIMESTAMP_LTZ",
       TO_TIMESTAMP_TZ('2026-01-01 12:34:56.123456789 -07:00', 'YYYY-MM-DD HH24:MI:SS.FF9 TZH:TZM') AS "TIMESTAMP_TZ"
-      FROM (SELECT 'a' AS "id" UNION ALL SELECT 'b' AS "id") AS rows`;
+      FROM (SELECT 'a' AS "id" UNION ALL SELECT 'b' AS "id") AS fixture_rows`;
     try {
       for (const type of ["DATE", "TIME", "TIMESTAMP_NTZ", "TIMESTAMP_LTZ", "TIMESTAMP_TZ"]) {
         const model = ModelDefinition.parse({
