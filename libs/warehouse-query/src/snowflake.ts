@@ -20,6 +20,14 @@ const credentials = z.object({
   parameters: z.record(z.string()).optional(),
 });
 const scalar = /^(?:NUMBER\(\d+,\d+\)|REAL|TEXT|BOOLEAN|DATE|TIME|TIMESTAMP_NTZ|TIMESTAMP_LTZ|TIMESTAMP_TZ)$/;
+// Use the same formats for output and checkpoint parsing, independent of inherited input settings.
+const temporalFormats: Readonly<Record<string, string>> = {
+  DATE: "YYYY-MM-DD",
+  TIME: "HH24:MI:SS.FF9",
+  TIMESTAMP_NTZ: "YYYY-MM-DD HH24:MI:SS.FF9",
+  TIMESTAMP_LTZ: "YYYY-MM-DD HH24:MI:SS.FF9 TZH:TZM",
+  TIMESTAMP_TZ: "YYYY-MM-DD HH24:MI:SS.FF9 TZH:TZM",
+};
 const quote = (name: string) => '"' + name.replaceAll('"', '""') + '"';
 const parser = new Parser();
 export const snowflakeSql = createSqlDialect({
@@ -44,6 +52,7 @@ export const snowflakeSql = createSqlDialect({
       bind(value, type) {
         if (!scalar.test(type)) throw new Error("Unsupported Snowflake checkpoint type");
         values.push(value);
+        if (temporalFormats[type]) return `TO_${type}(:${values.length}, '${temporalFormats[type]}')`;
         return `CAST(:${values.length} AS ${type})`;
       },
     };
@@ -180,11 +189,11 @@ export function createSnowflakeReader(input: Record<string, any>): WarehouseRead
                   MULTI_STATEMENT_COUNT: 1,
                   STATEMENT_TIMEOUT_IN_SECONDS: streaming ? 7200 : 30,
                   TIMEZONE: "UTC",
-                  TIME_OUTPUT_FORMAT: "HH24:MI:SS.FF9",
-                  TIMESTAMP_NTZ_OUTPUT_FORMAT: "YYYY-MM-DD HH24:MI:SS.FF9",
-                  TIMESTAMP_LTZ_OUTPUT_FORMAT: "YYYY-MM-DD HH24:MI:SS.FF9 TZH:TZM",
-                  TIMESTAMP_TZ_OUTPUT_FORMAT: "YYYY-MM-DD HH24:MI:SS.FF9 TZH:TZM",
-                  DATE_OUTPUT_FORMAT: "YYYY-MM-DD",
+                  TIME_OUTPUT_FORMAT: temporalFormats.TIME,
+                  TIMESTAMP_NTZ_OUTPUT_FORMAT: temporalFormats.TIMESTAMP_NTZ,
+                  TIMESTAMP_LTZ_OUTPUT_FORMAT: temporalFormats.TIMESTAMP_LTZ,
+                  TIMESTAMP_TZ_OUTPUT_FORMAT: temporalFormats.TIMESTAMP_TZ,
+                  DATE_OUTPUT_FORMAT: temporalFormats.DATE,
                 },
                 complete(error, statement) {
                   if (error) reject(error);

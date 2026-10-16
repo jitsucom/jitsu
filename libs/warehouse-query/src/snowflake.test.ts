@@ -219,6 +219,51 @@ function decodedFixture(metadata: any[], rawRows: unknown[][]) {
 const numberColumn = (name: string, scale = 0) => ({ name, type: "fixed", precision: 38, scale, nullable: true });
 const testModel = (extra = {}) =>
   ModelDefinition.parse({ warehouseId: "wh", query: "SELECT * FROM source", primaryKey: ["id"], ...extra });
+
+it.each([
+  ["DATE", "YYYY-MM-DD", "2026-01-01"],
+  ["TIME", "HH24:MI:SS.FF9", "12:34:56.123456789"],
+  ["TIMESTAMP_NTZ", "YYYY-MM-DD HH24:MI:SS.FF9", "2026-01-01 12:34:56.123456789"],
+  ["TIMESTAMP_LTZ", "YYYY-MM-DD HH24:MI:SS.FF9 TZH:TZM", "2026-01-01 12:34:56.123456789 +00:00"],
+  ["TIMESTAMP_TZ", "YYYY-MM-DD HH24:MI:SS.FF9 TZH:TZM", "2026-01-01 12:34:56.123456789 -07:00"],
+])("binds %s checkpoint keys and cursors with their explicit output format", async (type, format, value) => {
+  const f = fixture([
+    { fields: [field("id", type.toLowerCase()), field("updated", "fixed")], rows: [] },
+    { fields: [field("id", type.toLowerCase()), field("updated", "fixed")], rows: [] },
+  ]);
+  const reader = createSnowflakeReader(config);
+  const model = testModel({ cursor: { column: "updated", type: "number" } });
+  try {
+    for await (const _ of reader.stream(model, { value: "1", primaryKeyValues: [value] })) {
+      /* consume */
+    }
+    const options = f.connection.execute.mock.calls[1][0];
+    expect(options.sqlText).toContain(`TO_${type}(:2, '${format}')`);
+    expect(options.sqlText).not.toContain(value);
+    expect(options.binds).toEqual(["1", value]);
+    expect(options.parameters[`${type}_OUTPUT_FORMAT`]).toBe(format);
+    // Do not change the user's SQL by overriding its inherited input formats.
+    expect(options.parameters).not.toHaveProperty(`${type}_INPUT_FORMAT`);
+    if (type !== "TIME") {
+      for (const lookbackSeconds of [undefined, 60]) {
+        const compiled = snowflakeSql.compileModel(
+          { ...model, cursor: { column: "updated", type: "timestamp", lookbackSeconds } },
+          [
+            { name: "id", type: "TEXT" },
+            { name: "updated", type },
+          ],
+          { value, primaryKeyValues: ["a"] }
+        );
+        expect(compiled.query).toContain(`TO_${type}(:1, '${format}')`);
+        expect(compiled.values[0]).toBe(value);
+        if (lookbackSeconds !== undefined)
+          expect(compiled.query).toContain(`DATEADD(second, -60, TO_${type}(:1, '${format}'))`);
+      }
+    }
+  } finally {
+    await reader.close();
+  }
+});
 async function collect(model = testModel()) {
   const reader = createSnowflakeReader(config);
   try {

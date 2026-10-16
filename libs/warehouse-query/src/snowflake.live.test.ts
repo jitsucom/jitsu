@@ -1,7 +1,62 @@
-import { expect, it } from "vitest";
+import { expect, it, vi } from "vitest";
 import { createSnowflakeReader } from "./snowflake";
 import { ModelDefinition } from "./schema";
 import type { SourceRecord } from "./types";
+
+it.skipIf(!process.env.TEST_RETL_SNOWFLAKE)(
+  "Snowflake live: temporal checkpoint resume ignores custom input formats",
+  async () => {
+    const { default: sdk } = await import("snowflake-sdk");
+    const createConnection = sdk.createConnection.bind(sdk);
+    // Simulate inherited user settings without altering the account/user or exposing
+    // arbitrary session parameters through the production reader's configuration.
+    vi.spyOn(sdk, "createConnection").mockImplementation(options => {
+      const connection = createConnection(options);
+      const execute = connection.execute.bind(connection);
+      vi.spyOn(connection, "execute").mockImplementation(options =>
+        execute({
+          ...options,
+          parameters: {
+            ...options.parameters,
+            DATE_INPUT_FORMAT: "DD/MM/YYYY",
+            TIME_INPUT_FORMAT: "HH24:MI",
+            TIMESTAMP_INPUT_FORMAT: "MM/DD/YYYY HH24:MI:SS",
+            TIMESTAMP_TYPE_MAPPING: "TIMESTAMP_LTZ",
+          },
+        })
+      );
+      return connection;
+    });
+    const reader = createSnowflakeReader(JSON.parse(process.env.TEST_RETL_SNOWFLAKE!));
+    const query = `SELECT "id", 1 AS "sequence",
+      TO_DATE('2026-01-01', 'YYYY-MM-DD') AS "DATE",
+      TO_TIME('12:34:56.123456789', 'HH24:MI:SS.FF9') AS "TIME",
+      TO_TIMESTAMP_NTZ('2026-01-01 12:34:56.123456789', 'YYYY-MM-DD HH24:MI:SS.FF9') AS "TIMESTAMP_NTZ",
+      TO_TIMESTAMP_LTZ('2026-01-01 12:34:56.123456789 +00:00', 'YYYY-MM-DD HH24:MI:SS.FF9 TZH:TZM') AS "TIMESTAMP_LTZ",
+      TO_TIMESTAMP_TZ('2026-01-01 12:34:56.123456789 -07:00', 'YYYY-MM-DD HH24:MI:SS.FF9 TZH:TZM') AS "TIMESTAMP_TZ"
+      FROM (SELECT 'a' AS "id" UNION ALL SELECT 'b' AS "id") AS rows`;
+    try {
+      for (const type of ["DATE", "TIME", "TIMESTAMP_NTZ", "TIMESTAMP_LTZ", "TIMESTAMP_TZ"]) {
+        const model = ModelDefinition.parse({
+          warehouseId: "live",
+          query,
+          primaryKey: [type, "id"],
+          cursor: { column: type === "TIME" ? "sequence" : type, type: type === "TIME" ? "number" : "timestamp" },
+        });
+        const initial: SourceRecord[] = [];
+        for await (const record of reader.stream(model)) initial.push(record);
+        expect(initial.map(r => r.row.id)).toEqual(["a", "b"]);
+        const resumed: SourceRecord[] = [];
+        for await (const record of reader.stream(model, initial[0].checkpoint)) resumed.push(record);
+        expect(resumed).toEqual([initial[1]]);
+      }
+    } finally {
+      await reader.close();
+      vi.restoreAllMocks();
+    }
+  },
+  120_000
+);
 
 // Explicit opt-in. Queries use literals only; no tables, schemas or accounts are mutated.
 it.skipIf(!process.env.TEST_RETL_SNOWFLAKE)(
