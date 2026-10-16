@@ -22,6 +22,7 @@ type fakeGroupConsumer struct {
 	assignmentLost bool
 	protocol       string
 	pauseErr       error
+	subscribeErr   error
 	rebalanceCb    kafka.RebalanceCb
 	pollCount      atomic.Int64
 	closeCount     atomic.Int64
@@ -35,7 +36,7 @@ func newFakeGroupConsumer() *fakeGroupConsumer {
 
 func (consumer *fakeGroupConsumer) SubscribeTopics(_ []string, rebalanceCb kafka.RebalanceCb) error {
 	consumer.rebalanceCb = rebalanceCb
-	return nil
+	return consumer.subscribeErr
 }
 
 func (consumer *fakeGroupConsumer) Poll(timeoutMs int) kafka.Event {
@@ -190,6 +191,27 @@ func TestConsumerMaintenanceInterval(t *testing.T) {
 	assert.Equal(t, 10*time.Second, consumerMaintenanceInterval(5*time.Minute))
 	assert.Equal(t, 5*time.Second, consumerMaintenanceInterval(20*time.Second))
 	assert.Equal(t, 10*time.Second, consumerMaintenanceInterval(0))
+}
+
+func TestConsumerRuntimeInitPreservesOpenErrors(t *testing.T) {
+	openErr := errors.New("consumer open failed")
+	for _, stage := range []string{"create", "subscribe"} {
+		t.Run(stage, func(t *testing.T) {
+			consumer := newFakeGroupConsumer()
+			runtime := newTestConsumerRuntime(func(*kafka.ConfigMap) (groupConsumer, error) {
+				if stage == "create" {
+					return nil, openErr
+				}
+				consumer.subscribeErr = openErr
+				return consumer, nil
+			})
+			t.Cleanup(func() { require.NoError(t, runtime.close()) })
+
+			created, err := runtime.init()
+			assert.True(t, created)
+			require.ErrorIs(t, err, openErr)
+		})
+	}
 }
 
 func assignRuntime(t *testing.T, runtime *consumerRuntime, consumer *fakeGroupConsumer) uint64 {

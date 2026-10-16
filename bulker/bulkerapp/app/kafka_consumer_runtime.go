@@ -166,7 +166,7 @@ func (runtime *consumerRuntime) execute(run func(*consumerSession)) error {
 }
 
 func (runtime *consumerRuntime) init() (created bool, err error) {
-	err = runtime.execute(func(session *consumerSession) {
+	executeErr := runtime.execute(func(session *consumerSession) {
 		session.wanted = true
 		if session.consumer != nil {
 			return
@@ -174,6 +174,9 @@ func (runtime *consumerRuntime) init() (created bool, err error) {
 		created = true
 		err = session.open()
 	})
+	if executeErr != nil {
+		err = executeErr
+	}
 	return
 }
 
