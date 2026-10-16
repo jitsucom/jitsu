@@ -84,13 +84,14 @@ type consumerSession struct {
 	wanted   bool
 	//pauseRequested is the desired state. Keep it separate from pauseApplied
 	//so a failed Pause does not also disable the maintenance polls that retry it.
-	pauseRequested bool
-	pauseApplied   bool
-	epoch          uint64
-	pending        []*kafka.Message
-	rebalanceErr   error
-	rebalanceLost  bool
-	closing        bool
+	pauseRequested   bool
+	pauseApplied     bool
+	epoch            uint64
+	pending          []*kafka.Message
+	rebalanceErr     error
+	rebalanceLost    bool
+	rewindPartitions []kafka.TopicPartition
+	closing          bool
 
 	reconnectAt      time.Time
 	reconnectBackoff time.Duration
@@ -424,6 +425,7 @@ func (session *consumerSession) closeCurrent() error {
 	closeErr := consumer.Close()
 	session.closing = false
 	session.rebalanceLost, session.rebalanceErr = false, nil
+	session.rewindPartitions = nil
 	session.runtime.hooks.infof("Consumer closed: %s unsubscribe: %v close: %v", description, unsubscribeErr, closeErr)
 	return closeErr
 }
@@ -472,6 +474,10 @@ func (session *consumerSession) poll(timeout time.Duration) (*kafka.Message, err
 			}
 		}
 		event := session.consumer.Poll(timeoutMs)
+		switch event.(type) {
+		case kafka.AssignedPartitions, kafka.RevokedPartitions:
+			session.rebalanceLost, session.rebalanceErr = session.handleRebalance(event)
+		}
 		rebalanceLost, rebalanceErr := session.rebalanceLost, session.rebalanceErr
 		session.rebalanceLost, session.rebalanceErr = false, nil
 		if rebalanceLost || rebalanceErr != nil {
@@ -481,6 +487,17 @@ func (session *consumerSession) poll(timeout time.Duration) (*kafka.Message, err
 			if rebalanceErr != nil {
 				return nil, fmt.Errorf("failed to apply Kafka rebalance: %w", rebalanceErr)
 			}
+			return nil, errConsumerAssignmentChanged
+		}
+		if len(session.rewindPartitions) > 0 {
+			if err := session.rewindAssignment(); err != nil {
+				if recreateErr := session.recreate(); recreateErr != nil {
+					session.runtime.hooks.errorf("Failed to recreate Kafka consumer after rewind failure: %v", recreateErr)
+				}
+				return nil, fmt.Errorf("failed to rewind Kafka assignment: %w", err)
+			}
+			session.rewindPartitions = nil
+			// The caller must abandon work from the previous assignment epoch.
 			return nil, errConsumerAssignmentChanged
 		}
 		switch value := event.(type) {
@@ -493,28 +510,6 @@ func (session *consumerSession) poll(timeout time.Duration) (*kafka.Message, err
 				return nil, value.TopicPartition.Error
 			}
 			return value, nil
-		case kafka.AssignedPartitions:
-			lost, err := session.handleRebalance(value)
-			if err != nil || lost {
-				if recreateErr := session.recreate(); recreateErr != nil {
-					session.runtime.hooks.errorf("Failed to recreate Kafka consumer after rebalance failure: %v", recreateErr)
-				}
-				if err != nil {
-					return nil, fmt.Errorf("failed to apply Kafka rebalance: %w", err)
-				}
-				return nil, errConsumerAssignmentChanged
-			}
-		case kafka.RevokedPartitions:
-			lost, err := session.handleRebalance(value)
-			if err != nil || lost {
-				if recreateErr := session.recreate(); recreateErr != nil {
-					session.runtime.hooks.errorf("Failed to recreate Kafka consumer after rebalance failure: %v", recreateErr)
-				}
-				if err != nil {
-					return nil, fmt.Errorf("failed to apply Kafka rebalance: %w", err)
-				}
-				return nil, errConsumerAssignmentChanged
-			}
 		case kafka.Error:
 			session.handleKafkaError(value)
 			return nil, value
@@ -553,6 +548,11 @@ func (session *consumerSession) onAssigned(partitions []kafka.TopicPartition) er
 	session.pending = nil
 	var err error
 	if session.consumer.GetRebalanceProtocol() == "COOPERATIVE" {
+		retained, assignmentErr := session.consumer.Assignment()
+		if assignmentErr != nil {
+			return assignmentErr
+		}
+		session.rewindPartitions = append(session.rewindPartitions, retained...)
 		err = session.consumer.IncrementalAssign(partitions)
 	} else {
 		err = session.consumer.Assign(partitions)
@@ -577,6 +577,11 @@ func (session *consumerSession) onRevoked(partitions []kafka.TopicPartition) (lo
 	session.pending = nil
 	if session.consumer.GetRebalanceProtocol() == "COOPERATIVE" {
 		err = session.consumer.IncrementalUnassign(partitions)
+		if err == nil && !lost {
+			var retained []kafka.TopicPartition
+			retained, err = session.consumer.Assignment()
+			session.rewindPartitions = append(session.rewindPartitions, retained...)
+		}
 	} else {
 		err = session.consumer.Unassign()
 	}
@@ -589,6 +594,55 @@ func (session *consumerSession) onRevoked(partitions []kafka.TopicPartition) (lo
 	}
 	session.runtime.hooks.debugf("Consumer revoked partitions at epoch %d: %v", session.epoch, partitions)
 	return
+}
+
+// A cooperative rebalance can invalidate a batch without releasing its partition.
+// Rewind after the callback returns so records already handed to that aborted batch,
+// as well as buffered records, are replayed before a new epoch can commit past them.
+func (session *consumerSession) rewindAssignment() error {
+	assigned, err := session.consumer.Assignment()
+	if err != nil {
+		return err
+	}
+	// Only rewind retained partitions still owned now; preserve newly
+	// assigned start offsets.
+	partitions := make([]kafka.TopicPartition, 0, len(assigned))
+	for _, partition := range assigned {
+		for _, retained := range session.rewindPartitions {
+			if partition.Topic != nil && retained.Topic != nil &&
+				*partition.Topic == *retained.Topic && partition.Partition == retained.Partition {
+				partitions = append(partitions, partition)
+				break
+			}
+		}
+	}
+	if len(partitions) == 0 {
+		return nil
+	}
+	offsets, err := session.consumer.Committed(partitions, 10_000)
+	if err != nil {
+		return err
+	}
+	for i := range offsets {
+		if offsets[i].Error != nil {
+			return offsets[i].Error
+		}
+		if offsets[i].Offset == kafka.OffsetInvalid {
+			// With no checkpoint, replay from the beginning rather than skip
+			// records fetched before the rebalance (including a new group's batch).
+			offsets[i].Offset = kafka.OffsetBeginning
+		}
+	}
+	result, err := session.consumer.SeekPartitions(offsets)
+	if err != nil {
+		return err
+	}
+	for _, partition := range result {
+		if partition.Error != nil {
+			return partition.Error
+		}
+	}
+	return nil
 }
 
 func (session *consumerSession) setPaused(paused bool) error {
