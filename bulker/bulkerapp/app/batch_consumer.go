@@ -75,7 +75,7 @@ func (bc *BatchConsumerImpl) batchSizes(streamOptions *bulker.StreamOptions) (ma
 	return
 }
 
-func (bc *BatchConsumerImpl) processBatchImpl(destination *Destination, batchNum, batchSize, batchSizeBytes, retryBatchSize int, highOffset int64, updatedHighOffset int) (counters BatchCounters, state bulker.State, nextBatch bool, err error) {
+func (bc *BatchConsumerImpl) processBatchImpl(destination *Destination, batchNum, batchSize, batchSizeBytes, retryBatchSize int, highOffset int64, updatedHighOffset int, consumerEpoch uint64) (counters BatchCounters, state bulker.State, nextBatch bool, err error) {
 	bc.Debugf("Starting batch #%d", batchNum)
 	counters.firstOffset = int64(kafka.OffsetBeginning)
 	startTime := time.Now()
@@ -103,7 +103,7 @@ func (bc *BatchConsumerImpl) processBatchImpl(destination *Destination, batchNum
 				bc.SendMetrics(metricsMeta, "retry_error", counters.retried)
 			}
 			if failedPosition != nil {
-				cnts, err2 := bc.processFailed(firstPosition, failedPosition, err)
+				cnts, err2 := bc.processFailed(firstPosition, failedPosition, err, consumerEpoch)
 				counters.deadLettered = cnts.deadLettered
 				counters.retryScheduled = cnts.retryScheduled
 				if err2 != nil {
@@ -123,7 +123,6 @@ func (bc *BatchConsumerImpl) processBatchImpl(destination *Destination, batchNum
 	processed := 0
 	maxMessageSize := 0
 	consumedBytes := 0
-	consumer := bc.consumer.Load()
 	for i := 0; i < batchSize; i++ {
 		if bc.retired.Load() {
 			if bulkerStream != nil {
@@ -142,18 +141,17 @@ func (bc *BatchConsumerImpl) processBatchImpl(destination *Destination, batchNum
 			bc.Debugf("Reached batch size %d of %d. Stopping batch", consumedBytes, batchSizeBytes)
 			break
 		}
-		message, err := consumer.ReadMessage(bc.waitForMessages)
+		message, err := bc.consumer.readMessage(bc.waitForMessages, consumerEpoch)
 		if err != nil {
-			kafkaErr := err.(kafka.Error)
-			if kafkaErr.Code() == kafka.ErrTimedOut {
+			var kafkaErr kafka.Error
+			if errors.As(err, &kafkaErr) && kafkaErr.Code() == kafka.ErrTimedOut {
 				// waitForMessages period is over. it's ok. considering batch as full
 				break
 			}
-			bc.errorMetric("consumer_error:" + metrics.KafkaErrorCode(kafkaErr))
 			if bulkerStream != nil {
 				_ = bulkerStream.Abort(ctx)
 			}
-			return counters, state, false, bc.NewError("Failed to consume event from topic. Retryable: %t: %v", kafkaErr.IsRetriable(), kafkaErr)
+			return counters, state, false, bc.NewError("Failed to consume event from topic: %v", err)
 		}
 		messageSize := len(message.Value)
 		maxMessageSize = max(maxMessageSize, messageSize)
@@ -224,15 +222,13 @@ func (bc *BatchConsumerImpl) processBatchImpl(destination *Destination, batchNum
 		if processed == batchSize {
 			nextBatch = true
 		}
-		pauseTimer := time.AfterFunc(time.Duration(bc.config.KafkaMaxPollIntervalMs)*time.Millisecond/2, func() {
-			// we need to pause consumer to avoid kafka session timeout while loading huge batches to slow destinations
-			bc.pause(true)
-		})
+		//No more records are needed while the destination commits. Pause now so
+		//the owner runtime can keep polling group events throughout a slow load.
+		bc.pause(true)
 
 		bc.Debugf("Batch #%d Committing %d events to %s", batchNum, processed, destination.config.BulkerType)
 		//TODO: do we need to interrupt commit if consumer is retired?
 		state, err = bulkerStream.Complete(ctx)
-		pauseTimer.Stop()
 		state.ProcessedBytes = consumedBytes
 		state.ProcessingTimeSec = time.Since(startTime).Seconds()
 		if err != nil {
@@ -270,10 +266,15 @@ func (bc *BatchConsumerImpl) processBatchImpl(destination *Destination, batchNum
 		}
 		counters.processed = processed
 		counters.processedBytes = consumedBytes
-		_, err = consumer.CommitMessage(latestMessage)
+		_, err = bc.consumer.commitMessage(latestMessage, consumerEpoch)
 		if err != nil {
 			bc.errorMetric("KAFKA_COMMIT_ERR:" + metrics.KafkaErrorCode(err))
 			bc.Errorf("Failed to commit kafka consumer after batch was successfully committed to the destination: %v", err)
+			if errors.Is(err, errConsumerAssignmentChanged) {
+				//The loaded records may be replayed, but an old assignment must never
+				//advance the checkpoint now controlled by another group member.
+				return counters, state, false, err
+			}
 			committed := false
 			bc.restartConsumer(func() {
 				defer func() {
@@ -297,18 +298,11 @@ func (bc *BatchConsumerImpl) processBatchImpl(destination *Destination, batchNum
 				}
 
 			})
-			if !committed {
-				var tp []kafka.TopicPartition
-				tp, err = bc.consumer.Load().CommitMessage(latestMessage)
-				if err != nil {
-					bc.SystemErrorf("Failed to commit kafka consumer after batch was successfully committed to the destination: %v", err)
-					err = bc.NewError("Failed to commit kafka consumer: %v", err)
-					return
-				} else {
-					bc.Infof("Successfully committed kafka consumer after initial fail: %+v", tp)
-				}
-			} else {
+			if committed {
 				err = nil
+			} else {
+				err = bc.NewError("Failed to repair Kafka offset after the destination batch completed: %v", err)
+				return
 			}
 		}
 	} else if bulkerStream != nil {
@@ -318,13 +312,11 @@ func (bc *BatchConsumerImpl) processBatchImpl(destination *Destination, batchNum
 }
 
 // processFailed consumes the latest failed batch of messages and sends them to the 'failed' topic
-func (bc *BatchConsumerImpl) processFailed(firstPosition *kafka.TopicPartition, failedPosition *kafka.TopicPartition, originalErr error) (counters BatchCounters, err error) {
+func (bc *BatchConsumerImpl) processFailed(firstPosition *kafka.TopicPartition, failedPosition *kafka.TopicPartition, originalErr error, consumerEpoch uint64) (counters BatchCounters, err error) {
 	var producer *kafka.Producer
 	var commitedPosition = *firstPosition
 
 	retryBatchSize := bc.config.RetryConsumerBatchSize
-	consumer := bc.consumer.Load()
-
 	defer func() {
 		//recover
 		if r := recover(); r != nil {
@@ -338,7 +330,7 @@ func (bc *BatchConsumerImpl) processFailed(firstPosition *kafka.TopicPartition, 
 		if err != nil {
 			err = bc.NewError("Failed to put unsuccessful batch to 'failed' producer: %v", err)
 			//cleanup
-			_, err2 := consumer.SeekPartitions([]kafka.TopicPartition{commitedPosition})
+			_, err2 := bc.consumer.seekPartitions([]kafka.TopicPartition{commitedPosition}, consumerEpoch)
 			if err2 != nil {
 				bc.errorMetric("SEEK_ERROR")
 			}
@@ -359,13 +351,13 @@ func (bc *BatchConsumerImpl) processFailed(firstPosition *kafka.TopicPartition, 
 
 	bc.Infof("Rolling back to first offset %d (failed at %d)", firstPosition.Offset, failedPosition.Offset)
 	//Rollback consumer to committed offset
-	_, err = consumer.SeekPartitions([]kafka.TopicPartition{*firstPosition})
+	_, err = bc.consumer.seekPartitions([]kafka.TopicPartition{*firstPosition}, consumerEpoch)
 	if err != nil {
 		bc.errorMetric("SEEK_ERROR")
 		return BatchCounters{}, fmt.Errorf("failed to rollback kafka consumer offset: %v", err)
 	}
 	var groupMetadata *kafka.ConsumerGroupMetadata
-	groupMetadata, err = consumer.GetConsumerGroupMetadata()
+	groupMetadata, err = bc.consumer.groupMetadata(consumerEpoch)
 	if err != nil {
 		err = fmt.Errorf("failed to get consumer group metadata: %v", err)
 		return
@@ -380,14 +372,14 @@ func (bc *BatchConsumerImpl) processFailed(firstPosition *kafka.TopicPartition, 
 		}
 
 		for i := 0; i < retryBatchSize; i++ {
-			message, err = consumer.ReadMessage(bc.waitForMessages)
+			message, err = bc.consumer.readMessage(bc.waitForMessages, consumerEpoch)
 			if err != nil {
-				kafkaErr := err.(kafka.Error)
-				if kafkaErr.Code() == kafka.ErrTimedOut {
+				var kafkaErr kafka.Error
+				if errors.As(err, &kafkaErr) && kafkaErr.Code() == kafka.ErrTimedOut {
 					err = fmt.Errorf("failed to consume message: %v", err)
 					return
 				}
-				if kafkaErr.IsRetriable() {
+				if errors.As(err, &kafkaErr) && kafkaErr.IsRetriable() {
 					time.Sleep(10 * time.Second)
 					continue
 				} else {
