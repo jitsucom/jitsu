@@ -1,7 +1,6 @@
 package app
 
 import (
-	"errors"
 	"fmt"
 	"math"
 	"reflect"
@@ -25,9 +24,17 @@ const streamOptionsKeyHeader = "stream_options"
 const originalTopicHeader = "original_topic"
 const errorHeader = "error"
 
+const pauseHeartBeatInterval = 120 * time.Second
+
+// assignmentFailuresBeforeRestart - consecutive runs a retry consumer may end
+// without a partition assignment before it is treated as having lost its group
+// membership. More than one, so an ordinary rebalance is not mistaken for a
+// zombie (see ConsumeAll).
+const assignmentFailuresBeforeRestart = 3
+
 type BatchSizesFunction func(*bulker.StreamOptions) (batchSize int, batchSizeBytes int, retryBatchSize int)
-type BatchFunction func(destination *Destination, batchNum, batchSize, batchSizeBytes, retryBatchSize int, highOffset int64, updatedHighOffset int, consumerEpoch uint64) (counters BatchCounters, state bulker.State, nextBatch bool, err error)
-type ShouldConsumeFunction func(partitionId int32, committedOffset, highOffset int64, consumerEpoch uint64) bool
+type BatchFunction func(destination *Destination, batchNum, batchSize, batchSizeBytes, retryBatchSize int, highOffset int64, updatedHighOffset int) (counters BatchCounters, state bulker.State, nextBatch bool, err error)
+type ShouldConsumeFunction func(partitionId int32, committedOffset, highOffset int64) bool
 
 type BatchConsumer interface {
 	Consumer
@@ -47,14 +54,13 @@ type AbstractBatchConsumer struct {
 	batchPeriodSec  int
 	kafkaConfig     *kafka.ConfigMap
 	consumerConfig  kafka.ConfigMap
-	consumer        *consumerRuntime
+	consumer        atomic.Pointer[kafka.Consumer]
 	producerConfig  kafka.ConfigMap
 	mode            string
 	tableName       string
 	waitForMessages time.Duration
 
-	closed    chan struct{}
-	closeOnce sync.Once
+	closed chan struct{}
 
 	running           atomic.Bool
 	extraRunScheduled atomic.Bool
@@ -62,7 +68,43 @@ type AbstractBatchConsumer struct {
 	//AbstractBatchConsumer marked as no longer needed. We cannot close it immediately because it can be in the middle of processing batch
 	retired atomic.Bool
 	//idle AbstractBatchConsumer that is not running any batch jobs. retired idle consumer automatically closes itself
-	idle              atomic.Bool
+	idle atomic.Bool
+	//consumer can be paused between batches(idle) and also can be paused during loading batch to destination(not idle)
+	paused        atomic.Bool
+	resumeChannel chan struct{}
+	//stopChannel signals the pause heartbeat loop to exit for suspend (vs.
+	//resume). It is unbuffered on purpose: _unpause() must block until the
+	//heartbeat has actually left its loop, so pauseOrSuspend can close the
+	//consumer without racing an in-flight ReadMessage (see _unpause).
+	stopChannel chan struct{}
+	//restarting guards against piling up overlapping restartConsumer calls
+	//from the pause heartbeat loop (see restartConsumerAsync).
+	restarting atomic.Bool
+	//restartMu serializes restartConsumer (see there).
+	restartMu sync.Mutex
+	//consumerCreatedAt is when the current kafka consumer was created (unix
+	//nanos). A consumer needs a poll to join the group and get its assignment,
+	//so membership checks only apply once it is older than a grace period.
+	consumerCreatedAt atomic.Int64
+	//restartGeneration counts restarts, which suffix the static
+	//group.instance.id so a replacement is never fenced against the consumer
+	//it replaces (see newConsumer).
+	restartGeneration atomic.Int64
+	//lastRestartAt is when a restart last published a replacement consumer
+	//(unix nanos; zero before the first one). Only a replacement is subject to
+	//the restart cooldown — see restartConsumer.
+	lastRestartAt atomic.Int64
+	//assignmentFailures counts consecutive runs that ended without a partition
+	//assignment (retry mode). One is a rebalance; several in a row is a zombie.
+	assignmentFailures atomic.Int64
+	//closedConsumers records every *kafka.Consumer this object has closed.
+	//Several paths may hold the same pointer (suspend, restart quarantine,
+	//close), and confluent-kafka-go panics on a second Close, so all closes go
+	//through closeConsumer. One entry per restart; restarts are rare, so the
+	//set is never pruned.
+	closedMu        sync.Mutex
+	closedConsumers map[*kafka.Consumer]struct{}
+
 	batchSizeFunc     BatchSizesFunction
 	batchFunc         BatchFunction
 	shouldConsumeFunc ShouldConsumeFunction
@@ -81,16 +123,16 @@ func NewAbstractBatchConsumer(repository *Repository, destinationId string, batc
 	}
 
 	consumerConfig := kafka.ConfigMap(utils.MapPutAll(kafka.ConfigMap{
-		"group.id":                        topicId,
-		"auto.offset.reset":               "earliest",
-		"allow.auto.create.topics":        false,
-		"enable.auto.commit":              false,
-		"go.application.rebalance.enable": true,
-		"partition.assignment.strategy":   config.KafkaConsumerPartitionsAssigmentStrategy,
-		"isolation.level":                 "read_committed",
-		"session.timeout.ms":              config.KafkaSessionTimeoutMs,
-		"fetch.message.max.bytes":         config.KafkaFetchMessageMaxBytes,
-		"max.poll.interval.ms":            config.KafkaMaxPollIntervalMs,
+		"group.id":                      topicId,
+		"auto.offset.reset":             "earliest",
+		"allow.auto.create.topics":      false,
+		"group.instance.id":             abstract.GetInstanceId(),
+		"enable.auto.commit":            false,
+		"partition.assignment.strategy": config.KafkaConsumerPartitionsAssigmentStrategy,
+		"isolation.level":               "read_committed",
+		"session.timeout.ms":            config.KafkaSessionTimeoutMs,
+		"fetch.message.max.bytes":       config.KafkaFetchMessageMaxBytes,
+		"max.poll.interval.ms":          config.KafkaMaxPollIntervalMs,
 	}, *kafkaConfig))
 
 	producerConfig := kafka.ConfigMap(utils.MapPutAll(kafka.ConfigMap{
@@ -113,13 +155,14 @@ func NewAbstractBatchConsumer(repository *Repository, destinationId string, batc
 		producerConfig:   producerConfig,
 		waitForMessages:  time.Duration(config.BatchRunnerWaitForMessagesSec) * time.Second,
 		closed:           make(chan struct{}),
+		//buffered size 1: resume() can deposit the signal even if the
+		//heartbeat goroutine is mid-iteration (e.g. blocked in
+		//restartConsumer); the heartbeat picks it up on the next pass.
+		resumeChannel: make(chan struct{}, 1),
+		//unbuffered: suspend must rendezvous with the heartbeat (see field doc).
+		stopChannel:     make(chan struct{}),
+		closedConsumers: map[*kafka.Consumer]struct{}{},
 	}
-	bc.consumer = newConsumerRuntime(consumerConfig, topicId, consumerRuntimeHooks{
-		debugf:       bc.Debugf,
-		infof:        bc.Infof,
-		errorf:       bc.Errorf,
-		onKafkaError: bc.onConsumerError,
-	}, time.Duration(config.KafkaMaxPollIntervalMs)*time.Millisecond)
 	bc.idle.Store(true)
 	return bc, nil
 }
@@ -263,35 +306,54 @@ func (bc *AbstractBatchConsumer) ConsumeAll() (counters BatchCounters, err error
 	}
 
 	maxBatchSize, maxBatchSizeBytes, retryBatchSize := bc.batchSizeFunc(streamOptions)
-	created, err := bc.initConsumer()
+	consumer, created, err := bc.initConsumer()
 	if err != nil {
 		bc.errorMetric("resume_error")
 		return BatchCounters{}, bc.NewError("Failed to resume kafka consumer: %v", err)
 	}
-	assignmentWait := time.Duration(0)
-	if created {
-		assignmentWait = time.Duration(bc.config.KafkaSessionTimeoutMs) * time.Millisecond
+	var partition int32 = 0
+	if bc.mode == "retry" {
+		var ass []kafka.TopicPartition
+		var err error
+		for i := 0; i < 10; i++ {
+			ass, err = consumer.Assignment()
+			if err == nil && len(ass) == 1 {
+				break
+			}
+			// rebalance events are served only during poll calls:
+			// poll the consumer so it can join the group and obtain its assignment
+			message, _ := consumer.ReadMessage(time.Second * time.Duration(i+1))
+			if message != nil {
+				// a message slipped through before batch processing started - rollback the position
+				_, seekErr := consumer.SeekPartitions([]kafka.TopicPartition{message.TopicPartition})
+				if seekErr != nil {
+					bc.SystemErrorf("Failed to seek back a message received while waiting for assignment: %v", seekErr)
+				}
+			}
+		}
+		if err != nil || len(ass) != 1 {
+			bc.errorMetric("assignment_error")
+			//A single failure is not treated as lost membership (JITSU-214):
+			//retry consumers of one topic share a group across the fleet, one
+			//partition each, so missing an assignment in this window is routine
+			//during a rebalance, and restarting would rejoin under a new
+			//instance id and force another fleet-wide rebalance. A rebalance
+			//settles within a session timeout, so several runs in a row without
+			//an assignment is a zombie rather than churn.
+			if !created && bc.assignmentFailures.Add(1) >= assignmentFailuresBeforeRestart {
+				bc.membershipLost(fmt.Sprintf("no partition assignment in %d consecutive runs", assignmentFailuresBeforeRestart))
+				bc.assignmentFailures.Store(0)
+				bc.restartConsumer(nil)
+			}
+			return BatchCounters{}, bc.NewError("Failed to get consumer assignment (%d): %v", len(ass), err)
+		}
+		bc.assignmentFailures.Store(0)
+		partition = ass[0].Partition
+		bc.Infof("Assigned partition: %d", partition)
 	}
-	assignments, consumerEpoch, err := bc.consumer.assignment(assignmentWait)
-	if err != nil {
-		bc.errorMetric("assignment_error")
-		return BatchCounters{}, bc.NewError("Failed to get consumer assignment: %v", err)
-	}
-	if len(assignments) == 0 {
-		//An empty assignment is valid in a shared consumer group. The runtime
-		//continues polling and will receive work after a later rebalance.
-		bc.Debugf("No partitions assigned to this healthy group member")
-		return BatchCounters{}, nil
-	}
-	if len(assignments) != 1 {
-		bc.errorMetric("assignment_error")
-		return BatchCounters{}, bc.NewError("Expected one assigned partition, got %d", len(assignments))
-	}
-	partition := assignments[0].Partition
-	bc.Debugf("Using assigned partition %d at epoch %d", partition, consumerEpoch)
-	_, highOffset, err = bc.consumer.queryWatermarkOffsets(bc.topicId, partition, 10_000, consumerEpoch)
+	_, highOffset, err = consumer.QueryWatermarkOffsets(bc.topicId, partition, 10_000)
 	updatedHighOffset = highOffset
-	offsets, erro := bc.consumer.committed([]kafka.TopicPartition{{Topic: &bc.topicId, Partition: partition}}, 10_000, consumerEpoch)
+	offsets, erro := consumer.Committed([]kafka.TopicPartition{{Topic: &bc.topicId, Partition: partition}}, 10_000)
 	if erro != nil {
 		bc.errorMetric("query_committed_failed")
 		bc.Errorf("Failed to query committed offsets: %v", erro)
@@ -299,14 +361,32 @@ func (bc *AbstractBatchConsumer) ConsumeAll() (counters BatchCounters, err error
 		commitedOffset = int64(offsets[0].Offset)
 	} else {
 		//Not an error by itself: a brand-new topic has no committed offset until
-		//its first batch.
+		//its first batch. It is also what a consumer whose group was deleted
+		//sees — that case is caught by the membership check below.
 		bc.Infof("No committed offset for the consumer group yet. High watermark: %d", highOffset)
 	}
 	if err != nil {
 		bc.errorMetric("query_watermark_failed")
 		return BatchCounters{}, bc.NewError("Failed to query watermark offsets: %v", err)
 	}
-	if !bc.shouldConsume(partition, commitedOffset, highOffset, consumerEpoch) {
+	if !created && bc.mode != "retry" && hasLag(commitedOffset, highOffset) {
+		//Self-heal (JITSU-214). Topics are sharded, so this consumer is the
+		//group's only member for its partition: if it has been alive long enough
+		//to have joined and still owns nothing while messages are waiting, it
+		//has dropped out of the group (max.poll.interval exceeded, fenced by a
+		//restart, or the empty group was garbage-collected by the broker) and
+		//would otherwise poll nothing every period forever, looking idle.
+		if reason := bc.assignmentLost(consumer); reason != "" {
+			bc.membershipLost(reason)
+			bc.restartConsumer(nil)
+			consumer = bc.consumer.Load()
+			if consumer == nil {
+				bc.errorMetric("resume_error")
+				return BatchCounters{}, bc.NewError("Failed to recreate kafka consumer after losing group membership")
+			}
+		}
+	}
+	if !bc.shouldConsume(partition, commitedOffset, highOffset) {
 		bc.Debugf("Consumer should not consume. offsets: %d-%d", commitedOffset, highOffset)
 		return BatchCounters{}, nil
 	}
@@ -324,7 +404,7 @@ func (bc *AbstractBatchConsumer) ConsumeAll() (counters BatchCounters, err error
 				return
 			}
 		}
-		batchCounters, batchState, nextBatch, err2 := bc.processBatch(destination, batchNumber, maxBatchSize, maxBatchSizeBytes, retryBatchSize, highOffset, int(updatedHighOffset), consumerEpoch)
+		batchCounters, batchState, nextBatch, err2 := bc.processBatch(destination, batchNumber, maxBatchSize, maxBatchSizeBytes, retryBatchSize, highOffset, int(updatedHighOffset))
 		if err2 != nil {
 			if nextBatch {
 				bc.Errorf("Batch finished with error: %v stats: %s nextBatch: %t", err2, batchCounters, nextBatch)
@@ -336,7 +416,8 @@ func (bc *AbstractBatchConsumer) ConsumeAll() (counters BatchCounters, err error
 		if batchCounters.consumed > 0 {
 			if time.Since(lastOffsetQueryTime) > 1*time.Minute || !nextBatch {
 				var err1 error
-				_, updatedHighOffset, err1 = bc.consumer.queryWatermarkOffsets(bc.topicId, partition, 10_000, consumerEpoch)
+				consumer = bc.consumer.Load()
+				_, updatedHighOffset, err1 = consumer.QueryWatermarkOffsets(bc.topicId, partition, 10_000)
 				if err1 != nil {
 					bc.Errorf("Failed to query watermark offsets: %v", err1)
 					bc.errorMetric("query_watermark_failed")
@@ -355,91 +436,513 @@ func (bc *AbstractBatchConsumer) ConsumeAll() (counters BatchCounters, err error
 }
 
 func (bc *AbstractBatchConsumer) close() error {
-	var err error
-	bc.closeOnce.Do(func() {
+	select {
+	case <-bc.closed:
+	default:
 		close(bc.closed)
-		err = bc.consumer.close()
+	}
+	consumer := bc.consumer.Swap(nil)
+	if consumer != nil {
+		return bc.closeConsumer(consumer)
+	}
+	return nil
+}
+
+// closeConsumer closes a kafka consumer exactly once, however many paths hold
+// its pointer (see closedConsumers). Returns the Close error, or nil when the
+// consumer was already closed by another path.
+func (bc *AbstractBatchConsumer) closeConsumer(consumer *kafka.Consumer) error {
+	bc.closedMu.Lock()
+	if _, done := bc.closedConsumers[consumer]; done {
+		bc.closedMu.Unlock()
+		return nil
+	}
+	bc.closedConsumers[consumer] = struct{}{}
+	bc.closedMu.Unlock()
+	e1 := consumer.Unsubscribe()
+	e2 := consumer.Close()
+	bc.Infof("Consumer closed: %s unsubscribe: %v close: %v", consumer.String(), e1, e2)
+	return e2
+}
+
+// quarantineClose closes a consumer that has just been replaced, after a delay
+// long enough for anything that loaded the old pointer before the swap — the
+// paused heartbeat mid-ReadMessage, most importantly — to return from it.
+// librdkafka is not safe against a poll racing a Close on the same instance.
+//
+// The delay also bounds how long a replaced static member stays registered:
+// it is deregistered a session timeout after this close, and only then is its
+// base group.instance.id free again. Keep
+// BATCH_RUNNER_WAIT_FOR_MESSAGES_SEC + 5s + KAFKA_SESSION_TIMEOUT_MS under the
+// 60s minimum gap that pauseOrSuspend requires before suspending, so a
+// suspended consumer recreated with the base id never collides with it.
+func (bc *AbstractBatchConsumer) quarantineClose(consumer *kafka.Consumer) {
+	safego.RunWithRestart(func() {
+		time.Sleep(bc.waitForMessages + 5*time.Second)
+		_ = bc.closeConsumer(consumer)
 	})
-	return err
 }
 
-func (bc *AbstractBatchConsumer) processBatch(destination *Destination, batchNum, batchSize, batchSizeBytes, retryBatchSize int, highOffset int64, updatedHighOffset int, consumerEpoch uint64) (counters BatchCounters, state bulker.State, nextBath bool, err error) {
+func (bc *AbstractBatchConsumer) processBatch(destination *Destination, batchNum, batchSize, batchSizeBytes, retryBatchSize int, highOffset int64, updatedHighOffset int) (counters BatchCounters, state bulker.State, nextBath bool, err error) {
 	bc.resume()
-	return bc.batchFunc(destination, batchNum, batchSize, batchSizeBytes, retryBatchSize, highOffset, updatedHighOffset, consumerEpoch)
+	return bc.batchFunc(destination, batchNum, batchSize, batchSizeBytes, retryBatchSize, highOffset, updatedHighOffset)
 }
 
-func (bc *AbstractBatchConsumer) shouldConsume(partitionId int32, committedOffset, highOffset int64, consumerEpoch uint64) bool {
+func (bc *AbstractBatchConsumer) shouldConsume(partitionId int32, committedOffset, highOffset int64) bool {
 	if highOffset == 0 || committedOffset == highOffset {
 		return false
 	}
 	if bc.shouldConsumeFunc != nil {
 		bc.resume()
-		return bc.shouldConsumeFunc(partitionId, committedOffset, highOffset, consumerEpoch)
+		return bc.shouldConsumeFunc(partitionId, committedOffset, highOffset)
 	}
 	return true
 }
 
 func (bc *AbstractBatchConsumer) pauseOrSuspend(startedAt time.Time) {
 	if bc.idle.Load() && bc.retired.Load() {
+		// Close retired idling consumer
 		bc.Infof("Consumer is retired. Closing")
 		_ = bc.close()
+		return
+	}
+	consumer := bc.consumer.Load()
+	if consumer == nil {
 		return
 	}
 	batchPeriodSec := bc.BatchPeriodSec()
 	timeToNextBatch := time.Duration(batchPeriodSec)*time.Second - time.Since(startedAt)
 	if bc.config.SuspendConsumers && timeToNextBatch >= 60*time.Second {
-		bc.Infof("Suspending consumer %s for %s", bc.consumer.description(), timeToNextBatch)
-		if err := bc.consumer.suspend(); err != nil && !errors.Is(err, errConsumerNotStarted) {
-			bc.Errorf("Failed to suspend Kafka consumer: %v", err)
+		bc.Infof("Suspending consumer %s for %s", consumer.String(), timeToNextBatch)
+		bc._unpause()
+		//only suspend the consumer we looked at: a restart may have swapped in
+		//a new one meanwhile, and storing nil over it would leak a live group
+		//member. That one stays up and is used by the next period.
+		if bc.consumer.CompareAndSwap(consumer, nil) {
+			_ = bc.closeConsumer(consumer)
+		} else {
+			bc.Infof("Consumer was replaced while suspending. Keeping the new one")
 		}
 	} else {
 		bc.pause(false)
 	}
 }
 
-func (bc *AbstractBatchConsumer) pause(_ bool) {
-	if err := bc.consumer.pause(); err != nil && !errors.Is(err, errConsumerNotStarted) {
-		bc.errorMetric("pause_error")
-		bc.SystemErrorf("Failed to pause Kafka consumer: %v", err)
+// pause consumer.
+func (bc *AbstractBatchConsumer) pause(immediatePoll bool) {
+	if !bc.paused.CompareAndSwap(false, true) {
+		return
 	}
+	//drain any stale resume signal left over from a prior cycle so the new
+	//heartbeat goroutine doesn't break out of its loop on the first pass.
+	select {
+	case <-bc.resumeChannel:
+	default:
+	}
+	bc.pauseKafkaConsumer()
+
+	safego.RunWithRestart(func() {
+		errorReported := false
+		firstPoll := immediatePoll
+		//this loop keeps heatbeating consumer to prevent it from being kicked out from group
+		pauseTicker := time.NewTicker(bc.heartbeatInterval())
+		defer pauseTicker.Stop()
+	loop:
+		for {
+			if bc.idle.Load() && bc.retired.Load() {
+				// Close retired idling consumer
+				bc.Infof("Consumer is retired. Closing")
+				_ = bc.close()
+				return
+			}
+			if !firstPoll {
+				select {
+				case <-bc.resumeChannel:
+					bc.paused.CompareAndSwap(true, false)
+					//Defensive: resume() may have called consumer.Resume on
+					//a consumer that was since replaced (e.g. by an in-flight
+					//restartConsumer). Re-resume the current one so the kafka
+					//state matches paused=false even after that race.
+					if currentConsumer := bc.consumer.Load(); currentConsumer != nil {
+						if parts, perr := currentConsumer.Assignment(); perr == nil {
+							_ = currentConsumer.Resume(parts)
+						}
+					}
+					bc.Debugf("Consumer resumed.")
+					break loop
+				case <-bc.stopChannel:
+					//Suspend path: the caller (pauseOrSuspend) is about to close
+					//the consumer, so we only stop heartbeating — no Resume.
+					//Because stopChannel is unbuffered, _unpause is still blocked
+					//on the send here, guaranteeing the consumer is no longer in
+					//ReadMessage when Close runs.
+					bc.paused.CompareAndSwap(true, false)
+					bc.Debugf("Consumer heartbeat stopped for suspend.")
+					break loop
+				case <-pauseTicker.C:
+				}
+			}
+			firstPoll = false
+			consumer := bc.consumer.Load()
+			if consumer == nil {
+				bc.Errorf("Paused Consumer is nil.")
+				continue
+			}
+			message, err := consumer.ReadMessage(bc.waitForMessages)
+			if err != nil {
+				kafkaErr := err.(kafka.Error)
+				if kafkaErr.Code() == kafka.ErrTimedOut {
+					bc.Debugf("Consumer paused. Heartbeat sent.")
+					continue
+				}
+				bc.errorMetric("error_while_paused")
+				if !errorReported {
+					bc.Errorf("Error on paused consumer: %v", kafkaErr)
+					errorReported = true
+				}
+				if reason := membershipLossReason(kafkaErr); reason != "" {
+					//left the group: waiting does not bring it back (that is the
+					//zombie this fix is about), so rejoin with a new consumer
+					bc.membershipLost(reason)
+					bc.restartConsumerAsync()
+				} else if kafkaErr.IsRetriable() && !kafkaErr.IsFatal() {
+					time.Sleep(10 * time.Second)
+				} else {
+					//restartConsumer can block for KafkaSessionTimeoutMs + 15s per
+					//failed creation attempt (broker unreachable); running it
+					//synchronously here would starve the resumeChannel select and
+					//trip "Resume timeout" in resume() once 5 min elapses.
+					bc.restartConsumerAsync()
+				}
+			} else if message != nil {
+				bc.Debugf("Unexpected message on paused consumer: %v", message)
+				//If message slipped through pause, rollback offset and make sure consumer is paused
+				_, err = consumer.SeekPartitions([]kafka.TopicPartition{message.TopicPartition})
+				if err != nil {
+					bc.errorMetric("ROLLBACK_ON_PAUSE_ERR")
+					bc.SystemErrorf("Failed to rollback offset on paused consumer: %v", err)
+					bc.restartConsumerAsync()
+				}
+				bc.pauseKafkaConsumer()
+			}
+		}
+	})
 }
 
-func (bc *AbstractBatchConsumer) initConsumer() (bool, error) {
-	created, err := bc.consumer.init()
+// initConsumer returns the current kafka consumer, creating one when there is
+// none. `created` reports whether this call made it: a new consumer has not
+// polled yet, so it has no assignment and no group membership to check.
+func (bc *AbstractBatchConsumer) initConsumer() (consumer *kafka.Consumer, created bool, err error) {
+	consumer = bc.consumer.Load()
+	if consumer != nil {
+		return consumer, false, nil
+	}
+	consumer, err = bc.newConsumer(false)
+	if err != nil {
+		return nil, false, err
+	}
+	//this consumer replaces nothing (first run, or a start after a suspend), so
+	//it is not covered by the restart cooldown — clear any stamp an earlier
+	//restart left behind, or a fatal error on it would be skipped
+	bc.lastRestartAt.Store(0)
+	bc.consumer.Store(consumer)
+	return consumer, true, nil
+}
+
+// newConsumer creates and subscribes a kafka consumer without publishing it.
+//
+// A restart gets a "-rN" suffix on the static group.instance.id, because the
+// consumer it replaces is still a live group member for up to a session
+// timeout and two members sharing an instance id fence each other. Any other
+// creation — the first one, or one after a suspend, where the previous member
+// is long gone — keeps the base id, so a pod restart resumes as the same
+// static member and the partition assignment order across instances holds.
+func (bc *AbstractBatchConsumer) newConsumer(restart bool) (*kafka.Consumer, error) {
+	config := kafka.ConfigMap(utils.MapPutAll(kafka.ConfigMap{}, bc.consumerConfig))
+	instanceId := bc.GetInstanceId()
+	if restart {
+		instanceId = fmt.Sprintf("%s-r%d", instanceId, bc.restartGeneration.Add(1))
+		config["group.instance.id"] = instanceId
+	}
+	consumer, err := kafka.NewConsumer(&config)
 	if err != nil {
 		bc.errorMetric("consumer_error:" + metrics.KafkaErrorCode(err))
-		bc.Errorf("Error creating Kafka consumer: %v", err)
+		bc.Errorf("Error creating kafka consumer: %v", err)
+		return nil, err
 	}
-	return created, err
+	err = consumer.SubscribeTopics([]string{bc.topicId}, bc.rebalanceCallback)
+	if err != nil {
+		bc.errorMetric("consumer_error:" + metrics.KafkaErrorCode(err))
+		_ = consumer.Close()
+		bc.Errorf("Failed to subscribe to topic: %v", err)
+		return nil, err
+	}
+	//if bc.mode == "retry" && bc.topicId == bc.config.KafkaDestinationsRetryTopicName {
+	//	consumer.Assign([]kafka.TopicPartition{kafka.TopicPartition{Topic: &bc.topicId, Offset: kafka.OffsetStored, Partition: int32(bc.config.InstanceIndex)}})
+	//}
+	bc.consumerCreatedAt.Store(time.Now().UnixNano())
+	bc.Infof("Consumer created: %s (group.instance.id: %s)", consumer.String(), instanceId)
+	return consumer, nil
 }
 
+// heartbeatInterval is how often a paused consumer is polled to stay in the
+// group. It must leave a real margin under max.poll.interval.ms: at exactly
+// half, one poll that waits its full timeout plus any scheduling delay is
+// enough to overshoot, and librdkafka then leaves the group (JITSU-214).
+func (bc *AbstractBatchConsumer) heartbeatInterval() time.Duration {
+	return time.Duration(bc.config.KafkaMaxPollIntervalMs) * time.Millisecond / 3
+}
+
+// membershipGrace is how long a consumer gets to join the group before an
+// empty assignment counts as lost membership: the paused heartbeat first
+// polls it after one heartbeatInterval, and joining takes up to a session.
+func (bc *AbstractBatchConsumer) membershipGrace() time.Duration {
+	return bc.heartbeatInterval() + time.Duration(bc.config.KafkaSessionTimeoutMs)*time.Millisecond
+}
+
+// assignmentLost reports why the current consumer no longer looks like a group
+// member, or "" while it does. Only meaningful once the consumer is past the
+// grace period — before that an empty assignment is just "not joined yet".
+func (bc *AbstractBatchConsumer) assignmentLost(consumer *kafka.Consumer) string {
+	age := time.Since(time.Unix(0, bc.consumerCreatedAt.Load()))
+	if age < bc.membershipGrace() {
+		return ""
+	}
+	partitions, err := consumer.Assignment()
+	if err != nil {
+		return fmt.Sprintf("assignment query failed after %s: %v", age.Round(time.Second), err)
+	}
+	if len(partitions) == 0 {
+		return fmt.Sprintf("no partition assignment after %s while messages are waiting", age.Round(time.Second))
+	}
+	return ""
+}
+
+// membershipLost records that this consumer dropped out of its group — the
+// condition behind topics that silently stop being consumed (JITSU-214). It is
+// an error-level log and a dedicated metric label so it can be alerted on.
+// Every caller follows it with a restart, which logs its own progress.
 func (bc *AbstractBatchConsumer) membershipLost(reason string) {
 	bc.errorMetric("membership_lost")
 	bc.Errorf("Consumer group membership lost: %s", reason)
 }
 
-func (bc *AbstractBatchConsumer) onConsumerError(kafkaErr kafka.Error) {
+// onReadError handles a non-timeout error from ReadMessage during batch
+// processing. A fatal error leaves the librdkafka instance permanently
+// inoperable and a non-retriable one is not going to clear on its own; either
+// way every later poll on this object just times out and the topic looks idle,
+// so the consumer is recreated (asynchronously — the caller is inside a batch
+// and holds the consumer lock).
+func (bc *AbstractBatchConsumer) onReadError(kafkaErr kafka.Error) {
 	bc.errorMetric("consumer_error:" + metrics.KafkaErrorCode(kafkaErr))
 	if reason := membershipLossReason(kafkaErr); reason != "" {
 		bc.membershipLost(reason)
 	}
+	if kafkaErr.IsFatal() || !kafkaErr.IsRetriable() {
+		bc.restartConsumerAsync()
+	}
 }
 
+// restartConsumerAsync schedules restartConsumer to run in a separate
+// goroutine, returning immediately. Re-entry is suppressed: if a restart
+// is already in flight, the call is a no-op. Use from contexts that must
+// not block — notably the pause heartbeat loop, where a synchronous
+// restartConsumer can starve the resumeChannel select for longer than
+// KafkaMaxPollIntervalMs and cause "Resume timeout" in resume().
+func (bc *AbstractBatchConsumer) restartConsumerAsync() {
+	if !bc.restarting.CompareAndSwap(false, true) {
+		return
+	}
+	go func() {
+		defer bc.restarting.Store(false)
+		bc.restartConsumer(nil)
+	}()
+}
+
+// restartConsumer replaces the kafka consumer with a fresh one.
+//
+// The new consumer is created and published FIRST; the old one is closed
+// afterwards, in quarantine (see quarantineClose). Two things make that safe:
+//   - the new consumer joins under a different group.instance.id (see
+//     newConsumer), so the broker never fences one static member with the
+//     other — the FENCED_INSTANCE_ID fatal error that killed consumers when
+//     an old member was still alive while its replacement joined (JITSU-214).
+//     The old member's assignment is released by the broker once its session
+//     times out, at which point the new one is assigned the partition;
+//   - nothing ever closes a consumer another goroutine may still be polling:
+//     the pointer swap happens before the close, and the close waits out any
+//     in-flight poll.
+//
+// Restarts are serialized, and a consumer younger than a session timeout is
+// not restarted again: whoever asked for it was looking at the previous one.
 func (bc *AbstractBatchConsumer) restartConsumer(beforeInit func()) {
 	if bc.retired.Load() {
 		return
 	}
+	bc.restartMu.Lock()
+	defer bc.restartMu.Unlock()
+	if bc.retired.Load() {
+		return
+	}
+	sessionTimeout := time.Duration(bc.config.KafkaSessionTimeoutMs) * time.Millisecond
+	//Only a consumer that a restart installed is subject to the cooldown: it
+	//means a concurrent restart already replaced the one this caller was
+	//looking at. A consumer created by initConsumer (the first one, or one
+	//started after a suspend) is nobody's replacement, so a fatal error on it
+	//must still force a restart rather than leave an unusable handle in place.
+	lastRestart := bc.lastRestartAt.Load()
+	if lastRestart > 0 && bc.consumer.Load() != nil && time.Since(time.Unix(0, lastRestart)) < sessionTimeout {
+		bc.Infof("Consumer was restarted less than %s ago. Skipping restart", sessionTimeout)
+		//beforeInit still runs: it is the caller's own recovery work (an offset
+		//fix-up via the admin client), and skipping it because someone else
+		//restarted the consumer would silently drop that repair
+		if beforeInit != nil {
+			beforeInit()
+		}
+		return
+	}
 	bc.Infof("Restarting consumer")
-	if err := bc.consumer.restart(beforeInit); err != nil {
-		bc.errorMetric("consumer_error:" + metrics.KafkaErrorCode(err))
-		bc.Errorf("Failed to restart Kafka consumer: %v", err)
+	// for faster reaction on retiring
+	pauseTicker := time.NewTicker(1 * time.Second)
+	defer pauseTicker.Stop()
+	retry := time.NewTicker(sessionTimeout + 15*time.Second)
+	defer retry.Stop()
+	for {
+		//beforeInit runs before every attempt, as it always did: callers pass
+		//idempotent work (an offset fix-up via the admin client) that must run
+		//right before the consumer that will use its result
+		if beforeInit != nil {
+			beforeInit()
+		}
+		consumer, err := bc.newConsumer(true)
+		if err == nil {
+			//creating a consumer takes seconds; the object may have been retired
+			//and closed meanwhile. Publishing now would leave a live, subscribed
+			//group member nobody ever closes.
+			if bc.retired.Load() && bc.idle.Load() {
+				bc.Infof("Consumer was retired while restarting. Discarding the new consumer")
+				_ = bc.closeConsumer(consumer)
+				return
+			}
+			bc.lastRestartAt.Store(time.Now().UnixNano())
+			if old := bc.consumer.Swap(consumer); old != nil {
+				bc.quarantineClose(old)
+			}
+			//Retirement can also land between the check above and this swap,
+			//with close() running in between: it would have taken the old
+			//consumer out and closed it, and nothing would ever close the one
+			//just published. Withdraw it — unless someone already took it out,
+			//in which case they close it.
+			if bc.retired.Load() && bc.idle.Load() && bc.consumer.CompareAndSwap(consumer, nil) {
+				bc.Infof("Consumer was retired while restarting. Discarding the new consumer")
+				_ = bc.closeConsumer(consumer)
+			}
+			return
+		}
+		//creation failed (broker unreachable?): retry after a session timeout,
+		//polling for retirement in between. Retirement alone ends the loop —
+		//this runs synchronously from ConsumeAll too, where idle is false for
+		//the whole run, so waiting for idle would never let a retired consumer
+		//out (and it holds bc.Mutex and restartMu while it waits).
+		for {
+			select {
+			case <-pauseTicker.C:
+				if bc.retired.Load() {
+					return
+				}
+				continue
+			case <-retry.C:
+			}
+			break
+		}
+	}
+}
+
+func (bc *AbstractBatchConsumer) pauseKafkaConsumer() {
+	consumer := bc.consumer.Load()
+	if consumer == nil {
+		//a restart is replacing the consumer; rebalanceCallback pauses the new
+		//one on assignment while paused is set
+		return
+	}
+	partitions, err := consumer.Assignment()
+	if len(partitions) > 0 {
+		err = consumer.Pause(partitions)
+	}
+	if err != nil {
+		bc.errorMetric("pause_error")
+		bc.SystemErrorf("Failed to pause kafka consumer: %v", err)
+		bc.restartConsumer(nil)
+	} else {
+		if len(partitions) > 0 {
+			bc.Debugf("Consumer paused.")
+		}
+		// otherwise rebalanceCallback will handle pausing
+	}
+}
+
+func (bc *AbstractBatchConsumer) rebalanceCallback(consumer *kafka.Consumer, event kafka.Event) error {
+	assignedParts, ok := event.(kafka.AssignedPartitions)
+	bc.Debugf("Rebalance event: %v . Paused: %t", event, bc.paused.Load())
+	if ok && bc.paused.Load() {
+		err := consumer.Pause(assignedParts.Partitions)
+		if err != nil {
+			bc.errorMetric("pause_error")
+			bc.SystemErrorf("Failed to pause kafka consumer: %v", err)
+			return err
+		} else {
+			bc.Debugf("Consumer paused.")
+		}
+	}
+	return nil
+}
+
+// _unpause stops the pause heartbeat for the suspend path. It sends on the
+// unbuffered stopChannel so the send only completes once the heartbeat has
+// received it and is leaving its loop — i.e. it is no longer inside
+// ReadMessage. That rendezvous lets pauseOrSuspend close the consumer right
+// after without racing the heartbeat into a non-retriable ReadMessage error
+// (which would spuriously trigger restartConsumerAsync and recreate the
+// consumer we intended to suspend).
+func (bc *AbstractBatchConsumer) _unpause() {
+	if !bc.paused.Load() {
+		return
+	}
+	select {
+	case bc.stopChannel <- struct{}{}:
+		return
+	case <-time.After(time.Duration(bc.config.KafkaMaxPollIntervalMs) * time.Millisecond):
+		bc.errorMetric("resume_error")
+		bc.SystemErrorf("failed to unpause kafka consumer.")
 	}
 }
 
 func (bc *AbstractBatchConsumer) resume() {
-	if err := bc.consumer.resume(); err != nil && !errors.Is(err, errConsumerNotStarted) {
-		bc.errorMetric("resume_error")
-		bc.SystemErrorf("Failed to resume Kafka consumer: %v", err)
+	if !bc.paused.Load() {
+		return
+	}
+	consumer := bc.consumer.Load()
+	var err error
+	defer func() {
+		if err != nil {
+			bc.errorMetric("resume_error")
+			bc.SystemErrorf("failed to resume kafka consumer.: %v", err)
+		}
+	}()
+	if consumer == nil {
+		err = bc.NewError("no kafka consumer (restart in progress?)")
+		return
+	}
+	partitions, err := consumer.Assignment()
+	if err != nil {
+		return
+	}
+	select {
+	case bc.resumeChannel <- struct{}{}:
+		err = consumer.Resume(partitions)
+	case <-time.After(time.Duration(bc.config.KafkaMaxPollIntervalMs) * time.Millisecond):
+		err = bc.NewError("Resume timeout.")
+		//return bc.consumer.Resume(partitions)
 	}
 }
 
@@ -448,9 +951,6 @@ func (bc *AbstractBatchConsumer) resume() {
 func (bc *AbstractBatchConsumer) Retire() {
 	bc.Infof("Retiring %s consumer", bc.mode)
 	bc.retired.Store(true)
-	if bc.idle.Load() {
-		_ = bc.close()
-	}
 }
 func (bc *AbstractBatchConsumer) errorMetric(errorType string) {
 	metrics.ConsumerErrors(bc.topicId, bc.mode, bc.destinationId, bc.tableName, errorType).Inc()
@@ -490,6 +990,16 @@ func (bc *AbstractBatchConsumer) countersMetric(counters BatchCounters) {
 			}
 		}
 	}
+}
+
+// hasLag reports whether the topic holds messages this consumer has not
+// committed: either nothing was ever committed (OffsetBeginning/invalid) or the
+// committed offset trails the high watermark.
+func hasLag(committedOffset, highOffset int64) bool {
+	if highOffset <= 0 {
+		return false
+	}
+	return committedOffset < 0 || committedOffset < highOffset
 }
 
 // membershipLossReason maps a kafka error to a human-readable reason when it
