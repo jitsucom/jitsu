@@ -7,7 +7,7 @@ import { readerDialectContract } from "./reader-contract";
 import { supportsWarehouseReader, ModelDefinition } from "./schema";
 import type { SourceRecord } from "./types";
 
-const sdk = vi.hoisted(() => ({ createConnection: vi.fn() }));
+const sdk = vi.hoisted(() => ({ createConnection: vi.fn(), configure: vi.fn() }));
 vi.mock("snowflake-sdk", () => ({ default: sdk }));
 afterEach(() => vi.resetAllMocks());
 afterEach(() => vi.useRealTimers());
@@ -274,6 +274,90 @@ async function collect(model = testModel()) {
     await reader.close();
   }
 }
+
+it("disables actual SDK value-bearing warnings before preview and extraction connections", async () => {
+  const realSdk = (await vi.importActual<{ default: typeof import("snowflake-sdk") }>("snowflake-sdk")).default;
+  const winston = require(require.resolve("winston", { paths: [sdkDirectory] }));
+  const write = vi.fn();
+  // Intercept the transport factory, not the SDK logger/decoder: no test values
+  // are written to stdout or snowflake.log even when demonstrating the old leak.
+  const transports = vi.spyOn(winston, "createLogger").mockImplementation(
+    class {
+      ERROR = write;
+      WARN = write;
+      INFO = write;
+      DEBUG = write;
+      TRACE = write;
+      close = () => {};
+    }
+  );
+  const consoleTransport = vi.spyOn(winston.transports, "Console").mockImplementation(class {});
+  const fileTransport = vi.spyOn(winston.transports, "File").mockImplementation(class {});
+  const raw = "9007199254740993";
+  const decode = () => {
+    const column = new RealColumn({
+      columnMetadata: numberColumn("id"),
+      index: 0,
+      statementParameters: {},
+      resultVersion: 1,
+      onPrecisionLoss() {},
+    });
+    return column._getRowValueAsString({ values: [raw], _arrayProcessedColumns: [] });
+  };
+  const reader = createSnowflakeReader(config);
+  try {
+    realSdk.configure({ logLevel: "WARN" });
+    expect(decode()).toBe(raw);
+    expect(write).toHaveBeenCalledWith(expect.stringContaining(raw));
+    write.mockClear();
+    transports.mockClear();
+    consoleTransport.mockClear();
+    fileTransport.mockClear();
+    sdk.configure.mockImplementation(options => realSdk.configure(options));
+    decodedFixture([numberColumn("id")], [[raw]]);
+    expect((await reader.preview("SELECT * FROM source")).rows).toEqual([{ id: raw }]);
+    expect((await collect())[0].row.id).toBe(raw);
+    expect(sdk.configure).toHaveBeenCalledTimes(2);
+    expect(sdk.configure).toHaveBeenCalledWith({ logLevel: "OFF" });
+    expect(sdk.createConnection.mock.calls[0][0].clientConfigFile).toBe("");
+    for (let i = 0; i < 2; i++)
+      expect(sdk.configure.mock.invocationCallOrder[i]).toBeLessThan(sdk.createConnection.mock.invocationCallOrder[i]);
+    expect(write).not.toHaveBeenCalled();
+    expect(transports).not.toHaveBeenCalled();
+    expect(consoleTransport).not.toHaveBeenCalled();
+    expect(fileTransport).not.toHaveBeenCalled();
+  } finally {
+    await reader.close();
+    realSdk.configure({ logLevel: "OFF" });
+    transports.mockRestore();
+    consoleTransport.mockRestore();
+    fileTransport.mockRestore();
+  }
+});
+
+it("prevents SDK Easy Logging from discovering host configuration", async () => {
+  const { ConfigurationUtil } = require(join(sdkDirectory, "lib/configuration/client_configuration.js"));
+  // Pin the SDK's explicit-empty-path behavior: no environment or filesystem
+  // discovery may run, even when the host has enabled Easy Logging elsewhere.
+  const unexpectedLookup = () => {
+    throw new Error("SDK attempted host logging configuration lookup");
+  };
+  const configuration = new ConfigurationUtil(new Proxy({}, { get: unexpectedLookup }), {
+    get env() {
+      return unexpectedLookup();
+    },
+  });
+  const f = fixture([{ fields: [field("id")], rows: [] }]);
+  const reader = createSnowflakeReader(config);
+  try {
+    await reader.columns("SELECT id FROM source");
+    const options = sdk.createConnection.mock.calls[0][0];
+    await expect(configuration.getClientConfig(options.clientConfigFile)).resolves.toBeNull();
+    expect(f.connection.destroy).toHaveBeenCalled();
+  } finally {
+    await reader.close();
+  }
+});
 
 it("preserves SQL nulls through the SDK in preview and extraction, including TIME", async () => {
   decodedFixture(

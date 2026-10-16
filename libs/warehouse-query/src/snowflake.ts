@@ -148,7 +148,13 @@ export function createSnowflakeReader(input: Record<string, any>): WarehouseRead
     try {
       const { default: sdk } = await deadline.read(() => import("snowflake-sdk"));
       deadline.signal.throwIfAborted();
+      // SDK warnings can contain raw warehouse values, even with fetchAsString.
+      // Keep errors on the reader's normal rejection path, not SDK stdout/files.
+      sdk.configure({ logLevel: "OFF" });
       connection = sdk.createConnection({
+        // SDK 3.4.0 treats an explicit empty path as no Easy Logging config;
+        // otherwise a host config file can re-enable logging during connect.
+        clientConfigFile: "",
         account: config.account,
         username: config.username,
         authenticator: "SNOWFLAKE_JWT",
