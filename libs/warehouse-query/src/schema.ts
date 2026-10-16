@@ -65,9 +65,20 @@ export const PreviewResult = z.object({
 export type PreviewResult = z.infer<typeof PreviewResult>;
 
 // Public provisioned configs hide credentials/protocol, so capability uses their server-owned marker.
+export const warehouseReaderDescriptions = [
+  "Postgres with password authentication",
+  "HTTP(S) ClickHouse (including Jitsu-provisioned ClickHouse)",
+  "BigQuery with a service-account key",
+  "Snowflake with key-pair authentication",
+];
+export const warehouseReaderSupportDescription = `Models support ${warehouseReaderDescriptions.join(
+  ", "
+)}. Use read-only warehouse access; BigQuery also requires permission to create query jobs.`;
+
 export function supportsWarehouseReader(config: Record<string, any>): boolean {
   if (config.provisioned) return config.provisioned === true && config.destinationType === "clickhouse";
   return (
+    (config.destinationType === "snowflake" && config.authenticationMethod === "key-pair") ||
     config.destinationType === "bigquery" ||
     (config.destinationType === "postgres" &&
       (!config.authenticationMethod || config.authenticationMethod === "password")) ||

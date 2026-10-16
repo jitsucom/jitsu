@@ -4,7 +4,12 @@ import Link from "next/link";
 import dynamic from "next/dynamic";
 import { Alert, Button, Collapse, Form, Input, InputNumber, Select, Table, Tabs, Tag, message } from "antd";
 import { randomId, rpc } from "juava";
-import { ModelDefinition, PreviewResult, supportsWarehouseReader } from "@jitsu/warehouse-query/src/schema";
+import {
+  ModelDefinition,
+  PreviewResult,
+  supportsWarehouseReader,
+  warehouseReaderSupportDescription,
+} from "@jitsu/warehouse-query/src/schema";
 import { WorkspacePageLayout } from "../../components/PageLayout/WorkspacePageLayout";
 import { useAppConfig, useWorkspace, useWorkspaceRole } from "../../lib/context";
 import { ModelConfig } from "../../lib/schema";
@@ -84,7 +89,7 @@ function ModelsList() {
           className="mb-4"
           type="info"
           title="Connect a supported warehouse first"
-          description="Models support Postgres with password authentication, ClickHouse over HTTP or HTTPS (including Jitsu-provisioned ClickHouse), and BigQuery with a service-account key. Use read-only warehouse access; BigQuery also requires permission to create query jobs."
+          description={warehouseReaderSupportDescription}
         />
       )}
       <ConfigEditor {...(config as ConfigEditorProps)} />

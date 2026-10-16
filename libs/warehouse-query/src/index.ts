@@ -1,6 +1,7 @@
 import { createPostgresReader, postgresSql } from "./postgres";
 import { createClickHouseReader, clickhouseSql } from "./clickhouse";
 import { createBigQueryReader, bigquerySql } from "./bigquery";
+import { createSnowflakeReader, snowflakeSql } from "./snowflake";
 import { supportsWarehouseReader } from "./schema";
 import type { WarehouseReader, WarehouseSqlDialect } from "./types";
 
@@ -10,6 +11,8 @@ export type { ModelDefinition, WarehouseColumn, PreviewResult } from "./schema";
 /** Select SQL rules without parsing credentials or allocating a database client. */
 export function getWarehouseSqlDialect(destinationType: string): WarehouseSqlDialect {
   switch (destinationType) {
+    case "snowflake":
+      return snowflakeSql;
     case "postgres":
       return postgresSql;
     case "clickhouse":
@@ -24,6 +27,8 @@ export function getWarehouseSqlDialect(destinationType: string): WarehouseSqlDia
 export function createWarehouseReader(config: Record<string, any>): WarehouseReader {
   if (!supportsWarehouseReader(config)) throw new Error("This warehouse connection is not supported for models yet");
   switch (config.destinationType) {
+    case "snowflake":
+      return createSnowflakeReader(config);
     case "postgres":
       return createPostgresReader(config);
     case "clickhouse":
