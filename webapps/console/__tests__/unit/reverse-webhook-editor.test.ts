@@ -296,7 +296,8 @@ it("explains at-least-once delivery, the size limit, type conversion and HTTPS",
   columnsFor(twoColumns);
   mount();
   await chooseRows();
-  const notice = (await screen.findByTestId("How delivery works")).textContent!;
+  const notice = (await screen.findByText("Rows are sent as JSON with POST requests")).closest(".ant-alert")!
+    .textContent!;
   for (const text of ["at least once", "stops at that record", "1 MiB", "base64", "https://"]) {
     expect(notice).toContain(text);
   }

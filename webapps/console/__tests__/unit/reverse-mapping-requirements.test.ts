@@ -2,7 +2,7 @@
 import React from "react";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
-import { reverseStreamEditors } from "../../components/ReverseETL/streams";
+import { reverseStreamEditors, streamFieldGroups } from "../../components/ReverseETL/streams";
 import FieldListEditorLayout from "../../components/FieldListEditorLayout/FieldListEditorLayout";
 import { ReverseSyncOptions } from "@jitsu/warehouse-query/src/schema";
 
@@ -44,6 +44,7 @@ function Fields({
 }) {
   const stream = reverseStreamEditors[destination].find(s => s.id === options.stream)!;
   return React.createElement(FieldListEditorLayout, {
+    groups: streamFieldGroups,
     items: stream.fields(options, update, disabled, {
       columns: [
         { name: "email", type: "text" },
@@ -59,16 +60,62 @@ function options(destination: string, stream: string, patch: Partial<ReverseSync
   return ReverseSyncOptions.parse({ ...defaults, stream, ...patch });
 }
 
-it("renders required fields, alternatives with AND/OR instructions, then optional fields", () => {
+it("renders separate requirement cards with descriptions, without OR bullet lists", () => {
   render(React.createElement(Fields, { destination: "google-ads", options: options("google-ads", "audience") }));
   const headings = screen.getAllByRole("heading", { level: 3 }).map(h => h.textContent);
-  expect(headings).toEqual(["Required fields", "Required alternatives", "Optional and conditional fields"]);
+  expect(headings).toEqual(["Required fields", "Customer matching", "Optional and conditional fields"]);
   expect(screen.getByText("Choose at least one option")).toBeTruthy();
-  expect(screen.getByText(/Complete address: first name AND last name AND country AND postal code/)).toBeTruthy();
+  expect(screen.queryByRole("list")).toBeNull();
+  expect(screen.getByText(/If any address part is supplied, all four address parts are required/)).toBeTruthy();
   expect(screen.getByText(/checks mappings or defaults, not the values in every model row/)).toBeTruthy();
   const required = screen.getByText("Customer Match terms");
-  const alternatives = screen.getByRole("heading", { name: "Required alternatives" });
+  const alternatives = screen.getByRole("heading", { name: "Customer matching" });
   expect(required.compareDocumentPosition(alternatives) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+});
+
+it("places all stream hints before the requirement cards", () => {
+  render(
+    React.createElement(Fields, { destination: "google-ads", options: options("google-ads", "click-conversions") })
+  );
+  const hint = screen.getByText("Insert new events only");
+  const heading = screen.getByRole("heading", { name: "Stream settings" });
+  const required = screen.getByRole("heading", { name: "Required fields" });
+  expect(heading.compareDocumentPosition(hint) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  expect(hint.compareDocumentPosition(required) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  for (const streams of Object.values(reverseStreamEditors))
+    for (const stream of streams) {
+      const items = stream.fields(
+        ReverseSyncOptions.parse({ ...stream.defaults(), stream: stream.id }),
+        () => {},
+        false,
+        { columns: [], loading: false }
+      );
+      const firstCard = items.findIndex(item => item.key?.includes(":section:"));
+      expect(firstCard).toBeGreaterThan(0);
+      expect(items.slice(0, firstCard).every(item => item.rowClassName?.includes("!border-0"))).toBe(true);
+      expect(items.slice(firstCard).some(item => item.rowClassName?.includes("!border-0"))).toBe(false);
+    }
+});
+
+it("gives every alternative its own card and keeps compound requirements readable", () => {
+  const initial = options("google-ads", "conversion-adjustments", { mapping: { adjustmentType: "kind" } });
+  render(React.createElement(Fields, { destination: "google-ads", options: initial }));
+  expect(screen.getAllByRole("heading", { level: 3 }).map(h => h.textContent)).toEqual([
+    "Required fields",
+    "Original conversion",
+    "Enhanced matching",
+    "Optional and conditional fields",
+  ]);
+  for (const name of [
+    "Required fields",
+    "Original conversion",
+    "Enhanced matching",
+    "Optional and conditional fields",
+  ]) {
+    expect(screen.getByRole("heading", { name }).closest(".rounded-t-xl")).not.toBeNull();
+  }
+  expect(screen.getByText("GCLID AND original conversion time must be mapped together.")).toBeTruthy();
+  expect(screen.queryByRole("list")).toBeNull();
 });
 
 it("updates alternative configuration status without requiring all alternatives", () => {

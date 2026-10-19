@@ -326,8 +326,43 @@ function renderResolvedField(
   };
 }
 
-function section(stream: string, key: string, component: React.ReactNode): EditorItem {
-  return { key: `${stream}:section:${key}`, group: "Stream settings", component, itemClassName: "w-full px-4 py-3" };
+// No enclosing table border: each requirement card supplies its own border, with hints outside the cards.
+export const streamFieldGroups = { "Stream settings": { className: "pb-2" } };
+
+function requirementCard(
+  stream: string,
+  key: string,
+  title: string,
+  description: React.ReactNode,
+  fields: EditorItem[],
+  status?: React.ReactNode
+): EditorItem[] {
+  // Draw contiguous card edges without moving controls into different React parents when requirements change.
+  return [
+    {
+      key: `${stream}:section:${key}`,
+      group: "Stream settings",
+      rowClassName: `mt-5 border-x border-t border-textDisabled bg-gray-50 rounded-t-xl ${
+        fields.length ? "" : "border-b rounded-b-xl"
+      }`,
+      itemClassName: "w-full px-5 py-4",
+      component: (
+        <div>
+          <div className="flex flex-wrap gap-2 items-center justify-between">
+            <h3 className="font-semibold text-base m-0">{title}</h3>
+            {status}
+          </div>
+          <div className="text-sm text-textSecondary mt-2 space-y-1">{description}</div>
+        </div>
+      ),
+    },
+    ...fields.map((field, index) => ({
+      ...field,
+      rowClassName: `border-x border-textDisabled bg-white ${
+        index === fields.length - 1 ? "border-b rounded-b-xl" : ""
+      }`,
+    })),
+  ];
 }
 
 /** Console owns rendering; destination packages own settings and mapping descriptions. */
@@ -348,73 +383,79 @@ export const reverseStreamEditors: Record<string, StreamEditor[]> = Object.fromE
             });
             const render = (field: ResolvedField) =>
               renderResolvedField(field, stream.id, options, update, disabled, source);
-            // One parent and stable field keys preserve focus/format when selector changes reorder sections.
-            const items: EditorItem[] = [];
-            if (resolved.required.length)
+            const notices = [...resolved.required, ...resolved.alternativeFields, ...resolved.optional].filter(
+              field => field.editor === "notice"
+            );
+            const required = resolved.required.filter(field => field.editor !== "notice");
+            const optional = resolved.optional.filter(field => field.editor !== "notice");
+            // Keep hints immediately below the Stream settings heading, outside requirement cards.
+            const items: EditorItem[] = notices.map(field => ({
+              ...render(field),
+              name: undefined,
+              rowClassName: "!border-0 mb-3",
+              itemClassName: "w-full",
+            }));
+            if (required.length)
               items.push(
-                section(stream.id, "required", <h3 className="font-semibold text-base m-0">Required fields</h3>),
-                ...resolved.required.map(render)
-              );
-            if (resolved.alternatives.length) {
-              items.push(
-                section(
+                ...requirementCard(
                   stream.id,
-                  "alternatives",
-                  <div>
-                    <h3 className="font-semibold text-base m-0">Required alternatives</h3>
-                    <p className="text-xs text-textSecondary mt-1 mb-0">
-                      Choose at least one option in each applicable group. “Configured” checks mappings or defaults, not
-                      the values in every model row.
-                    </p>
-                  </div>
+                  "required",
+                  "Required fields",
+                  "Complete these fields for the selected stream. Defaults are filled in where available.",
+                  required.map(render)
                 )
               );
-              const rendered = new Set(resolved.required.map(field => field.key));
+            if (resolved.alternatives.length) {
+              const rendered = new Set(required.map(field => field.key));
+              const allFields = [...required, ...resolved.alternativeFields];
               for (const group of resolved.alternatives) {
+                const keys = new Set(group.options.flatMap(option => option.fields));
+                const shared = allFields.filter(field => keys.has(field.key) && rendered.has(field.key));
+                const fields = resolved.alternativeFields.filter(
+                  field => field.editor !== "notice" && keys.has(field.key) && !rendered.has(field.key)
+                );
+                for (const field of fields) rendered.add(field.key);
                 items.push(
-                  section(
+                  ...requirementCard(
                     stream.id,
                     `alternative:${group.key}`,
-                    <div className="border rounded p-3 bg-gray-50">
-                      <div className="flex flex-wrap gap-2 items-center font-medium">
-                        {group.title}
-                        <Tag color={group.configured ? "green" : group.condition ? "blue" : "orange"}>
-                          {group.configured
-                            ? "Configured"
-                            : group.condition
-                            ? "Required for matching rows"
-                            : "Choose at least one option"}
-                        </Tag>
+                    group.title,
+                    <>
+                      <div className="text-xs font-medium uppercase tracking-wide">Required alternative</div>
+                      {group.condition && <div className="font-medium text-textDark">{group.condition}</div>}
+                      <div>{group.description ?? "Provide at least one matching option using the fields below."}</div>
+                      {!group.description &&
+                        group.options
+                          .filter(option => option.fields.length > 1)
+                          .map(option => <div key={option.label}>{option.label} must be mapped together.</div>)}
+                      {!!shared.length && (
+                        <div>Also uses fields shown above: {shared.map(field => field.name).join(", ")}.</div>
+                      )}
+                      <div className="text-xs">
+                        “Configured” checks mappings or defaults, not the values in every model row.
                       </div>
-                      {group.condition && <p className="text-sm mt-2 mb-0">{group.condition}</p>}
-                      {group.description && <p className="text-xs text-textSecondary mt-2 mb-0">{group.description}</p>}
-                      <ul className="list-disc pl-5 text-sm mt-2 mb-0">
-                        {group.options.map((option, index) => (
-                          <li key={option.fields.join(",")}>
-                            {index > 0 && <span className="font-semibold">OR </span>}
-                            {option.label}
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
+                    </>,
+                    fields.map(render),
+                    <Tag className="!m-0" color={group.configured ? "green" : group.condition ? "blue" : "orange"}>
+                      {group.configured
+                        ? "Configured"
+                        : group.condition
+                        ? "Required for matching rows"
+                        : "Choose at least one option"}
+                    </Tag>
                   )
                 );
-                const keys = new Set(group.options.flatMap(option => option.fields));
-                for (const field of resolved.alternativeFields)
-                  if (keys.has(field.key) && !rendered.has(field.key)) {
-                    items.push(render(field));
-                    rendered.add(field.key);
-                  }
               }
             }
-            if (resolved.optional.length)
+            if (optional.length)
               items.push(
-                section(
+                ...requirementCard(
                   stream.id,
                   "optional",
-                  <h3 className="font-semibold text-base m-0">Optional and conditional fields</h3>
-                ),
-                ...resolved.optional.map(render)
+                  "Optional and conditional fields",
+                  "Add more detail to improve matching, or map fields needed only for particular rows. Leave unused fields unmapped.",
+                  optional.map(render)
+                )
               );
             return items;
           },
