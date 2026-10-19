@@ -231,7 +231,20 @@ function renderField(
       );
       break;
     case "notice":
-      component = <Alert type="info" showIcon={field.showIcon} title={field.title} description={field.description} />;
+      component =
+        field.presentation === "description" ? (
+          <div className="text-sm text-textSecondary">
+            {field.title}
+            {field.description && <div>{field.description}</div>}
+          </div>
+        ) : (
+          <Alert
+            type={field.presentation === "warning" ? "warning" : "info"}
+            showIcon={field.showIcon}
+            title={field.title}
+            description={field.description}
+          />
+        );
       break;
     case "identifier":
       component = (
@@ -389,7 +402,6 @@ export const reverseStreamEditors: Record<string, StreamEditor[]> = Object.fromE
             );
             const required = resolved.required.filter(field => field.editor !== "notice");
             const optional = resolved.optional.filter(field => field.editor !== "notice");
-            // Keep hints immediately below the Stream settings heading, outside requirement cards.
             const items: EditorItem[] = notices.map(field => ({
               ...render(field),
               name: undefined,

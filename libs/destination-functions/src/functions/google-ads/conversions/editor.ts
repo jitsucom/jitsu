@@ -199,10 +199,11 @@ export function googleConversionEditor(id: GoogleConversionStream): ReverseStrea
         {
           key: "event-mode",
           editor: "notice",
-          showIcon: true,
-          title: "Insert new events only",
-          description:
-            "Use a model primary key unique to each event. Previously submitted keys are not sent again. To correct a conversion, submit a new event through Conversion adjustments.",
+          presentation: "description",
+          title:
+            id === "conversion-adjustments"
+              ? "Each adjustment needs a new model primary key. Map the original conversion separately; previously sent adjustments are not resent."
+              : "Only new model primary keys are sent; changes to previously sent rows are not resent.",
         },
       ];
       if (id === "click-conversions")

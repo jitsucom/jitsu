@@ -32,7 +32,12 @@ vi.mock("../../components/FieldListEditorLayout/FieldListEditorLayout", () => ({
       React.Fragment,
       null,
       ...items.map((item: any) =>
-        React.createElement("div", { key: item.name ?? item.key, "data-testid": item.name }, item.component)
+        React.createElement(
+          "div",
+          { key: item.name ?? item.key, "data-testid": item.name },
+          item.component,
+          item.documentation
+        )
       )
     ),
 }));
@@ -291,14 +296,16 @@ it("sends the repeated-delivery and unencrypted-HTTP confirmations the user tick
   expect(saveBody().data.streamOptions).toMatchObject({ deliveryAttested: true, allowInsecureHttp: true });
 });
 
-it("explains at-least-once delivery, the size limit, type conversion and HTTPS", async () => {
+it("places delivery details beside the relevant fields instead of in a banner", async () => {
   state.models = models;
   columnsFor(twoColumns);
   mount();
   await chooseRows();
-  const notice = (await screen.findByText("Rows are sent as JSON with POST requests")).closest(".ant-alert")!
-    .textContent!;
-  for (const text of ["at least once", "stops at that record", "1 MiB", "base64", "https://"]) {
-    expect(notice).toContain(text);
-  }
+  expect(screen.queryByText("Rows are sent as JSON with POST requests")).toBeNull();
+  expect(screen.getByTestId("Payload").textContent).toContain("JSON POST body");
+  expect(screen.getByTestId("Payload").textContent).toContain("base64");
+  expect(screen.getByTestId("Records per request").textContent).toContain("1 MiB");
+  expect(screen.getByTestId("Repeated delivery").textContent).toContain("at least once");
+  expect(screen.getByTestId("Repeated delivery").textContent).toContain("rejected record stops the run");
+  expect(screen.getByTestId("Unencrypted HTTP").textContent).toContain("https://");
 });

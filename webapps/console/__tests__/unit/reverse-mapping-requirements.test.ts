@@ -91,15 +91,19 @@ it.each(["hover", "focus"])("explains configuration status when the whole tag re
   expect(tooltip.textContent).toBe("“Configured” checks mappings or defaults, not the values in every model row.");
 });
 
-it("places all stream hints before the requirement cards", () => {
+it("shows concise conversion guidance without a banner, before requirement cards", () => {
   render(
     React.createElement(Fields, { destination: "google-ads", options: options("google-ads", "click-conversions") })
   );
-  const hint = screen.getByText("Insert new events only");
-  const heading = screen.getByRole("heading", { name: "Stream settings" });
-  const required = screen.getByRole("heading", { name: "Required fields" });
-  expect(heading.compareDocumentPosition(hint) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-  expect(hint.compareDocumentPosition(required) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  expect(screen.queryByText("Insert new events only")).toBeNull();
+  const hint = screen.getByText(
+    "Only new model primary keys are sent; changes to previously sent rows are not resent."
+  );
+  expect(hint.closest(".ant-alert")).toBeNull();
+  expect(
+    hint.compareDocumentPosition(screen.getByRole("heading", { name: "Required fields" })) &
+      Node.DOCUMENT_POSITION_FOLLOWING
+  ).toBeTruthy();
   for (const streams of Object.values(reverseStreamEditors))
     for (const stream of streams) {
       const items = stream.fields(
@@ -109,10 +113,42 @@ it("places all stream hints before the requirement cards", () => {
         { columns: [], loading: false }
       );
       const firstCard = items.findIndex(item => item.key?.includes(":section:"));
-      expect(firstCard).toBeGreaterThan(0);
-      expect(items.slice(0, firstCard).every(item => item.rowClassName?.includes("!border-0"))).toBe(true);
+      expect(firstCard).toBe(stream.id === "rows" ? 0 : 1);
       expect(items.slice(firstCard).some(item => item.rowClassName?.includes("!border-0"))).toBe(false);
     }
+});
+
+it.each(["google-ads", "facebook-conversions", "microsoft-ads"])(
+  "%s retains a short mirror warning but no existing-audience banner",
+  destination => {
+    const initial = options(destination, "audience");
+    const view = render(React.createElement(Fields, { destination, options: initial }));
+    const warning = screen.getByText(
+      "Tracked members missing from the model are removed. An empty model clears tracked membership."
+    );
+    expect(warning.closest(".ant-alert-warning")).toBeTruthy();
+    view.rerender(
+      React.createElement(Fields, {
+        destination,
+        options: {
+          ...initial,
+          mode: "upsert",
+          streamOptions: { ...initial.streamOptions, audience: { kind: "existing", audienceId: "123" } },
+        },
+      })
+    );
+    expect(screen.queryByText(/An empty model clears/)).toBeNull();
+    expect(screen.queryByRole("alert")).toBeNull();
+  }
+);
+
+it("keeps Webhook acknowledgments without the delivery banner", () => {
+  render(
+    React.createElement(Fields, { destination: "webhook", options: options("webhook", "rows"), protocol: "http:" })
+  );
+  expect(screen.queryByText("Rows are sent as JSON with POST requests")).toBeNull();
+  expect(screen.getByRole("checkbox", { name: /tolerates receiving the same record/ })).toBeTruthy();
+  expect(screen.getByRole("checkbox", { name: /accept sending data over unencrypted/ })).toBeTruthy();
 });
 
 it("gives every alternative its own card and keeps compound requirements readable", () => {
@@ -173,6 +209,7 @@ it("preserves the identifier control and format when a selector moves it between
 it("renders row-conditional requirements for mapped adjustment types without marking all fields mandatory", () => {
   const initial = options("google-ads", "conversion-adjustments", { mapping: { adjustmentType: "kind" } });
   render(React.createElement(Fields, { destination: "google-ads", options: initial }));
+  expect(screen.getByText(/Each adjustment needs a new model primary key/).closest(".ant-alert")).toBeNull();
   expect(screen.getByText("For RESTATEMENT and RETRACTION rows")).toBeTruthy();
   expect(screen.getByText("For ENHANCEMENT rows; original order ID is also required")).toBeTruthy();
   expect(screen.getAllByText("Required for matching rows")).toHaveLength(2);

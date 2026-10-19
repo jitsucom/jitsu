@@ -50,7 +50,13 @@ export type ReverseEditorField<Key extends string = string> = FieldBase &
       }
     | { editor: "number"; value: number; min?: number; max?: number; change(value: number | null): ReverseEditorPatch }
     | { editor: "checkbox"; value: boolean; label: string; change(value: boolean): ReverseEditorPatch }
-    | { editor: "notice"; title: string; description: string; showIcon?: boolean }
+    | {
+        editor: "notice";
+        title: string;
+        description?: string;
+        showIcon?: boolean;
+        presentation?: "description" | "warning";
+      }
     | { editor: "mapping"; field: Key }
     | { editor: "identifier"; raw: Key; hashed: Key }
     /** Read-only list of the model's columns with a payload preview; writes the identity mapping (each column to itself). */

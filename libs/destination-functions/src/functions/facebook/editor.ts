@@ -81,6 +81,9 @@ export const metaAudienceEditor: ReverseStreamEditor = {
         editor: "select",
         name: "Audience",
         value: audience.kind,
+        documentation: managed
+          ? "Mirror — changes only: uploads changes before removing tracked members absent from the full model."
+          : "Additions and explicit removals via a model delete column. Existing membership is not imported or cleared; full mirroring is not supported for existing audiences.",
         choices: [
           { value: "managed", label: "Create a new audience on first run" },
           { value: "existing", label: "Use an existing audience" },
@@ -105,14 +108,17 @@ export const metaAudienceEditor: ReverseStreamEditor = {
           : "An existing customer-list Custom Audience in this ad account. Other audience types are not supported.",
         change: value => change({ audience: { ...audience, [managed ? "name" : "audienceId"]: value } }),
       },
-      {
-        editor: "notice",
-        key: "audience-mode",
-        title: managed ? "Mirror — changes only" : "Additions and explicit removals",
-        description: managed
-          ? "Jitsu uploads changes, then removes tracked members absent from the full model. An empty model clears tracked membership. Meta matching is asynchronous; accepted records are not matched people."
-          : "A delete-column model can remove members explicitly. Existing membership is not imported or cleared; full mirroring is not supported for existing audiences.",
-      },
+      ...(managed
+        ? [
+            {
+              editor: "notice" as const,
+              key: "audience-mode",
+              presentation: "warning" as const,
+              showIcon: true,
+              title: "Tracked members missing from the model are removed. An empty model clears tracked membership.",
+            },
+          ]
+        : []),
       {
         editor: "checkbox",
         name: "Value-based audience",
@@ -199,9 +205,8 @@ export const metaConversionEditor: ReverseStreamEditor = {
       {
         editor: "notice",
         key: "insert-only",
-        title: "Insert new events only",
-        description:
-          "Use a unique model primary key per event. Previously submitted keys are not sent again. Unknown submission outcomes require manual reconciliation; event-ID deduplication is not an unlimited replay guarantee.",
+        presentation: "description",
+        title: "Only new model primary keys are sent; changes to previously sent rows are not resent.",
       },
       text(
         "eventName",

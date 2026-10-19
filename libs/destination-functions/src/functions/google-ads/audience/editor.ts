@@ -80,6 +80,12 @@ export const googleAudienceEditor: ReverseStreamEditor = {
         name: "Sync mode",
         editor: "select",
         value: options.mode === "upsert" ? "upsert" : settings.mirrorStrategy ?? "snapshot-diff",
+        documentation:
+          options.mode === "upsert"
+            ? "Use a model delete column for explicit removals. Other audience members are untouched."
+            : settings.mirrorStrategy === "full-replace"
+            ? "Every member is uploaded; older membership is removed after Google accepts all uploads. Use a full-query model and do not upload from other tools."
+            : "Only changed members are uploaded; missing tracked members are removed after uploads succeed. Use a full-query model and do not upload from other tools.",
         choices: [
           ...(kind === "managed"
             ? [{ value: "snapshot-diff", label: "Mirror — changes only" }]
@@ -145,12 +151,11 @@ export const googleAudienceEditor: ReverseStreamEditor = {
         key: "mirror-notice",
         editor: "notice",
         showIcon: true,
+        presentation: "warning",
         title:
           settings.mirrorStrategy === "full-replace"
-            ? "Every member is uploaded; older membership is removed after Google accepts all uploads."
-            : "Only changed members are uploaded; missing members are removed after uploads succeed.",
-        description:
-          "An empty model clears the audience. Use a full-query model and do not upload to this audience from other tools.",
+            ? "Members missing from the model are removed. An empty model clears the audience."
+            : "Tracked members missing from the model are removed. An empty model clears tracked membership.",
       });
     {
       for (const [name, raw, hashed] of [

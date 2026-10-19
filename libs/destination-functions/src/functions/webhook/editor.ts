@@ -23,30 +23,18 @@ export const webhookRowsEditor: ReverseStreamEditor = {
     const change = (patch: Record<string, unknown>) => ({ streamOptions: { ...settings, ...patch } });
     const fields: ReverseEditorField[] = [
       {
-        editor: "notice",
-        name: "How delivery works",
-        showIcon: true,
-        title: "Rows are sent as JSON with POST requests",
-        description:
-          "Each request carries up to the records-per-request limit as {syncId, runId, sentAt, records:[{operation, key, idempotencyKey, data}]}. " +
-          "Delivery is at least once: after a failure or a restart the same records are sent again with the same idempotency keys, so your endpoint must tolerate repeats. " +
-          "If your endpoint rejects a record the run stops at that record, and the next run sends it again. " +
-          `A request is at most ${maxRequestBytesLabel}; a single row larger than that is rejected. ` +
-          "Values that are not plain JSON are converted: binary to base64, intervals to ISO 8601 durations, NaN and Infinity to strings. " +
-          "Use https:// URLs: with http:// the rows and any header credentials travel unencrypted.",
-      },
-      {
         editor: "columns",
         required: true,
         name: "Payload",
         documentation:
-          "Every column the model selects is sent under its own name. To rename or reshape a field, change the model's SQL (for example SELECT user_id AS id).",
+          "JSON POST body: {syncId, runId, sentAt, records:[{operation, key, idempotencyKey, data}]}. Every selected model column is included in data; rename or reshape fields in SQL. Binary becomes base64, intervals become ISO 8601 durations, and NaN/Infinity become strings.",
       },
       {
         name: "Records per request",
         editor: "number",
         min: 1,
         max: 200,
+        documentation: `Each request is at most ${maxRequestBytesLabel}; a single row larger than that is rejected.`,
         value: Number(settings.recordsPerRequest ?? 50),
         change: value => change({ recordsPerRequest: value ?? 50 }),
       },
@@ -64,7 +52,8 @@ export const webhookRowsEditor: ReverseStreamEditor = {
         editor: "checkbox",
         label: "My endpoint tolerates receiving the same record more than once",
         value: settings.deliveryAttested === true,
-        documentation: "Required. Use the idempotencyKey in each record to ignore repeats.",
+        documentation:
+          "Delivery is at least once. Use each record's idempotencyKey to ignore repeats after failures or restarts. A rejected record stops the run and is sent again on the next run.",
         change: value => change({ deliveryAttested: value }),
       },
       {
@@ -74,7 +63,8 @@ export const webhookRowsEditor: ReverseStreamEditor = {
         editor: "checkbox",
         label: "I accept sending data over unencrypted http://",
         value: settings.allowInsecureHttp === true,
-        documentation: "Only needed when the destination's URL starts with http://. https:// URLs do not need it.",
+        documentation:
+          "With http://, rows and header credentials travel unencrypted. Use https:// whenever possible; HTTPS does not need this acknowledgment.",
         change: value => change({ allowInsecureHttp: value }),
       },
     ];

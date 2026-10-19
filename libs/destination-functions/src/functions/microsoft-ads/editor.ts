@@ -24,6 +24,9 @@ const audience: ReverseStreamEditor = {
         editor: "select",
         name: "Audience",
         value: target.kind,
+        documentation: managed
+          ? "Mirror — changes only: uploads additions before removing tracked members absent from the full model."
+          : "Additions and explicit removals via a model delete column. Other audience members are untouched.",
         choices: [
           { value: "managed", label: "Create a new audience on first run" },
           { value: "existing", label: "Use an existing audience" },
@@ -63,14 +66,17 @@ const audience: ReverseStreamEditor = {
           "Optional if already accepted in Microsoft Advertising. See https://help.ads.microsoft.com/apex/index/3/en/56921",
         change: acceptCustomerMatchTerms => change({ acceptCustomerMatchTerms }),
       },
-      {
-        editor: "notice",
-        key: "mode",
-        title: managed ? "Mirror — changes only" : "Additions and explicit removals",
-        description: managed
-          ? "Uploads additions before removing tracked members missing from the full model. An empty model removes all tracked members. Acceptance does not measure audience matching."
-          : "Use a model delete column for explicit removals. Other audience members are untouched.",
-      },
+      ...(managed
+        ? [
+            {
+              editor: "notice" as const,
+              key: "mode",
+              presentation: "warning" as const,
+              showIcon: true,
+              title: "Tracked members missing from the model are removed. An empty model clears tracked membership.",
+            },
+          ]
+        : []),
     ];
     if (managed)
       fields.push({
@@ -123,9 +129,8 @@ const conversions: ReverseStreamEditor = {
       {
         editor: "notice",
         key: "insert",
-        title: "Insert new conversions only",
-        description:
-          "Use one stable primary key per event. Submitted keys are not sent again. Acceptance does not guarantee attribution; an uncertain submission is not automatically replayed.",
+        presentation: "description",
+        title: "Only new model primary keys are sent; changes to previously sent rows are not resent.",
       },
       {
         editor: "mapping",
