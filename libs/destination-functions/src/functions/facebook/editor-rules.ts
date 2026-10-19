@@ -42,6 +42,16 @@ export function metaConversionAlternatives(
 ): ReverseEditorAlternative[] {
   return [
     {
+      key: "action-source",
+      title: "Action source",
+      description:
+        "Choose a default for all events, or map a column to override it per row. Missing or null column values use the default. Each row must satisfy the requirements of its effective action source.",
+      options: [
+        { label: "Default action source", fields: [settingKey("Default action source")] },
+        alternative("Action source column", "actionSource"),
+      ],
+    },
+    {
       key: "event",
       title: "Event name",
       options: [
@@ -80,9 +90,12 @@ export function metaConversionRules(fields: ReverseEditorField[]): ReverseEditor
     fixedAction(o, "business_messaging") && !o.mapping.messagingChannel && o.streamOptions.messagingChannel === channel;
   return withFieldRules(fields, {
     "setting:pixelId": { required: true },
-    "setting:Default action source": { required: true },
-    "setting:Default messaging channel": { hidden: o => !possibleAction(o, "business_messaging") },
-    "mapping:messagingChannel": { hidden: o => !possibleAction(o, "business_messaging") },
+    "setting:Default messaging channel": {
+      requirement: "Used for business_messaging rows when no messaging channel is supplied by the model.",
+    },
+    "mapping:messagingChannel": {
+      requirement: "Required for business_messaging rows unless a default messaging channel is selected.",
+    },
     "mapping:eventSourceUrl": { required: o => fixedAction(o, "website"), requirement: "Required for website rows." },
     "mapping:clientUserAgent": {
       required: o => fixedAction(o, "website"),
@@ -90,7 +103,6 @@ export function metaConversionRules(fields: ReverseEditorField[]): ReverseEditor
     },
     "mapping:appData": {
       required: o => fixedAction(o, "app"),
-      hidden: o => !possibleAction(o, "app"),
       requirement: "Required for app rows, including tracking flags and all 16 extinfo positions.",
     },
     ...Object.fromEntries(

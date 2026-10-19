@@ -212,6 +212,7 @@ export const metaConversionEditor: ReverseStreamEditor = {
         editor: "select",
         name: "Default action source",
         value: settings.actionSource ?? "website",
+        documentation: "Used when Action source is not mapped or the row's mapped value is null.",
         choices: MetaActionSource.options.map(value => ({ value, label: value.replaceAll("_", " ") })),
         change: actionSource => change({ actionSource }),
       },
@@ -291,16 +292,15 @@ export const metaConversionEditor: ReverseStreamEditor = {
       ]),
       ...privacy(),
     ];
-    if (settings.actionSource === "business_messaging" || options.mapping.actionSource)
-      items.splice(3, 0, {
-        editor: "select",
-        name: "Default messaging channel",
-        value: settings.messagingChannel,
-        choices: MetaMessagingChannel.options.map(value => ({ value, label: value })),
-        documentation:
-          "Use the dataset connected to this messaging account. Channel-specific account and user IDs are required; Jitsu does not provision datasets.",
-        change: messagingChannel => change({ messagingChannel }),
-      });
+    items.splice(3, 0, {
+      editor: "select",
+      name: "Default messaging channel",
+      value: settings.messagingChannel,
+      choices: MetaMessagingChannel.options.map(value => ({ value, label: value })),
+      documentation:
+        "Use the dataset connected to this messaging account. Channel-specific account and user IDs are required; Jitsu does not provision datasets.",
+      change: messagingChannel => change({ messagingChannel }),
+    });
     return metaConversionRules(items);
   },
 };

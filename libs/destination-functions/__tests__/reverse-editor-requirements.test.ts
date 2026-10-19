@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { ReverseEditorOptions } from "@jitsu/protocols/reverse-etl-editor";
 import { reverseDestinationMetadata } from "../src/reverse-etl/catalog";
 import { editorFieldKey, resolveStreamEditor } from "../src/reverse-etl/editor";
+import { MetaActionSource } from "../src/functions/facebook/reverse-meta";
 
 function editor(destination: string, stream: string) {
   return reverseDestinationMetadata.get(destination)!.streams.find(s => s.id === stream)!;
@@ -187,6 +188,26 @@ it("Meta event name accepts a default or mapping and Purchase accepts custom dat
   expect(keys(result.required)).not.toContain("mapping:value");
   const dynamic = form("facebook-conversions", "conversions", { mapping: { eventName: "name" } });
   expect(dynamic.alternatives.find(g => g.key === "purchase")?.condition).toBe("For Purchase rows");
+});
+
+it("Meta action source is the first alternative and keeps all conversion fields visible", () => {
+  const defaults = form("facebook-conversions", "conversions");
+  const expected = keys(all(defaults)).sort();
+  for (const actionSource of MetaActionSource.options)
+    for (const mapping of [{}, { actionSource: "source" }]) {
+      const result = form("facebook-conversions", "conversions", { streamOptions: { actionSource }, mapping });
+      expect(result.alternatives[0]).toMatchObject({
+        key: "action-source",
+        configured: true,
+        options: [{ fields: ["setting:Default action source"] }, { fields: ["mapping:actionSource"] }],
+      });
+      expect(keys(result.required)).not.toContain("setting:Default action source");
+      expect(keys(result.alternativeFields)).toEqual(
+        expect.arrayContaining(["setting:Default action source", "mapping:actionSource"])
+      );
+      expect(keys(all(result)).sort()).toEqual(expected);
+      expect(all(result).some(field => field.isHidden)).toBe(false);
+    }
 });
 
 it.each([

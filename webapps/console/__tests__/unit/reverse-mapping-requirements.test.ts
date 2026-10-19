@@ -184,3 +184,25 @@ it("shows HTTP acknowledgement only for HTTP (or an unknown protocol)", () => {
   view.rerender(React.createElement(Fields, { destination: "webhook", options: initial, protocol: "https:" }));
   expect(screen.queryByRole("checkbox", { name: /accept sending data over unencrypted/ })).toBeNull();
 });
+
+it("groups Meta action source first and shows app/messaging fields even for website defaults", () => {
+  const initial = options("facebook-conversions", "conversions");
+  render(React.createElement(Fields, { destination: "facebook-conversions", options: initial }));
+  expect(
+    screen
+      .getAllByRole("heading", { level: 3 })
+      .map(h => h.textContent)
+      .slice(0, 3)
+  ).toEqual(["Required fields", "Action source", "Event name"]);
+  const stream = reverseStreamEditors["facebook-conversions"].find(s => s.id === "conversions")!;
+  const items = stream.fields(initial, () => {}, false, { columns: [], loading: false });
+  const firstAlternative = items.findIndex(item => item.key?.endsWith(":section:alternative:action-source"));
+  const nextAlternative = items.findIndex(item => item.key?.endsWith(":section:alternative:event"));
+  expect(items.slice(firstAlternative + 1, nextAlternative).map(item => item.name)).toEqual([
+    "Default action source",
+    "Action source",
+  ]);
+  expect(screen.getByRole("combobox", { name: "App data" })).toBeTruthy();
+  expect(screen.getByRole("combobox", { name: "Messaging channel" })).toBeTruthy();
+  expect(screen.getByText("Default messaging channel")).toBeTruthy();
+});
