@@ -433,25 +433,27 @@ export const reverseStreamEditors: Record<string, StreamEditor[]> = Object.fromE
                       )}
                     </>,
                     fields.map(render),
-                    <Tag className="!m-0" color={group.configured ? "green" : group.condition ? "blue" : "orange"}>
+                    <Tag
+                      className="!m-0"
+                      color={group.configured ? "green" : group.condition ? "blue" : "orange"}
+                      icon={
+                        <Tooltip
+                          title="“Configured” checks mappings or defaults, not the values in every model row."
+                          trigger={["hover", "focus"]}
+                        >
+                          <InfoCircleOutlined
+                            tabIndex={0}
+                            aria-label={`${group.title}: configuration status information`}
+                            className="cursor-help"
+                          />
+                        </Tooltip>
+                      }
+                    >
                       {group.configured
                         ? "Configured"
                         : group.condition
                         ? "Required for matching rows"
                         : "Choose at least one option"}
-                      <Tooltip
-                        title="“Configured” checks mappings or defaults, not the values in every model row."
-                        trigger={["hover", "focus"]}
-                      >
-                        <span
-                          tabIndex={0}
-                          role="img"
-                          aria-label={`${group.title}: configuration status information`}
-                          className="inline-flex ml-1 cursor-help"
-                        >
-                          <InfoCircleOutlined aria-hidden="true" />
-                        </span>
-                      </Tooltip>
                     </Tag>
                   )
                 );

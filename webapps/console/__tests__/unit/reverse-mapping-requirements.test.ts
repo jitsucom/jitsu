@@ -83,6 +83,8 @@ it.each(["hover", "focus"])("explains configuration status in an info tooltip on
   );
   const icon = screen.getByRole("img", { name: "Customer matching: configuration status information" });
   expect(icon.closest(".ant-tag")?.textContent).toBe("Configured");
+  expect(icon.closest(".ant-tag")?.firstElementChild).toBe(icon);
+  expect(icon.nextElementSibling?.textContent).toBe("Configured");
   if (trigger === "hover") fireEvent.mouseEnter(icon);
   else fireEvent.focus(icon);
   const tooltip = await screen.findByRole("tooltip");
