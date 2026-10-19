@@ -331,7 +331,7 @@ describe.each([
 });
 
 describe("PostgreSQL lossless text decoding", () => {
-  it.each([114, 3802])("preserves JSON wire text for OID %s", oid => {
+  it.each([114, 3802])("keeps JSON wire text for OID %s until safe reader-level decoding", oid => {
     for (const value of [
       '{"id":9007199254740993,"amount":1.234567890123456789}',
       "[9007199254740993]",
@@ -341,7 +341,7 @@ describe("PostgreSQL lossless text decoding", () => {
     ])
       expect(losslessTypes.getTypeParser(oid, "text")(value)).toBe(value);
   });
-  it.each([199, 3807])("preserves JSON text within SQL arrays for OID %s", oid => {
+  it.each([199, 3807])("keeps JSON text within SQL arrays for OID %s until reader-level decoding", oid => {
     expect(losslessTypes.getTypeParser(oid, "text")('{"[9007199254740993]","null",NULL}')).toEqual([
       "[9007199254740993]",
       "null",

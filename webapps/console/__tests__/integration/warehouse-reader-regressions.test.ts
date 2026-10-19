@@ -72,27 +72,47 @@ it("PostgreSQL preserves numeric and timestamp array precision and SQL nulls", a
   expect((await collect(pg.stream(model(query))))[0].row).toEqual(preview.rows[0]);
 });
 
-it.each(["json", "jsonb"])("PostgreSQL preserves %s values as JSON text in preview and extraction", async type => {
+it("ClickHouse keeps JSON objects and arrays native without parsing ordinary text", async () => {
+  const query = `SELECT 1 AS id, CAST('{"name":"Alice","items":[1,2]}' AS JSON) AS payload,
+    '{"name":"Alice"}' AS text_value, array(1,2) AS items`;
+  const preview = await ch.preview(query);
+  expect(preview.rows[0]).toEqual({
+    id: 1,
+    payload: { name: "Alice", items: ["1", "2"] },
+    text_value: '{"name":"Alice"}',
+    items: [1, 2],
+  });
+  expect((await collect(ch.stream(model(query))))[0].row).toEqual(preview.rows[0]);
+});
+
+it.each(["json", "jsonb"])("PostgreSQL rejects overflowing %s numbers before preview or delivery", async type => {
+  const query = `SELECT 1 AS id, '{"private":"sensitive","amount":1e400}'::${type} AS payload`;
+  const error =
+    /^Warehouse JSON contains a number outside JavaScript's finite range; return it as a JSON string instead$/;
+  await expect(pg.preview(query)).rejects.toThrow(error);
+  await expect(collect(pg.stream(model(query)))).rejects.toThrow(error);
+});
+
+it.each(["json", "jsonb"])("PostgreSQL decodes %s to native values in preview and extraction", async type => {
   const query = `SELECT 1 AS id,
     '{"id":9007199254740993,"amount":1.234567890123456789}'::${type} AS payload,
     '[9007199254740993,1.234567890123456789]'::${type} AS items,
     'null'::${type} AS json_null, NULL::${type} AS sql_null,
-    'true'::${type} AS enabled, '"hello"'::${type} AS message,
+    'true'::${type} AS enabled, '"hello"'::${type} AS message, '{"x":1}'::text AS text_value,
     ARRAY[ARRAY['[9007199254740993]'::${type}, 'null'::${type}], ARRAY[NULL::${type}, 'true'::${type}]] AS nested`;
   const preview = await pg.preview(query);
   const row = preview.rows[0];
-  expect(typeof row.payload).toBe("string");
-  expect(row.payload).toContain("9007199254740993");
-  expect(row.payload).toContain("1.234567890123456789");
-  expect(String(row.items).replaceAll(" ", "")).toBe("[9007199254740993,1.234567890123456789]");
+  expect(row.payload).toEqual({ id: 9007199254740992, amount: 1.2345678901234567 });
+  expect(row.items).toEqual([9007199254740992, 1.2345678901234567]);
   expect(row).toMatchObject({
-    json_null: "null",
+    json_null: null,
     sql_null: null,
-    enabled: "true",
-    message: '"hello"',
+    enabled: true,
+    message: "hello",
+    text_value: '{"x":1}',
     nested: [
-      ["[9007199254740993]", "null"],
-      [null, "true"],
+      [[9007199254740992], null],
+      [null, true],
     ],
   });
   expect((await collect(pg.stream(model(query))))[0].row).toEqual(row);

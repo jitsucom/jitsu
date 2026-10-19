@@ -44,13 +44,24 @@ Text flags remain strict; strings such as `"1.00"` are not numeric flags.
 Non-finite ClickHouse floats stay strings instead of silently becoming SQL null;
 keys/cursors/delete flags reject them.
 
-Known audit follow-ups: PostgreSQL JSON/JSONB decoding can round nested numbers;
-returning raw JSON text needs an explicit payload-shape decision. ClickHouse
-local-time DateTime output can collapse distinct instants during DST fallback;
-switching to UTC ISO text requires a compatibility plan for persisted mirror keys.
-Neither output-contract change is included here. For a new model, explicitly select
-UTC timestamps or lossless text in SQL where appropriate; do not change an existing
-model's key representation without migrating its acknowledged state.
+Typed JSON and structured payloads decode to native JavaScript values in preview
+and extraction: PostgreSQL JSON/JSONB (including SQL arrays of JSON), MySQL JSON,
+Redshift SUPER, Snowflake VARIANT/OBJECT/ARRAY/MAP, BigQuery JSON/STRUCT/RECORD, and
+ClickHouse JSONEachRow objects/arrays. JSON objects become objects, arrays become
+arrays, and JSON primitives remain primitives; JSON null and SQL NULL both become
+null. Ordinary text containing JSON is not parsed. Nested JSON numbers intentionally
+use normal JavaScript precision. Numbers outside JavaScript's finite range fail
+with a value-free error instead of silently becoming null; return those as JSON
+strings. Typed integers/decimals within BigQuery records
+and ClickHouse's quoted numeric output still retain their existing string decoding.
+Select precision-sensitive nested values as separate, explicitly typed scalar SQL
+columns (or JSON strings). Structured columns are not supported as keys/cursors;
+top-level scalar key/cursor decoding remains lossless where supported.
+
+ClickHouse DateTime/DateTime64 values use UTC ISO output to distinguish instants
+during DST fallback and preserve fractional precision. Do not change an existing
+model's key representation without migrating its acknowledged state. These reader
+changes do not automatically rewrite persisted state.
 
 PostgreSQL and ClickHouse initial extraction execution uses the two-hour overall
 deadline, not the 30-second preview/read limit. Metadata, previews, and subsequent
@@ -142,16 +153,18 @@ read-only role. Parsing is defense in depth, not a substitute for restricted per
 
 The SDK streams one extraction result with backpressure, never re-runs OFFSET pages.
 NUMBER values are strings, timestamps retain nanoseconds with UTC session timezone, and
-structured values are returned as JSON text to avoid rounding nested numbers. Structured
+structured values decode to native JS objects/arrays/primitives. Structured
 keys/cursors require a SQL cast. Snowflake's parser-supported SELECT subset is accepted;
 there is no unparsed fallback for unsupported syntax.
 
 SQL NULLs remain null, including when numbers and dates are fetched as strings.
 OBJECT/ARRAY/MAP payloads are serialized in Snowflake with TO_JSON(TO_VARIANT(...))
-before SDK decoding (adding SDK string-fetch categories alone does not protect typed
-containers). Preview metadata keeps the original types, and extraction preserves its
+before SDK decoding, then parsed using the original type metadata; ordinary VARCHAR
+columns stay strings. Preview metadata keeps the original types, and extraction preserves its
 final key/cursor ordering. Numeric tombstones accept exact decimal/scientific zero/one
 without rounding or changing the original payload/checkpoint; TEXT flags stay strict.
+Every query enables STRICT_JSON_OUTPUT: missing/undefined array entries become null,
+and non-finite numbers become strings, making Snowflake's extended values JSON-compatible.
 
 Preview retains at most 100 rows / 2 MB (plus the truncation marker); the SDK can receive
 a larger individual row or transport chunk before the decoded-size guard rejects it.
@@ -208,8 +221,8 @@ because the driver does not pass IP hosts to TLS identity verification correctly
 Other additional connection parameters are not forwarded. Custom CA/client
 certificates, IAM and network provisioning are follow-ups.
 
-BIGINT, DECIMAL and date/time values retain exact text; JSON is returned as text
-to avoid rounding nested numbers. Checkpoints use typed, server-prepared bindings,
+BIGINT, DECIMAL and date/time values retain exact text; JSON decodes to native JS
+values with normal nested numeric precision. Checkpoints use typed, server-prepared bindings,
 including repeated parameters in composite-key comparisons. FLOAT/DOUBLE, binary,
 JSON and unknown key types require an explicit SQL cast. SELECT INTO, locking reads,
 multiple statements and executable version comments are rejected. Use a read-only

@@ -7,6 +7,7 @@ import { createSqlDialect, decodeDelete, keyCountColumn } from "./sql";
 import {
   boundedPreview,
   decodeRecord,
+  decodeJson,
   numericDeleteValue,
   previewRowLimit,
   previewByteLimit,
@@ -81,7 +82,8 @@ function columnsOf(statement: RowStatement): WarehouseColumn[] {
   }));
 }
 
-/** Serialize in Snowflake: SDK decoding can lose temporal/structured precision. */
+/** Serialize in Snowflake to preserve temporal precision and decode structured
+ * types consistently, including typed OBJECT/ARRAY/MAP values. */
 function losslessQuery(query: string, columns: WarehouseColumn[], order: string[] = []): string {
   if (!columns.some(column => temporalFormats[column.type] || /^(OBJECT|ARRAY|MAP)$/.test(column.type))) return query;
   if (new Set(columns.map(column => column.name)).size !== columns.length)
@@ -188,6 +190,9 @@ export function createSnowflakeReader(input: Record<string, any>): WarehouseRead
                 fetchAsString: ["Number", "Date", "JSON"],
                 parameters: {
                   MULTI_STATEMENT_COUNT: 1,
+                  // Normalize Snowflake-only undefined/NaN/Infinity tokens before
+                  // native JSON decoding: missing entries -> null, nonfinite -> strings.
+                  STRICT_JSON_OUTPUT: true,
                   STATEMENT_TIMEOUT_IN_SECONDS: streaming ? 7200 : 30,
                   TIMEZONE: "UTC",
                   TIME_OUTPUT_FORMAT: temporalFormats.TIME,
@@ -205,8 +210,13 @@ export function createSnowflakeReader(input: Record<string, any>): WarehouseRead
         );
         return current;
       };
-      async function* read(statement: RowStatement) {
+      async function* read(statement: RowStatement, sourceColumns: WarehouseColumn[]) {
         const columns = columnsOf(statement);
+        // The projection changes typed OBJECT/ARRAY/MAP metadata to VARCHAR.
+        // Use original metadata so ordinary text is never mistaken for JSON.
+        const jsonColumns = new Set(
+          sourceColumns.filter(c => /^(VARIANT|OBJECT|ARRAY|MAP)$/.test(c.type)).map(c => c.name)
+        );
         rows = statement.streamRows();
         const iterator = rows[Symbol.asyncIterator]();
         try {
@@ -216,7 +226,12 @@ export function createSnowflakeReader(input: Record<string, any>): WarehouseRead
             const values = result.value as unknown[];
             if (!Array.isArray(values) || values.length !== columns.length)
               throw new Error("Snowflake row does not match its schema");
-            yield Object.fromEntries(columns.map((column, index) => [column.name, values[index]]));
+            yield Object.fromEntries(
+              columns.map((column, index) => [
+                column.name,
+                jsonColumns.has(column.name) ? decodeJson(values[index]) : values[index],
+              ])
+            );
           }
         } finally {
           rows.destroy();
@@ -250,7 +265,7 @@ export function createSnowflakeReader(input: Record<string, any>): WarehouseRead
         );
         const rows: Record<string, unknown>[] = [];
         let bytes = 0;
-        for await (const row of s.read(statement)) {
+        for await (const row of s.read(statement, columns)) {
           bytes += Buffer.byteLength(JSON.stringify(row));
           if (bytes > previewByteLimit) throw new Error(previewSizeError);
           rows.push(row);
@@ -278,7 +293,7 @@ export function createSnowflakeReader(input: Record<string, any>): WarehouseRead
         const numericDelete = /^(NUMBER\(\d+,\d+\)|REAL)$/.test(
           columns.find(c => c.name === model.deleteColumn)?.type ?? ""
         );
-        for await (const row of s.read(statement)) {
+        for await (const row of s.read(statement, columns)) {
           const record = decodeRecord({ ...model, deleteColumn: undefined }, row);
           if (model.deleteColumn) {
             const value = row[model.deleteColumn];

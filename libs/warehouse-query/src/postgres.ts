@@ -7,6 +7,7 @@ import { createSqlDialect, decodeDelete } from "./sql";
 import {
   boundedPreview,
   decodeRecord,
+  decodeJson,
   numericDeleteValue,
   previewByteLimit,
   previewRowLimit,
@@ -34,9 +35,9 @@ const pgCredentials = z.object({
  * destination payloads across reads/resumes, so these values stay strings.
  * Keep the override local to this reader and pass it to both Client and Cursor:
  * pg-cursor owns its result decoding too. Known arrays of these types retain
- * string elements and nulls. JSON/JSONB also stay wire-text strings: JSON.parse
- * would silently round nested numbers. SQL arrays of JSON retain their shape,
- * with JSON-text elements (including "null") distinct from SQL nulls.
+ * string elements and nulls. Keep JSON wire text here and decode it after fetching:
+ * pg-cursor does not catch exceptions from type parsers, so invalid/overflowing
+ * JSON must fail inside our async reader rather than its socket event handler.
  * Other types use pg's normal parsers.
  */
 export const losslessTypes = {
@@ -51,6 +52,16 @@ export const losslessTypes = {
     return types.getTypeParser(oid, format as "text");
   },
 };
+
+function decodeJsonColumn(value: unknown, type: string): unknown {
+  if (type === "114" || type === "3802") return decodeJson(value);
+  if (type === "199" || type === "3807") {
+    // Recurse only through SQL array dimensions; each JSON element is parsed once.
+    const decodeArray = (item: unknown): unknown => (Array.isArray(item) ? item.map(decodeArray) : decodeJson(item));
+    return decodeArray(value);
+  }
+  return value;
+}
 
 const parser = new Parser();
 export const postgresSql = createSqlDialect({
@@ -192,7 +203,9 @@ export function createPostgresReader(input: Record<string, any>): WarehouseReade
         signal?.throwIfAborted();
         if (result.rows.some(row => row[1])) throw new Error(previewSizeError);
         const rows = result.rows.map(row =>
-          Number(row[0]) > previewRowLimit ? {} : Object.fromEntries(columns.map((c, i) => [c.name, row[i + 2]]))
+          Number(row[0]) > previewRowLimit
+            ? {}
+            : Object.fromEntries(columns.map((c, i) => [c.name, decodeJsonColumn(row[i + 2], c.type)]))
         );
         return boundedPreview(columns, rows);
       } finally {
@@ -225,6 +238,7 @@ export function createPostgresReader(input: Record<string, any>): WarehouseReade
           if (!rows.length) break;
           for (const row of rows) {
             time.signal.throwIfAborted();
+            for (const column of columns) row[column.name] = decodeJsonColumn(row[column.name], column.type);
             const record = decodeRecord({ ...model, deleteColumn: undefined }, row);
             if (model.deleteColumn) {
               const value = row[model.deleteColumn];

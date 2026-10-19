@@ -34,6 +34,32 @@ function fixture(pages: any[][][] = [], metadata = fields) {
 }
 readerDialectContract("Redshift", redshiftSql, { key: "1043", number: "1700", timestamp: "1184", structured: "4000" });
 
+it.each(['{"name":"Alice","id":9007199254740993}', '[true,null,{"x":1}]', '"hello"', "null", null])(
+  "decodes SUPER %s in preview and extraction without parsing VARCHAR",
+  async payload => {
+    const metadata = [
+      { name: "id", dataTypeID: 20 },
+      { name: "payload", dataTypeID: 4000 },
+      { name: "text", dataTypeID: 1043 },
+    ];
+    const values = ["9007199254740993", payload, payload];
+    fixture([[values], [[...values, "1"]]], metadata);
+    const reader = createRedshiftReader(config);
+    try {
+      const model = ModelDefinition.parse({ warehouseId: "wh", query: "SELECT * FROM source", primaryKey: ["id"] });
+      const preview = await reader.preview(model.query);
+      expect(preview.rows).toEqual([
+        { id: values[0], payload: payload === null ? null : JSON.parse(payload), text: payload },
+      ]);
+      const records: SourceRecord[] = [];
+      for await (const record of reader.stream(model)) records.push(record);
+      expect(records[0].row).toEqual(preview.rows[0]);
+    } finally {
+      await reader.close();
+    }
+  }
+);
+
 async function tombstoneRecords(value: unknown, oid = 1700, checkpoint = false) {
   fixture(
     [[["a", "1", value, "1"]]],

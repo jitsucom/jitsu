@@ -6,6 +6,29 @@ export const previewRowLimit = 100;
 export const previewByteLimit = 2_000_000;
 export const previewSizeError = "Preview exceeds 2 MB; select fewer or smaller columns";
 
+/** Decode only warehouse-typed JSON, never arbitrary text columns. Nested numbers
+ * intentionally use JS precision; scalar keys/cursors retain lossless decoding. */
+export function decodeJson(value: unknown): unknown {
+  if (typeof value !== "string") return value;
+  let overflow = false;
+  try {
+    return JSON.parse(value, (_key, decoded) => {
+      if (typeof decoded === "number" && !Number.isFinite(decoded)) {
+        overflow = true;
+        throw new Error();
+      }
+      return decoded;
+    });
+  } catch {
+    // Native SyntaxError messages can include source-row values.
+    throw new Error(
+      overflow
+        ? "Warehouse JSON contains a number outside JavaScript's finite range; return it as a JSON string instead"
+        : "Warehouse returned invalid JSON in a structured column"
+    );
+  }
+}
+
 /** Recognize exact numeric 0/1 without rounding decimal strings through Number. */
 export function numericDeleteValue(value: unknown): unknown {
   if (typeof value !== "string") return value;

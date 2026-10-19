@@ -174,6 +174,49 @@ it("decodes exact integers, decimals, microsecond timestamps, booleans and neste
     nested: { keys: ["9007199254740993"] },
   });
 });
+it("decodes native JSON in preview and extraction, including repeated/nested JSON, but leaves text unchanged", async () => {
+  const payload = '{"name":"Alice","id":9007199254740993}';
+  const columns = [
+    { name: "id", type: "INTEGER" },
+    { name: "payload", type: "JSON" },
+    { name: "text", type: "STRING" },
+    { name: "items", type: "JSON", mode: "REPEATED" },
+    { name: "nested", type: "RECORD", fields: [{ name: "value", type: "JSON" }] },
+  ];
+  const cells = [
+    { v: "9007199254740993" },
+    { v: payload },
+    { v: payload },
+    { v: [{ v: "[true,null]" }, { v: "null" }] },
+    { v: { f: [{ v: payload }] } },
+  ];
+  stubRequests((_url, body) =>
+    body?.configuration?.dryRun ? Response.json({ statistics: { query: { schema: { fields: columns } } } }) : undefined
+  );
+  resultPages = [
+    { jobComplete: true, schema: { fields: columns }, rows: [{ f: cells }] },
+    {
+      jobComplete: true,
+      schema: { fields: [...columns, { name: "__jitsu_retl_key_count", type: "INTEGER" }] },
+      rows: [{ f: [...cells, { v: "1" }] }],
+    },
+  ];
+  const reader = createBigQueryReader(config);
+  try {
+    const preview = await reader.preview(model.query);
+    expect(preview.rows[0]).toEqual({
+      id: "9007199254740993",
+      payload: { name: "Alice", id: 9007199254740992 },
+      text: payload,
+      items: [[true, null], null],
+      nested: { value: { name: "Alice", id: 9007199254740992 } },
+    });
+    expect((await collect(reader.stream(model)))[0].row).toEqual(preview.rows[0]);
+  } finally {
+    await reader.close();
+  }
+});
+
 it("paginates a single saved job rather than reexecuting the model", async () => {
   resultPages[0].pageToken = "page-2";
   resultPages.push({

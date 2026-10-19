@@ -4,7 +4,7 @@ import { Parser } from "node-sql-parser";
 import { z } from "zod";
 import { ModelDefinition } from "./schema";
 import { createSqlDialect, decodeDelete } from "./sql";
-import { boundedPreview, decodeRecord, numericDeleteValue } from "./reader";
+import { boundedPreview, decodeJson, decodeRecord, numericDeleteValue } from "./reader";
 import { StreamDeadline } from "./stream-deadline";
 import type { WarehouseReader } from "./types";
 
@@ -89,6 +89,7 @@ function decodeValue(field: Field, value: unknown): unknown {
     return (value as Cell[]).map(cell => decodeValue({ ...field, mode: undefined }, cell.v));
   if (field.type === "RECORD" || field.type === "STRUCT")
     return decodeBigQueryRow(field.fields ?? [], value as WireRow);
+  if (field.type === "JSON") return decodeJson(value);
   if (field.type === "BOOLEAN" || field.type === "BOOL") return value === true || value === "true";
   if (field.type === "TIMESTAMP") {
     const micros = BigInt(String(value));

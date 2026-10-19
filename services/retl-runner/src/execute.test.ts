@@ -2495,7 +2495,7 @@ describe("webhook destination through the runner", () => {
     // [name, column type, value expression, expected JSON value as received by the endpoint]
     // Expectations were reviewed one by one against the plan's type table (H11): types that fail a run without
     // conversion (float NaN/Infinity, interval, bytea) must be converted. The warehouse reader also
-    // preserves JSON wire text and exact numeric arrays rather than rounding through JS numbers.
+    // preserves exact numeric arrays; JSON payloads intentionally use native JS values.
     const cases: Array<[string, string, string, unknown]> = [
       ["int4", "int4", "42", 42],
       ["int8", "int8", "123456789012345678", "123456789012345678"],
@@ -2518,10 +2518,10 @@ describe("webhook destination through the runner", () => {
       ["time", "time", "'12:34:56'", "12:34:56"],
       ["interval", "interval", "'1 day 02:03:04'", "P0Y0M1DT2H3M4S"],
       ["uuid", "uuid", "'11111111-2222-3333-4444-555555555555'", "11111111-2222-3333-4444-555555555555"],
-      ["json", "json", `'{"a":[1,2]}'`, '{"a":[1,2]}'],
-      ["jsonb", "jsonb", `'{"a":[1,2]}'`, '{"a": [1, 2]}'],
-      ["json exact number", "json", `'{"id":9007199254740993}'`, '{"id":9007199254740993}'],
-      ["jsonb exact number", "jsonb", `'{"id":9007199254740993}'`, '{"id": 9007199254740993}'],
+      ["json", "json", `'{"a":[1,2]}'`, { a: [1, 2] }],
+      ["jsonb", "jsonb", `'{"a":[1,2]}'`, { a: [1, 2] }],
+      ["json JS number", "json", `'{"id":9007199254740993}'`, { id: 9007199254740992 }],
+      ["jsonb JS number", "jsonb", `'{"id":9007199254740993}'`, { id: 9007199254740992 }],
       ["int[]", "int[]", "ARRAY[1,2,3]", [1, 2, 3]],
       ["text[]", "text[]", "ARRAY['a','b']", ["a", "b"]],
       ["int8[]", "int8[]", "ARRAY[9007199254740993]", ["9007199254740993"]],
@@ -2530,7 +2530,7 @@ describe("webhook destination through the runner", () => {
       ["bytea[]", "bytea[]", "ARRAY['\\xde'::bytea]", ["3g=="]],
       ["interval[]", "interval[]", "ARRAY['1 day'::interval]", ["P0Y0M1DT0H0M0S"]],
       ["float8[] with NaN", "float8[]", "ARRAY['NaN'::float8, 1]", ["NaN", 1]],
-      ["jsonb[]", "jsonb[]", `ARRAY['{"a":1}'::jsonb]`, ['{"a": 1}']],
+      ["jsonb[]", "jsonb[]", `ARRAY['{"a":1}'::jsonb]`, [{ a: 1 }]],
       [
         "2-D int[]",
         "int[]",
