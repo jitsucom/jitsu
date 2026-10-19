@@ -74,19 +74,19 @@ it("renders separate requirement cards with descriptions, without OR bullet list
   expect(required.compareDocumentPosition(alternatives) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
 });
 
-it.each(["hover", "focus"])("explains configuration status in an info tooltip on %s", async trigger => {
+it.each(["hover", "focus"])("explains configuration status when the whole tag receives %s", async trigger => {
   render(
     React.createElement(Fields, {
       destination: "google-ads",
       options: options("google-ads", "audience", { mapping: { email: "email" } }),
     })
   );
-  const icon = screen.getByRole("img", { name: "Customer matching: configuration status information" });
-  expect(icon.closest(".ant-tag")?.textContent).toBe("Configured");
-  expect(icon.closest(".ant-tag")?.firstElementChild).toBe(icon);
-  expect(icon.nextElementSibling?.textContent).toBe("Configured");
-  if (trigger === "hover") fireEvent.mouseEnter(icon);
-  else fireEvent.focus(icon);
+  const label = screen.getByText("Configured");
+  const tag = label.closest(".ant-tag")!;
+  expect(tag.getAttribute("tabindex")).toBe("0");
+  expect(tag.firstElementChild?.classList.contains("anticon")).toBe(true);
+  if (trigger === "hover") fireEvent.mouseEnter(label);
+  else fireEvent.focus(tag);
   const tooltip = await screen.findByRole("tooltip");
   expect(tooltip.textContent).toBe("“Configured” checks mappings or defaults, not the values in every model row.");
 });

@@ -434,28 +434,23 @@ export const reverseStreamEditors: Record<string, StreamEditor[]> = Object.fromE
                       )}
                     </>,
                     fields.map(render),
-                    <Tag
-                      className="!m-0"
-                      color={group.configured ? "green" : group.condition ? "blue" : "orange"}
-                      icon={
-                        <Tooltip
-                          title="“Configured” checks mappings or defaults, not the values in every model row."
-                          trigger={["hover", "focus"]}
-                        >
-                          <InfoCircleOutlined
-                            tabIndex={0}
-                            aria-label={`${group.title}: configuration status information`}
-                            className="cursor-help"
-                          />
-                        </Tooltip>
-                      }
+                    <Tooltip
+                      title="“Configured” checks mappings or defaults, not the values in every model row."
+                      trigger={["hover", "focus"]}
                     >
-                      {group.configured
-                        ? "Configured"
-                        : group.condition
-                        ? "Required for matching rows"
-                        : "Choose at least one option"}
-                    </Tag>
+                      <Tag
+                        className="!m-0 cursor-help"
+                        tabIndex={0}
+                        color={group.configured ? "green" : group.condition ? "blue" : "orange"}
+                        icon={<InfoCircleOutlined aria-hidden="true" />}
+                      >
+                        {group.configured
+                          ? "Configured"
+                          : group.condition
+                          ? "Required for matching rows"
+                          : "Choose at least one option"}
+                      </Tag>
+                    </Tooltip>
                   )
                 );
               }
