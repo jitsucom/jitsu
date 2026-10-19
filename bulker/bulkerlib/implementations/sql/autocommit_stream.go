@@ -13,10 +13,11 @@ import (
 
 // existingTableRefreshInterval bounds how long AutoCommitStream can run on a
 // destination-schema snapshot that has drifted from reality (e.g. a column
-// dropped out-of-band). Hardcoded, no env var/toggle - a first pass per
-// Ildar. Time-triggered, not error-triggered: a destination outage must not
-// add load on top of every failing insert. See JITSU-237.
-const existingTableRefreshInterval = 12 * time.Hour
+// dropped out-of-band). Hardcoded, no env var/toggle. Time-triggered, not
+// error-triggered: a destination outage must not add load on top of every
+// failing insert. 1h per Ildar - a schema fetch is a cheap catalog query,
+// no reason to wait longer. See JITSU-237.
+const existingTableRefreshInterval = 1 * time.Hour
 
 type AutoCommitStream struct {
 	*AbstractSQLStream
