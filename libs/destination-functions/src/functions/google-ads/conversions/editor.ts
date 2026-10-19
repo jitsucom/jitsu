@@ -1,5 +1,11 @@
 import type { z } from "zod";
-import type { ReverseEditorField, ReverseEditorPatch, ReverseStreamEditor } from "@jitsu/protocols/reverse-etl-editor";
+import type {
+  ReverseEditorField,
+  ReverseEditorOptions,
+  ReverseEditorPatch,
+  ReverseStreamEditor,
+} from "@jitsu/protocols/reverse-etl-editor";
+import { alternative, contactAlternatives, withFieldRules } from "../../../reverse-etl/editor";
 import {
   GoogleConversionOptions,
   googleConversionRows,
@@ -102,6 +108,56 @@ export function googleConversionEditor(id: GoogleConversionStream): ReverseStrea
     id,
     label: googleConversionLabels[id],
     settings: GoogleConversionOptions,
+    alternatives(options) {
+      const contacts = contactAlternatives();
+      if (id === "call-conversions") return [];
+      if (id === "click-conversions")
+        return [
+          {
+            key: "matching",
+            title: "Conversion matching",
+            description:
+              "Supply at least one matching option for each row. Any address supplied must be complete. Multiple matching options are allowed.",
+            options: [
+              alternative("GCLID", "gclid"),
+              alternative("GBRAID", "gbraid"),
+              alternative("WBRAID", "wbraid"),
+              ...(options.streamOptions.api === "google-ads" ? contacts.slice(0, 2) : contacts),
+              alternative("Session attributes (encoded)", "sessionAttributesEncoded"),
+              alternative("Session attributes (object)", "sessionAttributes"),
+            ],
+          },
+        ];
+      const dynamic = !!options.mapping.adjustmentType;
+      const enhancement = (options.streamOptions.adjustmentType ?? "ENHANCEMENT") === "ENHANCEMENT";
+      return [
+        ...(dynamic || !enhancement
+          ? [
+              {
+                key: "original",
+                title: "Original conversion",
+                condition: dynamic ? "For RESTATEMENT and RETRACTION rows" : undefined,
+                options: [
+                  alternative("Order ID", "orderId"),
+                  alternative("GCLID AND original conversion time", "gclid", "conversionTimestamp"),
+                ],
+              },
+            ]
+          : []),
+        ...(dynamic || enhancement
+          ? [
+              {
+                key: "enhancement",
+                title: "Enhanced matching",
+                condition: dynamic ? "For ENHANCEMENT rows; original order ID is also required" : undefined,
+                description:
+                  "Provide email, phone or a complete address. If any address part is supplied, complete the address even when email or phone is also supplied.",
+                options: contacts,
+              },
+            ]
+          : []),
+      ];
+    },
     defaults: () => ({
       mode: "upsert",
       mapping: {},
@@ -186,7 +242,8 @@ export function googleConversionEditor(id: GoogleConversionStream): ReverseStrea
             editor: "identifier",
             raw,
             hashed,
-            documentation: "Optional. Choose raw or SHA-256. Email and phone can contain arrays.",
+            documentation:
+              "Choose raw or SHA-256. Email and phone can contain arrays. Address matching requires first name, last name, country and postal code.",
           });
       }
       for (const [field, name, help] of conversionFields[id])
@@ -196,7 +253,63 @@ export function googleConversionEditor(id: GoogleConversionStream): ReverseStrea
           name,
           documentation: help ?? "Optional; leave unmapped if not used.",
         });
-      return items.map(item => ({ ...item, group: "Stream settings" }));
+      const adjustment = (o: ReverseEditorOptions) => o.streamOptions.adjustmentType ?? "ENHANCEMENT";
+      const enhancementHidden = (o: ReverseEditorOptions) =>
+        id === "conversion-adjustments" && !o.mapping.adjustmentType && adjustment(o) !== "ENHANCEMENT";
+      const addressHidden = (o: ReverseEditorOptions) =>
+        enhancementHidden(o) || (id === "click-conversions" && o.streamOptions.api === "google-ads");
+      return withFieldRules(items, {
+        "setting:Conversion action ID": { required: true },
+        "setting:Delivery API": { required: true },
+        "setting:Default adjustment type": { required: true },
+        "setting:Data source": { hidden: enhancementHidden },
+        ...Object.fromEntries(["email", "phone"].map(key => [`mapping:${key}`, { hidden: enhancementHidden }])),
+        ...Object.fromEntries(
+          ["firstName", "lastName", "countryCode", "postalCode", "streetAddress", "city", "state"].map(key => [
+            `mapping:${key}`,
+            { hidden: addressHidden },
+          ])
+        ),
+        "mapping:phoneCountryCode": { hidden: o => enhancementHidden(o) || !o.mapping.phone },
+        "mapping:conversionTimestamp": {
+          required: id !== "conversion-adjustments",
+          hidden: o => id === "conversion-adjustments" && !o.mapping.adjustmentType && adjustment(o) === "ENHANCEMENT",
+        },
+        "mapping:callerId": { required: true },
+        "mapping:callTimestamp": { required: true },
+        "mapping:orderId": {
+          required: o =>
+            id === "conversion-adjustments" && !o.mapping.adjustmentType && adjustment(o) === "ENHANCEMENT",
+          requirement:
+            id === "conversion-adjustments"
+              ? "Required for ENHANCEMENT rows; otherwise use order ID or GCLID with conversion time."
+              : undefined,
+        },
+        "mapping:gclid": {
+          hidden: o => id === "conversion-adjustments" && !o.mapping.adjustmentType && adjustment(o) === "ENHANCEMENT",
+        },
+        "mapping:restatementValue": {
+          required: o => !o.mapping.adjustmentType && adjustment(o) === "RESTATEMENT",
+          hidden: o => !o.mapping.adjustmentType && adjustment(o) !== "RESTATEMENT",
+          requirement: "Required for RESTATEMENT rows. Send the new total, not the difference.",
+        },
+        "mapping:restatementCurrency": { hidden: o => !o.mapping.adjustmentType && adjustment(o) !== "RESTATEMENT" },
+        "mapping:userAgent": {
+          hidden: o => enhancementHidden(o) || (id === "click-conversions" && o.streamOptions.api === "google-ads"),
+        },
+        ...Object.fromEntries(
+          ["merchantCountryCode", "merchantLanguageCode"].map(key => [
+            `mapping:${key}`,
+            { hidden: (o: ReverseEditorOptions) => o.streamOptions.api !== "google-ads" },
+          ])
+        ),
+        "mapping:customVariables": {
+          requirement:
+            id === "click-conversions"
+              ? "Google Ads API does not allow custom variables on rows that also supply user identifiers."
+              : undefined,
+        },
+      });
     },
   };
 }

@@ -37,6 +37,7 @@ export const webhookRowsEditor: ReverseStreamEditor = {
       },
       {
         editor: "columns",
+        required: true,
         name: "Payload",
         documentation:
           "Every column the model selects is sent under its own name. To rename or reshape a field, change the model's SQL (for example SELECT user_id AS id).",
@@ -59,6 +60,7 @@ export const webhookRowsEditor: ReverseStreamEditor = {
       },
       {
         name: "Repeated delivery",
+        required: true,
         editor: "checkbox",
         label: "My endpoint tolerates receiving the same record more than once",
         value: settings.deliveryAttested === true,
@@ -67,6 +69,8 @@ export const webhookRowsEditor: ReverseStreamEditor = {
       },
       {
         name: "Unencrypted HTTP",
+        required: options => options.destination?.protocol === "http:",
+        hidden: options => options.destination?.protocol === "https:",
         editor: "checkbox",
         label: "I accept sending data over unencrypted http://",
         value: settings.allowInsecureHttp === true,

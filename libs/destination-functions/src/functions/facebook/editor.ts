@@ -12,6 +12,8 @@ import {
   metaDestinationId,
   metaDestinationTitle,
 } from "./reverse-meta";
+import { metaConversionAlternatives, metaConversionRules, metaMatchingAlternatives } from "./editor-rules";
+import { withFieldRules } from "../../reverse-etl/editor";
 
 function contacts(): ReverseEditorField[] {
   return metaContactFields.map(([raw, hashed, name]) => ({
@@ -19,8 +21,7 @@ function contacts(): ReverseEditorField[] {
     raw,
     hashed,
     name,
-    documentation:
-      "Optional. Supply raw values or SHA-256 hashes, not both. Phone numbers must include the country code.",
+    documentation: "Supply raw values or SHA-256 hashes, not both. Phone numbers must include the country code.",
   }));
 }
 function mappings(fields: [string, string, string?][]): ReverseEditorField[] {
@@ -50,6 +51,9 @@ export const metaAudienceEditor: ReverseStreamEditor = {
   id: "audience",
   label: "Custom Audiences",
   settings: MetaAudienceOptions,
+  alternatives(options) {
+    return [metaMatchingAlternatives(this.fields(options), true)];
+  },
   defaults: () => ({
     mode: "mirror",
     mapping: {},
@@ -149,15 +153,7 @@ export const metaAudienceEditor: ReverseStreamEditor = {
         ],
         ["mobileAdvertisingId", "Mobile advertising ID", "Optional IDFA/AAID UUID; do not hash."],
         ["pageScopedUserId", "Page-scoped user ID", "Optional; also configure Facebook Page ID above."],
-        ...(settings.valueBased
-          ? [
-              ["lookalikeValue", "Customer value", "Non-negative number; required for value-based additions."] as [
-                string,
-                string,
-                string
-              ],
-            ]
-          : []),
+        ["lookalikeValue", "Customer value", "Non-negative number; required for value-based additions."],
       ]),
       ...privacy(),
     ];
@@ -169,13 +165,28 @@ export const metaAudienceEditor: ReverseStreamEditor = {
         label: "Jitsu may remove missing members. No other user or tool will upload to this audience.",
         change: exclusiveManagementConfirmed => change({ exclusiveManagementConfirmed }),
       });
-    return items.map(item => ({ ...item, group: "Stream settings" }));
+    return withFieldRules(items, {
+      ...Object.fromEntries(
+        ["Ad account ID", "Audience", "Audience name", "Audience ID", "Exclusive management"].map(name => [
+          `setting:${name}`,
+          { required: true },
+        ])
+      ),
+      "setting:pageId": { required: o => !!o.mapping.pageScopedUserId, hidden: o => !o.mapping.pageScopedUserId },
+      "mapping:lookalikeValue": {
+        required: o => o.streamOptions.valueBased === true,
+        hidden: o => o.streamOptions.valueBased !== true,
+      },
+    });
   },
 };
 export const metaConversionEditor: ReverseStreamEditor = {
   id: "conversions",
   label: "Conversions",
   settings: MetaConversionOptions,
+  alternatives(options) {
+    return metaConversionAlternatives(options, this.fields(options));
+  },
   defaults: () => ({ mode: "upsert", mapping: {}, streamOptions: { pixelId: "", actionSource: "website" } }),
   fields(options) {
     const { settings, change, text } = controls(options);
@@ -280,7 +291,7 @@ export const metaConversionEditor: ReverseStreamEditor = {
       ]),
       ...privacy(),
     ];
-    if (settings.actionSource === "business_messaging")
+    if (settings.actionSource === "business_messaging" || options.mapping.actionSource)
       items.splice(3, 0, {
         editor: "select",
         name: "Default messaging channel",
@@ -290,7 +301,7 @@ export const metaConversionEditor: ReverseStreamEditor = {
           "Use the dataset connected to this messaging account. Channel-specific account and user IDs are required; Jitsu does not provision datasets.",
         change: messagingChannel => change({ messagingChannel }),
       });
-    return items.map(item => ({ ...item, group: "Stream settings" }));
+    return metaConversionRules(items);
   },
 };
 export const metaAdsMetadata = {

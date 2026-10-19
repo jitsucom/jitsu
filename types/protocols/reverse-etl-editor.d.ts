@@ -5,6 +5,8 @@ export interface ReverseEditorOptions {
   mode: "upsert" | "mirror";
   mapping: Record<string, string>;
   streamOptions: Record<string, any>;
+  /** UI-only, non-secret destination context. Never persisted with sync settings. */
+  destination?: { protocol?: string };
 }
 export type ReverseEditorPatch = Partial<ReverseEditorOptions>;
 interface FieldBase {
@@ -12,6 +14,21 @@ interface FieldBase {
   name?: string;
   documentation?: string;
   group?: string;
+  /** Evaluated against editor configuration, not a model row. */
+  required?: boolean | ((obj: ReverseEditorOptions) => boolean);
+  hidden?: (obj: ReverseEditorOptions) => boolean;
+  /** Explains a row-level requirement which cannot be inferred from column mappings. */
+  requirement?: string;
+}
+export interface ReverseEditorAlternative {
+  key: string;
+  title: string;
+  description?: string;
+  /** OR between options; AND between the field keys inside each option. */
+  options: { label: string; fields: string[] }[];
+  when?: (obj: ReverseEditorOptions) => boolean;
+  /** If set, the requirement applies only to rows matching this condition. */
+  condition?: string;
 }
 export type ReverseEditorField<Key extends string = string> = FieldBase &
   (
@@ -45,4 +62,5 @@ export interface ReverseStreamEditor {
   checkpointEvery?: number;
   defaults(): ReverseEditorOptions;
   fields(options: ReverseEditorOptions): ReverseEditorField[];
+  alternatives?(options: ReverseEditorOptions): ReverseEditorAlternative[];
 }
