@@ -68,9 +68,7 @@ describe("warehouse-owned SQL", () => {
     );
     expect(result.queryParams).toEqual({ p0: "2026-01-01 00:00:00.123456" });
     expect(result.values).toEqual([]);
-    expect(result.query).toContain(
-      "`changed` >= subtractSeconds(parseDateTime64BestEffort({p0: String}, 6, 'UTC'), 60)"
-    );
+    expect(result.query).toContain("`changed` >= subtractSeconds(toDateTime64({p0: String}, 6, 'UTC'), 60)");
   });
 
   it("rejects unsafe ClickHouse checkpoint metadata before inserting it into SQL", () => {
@@ -94,6 +92,25 @@ describe("warehouse-owned SQL", () => {
 });
 
 describe("ClickHouse checkpoint compatibility", () => {
+  it("binds ISO DateTime64 cursors and keys as exact UTC text, independent of the source timezone", () => {
+    const input = ModelDefinition.parse({
+      warehouseId: "wh",
+      query: "SELECT id, changed FROM t",
+      primaryKey: ["id"],
+      cursor: { column: "changed", type: "timestamp" },
+    });
+    const value = "1969-12-31T23:59:59.999999999Z";
+    const result = clickhouseSql.compileModel(
+      input,
+      [
+        { name: "id", type: "DateTime64(9, 'America/New_York')" },
+        { name: "changed", type: "Nullable(DateTime64(9, 'America/New_York'))" },
+      ],
+      { value, primaryKeyValues: [value] }
+    );
+    expect(result.queryParams).toEqual({ p0: "1969-12-31 23:59:59.999999999", p1: "1969-12-31 23:59:59.999999999" });
+    for (const index of [0, 1]) expect(result.query).toContain(`toDateTime64({p${index}: String}, 9, 'UTC')`);
+  });
   it.each(["DateTime('Etc/GMT+3')", "DateTime64(6, 'Etc/GMT+3')"])("validates and binds numeric timezone %s", type => {
     const input = ModelDefinition.parse({
       warehouseId: "wh",
@@ -113,7 +130,7 @@ describe("ClickHouse checkpoint compatibility", () => {
     for (const index of [0, 1]) {
       expect(result.query).toContain(
         type.startsWith("DateTime64")
-          ? `parseDateTime64BestEffort({p${index}: String}, 6, 'Etc/GMT+3')`
+          ? `toDateTime64({p${index}: String}, 6, 'Etc/GMT+3')`
           : `parseDateTimeBestEffort({p${index}: String}, 'Etc/GMT+3')`
       );
     }

@@ -116,7 +116,7 @@ it.each([
   });
   const query = `SELECT id, changed FROM ${table}`;
   const expected = [`2025-11-02T05:30:00${fraction}Z`, `2025-11-02T06:30:00${fraction}Z`];
-  expect((await ch.preview(query)).rows.map(row => row.changed)).toEqual(expected);
+  expect((await ch.preview(`${query} ORDER BY id`)).rows.map(row => row.changed)).toEqual(expected);
   for (const primaryKey of [["id"], ["changed", "id"]]) {
     const m = model(query, { primaryKey, cursor: { column: "changed", type: "timestamp" } });
     const rows = await collect(ch.stream(m));
@@ -134,6 +134,46 @@ it("ClickHouse leaves date-only and explicitly formatted string values unchanged
   const expected = { id: 1, day: "2025-09-09", formatted: "2025-09-09 23:48:47.000000" };
   expect((await ch.preview(query)).rows[0]).toEqual(expected);
   expect((await collect(ch.stream(model(query))))[0].row).toEqual(expected);
+});
+
+it.each([
+  ["micros", "DateTime64(6, 'UTC')", 6],
+  ["nanos", "Nullable(DateTime64(9, 'America/New_York'))", 9],
+  ["millis", "DateTime64(3)", 3],
+] as const)("ClickHouse resumes %s checkpoints before and across the Unix epoch", async (name, type, precision) => {
+  const table = `epoch_checkpoints_${name}`;
+  await deps().clickhouse.command({ query: `CREATE TABLE ${table} (id UInt64, changed ${type}) ENGINE = Memory` });
+  // Include both sides of epoch zero, the smallest representable negative fraction,
+  // and equal timestamps with distinct primary keys to exercise the tie-breaker.
+  const tick = 10 ** (9 - precision);
+  await deps().clickhouse.command({
+    query: `INSERT INTO ${table}
+      SELECT 1, fromUnixTimestamp64Nano(-500000000) UNION ALL
+      SELECT 2, fromUnixTimestamp64Nano(-500000000) UNION ALL
+      SELECT 3, fromUnixTimestamp64Nano(-${tick}) UNION ALL
+      SELECT 4, fromUnixTimestamp64Nano(0) UNION ALL
+      SELECT 5, fromUnixTimestamp64Nano(500000000)`,
+  });
+  const query = `SELECT id, changed FROM ${table}`;
+  const half = "5".padEnd(precision, "0");
+  const expected = [
+    `1969-12-31T23:59:59.${half}Z`,
+    `1969-12-31T23:59:59.${half}Z`,
+    `1969-12-31T23:59:59.${"9".repeat(precision)}Z`,
+    `1970-01-01T00:00:00.${"0".repeat(precision)}Z`,
+    `1970-01-01T00:00:00.${half}Z`,
+  ];
+  expect((await ch.preview(`${query} ORDER BY id`)).rows.map(row => row.changed)).toEqual(expected);
+  for (const primaryKey of [["id"], ["changed", "id"]]) {
+    const m = model(query, { primaryKey, cursor: { column: "changed", type: "timestamp" } });
+    const rows = await collect(ch.stream(m));
+    expect(rows.map(row => row.row.changed)).toEqual(expected);
+    for (let index = 0; index < rows.length; index++)
+      expect(await collect(ch.stream(m, rows[index].checkpoint))).toEqual(rows.slice(index + 1));
+    expect(
+      await collect(ch.stream({ ...m, cursor: { ...m.cursor!, lookbackSeconds: 0 } }, rows[0].checkpoint))
+    ).toEqual(rows);
+  }
 });
 it.each(["nan", "inf", "-inf"])("ClickHouse does not silently treat %s delete flags as SQL null", async value => {
   const query = `SELECT 1 AS id, toFloat64('${value}') AS removed`;

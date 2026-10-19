@@ -83,10 +83,15 @@ export const clickhouseSql = createSqlDialect({
         // expect wall-clock text; parse explicitly without losing fractional digits.
         const scalar = parameterType.replace(/^Nullable\((.*)\)$/, "$1");
         const timestamp = scalar.match(/^DateTime64\((\d+)(?:,\s*('[^']+'))?\)$/);
-        if (timestamp)
-          return `parseDateTime64BestEffort({p${index}: String}, ${timestamp[1]}${
-            timestamp[2] ? `, ${timestamp[2]}` : ""
-          })`;
+        if (timestamp) {
+          // BestEffort misparses negative fractional epochs on ClickHouse 25.4.
+          // Our ISO output is UTC: bind its unchanged digits as native UTC text,
+          // without a JS Date/Number round trip that would lose submilliseconds.
+          const utc = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,9})?Z$/.test(value);
+          if (utc) queryParams["p" + index] = value.slice(0, -1).replace("T", " ");
+          const timezone = utc ? "'UTC'" : timestamp[2];
+          return `toDateTime64({p${index}: String}, ${timestamp[1]}${timezone ? `, ${timezone}` : ""})`;
+        }
         const seconds = scalar.match(/^DateTime(?:\(('[^']+')\))?$/);
         if (seconds) return `parseDateTimeBestEffort({p${index}: String}${seconds[1] ? `, ${seconds[1]}` : ""})`;
         return "{p" + index + ": " + parameterType + "}";
