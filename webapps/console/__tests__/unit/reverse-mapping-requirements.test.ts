@@ -119,6 +119,7 @@ it("gives every alternative its own card and keeps compound requirements readabl
   const initial = options("google-ads", "conversion-adjustments", { mapping: { adjustmentType: "kind" } });
   render(React.createElement(Fields, { destination: "google-ads", options: initial }));
   expect(screen.getAllByRole("heading", { level: 3 }).map(h => h.textContent)).toEqual([
+    "Adjustment type",
     "Required fields",
     "Original conversion",
     "Enhanced matching",
@@ -195,7 +196,7 @@ it("groups Meta action source first and shows app/messaging fields even for webs
       .getAllByRole("heading", { level: 3 })
       .map(h => h.textContent)
       .slice(0, 3)
-  ).toEqual(["Required fields", "Action source", "Event name"]);
+  ).toEqual(["Action source", "Event name", "Required fields"]);
   const stream = reverseStreamEditors["facebook-conversions"].find(s => s.id === "conversions")!;
   const items = stream.fields(initial, () => {}, false, { columns: [], loading: false });
   const firstAlternative = items.findIndex(item => item.key?.endsWith(":section:alternative:action-source"));
@@ -207,4 +208,53 @@ it("groups Meta action source first and shows app/messaging fields even for webs
   expect(screen.getByRole("combobox", { name: "App data" })).toBeTruthy();
   expect(screen.getByRole("combobox", { name: "Messaging channel" })).toBeTruthy();
   expect(screen.getByText("Default messaging channel")).toBeTruthy();
+});
+
+it.each([
+  ["website", undefined, ["Event source URL", "Client user agent"]],
+  ["app", undefined, ["App data"]],
+  ["business_messaging", "messenger", ["Facebook Page ID", "Page-scoped user ID"]],
+  ["business_messaging", "whatsapp", ["WhatsApp Business Account ID", "Click-to-WhatsApp ID"]],
+  ["business_messaging", "instagram", ["Instagram business account ID", "Instagram-scoped user ID"]],
+] as const)("moves %s / %s dependencies into Required fields on selection", (actionSource, messagingChannel, names) => {
+  const initial = options("facebook-conversions", "conversions");
+  const view = render(React.createElement(Fields, { destination: "facebook-conversions", options: initial }));
+  view.rerender(
+    React.createElement(Fields, {
+      destination: "facebook-conversions",
+      options: { ...initial, streamOptions: { ...initial.streamOptions, actionSource, messagingChannel } },
+    })
+  );
+  const headings = screen.getAllByRole("heading", { level: 3 });
+  expect(headings[0].textContent).toBe("Action source");
+  if (messagingChannel) expect(headings[1].textContent).toBe("Messaging channel");
+  const required = screen.getByRole("heading", { name: "Required fields" });
+  const next = headings[headings.indexOf(required) + 1];
+  for (const name of names) {
+    const control = screen.getByRole("combobox", { name });
+    expect(required.compareDocumentPosition(control) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(control.compareDocumentPosition(next) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  }
+});
+
+it("puts Google adjustment selectors first and promotes restated value when RESTATEMENT is selected", () => {
+  const initial = options("google-ads", "conversion-adjustments");
+  const view = render(React.createElement(Fields, { destination: "google-ads", options: initial }));
+  view.rerender(
+    React.createElement(Fields, {
+      destination: "google-ads",
+      options: { ...initial, streamOptions: { ...initial.streamOptions, adjustmentType: "RESTATEMENT" } },
+    })
+  );
+  const headings = screen.getAllByRole("heading", { level: 3 });
+  expect(headings.slice(0, 3).map(h => h.textContent)).toEqual([
+    "Adjustment type",
+    "Required fields",
+    "Original conversion",
+  ]);
+  const type = screen.getByRole("combobox", { name: "Adjustment type column" });
+  const value = screen.getByRole("combobox", { name: "Restated value" });
+  expect(type.compareDocumentPosition(headings[1]) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  expect(headings[1].compareDocumentPosition(value) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  expect(value.compareDocumentPosition(headings[2]) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
 });

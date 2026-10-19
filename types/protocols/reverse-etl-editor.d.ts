@@ -24,6 +24,8 @@ export interface ReverseEditorAlternative {
   key: string;
   title: string;
   description?: string;
+  /** Selector/default alternatives that determine other requirements belong before the required-fields card. */
+  beforeRequired?: boolean;
   /** OR between options; AND between the field keys inside each option. */
   options: { label: string; fields: string[] }[];
   when?: (obj: ReverseEditorOptions) => boolean;

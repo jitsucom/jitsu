@@ -5,7 +5,7 @@ import type {
   ReverseEditorPatch,
   ReverseStreamEditor,
 } from "@jitsu/protocols/reverse-etl-editor";
-import { alternative, contactAlternatives, withFieldRules } from "../../../reverse-etl/editor";
+import { alternative, contactAlternatives, settingKey, withFieldRules } from "../../../reverse-etl/editor";
 import {
   GoogleConversionOptions,
   googleConversionRows,
@@ -131,6 +131,17 @@ export function googleConversionEditor(id: GoogleConversionStream): ReverseStrea
       const dynamic = !!options.mapping.adjustmentType;
       const enhancement = (options.streamOptions.adjustmentType ?? "ENHANCEMENT") === "ENHANCEMENT";
       return [
+        {
+          key: "adjustment-type",
+          title: "Adjustment type",
+          beforeRequired: true,
+          description:
+            "Choose a default or map a column to override it per row. Missing or null column values use the default. A fixed type determines the required fields below; mapped types are checked per row.",
+          options: [
+            { label: "Default adjustment type", fields: [settingKey("Default adjustment type")] },
+            alternative("Adjustment type column", "adjustmentType"),
+          ],
+        },
         ...(dynamic || !enhancement
           ? [
               {
@@ -261,7 +272,6 @@ export function googleConversionEditor(id: GoogleConversionStream): ReverseStrea
       return withFieldRules(items, {
         "setting:Conversion action ID": { required: true },
         "setting:Delivery API": { required: true },
-        "setting:Default adjustment type": { required: true },
         "setting:Data source": { hidden: enhancementHidden },
         ...Object.fromEntries(["email", "phone"].map(key => [`mapping:${key}`, { hidden: enhancementHidden }])),
         ...Object.fromEntries(

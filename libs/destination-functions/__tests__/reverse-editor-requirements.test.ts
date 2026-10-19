@@ -154,14 +154,17 @@ it.each(["ENHANCEMENT", "RESTATEMENT", "RETRACTION"])(
       ])
     );
     expect(keys(dynamic.required)).not.toContain("mapping:restatementValue");
-    expect(dynamic.alternatives.every(group => !!group.condition)).toBe(true);
+    expect(dynamic.alternatives.filter(group => !group.beforeRequired).every(group => !!group.condition)).toBe(true);
+    expect(dynamic.alternatives[0]).toMatchObject({ key: "adjustment-type", beforeRequired: true, configured: true });
   }
 );
 
 it("original conversion alternatives require both GCLID and conversion time", () => {
   const check = (mapping: Record<string, string>) =>
-    form("google-ads", "conversion-adjustments", { mapping, streamOptions: { adjustmentType: "RETRACTION" } })
-      .alternatives[0].configured;
+    form("google-ads", "conversion-adjustments", {
+      mapping,
+      streamOptions: { adjustmentType: "RETRACTION" },
+    }).alternatives.find(group => group.key === "original")!.configured;
   expect(check({ gclid: "click" })).toBe(false);
   expect(check({ gclid: "click", conversionTimestamp: "time" })).toBe(true);
   expect(check({ orderId: "id" })).toBe(true);
@@ -238,6 +241,19 @@ it("Meta user agent/account IDs alone do not satisfy matching", () => {
     mapping: { clientUserAgent: "ua", pageId: "page", instagramAccountId: "ig" },
   });
   expect(result.alternatives.find(g => g.key === "matching")?.configured).toBe(false);
+});
+
+it("Meta business messaging requires a channel choice before promoting channel-specific identifiers", () => {
+  const result = form("facebook-conversions", "conversions", { streamOptions: { actionSource: "business_messaging" } });
+  expect(result.alternatives.filter(group => group.beforeRequired).map(group => group.key)).toEqual([
+    "action-source",
+    "channel",
+    "event",
+  ]);
+  expect(result.alternatives.find(group => group.key === "channel")).toMatchObject({ configured: false });
+  expect(keys(result.required)).not.toContain("mapping:pageScopedUserId");
+  expect(keys(result.required)).not.toContain("mapping:ctwaClid");
+  expect(keys(result.required)).not.toContain("mapping:instagramScopedId");
 });
 
 it("Microsoft conversion attribution fields are paired, and terms remain optional", () => {

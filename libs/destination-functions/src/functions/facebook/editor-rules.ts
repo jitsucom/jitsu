@@ -44,6 +44,7 @@ export function metaConversionAlternatives(
     {
       key: "action-source",
       title: "Action source",
+      beforeRequired: true,
       description:
         "Choose a default for all events, or map a column to override it per row. Missing or null column values use the default. Each row must satisfy the requirements of its effective action source.",
       options: [
@@ -52,24 +53,28 @@ export function metaConversionAlternatives(
       ],
     },
     {
+      key: "channel",
+      title: "Messaging channel",
+      beforeRequired: true,
+      when: o => possibleAction(o, "business_messaging"),
+      condition: options.mapping.actionSource ? "For business_messaging rows" : undefined,
+      description:
+        "Choose a default or map a channel column. Messenger requires Facebook Page ID and Page-scoped user ID; WhatsApp requires WhatsApp Business Account ID and Click-to-WhatsApp ID; Instagram requires Instagram business account ID and Instagram-scoped user ID. With a fixed action source and channel, these fields appear in Required fields; mapped sources or channels are checked per row.",
+      options: [
+        { label: "Default messaging channel", fields: [settingKey("Default messaging channel")] },
+        alternative("Messaging channel column", "messagingChannel"),
+      ],
+    },
+    {
       key: "event",
       title: "Event name",
+      beforeRequired: true,
       options: [
         { label: "Default event name", fields: [settingKey("eventName")] },
         alternative("Event name column", "eventName"),
       ],
     },
     metaMatchingAlternatives(fields, false),
-    {
-      key: "channel",
-      title: "Messaging channel",
-      when: o => possibleAction(o, "business_messaging"),
-      condition: options.mapping.actionSource ? "For business_messaging rows" : undefined,
-      options: [
-        { label: "Default messaging channel", fields: [settingKey("Default messaging channel")] },
-        alternative("Messaging channel column", "messagingChannel"),
-      ],
-    },
     {
       key: "purchase",
       title: "Purchase value and currency",

@@ -396,6 +396,7 @@ export const reverseStreamEditors: Record<string, StreamEditor[]> = Object.fromE
               rowClassName: "!border-0 mb-3",
               itemClassName: "w-full",
             }));
+            const selectorItems: EditorItem[] = [];
             if (required.length)
               items.push(
                 ...requirementCard(
@@ -416,7 +417,7 @@ export const reverseStreamEditors: Record<string, StreamEditor[]> = Object.fromE
                   field => field.editor !== "notice" && keys.has(field.key) && !rendered.has(field.key)
                 );
                 for (const field of fields) rendered.add(field.key);
-                items.push(
+                (group.beforeRequired ? selectorItems : items).push(
                   ...requirementCard(
                     stream.id,
                     `alternative:${group.key}`,
@@ -459,6 +460,8 @@ export const reverseStreamEditors: Record<string, StreamEditor[]> = Object.fromE
                 );
               }
             }
+            // Defaults and their column overrides must precede the requirements they control.
+            items.splice(notices.length, 0, ...selectorItems);
             if (optional.length)
               items.push(
                 ...requirementCard(
