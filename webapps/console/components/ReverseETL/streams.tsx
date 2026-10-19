@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
-import { Alert, Button, Checkbox, Input, InputNumber, Select, Tag } from "antd";
+import { Alert, Button, Checkbox, Input, InputNumber, Select, Tag, Tooltip } from "antd";
+import { InfoCircleOutlined } from "@ant-design/icons";
 import { reverseDestinationMetadata } from "@jitsu/destination-functions/src/reverse-etl/catalog";
 import type { ReverseEditorField } from "@jitsu/protocols/reverse-etl-editor";
 import { resolveStreamEditor } from "@jitsu/destination-functions/src/reverse-etl/editor";
@@ -421,7 +422,6 @@ export const reverseStreamEditors: Record<string, StreamEditor[]> = Object.fromE
                     `alternative:${group.key}`,
                     group.title,
                     <>
-                      <div className="text-xs font-medium uppercase tracking-wide">Required alternative</div>
                       {group.condition && <div className="font-medium text-textDark">{group.condition}</div>}
                       <div>{group.description ?? "Provide at least one matching option using the fields below."}</div>
                       {!group.description &&
@@ -431,9 +431,6 @@ export const reverseStreamEditors: Record<string, StreamEditor[]> = Object.fromE
                       {!!shared.length && (
                         <div>Also uses fields shown above: {shared.map(field => field.name).join(", ")}.</div>
                       )}
-                      <div className="text-xs">
-                        “Configured” checks mappings or defaults, not the values in every model row.
-                      </div>
                     </>,
                     fields.map(render),
                     <Tag className="!m-0" color={group.configured ? "green" : group.condition ? "blue" : "orange"}>
@@ -442,6 +439,19 @@ export const reverseStreamEditors: Record<string, StreamEditor[]> = Object.fromE
                         : group.condition
                         ? "Required for matching rows"
                         : "Choose at least one option"}
+                      <Tooltip
+                        title="“Configured” checks mappings or defaults, not the values in every model row."
+                        trigger={["hover", "focus"]}
+                      >
+                        <span
+                          tabIndex={0}
+                          role="img"
+                          aria-label={`${group.title}: configuration status information`}
+                          className="inline-flex ml-1 cursor-help"
+                        >
+                          <InfoCircleOutlined aria-hidden="true" />
+                        </span>
+                      </Tooltip>
                     </Tag>
                   )
                 );

@@ -67,10 +67,26 @@ it("renders separate requirement cards with descriptions, without OR bullet list
   expect(screen.getByText("Choose at least one option")).toBeTruthy();
   expect(screen.queryByRole("list")).toBeNull();
   expect(screen.getByText(/If any address part is supplied, all four address parts are required/)).toBeTruthy();
-  expect(screen.getByText(/checks mappings or defaults, not the values in every model row/)).toBeTruthy();
+  expect(screen.queryByText("Required alternative")).toBeNull();
+  expect(screen.queryByText(/checks mappings or defaults, not the values in every model row/)).toBeNull();
   const required = screen.getByText("Customer Match terms");
   const alternatives = screen.getByRole("heading", { name: "Customer matching" });
   expect(required.compareDocumentPosition(alternatives) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+});
+
+it.each(["hover", "focus"])("explains configuration status in an info tooltip on %s", async trigger => {
+  render(
+    React.createElement(Fields, {
+      destination: "google-ads",
+      options: options("google-ads", "audience", { mapping: { email: "email" } }),
+    })
+  );
+  const icon = screen.getByRole("img", { name: "Customer matching: configuration status information" });
+  expect(icon.closest(".ant-tag")?.textContent).toBe("Configured");
+  if (trigger === "hover") fireEvent.mouseEnter(icon);
+  else fireEvent.focus(icon);
+  const tooltip = await screen.findByRole("tooltip");
+  expect(tooltip.textContent).toBe("“Configured” checks mappings or defaults, not the values in every model row.");
 });
 
 it("places all stream hints before the requirement cards", () => {
