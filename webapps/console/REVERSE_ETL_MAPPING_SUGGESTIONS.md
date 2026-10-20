@@ -2,7 +2,7 @@
 
 Set `TYPESAFE_API_KEY` on the **console server** to enable Jev requests. Optionally set
 `TYPESAFE_MAPPING_MODEL` (default `jev-1.14.0`). No runner, database migration, or destination
-credentials change is needed. Console deployment is manual for this PR.
+credentials change is needed.
 The button is hidden when the key is absent or blank. Public app configuration exposes
 only a boolean availability flag, never the key itself.
 
@@ -26,7 +26,10 @@ Only source column names/types and provider-owned field descriptions, requiremen
 enumerated selector labels go to TypeSafe. No row samples, SQL, credentials, arbitrary
 stream settings, or user-entered account/audience names are included. Schema names can
 themselves be sensitive: enable the service only when this disclosure is appropriate.
-Requests/responses and provider errors are not logged by this integration.
+Request/response bodies and raw provider exceptions are never logged. Safe diagnostics include a
+generated suggestion request ID, catalog destination/stream IDs, column/question counts, batch
+and attempt numbers, elapsed time, HTTP status, controlled failure category and retry delay.
+The UI displays a category-specific error and the same reference ID for support.
 
 Confidence >= 0.8 and a probability lead >= 0.2 preselect a suggestion **inside the review
 dialog only**. All other choices require user selection. These are conservative starting
@@ -41,6 +44,14 @@ per minute, 1–127 unique columns (two formats plus none fit the 255-choice API
 48 KB per provider request, at most ten sequential batches, 30-second provider deadline,
 60-second overall deadline and cancellation on disconnect. Oversized requests fail with
 manual mapping still available; candidates are never silently truncated.
+
+Each provider batch gets an initial attempt plus at most two retries for transient network
+failures, 8-second attempt timeouts, HTTP 408/429/500/502/503/504/529. Retries use exponential
+backoff with jitter (starting at 375–500 ms), respect `Retry-After` / `retry-after-ms`, and
+share the original 30-second provider budget. A server delay beyond the remaining budget
+ends the request rather than retrying early. Completed batches are not replayed. Cancellation,
+authentication/request errors, malformed JSON and invalid model answers are not retried.
+Retrying inference can incur additional provider usage; no sync runs or mappings are applied.
 
 ## Evaluation before rollout
 

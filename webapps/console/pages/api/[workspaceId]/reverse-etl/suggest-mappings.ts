@@ -38,7 +38,7 @@ export const route = createRoute()
     const stream = metadata?.streams.find(s => s.id === body.stream);
     if (!metadata || !stream) throw new ApiError("Destination stream not found in this workspace", { status: 404 });
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 60_000);
+    const timeout = setTimeout(() => controller.abort(new DOMException("Timed out", "TimeoutError")), 60_000);
     const cancel = () => {
       if (!res.writableEnded) controller.abort();
     };
