@@ -46,7 +46,7 @@ export function MappingSuggestions({
           {s.label}
         </label>
         <Tooltip
-          title={`Jev confidence in ${s.noMatch ? "no suitable match" : "its selected candidate"}: ${Math.round(
+          title={`Confidence in ${s.noMatch ? "no suitable match" : "the selected candidate"}: ${Math.round(
             s.confidence * 100
           )}%. This measures model certainty, not verified accuracy.`}
         >
@@ -123,7 +123,7 @@ export function MappingSuggestions({
         >
           Suggest mappings
         </Button>
-        <span className="text-xs text-textSecondary">Uses Jev. Sends column names and types, not rows or SQL.</span>
+        <span className="text-xs text-textSecondary">Based on column names and types only.</span>
       </div>
       <Failure error={error} />
       <Modal
