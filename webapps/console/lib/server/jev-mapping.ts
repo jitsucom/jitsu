@@ -5,6 +5,11 @@ import type { ReverseDestinationMetadata } from "@jitsu/destination-functions/sr
 import { mappingTargets, type MappingSuggestions } from "../reverse-mapping-suggestions";
 import { ApiError } from "../shared/errors";
 import { displayColumnType } from "../warehouse-column-type";
+import { randomUUID } from "node:crypto";
+import { getServerLog } from "./log";
+import { classifyMappingFailure, MappingProviderFailure, requestMappingBatch } from "./mapping-provider-request";
+
+const log = getServerLog("mapping-suggestions");
 
 const Answer = z.object({
   type: z.literal("choice"),
@@ -135,36 +140,66 @@ export async function suggestWithJev(
   if (batches.length > 10)
     throw new ApiError("Too many unmapped fields for one suggestion request. Map some fields first.", { status: 400 });
   const suggestions: MappingSuggestions["suggestions"] = [];
+  const requestId = randomUUID();
+  const started = Date.now();
+  const timeout = new AbortController();
+  const timer = setTimeout(() => timeout.abort(new DOMException("Timed out", "TimeoutError")), 30_000);
+  const combined = signal ? AbortSignal.any([signal, timeout.signal]) : timeout.signal;
+  let batchIndex = 0;
+  const context = {
+    suggestionRequestId: requestId,
+    destinationType: config.destination.id,
+    stream: stream.id,
+    columnCount: columns.length,
+    batchCount: batches.length,
+  };
   try {
-    const timeout = AbortSignal.timeout(30_000);
-    const combined = signal ? AbortSignal.any([signal, timeout]) : timeout;
     for (const batch of batches) {
-      const response = await request("https://api.typesafe.ai/v1/systemone", {
-        method: "POST",
-        headers: { Authorization: `Bearer ${config.apiKey}`, "Content-Type": "application/json" },
+      batchIndex++;
+      const result = await requestMappingBatch({
         body: bodyFor(batch),
+        apiKey: config.apiKey,
         signal: combined,
-        redirect: "error",
+        deadline: started + 30_000,
+        request,
+        record: event => {
+          const logger = event.outcome === "retry" ? log.atWarn() : log.atInfo();
+          logger.log("Mapping suggestion provider attempt", {
+            ...context,
+            batch: batchIndex,
+            questionCount: batch.length,
+            ...event,
+          });
+        },
+        parse: value => {
+          const parsed = Response.safeParse(value);
+          if (!parsed.success) throw new MappingProviderFailure("invalid_response");
+          for (const question of batch) {
+            const answer = parsed.data.answers[question.id];
+            const keys = Object.keys(question.question.criteria);
+            if (
+              !answer ||
+              !keys.includes(answer.choice) ||
+              Object.keys(answer.probabilities).length !== keys.length ||
+              keys.some(key => !Object.hasOwn(answer.probabilities, key))
+            )
+              throw new MappingProviderFailure("invalid_choices");
+            const probabilities = Object.values(answer.probabilities);
+            if (
+              Math.abs(probabilities.reduce((sum, p) => sum + p, 0) - 1) > 0.05 ||
+              answer.probabilities[answer.choice] < Math.max(...probabilities)
+            )
+              throw new MappingProviderFailure("invalid_probabilities");
+          }
+          return parsed.data;
+        },
       });
-      // Never include provider response bodies (which can echo the schema or request) in errors or logs.
-      if (!response.ok) throw new Error("Provider request failed");
-      const result = Response.parse(await response.json());
       for (const question of batch) {
         const answer = result.answers[question.id];
         const keys = Object.keys(question.question.criteria);
-        if (
-          !answer ||
-          !keys.includes(answer.choice) ||
-          Object.keys(answer.probabilities).length !== keys.length ||
-          keys.some(key => !Object.hasOwn(answer.probabilities, key))
-        )
-          throw new Error("Invalid choices");
         const ranked = keys
           .map(key => ({ key, probability: answer.probabilities[key] }))
           .sort((a, b) => b.probability - a.probability);
-        const sum = ranked.reduce((sum, choice) => sum + choice.probability, 0);
-        if (Math.abs(sum - 1) > 0.05 || answer.probabilities[answer.choice] < ranked[0].probability)
-          throw new Error("Invalid probabilities");
         const alternatives = ranked
           .filter(choice => choice.key !== "none" && choice.probability > 0)
           .slice(0, 3)
@@ -187,11 +222,40 @@ export async function suggestWithJev(
         });
       }
     }
-  } catch {
+  } catch (error) {
+    const failure = classifyMappingFailure(error, combined);
+    (failure.code === "cancelled" ? log.atInfo() : log.atError()).log("Mapping suggestions failed", {
+      ...context,
+      batch: batchIndex,
+      elapsedMs: Date.now() - started,
+      category: failure.code,
+      httpStatus: failure.status,
+    });
+    const detail =
+      failure.code === "timeout"
+        ? "the service timed out. Please try again."
+        : failure.code === "cancelled"
+        ? "the request was cancelled."
+        : failure.code === "network"
+        ? "the service could not be reached. Please try again."
+        : failure.code.startsWith("invalid_")
+        ? "the service returned an invalid response. Please try again or map columns manually."
+        : failure.status === 401 || failure.status === 403
+        ? "the service credentials were rejected. Ask your administrator to check the configuration."
+        : failure.status === 429 || failure.status === 529
+        ? "the service is busy or rate-limited. Please try again later."
+        : failure.code === "http" && failure.status! < 500 && failure.status !== 408
+        ? "the service rejected this request. Contact support or map columns manually."
+        : "the service failed. Please try again or map columns manually.";
     throw new ApiError(
-      "Mapping suggestions are unavailable. Try again or map columns manually; no mappings were changed.",
-      { status: 502 }
+      `Mapping suggestions are unavailable: ${detail} No mappings were changed. Reference: ${requestId}`,
+      {
+        status: failure.code === "timeout" ? 504 : failure.code === "cancelled" ? 499 : 502,
+        responseObject: { code: `mapping_suggestions_${failure.code}`, requestId },
+      }
     );
+  } finally {
+    clearTimeout(timer);
   }
   return { columns, suggestions };
 }

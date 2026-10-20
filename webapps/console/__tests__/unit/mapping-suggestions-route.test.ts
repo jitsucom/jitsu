@@ -1,5 +1,5 @@
 import { EventEmitter } from "node:events";
-import { beforeEach, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   access: vi.fn(),
@@ -43,6 +43,7 @@ beforeEach(() => {
   mocks.columns.mockResolvedValue({ columns: [{ name: "email", type: "text" }] });
   mocks.suggest.mockResolvedValue({ columns: [], suggestions: [] });
 });
+afterEach(() => vi.useRealTimers());
 function invoke() {
   const res = Object.assign(new EventEmitter(), { setHeader: vi.fn(), writableEnded: false });
   return {
@@ -106,4 +107,18 @@ it("cancels column inspection on disconnect and removes the listener", async () 
   await rejection;
   expect(mocks.suggest).not.toHaveBeenCalled();
   expect(res.listenerCount("close")).toBe(0);
+});
+
+it("marks the overall deadline as a timeout, not a user cancellation", async () => {
+  vi.useFakeTimers();
+  mocks.suggest.mockImplementation(
+    async (_stream, _body, _columns, _config, signal) =>
+      new Promise((_resolve, reject) => signal.addEventListener("abort", () => reject(signal.reason), { once: true }))
+  );
+  const { res, result } = invoke();
+  const rejection = expect(result).rejects.toMatchObject({ name: "TimeoutError" });
+  await vi.advanceTimersByTimeAsync(60_000);
+  await rejection;
+  expect(res.listenerCount("close")).toBe(0);
+  expect(vi.getTimerCount()).toBe(0);
 });

@@ -22,6 +22,7 @@ import { MetaTargetCheck } from "./MetaTargetCheck";
 import { ModelTitle } from "./ModelTitle";
 import { reverseDestinationMetadata } from "@jitsu/destination-functions/src/reverse-etl/catalog";
 import { MappingSuggestions } from "./MappingSuggestions";
+import { streamRequirementErrors } from "@jitsu/destination-functions/src/reverse-etl/editor";
 
 export function SyncEditor({ sync, reload }: { sync?: ReverseSyncView; reload: () => Promise<unknown> }) {
   const workspace = useWorkspace(),
@@ -63,6 +64,8 @@ export function SyncEditor({ sync, reload }: { sync?: ReverseSyncView; reload: (
   const [busy, setBusy] = useState(false),
     [dirty, setDirty] = useState(false);
   const [error, setError] = useState<unknown>();
+  const [showValidation, setShowValidation] = useState(false);
+  const errorBlock = useRef<HTMLDivElement>(null);
   const requestId = useRef<string>();
   const editable = role.editEntities && !maintenance && !busy,
     enabled = workspace.featuresEnabled.includes("reverse-etl");
@@ -97,6 +100,7 @@ export function SyncEditor({ sync, reload }: { sync?: ReverseSyncView; reload: (
       loading: columns.isFetching,
       destinationId: toId,
       destinationProtocol: destinationProtocol(destinations.find(d => d.id === toId)?.url),
+      showValidation,
     }) ?? [];
   if (streamDefinition && appConfig.reverseMappingSuggestionsEnabled) {
     // Keep stream guidance first, then suggestions, followed by the requirement cards.
@@ -154,6 +158,8 @@ export function SyncEditor({ sync, reload }: { sync?: ReverseSyncView; reload: (
       await action();
     } catch (e) {
       setError(e);
+      // Wait for the error block to render, then keep long forms' errors visible near the Save action.
+      requestAnimationFrame(() => errorBlock.current?.scrollIntoView?.({ block: "nearest", behavior: "smooth" }));
     } finally {
       setBusy(false);
     }
@@ -161,6 +167,7 @@ export function SyncEditor({ sync, reload }: { sync?: ReverseSyncView; reload: (
   const items: EditorItem[] = [
     {
       name: "Model",
+      rowClassName: showValidation && !fromId ? "rounded border border-red-400 bg-red-50" : undefined,
       component: (
         <Select
           className="w-80"
@@ -185,6 +192,7 @@ export function SyncEditor({ sync, reload }: { sync?: ReverseSyncView; reload: (
     },
     {
       name: "Destination",
+      rowClassName: showValidation && !toId ? "rounded border border-red-400 bg-red-50" : undefined,
       component: (
         <DestinationSelector
           items={destinations}
@@ -238,6 +246,7 @@ export function SyncEditor({ sync, reload }: { sync?: ReverseSyncView; reload: (
     },
     {
       name: "Stream",
+      rowClassName: showValidation && !stream ? "rounded border border-red-400 bg-red-50" : undefined,
       documentation: "Choose the destination stream to configure below.",
       component: (
         <Select
@@ -281,7 +290,6 @@ export function SyncEditor({ sync, reload }: { sync?: ReverseSyncView; reload: (
           </Button>
         </div>
       )}
-      <Failure error={error} />
       {!!columns.error && (
         <Alert
           className="mb-4"
@@ -348,6 +356,21 @@ export function SyncEditor({ sync, reload }: { sync?: ReverseSyncView; reload: (
             disabled={!editable || (!enabled && (!sync || !options.disabled)) || (derivesMapping && columns.isFetching)}
             onClick={() =>
               perform(async () => {
+                // Pausing with the rollout disabled and scheduling-only edits on locked syncs must remain available.
+                if (enabled && !locked) {
+                  setShowValidation(true);
+                  const errors = [
+                    ...(!fromId ? ["Choose a model."] : []),
+                    ...(!toId ? ["Choose a destination."] : []),
+                    ...(!streamDefinition
+                      ? ["Choose a stream."]
+                      : streamRequirementErrors(streamDefinition, {
+                          ...options,
+                          destination: { protocol: destinationProtocol(destinations.find(d => d.id === toId)?.url) },
+                        })),
+                  ];
+                  if (errors.length) throw new Error(errors.join("\n"));
+                }
                 if (!sync) {
                   const pending = router.query.requestId;
                   requestId.current ??=
@@ -397,6 +420,9 @@ export function SyncEditor({ sync, reload }: { sync?: ReverseSyncView; reload: (
             Save
           </Button>
         </div>
+      </div>
+      <div ref={errorBlock} className="whitespace-pre-line" aria-live="polite" data-testid="reverse-sync-save-error">
+        <Failure error={error} />
       </div>
     </div>
   );

@@ -1,8 +1,14 @@
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { ReverseStreamEditor } from "@jitsu/protocols/reverse-etl-editor";
 import { reverseDestinationMetadata } from "@jitsu/destination-functions/src/reverse-etl/catalog";
 import { applyMappingSuggestions, mappingTargets } from "../../lib/reverse-mapping-suggestions";
 import { buildMappingQuestions, suggestWithJev } from "../../lib/server/jev-mapping";
+
+const diagnostics = vi.hoisted(() => ({ log: vi.fn() }));
+vi.mock("../../lib/server/log", () => ({
+  getServerLog: () => ({ atInfo: () => diagnostics, atWarn: () => diagnostics, atError: () => diagnostics }),
+}));
+beforeEach(() => diagnostics.log.mockClear());
 
 const stream: ReverseStreamEditor = {
   id: "test",
@@ -151,6 +157,7 @@ it.each([
   await expect(suggestWithJev(stream, options, columns, config, undefined, request)).rejects.toThrow(
     "Mapping suggestions are unavailable"
   );
+  expect(request).toHaveBeenCalledTimes(1);
 });
 
 it("rejects unknown candidates, invalid sums and a choice inconsistent with probabilities", async () => {
@@ -183,6 +190,36 @@ it("redacts provider failures and honors cancellation", async () => {
       vi.fn(async () => new Response("PRIVATE-SCHEMA server-only-key", { status: 401 }))
     )
   ).rejects.toThrow(/^Mapping suggestions are unavailable/);
+  const logs = JSON.stringify(diagnostics.log.mock.calls);
+  expect(logs).not.toContain("PRIVATE-SCHEMA");
+  expect(logs).not.toContain(config.apiKey);
+  expect(logs).not.toContain(columns[0].name);
+  expect(diagnostics.log).toHaveBeenCalledWith(
+    "Mapping suggestions failed",
+    expect.objectContaining({
+      category: "http",
+      httpStatus: 401,
+      batch: 1,
+      elapsedMs: expect.any(Number),
+      suggestionRequestId: expect.any(String),
+    })
+  );
+  const failure = await suggestWithJev(
+    stream,
+    options,
+    columns,
+    config,
+    undefined,
+    vi.fn(async () => new Response("private", { status: 401 }))
+  ).catch(error => error);
+  expect(failure.message).toContain("credentials were rejected");
+  expect(failure.message).toContain(failure.responseObject.requestId);
+  expect(diagnostics.log).toHaveBeenLastCalledWith(
+    "Mapping suggestions failed",
+    expect.objectContaining({
+      suggestionRequestId: failure.responseObject.requestId,
+    })
+  );
   const controller = new AbortController();
   controller.abort();
   const request = vi.fn<typeof fetch>(async (_url, init) => {
@@ -192,6 +229,7 @@ it("redacts provider failures and honors cancellation", async () => {
   await expect(suggestWithJev(stream, options, columns, config, controller.signal, request)).rejects.toThrow(
     /unavailable/
   );
+  expect(request).not.toHaveBeenCalled();
 });
 
 it("rejects empty, duplicate, oversized schemas before making any external request", async () => {
@@ -234,12 +272,22 @@ it("splits large requests without dropping candidates and discards a partial fai
   }
   let calls = 0;
   const failing: typeof fetch = async (url, init) => {
-    if (++calls === 2) return new Response("private details", { status: 500 });
+    if (++calls === 2) return new Response("private details", { status: 422 });
     return request(url, init);
   };
   await expect(suggestWithJev(wideStream, options, wideColumns, config, undefined, failing)).rejects.toThrow(
     "Mapping suggestions are unavailable"
   );
+  const recovering = vi.fn<typeof fetch>(async (url, init) => {
+    if (recovering.mock.calls.length === 2) return new Response("", { status: 503 });
+    return request(url, init);
+  });
+  const recovered = await suggestWithJev(wideStream, options, wideColumns, config, undefined, recovering);
+  expect(recovered.suggestions).toHaveLength(8);
+  const bodies = recovering.mock.calls.map(([, init]) => init!.body);
+  expect(bodies[0]).not.toBe(bodies[1]);
+  expect(bodies[1]).toBe(bodies[2]);
+  expect(bodies.filter(body => body === bodies[0])).toHaveLength(1);
 });
 
 it("preserves existing mappings, rejects hidden/unknown keys and columns, and prevents raw/hash conflicts", () => {
