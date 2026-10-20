@@ -28,7 +28,8 @@ const columns = [
   { name: "customer_email", type: "25" },
   { name: "purchase_total", type: "1700" },
 ];
-const config = { apiKey: "server-only-key", model: "jev-1.14.0" };
+const destination = { id: "test-ads", displayName: "Test Ads" };
+const config = { apiKey: "server-only-key", model: "jev-1.14.0", destination };
 function provider(override?: (question: any, index: number) => any) {
   return vi.fn<typeof fetch>(async (_url, init) => {
     const body = JSON.parse(init!.body as string);
@@ -68,7 +69,8 @@ it("asks Jev about every unmapped visible field, even exact names; never sends a
         query: "PRIVATE-SQL",
       },
     },
-    columns
+    columns,
+    destination
   );
   expect(state.columns.map(c => c.type)).toEqual(["text", "numeric"]);
   expect(state.selectors).toEqual([{ name: "Action source", selected: "Website" }]);
@@ -85,7 +87,12 @@ it("asks Jev about every unmapped visible field, even exact names; never sends a
 });
 
 it("does not forward a free-text value disguised as a selector", () => {
-  const { state } = buildMappingQuestions(stream, { ...options, streamOptions: { actionSource: "PRIVATE" } }, columns);
+  const { state } = buildMappingQuestions(
+    stream,
+    { ...options, streamOptions: { actionSource: "PRIVATE" } },
+    columns,
+    destination
+  );
   expect(state.selectors).toEqual([]);
 });
 
@@ -259,13 +266,26 @@ describe("real destination stream coverage", () => {
         if (destination === "webhook") expect(targets).toEqual([]);
         else expect(targets.length).toBeGreaterThan(0);
         expect(new Set(targets.map(t => t.id)).size).toBe(targets.length);
-        const { questions } = buildMappingQuestions(stream, options, columns);
+        const { state, questions } = buildMappingQuestions(stream, options, columns, metadata);
+        const context = {
+          destination: { id: metadata.id, name: metadata.displayName },
+          stream: { id: stream.id, name: stream.label },
+        };
+        expect(state).toMatchObject(context);
         expect(questions).toHaveLength(targets.length);
         for (const q of questions) {
           expect(q.question.criteria).toHaveProperty("none");
+          expect(q.question.instructions).toMatchObject(context);
           expect(q.candidates.length).toBe(columns.length * q.target.variants.length);
         }
       });
     }
   }
+});
+
+it("only includes allowlisted catalog identity even if destination context has extra properties", () => {
+  const context = { ...destination, config: { secret: "PRIVATE" }, name: "PRIVATE-CUSTOMER-NAME" };
+  const { state, questions } = buildMappingQuestions(stream, options, columns, context);
+  expect(state.destination).toEqual({ id: "test-ads", name: "Test Ads" });
+  expect(JSON.stringify({ state, questions })).not.toContain("PRIVATE");
 });

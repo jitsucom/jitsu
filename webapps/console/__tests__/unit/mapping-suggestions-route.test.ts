@@ -74,6 +74,7 @@ it("requires authentication, bounds request rate, scopes destination and model, 
   });
   expect(mocks.columns.mock.calls[0].slice(1, 3)).toEqual(["workspace", "model"]);
   expect(JSON.stringify(mocks.suggest.mock.calls)).not.toContain("private-token");
+  expect(mocks.suggest.mock.calls[0][3].destination).toEqual({ id: "google-ads", displayName: "Google Ads" });
   expect(res.setHeader).toHaveBeenCalledWith("Cache-Control", "no-store");
   expect(res.listenerCount("close")).toBe(0);
 });

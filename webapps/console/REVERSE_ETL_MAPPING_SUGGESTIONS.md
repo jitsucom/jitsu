@@ -13,6 +13,9 @@ All semantic matching uses Jev: no alias table, fuzzy matcher, or name-based fal
 Each unconfigured visible mapping control is a Choice over actual columns plus “none”.
 Raw and SHA-256 variants share one question so they cannot both be applied. Instructions
 explicitly cover ambiguous business meanings, missing evidence, and input formats.
+Every question identifies the destination and stream by catalog ID and display name.
+These are product names (for example Google Ads / Audience), not customer-entered destination
+names or account identifiers.
 
 Only source column names/types and provider-owned field descriptions, requirements, and
 enumerated selector labels go to TypeSafe. No row samples, SQL, credentials, arbitrary
@@ -44,7 +47,7 @@ missing required fields, misleading names, non-English names, and no suitable ma
 Measure precision of preselected suggestions, coverage, ambiguity handling, latency and
 token usage. Adjust thresholds only using those results. Do not submit real customer rows.
 
-### Initial live smoke check (2026-10-20)
+### Initial live smoke check (2026-10-20, before explicit destination context)
 
 Tested `jev-1.14.0` with six synthetic schemas: Google raw audience contacts, Google hashed
 email, Meta purchase conversions, Microsoft offline conversions, ambiguous billing/shipping

@@ -34,10 +34,9 @@ export const route = createRoute()
       select: { config: true },
     });
     const config = destination?.config as { destinationType?: string } | undefined;
-    const stream = reverseDestinationMetadata
-      .get(config?.destinationType ?? "")
-      ?.streams.find(s => s.id === body.stream);
-    if (!stream) throw new ApiError("Destination stream not found in this workspace", { status: 404 });
+    const metadata = reverseDestinationMetadata.get(config?.destinationType ?? "");
+    const stream = metadata?.streams.find(s => s.id === body.stream);
+    if (!metadata || !stream) throw new ApiError("Destination stream not found in this workspace", { status: 404 });
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 60_000);
     const cancel = () => {
@@ -53,6 +52,7 @@ export const route = createRoute()
         {
           apiKey: env.TYPESAFE_API_KEY,
           model: env.TYPESAFE_MAPPING_MODEL,
+          destination: { id: metadata.id, displayName: metadata.displayName },
         },
         controller.signal
       );
