@@ -1,5 +1,7 @@
 # Reverse ETL writer protocol (JITSU-227)
 
+For user-facing delivery, replay, and mirroring semantics, see [Delivery behavior](./delivery-behavior.md).
+
 Second, stacked implementation slice: destination contracts and an upsert lifecycle core.
 This is not a runnable CronJob yet. No advertising provider is registered or enabled.
 

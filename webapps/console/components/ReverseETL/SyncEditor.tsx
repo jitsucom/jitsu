@@ -17,7 +17,7 @@ import { BackButton } from "../BackButton/BackButton";
 import { EditorToolbar } from "../EditorToolbar/EditorToolbar";
 import { Failure } from "./shared";
 import { ScheduleEditor } from "./ScheduleEditor";
-import { reverseStreamEditors } from "./streams";
+import { reverseStreamEditors, streamFieldGroups } from "./streams";
 import { MetaTargetCheck } from "./MetaTargetCheck";
 import { ModelTitle } from "./ModelTitle";
 
@@ -90,6 +90,7 @@ export function SyncEditor({ sync, reload }: { sync?: ReverseSyncView; reload: (
       columns: columns.data ?? [],
       loading: columns.isFetching,
       destinationId: toId,
+      destinationProtocol: destinationProtocol(destinations.find(d => d.id === toId)?.url),
     }) ?? [];
   // A "columns" field (the webhook payload) derives the mapping from the model's columns. The server never queries the
   // warehouse at save, so a mapping left over from another model would be accepted whenever the primary key matches and
@@ -260,7 +261,7 @@ export function SyncEditor({ sync, reload }: { sync?: ReverseSyncView; reload: (
           description="Deleting a mirror sync keeps its audience reserved. Pause it instead if you may need to resume it."
         />
       )}
-      <FieldListEditorLayout items={items} />
+      <FieldListEditorLayout items={items} groups={streamFieldGroups} />
       {isMeta && stream && (
         <MetaTargetCheck
           destinationId={toId}
@@ -358,4 +359,12 @@ export function SyncEditor({ sync, reload }: { sync?: ReverseSyncView; reload: (
       </div>
     </div>
   );
+}
+
+function destinationProtocol(url: unknown): string | undefined {
+  try {
+    return typeof url === "string" ? new URL(url).protocol : undefined;
+  } catch {
+    return undefined;
+  }
 }

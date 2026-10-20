@@ -148,6 +148,7 @@ describe("Reverse ETL status dropdown", () => {
     expect(within(cleanup).getByText(label)).toBeTruthy();
     expect(within(cleanup).getByText(description)).toBeTruthy();
     expect(cleanup.textContent).toContain("not included in record totals");
+    expect(screen.getByText(/acceptance does not guarantee audience matching or conversion attribution/)).toBeTruthy();
     const table = screen.getByRole("table");
     expect(table.contains(cleanup)).toBe(false);
     expect(within(table).getAllByRole("row")).toHaveLength(3);

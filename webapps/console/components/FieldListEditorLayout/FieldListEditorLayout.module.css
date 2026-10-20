@@ -28,6 +28,6 @@
   @apply py-4 flex-auto pr-2 py-4;
 }
 
-.editorItemRow:first-child {
+.defaultRow:first-child {
   border-top: 0 !important;
 }

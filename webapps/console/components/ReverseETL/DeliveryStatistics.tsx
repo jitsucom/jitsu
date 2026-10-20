@@ -91,8 +91,8 @@ export function ReverseDeliveryStatistics({ task }: { task: ReverseTask }) {
           </p>
           <p className="text-xs mt-2">
             Records: {stats.records.accepted.toLocaleString()} accepted · {stats.records.pending.toLocaleString()}{" "}
-            pending · {stats.records.rejected.toLocaleString()} rejected. These are API records, not matched audience
-            size.
+            pending · {stats.records.rejected.toLocaleString()} rejected. These are API records. For ad destinations,
+            acceptance does not guarantee audience matching or conversion attribution; matching can be delayed.
           </p>
           <p className="text-xs text-textLight mt-2">
             Observed {new Date(stats.observedAt).toISOString().replace("T", " ").replace("Z", " UTC")}. Older attempts

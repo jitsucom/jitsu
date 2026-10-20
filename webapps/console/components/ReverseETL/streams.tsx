@@ -1,7 +1,9 @@
 import React, { useEffect, useState } from "react";
-import { Alert, Checkbox, Input, InputNumber, Select } from "antd";
+import { Alert, Button, Checkbox, Input, InputNumber, Select, Tag, Tooltip } from "antd";
+import { InfoCircleOutlined } from "@ant-design/icons";
 import { reverseDestinationMetadata } from "@jitsu/destination-functions/src/reverse-etl/catalog";
 import type { ReverseEditorField } from "@jitsu/protocols/reverse-etl-editor";
+import { resolveStreamEditor } from "@jitsu/destination-functions/src/reverse-etl/editor";
 import type { ReverseSyncOptions, WarehouseColumn } from "@jitsu/warehouse-query/src/schema";
 import type { EditorItem } from "../FieldListEditorLayout/FieldListEditorLayout";
 import { DestinationTargetSelector } from "./DestinationTargetSelector";
@@ -16,7 +18,7 @@ export interface StreamEditor {
     options: ReverseSyncOptions,
     update: (patch: Partial<ReverseSyncOptions>) => void,
     disabled: boolean,
-    source: { columns: WarehouseColumn[]; loading: boolean; destinationId?: string }
+    source: { columns: WarehouseColumn[]; loading: boolean; destinationId?: string; destinationProtocol?: string }
   ): EditorItem[];
 }
 function ColumnSelector({
@@ -69,7 +71,8 @@ function IdentifierMapping({
   onChange: (mapping: Record<string, string>) => void;
   source: { columns: WarehouseColumn[]; loading: boolean };
 }) {
-  const [format, setFormat] = useState(mapping[hashed] ? "hashed" : "raw");
+  const [emptyFormat, setFormat] = useState(mapping[hashed] ? "hashed" : "raw");
+  const format = mapping[hashed] ? "hashed" : mapping[raw] ? "raw" : emptyFormat;
   const value = mapping[raw] ?? mapping[hashed] ?? "";
   const change = (column: string, nextFormat = format) => {
     const next = { ...mapping };
@@ -228,7 +231,20 @@ function renderField(
       );
       break;
     case "notice":
-      component = <Alert type="info" showIcon={field.showIcon} title={field.title} description={field.description} />;
+      component =
+        field.presentation === "description" ? (
+          <div className="text-sm text-textSecondary">
+            {field.title}
+            {field.description && <div>{field.description}</div>}
+          </div>
+        ) : (
+          <Alert
+            type={field.presentation === "warning" ? "warning" : "info"}
+            showIcon={field.showIcon}
+            title={field.title}
+            description={field.description}
+          />
+        );
       break;
     case "identifier":
       component = (
@@ -270,7 +286,97 @@ function renderField(
       );
       break;
   }
-  return { key: field.key, name: field.name, documentation: field.documentation, group: field.group, component };
+  return {
+    key: `${streamId}:${field.key}`,
+    name: field.name,
+    documentation: field.documentation,
+    group: "Stream settings",
+    component,
+  };
+}
+
+type ResolvedField = ReturnType<typeof resolveStreamEditor>["required"][number];
+function renderResolvedField(
+  field: ResolvedField,
+  streamId: string,
+  options: ReverseSyncOptions,
+  update: (patch: Partial<ReverseSyncOptions>) => void,
+  disabled: boolean,
+  source: Parameters<StreamEditor["fields"]>[3]
+): EditorItem {
+  const item = renderField(field, streamId, options, update, disabled, source);
+  return {
+    ...item,
+    component: (
+      <div className="space-y-2">
+        {item.component}
+        {field.requirement && <div className="text-xs text-textSecondary max-w-xl">{field.requirement}</div>}
+        {field.isHidden && (
+          <Alert
+            type="warning"
+            title="This mapping does not apply to the current selection."
+            description="It is still saved. Clear it or change the selection before running the sync."
+            action={
+              <Button
+                size="small"
+                disabled={disabled}
+                onClick={() => {
+                  const mapping = { ...options.mapping };
+                  if (field.editor === "mapping") delete mapping[field.field];
+                  if (field.editor === "identifier") {
+                    delete mapping[field.raw];
+                    delete mapping[field.hashed];
+                  }
+                  update({ mapping });
+                }}
+              >
+                Clear mapping
+              </Button>
+            }
+          />
+        )}
+      </div>
+    ),
+  };
+}
+
+// No enclosing table border: each requirement card supplies its own border, with hints outside the cards.
+export const streamFieldGroups = { "Stream settings": { className: "pb-2" } };
+
+function requirementCard(
+  stream: string,
+  key: string,
+  title: string,
+  description: React.ReactNode,
+  fields: EditorItem[],
+  status?: React.ReactNode
+): EditorItem[] {
+  // Draw contiguous card edges without moving controls into different React parents when requirements change.
+  return [
+    {
+      key: `${stream}:section:${key}`,
+      group: "Stream settings",
+      rowClassName: `mt-5 border-x border-t border-textDisabled bg-gray-50 rounded-t-xl ${
+        fields.length ? "" : "border-b rounded-b-xl"
+      }`,
+      itemClassName: "w-full px-5 py-4",
+      component: (
+        <div>
+          <div className="flex flex-wrap gap-2 items-center justify-between">
+            <h3 className="font-semibold text-base m-0">{title}</h3>
+            {status}
+          </div>
+          <div className="text-sm text-textSecondary mt-2 space-y-1">{description}</div>
+        </div>
+      ),
+    },
+    ...fields.map((field, index) => ({
+      ...field,
+      rowClassName: `border-x border-textDisabled bg-white ${
+        index === fields.length - 1 ? "border-b rounded-b-xl" : ""
+      }`,
+    })),
+  ];
 }
 
 /** Console owns rendering; destination packages own settings and mapping descriptions. */
@@ -284,8 +390,97 @@ export const reverseStreamEditors: Record<string, StreamEditor[]> = Object.fromE
           label: stream.label,
           defaults: () => ({ ...stream.defaults(), checkpointEvery: stream.checkpointEvery ?? 50_000 }),
           derivesMapping: options => stream.fields(options).some(field => field.editor === "columns"),
-          fields: (options, update, disabled, source) =>
-            stream.fields(options).map(field => renderField(field, stream.id, options, update, disabled, source)),
+          fields: (options, update, disabled, source) => {
+            const resolved = resolveStreamEditor(stream, {
+              ...options,
+              destination: { protocol: source.destinationProtocol },
+            });
+            const render = (field: ResolvedField) =>
+              renderResolvedField(field, stream.id, options, update, disabled, source);
+            const notices = [...resolved.required, ...resolved.alternativeFields, ...resolved.optional].filter(
+              field => field.editor === "notice"
+            );
+            const required = resolved.required.filter(field => field.editor !== "notice");
+            const optional = resolved.optional.filter(field => field.editor !== "notice");
+            const items: EditorItem[] = notices.map(field => ({
+              ...render(field),
+              name: undefined,
+              rowClassName: "!border-0 mb-3",
+              itemClassName: "w-full",
+            }));
+            const selectorItems: EditorItem[] = [];
+            if (required.length)
+              items.push(
+                ...requirementCard(
+                  stream.id,
+                  "required",
+                  "Required fields",
+                  "Complete these fields for the selected stream. Defaults are filled in where available.",
+                  required.map(render)
+                )
+              );
+            if (resolved.alternatives.length) {
+              const rendered = new Set(required.map(field => field.key));
+              const allFields = [...required, ...resolved.alternativeFields];
+              for (const group of resolved.alternatives) {
+                const keys = new Set(group.options.flatMap(option => option.fields));
+                const shared = allFields.filter(field => keys.has(field.key) && rendered.has(field.key));
+                const fields = resolved.alternativeFields.filter(
+                  field => field.editor !== "notice" && keys.has(field.key) && !rendered.has(field.key)
+                );
+                for (const field of fields) rendered.add(field.key);
+                (group.beforeRequired ? selectorItems : items).push(
+                  ...requirementCard(
+                    stream.id,
+                    `alternative:${group.key}`,
+                    group.title,
+                    <>
+                      {group.condition && <div className="font-medium text-textDark">{group.condition}</div>}
+                      <div>{group.description ?? "Provide at least one matching option using the fields below."}</div>
+                      {!group.description &&
+                        group.options
+                          .filter(option => option.fields.length > 1)
+                          .map(option => <div key={option.label}>{option.label} must be mapped together.</div>)}
+                      {!!shared.length && (
+                        <div>Also uses fields shown above: {shared.map(field => field.name).join(", ")}.</div>
+                      )}
+                    </>,
+                    fields.map(render),
+                    <Tooltip
+                      title="“Configured” checks mappings or defaults, not the values in every model row."
+                      trigger={["hover", "focus"]}
+                    >
+                      <Tag
+                        className="!m-0 cursor-help"
+                        tabIndex={0}
+                        color={group.configured ? "green" : group.condition ? "blue" : "orange"}
+                        icon={<InfoCircleOutlined aria-hidden="true" />}
+                      >
+                        {group.configured
+                          ? "Configured"
+                          : group.condition
+                          ? "Required for matching rows"
+                          : "Choose at least one option"}
+                      </Tag>
+                    </Tooltip>
+                  )
+                );
+              }
+            }
+            // Defaults and their column overrides must precede the requirements they control.
+            items.splice(notices.length, 0, ...selectorItems);
+            if (optional.length)
+              items.push(
+                ...requirementCard(
+                  stream.id,
+                  "optional",
+                  "Optional and conditional fields",
+                  "Add more detail to improve matching, or map fields needed only for particular rows. Leave unused fields unmapped.",
+                  optional.map(render)
+                )
+              );
+            return items;
+          },
         } satisfies StreamEditor)
     ),
   ])

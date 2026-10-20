@@ -88,9 +88,12 @@ describe("destination package boundaries", () => {
     expect(consent.editor === "checkbox" && consent.value).toBe(true);
     const type = fields.find(f => f.name === "Identifier type")!;
     if (type.editor !== "select") throw new Error("Missing identifier selector");
-    expect(type.change("CRM_ID")).toEqual({
-      mapping: {},
+    const patch = type.change("CRM_ID");
+    expect(patch).toEqual({
       streamOptions: { ...options.streamOptions, identifierType: "CRM_ID" },
     });
+    // Applying the selector patch preserves mappings for the UI's explicit cleanup action.
+    expect({ ...options, ...patch }.mapping).toEqual({ hashedEmail: "hash" });
+    expect(JSON.stringify(options)).toBe(original);
   });
 });
