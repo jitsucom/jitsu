@@ -149,14 +149,6 @@ export function googleConversionEditor(id: GoogleConversionStream): ReverseStrea
           ],
           change: api => change({ api }),
         });
-      if (id !== "click-conversions" || settings.api === "google-ads")
-        items.push({
-          key: "ads-api",
-          editor: "notice",
-          title: "Google Ads API authorization",
-          description:
-            "Requires the adwords OAuth scope and a developer token in destination settings or the runner's GOOGLE_ADS_DEVELOPER_TOKEN environment variable.",
-        });
       if (id === "conversion-adjustments")
         items.push(
           {
