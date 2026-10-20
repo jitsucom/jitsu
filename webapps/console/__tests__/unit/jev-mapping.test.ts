@@ -78,6 +78,13 @@ it("asks Jev about every unmapped visible field, even exact names; never sends a
   expect(payload).not.toContain("PRIVATE");
   expect(questions.map(q => q.target.id)).toEqual(["mapping:value", "mapping:email"]);
   expect(questions[0].question.instructions.task).toMatch(/ambiguous/);
+  expect(questions[1].question.instructions.task).toContain(
+    "prefer raw unless the source column name or field description explicitly"
+  );
+  expect(questions[1].question.instructions.task).toContain("is not evidence of hashed source values");
+  expect(questions[1].question.instructions.task).toContain(
+    "does not resolve ambiguity between different source columns"
+  );
   expect(questions[1].candidates).toEqual([
     { key: "email", format: "raw", column: "customer_email" },
     { key: "hashedEmail", format: "sha256", column: "customer_email" },

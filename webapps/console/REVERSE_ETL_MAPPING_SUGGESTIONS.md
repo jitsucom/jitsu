@@ -15,6 +15,9 @@ All semantic matching uses Jev: no alias table, fuzzy matcher, or name-based fal
 Each unconfigured visible mapping control is a Choice over actual columns plus “none”.
 Raw and SHA-256 variants share one question so they cannot both be applied. Instructions
 explicitly cover ambiguous business meanings, missing evidence, and input formats.
+For otherwise suitable identifiers, the prompt prefers raw values unless the source name
+or field description explicitly indicates hashed values or requires hashed input. Merely
+offering both formats is not evidence of hashed input; source-column ambiguity remains separate.
 Every question identifies the destination and stream by catalog ID and display name.
 These are product names (for example Google Ads / Audience), not customer-entered destination
 names or account identifiers.
