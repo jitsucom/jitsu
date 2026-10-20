@@ -1,5 +1,6 @@
 // Browser-safe: types and Zod only. Do not re-export server writers from here.
 import { z } from "zod";
+import { rejectionDetail, safeRejectionDetails } from "./rejection-details";
 import type {
   BatchResult,
   FinishResult,
@@ -27,6 +28,7 @@ const outcome = z.discriminatedUnion("status", [
       status: z.literal("rejected"),
       code: z.string().min(1).max(128),
       safeReason: z.string().max(1024),
+      details: z.array(rejectionDetail).max(3).optional(),
     })
     .strict(),
 ]);
@@ -62,15 +64,17 @@ const fixedRejectionCodes =
 const rejectionCodePattern = new RegExp(`^(?:http_[1-5][0-9]{2}|${fixedRejectionCodes}|[A-Z]+(?:_[A-Z0-9]+)*)$`);
 
 /**
- * A provider rejected a record. The message stays the fixed core-owned reason; only a code matching
- * {@link rejectionCodePattern} is kept, so free text from a provider never reaches a user.
+ * A provider rejected a record. The message stays the fixed core-owned reason. Only a code matching
+ * {@link rejectionCodePattern} and bounded structured field diagnostics survive; never provider free text.
  */
 export class ReverseEtlRejectionError extends ReverseEtlProtocolError {
   readonly code: string | undefined;
-  constructor(code: unknown) {
+  readonly details: ReturnType<typeof safeRejectionDetails>;
+  constructor(code: unknown, details?: unknown) {
     super("Destination rejected a row; the run stopped without skipping it");
     this.name = "ReverseEtlRejectionError";
     this.code = typeof code === "string" && code.length <= 64 && rejectionCodePattern.test(code) ? code : undefined;
+    this.details = safeRejectionDetails(details);
   }
 }
 
@@ -79,9 +83,11 @@ export class ReverseEtlRejectionError extends ReverseEtlProtocolError {
  * that sees outcomes (the run loop, recovery of an unresolved batch, snapshot mirror delivery) uses this, so a safe
  * provider code is shown the same way wherever the rejection is found instead of falling back to the generic message.
  */
-export function ensureNoRejection(outcomes: ReadonlyArray<{ status: string; code?: unknown }>): void {
+export function ensureNoRejection(
+  outcomes: ReadonlyArray<{ status: string; code?: unknown; details?: unknown }>
+): void {
   const rejected = outcomes.find(outcome => outcome.status === "rejected");
-  if (rejected) throw new ReverseEtlRejectionError(rejected.code);
+  if (rejected) throw new ReverseEtlRejectionError(rejected.code, rejected.details);
 }
 
 export function validateBatchResult<Row>(batch: WriteBatch<Row>, value: unknown): BatchResult {

@@ -17,10 +17,21 @@ export interface WriteBatch<Row> {
   batchId: string;
   records: Array<ReverseEtlRecord<Row> & { operationId: OperationId }>;
 }
+export interface ReverseEtlRejectionDetail {
+  reason: string;
+  field?: string;
+}
 export type RecordOutcome =
   | { operationId: OperationId; status: "accepted" }
   | { operationId: OperationId; status: "staged" }
-  | { operationId: OperationId; status: "rejected"; code: string; safeReason: string };
+  | {
+      operationId: OperationId;
+      status: "rejected";
+      code: string;
+      safeReason: string;
+      /** Bounded API enum codes and field paths; never provider messages or row values. */
+      details?: ReverseEtlRejectionDetail[];
+    };
 export interface BatchResult {
   outcomes: RecordOutcome[];
   /** Provider response confirms receipt of the entire batch, including rejected records. Not local validation. */

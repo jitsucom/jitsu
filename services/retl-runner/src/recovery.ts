@@ -11,6 +11,7 @@ import type { RuntimeRecovery } from "./adapters";
 import { mirrorDeliveryBatch } from "./mirror";
 
 type Session = Awaited<ReturnType<typeof openPersistence>>;
+export type RecoveryReport = { rejectionCode?: string; rejectionDetails?: ReverseEtlRejectionError["details"] };
 
 /** Recover only durable work. Never infer source completion or reopen SQL here. */
 export async function recoverRun(
@@ -19,7 +20,7 @@ export async function recoverRun(
   hooks?: RuntimeRecovery,
   independentBatches = false,
   /** Filled in with the first saved rejection code seen, so the caller can show it (never used to block recovery). */
-  report: { rejectionCode?: string } = {}
+  report: RecoveryReport = {}
 ) {
   const status = await run.core.recoveryStatus();
   const store = () => ctx.store.snapshot();
@@ -58,7 +59,11 @@ export async function recoverRun(
           // A rejection that was acknowledged durably earlier is not raised again (that would make recovery fail every time),
           // but its code is kept so the run that cleans up can still show it. The same pattern check as for a fresh rejection.
           const saved_ = saved.result?.outcomes.find(outcome => outcome.status === "rejected");
-          report.rejectionCode = new ReverseEtlRejectionError(saved_?.code).code;
+          if (saved_?.status === "rejected") {
+            const rejection = new ReverseEtlRejectionError(saved_.code, saved_.details);
+            report.rejectionCode = rejection.code;
+            report.rejectionDetails = rejection.details;
+          }
         }
         if (saved.operations.some(op => ["prepared", "unknown", "staged"].includes(op.status))) {
           ensure(hooks?.reconcileBatch, "Batch requires provider reconciliation");

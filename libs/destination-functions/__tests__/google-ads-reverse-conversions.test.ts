@@ -6,6 +6,7 @@ import { createGoogleAudienceManagement } from "../src/functions/google-ads/audi
 import { contentHash, createBufferedSyncStore } from "../src/reverse-etl/identity";
 import type { GoogleConversionStream } from "../src/functions/google-ads/conversions/meta";
 import { digest } from "../src/functions/google-ads/shared/identifiers";
+import { ensureNoRejection, ReverseEtlRejectionError, validateBatchResult } from "../src/reverse-etl/meta";
 
 const credentials = {
   authorized: true,
@@ -48,6 +49,46 @@ function fixture(name: GoogleConversionStream = "click-conversions", options: Re
   return { adapter, fetch, ctx, batch };
 }
 describe("Google Reverse ETL conversion streams", () => {
+  it("persists structured rejection details and carries them through the core failure", async () => {
+    const f = fixture();
+    f.fetch.mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          error: {
+            status: "INVALID_ARGUMENT",
+            message: "private@example.com",
+            details: [
+              {
+                "@type": "type.googleapis.com/google.rpc.BadRequest",
+                fieldViolations: [
+                  { field: "events[0].event_timestamp", reason: "EVENT_TOO_OLD", description: "private-value" },
+                ],
+              },
+            ],
+          },
+        }),
+        { status: 400 }
+      )
+    );
+    const batch = f.batch({ conversionTimestamp: time, gclid: "click" });
+    const writer = await f.adapter.stream.createWriter(f.ctx);
+    const result = validateBatchResult(batch, JSON.parse(JSON.stringify(await writer.upsert(batch))));
+    expect(result).toMatchObject({
+      submitted: true,
+      outcomes: [{ status: "rejected", details: [{ field: "events[0].event_timestamp", reason: "EVENT_TOO_OLD" }] }],
+    });
+    let rejection: unknown;
+    try {
+      ensureNoRejection(result.outcomes);
+    } catch (error) {
+      rejection = error;
+    }
+    expect(rejection).toBeInstanceOf(ReverseEtlRejectionError);
+    expect((rejection as ReverseEtlRejectionError).details).toEqual([
+      { field: "events[0].event_timestamp", reason: "EVENT_TOO_OLD" },
+    ]);
+    expect(JSON.stringify(result)).not.toContain("private");
+  });
   it("persists an explicit API rejection as submitted, without disclosing the response message", async () => {
     const f = fixture();
     f.fetch.mockResolvedValue(

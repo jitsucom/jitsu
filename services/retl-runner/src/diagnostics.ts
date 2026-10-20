@@ -1,6 +1,7 @@
 import { reverseEtlFailure } from "@jitsu/destination-functions/src/reverse-etl/failure";
 import { ReverseEtlRejectionError } from "@jitsu/destination-functions/src/reverse-etl/meta";
 import { GoogleRequestError } from "@jitsu/destination-functions/src/functions/google-ads/clients/errors";
+import { rejectionDetailsMessage } from "@jitsu/destination-functions/src/reverse-etl/rejection-details";
 
 export type FailureStage = "startup" | "lease_acquire" | "task_start" | "admission" | "execution";
 
@@ -41,7 +42,7 @@ const reasons = new Set([
   "Task already exists",
 ]);
 
-/** Only allowlisted constants reach stderr: never error messages, stacks, URLs or provider payloads. */
+/** Only fixed reasons and validated structured diagnostics reach stderr; never raw provider messages or payloads. */
 export function failureDiagnostic(stage: FailureStage, error: unknown) {
   const diagnostic: { event: string; stage: FailureStage; reason?: string; code?: string; httpStatus?: number } = {
     event: "reverse_etl_failure",
@@ -94,7 +95,8 @@ export function failureMessage(error: unknown, taskId: string): string {
   const message =
     reverseEtlFailure(error)?.message ??
     "Reverse ETL could not complete. Contact support or your Jitsu administrator. Some changes may already have been submitted; do not reset sync state.";
-  // Only a code that passed ReverseEtlRejectionError's strict pattern is shown; provider text never is.
+  // Only structured enum codes and field paths are shown; provider free text never is.
   const code = error instanceof ReverseEtlRejectionError ? error.code : undefined;
-  return `${message}${code ? ` Reason code: ${code}.` : ""} Run ID: ${taskId}.`;
+  const details = error instanceof ReverseEtlRejectionError ? rejectionDetailsMessage(error.details) : "";
+  return `${message}${code ? ` Reason code: ${code}.` : ""}${details} Run ID: ${taskId}.`;
 }

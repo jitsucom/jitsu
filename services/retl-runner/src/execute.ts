@@ -5,6 +5,7 @@ import { ReverseRunConfig } from "@jitsu/warehouse-query/src/runtime";
 import { createBufferedSyncStore, recordKey } from "@jitsu/destination-functions/src/reverse-etl/identity";
 import { runReverseEtl } from "@jitsu/destination-functions/src/reverse-etl/run";
 import { requiresManualReconciliation } from "@jitsu/destination-functions/src/reverse-etl/failure";
+import { rejectionDetailsMessage } from "@jitsu/destination-functions/src/reverse-etl/rejection-details";
 import { Database, openPersistence } from "./persistence";
 import type { ControlRow } from "./persistence/rows";
 import { ensure, PersistenceResetRequiredError } from "./persistence/types";
@@ -12,7 +13,7 @@ import { openMirrorPersistence, runSnapshotMirror, resumeSnapshotMirror, MirrorR
 import type { AdapterRegistry } from "./adapters";
 import type { RunLease } from "./lease";
 import { Tasks, type TaskResult } from "./tasks";
-import { recoverRun } from "./recovery";
+import { recoverRun, type RecoveryReport } from "./recovery";
 import { failureMessage, reportFailure, type FailureStage } from "./diagnostics";
 import { RunProgress } from "./progress";
 import { prepareSource } from "./source-preflight";
@@ -51,7 +52,7 @@ export async function execute(input: ExecuteOptions): Promise<TaskResult> {
   let rejectedRows: (() => Promise<boolean>) | undefined;
   let refreshRunId: string | undefined;
   let deliveryFinished = false;
-  const recoveryReport: { rejectionCode?: string } = {};
+  const recoveryReport: RecoveryReport = {};
   let reader: WarehouseReader | undefined;
   let preparedSource: Awaited<ReturnType<typeof prepareSource>> | undefined;
   let started = false;
@@ -334,7 +335,7 @@ export async function execute(input: ExecuteOptions): Promise<TaskResult> {
             recoveryReport.rejectionCode
               ? `. The destination rejected a row. Reason code: ${recoveryReport.rejectionCode}.`
               : ""
-          }`
+          }${rejectionDetailsMessage(recoveryReport.rejectionDetails)}`
     );
     return changed && success ? "COMPLETE" : "FAILED";
   } catch (error) {
