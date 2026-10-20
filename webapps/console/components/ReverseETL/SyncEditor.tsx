@@ -20,6 +20,8 @@ import { ScheduleEditor } from "./ScheduleEditor";
 import { reverseStreamEditors, streamFieldGroups } from "./streams";
 import { MetaTargetCheck } from "./MetaTargetCheck";
 import { ModelTitle } from "./ModelTitle";
+import { reverseDestinationMetadata } from "@jitsu/destination-functions/src/reverse-etl/catalog";
+import { MappingSuggestions } from "./MappingSuggestions";
 
 export function SyncEditor({ sync, reload }: { sync?: ReverseSyncView; reload: () => Promise<unknown> }) {
   const workspace = useWorkspace(),
@@ -68,6 +70,9 @@ export function SyncEditor({ sync, reload }: { sync?: ReverseSyncView; reload: (
   const streams = reverseStreamEditors[destinations.find(d => d.id === toId)?.destinationType ?? ""] ?? [];
   const isMeta = destinations.find(d => d.id === toId)?.destinationType === "facebook-conversions";
   const stream = streams.find(s => s.id === options.stream);
+  const streamDefinition = reverseDestinationMetadata
+    .get(destinations.find(d => d.id === toId)?.destinationType ?? "")
+    ?.streams.find(s => s.id === options.stream);
   const model = models.find(m => m.id === fromId);
   const columns = useQuery({
     queryKey: ["reverse-etl-model-columns", workspace.id, fromId, model?.warehouseId, model?.query],
@@ -92,6 +97,41 @@ export function SyncEditor({ sync, reload }: { sync?: ReverseSyncView; reload: (
       destinationId: toId,
       destinationProtocol: destinationProtocol(destinations.find(d => d.id === toId)?.url),
     }) ?? [];
+  if (streamDefinition) {
+    // Keep stream guidance first, then suggestions, followed by the requirement cards.
+    const firstCard = streamFields.findIndex(field => field.key?.includes(":section:"));
+    streamFields.splice(firstCard < 0 ? 0 : firstCard, 0, {
+      key: "mapping-suggestions",
+      group: "Stream settings",
+      rowClassName: "!border-0",
+      itemClassName: "w-full",
+      component: (
+        <MappingSuggestions
+          // Any change to the source or form invalidates both in-flight requests and reviewed suggestions.
+          key={JSON.stringify([
+            workspace.id,
+            fromId,
+            toId,
+            model?.query,
+            model?.warehouseId,
+            columns.data,
+            options.mode,
+            options.stream,
+            options.mapping,
+            options.streamOptions,
+          ])}
+          workspaceId={workspace.id}
+          modelId={fromId}
+          destinationId={toId}
+          stream={streamDefinition}
+          options={options}
+          columns={columns.data ?? []}
+          disabled={disabled || columns.isFetching || !!columns.error}
+          onApply={mapping => update({ mapping })}
+        />
+      ),
+    });
+  }
   // A "columns" field (the webhook payload) derives the mapping from the model's columns. The server never queries the
   // warehouse at save, so a mapping left over from another model would be accepted whenever the primary key matches and
   // the payload would silently carry the wrong fields: drop it when the model changes and hold Save until the new
