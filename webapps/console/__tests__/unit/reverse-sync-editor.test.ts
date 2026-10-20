@@ -11,13 +11,14 @@ const state = vi.hoisted(() => ({
   route: { query: { id: "new" } as Record<string, string>, push: vi.fn(), replace: vi.fn() },
   destinations: [{ id: "google", destinationType: "google-ads" }],
   models: [] as { id: string; name: string; warehouseId: string; query: string }[],
+  appConfig: {} as { reverseMappingSuggestionsEnabled?: boolean },
 }));
 vi.mock("juava", async original => ({ ...(await original<typeof import("juava")>()), rpc: state.rpc }));
 vi.mock("next/router", () => ({ useRouter: () => state.route }));
 vi.mock("../../lib/context", () => ({
   useWorkspace: () => ({ id: "ws", slugOrId: "ws", featuresEnabled: ["reverse-etl"] }),
   useWorkspaceRole: () => ({ editEntities: true, deleteEntities: true }),
-  useAppConfig: () => ({}),
+  useAppConfig: () => state.appConfig,
 }));
 vi.mock("../../lib/ui", () => ({ useUnsavedChanges() {}, confirmOp: vi.fn() }));
 vi.mock("../../lib/store", () => ({
@@ -40,6 +41,7 @@ vi.mock("../../components/FieldListEditorLayout/FieldListEditorLayout", () => ({
 beforeEach(() => {
   vi.clearAllMocks();
   state.models = [];
+  state.appConfig = {};
   state.destinations = [{ id: "google", destinationType: "google-ads" }];
   state.route.query = { id: "new" };
   state.route.replace.mockImplementation(async ({ query }: any) => {
@@ -133,6 +135,14 @@ function savedSync() {
     phase: null,
   });
 }
+it.each([undefined, false, true])("shows mapping suggestions only when configured (%s)", async enabled => {
+  state.appConfig = { reverseMappingSuggestionsEnabled: enabled };
+  mount(savedSync());
+  const button = screen.queryByRole("button", { name: "Suggest mappings" });
+  if (enabled) expect(button).not.toBeNull();
+  else expect(button).toBeNull();
+  expect(state.rpc).not.toHaveBeenCalled();
+});
 it("returns to the list after editing a saved sync", async () => {
   state.rpc.mockResolvedValue({ id: "saved" });
   mount(savedSync());

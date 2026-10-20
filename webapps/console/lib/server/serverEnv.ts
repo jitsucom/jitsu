@@ -88,6 +88,10 @@ const ServerEnvSchema = ClientEnvSchema.extend({
   // Enable debug mode for sync operations
   DEBUG_SYNCS: z.string().default("false").transform(isTruish),
 
+  // Optional server-only Jev integration for schema-only Reverse ETL mapping suggestions.
+  TYPESAFE_API_KEY: z.string().optional(),
+  TYPESAFE_MAPPING_MODEL: z.string().default("jev-1.14.0"),
+
   // ============================================
   // Authentication & OAuth
   // ============================================
