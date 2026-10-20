@@ -113,6 +113,21 @@ const JitsuHubspotSource: SourceType = {
   updatedAt: new Date(),
 };
 
+const JitsuLinkedinPagesSource: SourceType = {
+  id: "jitsu-linkedin-pages-source",
+  logoSvg: `<svg xmlns="http://www.w3.org/2000/svg" width="100%" height="100%" viewBox="0 0 250 250" fill="none"><g clip-path="url(#jitsu-linkedin-pages-clip)"><path fill="#0077B7" d="M201.813 30H46.187C36.695 30 29 37.695 29 47.187v155.625C29 212.305 36.695 220 46.187 220h155.625c9.493 0 17.188-7.695 17.188-17.188V47.187C219 37.695 211.305 30 201.813 30ZM87.794 194.059a5.001 5.001 0 0 1-5.002 5.001h-21.29a5.001 5.001 0 0 1-5.002-5.001v-89.251a5.001 5.001 0 0 1 5.001-5.002h21.291a5.001 5.001 0 0 1 5.002 5.002v89.251ZM72.147 91.393c-11.17 0-20.227-9.056-20.227-20.227 0-11.17 9.056-20.226 20.227-20.226 11.17 0 20.227 9.056 20.227 20.226 0 11.171-9.056 20.227-20.227 20.227ZM199.06 194.46a4.599 4.599 0 0 1-4.599 4.599h-22.847a4.599 4.599 0 0 1-4.598-4.599v-41.863c0-6.245 1.831-27.367-16.321-27.367-14.08 0-16.936 14.457-17.51 20.945v48.285a4.599 4.599 0 0 1-4.599 4.599H106.49a4.599 4.599 0 0 1-4.599-4.599v-90.056a4.599 4.599 0 0 1 4.599-4.599h22.096a4.599 4.599 0 0 1 4.599 4.599v7.786c5.221-7.835 12.98-13.883 29.501-13.883 36.583 0 36.374 34.179 36.374 52.958v43.195Z"/></g><defs><clipPath id="jitsu-linkedin-pages-clip"><path fill="#fff" d="M29 30h190v190H29z"/></clipPath></defs></svg>`,
+  versions: `/api/sources/versions?type=airbyte&package=jitsucom%2Fsource-linkedin-pages`,
+  packageId: "jitsucom/source-linkedin-pages",
+  packageType: "airbyte",
+  meta: {
+    name: "LinkedIn Pages",
+    license: "ELv2",
+    connectorSubtype: "api",
+  },
+  createdAt: new Date(),
+  updatedAt: new Date(),
+};
+
 const ExternalLinearSource: SourceType = {
   id: "external-linear-source",
   logoSvg: `<svg xmlns="http://www.w3.org/2000/svg" width="100%" height="100%" viewBox="0 0 100 100" fill="black" color="black"><path d="M1.22541 61.5228c-.2225-.9485.90748-1.5459 1.59638-.857L39.3342 97.1782c.6889.6889.0915 1.8189-.857 1.5964C20.0515 94.4522 5.54779 79.9485 1.22541 61.5228ZM.00189135 46.8891c-.01764375.2833.08887215.5599.28957165.7606L52.3503 99.7085c.2007.2007.4773.3075.7606.2896 2.3692-.1476 4.6938-.46 6.9624-.9259.7645-.157 1.0301-1.0963.4782-1.6481L2.57595 39.4485c-.55186-.5519-1.49117-.2863-1.648174.4782-.465915 2.2686-.77832 4.5932-.92588465 6.9624ZM4.21093 29.7054c-.16649.3738-.08169.8106.20765 1.1l64.77602 64.776c.2894.2894.7262.3742 1.1.2077 1.7861-.7956 3.5171-1.6927 5.1855-2.684.5521-.328.6373-1.0867.1832-1.5407L8.43566 24.3367c-.45409-.4541-1.21271-.3689-1.54074.1832-.99132 1.6684-1.88843 3.3994-2.68399 5.1855ZM12.6587 18.074c-.3701-.3701-.393-.9637-.0443-1.3541C21.7795 6.45931 35.1114 0 49.9519 0 77.5927 0 100 22.4073 100 50.0481c0 14.8405-6.4593 28.1724-16.7199 37.3375-.3903.3487-.984.3258-1.3542-.0443L12.6587 18.074Z"></path></svg>`,
@@ -134,6 +149,7 @@ export const jitsuSources: Record<string, SourceType> = {
   "jitsucom/source-attio": JitsuAttioSource,
   "jitsucom/source-xero": JitsuXeroSource,
   "jitsucom/source-hubspot": JitsuHubspotSource,
+  "jitsucom/source-linkedin-pages": JitsuLinkedinPagesSource,
 };
 
 export const externalSources: Record<string, SourceType> = {

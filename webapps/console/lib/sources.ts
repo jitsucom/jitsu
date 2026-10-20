@@ -17,6 +17,9 @@ import { SelectedStreamSettings } from "./schema";
 export const hiddenConnectors: string[] = [
   // Superseded by jitsucom/source-hubspot.
   "airbyte/source-hubspot",
+  // Superseded by jitsucom/source-linkedin-pages: Airbyte's 1.1.25 sends Linkedin-Version 202503, which LinkedIn
+  // no longer serves (JITSU-248). Move services back and drop this entry once Airbyte ships a fixed release.
+  "airbyte/source-linkedin-pages",
 ];
 
 export const initStream = (stream: any, mode?: "full_refresh" | "incremental"): SelectedStreamSettings => {
