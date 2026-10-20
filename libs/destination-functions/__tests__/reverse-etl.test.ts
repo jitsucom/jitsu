@@ -425,7 +425,13 @@ describe("Reverse ETL lifecycle", () => {
       outcomes: batch.records.map((r, i) =>
         i === 0
           ? { operationId: r.operationId, status: "accepted" }
-          : { operationId: r.operationId, status: "rejected", code: i === 1 ? "http_422" : "http_500", safeReason: "x" }
+          : {
+              operationId: r.operationId,
+              status: "rejected",
+              code: i === 1 ? "http_422" : "http_500",
+              safeReason: "x",
+              details: [{ reason: "INVALID_CURRENCY_CODE", field: "events[1].currency" }],
+            }
       ),
     }));
     const error = await f.run().then(
@@ -436,6 +442,7 @@ describe("Reverse ETL lifecycle", () => {
     expect(error).toBeInstanceOf(ReverseEtlProtocolError);
     expect(error.message).toBe("Destination rejected a row; the run stopped without skipping it");
     expect(error.code).toBe("http_422");
+    expect(error.details).toEqual([{ reason: "INVALID_CURRENCY_CODE", field: "events[1].currency" }]);
   });
   it.each([
     ["spaces", "has space"],

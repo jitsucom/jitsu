@@ -149,7 +149,7 @@ export async function runReverseEtl<C, R, O>(
     if (asynchronous && pending && !result.remoteJobIds?.length)
       throw new ReverseEtlProtocolError("Asynchronous batches require recoverable remote job IDs");
     const rejected = result.outcomes.find(outcome => outcome.status === "rejected");
-    if (rejected?.status === "rejected") throw new ReverseEtlRejectionError(rejected.code);
+    if (rejected?.status === "rejected") throw new ReverseEtlRejectionError(rejected.code, rejected.details);
     staged ||= pending;
     batch = [];
     bytes = 0;

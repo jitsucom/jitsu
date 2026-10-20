@@ -25,6 +25,7 @@ import { Database, openPersistence, type Effect, type Identity, type RunInput } 
 import { effects } from "./persistence/effects";
 import { ensure, PersistenceError } from "./persistence/types";
 import { reverseEtlFailure } from "@jitsu/destination-functions/src/reverse-etl/failure";
+import { rejectionDetailsMessage } from "@jitsu/destination-functions/src/reverse-etl/rejection-details";
 
 /** Pure, deterministic normalization, invoked once per source row, never during delivery/recovery. */
 export interface MirrorProjection<Row> {
@@ -107,10 +108,11 @@ export class MirrorRunError extends PersistenceError {
   constructor(stage: keyof typeof mirrorFailureHints, readRows: number, savedRows: number, error?: unknown) {
     // A destination's rejection code (already pattern-checked by the error) is shown, like in the run loop.
     const code = error instanceof ReverseEtlRejectionError && error.code ? ` Reason code: ${error.code}.` : "";
+    const details = error instanceof ReverseEtlRejectionError ? rejectionDetailsMessage(error.details) : "";
     super(
       `Snapshot mirror stopped during ${stage} (read ${readRows} rows, saved ${savedRows}). ${
         reverseEtlFailure(error)?.message ?? mirrorFailureHints[stage]
-      }${code}`
+      }${code}${details}`
     );
   }
 }
