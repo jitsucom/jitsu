@@ -27,7 +27,8 @@ export function SyncEditor({ sync, reload }: { sync?: ReverseSyncView; reload: (
   const workspace = useWorkspace(),
     role = useWorkspaceRole(),
     router = useRouter();
-  const maintenance = useAppConfig().maintenance?.active;
+  const appConfig = useAppConfig();
+  const maintenance = appConfig.maintenance?.active;
   const models = useConfigObjectList("model");
   const destinations = useConfigObjectList("destination").filter(d => reverseStreamEditors[d.destinationType]?.length);
   const [fromId, setFromId] = useState(sync?.fromId ?? String(router.query.modelId ?? ""));
@@ -97,7 +98,7 @@ export function SyncEditor({ sync, reload }: { sync?: ReverseSyncView; reload: (
       destinationId: toId,
       destinationProtocol: destinationProtocol(destinations.find(d => d.id === toId)?.url),
     }) ?? [];
-  if (streamDefinition) {
+  if (streamDefinition && appConfig.reverseMappingSuggestionsEnabled) {
     // Keep stream guidance first, then suggestions, followed by the requirement cards.
     const firstCard = streamFields.findIndex(field => field.key?.includes(":section:"));
     streamFields.splice(firstCard < 0 ? 0 : firstCard, 0, {

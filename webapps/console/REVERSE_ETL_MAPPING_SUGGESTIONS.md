@@ -3,6 +3,8 @@
 Set `TYPESAFE_API_KEY` on the **console server** to enable Jev requests. Optionally set
 `TYPESAFE_MAPPING_MODEL` (default `jev-1.14.0`). No runner, database migration, or destination
 credentials change is needed. Console deployment is manual for this PR.
+The button is hidden when the key is absent or blank. Public app configuration exposes
+only a boolean availability flag, never the key itself.
 
 Users choose **Suggest mappings**, review the results, then apply selected mappings to the
 unsaved form. Existing mappings are not replaced. Changing the model, destination, stream,

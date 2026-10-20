@@ -61,6 +61,7 @@ export default createRoute()
       // Presence only: the shared developer token must never reach the browser.
       googleAdsDeveloperTokenConfigured: !!serverEnv.GOOGLE_ADS_DEVELOPER_TOKEN?.trim(),
       microsoftAdsDeveloperTokenConfigured: !!serverEnv.MICROSOFT_ADS_DEVELOPER_TOKEN?.trim(),
+      reverseMappingSuggestionsEnabled: !!serverEnv.TYPESAFE_API_KEY?.trim(),
       docsUrl: serverEnv.JITSU_DOCUMENTATION_URL || "https://docs.jitsu.com/",
       maintenance: getPublicMaintenanceState(),
       ee: {
