@@ -1,7 +1,12 @@
 import { describe, expect, it } from "vitest";
 import type { ReverseEditorOptions } from "@jitsu/protocols/reverse-etl-editor";
 import { reverseDestinationMetadata } from "../src/reverse-etl/catalog";
-import { editorFieldKey, resolveStreamEditor } from "../src/reverse-etl/editor";
+import {
+  editorFieldKey,
+  resolveStreamEditor,
+  streamRequirementErrors,
+  fieldConfigured,
+} from "../src/reverse-etl/editor";
 import { MetaActionSource } from "../src/functions/facebook/reverse-meta";
 
 function editor(destination: string, stream: string) {
@@ -275,4 +280,54 @@ it("Webhook HTTP acknowledgement depends only on destination protocol; resolutio
     expect(keys(all(result)).includes("setting:Unencrypted HTTP")).toBe(protocol !== "https:");
     expect(JSON.stringify(options)).toBe(before);
   }
+});
+
+describe("save-time requirements", () => {
+  it("checks required settings and complete alternatives, accepting hashed identifiers", () => {
+    const stream = editor("google-ads", "audience");
+    const options = stream.defaults();
+    expect(streamRequirementErrors(stream, options)).toEqual(
+      expect.arrayContaining([
+        "Audience name is required.",
+        "Customer Match terms is required.",
+        "Exclusive management is required.",
+        "Customer matching: configure at least one complete option.",
+      ])
+    );
+    const ready = {
+      ...options,
+      mapping: { hashedEmail: "email_hash" },
+      streamOptions: {
+        ...options.streamOptions,
+        audience: { kind: "managed", displayName: "Customers" },
+        customerMatchTermsAccepted: true,
+        exclusiveManagementConfirmed: true,
+      },
+    };
+    expect(streamRequirementErrors(stream, ready)).toEqual([]);
+    expect(streamRequirementErrors(stream, { ...ready, mapping: { firstName: "first", lastName: "last" } })).toEqual([
+      "Customer matching: configure at least one complete option.",
+    ]);
+  });
+
+  it("enforces fixed selector branches without requiring data-dependent branches", () => {
+    const stream = editor("facebook-conversions", "conversions");
+    const fixed = {
+      ...stream.defaults(),
+      streamOptions: { pixelId: "123", actionSource: "app", eventName: "Purchase" },
+    };
+    expect(streamRequirementErrors(stream, fixed)).toContain(
+      "Purchase value and currency: configure at least one complete option."
+    );
+    const dynamic = { ...fixed, mapping: { actionSource: "source", eventName: "event", email: "email" } };
+    expect(streamRequirementErrors(stream, dynamic)).toEqual([]);
+  });
+
+  it("does not count blank values or null numeric settings as configured; zero remains valid", () => {
+    const options = { mode: "upsert" as const, mapping: { email: "  " }, streamOptions: {} };
+    expect(fieldConfigured({ editor: "mapping", field: "email" }, options)).toBe(false);
+    expect(fieldConfigured({ editor: "text", value: "  ", change: () => ({}) }, options)).toBe(false);
+    expect(fieldConfigured({ editor: "number", value: null as any, change: () => ({}) }, options)).toBe(false);
+    expect(fieldConfigured({ editor: "number", value: 0, change: () => ({}) }, options)).toBe(true);
+  });
 });

@@ -91,6 +91,8 @@ async function chooseRows() {
   fireEvent.click(await screen.findByTitle("Rows"));
 }
 const saveBody = () => state.rpc.mock.calls.find(([, args]) => args?.method === "POST")?.[1].body.sync;
+const confirmDelivery = () =>
+  fireEvent.click(screen.getByRole("checkbox", { name: /tolerates receiving the same record more than once/ }));
 
 it("lists only the Rows stream and defaults to upsert with checkpointEvery 5000", async () => {
   state.models = models;
@@ -98,13 +100,18 @@ it("lists only the Rows stream and defaults to upsert with checkpointEvery 5000"
   mount();
   await chooseRows();
   await waitFor(() => expect(screen.getByLabelText("Payload preview")).toBeTruthy());
+  expect(
+    (screen.getByRole("checkbox", { name: /tolerates receiving the same record more than once/ }) as HTMLInputElement)
+      .checked
+  ).toBe(false);
+  confirmDelivery();
   fireEvent.click(screen.getByRole("button", { name: "Save" }));
   await waitFor(() => expect(saveBody()).toBeTruthy());
   expect(saveBody().data).toMatchObject({
     stream: "rows",
     mode: "upsert",
     checkpointEvery: 5000,
-    streamOptions: { recordsPerRequest: 50, concurrency: 2, deliveryAttested: false },
+    streamOptions: { recordsPerRequest: 50, concurrency: 2, deliveryAttested: true },
   });
 });
 
@@ -116,6 +123,7 @@ it("writes the identity mapping for every model column and shows a payload previ
   const preview = await screen.findByLabelText("Payload preview");
   expect(preview.textContent).toContain('"id": <int4>');
   expect(preview.textContent).toContain('"name": <text>');
+  confirmDelivery();
   fireEvent.click(screen.getByRole("button", { name: "Save" }));
   await waitFor(() => expect(saveBody()).toBeTruthy());
   expect(saveBody().data.mapping).toEqual({ id: "id", name: "name" });
@@ -167,6 +175,7 @@ it("follows the model's columns when the model changes, dropping columns that ar
   await screen.findByText(/"total": <numeric>/);
   // The preview is up, so the mapping effect has run; let its state update settle before saving.
   await act(async () => {});
+  confirmDelivery();
   fireEvent.click(screen.getByRole("button", { name: "Save" }));
   await waitFor(() => expect(saveBody()).toBeTruthy());
   expect(saveBody().data.mapping).toEqual({ id: "id", total: "total" });
@@ -195,6 +204,7 @@ it("does not let a save carry the old model's mapping while the new model's colu
   mount();
   await chooseRows();
   await screen.findByText(/"name": <text>/);
+  confirmDelivery();
   fireEvent.mouseDown(within(screen.getByTestId("Model")).getByRole("combobox"));
   fireEvent.click(screen.getByTitle("Orders"));
   // The old mapping ({id, name}) must not be savable while the new model's columns are still loading; the model shares
@@ -230,9 +240,11 @@ it("clears the old mapping when the model changes, so a failed column load canno
   await screen.findByText("Could not load model columns. Existing mappings are kept.");
   await act(async () => {});
   fireEvent.click(screen.getByRole("button", { name: "Save" }));
-  await waitFor(() => expect(saveBody()).toBeTruthy());
-  // nothing from the previous model is saved: the server then refuses an empty payload with a readable message
-  expect(saveBody().data.mapping).toEqual({});
+  await waitFor(() =>
+    expect(screen.getByTestId("reverse-sync-save-error").textContent).toContain("Payload is required.")
+  );
+  // Nothing from the previous model is saved: the frontend now refuses an empty payload before contacting the server.
+  expect(saveBody()).toBeUndefined();
 });
 
 it("keeps a saved mapping when the columns cannot be loaded", async () => {

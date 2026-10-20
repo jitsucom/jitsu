@@ -13,17 +13,20 @@ export function editorFieldKey(field: ReverseEditorField): string {
   return settingKey(field.key ?? field.name!);
 }
 export function fieldConfigured(field: ReverseEditorField, options: ReverseEditorOptions): boolean {
-  if (field.editor === "mapping") return !!options.mapping[field.field];
-  if (field.editor === "identifier") return !!(options.mapping[field.raw] || options.mapping[field.hashed]);
+  if (field.editor === "mapping") return !!options.mapping[field.field]?.trim();
+  if (field.editor === "identifier")
+    return !!(options.mapping[field.raw]?.trim() || options.mapping[field.hashed]?.trim());
   if (field.editor === "columns") return Object.keys(options.mapping).length > 0;
   if (field.editor === "notice") return false;
-  return field.value !== undefined && field.value !== "" && field.value !== false;
+  return typeof field.value === "string"
+    ? !!field.value.trim()
+    : field.value != null && field.value !== false && (typeof field.value !== "number" || Number.isFinite(field.value));
 }
 export function fieldRequired(field: ReverseEditorField, options: ReverseEditorOptions): boolean {
   return typeof field.required === "function" ? field.required(options) : field.required === true;
 }
 
-/** Presentation only: no mutation, coercion or row validation. Hidden saved mappings remain discoverable. */
+/** Configuration only: no mutation, coercion or row validation. Hidden saved mappings remain discoverable. */
 export function resolveStreamEditor(stream: ReverseStreamEditor, options: ReverseEditorOptions) {
   const fields = stream
     .fields(options)
@@ -56,6 +59,23 @@ export function resolveStreamEditor(stream: ReverseStreamEditor, options: Revers
     alternativeFields: fields.filter(field => !field.isRequired && !field.isHidden && alternativeKeys.has(field.key)),
     optional: fields.filter(field => field.isHidden || (!field.isRequired && !alternativeKeys.has(field.key))),
   };
+}
+
+/** Requirements known from configuration; conditional row branches remain the runner's responsibility. */
+export function missingStreamRequirements(stream: ReverseStreamEditor, options: ReverseEditorOptions) {
+  const resolved = resolveStreamEditor(stream, options);
+  return {
+    fields: resolved.required.filter(field => !field.configured && field.editor !== "notice"),
+    alternatives: resolved.alternatives.filter(group => !group.configured && !group.condition),
+  };
+}
+
+export function streamRequirementErrors(stream: ReverseStreamEditor, options: ReverseEditorOptions): string[] {
+  const missing = missingStreamRequirements(stream, options);
+  return [
+    ...missing.fields.map(field => `${field.name ?? field.key} is required.`),
+    ...missing.alternatives.map(group => `${group.title}: configure at least one complete option.`),
+  ];
 }
 
 /** Decorate existing provider field descriptions by stable logical keys. */

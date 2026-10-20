@@ -3,7 +3,7 @@ import { Alert, Button, Checkbox, Input, InputNumber, Select, Tag, Tooltip } fro
 import { InfoCircleOutlined } from "@ant-design/icons";
 import { reverseDestinationMetadata } from "@jitsu/destination-functions/src/reverse-etl/catalog";
 import type { ReverseEditorField } from "@jitsu/protocols/reverse-etl-editor";
-import { resolveStreamEditor } from "@jitsu/destination-functions/src/reverse-etl/editor";
+import { missingStreamRequirements, resolveStreamEditor } from "@jitsu/destination-functions/src/reverse-etl/editor";
 import type { ReverseSyncOptions, WarehouseColumn } from "@jitsu/warehouse-query/src/schema";
 import type { EditorItem } from "../FieldListEditorLayout/FieldListEditorLayout";
 import { DestinationTargetSelector } from "./DestinationTargetSelector";
@@ -20,7 +20,13 @@ export interface StreamEditor {
     options: ReverseSyncOptions,
     update: (patch: Partial<ReverseSyncOptions>) => void,
     disabled: boolean,
-    source: { columns: WarehouseColumn[]; loading: boolean; destinationId?: string; destinationProtocol?: string }
+    source: {
+      columns: WarehouseColumn[];
+      loading: boolean;
+      destinationId?: string;
+      destinationProtocol?: string;
+      showValidation?: boolean;
+    }
   ): EditorItem[];
 }
 function ColumnSelector({
@@ -281,11 +287,16 @@ function renderResolvedField(
   source: Parameters<StreamEditor["fields"]>[3]
 ): EditorItem {
   const item = renderField(field, streamId, options, update, disabled, source);
+  const invalid = source.showValidation && field.isRequired && !field.configured && !field.isHidden;
   return {
     ...item,
     component: (
-      <div className="space-y-2">
+      <div
+        className={`space-y-2 ${invalid ? "rounded border border-red-400 bg-red-50 p-2" : ""}`}
+        aria-invalid={invalid || undefined}
+      >
         {item.component}
+        {invalid && <div className="text-sm text-red-600">This field is required.</div>}
         {field.requirement && <div className="text-xs text-textSecondary max-w-xl">{field.requirement}</div>}
         {field.isHidden && (
           <Alert
@@ -367,10 +378,16 @@ export const reverseStreamEditors: Record<string, StreamEditor[]> = Object.fromE
           defaults: () => ({ ...stream.defaults(), checkpointEvery: stream.checkpointEvery ?? 50_000 }),
           derivesMapping: options => stream.fields(options).some(field => field.editor === "columns"),
           fields: (options, update, disabled, source) => {
-            const resolved = resolveStreamEditor(stream, {
+            const editorOptions = {
               ...options,
               destination: { protocol: source.destinationProtocol },
-            });
+            };
+            const resolved = resolveStreamEditor(stream, editorOptions);
+            const missingGroups = new Set(
+              source.showValidation
+                ? missingStreamRequirements(stream, editorOptions).alternatives.map(group => group.key)
+                : []
+            );
             const render = (field: ResolvedField) =>
               renderResolvedField(field, stream.id, options, update, disabled, source);
             const notices = [...resolved.required, ...resolved.alternativeFields, ...resolved.optional].filter(
@@ -411,6 +428,11 @@ export const reverseStreamEditors: Record<string, StreamEditor[]> = Object.fromE
                     `alternative:${group.key}`,
                     group.title,
                     <>
+                      {missingGroups.has(group.key) && (
+                        <div className="rounded border border-red-400 bg-red-50 p-2 text-red-600" role="alert">
+                          Configure at least one complete option in this group.
+                        </div>
+                      )}
                       {group.condition && <div className="font-medium text-textDark">{group.condition}</div>}
                       <div>{group.description ?? "Provide at least one matching option using the fields below."}</div>
                       {!group.description &&
