@@ -122,6 +122,53 @@ function mount() {
 vi.setConfig({ testTimeout: 20000 });
 
 describe("model editor", () => {
+  it.each(["Flatten", "Stringify"])("previews and saves the selected %s mode", async label => {
+    state.route.query = { id: "model-1" };
+    const client = mount();
+    expect(await screen.findByText("Leave as is")).toBeTruthy();
+    fireEvent.mouseDown(screen.getByLabelText("Nested objects"));
+    fireEvent.click(await screen.findByText(label));
+    fireEvent.click(screen.getByRole("button", { name: "Preview up to 100 rows" }));
+    await waitFor(() =>
+      expect(state.preview).toHaveBeenCalledWith("/api/ws/models/preview", {
+        method: "POST",
+        body: { warehouseId: "wh", query: state.models[0].query, nestedObjects: label.toLowerCase() },
+      })
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Save model" }));
+    await waitFor(() =>
+      expect(state.api.update).toHaveBeenCalledWith(
+        "model-1",
+        expect.objectContaining({
+          nestedObjects: label.toLowerCase(),
+        })
+      )
+    );
+    client.clear();
+  });
+  it("uses original SQL columns for key, cursor and delete pickers after flattening", async () => {
+    state.route.query = { id: "model-1" };
+    state.models[0].nestedObjects = "flatten";
+    state.preview.mockResolvedValue({
+      columns: [
+        { name: "profile_email", type: "string" },
+        { name: "id", type: "20" },
+      ],
+      sourceColumns: [
+        { name: "id", type: "20" },
+        { name: "profile", type: "3802" },
+      ],
+      rows: [{ id: "1", profile_email: "alice@example.com" }],
+      truncated: false,
+    });
+    const client = mount();
+    fireEvent.click(await screen.findByRole("button", { name: "Preview up to 100 rows" }));
+    await screen.findByText("Preview · 1 rows");
+    fireEvent.mouseDown(screen.getByLabelText("Primary-key columns"));
+    expect(await screen.findByRole("option", { name: "id (20)" })).toBeTruthy();
+    expect(screen.queryByTitle("profile_email (string)")).toBeNull();
+    client.clear();
+  });
   it("offers only delete-compatible preview columns in the delete picker", async () => {
     const preview = {
       columns: [
@@ -156,6 +203,7 @@ describe("model editor", () => {
         "model-1",
         expect.objectContaining({
           name: "Renamed audience",
+          nestedObjects: "leaveAsIs",
           cursor: { column: "changed", type: "timestamp", lookbackSeconds: 60 },
         })
       )

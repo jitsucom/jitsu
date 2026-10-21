@@ -112,8 +112,17 @@ export async function readReverseSync(
     name: _name,
     ...deliveryOptions
   } = options;
+  // The default preserves existing payload semantics and must not invalidate saved runs.
+  // Non-default transformations are delivery changes and remain revision-bound.
+  const { nestedObjects, ...originalModel } = model;
   const revision = createHash("sha256")
-    .update(JSON.stringify({ ...runtime, options: deliveryOptions }))
+    .update(
+      JSON.stringify({
+        ...runtime,
+        model: nestedObjects === "leaveAsIs" ? originalModel : model,
+        options: deliveryOptions,
+      })
+    )
     .digest("hex");
   // A pause is not permission to start new work. Only retain configurations for
   // existing nonterminal delivery, and bind explicit refresh/OAuth to its task.

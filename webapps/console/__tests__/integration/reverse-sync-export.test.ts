@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import { deps, seedWorkspace } from "./support/harness";
 import { exportReverseSyncs, readReverseSync } from "../../lib/server/reverse-sync-export";
 import { seedPendingReverseRun } from "./support/reverse-pending";
+import { createHash } from "node:crypto";
 
 async function seed() {
   const { workspace } = await seedWorkspace();
@@ -35,6 +36,36 @@ async function seed() {
   return { workspace, warehouse, model, destination, options, link, prisma };
 }
 describe("reverse sync export/admission", () => {
+  it("preserves the pre-setting revision for leaveAsIs but binds other nested-object modes", async () => {
+    const f = await seed();
+    const initial = (await readReverseSync(f.prisma, f.link.id))!;
+    const { nestedObjects, ...oldModel } = initial.model;
+    const { schedule, timezone, checkpointEvery, disabled, name, ...deliveryOptions } = initial.options;
+    const legacyRevision = createHash("sha256")
+      .update(
+        JSON.stringify({
+          model: oldModel,
+          warehouse: f.warehouse.config,
+          destination: f.destination.config,
+          options: deliveryOptions,
+        })
+      )
+      .digest("hex");
+    expect(initial.configRevision).toBe(legacyRevision);
+    expect(nestedObjects).toBe("leaveAsIs");
+    const revisions = new Set([initial.configRevision]);
+    for (const mode of ["leaveAsIs", "flatten", "stringify"] as const) {
+      await f.prisma.configurationObject.update({
+        where: { id: f.model.id },
+        data: { config: { ...oldModel, nestedObjects: mode } },
+      });
+      const exported = (await readReverseSync(f.prisma, f.link.id))!;
+      expect(exported.model.nestedObjects).toBe(mode);
+      if (mode === "leaveAsIs") expect(exported.configRevision).toBe(legacyRevision);
+      else expect(revisions.has(exported.configRevision)).toBe(false);
+      revisions.add(exported.configRevision);
+    }
+  });
   it("exports tenant credentials for provisioned ClickHouse without changing stored endpoint or revision", async () => {
     const f = await seed();
     const config = {

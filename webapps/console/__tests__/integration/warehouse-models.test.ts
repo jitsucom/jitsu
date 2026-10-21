@@ -308,6 +308,51 @@ describe("Models service", () => {
     ).rejects.toMatchObject({ status: 404 });
     await expect(service.list(b.user, a.workspace.id, "model")).rejects.toMatchObject({ status: 403 });
   });
+  it.each(["leaveAsIs", "flatten", "stringify"] as const)(
+    "applies %s to saved models, preview, mapping columns and streaming",
+    async nestedObjects => {
+      const f = await fixture();
+      const query = `SELECT 1::bigint AS id, '{"email":"alice@example.com","items":[1,2]}'::jsonb AS profile`;
+      const input = { ...f.model, query, cursor: undefined, deleteColumn: undefined, nestedObjects };
+      const { id } = await service.create(f.user, f.workspace.id, "model", input, { generateId: true });
+      const preview = await previewModel(
+        deps().prisma,
+        f.workspace.id,
+        f.warehouse.id,
+        query,
+        undefined,
+        nestedObjects
+      );
+      const mapping = await modelColumns(deps().prisma, f.workspace.id, id);
+      expect(mapping.columns.map(c => c.name)).toEqual(preview.columns.map(c => c.name));
+      const streamed = await collect(pgReader.stream(ModelDefinition.parse(input)));
+      expect(streamed.map(r => r.row)).toEqual(preview.rows);
+      expect(preview.rows[0]).toEqual(
+        nestedObjects === "flatten"
+          ? { id: "1", profile_email: "alice@example.com", profile_items: [1, 2] }
+          : {
+              id: "1",
+              profile:
+                nestedObjects === "stringify"
+                  ? JSON.stringify({ email: "alice@example.com", items: [1, 2] })
+                  : { email: "alice@example.com", items: [1, 2] },
+            }
+      );
+      // Flattened fields are mapping inputs, not SQL identifiers for keys/cursors.
+      if (nestedObjects === "flatten") {
+        expect(preview.sourceColumns?.map(c => c.name)).toEqual(["id", "profile"]);
+        await expect(
+          service.create(
+            f.user,
+            f.workspace.id,
+            "model",
+            { ...input, primaryKey: ["profile_email"] },
+            { generateId: true }
+          )
+        ).rejects.toThrow();
+      }
+    }
+  );
   it.each([pgConfig, chConfig])("inspects saved model columns without returning rows", async config => {
     const f = await fixture(config);
     const { id } = await service.create(f.user, f.workspace.id, "model", f.model, { generateId: true });

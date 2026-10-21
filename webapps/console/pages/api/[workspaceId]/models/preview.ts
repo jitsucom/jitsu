@@ -22,7 +22,14 @@ export const route = createRoute()
     };
     res.on("close", cancel);
     try {
-      return await previewModel(db.prisma(), workspaceId, body.warehouseId, body.query, controller.signal);
+      return await previewModel(
+        db.prisma(),
+        workspaceId,
+        body.warehouseId,
+        body.query,
+        controller.signal,
+        body.nestedObjects
+      );
     } finally {
       clearTimeout(timeout);
       res.off("close", cancel);

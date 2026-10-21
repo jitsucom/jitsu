@@ -204,6 +204,30 @@ is two hours. Restricted warehouse credentials remain required.
 read-only cursor, without creating tables. Mock tests are not a substitute for testing
 the real Redshift cursor protocol. Deploy the updated runner before console.
 
+## Model nested objects
+
+`nestedObjects` applies after warehouse decoding, identically in the console preview and
+runner, for every warehouse:
+
+- `leaveAsIs` (default, including existing models): retain native objects, arrays and primitives.
+- `flatten`: recursively expand object properties using underscores (`profile.address.city`
+  becomes `profile_address_city`). Arrays, nulls and empty objects remain intact. Conflicting
+  names fail explicitly instead of overwriting data. Flattening is limited to 100 levels.
+- `stringify`: serialize each object/array cell to a JSON string. Nulls, primitives and
+  ordinary text (even JSON-looking text) are unchanged. This does not recover numeric
+  precision already lost when decoding nested JSON numbers.
+
+Primary keys, cursor and delete columns still refer to the original SQL projection;
+project nested identifiers into scalar SQL columns when needed. Mapping-field discovery
+for transformed models samples up to 100 rows within the existing preview limits and
+returns only column names/types, not rows. Fields absent from that sample may be mapped
+manually or explicitly projected in SQL. Preview retains the original SQL metadata
+separately for the identity/control-column pickers.
+
+The default does not change existing configuration revisions. Non-default modes change
+payloads and revisions; existing delivery-state guards still apply. Deploy the updated
+runner before the console exposes the new setting; old runners ignore unknown model fields.
+
 ## MySQL
 
 Reuse a MySQL destination with host, port (3306), database, username and password.
