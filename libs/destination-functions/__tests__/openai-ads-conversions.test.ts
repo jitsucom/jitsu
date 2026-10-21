@@ -279,6 +279,28 @@ describe("OpenAI Ads settings", () => {
     };
     expect(streamRequirementErrors(openAiConversionEditor, complete)).toEqual([]);
   });
+  it("treats the event type as one alternative: a default setting or a mapped column", () => {
+    const base = { ...openAiConversionEditor.defaults(), mapping: { sourceUrl: "url" } };
+    const withDefault = { ...base, streamOptions: { pixelId: "px_1", eventType: "lead_created", actionSource: "web" } };
+    const withColumn = { ...base, mapping: { ...base.mapping, eventType: "kind" }, streamOptions: { pixelId: "px_1" } };
+    const neither = { ...base, streamOptions: { pixelId: "px_1", actionSource: "web" } };
+    expect(streamRequirementErrors(openAiConversionEditor, withDefault)).toEqual([]);
+    expect(streamRequirementErrors(openAiConversionEditor, withColumn)).toEqual([]);
+    expect(streamRequirementErrors(openAiConversionEditor, neither).some(e => e.startsWith("Event type"))).toBe(true);
+  });
+  it("requires Source URL only when every row is a web event", () => {
+    const options = (mapping: Record<string, string>, actionSource?: string) => ({
+      ...openAiConversionEditor.defaults(),
+      mapping,
+      streamOptions: { pixelId: "px_1", eventType: "lead_created", ...(actionSource ? { actionSource } : {}) },
+    });
+    const missing = (o: ReturnType<typeof options>) =>
+      streamRequirementErrors(openAiConversionEditor, o).some(e => e.startsWith("Source URL"));
+    expect(missing(options({}, "web"))).toBe(true);
+    expect(missing(options({}, "app"))).toBe(false);
+    // A mapped action source leaves the per-row web check to runtime row validation.
+    expect(missing(options({ actionSource: "channel" }, "web"))).toBe(false);
+  });
   it("keeps server code out of the browser metadata", async () => {
     const { readFile } = await import("node:fs/promises");
     for (const file of ["reverse-meta.ts", "editor.ts"]) {
@@ -365,6 +387,7 @@ describe("OpenAI conversions delivery", () => {
     expect(init.body).not.toContain("key-secret-123");
     expect(init.body).not.toContain("user0@example.com");
     expect(result.outcomes.map(o => o.status)).toEqual(["accepted", "accepted"]);
+    expect(result.submitted).toBe(true);
     expect(validateBatchResult(batch(adapter), result).outcomes).toHaveLength(2);
     expect(JSON.stringify(log.mock.calls)).not.toContain("key-secret-123");
     expect(await writer.finish()).toEqual({ delivery: "accepted" });
@@ -386,6 +409,7 @@ describe("OpenAI conversions delivery", () => {
     const { adapter, writer } = await context();
     const result = await writer.upsert(batch(adapter));
     expect(result.outcomes.every(o => o.status === "rejected")).toBe(true);
+    expect(result.submitted).toBe(true);
     expect(JSON.stringify(result)).not.toContain("secret detail");
     expect(JSON.stringify(result)).not.toContain("user0@example.com");
     expect(() => validateBatchResult(batch(adapter), result)).not.toThrow();

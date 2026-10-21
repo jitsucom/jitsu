@@ -27,6 +27,8 @@ export function batchBinding(ctx: Context, batch: WriteBatch<JsonObject>) {
 export function accepted(ctx: Context, batch: WriteBatch<JsonObject>): BatchResult {
   return {
     outcomes: batch.records.map(r => ({ operationId: r.operationId, status: "accepted" })),
+    /** Only built from a 2xx or an OpenAI error envelope, so the response confirms receipt of the whole batch. */
+    submitted: true,
     providerCheckpoint: { binding: batchBinding(ctx, batch) },
   };
 }
