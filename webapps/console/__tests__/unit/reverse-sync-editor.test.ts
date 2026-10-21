@@ -5,19 +5,21 @@ import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testi
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { SyncEditor } from "../../components/ReverseETL/SyncEditor";
 import { ReverseSyncView } from "../../lib/reverse-etl";
+import { reverseStreamEditors } from "../../components/ReverseETL/streams";
 
 const state = vi.hoisted(() => ({
   rpc: vi.fn(),
   route: { query: { id: "new" } as Record<string, string>, push: vi.fn(), replace: vi.fn() },
   destinations: [{ id: "google", destinationType: "google-ads" }],
   models: [] as { id: string; name: string; warehouseId: string; query: string }[],
+  appConfig: {} as { reverseMappingSuggestionsEnabled?: boolean },
 }));
 vi.mock("juava", async original => ({ ...(await original<typeof import("juava")>()), rpc: state.rpc }));
 vi.mock("next/router", () => ({ useRouter: () => state.route }));
 vi.mock("../../lib/context", () => ({
   useWorkspace: () => ({ id: "ws", slugOrId: "ws", featuresEnabled: ["reverse-etl"] }),
   useWorkspaceRole: () => ({ editEntities: true, deleteEntities: true }),
-  useAppConfig: () => ({}),
+  useAppConfig: () => state.appConfig,
 }));
 vi.mock("../../lib/ui", () => ({ useUnsavedChanges() {}, confirmOp: vi.fn() }));
 vi.mock("../../lib/store", () => ({
@@ -40,6 +42,7 @@ vi.mock("../../components/FieldListEditorLayout/FieldListEditorLayout", () => ({
 beforeEach(() => {
   vi.clearAllMocks();
   state.models = [];
+  state.appConfig = {};
   state.destinations = [{ id: "google", destinationType: "google-ads" }];
   state.route.query = { id: "new" };
   state.route.replace.mockImplementation(async ({ query }: any) => {
@@ -61,6 +64,7 @@ beforeEach(() => {
 afterEach(() => {
   cleanup();
   vi.unstubAllGlobals();
+  vi.restoreAllMocks();
 });
 function mount(sync?: ReverseSyncView) {
   return render(
@@ -72,16 +76,27 @@ function mount(sync?: ReverseSyncView) {
   );
 }
 
+function mountNewReady() {
+  state.route.query = { ...state.route.query, modelId: "model1", destinationId: "google" };
+  const stream = reverseStreamEditors["google-ads"].find(s => s.id === "audience")!;
+  const { mode, mapping, streamOptions, checkpointEvery } = savedSync().options;
+  vi.spyOn(stream, "defaults").mockReturnValue({ mode, mapping, streamOptions, checkpointEvery });
+  const result = mount();
+  fireEvent.mouseDown(within(screen.getByTestId("Stream")).getByRole("combobox"));
+  fireEvent.click(screen.getByTitle("Audience"));
+  return result;
+}
+
 it("reuses the URL save key after an uncertain create and page reload", async () => {
   state.rpc.mockRejectedValue(new Error("Response lost"));
-  const first = mount();
+  const first = mountNewReady();
   fireEvent.click(screen.getByRole("button", { name: "Save" }));
   await waitFor(() => expect(state.rpc).toHaveBeenCalledTimes(1));
   const key = state.rpc.mock.calls[0][1].body.requestId;
   expect(state.rpc.mock.calls[0][1].body.sync.data.name).toBeUndefined();
   expect(state.route.query.requestId).toBe(key);
   first.unmount();
-  mount();
+  mountNewReady();
   fireEvent.click(screen.getByRole("button", { name: "Save" }));
   await waitFor(() => expect(state.rpc).toHaveBeenCalledTimes(2));
   expect(state.rpc.mock.calls[1][1].body.requestId).toBe(key);
@@ -95,7 +110,7 @@ it("disables fields while Save is pending", async () => {
         finish = resolve;
       })
   );
-  mount();
+  mountNewReady();
   fireEvent.click(screen.getByRole("button", { name: "Save" }));
   await waitFor(() => expect(state.rpc).toHaveBeenCalledTimes(1));
   expect(screen.queryByTestId("Name")).toBeNull();
@@ -106,12 +121,62 @@ it("disables fields while Save is pending", async () => {
 
 it("creates a sync and returns to the list without starting a run", async () => {
   state.rpc.mockResolvedValue({ id: "saved" });
-  mount();
+  mountNewReady();
   expect(screen.queryByRole("checkbox", { name: "Run sync after save" })).toBeNull();
   fireEvent.click(screen.getByRole("button", { name: "Save" }));
   await waitFor(() => expect(state.route.push).toHaveBeenCalledWith("/ws/reverse-syncs"));
   expect(state.rpc).toHaveBeenCalledTimes(1);
   expect(state.rpc).toHaveBeenCalledWith("/api/ws/reverse-etl/syncs", expect.objectContaining({ method: "POST" }));
+});
+
+it("shows frontend validation below the buttons and blocks saving an empty form", async () => {
+  mount();
+  const save = screen.getByRole("button", { name: "Save" });
+  fireEvent.click(save);
+  const errors = screen.getByTestId("reverse-sync-save-error");
+  await waitFor(() => expect(errors.textContent).toContain("Choose a model."));
+  expect(errors.textContent).toContain("Choose a destination.");
+  expect(errors.textContent).toContain("Choose a stream.");
+  expect(save.compareDocumentPosition(errors) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  expect(state.rpc).not.toHaveBeenCalled();
+});
+
+it("highlights missing required controls and alternative groups, then saves after correction", async () => {
+  const sync = savedSync();
+  sync.options.mapping = {};
+  sync.options.streamOptions.customerMatchTermsAccepted = false;
+  state.models = [{ id: "model1", name: "Model", warehouseId: "wh", query: "select email" }];
+  state.rpc.mockImplementation(async (url: string) =>
+    url.endsWith("/models/columns") ? { columns: [{ name: "email", type: "text" }] } : { id: "saved" }
+  );
+  mount(sync);
+  await waitFor(() => expect(state.rpc).toHaveBeenCalledTimes(1));
+  await act(async () => {});
+  state.rpc.mockClear();
+  fireEvent.click(screen.getByRole("button", { name: "Save" }));
+  await waitFor(() => expect(screen.getByTestId("reverse-sync-save-error").textContent).toContain("Customer matching"));
+  expect(screen.getByTestId("Customer Match terms").querySelector('[aria-invalid="true"]')).not.toBeNull();
+  expect(screen.getByText("Configure at least one complete option in this group.")).toBeTruthy();
+  expect(state.rpc).not.toHaveBeenCalled();
+  fireEvent.click(within(screen.getByTestId("Customer Match terms")).getByRole("checkbox"));
+  // Restore an existing mapping through a known source-column choice.
+  fireEvent.mouseDown(screen.getByRole("combobox", { name: "email column" }));
+  fireEvent.click(screen.getAllByText("email").at(-1)!);
+  expect(screen.getByTestId("Customer Match terms").querySelector('[aria-invalid="true"]')).toBeNull();
+  expect(screen.queryByText("Configure at least one complete option in this group.")).toBeNull();
+  fireEvent.click(screen.getByRole("button", { name: "Save" }));
+  await waitFor(() => expect(state.route.push).toHaveBeenCalledWith("/ws/reverse-syncs"));
+});
+
+it("shows backend errors below Save and keeps the form open", async () => {
+  state.rpc.mockRejectedValue(new Error("Invalid cron schedule or IANA timezone"));
+  mount(savedSync());
+  const save = screen.getByRole("button", { name: "Save" });
+  fireEvent.click(save);
+  const errors = screen.getByTestId("reverse-sync-save-error");
+  await waitFor(() => expect(errors.textContent).toContain("Invalid cron schedule"));
+  expect(save.compareDocumentPosition(errors) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  expect(state.route.push).not.toHaveBeenCalled();
 });
 
 function savedSync() {
@@ -133,6 +198,14 @@ function savedSync() {
     phase: null,
   });
 }
+it.each([undefined, false, true])("shows mapping suggestions only when configured (%s)", async enabled => {
+  state.appConfig = { reverseMappingSuggestionsEnabled: enabled };
+  mount(savedSync());
+  const button = screen.queryByRole("button", { name: "Suggest mappings" });
+  if (enabled) expect(button).not.toBeNull();
+  else expect(button).toBeNull();
+  expect(state.rpc).not.toHaveBeenCalled();
+});
 it("returns to the list after editing a saved sync", async () => {
   state.rpc.mockResolvedValue({ id: "saved" });
   mount(savedSync());
@@ -250,7 +323,12 @@ function metaSync(locked = false) {
     ...sync,
     toId: "meta",
     settingsLocked: locked,
-    options: { ...sync.options, stream: "conversions", streamOptions: { pixelId: "789", actionSource: "website" } },
+    options: {
+      ...sync.options,
+      stream: "conversions",
+      mapping: { ...sync.options.mapping, eventName: "event", eventSourceUrl: "url", clientUserAgent: "agent" },
+      streamOptions: { pixelId: "789", actionSource: "website" },
+    },
   } as ReverseSyncView;
 }
 it("checks a Meta target before saving, and failed checks prevent saving", async () => {

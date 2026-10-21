@@ -435,6 +435,7 @@ export function createGoogleConversions(
           status: "rejected",
           code: `GOOGLE_HTTP_${error.httpStatus}_${error.providerCode}`,
           safeReason: error.message,
+          ...(error.details.length ? { details: error.details } : {}),
         })),
       };
     }

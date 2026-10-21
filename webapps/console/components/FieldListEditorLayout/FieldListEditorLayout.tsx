@@ -13,6 +13,7 @@ export type EditorItem = {
   component: ReactNode;
   group?: string;
   itemClassName?: string;
+  rowClassName?: string;
 };
 
 export type FieldListEditorLayoutProps = {
@@ -89,7 +90,7 @@ const EditorItemTable: React.FC<{ items: Omit<EditorItem, "group">[]; className?
   return (
     <div className={`${className ?? styles.editorItemTable} flex-auto`}>
       {items.map(item => (
-        <div className={`${styles.editorItemRow} h-full`} key={getKey(item)}>
+        <div className={`${styles.editorItemRow} h-full ${item.rowClassName ?? styles.defaultRow}`} key={getKey(item)}>
           {item.name && (
             <div className={styles.name}>
               <div className={`flex flex-row items-center gap-2`}>

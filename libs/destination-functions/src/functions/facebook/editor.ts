@@ -12,6 +12,8 @@ import {
   metaDestinationId,
   metaDestinationTitle,
 } from "./reverse-meta";
+import { metaConversionAlternatives, metaConversionRules, metaMatchingAlternatives } from "./editor-rules";
+import { withFieldRules } from "../../reverse-etl/editor";
 
 function contacts(): ReverseEditorField[] {
   return metaContactFields.map(([raw, hashed, name]) => ({
@@ -19,8 +21,7 @@ function contacts(): ReverseEditorField[] {
     raw,
     hashed,
     name,
-    documentation:
-      "Optional. Supply raw values or SHA-256 hashes, not both. Phone numbers must include the country code.",
+    documentation: "Supply raw values or SHA-256 hashes, not both. Phone numbers must include the country code.",
   }));
 }
 function mappings(fields: [string, string, string?][]): ReverseEditorField[] {
@@ -50,6 +51,9 @@ export const metaAudienceEditor: ReverseStreamEditor = {
   id: "audience",
   label: "Custom Audiences",
   settings: MetaAudienceOptions,
+  alternatives(options) {
+    return [metaMatchingAlternatives(this.fields(options), true)];
+  },
   defaults: () => ({
     mode: "mirror",
     mapping: {},
@@ -77,6 +81,9 @@ export const metaAudienceEditor: ReverseStreamEditor = {
         editor: "select",
         name: "Audience",
         value: audience.kind,
+        documentation: managed
+          ? "Mirror — changes only: uploads changes before removing tracked members absent from the full model."
+          : "Additions and explicit removals via a model delete column. Existing membership is not imported or cleared; full mirroring is not supported for existing audiences.",
         choices: [
           { value: "managed", label: "Create a new audience on first run" },
           { value: "existing", label: "Use an existing audience" },
@@ -101,14 +108,17 @@ export const metaAudienceEditor: ReverseStreamEditor = {
           : "An existing customer-list Custom Audience in this ad account. Other audience types are not supported.",
         change: value => change({ audience: { ...audience, [managed ? "name" : "audienceId"]: value } }),
       },
-      {
-        editor: "notice",
-        key: "audience-mode",
-        title: managed ? "Mirror — changes only" : "Additions and explicit removals",
-        description: managed
-          ? "Jitsu uploads changes, then removes tracked members absent from the full model. An empty model clears tracked membership. Meta matching is asynchronous; accepted records are not matched people."
-          : "A delete-column model can remove members explicitly. Existing membership is not imported or cleared; full mirroring is not supported for existing audiences.",
-      },
+      ...(managed
+        ? [
+            {
+              editor: "notice" as const,
+              key: "audience-mode",
+              presentation: "warning" as const,
+              showIcon: true,
+              title: "Tracked members missing from the model are removed. An empty model clears tracked membership.",
+            },
+          ]
+        : []),
       {
         editor: "checkbox",
         name: "Value-based audience",
@@ -149,15 +159,7 @@ export const metaAudienceEditor: ReverseStreamEditor = {
         ],
         ["mobileAdvertisingId", "Mobile advertising ID", "Optional IDFA/AAID UUID; do not hash."],
         ["pageScopedUserId", "Page-scoped user ID", "Optional; also configure Facebook Page ID above."],
-        ...(settings.valueBased
-          ? [
-              ["lookalikeValue", "Customer value", "Non-negative number; required for value-based additions."] as [
-                string,
-                string,
-                string
-              ],
-            ]
-          : []),
+        ["lookalikeValue", "Customer value", "Non-negative number; required for value-based additions."],
       ]),
       ...privacy(),
     ];
@@ -169,13 +171,28 @@ export const metaAudienceEditor: ReverseStreamEditor = {
         label: "Jitsu may remove missing members. No other user or tool will upload to this audience.",
         change: exclusiveManagementConfirmed => change({ exclusiveManagementConfirmed }),
       });
-    return items.map(item => ({ ...item, group: "Stream settings" }));
+    return withFieldRules(items, {
+      ...Object.fromEntries(
+        ["Ad account ID", "Audience", "Audience name", "Audience ID", "Exclusive management"].map(name => [
+          `setting:${name}`,
+          { required: true },
+        ])
+      ),
+      "setting:pageId": { required: o => !!o.mapping.pageScopedUserId, hidden: o => !o.mapping.pageScopedUserId },
+      "mapping:lookalikeValue": {
+        required: o => o.streamOptions.valueBased === true,
+        hidden: o => o.streamOptions.valueBased !== true,
+      },
+    });
   },
 };
 export const metaConversionEditor: ReverseStreamEditor = {
   id: "conversions",
   label: "Conversions",
   settings: MetaConversionOptions,
+  alternatives(options) {
+    return metaConversionAlternatives(options, this.fields(options));
+  },
   defaults: () => ({ mode: "upsert", mapping: {}, streamOptions: { pixelId: "", actionSource: "website" } }),
   fields(options) {
     const { settings, change, text } = controls(options);
@@ -188,9 +205,8 @@ export const metaConversionEditor: ReverseStreamEditor = {
       {
         editor: "notice",
         key: "insert-only",
-        title: "Insert new events only",
-        description:
-          "Use a unique model primary key per event. Previously submitted keys are not sent again. Unknown submission outcomes require manual reconciliation; event-ID deduplication is not an unlimited replay guarantee.",
+        presentation: "description",
+        title: "Only new model primary keys are sent; changes to previously sent rows are not resent.",
       },
       text(
         "eventName",
@@ -201,6 +217,7 @@ export const metaConversionEditor: ReverseStreamEditor = {
         editor: "select",
         name: "Default action source",
         value: settings.actionSource ?? "website",
+        documentation: "Used when Action source is not mapped or the row's mapped value is null.",
         choices: MetaActionSource.options.map(value => ({ value, label: value.replaceAll("_", " ") })),
         change: actionSource => change({ actionSource }),
       },
@@ -280,17 +297,16 @@ export const metaConversionEditor: ReverseStreamEditor = {
       ]),
       ...privacy(),
     ];
-    if (settings.actionSource === "business_messaging")
-      items.splice(3, 0, {
-        editor: "select",
-        name: "Default messaging channel",
-        value: settings.messagingChannel,
-        choices: MetaMessagingChannel.options.map(value => ({ value, label: value })),
-        documentation:
-          "Use the dataset connected to this messaging account. Channel-specific account and user IDs are required; Jitsu does not provision datasets.",
-        change: messagingChannel => change({ messagingChannel }),
-      });
-    return items.map(item => ({ ...item, group: "Stream settings" }));
+    items.splice(3, 0, {
+      editor: "select",
+      name: "Default messaging channel",
+      value: settings.messagingChannel,
+      choices: MetaMessagingChannel.options.map(value => ({ value, label: value })),
+      documentation:
+        "Use the dataset connected to this messaging account. Channel-specific account and user IDs are required; Jitsu does not provision datasets.",
+      change: messagingChannel => change({ messagingChannel }),
+    });
+    return metaConversionRules(items);
   },
 };
 export const metaAdsMetadata = {

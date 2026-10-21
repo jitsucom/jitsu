@@ -71,6 +71,42 @@ async function fixture() {
   };
 }
 describe("single-save Reverse ETL settings", () => {
+  it("rejects missing alternatives on create and delivery edits without persisting them", async () => {
+    const f = await fixture();
+    const invalid = { ...f.input, data: { ...f.input.data, mapping: {} } };
+    await expect(f.create(invalid)).rejects.toThrow("Customer matching");
+    expect(await listReverseSyncs(f.prisma, f.workspace.id)).toEqual([]);
+    const { id } = await f.create();
+    await expect(updateReverseSync(f.prisma, f.workspace.id, id, invalid)).rejects.toThrow("Customer matching");
+    expect((await listReverseSyncs(f.prisma, f.workspace.id))[0].options.mapping).toEqual({ email: "email" });
+    // Older drafts can already contain incomplete mappings: even an unchanged full save must validate.
+    await f.prisma.configurationObjectLink.update({ where: { id }, data: { data: invalid.data } });
+    await expect(updateReverseSync(f.prisma, f.workspace.id, id, invalid)).rejects.toThrow("Customer matching");
+    await expect(updateReverseSync(f.prisma, f.workspace.id, id, { disabled: true })).resolves.toEqual({ id });
+  });
+  it("rejects a missing required mapping but allows a row-dependent alternative", async () => {
+    const f = await fixture();
+    const conversion = {
+      ...f.input,
+      data: {
+        ...f.input.data,
+        mode: "upsert",
+        stream: "click-conversions",
+        streamOptions: { conversionActionId: "123" },
+      },
+    };
+    await expect(f.create(conversion)).rejects.toThrow("Conversion time is required");
+    await expect(
+      f.create({
+        ...conversion,
+        data: {
+          ...conversion.data,
+          stream: "conversion-adjustments",
+          mapping: { adjustmentType: "type" },
+        },
+      })
+    ).resolves.toHaveProperty("id");
+  });
   it("passes the saved destination configuration to the provider's settings validator", async () => {
     const f = await fixture();
     const provider = reverseDestinationMetadata.get("google-ads")!;
@@ -137,7 +173,12 @@ describe("single-save Reverse ETL settings", () => {
     expect((await listReverseSyncs(f.prisma, f.workspace.id))[0].settingsLocked).toBe(true);
     const conversions = await f.create({
       ...input,
-      data: { ...input.data, stream: "conversions", mode: "upsert", streamOptions: { pixelId: "789" } },
+      data: {
+        ...input.data,
+        stream: "conversions",
+        mode: "upsert",
+        streamOptions: { pixelId: "789", actionSource: "other", eventName: "Lead" },
+      },
     });
     expect(conversions.id).not.toBe(id);
   });
@@ -248,7 +289,12 @@ describe("single-save Reverse ETL settings", () => {
           mode: "upsert",
           disabled: false,
           streamOptions: { conversionActionId: "123" },
-          mapping: stream === "conversion-adjustments" ? { orderId: "email" } : { conversionTimestamp: "email" },
+          mapping:
+            stream === "conversion-adjustments"
+              ? { orderId: "email", email: "email" }
+              : stream === "call-conversions"
+              ? { callerId: "email", callTimestamp: "email", conversionTimestamp: "email" }
+              : { conversionTimestamp: "email", email: "email" },
         },
       });
       const config = await readReverseSync(f.prisma, id, f.workspace.id);

@@ -11,6 +11,18 @@ import {
 } from "@jitsu/destination-functions/src/functions/facebook/validation-errors";
 
 describe("safe failure diagnostics", () => {
+  it("shows structured rejection fields in task and mirror errors without trusting safeReason", () => {
+    const error = new ReverseEtlRejectionError("GOOGLE_HTTP_400_INVALID_ARGUMENT", [
+      { field: "events[0].event_timestamp", reason: "EVENT_TOO_OLD" },
+      { field: "private@example.com", reason: "INVALID_ARGUMENT" },
+      { reason: "Bearer private-token" },
+    ]);
+    const message = failureMessage(error, "task-google");
+    expect(message).toContain("events[0].event_timestamp: EVENT_TOO_OLD");
+    expect(message).toContain("GOOGLE_HTTP_400_INVALID_ARGUMENT");
+    expect(message).not.toContain("private");
+    expect(new MirrorRunError("delivery", 1, 1, error).message).toContain("events[0].event_timestamp: EVENT_TOO_OLD");
+  });
   it.each(["developer-token", "oauth"] as const)("explains Microsoft %s failures safely", reason => {
     const error = new MicrosoftNotSubmittedError(reason);
     const message = failureMessage(error, "task-ms");

@@ -1,5 +1,6 @@
 import type { ReverseEditorField, ReverseStreamEditor } from "@jitsu/protocols/reverse-etl-editor";
 import { MicrosoftAudienceOptions, MicrosoftConversionOptions } from "./meta";
+import { alternative, withFieldRules } from "../../reverse-etl/editor";
 
 const audience: ReverseStreamEditor = {
   id: "audience",
@@ -23,6 +24,9 @@ const audience: ReverseStreamEditor = {
         editor: "select",
         name: "Audience",
         value: target.kind,
+        documentation: managed
+          ? "Mirror — changes only: uploads additions before removing tracked members absent from the full model."
+          : "Additions and explicit removals via a model delete column. Other audience members are untouched.",
         choices: [
           { value: "managed", label: "Create a new audience on first run" },
           { value: "existing", label: "Use an existing audience" },
@@ -62,14 +66,17 @@ const audience: ReverseStreamEditor = {
           "Optional if already accepted in Microsoft Advertising. See https://help.ads.microsoft.com/apex/index/3/en/56921",
         change: acceptCustomerMatchTerms => change({ acceptCustomerMatchTerms }),
       },
-      {
-        editor: "notice",
-        key: "mode",
-        title: managed ? "Mirror — changes only" : "Additions and explicit removals",
-        description: managed
-          ? "Uploads additions before removing tracked members missing from the full model. An empty model removes all tracked members. Acceptance does not measure audience matching."
-          : "Use a model delete column for explicit removals. Other audience members are untouched.",
-      },
+      ...(managed
+        ? [
+            {
+              editor: "notice" as const,
+              key: "mode",
+              presentation: "warning" as const,
+              showIcon: true,
+              title: "Tracked members missing from the model are removed. An empty model clears tracked membership.",
+            },
+          ]
+        : []),
     ];
     if (managed)
       fields.push({
@@ -79,13 +86,34 @@ const audience: ReverseStreamEditor = {
         label: "Only Jitsu will manage this audience; Jitsu may remove members absent from the model.",
         change: exclusiveManagementConfirmed => change({ exclusiveManagementConfirmed }),
       });
-    return fields.map(f => ({ ...f, group: "Stream settings" }));
+    return withFieldRules(fields, {
+      ...Object.fromEntries(
+        ["Audience", "Audience name", "Audience ID", "Exclusive management"].map(name => [
+          `setting:${name}`,
+          { required: true },
+        ])
+      ),
+      "mapping:email": { required: true },
+    });
   },
 };
 const conversions: ReverseStreamEditor = {
   id: "offline-conversions",
   label: "Offline conversions",
   settings: MicrosoftConversionOptions,
+  alternatives: () => [
+    {
+      key: "matching",
+      title: "Conversion matching",
+      description:
+        "Provide at least one matching option for every conversion. Email and phone are for enhanced conversions.",
+      options: [
+        alternative("Microsoft click ID", "microsoftClickId"),
+        alternative("Email (raw or SHA-256)", "email"),
+        alternative("Phone (raw or SHA-256)", "phone"),
+      ],
+    },
+  ],
   defaults: () => ({ mode: "upsert", mapping: {}, streamOptions: { conversionName: "" } }),
   fields({ streamOptions }) {
     const fields: ReverseEditorField[] = [
@@ -101,9 +129,8 @@ const conversions: ReverseStreamEditor = {
       {
         editor: "notice",
         key: "insert",
-        title: "Insert new conversions only",
-        description:
-          "Use one stable primary key per event. Submitted keys are not sent again. Acceptance does not guarantee attribution; an uncertain submission is not automatically replayed.",
+        presentation: "description",
+        title: "Only new model primary keys are sent; changes to previously sent rows are not resent.",
       },
       {
         editor: "mapping",
@@ -143,7 +170,18 @@ const conversions: ReverseStreamEditor = {
         })
       ),
     ];
-    return fields.map(f => ({ ...f, group: "Stream settings" }));
+    return withFieldRules(fields, {
+      "setting:Conversion goal name": { required: true },
+      "mapping:conversionTime": { required: true },
+      "mapping:externalAttributionCredit": {
+        required: o => !!o.mapping.externalAttributionModel,
+        requirement: "Required with external attribution model; only for goals configured for external attribution.",
+      },
+      "mapping:externalAttributionModel": {
+        required: o => !!o.mapping.externalAttributionCredit,
+        requirement: "Required with external attribution credit; only for goals configured for external attribution.",
+      },
+    });
   },
 };
 export const microsoftAdsMetadata = {

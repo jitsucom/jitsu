@@ -6,6 +6,7 @@ import type {
 } from "@jitsu/protocols/reverse-etl-editor";
 import type { z } from "zod";
 import { GoogleAudienceRow, GoogleAudienceSettings } from "./meta";
+import { contactAlternatives, withFieldRules } from "../../../reverse-etl/editor";
 type Key = keyof z.input<typeof GoogleAudienceRow>;
 type Field = ReverseEditorField<Key>;
 
@@ -13,6 +14,16 @@ export const googleAudienceEditor: ReverseStreamEditor = {
   id: "audience",
   label: "Audience",
   settings: GoogleAudienceSettings,
+  alternatives: () => [
+    {
+      key: "contact",
+      title: "Customer matching",
+      options: contactAlternatives(),
+      when: o => !o.streamOptions.identifierType || o.streamOptions.identifierType === "CONTACT_INFO",
+      description:
+        "Provide at least one option for each row. If any address part is supplied, all four address parts are required, even when email or phone is also supplied.",
+    },
+  ],
   defaults: () => ({
     mode: "mirror",
     mapping: {},
@@ -69,6 +80,12 @@ export const googleAudienceEditor: ReverseStreamEditor = {
         name: "Sync mode",
         editor: "select",
         value: options.mode === "upsert" ? "upsert" : settings.mirrorStrategy ?? "snapshot-diff",
+        documentation:
+          options.mode === "upsert"
+            ? "Use a model delete column for explicit removals. Other audience members are untouched."
+            : settings.mirrorStrategy === "full-replace"
+            ? "Every member is uploaded; older membership is removed after Google accepts all uploads. Use a full-query model and do not upload from other tools."
+            : "Only changed members are uploaded; missing tracked members are removed after uploads succeed. Use a full-query model and do not upload from other tools.",
         choices: [
           ...(kind === "managed"
             ? [{ value: "snapshot-diff", label: "Mirror — changes only" }]
@@ -94,12 +111,7 @@ export const googleAudienceEditor: ReverseStreamEditor = {
           { value: "MOBILE_ADVERTISING_ID", label: "Mobile advertising IDs" },
           { value: "CRM_ID", label: "CRM IDs" },
         ],
-        change: identifierType => ({
-          ...change({ identifierType }),
-          mapping: Object.fromEntries(
-            Object.entries(options.mapping).filter(([key]) => ["adUserData", "adPersonalization"].includes(key))
-          ),
-        }),
+        change: identifierType => change({ identifierType }),
       },
     ];
     if (kind === "managed")
@@ -139,14 +151,13 @@ export const googleAudienceEditor: ReverseStreamEditor = {
         key: "mirror-notice",
         editor: "notice",
         showIcon: true,
+        presentation: "warning",
         title:
           settings.mirrorStrategy === "full-replace"
-            ? "Every member is uploaded; older membership is removed after Google accepts all uploads."
-            : "Only changed members are uploaded; missing members are removed after uploads succeed.",
-        description:
-          "An empty model clears the audience. Use a full-query model and do not upload to this audience from other tools.",
+            ? "Members missing from the model are removed. An empty model clears the audience."
+            : "Tracked members missing from the model are removed. An empty model clears tracked membership.",
       });
-    if (!settings.identifierType || settings.identifierType === "CONTACT_INFO") {
+    {
       for (const [name, raw, hashed] of [
         ["Email", "email", "hashedEmail"],
         ["Phone", "phone", "hashedPhone"],
@@ -159,27 +170,24 @@ export const googleAudienceEditor: ReverseStreamEditor = {
           raw,
           hashed,
           documentation:
-            "Optional. Email and phone accept a string or array. Names are only needed for address matching.",
+            "Choose raw or SHA-256. Email and phone accept a string or array. Address matching needs all four address fields.",
         });
     }
-    const columns: [Key, string, string][] =
-      settings.identifierType === "CRM_ID"
-        ? [["crmId", "CRM ID", "Advertiser-assigned user identifier."]]
-        : settings.identifierType === "MOBILE_ADVERTISING_ID"
-        ? [["mobileAdvertisingId", "Mobile advertising ID", "Advertising ID/IDFA string or array."]]
-        : [
-            [
-              "phoneCountryCode",
-              "Phone country code",
-              "Optional dialing code for raw phone numbers without a leading country code.",
-            ],
-            [
-              "countryCode",
-              "Address country code",
-              "Optional. Two-letter country code; used with first name, last name and postal code.",
-            ],
-            ["postalCode", "Postal code", "Optional; used for address matching."],
-          ];
+    const columns: [Key, string, string][] = [
+      ["crmId", "CRM ID", "Advertiser-assigned user identifier."],
+      ["mobileAdvertisingId", "Mobile advertising ID", "Advertising ID/IDFA string or array."],
+      [
+        "phoneCountryCode",
+        "Phone country code",
+        "Optional dialing code for raw phone numbers without a leading country code.",
+      ],
+      [
+        "countryCode",
+        "Address country code",
+        "Optional. Two-letter country code; used with first name, last name and postal code.",
+      ],
+      ["postalCode", "Postal code", "Optional; used for address matching."],
+    ];
     for (const [field, name, documentation] of columns) items.push({ editor: "mapping", field, name, documentation });
     for (const [field, name] of [
       ["adUserData", "Ad user data consent column"],
@@ -206,6 +214,34 @@ export const googleAudienceEditor: ReverseStreamEditor = {
         label: "Jitsu may remove members absent from the model. No other tool or user will upload to this audience.",
         change: value => change({ exclusiveManagementConfirmed: value || undefined }),
       });
-    return items.map(item => ({ ...item, group: "Stream settings" }));
+    const contactHidden = (o: ReverseEditorOptions) =>
+      !!o.streamOptions.identifierType && o.streamOptions.identifierType !== "CONTACT_INFO";
+    return withFieldRules(items, {
+      ...Object.fromEntries(
+        [
+          "Audience",
+          "Audience name",
+          "Audience ID",
+          "Sync mode",
+          "Identifier type",
+          "Customer Match terms",
+          "Exclusive management",
+        ].map(name => [`setting:${name}`, { required: true }])
+      ),
+      "setting:App ID": { required: kind === "managed" },
+      "setting:Mobile platform": { required: kind === "managed" },
+      ...Object.fromEntries(
+        ["email", "phone", "firstName", "lastName", "countryCode", "postalCode"].map(key => [
+          `mapping:${key}`,
+          { hidden: contactHidden },
+        ])
+      ),
+      "mapping:phoneCountryCode": { hidden: o => contactHidden(o) || !o.mapping.phone },
+      "mapping:crmId": { required: true, hidden: o => o.streamOptions.identifierType !== "CRM_ID" },
+      "mapping:mobileAdvertisingId": {
+        required: true,
+        hidden: o => o.streamOptions.identifierType !== "MOBILE_ADVERTISING_ID",
+      },
+    });
   },
 };

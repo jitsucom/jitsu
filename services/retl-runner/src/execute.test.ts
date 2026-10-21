@@ -2271,7 +2271,11 @@ describe("executable runner", () => {
 });
 
 describe("rejection reporting", () => {
-  const rejectEverything = (f: ReturnType<typeof fixture>, code: string) => {
+  const rejectEverything = (
+    f: ReturnType<typeof fixture>,
+    code: string,
+    details?: Array<{ reason: string; field?: string }>
+  ) => {
     const create = f.adapter.stream.createWriter;
     f.adapter.stream.createWriter = async ctx => {
       const writer = await create(ctx);
@@ -2281,11 +2285,26 @@ describe("rejection reporting", () => {
           status: "rejected" as const,
           code,
           safeReason: "HTTP 422 with private-token in the body",
+          ...(details ? { details } : {}),
         })),
       });
       return writer;
     };
   };
+  it("persists structured provider details in both the task error and ERROR log", async () => {
+    const f = fixture();
+    rejectEverything(f, "GOOGLE_HTTP_400_INVALID_ARGUMENT", [
+      { reason: "INVALID_CURRENCY_CODE", field: "events[0].currency" },
+    ]);
+    expect(await execute(f.input)).toBe("FAILED");
+    const error = (await task()).error as string;
+    expect(error).toContain("events[0].currency: INVALID_CURRENCY_CODE");
+    const logs = await admin.query("SELECT message FROM newjitsu.task_log WHERE task_id=$1 AND level='ERROR'", [
+      f.input.taskId,
+    ]);
+    expect(logs.rows.some(row => row.message === error)).toBe(true);
+    expect(await taskLogs("task")).not.toContain("private-token");
+  });
   it("shows the rejection code in the task error and never the provider's text", async () => {
     const f = fixture();
     rejectEverything(f, "http_422");
@@ -2358,6 +2377,7 @@ describe("rejection reporting", () => {
           status: "rejected" as const,
           code: "http_422",
           safeReason: "HTTP 422 with private-token in the body",
+          details: [{ reason: "INVALID_CURRENCY_CODE", field: "events[0].currency" }],
         })),
       }),
     });
@@ -2372,6 +2392,7 @@ describe("rejection reporting", () => {
     const error = (await task("recovery-2")).error as string;
     expect(error).toContain("Recovery completed cleanup; next run will restart extraction");
     expect(error).toContain("Reason code: http_422.");
+    expect(error).toContain("events[0].currency: INVALID_CURRENCY_CODE");
     expect(error).not.toContain("private-token");
     // and the sync is not stuck: the run after that completes (the destination is healthy again)
     const create = f.adapter.stream.createWriter;
