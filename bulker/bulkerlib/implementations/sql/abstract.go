@@ -45,6 +45,15 @@ type AbstractSQLStream struct {
 	lastPing time.Time
 
 	existingTable *Table
+	// existingTableFetchedAt is when existingTable was last fetched from the
+	// real destination schema. Only AutoCommitStream reads this - it's the
+	// one stream mode that lives for many Consume() calls and never
+	// otherwise revisits a column it already believes it knows about, so a
+	// drift in the real schema (e.g. a column dropped out-of-band) makes
+	// every insert touching that column fail identically forever. See
+	// JITSU-237. TransactionalStream gets a fresh object per batch run, so
+	// its cache is naturally bounded and doesn't need this.
+	existingTableFetchedAt time.Time
 
 	customTypes     types.SQLTypes
 	pkColumns       jsonorder.OrderedSet[string]
