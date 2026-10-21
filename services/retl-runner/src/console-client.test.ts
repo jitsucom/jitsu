@@ -109,12 +109,18 @@ describe("runner console OAuth and adapter binding", () => {
       await expect(client.accessToken(new AbortController().signal)).rejects.toThrow();
     }
   );
-  it("registers code-owned Microsoft, Google, Webhook, and Meta implementations, without fetching tokens for conversion binding", async () => {
+  it("registers code-owned Microsoft, Google, Webhook, Meta, and OpenAI implementations, without fetching tokens for conversion binding", async () => {
     // Local runtime credentials must not hide an incomplete adapter fixture in CI.
     vi.stubEnv("MICROSOFT_ADS_DEVELOPER_TOKEN", undefined);
     const token = vi.fn(async () => "token");
     const registry = createAdapterRegistry(token);
-    expect([...registry.keys()]).toEqual(["microsoft-ads", "google-ads", "webhook", "facebook-conversions"]);
+    expect([...registry.keys()]).toEqual([
+      "microsoft-ads",
+      "google-ads",
+      "webhook",
+      "facebook-conversions",
+      "openai-ads",
+    ]);
     const adapter = await registry.get("google-ads")!(config);
     expect(adapter.targetIdentity).toBe("google-data-manager:1234567890:123");
     expect(adapter.stream.batchDelivery).toBe("asynchronous");
@@ -153,6 +159,20 @@ describe("runner console OAuth and adapter binding", () => {
     });
     expect(microsoft.insertOnly).toBe(true);
     expect(microsoft.stream.name).toBe("offline-conversions");
+    const openai = await registry.get("openai-ads")!({
+      ...config,
+      destination: { destinationType: "openai-ads", conversionsApiKey: "openai-test-key" },
+      options: {
+        ...config.options,
+        stream: "conversions",
+        mode: "upsert",
+        mapping: { email: "email", sourceUrl: "url" },
+        streamOptions: { pixelId: "px_1", eventType: "order_created", actionSource: "web" },
+      },
+    });
+    expect(openai.insertOnly).toBe(true);
+    expect(openai.targetIdentity).toBe("openai-conversions:px_1");
+    expect(openai.stream.name).toBe("conversions");
     expect(token).not.toHaveBeenCalled();
     expect(() => registry.get("google-ads")!({ ...config, toId: "other" })).toThrow("OAuth binding");
   });

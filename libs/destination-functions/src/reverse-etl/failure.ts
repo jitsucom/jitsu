@@ -1,4 +1,5 @@
 import { metaConversionValidationErrors } from "../functions/facebook/validation-errors";
+import { openAiConversionValidationErrors } from "../functions/openai-ads/validation-errors";
 
 /** Terminal uncertainty: retain receipts, but do not keep polling a final, ambiguous result. */
 export class ReverseEtlManualReconciliationError extends Error {
@@ -10,6 +11,7 @@ export class ReverseEtlManualReconciliationError extends Error {
 const terminalReplacementReasons = new Set([
   "Microsoft Ads delivery is unconfirmed; manual reconciliation required, no automatic replay",
   "Meta delivery results require manual reconciliation; no replay",
+  "OpenAI delivery results require manual reconciliation; no replay",
   "Google replacement cutoff is missing or bound to another run; do not reset or replay",
   "Google replacement cleanup receipt unavailable; manual reconciliation required, no automatic replay",
   "Malformed Google replacement status; manual reconciliation required",
@@ -73,6 +75,17 @@ const failures = new Map<string, string>([
   [
     "Invalid Meta row mapping or identifier",
     "A source row has an invalid Meta identifier or mapping. Check the mapped identifiers and raw versus SHA-256 settings. This row was not submitted; earlier batches may already have been submitted.",
+  ],
+  ...Object.values(openAiConversionValidationErrors).map(detail => {
+    const reason = `Invalid OpenAI conversion: ${detail}`;
+    return [reason, `${reason} This row was not submitted. Earlier batches may already have been submitted.`] as [
+      string,
+      string
+    ];
+  }),
+  [
+    "OpenAI delivery results require manual reconciliation; no replay",
+    "OpenAI did not confirm delivery of a conversion batch. Some events may have been accepted. Contact your Jitsu administrator with this run ID; saved requests are retained and will not be sent again automatically. Do not reset sync state.",
   ],
   [
     "Meta delivery results require manual reconciliation; no replay",
