@@ -90,5 +90,5 @@ it("does not suggest or apply whole-column mappings over a selected composition 
       [{ name: "json", type: "JSON" }],
       [{ key: "customVariables", column: "json", probability: 1 }]
     )
-  ).toEqual({});
+  ).toEqual({ mapping: {} });
 });

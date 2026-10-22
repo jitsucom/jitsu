@@ -10,5 +10,5 @@
 - Empty optional compositions are omitted. Missing composed columns fail before submitting that row; provider schemas validate values.
 - Shared requirement checks cover composition in the console and API; the runner checks allowed composition fields before writer creation.
 - Composition is included in the existing delivery revision, payload hashing and durable prepared batches. No checkpoint/schema migration.
-- Mapping suggestions leave composed fields untouched. They do not yet suggest individual object properties.
+- Mapping suggestions follow the selected mode: whole column or unmapped declared object properties. Existing values win; arbitrary property names remain manual.
 - Deploy the updated runner before enabling the console UI; older runners reject the new options. Deployment is manual.

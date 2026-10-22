@@ -140,7 +140,7 @@ export function SyncEditor({ sync, reload }: { sync?: ReverseSyncView; reload: (
           options={options}
           columns={columns.data ?? []}
           disabled={disabled || columns.isFetching || !!columns.error}
-          onApply={mapping => update({ mapping })}
+          onApply={update}
         />
       ),
     });

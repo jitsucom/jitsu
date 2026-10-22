@@ -300,8 +300,7 @@ it("preserves existing mappings, rejects hidden/unknown keys and columns, and pr
     { key: "invented", column: "customer_email", probability: 1 },
   ];
   expect(applyMappingSuggestions(stream, existing, columns, selections)).toEqual({
-    email: "existing",
-    value: "purchase_total",
+    mapping: { email: "existing", value: "purchase_total" },
   });
   expect(
     applyMappingSuggestions(stream, options, columns, [
@@ -309,7 +308,118 @@ it("preserves existing mappings, rejects hidden/unknown keys and columns, and pr
       { key: "hashedEmail", column: "customer_email", probability: 1 },
       { key: "value", column: "missing", probability: 1 },
     ])
-  ).toEqual({});
+  ).toEqual({ mapping: {} });
+});
+
+describe("declared object properties", () => {
+  const meta = reverseDestinationMetadata.get("facebook-conversions")!;
+  const conversions = meta.streams.find(s => s.id === "conversions")!;
+  const appOptions = {
+    ...conversions.defaults(),
+    objectMappings: { appData: { advertiser_tracking_enabled: "existing_flag" }, customData: {} },
+  };
+
+  it("suggests only unmapped declared properties in composition mode, with parent context", () => {
+    const { state, questions } = buildMappingQuestions(conversions, appOptions, columns, meta);
+    const nested = questions.filter(q => q.target.object);
+    expect(nested.map(q => q.target.object?.property)).toEqual(["application_tracking_enabled", "extinfo"]);
+    const extinfo = nested.find(q => q.target.object?.property === "extinfo")!;
+    expect(extinfo.question.instructions.field).toMatchObject({
+      name: "App data / Extended app information",
+      required: true,
+      description: expect.stringContaining("all 16 extinfo positions"),
+      requirement: expect.stringContaining("Required for app rows"),
+      objectProperty: {
+        key: "appData",
+        name: "App data",
+        property: "extinfo",
+        description: expect.stringContaining("Object or JSON column"),
+      },
+    });
+    expect(extinfo.question.instructions.task).toContain("not the whole parent object");
+    expect(extinfo.question.instructions.task).toContain("do not construct arrays or extract nested properties");
+    expect(extinfo.candidates).toEqual(columns.map(c => ({ key: "appData", property: "extinfo", column: c.name })));
+    expect(questions.some(q => q.target.id === "mapping:appData" || q.target.id === "mapping:customData")).toBe(false);
+    expect(JSON.stringify({ state, questions: questions.map(q => q.question) })).not.toContain("existing_flag");
+  });
+
+  it("still offers missing optional properties in an already configured object", () => {
+    const google = reverseDestinationMetadata.get("google-ads")!;
+    const clicks = google.streams.find(s => s.id === "click-conversions")!;
+    const targets = mappingTargets(clicks, {
+      ...clicks.defaults(),
+      objectMappings: { sessionAttributes: { landingPageUrl: "url" } },
+    }).filter(t => t.object);
+    expect(targets).toHaveLength(5);
+    expect(targets.some(t => t.object?.property === "landingPageUrl")).toBe(false);
+    expect(targets.every(t => !t.required)).toBe(true);
+  });
+
+  it("keeps column mode and excludes nested suggestions when it is selected", () => {
+    const unmapped = mappingTargets(conversions, conversions.defaults());
+    expect(unmapped.some(t => t.id === "mapping:appData")).toBe(true);
+    expect(unmapped.some(t => t.object)).toBe(false);
+    const mapped = mappingTargets(conversions, { ...conversions.defaults(), mapping: { appData: "json" } });
+    expect(mapped.some(t => t.id === "mapping:appData" || t.object)).toBe(false);
+    expect(
+      applyMappingSuggestions(conversions, conversions.defaults(), columns, [
+        { key: "appData", property: "extinfo", column: "customer_email", probability: 1 },
+      ])
+    ).toEqual({ mapping: {} });
+  });
+
+  it("merges multiple properties without overwriting existing values or admitting undeclared targets", () => {
+    const result = applyMappingSuggestions(conversions, appOptions, columns, [
+      { key: "appData", property: "application_tracking_enabled", column: "purchase_total", probability: 1 },
+      { key: "appData", property: "extinfo", column: "customer_email", probability: 1 },
+      { key: "appData", property: "advertiser_tracking_enabled", column: "customer_email", probability: 1 },
+      { key: "appData", property: "invented", column: "customer_email", probability: 1 },
+      { key: "customData", property: "extinfo", column: "customer_email", probability: 1 },
+      { key: "appData", property: "__proto__", column: "customer_email", probability: 1 },
+      { key: "appData", column: "customer_email", probability: 1 },
+      { key: "value", column: "purchase_total", probability: 1 },
+    ]);
+    expect(result).toEqual({
+      mapping: { value: "purchase_total" },
+      objectMappings: {
+        appData: {
+          advertiser_tracking_enabled: "existing_flag",
+          application_tracking_enabled: "purchase_total",
+          extinfo: "customer_email",
+        },
+        customData: {},
+      },
+    });
+    expect(appOptions.objectMappings.appData).toEqual({ advertiser_tracking_enabled: "existing_flag" });
+    expect(
+      applyMappingSuggestions(conversions, appOptions, columns, [
+        { key: "appData", property: "extinfo", column: "missing", probability: 1 },
+        { key: "appData", property: "application_tracking_enabled", column: "customer_email", probability: 1 },
+        { key: "appData", property: "application_tracking_enabled", column: "purchase_total", probability: 1 },
+        { key: "value", property: "invented", column: "purchase_total", probability: 1 },
+      ])
+    ).toEqual({ mapping: {} });
+  });
+
+  it("preserves the property identity and uncertainty through provider responses", async () => {
+    const result = await suggestWithJev(
+      conversions,
+      appOptions,
+      columns,
+      { ...config, destination: meta },
+      undefined,
+      provider(question => {
+        if (question.instructions.field.objectProperty?.property !== "extinfo") return undefined;
+        return { type: "choice", choice: "none", confidence: 0.95, probabilities: { v0: 0.02, v1: 0, none: 0.98 } };
+      })
+    );
+    const tracking = result.suggestions.find(s => s.label === "App data / Application tracking enabled")!;
+    expect(tracking.recommended).toMatchObject({ key: "appData", property: "application_tracking_enabled" });
+    const extinfo = result.suggestions.find(s => s.label === "App data / Extended app information")!;
+    expect(extinfo.noMatch).toBe(true);
+    expect(extinfo.recommended).toBeNull();
+    expect(extinfo.alternatives[0]).toMatchObject({ key: "appData", property: "extinfo" });
+  });
 });
 
 describe("real destination stream coverage", () => {
