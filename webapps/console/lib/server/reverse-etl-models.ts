@@ -8,6 +8,7 @@ import {
 } from "@jitsu/warehouse-query/src/schema";
 import { ApiError } from "../shared/errors";
 import { warehouseErrorMessage } from "./warehouse-errors";
+import { previewModelRows } from "@jitsu/warehouse-query/src/reader";
 
 type ModelDb = Pick<PrismaClient, "workspace" | "configurationObject" | "configurationObjectLink" | "$queryRaw">;
 
@@ -100,7 +101,7 @@ function safeReader(config: Record<string, any>) {
   }
 }
 
-/** Inspect a saved model's projection without returning warehouse rows. */
+/** Return mapping columns only; transformed models sample bounded rows to discover nested fields. */
 export async function modelColumns(prisma: PrismaClient, workspaceId: string, modelId: string, signal?: AbortSignal) {
   await assertModelsEnabled(prisma, workspaceId);
   const object = await prisma.configurationObject.findFirst({
@@ -111,7 +112,13 @@ export async function modelColumns(prisma: PrismaClient, workspaceId: string, mo
   const config = await getModelWarehouse(prisma, workspaceId, model.warehouseId);
   const reader = safeReader(config);
   try {
-    return { columns: await reader.columns(model.query, signal ?? AbortSignal.timeout(30_000)) };
+    const timeout = signal ?? AbortSignal.timeout(30_000);
+    return {
+      columns:
+        model.nestedObjects === "leaveAsIs"
+          ? await reader.columns(model.query, timeout)
+          : (await previewModelRows(reader, model.query, model.nestedObjects, timeout)).columns,
+    };
   } catch (e) {
     throw new ApiError(warehouseErrorMessage(e, config, "Could not load model columns."), {
       status: 400,
@@ -126,7 +133,8 @@ export async function previewModel(
   workspaceId: string,
   warehouseId: string,
   query: string,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  nestedObjects: ModelDefinition["nestedObjects"] = "leaveAsIs"
 ) {
   await assertModelsEnabled(prisma, workspaceId);
   const config = await getModelWarehouse(prisma, workspaceId, warehouseId);
@@ -137,11 +145,7 @@ export async function previewModel(
   }
   const reader = safeReader(config);
   try {
-    const preview = await reader.preview(query, signal ?? AbortSignal.timeout(30_000));
-    return {
-      ...preview,
-      columns: preview.columns.map(c => ({ ...c, supportsDelete: reader.sql.supportsDeleteType(c.type) })),
-    };
+    return await previewModelRows(reader, query, nestedObjects, signal ?? AbortSignal.timeout(30_000));
   } catch (e) {
     throw new ApiError(warehouseErrorMessage(e, config, "Preview failed."), { status: 400 });
   } finally {

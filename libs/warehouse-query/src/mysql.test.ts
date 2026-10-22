@@ -4,6 +4,7 @@ import { Readable } from "node:stream";
 import { createMySqlReader, mysqlColumns, mysqlSql } from "./mysql";
 import { readerDialectContract } from "./reader-contract";
 import { ModelDefinition, supportsWarehouseReader } from "./schema";
+import type { SourceRecord } from "./types";
 
 const mysql = vi.hoisted(() => ({ createConnection: vi.fn() }));
 vi.mock("mysql2", async original => ({ ...(await original<typeof import("mysql2")>()), ...mysql }));
@@ -36,6 +37,38 @@ it("derives safe cast types without losing integer, decimal or time precision", 
   ).toEqual(["SIGNED", "UNSIGNED", "DECIMAL(65,30)", "DATETIME(6)", "CHAR", "MYSQL_TYPE_253", "JSON", "MYSQL_TYPE_5"]);
 });
 const config = { host: "test", username: "reader", password: "secret", database: "test" };
+it.each(['{"name":"Alice","id":9007199254740993}', '[true,null,{"x":1}]', '"hello"', "null", null])(
+  "decodes JSON %s in preview and spooled extraction without parsing VARCHAR",
+  async payload => {
+    const client = fixture();
+    const fields = [
+      { name: "id", columnType: 8, flags: 0 },
+      { name: "payload", columnType: 245 },
+      { name: "text", columnType: 253, characterSet: 45 },
+    ];
+    const values = ["9007199254740993", payload, payload];
+    client.execute.mockResolvedValue([[values], fields] as never);
+    const command = {
+      on: (_event: string, handler: (fields: unknown) => void) =>
+        handler([...fields, { name: "__jitsu_retl_key_count", columnType: 8 }]),
+      stream: () => Readable.from([[...values, "1"]]),
+    };
+    mysql.createConnection.mockReturnValue({ ...client, execute: () => command });
+    const reader = createMySqlReader(config);
+    try {
+      const model = ModelDefinition.parse({ warehouseId: "wh", query: "SELECT * FROM source", primaryKey: ["id"] });
+      const preview = await reader.preview(model.query);
+      expect(preview.rows).toEqual([
+        { id: values[0], payload: payload === null ? null : JSON.parse(payload), text: payload },
+      ]);
+      const records: SourceRecord[] = [];
+      for await (const record of reader.stream(model)) records.push(record);
+      expect(records[0].row).toEqual(preview.rows[0]);
+    } finally {
+      await reader.close();
+    }
+  }
+);
 function fixture() {
   const query = vi.fn(async (_sql: string) => [[["8.4.0"]], []]);
   const execute = vi.fn(async () => [[], []]);

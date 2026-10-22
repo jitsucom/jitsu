@@ -2515,7 +2515,8 @@ describe("webhook destination through the runner", () => {
   describe("Postgres column types arrive as plain JSON", () => {
     // [name, column type, value expression, expected JSON value as received by the endpoint]
     // Expectations were reviewed one by one against the plan's type table (H11): types that fail a run without
-    // conversion (float NaN/Infinity, interval, bytea) must be converted; everything else must arrive unchanged.
+    // conversion (float NaN/Infinity, interval, bytea) must be converted. The warehouse reader also
+    // preserves exact numeric arrays; JSON payloads intentionally use native JS values.
     const cases: Array<[string, string, string, unknown]> = [
       ["int4", "int4", "42", 42],
       ["int8", "int8", "123456789012345678", "123456789012345678"],
@@ -2540,10 +2541,12 @@ describe("webhook destination through the runner", () => {
       ["uuid", "uuid", "'11111111-2222-3333-4444-555555555555'", "11111111-2222-3333-4444-555555555555"],
       ["json", "json", `'{"a":[1,2]}'`, { a: [1, 2] }],
       ["jsonb", "jsonb", `'{"a":[1,2]}'`, { a: [1, 2] }],
+      ["json JS number", "json", `'{"id":9007199254740993}'`, { id: 9007199254740992 }],
+      ["jsonb JS number", "jsonb", `'{"id":9007199254740993}'`, { id: 9007199254740992 }],
       ["int[]", "int[]", "ARRAY[1,2,3]", [1, 2, 3]],
       ["text[]", "text[]", "ARRAY['a','b']", ["a", "b"]],
       ["int8[]", "int8[]", "ARRAY[9007199254740993]", ["9007199254740993"]],
-      ["numeric[]", "numeric[]", "ARRAY[1.5,2.5]", [1.5, 2.5]],
+      ["numeric[]", "numeric[]", "ARRAY[1.5,2.5]", ["1.5", "2.5"]],
       ["bytea", "bytea", "'\\xdeadbeef'", "3q2+7w=="],
       ["bytea[]", "bytea[]", "ARRAY['\\xde'::bytea]", ["3g=="]],
       ["interval[]", "interval[]", "ARRAY['1 day'::interval]", ["P0Y0M1DT0H0M0S"]],
@@ -2630,12 +2633,12 @@ describe("webhook destination through the runner", () => {
       ["Decimal(18,4)", "Decimal(18,4)", "1.2345", "1.2345"],
       ["Decimal256(10)", "Decimal256(10)", "123.456", "123.456"],
       ["Float64", "Float64", "1.5", 1.5],
-      ["Float64 nan", "Float64", "nan", null],
-      ["Float64 inf", "Float64", "inf", null],
+      ["Float64 nan", "Float64", "nan", "nan"],
+      ["Float64 inf", "Float64", "inf", "inf"],
       ["Date", "Date", "'2026-01-01'", "2026-01-01"],
       ["Date32", "Date32", "'2026-01-01'", "2026-01-01"],
-      ["DateTime", "DateTime('UTC')", "'2026-01-01 12:00:00'", "2026-01-01 12:00:00"],
-      ["DateTime64(6)", "DateTime64(6,'UTC')", "'2026-01-01 12:00:00.123456'", "2026-01-01 12:00:00.123456"],
+      ["DateTime", "DateTime('UTC')", "'2026-01-01 12:00:00'", "2026-01-01T12:00:00Z"],
+      ["DateTime64(6)", "DateTime64(6,'UTC')", "'2026-01-01 12:00:00.123456'", "2026-01-01T12:00:00.123456Z"],
       ["String", "String", "'héllo'", "héllo"],
       ["FixedString(3)", "FixedString(3)", "'abc'", "abc"],
       ["UUID", "UUID", "'11111111-2222-3333-4444-555555555555'", "11111111-2222-3333-4444-555555555555"],

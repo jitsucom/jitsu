@@ -28,6 +28,14 @@ export function requiresManualReconciliation(error: unknown): boolean {
 /** Exact core-owned reasons only. Never expose arbitrary SDK/SQL messages or causes. */
 const failures = new Map<string, string>([
   [
+    "Nested object flattening produces conflicting field names; rename or alias the conflicting fields",
+    "Flattening the model produces duplicate field names. Rename conflicting properties or SQL aliases, or use Leave as is / Stringify. This row was not submitted; earlier batches may already have been submitted. Preserve sync state.",
+  ],
+  [
+    "Nested objects exceed the flattening depth limit (100)",
+    "The model contains objects nested more than 100 levels deep. Reduce the nesting in SQL or use Leave as is / Stringify. This row was not submitted; earlier batches may already have been submitted. Preserve sync state.",
+  ],
+  [
     "Microsoft Ads developer token is missing",
     "Microsoft Ads requires a developer token. Set Developer Token on the destination, or configure MICROSOFT_ADS_DEVELOPER_TOKEN in the runner runtime Secret and deploy a syncctl version that forwards it. This worker submitted no Microsoft requests. Preserve existing sync state and retry after fixing the configuration.",
   ],

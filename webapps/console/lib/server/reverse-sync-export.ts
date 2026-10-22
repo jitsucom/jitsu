@@ -103,7 +103,7 @@ export async function readReverseSync(
   }
   // Credentials are intentionally revision-bound in this first runtime slice.
   // Changes require the existing controlled-reset workflow; never recover an old
-  // logical run against a different account/query/normalization configuration.
+  // logical run against a different account/query/mapping configuration.
   const {
     schedule: _schedule,
     timezone: _timezone,
@@ -112,8 +112,19 @@ export async function readReverseSync(
     name: _name,
     ...deliveryOptions
   } = options;
+  // leaveAsIs/stringify preserve SQL columns and checkpoint identity, so operators
+  // may switch between completed runs without resetting state. Pause/drain all
+  // dependent syncs before a direct DB edit; this hash no longer detects that switch.
+  // Flatten changes mapping field names and stays revision-bound.
+  const { nestedObjects, ...originalModel } = model;
   const revision = createHash("sha256")
-    .update(JSON.stringify({ ...runtime, options: deliveryOptions }))
+    .update(
+      JSON.stringify({
+        ...runtime,
+        model: nestedObjects === "flatten" ? model : originalModel,
+        options: deliveryOptions,
+      })
+    )
     .digest("hex");
   // A pause is not permission to start new work. Only retain configurations for
   // existing nonterminal delivery, and bind explicit refresh/OAuth to its task.

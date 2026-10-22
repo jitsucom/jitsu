@@ -33,6 +33,40 @@ both direct queries and cursors. Exact values matter for stable keys, checkpoint
 resumption, and destination payloads; JavaScript numbers and dates can lose
 precision or change timezone interpretation.
 
+The corresponding bigint/numeric/date/timestamp arrays also preserve exact text
+elements, nested array shape, and SQL nulls. This intentionally returns strings
+where the default driver would return rounded numbers or JavaScript Dates.
+
+Numeric delete flags are decoded by metadata: exact numeric zero/one (including
+scaled decimal strings) are accepted without rewriting source rows or checkpoints.
+Text flags remain strict; strings such as `"1.00"` are not numeric flags.
+
+Non-finite ClickHouse floats stay strings instead of silently becoming SQL null;
+keys/cursors/delete flags reject them.
+
+Typed JSON and structured payloads decode to native JavaScript values in preview
+and extraction: PostgreSQL JSON/JSONB (including SQL arrays of JSON), MySQL JSON,
+Redshift SUPER, Snowflake VARIANT/OBJECT/ARRAY/MAP, BigQuery JSON/STRUCT/RECORD, and
+ClickHouse JSONEachRow objects/arrays. JSON objects become objects, arrays become
+arrays, and JSON primitives remain primitives; JSON null and SQL NULL both become
+null. Ordinary text containing JSON is not parsed. Nested JSON numbers intentionally
+use normal JavaScript precision. Numbers outside JavaScript's finite range fail
+with a value-free error instead of silently becoming null; return those as JSON
+strings. Typed integers/decimals within BigQuery records
+and ClickHouse's quoted numeric output still retain their existing string decoding.
+Select precision-sensitive nested values as separate, explicitly typed scalar SQL
+columns (or JSON strings). Structured columns are not supported as keys/cursors;
+top-level scalar key/cursor decoding remains lossless where supported.
+
+ClickHouse DateTime/DateTime64 values use UTC ISO output to distinguish instants
+during DST fallback and preserve fractional precision. Do not change an existing
+model's key representation without migrating its acknowledged state. These reader
+changes do not automatically rewrite persisted state.
+
+PostgreSQL and ClickHouse initial extraction execution uses the two-hour overall
+deadline, not the 30-second preview/read limit. Metadata, previews, and subsequent
+stalled reads retain short limits, and cancellation still closes dedicated resources.
+
 Model saves validate every primary-key column's metadata, including full-query
 and lookback models: keys must decode as strings, numbers, or booleans. PostgreSQL
 uses a conservative scalar OID allowlist; ClickHouse accepts supported JSON scalar
@@ -119,16 +153,18 @@ read-only role. Parsing is defense in depth, not a substitute for restricted per
 
 The SDK streams one extraction result with backpressure, never re-runs OFFSET pages.
 NUMBER values are strings, timestamps retain nanoseconds with UTC session timezone, and
-structured values are returned as JSON text to avoid rounding nested numbers. Structured
+structured values decode to native JS objects/arrays/primitives. Structured
 keys/cursors require a SQL cast. Snowflake's parser-supported SELECT subset is accepted;
 there is no unparsed fallback for unsupported syntax.
 
 SQL NULLs remain null, including when numbers and dates are fetched as strings.
 OBJECT/ARRAY/MAP payloads are serialized in Snowflake with TO_JSON(TO_VARIANT(...))
-before SDK decoding (adding SDK string-fetch categories alone does not protect typed
-containers). Preview metadata keeps the original types, and extraction preserves its
+before SDK decoding, then parsed using the original type metadata; ordinary VARCHAR
+columns stay strings. Preview metadata keeps the original types, and extraction preserves its
 final key/cursor ordering. Numeric tombstones accept exact decimal/scientific zero/one
 without rounding or changing the original payload/checkpoint; TEXT flags stay strict.
+Every query enables STRICT_JSON_OUTPUT: missing/undefined array entries become null,
+and non-finite numbers become strings, making Snowflake's extended values JSON-compatible.
 
 Preview retains at most 100 rows / 2 MB (plus the truncation marker); the SDK can receive
 a larger individual row or transport chunk before the decoded-size guard rejects it.
@@ -168,6 +204,37 @@ is two hours. Restricted warehouse credentials remain required.
 read-only cursor, without creating tables. Mock tests are not a substitute for testing
 the real Redshift cursor protocol. Deploy the updated runner before console.
 
+## Model nested objects
+
+`nestedObjects` applies after warehouse decoding, identically in the console preview and
+runner, for every warehouse:
+
+- `leaveAsIs` (default, including existing models): retain native objects, arrays and primitives.
+- `flatten`: recursively expand object properties using underscores (`profile.address.city`
+  becomes `profile_address_city`). Arrays, nulls and empty objects remain intact. Conflicting
+  names fail explicitly instead of overwriting data. Flattening is limited to 100 levels.
+- `stringify`: serialize each object/array cell to a JSON string. Nulls, primitives and
+  ordinary text (even JSON-looking text) are unchanged. This does not recover numeric
+  precision already lost when decoding nested JSON numbers.
+
+Primary keys, cursor and delete columns still refer to the original SQL projection;
+project nested identifiers into scalar SQL columns when needed. Mapping-field discovery
+for transformed models samples up to 100 rows within the existing preview limits and
+returns only column names/types, not rows. Fields absent from that sample may be mapped
+manually or explicitly projected in SQL. Preview retains the original SQL metadata
+separately for the identity/control-column pickers.
+
+`leaveAsIs` and `stringify` share the original configuration revision: switching between
+them preserves checkpoints without a state reset. `flatten` remains revision-bound because
+it changes mapping field names. Existing UI/API model edit locks remain unchanged. Before
+a direct DB edit, pause and drain **all** dependent syncs, including pending delivery:
+the revision check cannot detect a leaveAsIs/stringify switch during an unfinished run.
+Incremental syncs apply the representation to subsequently selected rows only; they do
+not automatically resend history. Full-query syncs may detect changed payloads and resend
+rows. This does not migrate test runs created by earlier PR versions that included
+`stringify` in the revision. Deploy the updated runner before the console exposes the new
+setting; old runners ignore unknown model fields.
+
 ## MySQL
 
 Reuse a MySQL destination with host, port (3306), database, username and password.
@@ -185,8 +252,8 @@ because the driver does not pass IP hosts to TLS identity verification correctly
 Other additional connection parameters are not forwarded. Custom CA/client
 certificates, IAM and network provisioning are follow-ups.
 
-BIGINT, DECIMAL and date/time values retain exact text; JSON is returned as text
-to avoid rounding nested numbers. Checkpoints use typed, server-prepared bindings,
+BIGINT, DECIMAL and date/time values retain exact text; JSON decodes to native JS
+values with normal nested numeric precision. Checkpoints use typed, server-prepared bindings,
 including repeated parameters in composite-key comparisons. FLOAT/DOUBLE, binary,
 JSON and unknown key types require an explicit SQL cast. SELECT INTO, locking reads,
 multiple statements and executable version comments are rejected. Use a read-only

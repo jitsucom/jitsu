@@ -68,7 +68,7 @@ describe("warehouse-owned SQL", () => {
     );
     expect(result.queryParams).toEqual({ p0: "2026-01-01 00:00:00.123456" });
     expect(result.values).toEqual([]);
-    expect(result.query).toContain("`changed` >= subtractSeconds({p0: DateTime64(6, 'UTC')}, 60)");
+    expect(result.query).toContain("`changed` >= subtractSeconds(toDateTime64({p0: String}, 6, 'UTC'), 60)");
   });
 
   it("rejects unsafe ClickHouse checkpoint metadata before inserting it into SQL", () => {
@@ -92,6 +92,25 @@ describe("warehouse-owned SQL", () => {
 });
 
 describe("ClickHouse checkpoint compatibility", () => {
+  it("binds ISO DateTime64 cursors and keys as exact UTC text, independent of the source timezone", () => {
+    const input = ModelDefinition.parse({
+      warehouseId: "wh",
+      query: "SELECT id, changed FROM t",
+      primaryKey: ["id"],
+      cursor: { column: "changed", type: "timestamp" },
+    });
+    const value = "1969-12-31T23:59:59.999999999Z";
+    const result = clickhouseSql.compileModel(
+      input,
+      [
+        { name: "id", type: "DateTime64(9, 'America/New_York')" },
+        { name: "changed", type: "Nullable(DateTime64(9, 'America/New_York'))" },
+      ],
+      { value, primaryKeyValues: [value] }
+    );
+    expect(result.queryParams).toEqual({ p0: "1969-12-31 23:59:59.999999999", p1: "1969-12-31 23:59:59.999999999" });
+    for (const index of [0, 1]) expect(result.query).toContain(`toDateTime64({p${index}: String}, 9, 'UTC')`);
+  });
   it.each(["DateTime('Etc/GMT+3')", "DateTime64(6, 'Etc/GMT+3')"])("validates and binds numeric timezone %s", type => {
     const input = ModelDefinition.parse({
       warehouseId: "wh",
@@ -108,8 +127,13 @@ describe("ClickHouse checkpoint compatibility", () => {
       value: "2026-01-01 00:00:00",
       primaryKeyValues: ["2026-01-01 00:00:00"],
     });
-    expect(result.query).toContain("{p0: " + type + "}");
-    expect(result.query).toContain("{p1: " + type + "}");
+    for (const index of [0, 1]) {
+      expect(result.query).toContain(
+        type.startsWith("DateTime64")
+          ? `toDateTime64({p${index}: String}, 6, 'Etc/GMT+3')`
+          : `parseDateTimeBestEffort({p${index}: String}, 'Etc/GMT+3')`
+      );
+    }
   });
   it.each(["DateTime('Etc/GMT+3'); DROP TABLE t", "DateTime64(6, 'Etc/GMT+3'} )", "DateTime64(6, 'Etc/GMT+3\\')"])(
     "still rejects unsafe timezone metadata %s",
@@ -307,6 +331,23 @@ describe.each([
 });
 
 describe("PostgreSQL lossless text decoding", () => {
+  it.each([114, 3802])("keeps JSON wire text for OID %s until safe reader-level decoding", oid => {
+    for (const value of [
+      '{"id":9007199254740993,"amount":1.234567890123456789}',
+      "[9007199254740993]",
+      "null",
+      "true",
+      '"hello"',
+    ])
+      expect(losslessTypes.getTypeParser(oid, "text")(value)).toBe(value);
+  });
+  it.each([199, 3807])("keeps JSON text within SQL arrays for OID %s until reader-level decoding", oid => {
+    expect(losslessTypes.getTypeParser(oid, "text")('{"[9007199254740993]","null",NULL}')).toEqual([
+      "[9007199254740993]",
+      "null",
+      null,
+    ]);
+  });
   it.each([
     [20, "9007199254740993"],
     [1700, "12345678901234567890.12345678901234567890"],
@@ -319,5 +360,17 @@ describe("PostgreSQL lossless text decoding", () => {
   it("keeps standard decoding for other scalar types", () => {
     expect(losslessTypes.getTypeParser(23, "text")("42")).toBe(42);
     expect(losslessTypes.getTypeParser(16, "text")("t")).toBe(true);
+  });
+  it.each([
+    [1016, "9007199254740993"],
+    [1231, "12345678901234567890.123456789"],
+    [1182, "2026-01-01"],
+    [1115, "2026-01-01 00:00:00.123456"],
+    [1185, "2026-01-01 00:00:00.123456+00"],
+  ] as const)("preserves exact nested array elements and nulls for OID %i", (oid, value) => {
+    expect(losslessTypes.getTypeParser(oid, "text")(`{{"${value}",NULL},{NULL,"${value}"}}`)).toEqual([
+      [value, null],
+      [null, value],
+    ]);
   });
 });

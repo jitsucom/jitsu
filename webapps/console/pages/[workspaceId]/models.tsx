@@ -159,9 +159,11 @@ function ModelEditor() {
               query: "SELECT id, email FROM users",
               primaryKey: [],
               pageSize: 1000,
+              nestedObjects: "leaveAsIs",
             }
         : model
     );
+    form.setFieldValue("nestedObjects", form.getFieldValue("nestedObjects") ?? "leaveAsIs");
   };
   const close = () => {
     previewVersion.current++;
@@ -173,14 +175,14 @@ function ModelEditor() {
   };
   const doPreview = async () => {
     if (!enabled || !role.editEntities || maintenance || saving) return;
-    const values = await form.validateFields(["warehouseId", "query"]);
+    const values = await form.validateFields(["warehouseId", "query", "nestedObjects"]);
     const version = ++previewVersion.current;
     setPreviewing(true);
     setError(undefined);
     try {
       const result = await rpc(`/api/${workspace.id}/models/preview`, {
         method: "POST",
-        body: { warehouseId: values.warehouseId, query: values.query },
+        body: { warehouseId: values.warehouseId, query: values.query, nestedObjects: values.nestedObjects },
       });
       if (version === previewVersion.current) {
         setPreview(PreviewResult.parse(result));
@@ -227,9 +229,10 @@ function ModelEditor() {
       setSaving(false);
     }
   };
-  const columns = preview?.columns.map(c => ({ label: `${c.name} (${c.type})`, value: c.name })) ?? [];
+  const sourceColumns = preview?.sourceColumns ?? preview?.columns;
+  const columns = sourceColumns?.map(c => ({ label: `${c.name} (${c.type})`, value: c.name })) ?? [];
   const deleteColumns =
-    preview?.columns.filter(c => c.supportsDelete).map(c => ({ label: `${c.name} (${c.type})`, value: c.name })) ?? [];
+    sourceColumns?.filter(c => c.supportsDelete).map(c => ({ label: `${c.name} (${c.type})`, value: c.name })) ?? [];
   return (
     <div className="w-full max-w-6xl px-4 md:px-8 py-6 mx-auto min-w-0">
       {router.query.id && !editing && <Alert type="error" title="Model not found" />}
@@ -264,7 +267,7 @@ function ModelEditor() {
             disabled={readonly || saving}
             onValuesChange={changed => {
               setDirty(true);
-              if ("query" in changed || "warehouseId" in changed) {
+              if ("query" in changed || "warehouseId" in changed || "nestedObjects" in changed) {
                 previewVersion.current++;
                 setPreview(undefined);
                 setPreviewing(false);
@@ -296,6 +299,19 @@ function ModelEditor() {
                   />
                 </Form.Item>
               </div>
+            </Form.Item>
+            <Form.Item
+              name="nestedObjects"
+              label="Nested objects"
+              extra="Leave as is keeps objects and arrays. Flatten expands objects into underscore-separated fields (profile_email); arrays stay intact. Stringify converts objects and arrays to JSON strings. Flattened mapping fields are sampled from up to 100 rows. Keys and cursors must be SQL result columns."
+            >
+              <Select
+                options={[
+                  { value: "leaveAsIs", label: "Leave as is" },
+                  { value: "flatten", label: "Flatten" },
+                  { value: "stringify", label: "Stringify" },
+                ]}
+              />
             </Form.Item>
             <Button
               loading={previewing}
