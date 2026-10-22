@@ -46,6 +46,7 @@ export function ObjectMapping({
   return (
     <div className="space-y-4">
       <Radio.Group
+        className="flex flex-col gap-3 w-full"
         aria-label={`${field.name} mapping mode`}
         value={compose ? "compose" : "column"}
         disabled={disabled}
@@ -57,20 +58,23 @@ export function ObjectMapping({
             update({ objectMappings: Object.keys(objectMappings).length ? objectMappings : undefined });
           }
         }}
-        options={[
-          { label: "Model column", value: "column" },
-          { label: "Compose object", value: "compose" },
-        ]}
-      />
-      {!compose ? (
-        selector(field.name ?? field.field, options.mapping[field.field], value => {
-          const mapping = { ...options.mapping };
-          if (value) mapping[field.field] = value;
-          else delete mapping[field.field];
-          update({ mapping });
-        })
-      ) : (
-        <>
+      >
+        <div className="flex items-center gap-2">
+          <Radio value="column" className="shrink-0">
+            Model column
+          </Radio>
+          {!compose &&
+            selector(field.name ?? field.field, options.mapping[field.field], value => {
+              const mapping = { ...options.mapping };
+              if (value) mapping[field.field] = value;
+              else delete mapping[field.field];
+              update({ mapping });
+            })}
+        </div>
+        <Radio value="compose">Compose object</Radio>
+      </Radio.Group>
+      {compose && (
+        <div className="ml-6 space-y-4">
           <div className="text-sm text-textSecondary">
             Map each property to a model column. Values keep their model types; nulls stay null. Property names are
             literal, not dotted paths. Switching modes replaces this mapping.
@@ -136,7 +140,7 @@ export function ObjectMapping({
               No properties mapped yet. An empty optional object is not sent.
             </div>
           )}
-        </>
+        </div>
       )}
     </div>
   );

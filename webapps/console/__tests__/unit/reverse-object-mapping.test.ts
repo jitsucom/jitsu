@@ -54,6 +54,9 @@ const settings = () => JSON.parse(screen.getByTestId("settings").textContent!);
 it("switches mutually exclusive modes, adds/removes properties and preserves unrelated mappings", () => {
   render(React.createElement(Editor));
   expect(screen.getByLabelText("Custom variables").getAttribute("value")).toBe("json");
+  fireEvent.change(screen.getByLabelText("Custom variables"), { target: { value: "other_json" } });
+  expect(settings().mapping.customVariables).toBe("other_json");
+  expect((screen.getByLabelText("Model column") as HTMLInputElement).checked).toBe(true);
   fireEvent.click(screen.getByLabelText("Compose object"));
   expect(settings().mapping).toEqual({ email: "email" });
   fireEvent.change(screen.getByLabelText("Custom variables new property name"), { target: { value: "tier" } });
