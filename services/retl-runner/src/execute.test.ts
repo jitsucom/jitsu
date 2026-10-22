@@ -286,6 +286,152 @@ describe("OpenAI Ads Reverse ETL runner integration", () => {
   });
 });
 
+describe("OpenAI Ads audience runner integration", () => {
+  const reply = (body: unknown, status = 200) =>
+    new Response(JSON.stringify(body), { status }) as Awaited<ReturnType<typeof globalThis.fetch>>;
+  const audienceFixture = () => {
+    const f = fixture();
+    f.input.config.destination = { destinationType: "openai-ads", adsApiKey: "ads-key-secret" };
+    f.input.config.model.cursor = undefined;
+    f.input.config.options = {
+      ...f.input.config.options,
+      stream: "audience",
+      mode: "mirror",
+      mapping: { email: "id" },
+      streamOptions: { audience: { kind: "managed", name: "Test audience" }, exclusiveManagementConfirmed: true },
+    };
+    f.input.adapters = createAdapterRegistry(vi.fn());
+    return f;
+  };
+  /** OpenAI's audience API, answering at once: ready on create, operations succeeded on the first poll. */
+  const openAi = (options: { loseAddResponses?: number; failOperations?: boolean } = {}) => {
+    const audienceId = `caud_${"0".repeat(31)}1`;
+    let description = "";
+    let lose = options.loseAddResponses ?? 0;
+    const operations = new Map<string, { id: string; action: string; identifiers: any[] }>();
+    const byKey = new Map<string, string>();
+    const requests: { method: string; path: string; key?: string }[] = [];
+    const fetch = vi.spyOn(globalThis, "fetch").mockImplementation(async (url, init) => {
+      const path = String(url).replace("https://api.ads.openai.com/v1", "");
+      const headers = init!.headers as Record<string, string>;
+      requests.push({ method: init!.method!, path, key: headers["Idempotency-Key"] });
+      expect(headers.Authorization).toBe("Bearer ads-key-secret");
+      if (path === "/ad_account") return reply({ id: "adacct_runner" });
+      if (path === "/custom_audiences" && init!.method === "POST") {
+        description = JSON.parse(String(init!.body)).description;
+        return reply({ id: audienceId, status: "ready", description });
+      }
+      if (path === `/custom_audiences/${audienceId}`) return reply({ id: audienceId, status: "ready", description });
+      const submit = path.match(new RegExp(`^/custom_audiences/${audienceId}/(add|remove)$`));
+      if (submit) {
+        const key = headers["Idempotency-Key"];
+        let id = byKey.get(key);
+        if (!id) {
+          id = `caudop_${operations.size + 1}`;
+          byKey.set(key, id);
+          operations.set(id, {
+            id,
+            action: submit[1],
+            identifiers: JSON.parse(String(init!.body)).identifiers,
+          });
+        }
+        if (lose > 0) {
+          lose--;
+          throw new Error("Response lost after the request was applied");
+        }
+        return reply({ operation_id: id, custom_audience_id: audienceId, operation: submit[1], status: "processing" });
+      }
+      const poll = path.match(new RegExp(`^/custom_audiences/${audienceId}/operations/([^/]+)$`));
+      if (poll)
+        return reply({
+          operation_id: poll[1],
+          custom_audience_id: audienceId,
+          operation: operations.get(poll[1])?.action,
+          status: options.failOperations ? "failed" : "succeeded",
+          ...(options.failOperations
+            ? { failure_reason: { code: "audience_too_small", message: "private detail" } }
+            : {}),
+        });
+      throw new Error(`Unexpected OpenAI request ${init!.method} ${path}`);
+    });
+    return { fetch, requests, operations };
+  };
+  const sha = (value: string) => createHash("sha256").update(value).digest("hex");
+  const emails = (identifiers: any[]) => identifiers.map(i => i.identifier);
+
+  it("creates the audience once and mirrors snapshots, adding new members before removing missing ones", async () => {
+    const f = audienceFixture();
+    const wire = openAi();
+    try {
+      f.setRows([{ id: "a@example.com" }, { id: "b@example.com" }]);
+      expect(await execute(f.input)).toBe("COMPLETE");
+      f.input.taskId = "openai-audience-second";
+      f.setRows([{ id: "b@example.com" }, { id: "c@example.com" }]);
+      expect(await execute(f.input)).toBe("COMPLETE");
+      const sent = [...wire.operations.values()];
+      expect(sent.map(o => o.action)).toEqual(["add", "add", "remove"]);
+      expect(emails(sent[0].identifiers).sort()).toEqual([sha("a@example.com"), sha("b@example.com")].sort());
+      expect(emails(sent[1].identifiers)).toEqual([sha("c@example.com")]);
+      expect(emails(sent[2].identifiers)).toEqual([sha("a@example.com")]);
+      expect(wire.requests.filter(r => r.method === "POST" && r.path === "/custom_audiences")).toHaveLength(1);
+      f.input.taskId = "openai-audience-empty";
+      f.setRows([]);
+      expect(await execute(f.input)).toBe("COMPLETE");
+      expect([...wire.operations.values()].at(-1)).toMatchObject({ action: "remove" });
+      expect(emails([...wire.operations.values()].at(-1)!.identifiers).sort()).toEqual(
+        [sha("b@example.com"), sha("c@example.com")].sort()
+      );
+      expect((await durable()).members).toHaveLength(0);
+      const logs = (await taskLogs("task")) + (await taskLogs("openai-audience-second"));
+      expect(logs).not.toContain("ads-key-secret");
+      expect(logs).not.toContain("@example.com");
+      expect(JSON.stringify(wire.requests)).not.toContain("@example.com");
+    } finally {
+      wire.fetch.mockRestore();
+    }
+  });
+  it("recovers a lost submit response by replaying the same key, applying the batch once and not reading the source again", async () => {
+    const f = audienceFixture();
+    const wire = openAi({ loseAddResponses: 1 });
+    try {
+      f.setRows([{ id: "a@example.com" }, { id: "b@example.com" }]);
+      expect(await execute(f.input)).toBe("FAILED");
+      const stopped = String((await task()).error);
+      expect(stopped).toContain("Snapshot mirror stopped during delivery");
+      expect(stopped).toContain("do not reset sync state");
+      f.input.taskId = "openai-audience-resume";
+      f.calls.length = 0;
+      expect(await execute(f.input)).toBe("COMPLETE");
+      expect(f.calls).not.toContain("reader");
+      const adds = wire.requests.filter(r => r.path.endsWith("/add"));
+      expect(adds).toHaveLength(2);
+      expect(adds[1].key).toBe(adds[0].key);
+      expect(wire.operations.size).toBe(1);
+    } finally {
+      wire.fetch.mockRestore();
+    }
+  });
+  it("fails the run when OpenAI reports an operation failed, with a controlled code and no provider text", async () => {
+    const f = audienceFixture();
+    const wire = openAi({ failOperations: true });
+    try {
+      f.setRows([{ id: "a@example.com" }]);
+      expect(await execute(f.input)).toBe("FAILED");
+      const error = String((await task()).error);
+      const logs = await taskLogs("task");
+      expect(error).toContain("OPENAI_AUDIENCE_TOO_SMALL");
+      for (const text of [error, logs]) {
+        expect(text).not.toContain("private detail");
+        expect(text).not.toContain("@example.com");
+        expect(text).not.toContain("ads-key-secret");
+      }
+      expect(logs).toContain("1 confirmed submitted in 1 batches; 0 accepted, 0 pending processing, 1 rejected");
+    } finally {
+      wire.fetch.mockRestore();
+    }
+  });
+});
+
 describe("runner-owned Google audience provisioning", () => {
   it.each(["invalid-row", "duplicate-key", "source-failure", "identifier-type"])(
     "validates the whole first snapshot before creating an audience: %s",

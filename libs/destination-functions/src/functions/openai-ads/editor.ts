@@ -4,9 +4,10 @@ import type {
   ReverseEditorOptions,
   ReverseStreamEditor,
 } from "@jitsu/protocols/reverse-etl-editor";
-import { alternative, settingKey, withFieldRules } from "../../reverse-etl/editor";
+import { alternative, mappingKey, settingKey, withFieldRules } from "../../reverse-etl/editor";
 import {
   OpenAiActionSource,
+  OpenAiAudienceOptions,
   OpenAiConversionOptions,
   OpenAiEventType,
   openAiAdsDestinationId,
@@ -145,8 +146,125 @@ export const openAiConversionEditor: ReverseStreamEditor = {
   },
 };
 
+export const openAiAudienceEditor: ReverseStreamEditor = {
+  id: "audience",
+  label: "Custom Audiences",
+  settings: OpenAiAudienceOptions,
+  alternatives(): ReverseEditorAlternative[] {
+    return [
+      {
+        key: "member-identifier",
+        title: "Member identifier",
+        description:
+          "Map at least one. Jitsu sends every identifier it has for a member and identifies the member by the first available of email, phone and Android advertising ID.",
+        options: [
+          { label: "Email", fields: [mappingKey("email")] },
+          { label: "Phone", fields: [mappingKey("phone")] },
+          { label: "Android advertising ID", fields: [mappingKey("gaid")] },
+        ],
+      },
+    ];
+  },
+  defaults: () => ({
+    mode: "mirror",
+    mapping: {},
+    streamOptions: { audience: { kind: "managed", name: "" }, exclusiveManagementConfirmed: false },
+  }),
+  fields(options) {
+    const settings = options.streamOptions;
+    const change = (patch: Record<string, any>) => ({ streamOptions: { ...settings, ...patch } });
+    const audience = settings.audience ?? { kind: "managed", name: "" };
+    const managed = audience.kind === "managed";
+    const items: ReverseEditorField[] = [
+      {
+        editor: "select",
+        name: "Audience",
+        value: audience.kind,
+        documentation:
+          (managed
+            ? "Mirror: adds new members first, then removes tracked members that are no longer in the model."
+            : "Additions and explicit removals via a model delete column. Existing members are not imported or cleared; mirroring is not supported for an existing audience.") +
+          " Empty and small audiences can only be used to exclude people; inclusion and bid adjustments need roughly 25,000 matched users. Custom audiences are not available for campaigns targeting the EEA or Switzerland.",
+        choices: [
+          { value: "managed", label: "Create a new audience on first run" },
+          { value: "existing", label: "Use an existing audience" },
+        ],
+        change: kind => ({
+          mode: kind === "managed" ? "mirror" : "upsert",
+          streamOptions: {
+            ...settings,
+            audience: kind === "managed" ? { kind, name: "" } : { kind, audienceId: "" },
+            exclusiveManagementConfirmed: false,
+          },
+        }),
+      },
+      {
+        editor: "text",
+        name: managed ? "Audience name" : "Audience ID",
+        value: managed ? audience.name ?? "" : audience.audienceId ?? "",
+        documentation: managed
+          ? "At least three characters. Created by the runner on the first run, not when saving this form."
+          : "The ID of a customer-list audience in this ad account, for example caud_... (Ads Manager, Audiences).",
+        change: value => change({ audience: { ...audience, [managed ? "name" : "audienceId"]: value } }),
+      },
+      ...(managed
+        ? [
+            {
+              editor: "notice" as const,
+              key: "audience-mode",
+              presentation: "warning" as const,
+              showIcon: true,
+              title:
+                "Tracked members missing from the model are removed. An empty model clears tracked membership. Changing a member's email can remove them, because OpenAI matches people, not identifiers.",
+            },
+          ]
+        : []),
+      ...(
+        [
+          ["email", "hashedEmail", "Email"],
+          ["phone", "hashedPhone", "Phone (with country code)"],
+        ] as const
+      ).map(
+        ([raw, hashed, name]): ReverseEditorField => ({
+          editor: "identifier",
+          raw,
+          hashed,
+          name,
+          documentation:
+            raw === "phone"
+              ? "Supply raw values or SHA-256 hashes, not both. A raw phone needs its country code; the hash is of the E.164 number including the +."
+              : "Supply raw values or SHA-256 hashes, not both. Raw values are trimmed, lowercased and hashed by Jitsu; dots and plus tags are kept. One value per member.",
+        })
+      ),
+      ...mappings([
+        [
+          "gaid",
+          "Android advertising ID",
+          "A raw, hyphenated, non-zero Google Advertising ID. Do not hash it; OpenAI hashes it. IDFA is not supported.",
+        ],
+      ]),
+    ];
+    if (managed)
+      items.push({
+        editor: "checkbox",
+        name: "Exclusive management",
+        value: settings.exclusiveManagementConfirmed === true,
+        label: "Jitsu may remove missing members. No other user or tool will change this audience.",
+        change: exclusiveManagementConfirmed => change({ exclusiveManagementConfirmed }),
+      });
+    return withFieldRules(
+      items,
+      Object.fromEntries(
+        ["Audience", managed ? "Audience name" : "Audience ID", ...(managed ? ["Exclusive management"] : [])].map(
+          name => [`setting:${name}`, { required: true }]
+        )
+      )
+    );
+  },
+};
+
 export const openAiAdsMetadata = {
   id: openAiAdsDestinationId,
   displayName: openAiAdsDestinationTitle,
-  streams: [openAiConversionEditor],
+  streams: [openAiConversionEditor, openAiAudienceEditor],
 };

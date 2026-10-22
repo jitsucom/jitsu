@@ -1,5 +1,8 @@
 import { metaConversionValidationErrors } from "../functions/facebook/validation-errors";
-import { openAiConversionValidationErrors } from "../functions/openai-ads/validation-errors";
+import {
+  openAiAudienceValidationErrors,
+  openAiConversionValidationErrors,
+} from "../functions/openai-ads/validation-errors";
 
 /** Terminal uncertainty: retain receipts, but do not keep polling a final, ambiguous result. */
 export class ReverseEtlManualReconciliationError extends Error {
@@ -86,6 +89,41 @@ const failures = new Map<string, string>([
   [
     "OpenAI delivery results require manual reconciliation; no replay",
     "OpenAI did not confirm delivery of a conversion batch. Some events may have been accepted. Contact your Jitsu administrator with this run ID; saved requests are retained and will not be sent again automatically. Do not reset sync state.",
+  ],
+  ...Object.values(openAiAudienceValidationErrors).map(detail => {
+    const reason = `Invalid OpenAI audience member: ${detail}`;
+    return [reason, `${reason} This row was not submitted. Earlier batches may already have been submitted.`] as [
+      string,
+      string
+    ];
+  }),
+  [
+    "Add the Conversions API key to this OpenAI Ads destination.",
+    "This sync sends conversions, which needs the Conversions API key. Add it to the OpenAI Ads destination, then run the sync again. Nothing was sent.",
+  ],
+  [
+    "Add the Ads API key to this OpenAI Ads destination.",
+    "This sync manages an audience, which needs the Ads API key. Add it to the OpenAI Ads destination, then run the sync again. Nothing was sent.",
+  ],
+  [
+    "OpenAI audience creation is unconfirmed; retry discovery without resetting state",
+    "OpenAI audience creation is not confirmed. Run this same sync again to find the original audience. Do not reset state or create another sync to retry it.",
+  ],
+  [
+    "OpenAI audience settings differ from saved provisioning state; do not reset",
+    "The audience settings no longer match the saved creation request. Restore the original settings or contact your Jitsu administrator; do not reset state.",
+  ],
+  [
+    "OpenAI audience does not match the saved account or ownership marker",
+    "The OpenAI audience, or the ad account behind the Ads API key, is not the one this sync created. Check which account the key belongs to and that the audience still exists. Nothing was sent; do not reset state.",
+  ],
+  [
+    "The OpenAI audience cannot be used; check it in Ads Manager",
+    "The OpenAI audience failed or was archived, so nothing was sent. Check it in Ads Manager: an archived audience cannot be restored.",
+  ],
+  [
+    "OpenAI audience did not reach a final state in time",
+    "OpenAI is still preparing the audience. Run this sync again in a few minutes. Nothing was sent.",
   ],
   [
     "Meta delivery results require manual reconciliation; no replay",
