@@ -1,7 +1,8 @@
 # OpenAI Ads Reverse ETL implementation contract
 
 Verified against OpenAI's documentation and OpenAPI spec and Hightouch's documentation on 2026-10-21.
-**Not verified against a live OpenAI account**: no request has been sent to a real pixel. See "Unconfirmed".
+Checked against a live OpenAI account on 2026-10-22 with `validate_only: true` requests only (success, 400, 401, 403, 422).
+**No event has been written to a real pixel**; delivery, dedup and 429/5xx behavior are unconfirmed. See "Unconfirmed".
 
 Destination ID `openai-ads`, registered as `builtin.reverse.openai-ads`. Reverse ETL only: there is no OpenAI event
 destination. This contract covers the `conversions` stream. An `audience` stream (Custom Audiences) is planned
@@ -60,9 +61,10 @@ refused rather than interpreted.
 
 Accepted means OpenAI answered 2xx. It does **not** mean the events matched a person or were attributed to an ad.
 
-- A definite refusal (HTTP 400, 401, 403, 404, 413 or 422 with OpenAI's error body) rejects the whole batch. OpenAI
-  does not say which event failed. The run stops; shown code is `OPENAI_<error code>` or `http_<status>`; provider
-  messages are never retained.
+- A definite refusal (HTTP 400, 401, 403, 404, 413 or 422 with OpenAI's error envelope) rejects the whole batch. The run
+  stops; shown code is `OPENAI_<error code>` or `http_<status>`. OpenAI's `errors[]` names each failing event and field
+  (for example `events[0].type`): only those enum codes and field paths are kept as rejection details, up to 3, never
+  provider messages. A malformed `errors[]` does not downgrade the refusal.
 - Anything else (429, 5xx, a timeout, a lost connection, an unreadable error body) leaves delivery unproven. The run
   stops and the batch needs manual reconciliation. There is no automatic retry or replay. OpenAI documents "reuse the
   same ID when retrying" but not how long it remembers an ID, so replay is only safe inside an unknown window.
@@ -78,10 +80,11 @@ instead of letting the batch fail.
 
 ## Unconfirmed
 
-- The success response body and the 400/429 response shapes. The documentation does not show them; only OpenAI's
-  generic 401 error body was observed. 2xx is treated as accepted without parsing the body.
+- The 429 and 5xx response shapes. Recorded with `validate_only` on 2026-10-22: success `{"accepted_events": N}`; 400
+  `invalid_event` and 422 `event_timestamp_too_old` with an `errors[]` list; 403 `unknown pid` and 401 `Unauthorized`
+  with `code: null`. 2xx is still accepted without parsing the body.
 - How long OpenAI remembers an event ID.
-- Whether pixel and API-key creation needs the account to finish setup (the available test account could not).
+- Writes: no event has been stored by this code against a real pixel, so delivery and dedup behavior are unobserved.
 - OpenAI's logo and brand rules: the console icon is a neutral placeholder.
 
 ## References

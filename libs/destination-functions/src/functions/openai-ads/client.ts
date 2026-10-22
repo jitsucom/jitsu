@@ -38,7 +38,13 @@ export class OpenAiTransportError extends Error {
 
 /** Never retain provider messages, request URLs or keys. Only the status and the short error enum survive. */
 export class OpenAiApiError extends Error {
-  constructor(readonly status: number, readonly code?: string, readonly param?: string) {
+  constructor(
+    readonly status: number,
+    readonly code?: string,
+    readonly param?: string,
+    /** Per-event errors OpenAI reports (`errors[]`): enum code and field path only, never the message. */
+    readonly details: { code: string; param?: string }[] = []
+  ) {
     super(`OpenAI API HTTP ${status}${code ? ` (${code})` : ""}`);
   }
   /** A definite refusal of the request. Everything else, including 429 and 5xx, leaves delivery unproven. */
@@ -51,6 +57,11 @@ const errorEnvelope = z.object({
   error: z.object({
     code: z.string().max(64).nullish(),
     param: z.string().max(256).nullish(),
+    // Lenient on purpose: a malformed detail list must not turn a definite refusal into an unproven delivery.
+    errors: z
+      .array(z.object({ code: z.string().max(64), param: z.string().max(256).nullish() }))
+      .max(100)
+      .catch([]),
   }),
 });
 
@@ -90,7 +101,8 @@ export async function openAiSendEvents(
   const error = new OpenAiApiError(
     response.status,
     parsed?.success ? parsed.data.error.code ?? undefined : undefined,
-    parsed?.success ? parsed.data.error.param ?? undefined : undefined
+    parsed?.success ? parsed.data.error.param ?? undefined : undefined,
+    parsed?.success ? parsed.data.error.errors.map(e => ({ code: e.code, param: e.param ?? undefined })) : undefined
   );
   error.hasEnvelope = !!parsed?.success;
   throw error;

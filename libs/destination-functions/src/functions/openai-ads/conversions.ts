@@ -206,7 +206,7 @@ export function createOpenAiConversions(
                 error.rejected ? "rejected" : "unconfirmed"
               }. No automatic write retry.`
             );
-            // OpenAI fails the whole batch if any event is invalid, and does not say which one.
+            // OpenAI fails the whole batch if any event is invalid; its errors[] names the event and field (kept as details).
             if (error.rejected) return rejected(ctx, batch, error);
             throw new OpenAiUncertainDelivery();
           }

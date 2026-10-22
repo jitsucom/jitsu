@@ -392,6 +392,100 @@ describe("OpenAI conversions delivery", () => {
     expect(JSON.stringify(log.mock.calls)).not.toContain("key-secret-123");
     expect(await writer.finish()).toEqual({ delivery: "accepted" });
   });
+  // Response bodies below were recorded from OpenAI's Conversions API with validate_only requests on 22 Oct 2026.
+  it.each([
+    [
+      "invalid event type",
+      400,
+      {
+        error: {
+          message: "Invalid event at events[0]. See errors for details.",
+          type: "invalid_request_error",
+          param: "events[0]",
+          code: "invalid_event",
+          errors: [
+            {
+              message: "events[0].type must be a supported event type.",
+              param: "events[0].type",
+              code: "unknown_event_type",
+            },
+          ],
+        },
+      },
+      "OPENAI_INVALID_EVENT",
+      [{ reason: "UNKNOWN_EVENT_TYPE", field: "events[0].type" }],
+    ],
+    [
+      "stale timestamp",
+      422,
+      {
+        error: {
+          message: "event_timestamp_ms must be within the last 7 days.",
+          type: "invalid_request_error",
+          param: "events[0].timestamp_ms",
+          code: "event_timestamp_too_old",
+          errors: [
+            {
+              message: "event_timestamp_ms must be within the last 7 days.",
+              param: "events[0].timestamp_ms",
+              code: "event_timestamp_too_old",
+            },
+          ],
+        },
+      },
+      "OPENAI_EVENT_TIMESTAMP_TOO_OLD",
+      [{ reason: "EVENT_TIMESTAMP_TOO_OLD", field: "events[0].timestamp_ms" }],
+    ],
+    [
+      "unknown pixel",
+      403,
+      { error: { message: "403: unknown pid", type: "server_error", param: null, code: null } },
+      "http_403",
+      undefined,
+    ],
+    [
+      "bad key",
+      401,
+      { error: { message: "Unauthorized", type: "invalid_request_error", param: null, code: null } },
+      "http_401",
+      undefined,
+    ],
+  ])("maps OpenAI's recorded %s response to a definite rejection", async (_name, status, body, code, details) => {
+    const { context } = fixture(async () => response(body, status));
+    const { adapter, writer } = await context();
+    const result = await writer.upsert(batch(adapter));
+    const first = result.outcomes[0] as any;
+    expect(result.outcomes.every(o => o.status === "rejected" && (o as any).code === code)).toBe(true);
+    expect(first.details).toEqual(details);
+    expect(result.submitted).toBe(true);
+    expect(JSON.stringify(result)).not.toContain("unknown pid");
+    expect(JSON.stringify(result)).not.toContain("must be");
+  });
+  it("still treats a refusal as definite when OpenAI's per-event error list is malformed", async () => {
+    const { context } = fixture(async () =>
+      response(
+        {
+          error: {
+            message: "x",
+            type: "invalid_request_error",
+            param: "events[0]",
+            code: "invalid_event",
+            errors: "nope",
+          },
+        },
+        400
+      )
+    );
+    const { adapter, writer } = await context();
+    const result = await writer.upsert(batch(adapter));
+    expect(result.outcomes.every(o => o.status === "rejected")).toBe(true);
+  });
+  it("accepts OpenAI's recorded success body", async () => {
+    const { context } = fixture(async () => response({ accepted_events: 2 }));
+    const { adapter, writer } = await context();
+    const result = await writer.upsert(batch(adapter));
+    expect(result.outcomes.map(o => o.status)).toEqual(["accepted", "accepted"]);
+  });
   it("rejects the whole batch when OpenAI refuses it, with a code the core may show", async () => {
     const { context } = fixture(async () =>
       response(

@@ -48,7 +48,11 @@ function rejectionCode(error: OpenAiApiError) {
 export function rejected(ctx: Context, batch: WriteBatch<JsonObject>, error: OpenAiApiError): BatchResult {
   const code = rejectionCode(error);
   const details = safeRejectionDetails(
-    error.code && error.param ? [{ reason: code.toUpperCase(), field: error.param }] : []
+    error.details.length
+      ? error.details.map(d => ({ reason: d.code.toUpperCase(), ...(d.param ? { field: d.param } : {}) }))
+      : error.code && error.param
+      ? [{ reason: code.toUpperCase(), field: error.param }]
+      : []
   );
   return {
     ...accepted(ctx, batch),
