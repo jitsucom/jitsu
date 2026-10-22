@@ -3,11 +3,19 @@ import { Button, Input, Radio } from "antd";
 import type { ReverseEditorField, ReverseEditorOptions, ReverseEditorPatch } from "@jitsu/protocols/reverse-etl-editor";
 import styles from "../FieldListEditorLayout/FieldListEditorLayout.module.css";
 
-function MappingRow({ label, children }: { label: React.ReactNode; children?: React.ReactNode }) {
+function MappingRow({
+  label,
+  children,
+  compact = false,
+}: {
+  label: React.ReactNode;
+  children?: React.ReactNode;
+  compact?: boolean;
+}) {
   return (
     <div className={`${styles.editorItemRow} !border-0`}>
-      <div className={styles.name}>{label}</div>
-      <div className={styles.component}>{children}</div>
+      <div className={`${styles.name} ${compact ? "!py-1" : ""}`}>{label}</div>
+      <div className={`${styles.component} ${compact ? "!py-1" : ""}`}>{children}</div>
     </div>
   );
 }
@@ -56,7 +64,7 @@ export function ObjectMapping({
   return (
     <div>
       <Radio.Group
-        className="flex flex-col w-full"
+        className="flex flex-col w-full py-3"
         aria-label={`${field.name} mapping mode`}
         value={compose ? "compose" : "column"}
         disabled={disabled}
@@ -69,7 +77,7 @@ export function ObjectMapping({
           }
         }}
       >
-        <MappingRow label={<Radio value="column">Model column</Radio>}>
+        <MappingRow compact label={<Radio value="column">Model column</Radio>}>
           {!compose &&
             selector(field.name ?? field.field, options.mapping[field.field], value => {
               const mapping = { ...options.mapping };
@@ -78,7 +86,7 @@ export function ObjectMapping({
               update({ mapping });
             })}
         </MappingRow>
-        <MappingRow label={<Radio value="compose">Compose object</Radio>}>
+        <MappingRow compact label={<Radio value="compose">Compose object</Radio>}>
           {compose && (
             <div className="text-sm text-textSecondary">
               Map each property to a model column. Values keep their model types; nulls stay null. Property names are
