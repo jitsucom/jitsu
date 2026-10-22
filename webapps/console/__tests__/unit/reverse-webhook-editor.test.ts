@@ -141,7 +141,7 @@ it("shows readable type names for Postgres type IDs and nothing for an unknown I
   mount();
   await chooseRows();
   const text = (await screen.findByLabelText("Payload preview")).textContent!;
-  expect(text).toContain('"id": <int4>');
+  expect(text).toContain('"id": <integer>');
   expect(text).toContain('"name": <text>');
   expect(text).toContain('"amount": <numeric>');
   expect(text).toContain('"odd": ...');

@@ -20,6 +20,7 @@ import { ModelIcon, ModelTitle } from "../../components/ReverseETL/ModelTitle";
 import { DestinationTitle } from "./destinations";
 import { EditorTitle } from "../../components/ConfigObjectEditor/EditorTitle";
 import { useUnsavedChanges } from "../../lib/ui";
+import { displayColumnType } from "../../lib/warehouse-column-type";
 
 const SqlEditor = dynamic(() => import("../../components/CodeEditor/CodeEditor").then(m => m.CodeEditor), {
   ssr: false,
@@ -230,9 +231,12 @@ function ModelEditor() {
     }
   };
   const sourceColumns = preview?.sourceColumns ?? preview?.columns;
-  const columns = sourceColumns?.map(c => ({ label: `${c.name} (${c.type})`, value: c.name })) ?? [];
-  const deleteColumns =
-    sourceColumns?.filter(c => c.supportsDelete).map(c => ({ label: `${c.name} (${c.type})`, value: c.name })) ?? [];
+  const columnOption = (c: { name: string; type: string }) => ({
+    label: `${c.name} (${displayColumnType(c.type) || "unknown"})`,
+    value: c.name,
+  });
+  const columns = sourceColumns?.map(columnOption) ?? [];
+  const deleteColumns = sourceColumns?.filter(c => c.supportsDelete).map(columnOption) ?? [];
   return (
     <div className="w-full max-w-6xl px-4 md:px-8 py-6 mx-auto min-w-0">
       {router.query.id && !editing && <Alert type="error" title="Model not found" />}
@@ -348,6 +352,7 @@ function ModelEditor() {
                                     <span
                                       className="inline-block max-w-[400px] overflow-x-auto whitespace-nowrap align-bottom"
                                       tabIndex={0}
+                                      title={displayColumnType(c.type) || "unknown"}
                                     >
                                       {c.name}
                                     </span>
@@ -386,7 +391,11 @@ function ModelEditor() {
                                 dataSource={preview.columns}
                                 columns={[
                                   { title: "Column", dataIndex: "name" },
-                                  { title: "Type", dataIndex: "type" },
+                                  {
+                                    title: "Type",
+                                    dataIndex: "type",
+                                    render: type => displayColumnType(type) || "unknown",
+                                  },
                                 ]}
                               />
                             ),

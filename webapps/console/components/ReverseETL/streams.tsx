@@ -45,7 +45,11 @@ function ColumnSelector({
   disabled: boolean;
   label: string;
 }) {
-  const choices = columns.map(column => ({ value: column.name, label: column.name, title: column.type }));
+  const choices = columns.map(column => ({
+    value: column.name,
+    label: column.name,
+    title: displayColumnType(column.type) || "unknown",
+  }));
   // Never silently discard a saved mapping when inspection fails or the schema changes.
   if (value && !choices.some(column => column.value === value))
     choices.unshift({ value, label: value, title: "Saved mapping" });

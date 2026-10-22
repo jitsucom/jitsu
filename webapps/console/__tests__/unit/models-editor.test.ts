@@ -165,7 +165,7 @@ describe("model editor", () => {
     fireEvent.click(await screen.findByRole("button", { name: "Preview up to 100 rows" }));
     await screen.findByText("Preview · 1 rows");
     fireEvent.mouseDown(screen.getByLabelText("Primary-key columns"));
-    expect(await screen.findByRole("option", { name: "id (20)" })).toBeTruthy();
+    expect(await screen.findByRole("option", { name: "id (bigint)" })).toBeTruthy();
     expect(screen.queryByTitle("profile_email (string)")).toBeNull();
     client.clear();
   });
@@ -186,11 +186,33 @@ describe("model editor", () => {
     fireEvent.click(await screen.findByRole("button", { name: "Preview up to 100 rows" }));
     await waitFor(() => expect(state.preview).toHaveBeenCalled());
     fireEvent.mouseDown(screen.getByLabelText("Delete column (optional)"));
-    expect(await screen.findByRole("option", { name: "removed (16)" })).toBeTruthy();
+    expect(await screen.findByRole("option", { name: "removed (boolean)" })).toBeTruthy();
     // Ant Design virtualizes the aria option list; visible items retain their title.
-    expect(screen.getByTitle("flag_text (25)")).toBeTruthy();
-    expect(screen.queryByRole("option", { name: "payload (3802)" })).toBeNull();
+    expect(screen.getByTitle("flag_text (text)")).toBeTruthy();
+    expect(screen.queryByRole("option", { name: "payload (jsonb)" })).toBeNull();
     expect(screen.queryByRole("option", { name: "unknown (custom)" })).toBeNull();
+    client.clear();
+  });
+  it("shows readable PostgreSQL types in preview headers and the columns tab", async () => {
+    state.route.query = { id: "model-1" };
+    state.preview.mockResolvedValue({
+      columns: [
+        { name: "id", type: "20" },
+        { name: "traits", type: "3802" },
+        { name: "tags", type: "1009" },
+        { name: "extension_value", type: "999999" },
+      ],
+      rows: [{ id: "1", traits: {}, tags: [], extension_value: null }],
+      truncated: false,
+    });
+    const client = mount();
+    fireEvent.click(await screen.findByRole("button", { name: "Preview up to 100 rows" }));
+    await screen.findByText("Preview · 1 rows");
+    expect(screen.getAllByTitle("jsonb").every(element => element.textContent === "traits")).toBe(true);
+    fireEvent.click(screen.getByRole("tab", { name: "Columns" }));
+    for (const name of ["bigint", "jsonb", "text[]", "unknown"])
+      expect(await screen.findByRole("cell", { name })).toBeTruthy();
+    expect(screen.queryByRole("cell", { name: "3802" })).toBeNull();
     client.clear();
   });
   it("preserves an API-configured lookback when changing the name", async () => {
