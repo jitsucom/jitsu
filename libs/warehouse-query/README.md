@@ -224,9 +224,16 @@ returns only column names/types, not rows. Fields absent from that sample may be
 manually or explicitly projected in SQL. Preview retains the original SQL metadata
 separately for the identity/control-column pickers.
 
-The default does not change existing configuration revisions. Non-default modes change
-payloads and revisions; existing delivery-state guards still apply. Deploy the updated
-runner before the console exposes the new setting; old runners ignore unknown model fields.
+`leaveAsIs` and `stringify` share the original configuration revision: switching between
+them preserves checkpoints without a state reset. `flatten` remains revision-bound because
+it changes mapping field names. Existing UI/API model edit locks remain unchanged. Before
+a direct DB edit, pause and drain **all** dependent syncs, including pending delivery:
+the revision check cannot detect a leaveAsIs/stringify switch during an unfinished run.
+Incremental syncs apply the representation to subsequently selected rows only; they do
+not automatically resend history. Full-query syncs may detect changed payloads and resend
+rows. This does not migrate test runs created by earlier PR versions that included
+`stringify` in the revision. Deploy the updated runner before the console exposes the new
+setting; old runners ignore unknown model fields.
 
 ## MySQL
 

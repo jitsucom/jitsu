@@ -36,7 +36,7 @@ async function seed() {
   return { workspace, warehouse, model, destination, options, link, prisma };
 }
 describe("reverse sync export/admission", () => {
-  it("preserves the pre-setting revision for leaveAsIs but binds other nested-object modes", async () => {
+  it("preserves the legacy revision when switching leaveAsIs/stringify, but binds flatten", async () => {
     const f = await seed();
     const initial = (await readReverseSync(f.prisma, f.link.id))!;
     const { nestedObjects, ...oldModel } = initial.model;
@@ -53,18 +53,22 @@ describe("reverse sync export/admission", () => {
       .digest("hex");
     expect(initial.configRevision).toBe(legacyRevision);
     expect(nestedObjects).toBe("leaveAsIs");
-    const revisions = new Set([initial.configRevision]);
-    for (const mode of ["leaveAsIs", "flatten", "stringify"] as const) {
+    for (const mode of ["leaveAsIs", "stringify", "leaveAsIs", "flatten", "stringify"] as const) {
       await f.prisma.configurationObject.update({
         where: { id: f.model.id },
         data: { config: { ...oldModel, nestedObjects: mode } },
       });
       const exported = (await readReverseSync(f.prisma, f.link.id))!;
       expect(exported.model.nestedObjects).toBe(mode);
-      if (mode === "leaveAsIs") expect(exported.configRevision).toBe(legacyRevision);
-      else expect(revisions.has(exported.configRevision)).toBe(false);
-      revisions.add(exported.configRevision);
+      if (mode === "flatten") expect(exported.configRevision).not.toBe(legacyRevision);
+      else expect(exported.configRevision).toBe(legacyRevision);
     }
+    // Excluding the representation setting must not exclude the rest of the model.
+    await f.prisma.configurationObject.update({
+      where: { id: f.model.id },
+      data: { config: { ...oldModel, nestedObjects: "stringify", query: "SELECT id FROM other_users" } },
+    });
+    expect((await readReverseSync(f.prisma, f.link.id))?.configRevision).not.toBe(legacyRevision);
   });
   it("exports tenant credentials for provisioned ClickHouse without changing stored endpoint or revision", async () => {
     const f = await seed();
