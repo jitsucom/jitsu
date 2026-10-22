@@ -85,6 +85,20 @@ it("gives every object mapping its own card outside the optional-fields block", 
   expect(screen.getAllByLabelText("Compose object")).toHaveLength(2);
 });
 
+it("places object requirement notes in the card description before its mapping controls", () => {
+  render(
+    React.createElement(Fields, {
+      destination: "facebook-conversions",
+      options: options("facebook-conversions", "conversions"),
+    })
+  );
+  const note = screen.getByText("Required for app rows, including tracking flags and all 16 extinfo positions.");
+  const heading = screen.getByRole("heading", { name: "App data" });
+  const controls = screen.getByLabelText("App data mapping mode");
+  expect(heading.compareDocumentPosition(note) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  expect(note.compareDocumentPosition(controls) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+});
+
 it.each(["hover", "focus"])("explains configuration status when the whole tag receives %s", async trigger => {
   render(
     React.createElement(Fields, {

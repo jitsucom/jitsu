@@ -313,7 +313,9 @@ function renderResolvedField(
       >
         {item.component}
         {invalid && <div className="text-sm text-red-600">This field is required.</div>}
-        {field.requirement && <div className="text-xs text-textSecondary max-w-xl">{field.requirement}</div>}
+        {field.requirement && !(field.editor === "mapping" && field.object) && (
+          <div className="text-xs text-textSecondary max-w-xl">{field.requirement}</div>
+        )}
         {field.isHidden && (
           <Alert
             type="warning"
@@ -433,6 +435,7 @@ export const reverseStreamEditors: Record<string, StreamEditor[]> = Object.fromE
                     Switching modes replaces this mapping.
                   </div>
                   {field.documentation && <div>{field.documentation}</div>}
+                  {field.requirement && <div>{field.requirement}</div>}
                 </>,
                 [{ ...item, name: undefined, documentation: undefined, itemClassName: "w-full" }],
                 <Tooltip
