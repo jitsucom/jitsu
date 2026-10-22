@@ -427,7 +427,12 @@ export const reverseStreamEditors: Record<string, StreamEditor[]> = Object.fromE
                 field.name ?? field.key,
                 <>
                   {field.isRequired ? "Required object. " : ""}Map a complete object column or compose it from
-                  individual model columns.{field.documentation && <div>{field.documentation}</div>}
+                  individual model columns.
+                  <div>
+                    Values keep their model types, including nulls. Property names are literal, not dotted paths.
+                    Switching modes replaces this mapping.
+                  </div>
+                  {field.documentation && <div>{field.documentation}</div>}
                 </>,
                 [{ ...item, name: undefined, documentation: undefined, itemClassName: "w-full" }],
                 <Tooltip

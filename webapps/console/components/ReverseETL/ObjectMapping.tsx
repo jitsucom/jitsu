@@ -90,12 +90,6 @@ export function ObjectMapping({
       </Radio.Group>
       {compose && (
         <>
-          <MappingRow label={null}>
-            <div className="text-sm text-textSecondary">
-              Map each property to a model column. Values keep their model types; nulls stay null. Property names are
-              literal, not dotted paths. Switching modes replaces this mapping.
-            </div>
-          </MappingRow>
           {[
             ...fixed,
             ...Object.keys(properties)
