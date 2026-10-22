@@ -181,6 +181,10 @@ Observed live on 2026-10-22:
   second Add while the first runs is accepted and queued; the same key returns the same operation, while running and after
   it finished (still true 17 minutes later); a malformed hash is refused 422 for the whole batch and an unknown identifier
   type 400; the revision rises on every operation.
+- The audience adapter itself, through `createOpenAiAdsRuntime`, on a third throwaway audience: provisioning (create and wait
+  for `ready`) took 21 s; an Add of 2 members 9 s; a replay of that batch through recovery returned in 1.6 s with no new
+  operation; a further Add 11.5 s; a Remove 13 s; resolving the runtime again reused the audience and created none; the
+  operations list held exactly 3 operations and the revision was 3.
 
 Not observed:
 
