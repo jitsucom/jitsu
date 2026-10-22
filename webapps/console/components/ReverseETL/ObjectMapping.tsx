@@ -13,8 +13,8 @@ function MappingRow({
   compact?: boolean;
 }) {
   return (
-    <div className={`${styles.editorItemRow} !border-0`}>
-      <div className={`${styles.name} ${compact ? "!py-1" : ""}`}>{label}</div>
+    <div className={`${styles.editorItemRow} !border-0 ${compact ? "min-h-10" : ""}`}>
+      <div className={`${styles.name} ${compact ? "!py-1 !items-center" : ""}`}>{label}</div>
       <div className={`${styles.component} ${compact ? "!py-1" : ""}`}>{children}</div>
     </div>
   );
@@ -86,17 +86,16 @@ export function ObjectMapping({
               update({ mapping });
             })}
         </MappingRow>
-        <MappingRow compact label={<Radio value="compose">Compose object</Radio>}>
-          {compose && (
+        <MappingRow compact label={<Radio value="compose">Compose object</Radio>} />
+      </Radio.Group>
+      {compose && (
+        <>
+          <MappingRow label={null}>
             <div className="text-sm text-textSecondary">
               Map each property to a model column. Values keep their model types; nulls stay null. Property names are
               literal, not dotted paths. Switching modes replaces this mapping.
             </div>
-          )}
-        </MappingRow>
-      </Radio.Group>
-      {compose && (
-        <>
+          </MappingRow>
           {[
             ...fixed,
             ...Object.keys(properties)
