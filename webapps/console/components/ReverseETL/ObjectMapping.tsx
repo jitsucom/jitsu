@@ -1,6 +1,16 @@
 import React, { useState } from "react";
 import { Button, Input, Radio } from "antd";
 import type { ReverseEditorField, ReverseEditorOptions, ReverseEditorPatch } from "@jitsu/protocols/reverse-etl-editor";
+import styles from "../FieldListEditorLayout/FieldListEditorLayout.module.css";
+
+function MappingRow({ label, children }: { label: React.ReactNode; children?: React.ReactNode }) {
+  return (
+    <div className={`${styles.editorItemRow} !border-0`}>
+      <div className={styles.name}>{label}</div>
+      <div className={styles.component}>{children}</div>
+    </div>
+  );
+}
 
 type ObjectField = Extract<ReverseEditorField, { editor: "mapping" }>;
 export function ObjectMapping({
@@ -44,9 +54,9 @@ export function ObjectMapping({
     !Object.hasOwn(properties, property) &&
     !fixed.some(p => p.key === property);
   return (
-    <div className="space-y-4">
+    <div>
       <Radio.Group
-        className="flex flex-col gap-3 w-full"
+        className="flex flex-col w-full"
         aria-label={`${field.name} mapping mode`}
         value={compose ? "compose" : "column"}
         disabled={disabled}
@@ -59,10 +69,7 @@ export function ObjectMapping({
           }
         }}
       >
-        <div className="flex items-center gap-2">
-          <Radio value="column" className="shrink-0">
-            Model column
-          </Radio>
+        <MappingRow label={<Radio value="column">Model column</Radio>}>
           {!compose &&
             selector(field.name ?? field.field, options.mapping[field.field], value => {
               const mapping = { ...options.mapping };
@@ -70,26 +77,33 @@ export function ObjectMapping({
               else delete mapping[field.field];
               update({ mapping });
             })}
-        </div>
-        <Radio value="compose">Compose object</Radio>
+        </MappingRow>
+        <MappingRow label={<Radio value="compose">Compose object</Radio>}>
+          {compose && (
+            <div className="text-sm text-textSecondary">
+              Map each property to a model column. Values keep their model types; nulls stay null. Property names are
+              literal, not dotted paths. Switching modes replaces this mapping.
+            </div>
+          )}
+        </MappingRow>
       </Radio.Group>
       {compose && (
-        <div className="ml-6 space-y-4">
-          <div className="text-sm text-textSecondary">
-            Map each property to a model column. Values keep their model types; nulls stay null. Property names are
-            literal, not dotted paths. Switching modes replaces this mapping.
-          </div>
+        <>
           {[
             ...fixed,
             ...Object.keys(properties)
               .filter(key => !fixed.some(p => p.key === key))
               .map(key => ({ key, name: key, required: false, documentation: undefined })),
           ].map(p => (
-            <div key={p.key} className="space-y-1">
-              <div className="text-sm font-medium">
-                {p.name}
-                {p.required && <span className="text-red-500 ml-1">*</span>}
-              </div>
+            <MappingRow
+              key={p.key}
+              label={
+                <div className="pl-6 pr-2 break-all">
+                  {p.name}
+                  {p.required && <span className="text-red-500 ml-1">*</span>}
+                </div>
+              }
+            >
               <div className="flex flex-wrap items-center gap-2">
                 {selector(`${field.name}: ${p.name}`, properties[p.key], value => set(p.key, value))}
                 {!fixed.some(f => f.key === p.key) && (
@@ -102,20 +116,25 @@ export function ObjectMapping({
               {showValidation && p.required && !properties[p.key] && (
                 <div className="text-sm text-red-600">Map this required property.</div>
               )}
-            </div>
+            </MappingRow>
           ))}
           {definition.additionalProperties && (
-            <div className="space-y-2">
+            <MappingRow
+              label={
+                <div className="pl-6">
+                  <Input
+                    className="w-52"
+                    aria-label={`${field.name} new property name`}
+                    placeholder="Property name"
+                    disabled={disabled}
+                    value={property}
+                    maxLength={128}
+                    onChange={e => setProperty(e.target.value)}
+                  />
+                </div>
+              }
+            >
               <div className="flex flex-wrap gap-2 items-center">
-                <Input
-                  className="w-52"
-                  aria-label={`${field.name} new property name`}
-                  placeholder="Property name"
-                  disabled={disabled}
-                  value={property}
-                  maxLength={128}
-                  onChange={e => setProperty(e.target.value)}
-                />
                 {selector(`${field.name} new property column`, column, setColumn)}
                 <Button
                   disabled={disabled || !validProperty || !column || Object.keys(properties).length >= 100}
@@ -133,14 +152,16 @@ export function ObjectMapping({
                   Use a unique, non-empty property name without surrounding spaces or reserved names.
                 </div>
               )}
-            </div>
+            </MappingRow>
           )}
           {!Object.keys(properties).length && (
-            <div className="text-sm text-textSecondary">
-              No properties mapped yet. An empty optional object is not sent.
-            </div>
+            <MappingRow label={null}>
+              <div className="text-sm text-textSecondary">
+                No properties mapped yet. An empty optional object is not sent.
+              </div>
+            </MappingRow>
           )}
-        </div>
+        </>
       )}
     </div>
   );

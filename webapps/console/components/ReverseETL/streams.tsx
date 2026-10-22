@@ -429,7 +429,7 @@ export const reverseStreamEditors: Record<string, StreamEditor[]> = Object.fromE
                   {field.isRequired ? "Required object. " : ""}Map a complete object column or compose it from
                   individual model columns.{field.documentation && <div>{field.documentation}</div>}
                 </>,
-                [{ ...item, name: undefined, documentation: undefined, itemClassName: "w-full px-5 py-4" }],
+                [{ ...item, name: undefined, documentation: undefined, itemClassName: "w-full" }],
                 <Tooltip
                   title="“Configured” checks mappings or defaults, not the values in every model row."
                   trigger={["hover", "focus"]}
