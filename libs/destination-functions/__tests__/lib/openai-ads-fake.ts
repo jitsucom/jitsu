@@ -103,6 +103,17 @@ export function fakeAds() {
       a.revision++;
       return json(opBody(id, "processing"));
     }
+    m = route.match(/^\/custom_audiences\/([^/]+)\/operations$/);
+    if (m)
+      return json({
+        object: "list",
+        data: [...operations.entries()]
+          .reverse()
+          .filter(([, op]) => op.audience === m![1])
+          .map(([id]) => opBody(id)),
+        has_more: false,
+        next_cursor: null,
+      });
     m = route.match(/^\/custom_audiences\/([^/]+)\/operations\/([^/]+)(\/resume)?$/);
     if (m) {
       if (!m[3]) {
