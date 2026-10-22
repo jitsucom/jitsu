@@ -135,6 +135,44 @@ function fixture(count = 3) {
 }
 
 describe("Reverse ETL lifecycle", () => {
+  it("stops before writing when a composed source column is missing and preserves the safe reason", async () => {
+    const f = fixture(1);
+    await expect(
+      runReverseEtl({
+        stream: f.stream,
+        context: f.ctx,
+        mapping: { email: "address" },
+        objectMappings: { customData: { value: "missing" } },
+        source: f.source,
+        checkpointEvery: 2,
+      })
+    ).rejects.toThrow("A mapped model column is missing from the source row");
+    expect(f.writer.upsert).not.toHaveBeenCalled();
+  });
+  it("journals and delivers composed objects with the same payload as object-column mappings", async () => {
+    const f = fixture(1);
+    const stream = {
+      ...f.stream,
+      rowType: z.object({ email: z.string(), customData: z.object({ contact: z.string() }) }).strict(),
+    };
+    await runReverseEtl({
+      stream,
+      context: f.ctx,
+      mapping: { email: "address" },
+      objectMappings: { customData: { contact: "address" } },
+      source: f.source,
+      checkpointEvery: 2,
+    });
+    expect(f.batches[0].records[0].row).toEqual({
+      email: "member0@example.com",
+      customData: { contact: "member0@example.com" },
+    });
+    expect(f.journal.prepare).toHaveBeenCalledWith(
+      expect.objectContaining({ records: f.batches[0].records }),
+      {},
+      false
+    );
+  });
   it("seals independent async extraction without finishing or checkpointing staged batches", async () => {
     const f = fixture();
     f.stream.batchDelivery = "asynchronous";

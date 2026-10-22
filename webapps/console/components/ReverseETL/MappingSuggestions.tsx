@@ -101,6 +101,7 @@ export function MappingSuggestions({
                     stream: stream.id,
                     mode: options.mode,
                     mapping: options.mapping,
+                    objectMappings: options.objectMappings,
                     streamOptions: options.streamOptions,
                   },
                   signal: controller.signal,

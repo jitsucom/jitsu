@@ -74,6 +74,17 @@ it("renders separate requirement cards with descriptions, without OR bullet list
   expect(required.compareDocumentPosition(alternatives) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
 });
 
+it("gives every object mapping its own card outside the optional-fields block", () => {
+  render(
+    React.createElement(Fields, { destination: "google-ads", options: options("google-ads", "click-conversions") })
+  );
+  const names = screen.getAllByRole("heading", { level: 3 }).map(h => h.textContent);
+  expect(names).toContain("Custom variables");
+  expect(names).toContain("Session attributes (object)");
+  expect(names.indexOf("Custom variables")).toBeLessThan(names.indexOf("Optional and conditional fields"));
+  expect(screen.getAllByLabelText("Compose object")).toHaveLength(2);
+});
+
 it.each(["hover", "focus"])("explains configuration status when the whole tag receives %s", async trigger => {
   render(
     React.createElement(Fields, {
@@ -265,7 +276,7 @@ it.each([
   const headings = screen.getAllByRole("heading", { level: 3 });
   expect(headings[0].textContent).toBe("Action source");
   if (messagingChannel) expect(headings[1].textContent).toBe("Messaging channel");
-  const required = screen.getByRole("heading", { name: "Required fields" });
+  const required = screen.getByRole("heading", { name: actionSource === "app" ? "App data" : "Required fields" });
   const next = headings[headings.indexOf(required) + 1];
   for (const name of names) {
     const control = screen.getByRole("combobox", { name });

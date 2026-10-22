@@ -25,7 +25,30 @@ function contacts(): ReverseEditorField[] {
   }));
 }
 function mappings(fields: [string, string, string?][]): ReverseEditorField[] {
-  return fields.map(([field, name, documentation]) => ({ editor: "mapping", field, name, documentation }));
+  return fields.map(([field, name, documentation]) => ({
+    editor: "mapping",
+    field,
+    name,
+    documentation,
+    object:
+      field === "customData"
+        ? { additionalProperties: true }
+        : field === "appData"
+        ? {
+            additionalProperties: true,
+            properties: [
+              { key: "advertiser_tracking_enabled", name: "Advertiser tracking enabled", required: true },
+              { key: "application_tracking_enabled", name: "Application tracking enabled", required: true },
+              {
+                key: "extinfo",
+                name: "Extended app information",
+                required: true,
+                documentation: "Map an array column with all 16 extinfo positions, starting with i2 or a2.",
+              },
+            ],
+          }
+        : undefined,
+  }));
 }
 function privacy(): ReverseEditorField[] {
   return mappings([

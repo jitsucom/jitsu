@@ -17,6 +17,8 @@ import { recoverRun, type RecoveryReport } from "./recovery";
 import { failureMessage, reportFailure, type FailureStage } from "./diagnostics";
 import { RunProgress } from "./progress";
 import { prepareSource } from "./source-preflight";
+import { reverseDestinationMetadata } from "@jitsu/destination-functions/src/reverse-etl/catalog";
+import { objectMappingErrors } from "@jitsu/destination-functions/src/reverse-etl/editor";
 
 export interface ExecuteOptions {
   config: ReverseRunConfig;
@@ -97,6 +99,14 @@ export async function execute(input: ExecuteOptions): Promise<TaskResult> {
     started = true;
     stage = "admission";
     const config = ReverseRunConfig.parse(await input.admit());
+    if (Object.keys(config.options.objectMappings ?? {}).length) {
+      const stream = reverseDestinationMetadata
+        .get(String(config.destination.destinationType))
+        ?.streams.find(s => s.id === config.options.stream);
+      ensure(stream, "Object composition is not supported for this stream");
+      const errors = objectMappingErrors(stream!, config.options);
+      ensure(!errors.length, errors.join(" "));
+    }
     // Automatic checks are only queued with enabled snapshots. A pause after
     // queuing must still stop them; explicit paused refresh gets a paused snapshot.
     ensure(
@@ -289,6 +299,7 @@ export async function execute(input: ExecuteOptions): Promise<TaskResult> {
           await runSnapshotMirror({
             ...options,
             mapping: config.options.mapping,
+            objectMappings: config.options.objectMappings,
             source: sig => source(undefined, sig),
             onSnapshotProgress: progress =>
               tasks.progress(
@@ -306,6 +317,7 @@ export async function execute(input: ExecuteOptions): Promise<TaskResult> {
           stream: { ...adapter.stream, batchSize: Math.min(adapter.stream.batchSize, db.limits.batchRecords) },
           context,
           mapping: config.options.mapping,
+          objectMappings: config.options.objectMappings,
           sourceKeyField: adapter.insertOnly ? "__sourceKey" : undefined,
           source,
           checkpointEvery: config.options.checkpointEvery,

@@ -8,12 +8,13 @@ import type { ReverseSyncOptions, WarehouseColumn } from "@jitsu/warehouse-query
 import type { EditorItem } from "../FieldListEditorLayout/FieldListEditorLayout";
 import { DestinationTargetSelector } from "./DestinationTargetSelector";
 import { displayColumnType } from "../../lib/warehouse-column-type";
+import { ObjectMapping } from "./ObjectMapping";
 export { displayColumnType } from "../../lib/warehouse-column-type";
 
 export interface StreamEditor {
   id: string;
   label: string;
-  defaults(): Pick<ReverseSyncOptions, "mode" | "mapping" | "streamOptions" | "checkpointEvery">;
+  defaults(): Pick<ReverseSyncOptions, "mode" | "mapping" | "objectMappings" | "streamOptions" | "checkpointEvery">;
   /** True when the stream builds its mapping from the model's columns (the webhook payload), not from user choices. */
   derivesMapping(options: ReverseSyncOptions): boolean;
   fields(
@@ -252,6 +253,21 @@ function renderField(
       );
       break;
     case "mapping":
+      if (field.object) {
+        component = (
+          <ObjectMapping
+            field={field}
+            options={options}
+            update={update}
+            disabled={disabled}
+            showValidation={source.showValidation}
+            selector={(label, value, onChange) => (
+              <ColumnSelector {...source} disabled={disabled} label={label} value={value} onChange={onChange} />
+            )}
+          />
+        );
+        break;
+      }
       component = (
         <ColumnSelector
           {...source}
@@ -375,7 +391,11 @@ export const reverseStreamEditors: Record<string, StreamEditor[]> = Object.fromE
         ({
           id: stream.id,
           label: stream.label,
-          defaults: () => ({ ...stream.defaults(), checkpointEvery: stream.checkpointEvery ?? 50_000 }),
+          defaults: () => ({
+            ...stream.defaults(),
+            objectMappings: undefined,
+            checkpointEvery: stream.checkpointEvery ?? 50_000,
+          }),
           derivesMapping: options => stream.fields(options).some(field => field.editor === "columns"),
           fields: (options, update, disabled, source) => {
             const editorOptions = {
@@ -393,8 +413,38 @@ export const reverseStreamEditors: Record<string, StreamEditor[]> = Object.fromE
             const notices = [...resolved.required, ...resolved.alternativeFields, ...resolved.optional].filter(
               field => field.editor === "notice"
             );
-            const required = resolved.required.filter(field => field.editor !== "notice");
-            const optional = resolved.optional.filter(field => field.editor !== "notice");
+            const isObject = (field: ResolvedField) => field.editor === "mapping" && !!field.object;
+            const objects = [...resolved.required, ...resolved.alternativeFields, ...resolved.optional].filter(
+              isObject
+            );
+            const required = resolved.required.filter(field => field.editor !== "notice" && !isObject(field));
+            const optional = resolved.optional.filter(field => field.editor !== "notice" && !isObject(field));
+            const objectCard = (field: ResolvedField) => {
+              const item = render(field);
+              return requirementCard(
+                stream.id,
+                `object:${field.key}`,
+                field.name ?? field.key,
+                <>
+                  {field.isRequired ? "Required object. " : ""}Map a complete object column or compose it from
+                  individual model columns.{field.documentation && <div>{field.documentation}</div>}
+                </>,
+                [{ ...item, name: undefined, documentation: undefined, itemClassName: "w-full px-5 py-4" }],
+                <Tooltip
+                  title="“Configured” checks mappings or defaults, not the values in every model row."
+                  trigger={["hover", "focus"]}
+                >
+                  <Tag
+                    className="!m-0 cursor-help"
+                    tabIndex={0}
+                    icon={<InfoCircleOutlined aria-hidden="true" />}
+                    color={field.configured ? "green" : field.isRequired ? "orange" : undefined}
+                  >
+                    {field.configured ? "Configured" : field.isRequired ? "Required" : "Optional"}
+                  </Tag>
+                </Tooltip>
+              );
+            };
             const items: EditorItem[] = notices.map(field => ({
               ...render(field),
               name: undefined,
@@ -412,14 +462,21 @@ export const reverseStreamEditors: Record<string, StreamEditor[]> = Object.fromE
                   required.map(render)
                 )
               );
+            items.push(...objects.filter(field => field.isRequired && !field.isHidden).flatMap(objectCard));
             if (resolved.alternatives.length) {
               const rendered = new Set(required.map(field => field.key));
               const allFields = [...required, ...resolved.alternativeFields];
               for (const group of resolved.alternatives) {
                 const keys = new Set(group.options.flatMap(option => option.fields));
-                const shared = allFields.filter(field => keys.has(field.key) && rendered.has(field.key));
+                const shared = [...allFields, ...objects].filter(
+                  (field, index, all) =>
+                    keys.has(field.key) &&
+                    (rendered.has(field.key) || isObject(field)) &&
+                    all.findIndex(f => f.key === field.key) === index
+                );
                 const fields = resolved.alternativeFields.filter(
-                  field => field.editor !== "notice" && keys.has(field.key) && !rendered.has(field.key)
+                  field =>
+                    field.editor !== "notice" && !isObject(field) && keys.has(field.key) && !rendered.has(field.key)
                 );
                 for (const field of fields) rendered.add(field.key);
                 (group.beforeRequired ? selectorItems : items).push(
@@ -440,7 +497,10 @@ export const reverseStreamEditors: Record<string, StreamEditor[]> = Object.fromE
                           .filter(option => option.fields.length > 1)
                           .map(option => <div key={option.label}>{option.label} must be mapped together.</div>)}
                       {!!shared.length && (
-                        <div>Also uses fields shown above: {shared.map(field => field.name).join(", ")}.</div>
+                        <div>
+                          Also uses separately displayed fields or object groups:{" "}
+                          {shared.map(field => field.name).join(", ")}.
+                        </div>
                       )}
                     </>,
                     fields.map(render),
@@ -467,6 +527,7 @@ export const reverseStreamEditors: Record<string, StreamEditor[]> = Object.fromE
             }
             // Defaults and their column overrides must precede the requirements they control.
             items.splice(notices.length, 0, ...selectorItems);
+            items.push(...objects.filter(field => !field.isRequired || field.isHidden).flatMap(objectCard));
             if (optional.length)
               items.push(
                 ...requirementCard(

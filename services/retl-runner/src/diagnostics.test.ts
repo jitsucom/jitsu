@@ -1,4 +1,11 @@
 import { describe, expect, it } from "vitest";
+
+it("reports missing composition columns without exposing arbitrary error contents", () => {
+  const reason = "A mapped model column is missing from the source row";
+  expect(failureMessage(new Error(reason), "task")).toContain("Check the object composition and model columns");
+  expect(failureDiagnostic("execution", new Error(reason)).reason).toBe(reason);
+  expect(failureMessage(new Error(reason + ": private@example.com"), "task")).not.toContain("private@example.com");
+});
 import { ReverseEtlProtocolError, ReverseEtlRejectionError } from "@jitsu/destination-functions/src/reverse-etl/meta";
 import { failureDiagnostic, failureMessage, KubernetesHttpError } from "./diagnostics";
 import { googleRequestError } from "@jitsu/destination-functions/src/functions/google-ads/clients/errors";

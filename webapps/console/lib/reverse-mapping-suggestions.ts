@@ -1,7 +1,7 @@
 import { z } from "zod";
 import type { ReverseEditorOptions, ReverseStreamEditor } from "@jitsu/protocols/reverse-etl-editor";
 import { resolveStreamEditor } from "@jitsu/destination-functions/src/reverse-etl/editor";
-import { WarehouseColumn } from "@jitsu/warehouse-query/src/schema";
+import { ObjectMappings, WarehouseColumn } from "@jitsu/warehouse-query/src/schema";
 
 export const MappingSuggestionRequest = z
   .object({
@@ -10,6 +10,7 @@ export const MappingSuggestionRequest = z
     stream: z.string().min(1),
     mode: z.enum(["upsert", "mirror"]),
     mapping: z.record(z.string()),
+    objectMappings: ObjectMappings.optional(),
     streamOptions: z.record(z.unknown()),
   })
   .strict();
@@ -42,6 +43,7 @@ export function mappingTargets(stream: ReverseStreamEditor, options: ReverseEdit
   const resolved = resolveStreamEditor(stream, options);
   return [...resolved.required, ...resolved.alternativeFields, ...resolved.optional].flatMap(field => {
     if (field.isHidden || field.configured) return [];
+    if (field.editor === "mapping" && Object.hasOwn(options.objectMappings ?? {}, field.field)) return [];
     const variants =
       field.editor === "mapping"
         ? [{ key: field.field }]
