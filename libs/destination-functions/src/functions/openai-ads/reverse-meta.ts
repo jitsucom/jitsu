@@ -72,11 +72,9 @@ const parseJson = (value: unknown) => {
     return value;
   }
 };
-/** Whole minor units. Strings from SQL numerics are accepted; fractions are not (that would be a silent rounding). */
-const minorUnits = z
-  .union([z.number(), z.string().trim().min(1)])
-  .pipe(z.coerce.number().int().safe())
-  .nullish();
+/** Whole numbers. Strings from SQL numerics and warehouse readers (BigQuery returns INTEGER as a string) are accepted; fractions are not (that would be a silent rounding). */
+const wholeNumber = z.union([z.number(), z.string().trim().min(1)]).pipe(z.coerce.number().int().safe());
+const minorUnits = wholeNumber.nullish();
 const currency = z
   .string()
   .trim()
@@ -88,8 +86,8 @@ export const OpenAiContent = z
     group_id: z.string().min(1).max(512).optional(),
     name: z.string().min(1).max(1024).optional(),
     content_type: z.string().min(1).max(128).optional(),
-    quantity: z.number().int().safe().optional(),
-    amount: z.number().int().safe().optional(),
+    quantity: wholeNumber.optional(),
+    amount: wholeNumber.optional(),
     currency: z
       .string()
       .regex(/^[A-Za-z]{3}$/)

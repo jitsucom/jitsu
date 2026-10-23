@@ -207,6 +207,21 @@ describe("OpenAI conversion validation", () => {
       plan_id: "pro",
     });
   });
+  it("keeps the event currency when only the items carry amounts", () => {
+    const data = normalize({ ...web, currency: "usd", contents: [{ id: "x", quantity: 1, amount: 1999 }] }).payload
+      .data as Record<string, unknown>;
+    expect(data).toMatchObject({ currency: "USD", contents: [{ id: "x", quantity: 1, amount: 1999 }] });
+    expect(data).not.toHaveProperty("amount");
+    // A currency with nothing to price stays out of the payload.
+    expect(normalize({ ...web, currency: "usd" }).payload.data).not.toHaveProperty("currency");
+  });
+  it("accepts integer strings in item quantity and amount, as warehouse readers return them", () => {
+    const contents = normalize({ ...web, currency: "usd", contents: [{ id: "x", quantity: "2", amount: "1999" }] })
+      .payload.data as { contents: unknown };
+    expect(contents.contents).toEqual([{ id: "x", quantity: 2, amount: 1999 }]);
+    expect(() => normalize({ ...web, currency: "usd", contents: [{ quantity: "1.5" }] })).toThrow();
+    expect(() => normalize({ ...web, currency: "usd", contents: [{ amount: "12abc" }] })).toThrow();
+  });
   it("rejects invalid locations and unknown content fields", () => {
     failure({ ...web, country: "USA" }, "location");
     failure({ ...web, postalCode: "9410#" }, "location");

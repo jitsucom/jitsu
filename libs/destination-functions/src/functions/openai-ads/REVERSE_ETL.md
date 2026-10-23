@@ -1,8 +1,9 @@
 # OpenAI Ads Reverse ETL implementation contract
 
 Verified against OpenAI's documentation and OpenAPI spec and Hightouch's documentation on 2026-10-21.
-Checked against a live OpenAI account on 2026-10-22 with `validate_only: true` requests only (success, 400, 401, 403, 422).
-**No event has been written to a real pixel**; delivery, dedup and 429/5xx behavior are unconfirmed. See "Unconfirmed".
+Checked against a live OpenAI test account on 2026-10-22: `validate_only: true` requests (success, 400, 401, 403, 422)
+and one approved write of two synthetic events (sent through the adapter, then resent once; both answered 200
+`{"accepted_events": 2}`). Dedup in reporting, 429/5xx behavior and a cluster run are unconfirmed. See "Unconfirmed".
 
 Destination ID `openai-ads`, registered as `builtin.reverse.openai-ads`. Reverse ETL only: there is no OpenAI event
 destination. This contract covers the `conversions` stream. An `audience` stream (Custom Audiences) is planned
@@ -84,7 +85,8 @@ instead of letting the batch fail.
   `invalid_event` and 422 `event_timestamp_too_old` with an `errors[]` list; 403 `unknown pid` and 401 `Unauthorized`
   with `code: null`. 2xx is still accepted without parsing the body.
 - How long OpenAI remembers an event ID.
-- Writes: no event has been stored by this code against a real pixel, so delivery and dedup behavior are unobserved.
+- Dedup in reporting: the two written events and the resend were accepted, but how OpenAI counts a repeated event ID was
+  not observed.
 - OpenAI's logo and brand rules: the console icon is a neutral placeholder.
 
 ## References

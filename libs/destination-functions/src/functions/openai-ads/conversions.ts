@@ -136,8 +136,9 @@ export function normalizeOpenAiConversion(
   if (row.amount != null) {
     if (!row.currency) invalidOpenAiConversion("amount");
     data.amount = row.amount;
-    data.currency = row.currency.toUpperCase();
   }
+  // Item amounts inherit the event currency, so it is sent with an amount or with contents.
+  if (row.currency && (row.amount != null || row.contents?.length)) data.currency = row.currency.toUpperCase();
   if (row.contents?.length) {
     if (dataType === "customer_action") invalidOpenAiConversion("contents");
     data.contents = row.contents.map((item: Record<string, any>) =>
