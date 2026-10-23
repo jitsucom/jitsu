@@ -4,6 +4,8 @@ import type { ZodType } from "zod";
 export interface ReverseEditorOptions {
   mode: "upsert" | "mirror";
   mapping: Record<string, string>;
+  /** Object field -> literal property name -> model column. Mutually exclusive with a whole-column mapping. */
+  objectMappings?: Record<string, Record<string, string>>;
   streamOptions: Record<string, any>;
   /** UI-only, non-secret destination context. Never persisted with sync settings. */
   destination?: { protocol?: string };
@@ -57,7 +59,14 @@ export type ReverseEditorField<Key extends string = string> = FieldBase &
         showIcon?: boolean;
         presentation?: "description" | "warning";
       }
-    | { editor: "mapping"; field: Key }
+    | {
+        editor: "mapping";
+        field: Key;
+        object?: {
+          properties?: { key: string; name: string; required?: boolean; documentation?: string }[];
+          additionalProperties?: boolean;
+        };
+      }
     | { editor: "identifier"; raw: Key; hashed: Key }
     /** Read-only list of the model's columns with a payload preview; writes the identity mapping (each column to itself). */
     | { editor: "columns" }

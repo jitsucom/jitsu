@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { ModelDefinition, ReverseSyncOptions, validateReverseSyncModel } from "./schema";
-import { decodeDelete } from "./sql";
+import { decodeDelete, mapSqlCode } from "./sql";
 import { getWarehouseSqlDialect } from "./index";
 import { postgresSql } from "./postgres";
 import { clickhouseSql } from "./clickhouse";
@@ -17,6 +17,15 @@ const columns = [
 ];
 
 describe("read-only SQL", () => {
+  it("preserves escaped quotes and comments when transforming only SQL code", () => {
+    const query = String.raw`SELECT E'escaped\' AT TIME ZONE; literal', (now()) AT TIME ZONE 'UTC' -- AT TIME ZONE
+      /* nested /* AT TIME ZONE */ comment */`;
+    expect(
+      mapSqlCode(query, { lineCommentPrefixes: ["--"], backslashEscapes: () => true }, code =>
+        code.replaceAll("AT TIME ZONE", "||")
+      )
+    ).toBe(query.replace("(now()) AT TIME ZONE", "(now()) ||"));
+  });
   it.each([
     ["SELECT id AS ID FROM USERS; -- tail;", "SELECT id AS ID FROM USERS -- tail;"],
     ["SELECT '; -- not a comment' AS value; /* tail ; */", "SELECT '; -- not a comment' AS value /* tail ; */"],

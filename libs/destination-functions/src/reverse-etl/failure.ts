@@ -142,6 +142,14 @@ const failures = new Map<string, string>([
     "A source row has invalid identifiers or consent. Check the model output, field mappings and raw versus hashed identifier settings, then retry.",
   ],
   [
+    "A mapped model column is missing from the source row",
+    "An object property's mapped column is missing from the model result. Check the object composition and model columns, then retry. This row was not submitted; earlier batches may already have been submitted.",
+  ],
+  [
+    "Choose either a model column or object composition",
+    "An object field has both a whole-column mapping and composed properties. Choose one mapping mode and save the sync before retrying.",
+  ],
+  [
     "Destination rejected a row; the run stopped without skipping it",
     "The destination rejected a row, so the sync stopped. If a reason code is shown below, it says why: codes for an HTTP status, the network, the URL or the certificate point at the destination's endpoint, URL or credentials, not at the data. Otherwise, check the row data and the sync's field mappings. Some other rows may already have been accepted.",
   ],

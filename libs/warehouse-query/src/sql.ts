@@ -54,12 +54,17 @@ function validateSelect(query: string, parse: SqlDialectRules["parse"]) {
   check(statements[0]);
 }
 
-/** Remove only delimiters outside comments/literals; never reserialize the AST. */
-function withoutDelimiter(query: string, rules: SqlDialectRules): string {
+/** Transform SQL code only, preserving comments and quoted literals/identifiers verbatim. */
+export function mapSqlCode(
+  query: string,
+  rules: Pick<SqlDialectRules, "lineCommentPrefixes" | "backslashEscapes" | "dollarQuote">,
+  map: (code: string) => string
+): string {
   let result = "";
   let start = 0;
   for (let i = 0; i < query.length; i++) {
     const c = query[i];
+    const protectedStart = i;
     if (rules.lineCommentPrefixes.some(prefix => query.startsWith(prefix, i))) {
       while (i < query.length && !["\n", "\r"].includes(query[i])) i++;
     } else if (query.startsWith("/*", i)) {
@@ -89,12 +94,16 @@ function withoutDelimiter(query: string, rules: SqlDialectRules): string {
       const end = query.indexOf(delimiter, i + delimiter.length);
       if (end < 0) throw new Error("Unterminated SQL literal");
       i = end + delimiter.length - 1;
-    } else if (c === ";") {
-      result += query.slice(start, i);
-      start = i + 1;
-    }
+    } else continue;
+    result += map(query.slice(start, protectedStart)) + query.slice(protectedStart, i + 1);
+    start = i + 1;
   }
-  return result + query.slice(start);
+  return result + map(query.slice(start));
+}
+
+/** Remove only delimiters outside comments/literals; never reserialize the AST. */
+function withoutDelimiter(query: string, rules: SqlDialectRules): string {
+  return mapSqlCode(query, rules, code => code.replaceAll(";", ""));
 }
 
 /** Compose a pure SQL dialect from warehouse rules and common model invariants. */

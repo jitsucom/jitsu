@@ -1,4 +1,5 @@
 import type { ZodType } from "zod";
+import { mapReverseRow } from "@jitsu/destination-functions/src/reverse-etl/mapping";
 import type {
   BatchResult,
   FinishResult,
@@ -75,6 +76,7 @@ export interface MirrorSourceRecord {
 }
 export interface NewMirrorOptions<C, Row, O> extends MirrorOptions<C, Row, O> {
   mapping: Record<string, string>;
+  objectMappings?: Record<string, Record<string, string>>;
   /** A complete cursorless source. Opens only after Kubernetes admission and writer initialization. */
   source(signal: AbortSignal): AsyncIterable<MirrorSourceRecord>;
   sourcePageSize?: number;
@@ -281,9 +283,7 @@ export async function runSnapshotMirror<C, Row, O>(input: NewMirrorOptions<C, Ro
       readRows++;
       ctx.signal.throwIfAborted();
       ensure(/^[a-f0-9]{64}$/.test(record.key), "Invalid mirror source key");
-      const mapped = Object.fromEntries(
-        Object.entries(input.mapping).map(([field, column]) => [field, record.row[column]])
-      );
+      const mapped = mapReverseRow(record.row, input);
       const parsed = input.adapter.projection.rowType.safeParse(mapped);
       ensure(parsed.success, "Source row failed mirror validation");
       const projected = effects(input.adapter.projection.project(parsed.data), { allowEmpty: true });

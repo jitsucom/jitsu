@@ -130,6 +130,7 @@ export function SyncEditor({ sync, reload }: { sync?: ReverseSyncView; reload: (
             options.mode,
             options.stream,
             options.mapping,
+            options.objectMappings,
             options.streamOptions,
           ])}
           workspaceId={workspace.id}
@@ -139,7 +140,7 @@ export function SyncEditor({ sync, reload }: { sync?: ReverseSyncView; reload: (
           options={options}
           columns={columns.data ?? []}
           disabled={disabled || columns.isFetching || !!columns.error}
-          onApply={mapping => update({ mapping })}
+          onApply={update}
         />
       ),
     });
@@ -208,7 +209,7 @@ export function SyncEditor({ sync, reload }: { sync?: ReverseSyncView; reload: (
           showLink
           onSelect={id => {
             setToId(id);
-            update({ stream: "", mapping: {}, streamOptions: {} });
+            update({ stream: "", mapping: {}, objectMappings: undefined, streamOptions: {} });
           }}
         />
       ),

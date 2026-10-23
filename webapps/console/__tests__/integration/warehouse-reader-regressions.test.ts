@@ -1,4 +1,5 @@
 import { afterAll, expect, it } from "vitest";
+import { readFileSync } from "node:fs";
 import { createWarehouseReader, type SourceRecord } from "@jitsu/warehouse-query";
 import { ModelDefinition } from "@jitsu/warehouse-query/src/schema";
 import { getServerEnv } from "../../lib/server/serverEnv";
@@ -34,6 +35,39 @@ async function collect(source: AsyncIterable<SourceRecord>) {
   for await (const row of source) result.push(row);
   return result;
 }
+
+it("PostgreSQL previews and streams the Google conversion fixture with expression timezones and JSON objects", async () => {
+  const query = readFileSync(
+    new URL("../../../../libs/warehouse-query/src/postgres-conversion.fixture.sql", import.meta.url),
+    "utf8"
+  );
+  const columns = await pg.columns(query);
+  expect(columns).toEqual(
+    expect.arrayContaining([
+      { name: "id", type: "25" },
+      { name: "customVariables", type: "3802" },
+      { name: "sessionAttributes", type: "3802" },
+    ])
+  );
+  const preview = await pg.preview(query);
+  const rows = await collect(pg.stream(model(query)));
+  expect(preview.rows).toHaveLength(1);
+  expect(rows).toHaveLength(1);
+  for (const row of [preview.rows[0], rows[0].row]) {
+    expect(row).toMatchObject({
+      id: "google-conversion-test-001",
+      customVariables: { customer_tier: "gold", purchase_channel: "website", loyalty_member: true },
+      sessionAttributes: {
+        gadSource: "1",
+        gadCampaignId: "123456789",
+        sessionStartTime: expect.stringMatching(/^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ$/),
+      },
+      items: [{ productId: "TEST-SKU-001", quantity: 2, price: 79.975 }],
+    });
+    const timestamp = Date.parse(row.conversionTimestamp as string);
+    expect(Math.abs(Date.now() - timestamp - 3_600_000)).toBeLessThan(60_000);
+  }
+});
 
 it.each([
   ["PostgreSQL", pg, "SELECT 1 AS id, 0.00::numeric AS removed UNION ALL SELECT 2, 1.00::numeric"],

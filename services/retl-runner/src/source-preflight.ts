@@ -1,4 +1,5 @@
 import { serialize, deserialize } from "node:v8";
+import { mappedColumns, mapReverseRow } from "@jitsu/destination-functions/src/reverse-etl/mapping";
 import type { DestinationServices } from "@jitsu/protocols/reverse-etl-runtime";
 import type { WarehouseReader } from "@jitsu/warehouse-query";
 import type { ReverseRunConfig } from "@jitsu/warehouse-query/src/runtime";
@@ -44,16 +45,14 @@ export async function prepareSource(
     ensure(Object.keys(config.options.mapping).length > 0, "Invalid mirror mapping");
     index.sql.exec("CREATE TABLE source_rows (sequence INTEGER PRIMARY KEY, key TEXT NOT NULL, row BLOB NOT NULL)");
     const put = index.sql.prepare("INSERT INTO source_rows VALUES (?,?,?)");
-    const columns = new Set([...config.model.primaryKey, ...Object.values(config.options.mapping)]);
+    const columns = new Set([...config.model.primaryKey, ...mappedColumns(config.options)]);
     for await (const record of reader.stream(config.model, undefined, signal)) {
       signal.throwIfAborted();
       read++;
       stage = "validation";
       const key = recordKey(config.model.primaryKey.map(column => record.row[column] as string | number | boolean));
       const row = Object.fromEntries([...columns].map(column => [column, record.row[column]]));
-      const mapped = Object.fromEntries(
-        Object.entries(config.options.mapping).map(([field, column]) => [field, row[column]])
-      );
+      const mapped = mapReverseRow(row, config.options);
       const parsed = validation.projection.rowType.safeParse(mapped);
       ensure(parsed.success, "Source row failed mirror validation");
       const projected = effects(validation.projection.project(parsed.data), { allowEmpty: true });

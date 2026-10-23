@@ -74,6 +74,31 @@ it("renders separate requirement cards with descriptions, without OR bullet list
   expect(required.compareDocumentPosition(alternatives) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
 });
 
+it("gives every object mapping its own card outside the optional-fields block", () => {
+  render(
+    React.createElement(Fields, { destination: "google-ads", options: options("google-ads", "click-conversions") })
+  );
+  const names = screen.getAllByRole("heading", { level: 3 }).map(h => h.textContent);
+  expect(names).toContain("Custom variables");
+  expect(names).toContain("Session attributes (object)");
+  expect(names.indexOf("Custom variables")).toBeLessThan(names.indexOf("Optional and conditional fields"));
+  expect(screen.getAllByLabelText("Compose object")).toHaveLength(2);
+});
+
+it("places object requirement notes in the card description before its mapping controls", () => {
+  render(
+    React.createElement(Fields, {
+      destination: "facebook-conversions",
+      options: options("facebook-conversions", "conversions"),
+    })
+  );
+  const note = screen.getByText("Required for app rows, including tracking flags and all 16 extinfo positions.");
+  const heading = screen.getByRole("heading", { name: "App data" });
+  const controls = screen.getByLabelText("App data mapping mode");
+  expect(heading.compareDocumentPosition(note) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  expect(note.compareDocumentPosition(controls) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+});
+
 it.each(["hover", "focus"])("explains configuration status when the whole tag receives %s", async trigger => {
   render(
     React.createElement(Fields, {
@@ -265,7 +290,7 @@ it.each([
   const headings = screen.getAllByRole("heading", { level: 3 });
   expect(headings[0].textContent).toBe("Action source");
   if (messagingChannel) expect(headings[1].textContent).toBe("Messaging channel");
-  const required = screen.getByRole("heading", { name: "Required fields" });
+  const required = screen.getByRole("heading", { name: actionSource === "app" ? "App data" : "Required fields" });
   const next = headings[headings.indexOf(required) + 1];
   for (const name of names) {
     const control = screen.getByRole("combobox", { name });

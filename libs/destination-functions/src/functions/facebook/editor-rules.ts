@@ -84,7 +84,17 @@ export function metaConversionAlternatives(
         "Value and currency may come from explicit mappings, custom data, or a combination. Explicit non-null mappings override custom data; the JSON contents are checked during the run.",
       options: [
         alternative("Value AND currency columns", "value", "currency"),
-        alternative("Custom data containing value and/or currency", "customData"),
+        ...(options.objectMappings?.customData
+          ? options.objectMappings.customData.value || options.objectMappings.customData.currency
+            ? [
+                alternative(
+                  "Composed custom data and any remaining explicit fields",
+                  "customData",
+                  ...["value", "currency"].filter(key => !options.objectMappings?.customData?.[key])
+                ),
+              ]
+            : []
+          : [alternative("Custom data containing value and/or currency", "customData")]),
       ],
     },
   ];

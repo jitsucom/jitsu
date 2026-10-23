@@ -28,6 +28,24 @@ export const ModelDefinition = z.object({
 });
 export type ModelDefinition = z.infer<typeof ModelDefinition>;
 
+const objectProperty = z
+  .string()
+  .min(1)
+  .max(128)
+  .refine(
+    value =>
+      value === value.trim() && !["__proto__", "prototype", "constructor"].includes(value) && !value.includes("\0"),
+    "Invalid object property name"
+  );
+export const ObjectMappings = z
+  .record(
+    objectProperty,
+    z
+      .record(objectProperty, column)
+      .refine(value => Object.keys(value).length <= 100, "At most 100 properties may be composed")
+  )
+  .refine(value => Object.keys(value).length <= 32, "Too many composed objects");
+
 export const ReverseSyncOptions = z
   .object({
     version: z.literal(2).default(2),
@@ -35,6 +53,7 @@ export const ReverseSyncOptions = z
     stream: z.string().min(1),
     mode: z.enum(["upsert", "mirror"]),
     mapping: z.record(z.string().min(1)),
+    objectMappings: ObjectMappings.optional(),
     streamOptions: z.record(z.unknown()).default({}),
     schedule: z.string().optional(),
     timezone: z.string().optional(),

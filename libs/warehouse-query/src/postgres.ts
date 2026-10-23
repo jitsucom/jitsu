@@ -3,7 +3,7 @@ import Cursor from "pg-cursor";
 import { z } from "zod";
 import { Parser } from "node-sql-parser";
 import { ModelDefinition } from "./schema";
-import { createSqlDialect, decodeDelete } from "./sql";
+import { createSqlDialect, decodeDelete, mapSqlCode } from "./sql";
 import {
   boundedPreview,
   decodeRecord,
@@ -64,14 +64,35 @@ function decodeJsonColumn(value: unknown, type: string): unknown {
 }
 
 const parser = new Parser();
-export const postgresSql = createSqlDialect({
-  parse: query => parser.astify(query, { database: "Postgresql" }),
+const postgresLexing = {
   lineCommentPrefixes: ["--"],
-  backslashEscapes: (query, i) =>
+  backslashEscapes: (query: string, i: number) =>
     query[i] === "'" && /[eE]/.test(query[i - 1] ?? "") && !/[\w$\u0080-\uFFFF]/.test(query[i - 2] ?? ""),
-  dollarQuote(query, i) {
+  dollarQuote(query: string, i: number) {
     if (query[i] === "$" && !/[\w$\u0080-\uFFFF]/.test(query[i - 1] ?? ""))
       return query.slice(i).match(/^\$(?:[a-zA-Z_\u0080-\uFFFF][\w\u0080-\uFFFF]*)?\$/)?.[0];
+  },
+};
+export const postgresSql = createSqlDialect({
+  ...postgresLexing,
+  parse(query) {
+    try {
+      return parser.astify(query, { database: "Postgresql" });
+    } catch (error) {
+      // node-sql-parser rejects AT TIME ZONE after expressions such as (now() - interval '1 hour').
+      // https://github.com/taozhi8833998/node-sql-parser/issues/2651
+      // For read-only AST inspection only, represent it as another binary operator. Both operands
+      // (including subqueries) remain visible to the policy. Never execute this surrogate SQL:
+      // validateQuery/compileModel retain the original query. Keep offsets/newlines for diagnostics.
+      const inspectionSql = mapSqlCode(query, postgresLexing, code =>
+        code.replace(
+          /(?<![\w$\u0080-\uFFFF])AT[ \t\r\n]+TIME[ \t\r\n]+ZONE(?![\w$\u0080-\uFFFF])/gi,
+          operator => "||" + operator.slice(2).replace(/[^\r\n]/g, " ")
+        )
+      );
+      if (inspectionSql === query) throw error;
+      return parser.astify(inspectionSql, { database: "Postgresql" });
+    }
   },
   quoteColumn: name => '"' + name.replaceAll('"', '""') + '"',
   // Known OIDs decoded as string/number/boolean by losslessTypes and pg's text
