@@ -106,7 +106,7 @@ func TestTypesMappingAndCollision(t *testing.T) {
 				{"id": 1, "int_1": 1, "roundfloat": 1.0, "float1": 1.2, "intstring": "1", "roundfloatstring": "1.0", "floatstring": "1.1", "string1": "test", "bool1": false, "bool2": true, "time1": constantTime, "time2": constantTime, "time3": "2022-08-18", "_unmapped_data": nil},
 				{"id": 2, "int_1": 0, "roundfloat": 1.0, "float1": 1.0, "intstring": "1.1", "roundfloatstring": "1.1", "floatstring": "1.0", "string1": "test", "bool1": false, "bool2": true, "time1": constantTime, "time2": constantTime, "time3": "2022-08-18", "_unmapped_data": "{\"int_1\":\"a\"}"},
 			},
-			configIds: utils.ArrayIntersection(allBulkerConfigs, []string{ClickHouseBulkerTypeId, ClickHouseBulkerTypeId + "_cluster", ClickHouseBulkerTypeId + "_cluster_noshards"}),
+			configIds: utils.ArrayIntersection(allBulkerConfigs, []string{ClickHouseBulkerTypeId, ClickHouseBulkerTypeId + "_cluster", ClickHouseBulkerTypeId + "_cluster_noshards", ClickHouseBulkerTypeId + "_replicated_db", ClickHouseBulkerTypeId + "_replicated_db_sharded"}),
 		},
 		{
 			name:              "types_collision_stream",
@@ -380,7 +380,7 @@ func TestTypeOverrideOption(t *testing.T) {
 				With("date1", "Date").
 				With("int_1", "Int64").
 				With("intstring", "Int64"))},
-			configIds: utils.ArrayIntersection(allBulkerConfigs, []string{ClickHouseBulkerTypeId, ClickHouseBulkerTypeId + "_cluster_noshards"}),
+			configIds: utils.ArrayIntersection(allBulkerConfigs, []string{ClickHouseBulkerTypeId, ClickHouseBulkerTypeId + "_cluster_noshards", ClickHouseBulkerTypeId + "_replicated_db", ClickHouseBulkerTypeId + "_replicated_db_sharded"}),
 		},
 	}
 	for _, tt := range tests {
@@ -581,7 +581,7 @@ func TestJSONTypes(t *testing.T) {
 					{Name: "json1_nested2_nested", Type: types2.INT64},
 				},
 			})},
-			configIds: utils.ArrayIntersection(allBulkerConfigs, []string{ClickHouseBulkerTypeId + "_cluster"}),
+			configIds: utils.ArrayIntersection(allBulkerConfigs, []string{ClickHouseBulkerTypeId + "_cluster", ClickHouseBulkerTypeId + "_replicated_db", ClickHouseBulkerTypeId + "_replicated_db_sharded"}),
 		},
 		{
 			name:                      "json_test_clickhouse_json",
@@ -916,14 +916,14 @@ func TestTransactionalJSONNoArrays(t *testing.T) {
 		{
 			//deletes any table leftovers from previous tests
 			name:      "dummy_test_table_cleanup",
-			tableName: "transactional_json_test",
+			tableName: "transactional_json_no_arrays_test",
 			modes:     []bulker.BulkMode{bulker.Batch},
 			dataFile:  "test_data/empty.ndjson",
-			configIds: []string{ClickHouseBulkerTypeId, ClickHouseBulkerTypeId + "_cluster_noshards"},
+			configIds: []string{ClickHouseBulkerTypeId, ClickHouseBulkerTypeId + "_cluster_noshards", ClickHouseBulkerTypeId + "_replicated_db", ClickHouseBulkerTypeId + "_replicated_db_sharded"},
 		},
 		{
 			name:                "added_columns_first_run",
-			tableName:           "transactional_json_test",
+			tableName:           "transactional_json_no_arrays_test",
 			modes:               []bulker.BulkMode{bulker.Batch},
 			leaveResultingTable: true,
 			dataFile:            "test_data/types_json_noarr_part1.ndjson",
@@ -940,11 +940,11 @@ func TestTransactionalJSONNoArrays(t *testing.T) {
 					{Name: "json1", Type: types2.JSON},
 				},
 			})},
-			configIds: []string{ClickHouseBulkerTypeId, ClickHouseBulkerTypeId + "_cluster_noshards"},
+			configIds: []string{ClickHouseBulkerTypeId, ClickHouseBulkerTypeId + "_cluster_noshards", ClickHouseBulkerTypeId + "_replicated_db", ClickHouseBulkerTypeId + "_replicated_db_sharded"},
 		},
 		{
 			name:                "added_columns_second_run",
-			tableName:           "transactional_json_test",
+			tableName:           "transactional_json_no_arrays_test",
 			modes:               []bulker.BulkMode{bulker.Batch},
 			leaveResultingTable: true,
 			dataFile:            "test_data/types_json_noarr_part2.ndjson",
@@ -961,14 +961,14 @@ func TestTransactionalJSONNoArrays(t *testing.T) {
 					{Name: "json1", Type: types2.JSON},
 				},
 			})},
-			configIds: []string{ClickHouseBulkerTypeId, ClickHouseBulkerTypeId + "_cluster_noshards"},
+			configIds: []string{ClickHouseBulkerTypeId, ClickHouseBulkerTypeId + "_cluster_noshards", ClickHouseBulkerTypeId + "_replicated_db", ClickHouseBulkerTypeId + "_replicated_db_sharded"},
 		},
 		{
 			name:      "dummy_test_table_cleanup",
-			tableName: "transactional_json_test",
+			tableName: "transactional_json_no_arrays_test",
 			modes:     []bulker.BulkMode{bulker.Batch},
 			dataFile:  "test_data/empty.ndjson",
-			configIds: []string{ClickHouseBulkerTypeId, ClickHouseBulkerTypeId + "_cluster_noshards"},
+			configIds: []string{ClickHouseBulkerTypeId, ClickHouseBulkerTypeId + "_cluster_noshards", ClickHouseBulkerTypeId + "_replicated_db", ClickHouseBulkerTypeId + "_replicated_db_sharded"},
 		},
 	}
 	sequentialGroup := sync.WaitGroup{}
