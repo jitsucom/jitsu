@@ -55,8 +55,10 @@ The raw fields listed above (location, IP address, user agent, GAID, `obref`, `o
 
 `timestamp_ms` must be within the last 7 days and at most 10 minutes ahead, otherwise OpenAI fails the whole batch.
 A row outside the window fails the run with a fixed message; rows are never skipped. Unmapped event time defaults to
-the extraction time. ISO timestamps with a timezone and Unix milliseconds are accepted; a seconds-sized number is
-refused rather than interpreted.
+the extraction time. Timestamps with an explicit timezone and Unix milliseconds are accepted: ISO 8601, and the text the
+warehouse readers return (PostgreSQL and Redshift `2026-10-21 16:30:00.123456+05:30` with an offset of `+00`, `+05:30`
+or `+0530`; Snowflake `2026-10-21 11:00:00.123456789 +00:00`). A timestamp without a timezone (a PostgreSQL `timestamp`,
+a MySQL `DATETIME`, a ClickHouse `DateTime`) is refused rather than read in a guessed zone, as is a seconds-sized number.
 
 ## Acceptance and recovery
 

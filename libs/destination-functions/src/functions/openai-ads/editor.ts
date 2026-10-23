@@ -92,7 +92,7 @@ export const openAiConversionEditor: ReverseStreamEditor = {
         [
           "eventTime",
           "Event time",
-          "ISO timestamp with a timezone, or Unix milliseconds. Must be within the last 7 days and at most 10 minutes ahead; defaults to the extraction time when omitted.",
+          "Timestamp with a timezone (ISO, or a warehouse timestamptz such as 2026-10-21 16:30:00+05:30), or Unix milliseconds. Must be within the last 7 days and at most 10 minutes ahead; defaults to the extraction time when omitted.",
         ],
         ["actionSource", "Action source", "Optional per-row override."],
         ["sourceUrl", "Source URL", "Required for web events. Include the scheme and host."],

@@ -168,6 +168,8 @@ describe("OpenAI conversion validation", () => {
     failure({ ...web, eventTime: NOW + 11 * 60 * 1000 }, "eventTime");
     failure({ ...web, eventTime: Math.floor(NOW / 1000) }, "eventTime");
     failure({ ...web, eventTime: "2026-10-21 11:00:00" }, "eventTime");
+    failure({ ...web, eventTime: "2026-10-21 11:00:00 UTC" }, "eventTime");
+    failure({ ...web, eventTime: "2026-10-21 11:00:00+24" }, "eventTime");
     failure({ ...web, eventTime: "yesterday" }, "eventTime");
   });
   it("requires an event type, a web source URL and mobile_app for app events", () => {
@@ -206,6 +208,25 @@ describe("OpenAI conversion validation", () => {
       type: "plan_enrollment",
       plan_id: "pro",
     });
+  });
+  it("accepts the zoned timestamp text the warehouse readers return", () => {
+    const at = (eventTime: string) => normalize({ ...web, eventTime }).payload.timestamp_ms;
+    const expected = Date.parse("2026-10-21T11:00:00.123Z");
+    // PostgreSQL and Redshift timestamptz: space separator, microseconds, offset as +HH or +HH:MM.
+    expect(at("2026-10-21 11:00:00.123456+00")).toBe(expected);
+    expect(at("2026-10-21 16:30:00.123+05:30")).toBe(expected);
+    expect(at("2026-10-21 08:00:00.123-03")).toBe(expected);
+    expect(at("2026-10-21 16:30:00.123+0530")).toBe(expected);
+    // Snowflake TIMESTAMP_TZ / TIMESTAMP_LTZ: nanoseconds and a space before the offset.
+    expect(at("2026-10-21 11:00:00.123456789 +00:00")).toBe(expected);
+    expect(at("2026-10-21 04:00:00.123000000 -07:00")).toBe(expected);
+    // BigQuery TIMESTAMP and plain ISO keep working.
+    expect(at("2026-10-21T11:00:00.123456Z")).toBe(expected);
+    expect(at("2026-10-21T11:00:00.123Z")).toBe(expected);
+    // Whole seconds, with no fraction.
+    expect(at("2026-10-21 11:00:00+00")).toBe(Date.parse("2026-10-21T11:00:00Z"));
+    // The window still applies to the normalized time.
+    failure({ ...web, eventTime: "2026-10-10 11:00:00+00" }, "eventTime");
   });
   it("keeps the event currency when only the items carry amounts", () => {
     const data = normalize({ ...web, currency: "usd", contents: [{ id: "x", quantity: 1, amount: 1999 }] }).payload

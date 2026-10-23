@@ -7,7 +7,7 @@ export const openAiConversionValidationErrors = {
   customEventName:
     "Custom events need a custom event name of 1-64 letters, digits, _ or -, starting and ending with a letter or digit and not matching a standard event name.",
   eventTime:
-    "Event time must be an ISO timestamp with a timezone or Unix milliseconds, within the last 7 days and no more than 10 minutes ahead. OpenAI rejects a whole batch otherwise.",
+    "Event time must be a timestamp with a timezone (for example 2026-10-21T11:00:00Z or a PostgreSQL timestamptz) or Unix milliseconds, within the last 7 days and no more than 10 minutes ahead. OpenAI rejects a whole batch otherwise.",
   sourceUrl:
     'Source URL must include a scheme and host, for example https://shop.example.com/checkout, and is required when Action source is "web".',
   actionSource: "App events require the mobile_app action source.",

@@ -17,6 +17,18 @@ import { accepted, assertContext, Context, OpenAiUncertainDelivery, rejected, sa
 const wire = z.object({ key: z.string().regex(/^[a-f0-9]{64}$/), payload: z.record(z.unknown()) }).strict();
 const dayMs = 24 * 60 * 60 * 1000;
 const isoEventTime = z.string().datetime({ offset: true });
+// Warehouse readers keep timestamps as text: PostgreSQL and Redshift `2026-10-21 16:30:00.123456+05:30` (offset may be
+// `+00` or `+0530`), Snowflake `2026-10-21 11:00:00.123456789 +00:00`. Only a text with an explicit offset is taken.
+const zonedEventTime = /^(\d{4}-\d{2}-\d{2})[ T](\d{2}:\d{2}:\d{2}(?:\.\d{1,9})?) ?(Z|[+-]\d{2}(?::?\d{2})?)$/;
+
+/** Rewrites a reader's zoned timestamp text as ISO 8601; any other text is returned unchanged. */
+function isoFromZoned(value: string): string {
+  const m = zonedEventTime.exec(value.trim());
+  if (!m) return value;
+  const [, date, time, zone] = m;
+  const offset = zone === "Z" ? "Z" : `${zone.slice(0, 3)}:${zone.slice(3).replace(":", "") || "00"}`;
+  return `${date}T${time}${offset}`;
+}
 
 /** OpenAI wants Unix milliseconds within the last 7 days and at most 10 minutes ahead; anything else fails the batch. */
 function eventTimeMs(value: unknown, now: number): number {
@@ -29,8 +41,8 @@ function eventTimeMs(value: unknown, now: number): number {
   } else if (typeof value === "string" && /^\d{1,16}$/.test(value.trim())) {
     ms = Number(value.trim());
     numeric = true;
-  } else if (typeof value === "string" && isoEventTime.safeParse(value).success) {
-    ms = Date.parse(value);
+  } else if (typeof value === "string" && isoEventTime.safeParse(isoFromZoned(value)).success) {
+    ms = Date.parse(isoFromZoned(value));
   } else return invalidOpenAiConversion("eventTime");
   if (!Number.isSafeInteger(ms)) invalidOpenAiConversion("eventTime");
   // A seconds-sized number would silently become January 1970: refuse it instead of guessing the unit.
