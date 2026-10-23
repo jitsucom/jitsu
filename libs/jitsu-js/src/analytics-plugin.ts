@@ -75,7 +75,9 @@ const mergeConfig = (current: JitsuOptions, newConfig: JitsuOptions): void => {
       if (newConfig.hasOwnProperty(key) || !current.hasOwnProperty(key)) {
         // explicitly set to undefined - reset to default
         // or was not set at all - set to default
-        current[key] = defaultConfig[key];
+        //copy object defaults, so a change to one instance's config (e.g. setContextProperty) doesn't leak into others
+        const defaultValue = defaultConfig[key];
+        current[key] = typeof defaultValue === "object" && defaultValue !== null ? { ...defaultValue } : defaultValue;
       }
     } else {
       current[key] = value;
@@ -485,10 +487,15 @@ function deepMerge(target: any, source: any) {
   if (typeof target !== "object" || target === null || Array.isArray(target) || target instanceof Date) {
     return source;
   }
-  return Object.entries(source).reduce((acc, [key, value]) => {
-    acc[key] = deepMerge(target[key], value);
-    return acc;
-  }, target);
+  //build a new object instead of writing into target: target can be config.defaultPayloadContext,
+  //and mutating it would leak one event's context into every later event
+  return Object.entries(source).reduce(
+    (acc, [key, value]) => {
+      acc[key] = deepMerge(target[key], value);
+      return acc;
+    },
+    { ...target }
+  );
 }
 
 export function isInBrowser() {
