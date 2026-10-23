@@ -1,31 +1,39 @@
 # OpenAI Ads Reverse ETL implementation contract
 
-Verified against OpenAI's documentation and OpenAPI spec and Hightouch's documentation on 2026-10-21.
-Checked against a live OpenAI test account on 2026-10-22: `validate_only: true` requests (success, 400, 401, 403, 422)
-and one approved write of two synthetic events (sent through the adapter, then resent once; both answered 200
-`{"accepted_events": 2}`). Dedup in reporting, 429/5xx behavior and a cluster run are unconfirmed. See "Unconfirmed".
+Verified against OpenAI's documentation and OpenAPI spec and Hightouch's documentation on 2026-10-21 and 2026-10-22.
+Checked against a live OpenAI test account on 2026-10-22: the Conversions API with `validate_only: true` requests and one
+approved write of two synthetic events (sent through the adapter, then resent once), and the Custom Audiences API on two
+throwaway audiences with fake hashed identifiers. See "Unconfirmed" for what was not observed.
 
 Destination ID `openai-ads`, registered as `builtin.reverse.openai-ads`. Reverse ETL only: there is no OpenAI event
-destination. This contract covers the `conversions` stream. An `audience` stream (Custom Audiences) is planned
-separately and is not implemented here.
+destination. Two streams: `conversions` and `audience` (Custom Audiences).
 
 ## Authentication
 
-A **Conversions API key** from Ads Manager (Conversions), pasted into the destination and stored as a secret. It is
-sent as `Authorization: Bearer <key>` and only authorizes sending events. The **Pixel ID** is a stream setting
-(`pid` query parameter), not a credential. No OAuth: OpenAI's spec lists an OAuth scheme, but nothing documents
-third-party access to it.
+Two API keys from Ads Manager, pasted into the destination and stored as secrets. Both are optional on the destination
+and each stream requires only its own, checked when a sync is saved and again at run time. Both are sent as
+`Authorization: Bearer <key>`.
+
+- **Conversions API key** (Conversions): authorizes sending events to `bzr.openai.com` only. The **Pixel ID** is a
+  stream setting (`pid` query parameter), not a credential.
+- **Ads API key** (Settings): scoped to one ad account on `api.ads.openai.com`; it can manage more than audiences
+  (campaigns, billing), so use a key made for Jitsu. The ad account id comes from `GET /ad_account` and is never
+  entered by the user.
+
+No OAuth: OpenAI's spec lists an OAuth scheme, but nothing documents third-party access to it. Both hosts sit behind
+Cloudflare, which answers a blocked client with a plain-text `403 error code: 1010`. That is not an OpenAI answer and is
+never treated as a refusal.
 
 ## `conversions` stream
 
-| | |
-| --- | --- |
-| Endpoint | `POST https://bzr.openai.com/v1/events?pid=<pixel>` |
-| Modes | Insert only. No removals, no mirror, no delete column. Only new model primary keys are sent. |
-| Batch | At most 1,000 events per request (OpenAI's limit); one attempt per batch |
-| Partner id | `integration_source: "jitsu"` on every request |
-| Replay | `reconcile-required` |
-| Target identity | `openai-conversions:<pixelId>` |
+|                 |                                                                                              |
+| --------------- | -------------------------------------------------------------------------------------------- |
+| Endpoint        | `POST https://bzr.openai.com/v1/events?pid=<pixel>`                                          |
+| Modes           | Insert only. No removals, no mirror, no delete column. Only new model primary keys are sent. |
+| Batch           | At most 1,000 events per request (OpenAI's limit); one attempt per batch                     |
+| Partner id      | `integration_source: "jitsu"` on every request                                               |
+| Replay          | `reconcile-required`                                                                         |
+| Target identity | `openai-conversions:<pixelId>`                                                               |
 
 Events carry OpenAI's standard type (`order_created`, `lead_created`, ...) or `custom`. Jitsu derives `data.type`
 from the event type: `customer_action`, `contents`, `plan_enrollment` or `custom`. Amounts are integers in the
@@ -75,20 +83,123 @@ Accepted means OpenAI answered 2xx. It does **not** mean the events matched a pe
   receipt it never resubmits.
 - Finish and abort perform no remote writes.
 
+## `audience` stream
+
+|                 |                                                                                                                                                                                                                               |
+| --------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Endpoints       | `POST /custom_audiences` (create), `GET /custom_audiences` and `/{id}` (read, discover), `POST /{id}/add` and `/remove`, `GET /{id}/operations/{operation}` (poll), `POST .../resume`, all on `https://api.ads.openai.com/v1` |
+| Modes           | Managed audience: mirror (`snapshot-diff`). Existing audience: additions and explicit removals via the model's delete column, no mirror                                                                                       |
+| Batch           | At most 3,000 members, at most 9,000 identifiers (OpenAI's small-update path is up to 10,000; the body limit is 16 MiB)                                                                                                       |
+| Replay          | `idempotency-key`                                                                                                                                                                                                             |
+| Delivery        | `accepted`: the writer waits for each operation inside the call                                                                                                                                                               |
+| Target identity | `openai-audience:<ad account id>:<audience id>`                                                                                                                                                                               |
+
+### Members and identifiers
+
+A row maps email, phone and Android advertising ID (GAID), one value each. Email and phone are raw or pre-hashed, never
+both. Rules (OpenAI's audience guide):
+
+- email: trim, lowercase, dots and plus tags kept, then SHA-256 as `email_sha256`;
+- phone: E.164 **including the `+`**, then SHA-256 as `phone_number_sha256`. A raw value needs its country code (a
+  leading `00` is read as `+`) and has 7 to 15 digits: OpenAI sets no length limit for audiences, and valid numbers such
+  as `+6837012` (Niue) have 7. This differs from the Conversions API, which hashes without the `+`; the two streams
+  have separate functions, and tests assert OpenAI's own example digests for `jamie@example.com` and `+12025550124`;
+- GAID: raw, hyphenated, non-zero UUID, lowercased. OpenAI hashes it; never pre-hash it.
+
+Pre-hashed values must be 64 hex characters (lowercased). A malformed value fails the row, and a row with no identifier
+fails the run; nothing is dropped. Hashing happens once when a row is extracted. Saved payloads hold hashes and the
+GAID only.
+
+**Identity.** The mirror identifies a member by one identifier: the first available of email, phone, GAID. That
+identity is what the runner compares between runs; the Add and the Remove both send every identifier the row had, because
+OpenAI treats each as a matching candidate and a Remove with only the identity could leave a person who matched through
+another one. The cost: two members who share an identifier (a household phone) are removed together when either leaves,
+and the mirror does not add the other back. OpenAI matches people, not identifiers, so changing a member's identity identifier (for example their email) while they
+remain in the model removes the old identity after the new one is added, and that can remove the person. Keep the
+identity identifier stable.
+
+### Provisioning (managed audience)
+
+The first run creates the audience. The runner saves the creation intent and a random marker (`jitsu-retl-<64 hex>`,
+placed in the description) in its target state before the request, claims the creation with a compare-and-set, and
+records the audience id once it exists. OpenAI's create has no idempotency key. If the answer is lost, the next run does
+not create a second audience: it scans the account's audiences newest first for the marker and adopts the single match,
+or stops with "OpenAI audience creation is unconfirmed; retry discovery without resetting state". A definite refusal
+returns the state to prepared so the same intent can be retried once the cause is fixed.
+
+The saved state also records the ad account, so a key for another account cannot adopt the audience. Before every run
+the audience is read and must carry the marker. Creation and every later run then wait for `ready` (about 17 s after
+create; bounded at 5 minutes). An audience that is `failed` or `archived` stops the run; `too_small` is usable (small
+audiences can exclude people).
+
+### Delivery and recovery
+
+Each batch is one Add or Remove with an `Idempotency-Key` of `jitsu-<batch binding>` (sync, run, target, revision,
+action, batch id, records), so the same batch always carries the same key and identical bytes. The writer then polls the
+operation until `succeeded` or `failed` (growing delays up to 10 s; bounded at 10 minutes). The mirror therefore sees a
+batch accepted only after OpenAI finished it, and removals follow accepted additions. `expected_revision` is not sent:
+the revision rises on every accepted operation, no-ops included, so it cannot detect change.
+
+- `succeeded` is accepted. It does **not** mean the members matched anyone or that the audience can be targeted.
+- A submit refused with OpenAI's error envelope (HTTP 400, 401, 403, 404, 413 or 422) rejects the whole batch with nothing
+  applied: one malformed identifier fails all of it, so values are validated locally first. Shown code is
+  `OPENAI_<error code>` or `http_<status>`; provider messages are never kept.
+- An operation that reaches `failed` rejects the batch with `OPENAI_<failure code>` (or `OPENAI_OPERATION_FAILED`). OpenAI
+  says a failed Add or Remove may have applied part of its change, and the batch is recorded as rejected. The run stops
+  and the sync stays stopped: the next run resumes the same run, reads nothing, sends nothing and fails the same way
+  (pinned by a runner test against the fake). Check the audience in Ads Manager before anyone resets the sync, because
+  a reset discards the record of what that batch may have applied.
+- An error while waiting for an operation OpenAI already accepted (a 401, 403 or 404 after access was revoked, say) is not
+  a rejection: it throws, the core marks the batch unknown, and recovery replays the same key once access is back.
+- A `503 custom_audience_operation_unavailable` on submit (seen when an Add reaches an audience that is not yet `ready`)
+  and a 429 are retried with the same key inside a 5-minute budget, honoring `Retry-After`, with a floor of 0.5 s. A
+  `409 custom_audience_mutation_conflict` is retried the same way. Statuses OpenAI does not define are treated as not
+  finished.
+- A lost response, a timeout or a wait that runs out throws. The core marks the batch unknown and recovery replays the
+  **same request under the same key**: OpenAI returns the original operation, running or finished, so nothing is applied
+  twice. A new key is never used for work that may already have been accepted. A saved receipt bound to the batch is
+  returned without calling OpenAI.
+- An interrupted operation (`409 ...operation_recovery_required` on a status call) is resumed by operation id, then
+  polled.
+- Finish and abort perform no remote writes.
+
+### Eligibility
+
+Empty and small audiences can only be used to **exclude** people; inclusion and bid adjustments need roughly 25,000
+matched users, and OpenAI can refuse a membership change that would break the size requirement of a campaign using the
+audience. Custom audiences are not available for campaigns targeting the EEA or Switzerland. Create may be disabled per
+account ("when small audiences are enabled for the account" in OpenAI's spec); a refusal is shown, never retried.
+
 ## Parity
 
-Hightouch offers an Events sync (conversions, insert) to OpenAI. Its connector source is not public; only its
-documentation was compared. Intentional differences: Jitsu hashes customer data itself and refuses a stale event
-instead of letting the batch fail.
+Hightouch offers an Events sync (conversions, insert) and a Segments sync (add and remove) to OpenAI. Its connector
+source is not public; only its documentation was compared. Intentional differences: Jitsu hashes customer data itself,
+refuses a stale event instead of letting the batch fail, and recovers an uncertain audience batch by replaying its key.
 
 ## Unconfirmed
 
-- The 429 and 5xx response shapes. Recorded with `validate_only` on 2026-10-22: success `{"accepted_events": N}`; 400
-  `invalid_event` and 422 `event_timestamp_too_old` with an `errors[]` list; 403 `unknown pid` and 401 `Unauthorized`
-  with `code: null`. 2xx is still accepted without parsing the body.
-- How long OpenAI remembers an event ID.
-- Dedup in reporting: the two written events and the resend were accepted, but how OpenAI counts a repeated event ID was
-  not observed.
+Observed live on 2026-10-22:
+
+- Conversions: success body `{"accepted_events": N}`; 400 `invalid_event` and 422 `event_timestamp_too_old` with an
+  `errors[]` list; 403 `unknown pid` and 401 `Unauthorized` with `code: null`. Two events written and resent were both
+  accepted and Event Stream listed four rows. 2xx is accepted without parsing the body.
+- Audience: create 200 (`rockset_ingest_pending`, then `publishing`, then `ready` after about 17 s); Add before ready 503;
+  an Add or Remove takes about 5-26 s regardless of size (a 10,000-identifier Add about 25 s including the submit); a
+  second Add while the first runs is accepted and queued; the same key returns the same operation, while running and after
+  it finished (still true 17 minutes later); a malformed hash is refused 422 for the whole batch and an unknown identifier
+  type 400; the revision rises on every operation.
+- The audience adapter itself, through `createOpenAiAdsRuntime`, on a third throwaway audience: provisioning (create and wait
+  for `ready`) took 21 s; an Add of 2 members 9 s; a replay of that batch through recovery returned in 1.6 s with no new
+  operation; a further Add 11.5 s; a Remove 13 s; resolving the runtime again reused the audience and created none; the
+  operations list held exactly 3 operations and the revision was 3.
+
+Not observed:
+
+- The conversions 429 and 5xx shapes, how long OpenAI remembers an event ID, and whether a resent event is counted once in
+  reporting (the Total events counter had not moved 5.5 hours after the write).
+- How long OpenAI keeps an idempotency key and the operations list beyond 17 minutes; the 2-day recovery window assumes it
+  holds.
+- A real `failed` operation, `Retry-After` on a 429 or 503, and `409 custom_audience_mutation_conflict` (documented only).
 - OpenAI's logo and brand rules: the console icon is a neutral placeholder.
 
 ## References
@@ -96,9 +207,12 @@ instead of letting the batch fail.
 - https://developers.openai.com/ads/conversions-api
 - https://developers.openai.com/ads/supported-events
 - https://developers.openai.com/ads/api-partner-setup
+- https://developers.openai.com/ads/custom-audiences
+- https://developers.openai.com/ads/openapi.json
 - https://hightouch.com/docs/destinations/open-ai
 
 ## Rollout
 
-Deploy console and runner together; no schema migration, no `deploy:console` decision made yet. Tests use mocked HTTP
-only. A live test needs explicit approval of the account, pixel and events; conversions cannot be undone.
+Deploy console and runner together; no schema migration, no `deploy:console` decision made yet. Unit tests use mocked HTTP,
+including a fake of OpenAI's audience API built from the live observations above. A live test needs explicit approval of
+the account, pixel or audience and the data sent: conversions cannot be undone and archiving an audience is permanent.

@@ -182,6 +182,38 @@ describe("single-save Reverse ETL settings", () => {
     });
     expect(conversions.id).not.toBe(id);
   });
+  it("locks a saved OpenAI audience creation intent before any run has opened its control record", async () => {
+    const f = await fixture();
+    await f.prisma.configurationObject.update({
+      where: { id: f.destination.id },
+      data: { config: { destinationType: "openai-ads", adsApiKey: "ads-test-key" } },
+    });
+    const input = {
+      ...f.input,
+      data: {
+        ...f.input.data,
+        streamOptions: { audience: { kind: "managed", name: "OpenAI audience" }, exclusiveManagementConfirmed: true },
+      },
+    };
+    const { id } = await f.create(input);
+    expect((await listReverseSyncs(f.prisma, f.workspace.id))[0].settingsLocked).toBe(false);
+    // The runner saves this state while creating the audience, before it opens reverse_sync_control. A failed first
+    // run (a lost create answer, or a readiness timeout) leaves it behind with no running task.
+    await f.prisma.source_state.create({
+      data: { sync_id: id, stream: "_REVERSE_ETL_OPENAI_AUDIENCE_", state: { phase: "submitting" } },
+    });
+    await expect(
+      updateReverseSync(f.prisma, f.workspace.id, id, {
+        ...input,
+        data: {
+          ...input.data,
+          streamOptions: { ...input.data.streamOptions, audience: { kind: "managed", name: "Renamed audience" } },
+        },
+      })
+    ).rejects.toThrow("ownership");
+    await updateReverseSync(f.prisma, f.workspace.id, id, { schedule: "0 0 * * *", timezone: "UTC" });
+    expect((await listReverseSyncs(f.prisma, f.workspace.id))[0].settingsLocked).toBe(true);
+  });
   it("uses the latest runner log for badges with deterministic ordering and sync scoping", async () => {
     const f = await fixture();
     const { id } = await f.create();

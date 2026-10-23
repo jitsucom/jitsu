@@ -13,29 +13,39 @@ export class OpenAiUncertainDelivery extends ReverseEtlManualReconciliationError
     this.message = openAiUncertainMessage;
   }
 }
-export function batchBinding(ctx: Context, batch: WriteBatch<JsonObject>) {
+export type Action = "upsert" | "remove";
+/** Binds a result or an idempotency key to one batch of one run. The default keeps conversions' bindings unchanged. */
+export function batchBinding(ctx: Context, batch: WriteBatch<JsonObject>, action: Action = "upsert") {
   return contentHash({
     sync: ctx.syncId,
     run: ctx.logicalRunId,
     target: ctx.targetIdentity,
     revision: ctx.configRevision,
-    action: "upsert",
+    action,
     batchId: batch.batchId,
     records: batch.records,
   });
 }
-export function accepted(ctx: Context, batch: WriteBatch<JsonObject>): BatchResult {
+export function accepted(ctx: Context, batch: WriteBatch<JsonObject>, action: Action = "upsert"): BatchResult {
   return {
     outcomes: batch.records.map(r => ({ operationId: r.operationId, status: "accepted" })),
     /** Only built from a 2xx or an OpenAI error envelope, so the response confirms receipt of the whole batch. */
     submitted: true,
-    providerCheckpoint: { binding: batchBinding(ctx, batch) },
+    providerCheckpoint: { binding: batchBinding(ctx, batch, action) },
   };
 }
-export function savedReceipt(ctx: Context, batch: WriteBatch<JsonObject>, saved?: BatchResult) {
+export function savedReceipt(
+  ctx: Context,
+  batch: WriteBatch<JsonObject>,
+  saved?: BatchResult,
+  action: Action = "upsert"
+) {
   if (!saved) return;
   validateBatchResult(batch, saved);
-  if (saved.providerCheckpoint?.binding !== batchBinding(ctx, batch) || saved.outcomes.some(r => r.status === "staged"))
+  if (
+    saved.providerCheckpoint?.binding !== batchBinding(ctx, batch, action) ||
+    saved.outcomes.some(r => r.status === "staged")
+  )
     throw new OpenAiUncertainDelivery();
   return saved;
 }
@@ -45,7 +55,13 @@ function rejectionCode(error: OpenAiApiError) {
     ? `OPENAI_${error.code.toUpperCase()}`
     : `http_${error.status}`;
 }
-export function rejected(ctx: Context, batch: WriteBatch<JsonObject>, error: OpenAiApiError): BatchResult {
+export function rejected(
+  ctx: Context,
+  batch: WriteBatch<JsonObject>,
+  error: OpenAiApiError,
+  action: Action = "upsert",
+  stream: "conversions" | "audience" = "conversions"
+): BatchResult {
   const code = rejectionCode(error);
   const details = safeRejectionDetails(
     error.details.length
@@ -55,12 +71,15 @@ export function rejected(ctx: Context, batch: WriteBatch<JsonObject>, error: Ope
       : []
   );
   return {
-    ...accepted(ctx, batch),
+    ...accepted(ctx, batch, action),
     outcomes: batch.records.map(r => ({
       operationId: r.operationId,
       status: "rejected",
       code,
-      safeReason: "OpenAI rejected the conversion batch; check the Conversions API key, Pixel ID and event mappings",
+      safeReason:
+        stream === "audience"
+          ? "OpenAI rejected the audience change; check the Ads API key, the audience and the identifier mappings"
+          : "OpenAI rejected the conversion batch; check the Conversions API key, Pixel ID and event mappings",
       ...(details.length ? { details } : {}),
     })),
   };
@@ -72,4 +91,27 @@ export function assertContext(ctx: Context, target: string, options: unknown, cr
     contentHash(ctx.credentials) !== contentHash(credentials)
   )
     throw new Error("OpenAI writer binding does not match the saved target and settings");
+}
+
+/** The operation reached `failed`. OpenAI says a failed Add or Remove may have applied part of its change. */
+export function rejectedOperation(
+  ctx: Context,
+  batch: WriteBatch<JsonObject>,
+  action: Action,
+  failureCode?: string
+): BatchResult {
+  const code =
+    failureCode && /^[a-z][a-z0-9_]{0,40}$/.test(failureCode)
+      ? `OPENAI_${failureCode.toUpperCase()}`
+      : "OPENAI_OPERATION_FAILED";
+  return {
+    ...accepted(ctx, batch, action),
+    outcomes: batch.records.map(r => ({
+      operationId: r.operationId,
+      status: "rejected",
+      code,
+      safeReason:
+        "OpenAI could not apply the audience change, and part of it may have been applied; check the audience in Ads Manager and the Ads API key before resetting the sync",
+    })),
+  };
 }
