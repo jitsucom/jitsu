@@ -101,7 +101,8 @@ both. Rules (OpenAI's audience guide):
 
 - email: trim, lowercase, dots and plus tags kept, then SHA-256 as `email_sha256`;
 - phone: E.164 **including the `+`**, then SHA-256 as `phone_number_sha256`. A raw value needs its country code (a
-  leading `00` is read as `+`). This differs from the Conversions API, which hashes without the `+`; the two streams
+  leading `00` is read as `+`) and has 7 to 15 digits: OpenAI sets no length limit for audiences, and valid numbers such
+  as `+6837012` (Niue) have 7. This differs from the Conversions API, which hashes without the `+`; the two streams
   have separate functions, and tests assert OpenAI's own example digests for `jamie@example.com` and `+12025550124`;
 - GAID: raw, hyphenated, non-zero UUID, lowercased. OpenAI hashes it; never pre-hash it.
 
@@ -109,9 +110,11 @@ Pre-hashed values must be 64 hex characters (lowercased). A malformed value fail
 fails the run; nothing is dropped. Hashing happens once when a row is extracted. Saved payloads hold hashes and the
 GAID only.
 
-**Identity.** The mirror identifies a member by one identifier: the first available of email, phone, GAID. A removal
-sends only that identifier, so it depends on nothing else in the row. The Add sends every identifier the row has.
-OpenAI matches people, not identifiers, so changing a member's identity identifier (for example their email) while they
+**Identity.** The mirror identifies a member by one identifier: the first available of email, phone, GAID. That
+identity is what the runner compares between runs; the Add and the Remove both send every identifier the row had, because
+OpenAI treats each as a matching candidate and a Remove with only the identity could leave a person who matched through
+another one. The cost: two members who share an identifier (a household phone) are removed together when either leaves,
+and the mirror does not add the other back. OpenAI matches people, not identifiers, so changing a member's identity identifier (for example their email) while they
 remain in the model removes the old identity after the new one is added, and that can remove the person. Keep the
 identity identifier stable.
 
@@ -142,8 +145,12 @@ the revision rises on every accepted operation, no-ops included, so it cannot de
   applied: one malformed identifier fails all of it, so values are validated locally first. Shown code is
   `OPENAI_<error code>` or `http_<status>`; provider messages are never kept.
 - An operation that reaches `failed` rejects the batch with `OPENAI_<failure code>` (or `OPENAI_OPERATION_FAILED`). OpenAI
-  says a failed Add or Remove may have applied part of its change; the run stops, the snapshot is not promoted, and the next
-  run recomputes the difference, which is safe because Add and Remove are idempotent in effect.
+  says a failed Add or Remove may have applied part of its change, and the batch is recorded as rejected. The run stops
+  and the sync stays stopped: the next run resumes the same run, reads nothing, sends nothing and fails the same way
+  (pinned by a runner test against the fake). Check the audience in Ads Manager before anyone resets the sync, because
+  a reset discards the record of what that batch may have applied.
+- An error while waiting for an operation OpenAI already accepted (a 401, 403 or 404 after access was revoked, say) is not
+  a rejection: it throws, the core marks the batch unknown, and recovery replays the same key once access is back.
 - A `503 custom_audience_operation_unavailable` on submit (seen when an Add reaches an audience that is not yet `ready`)
   and a 429 are retried with the same key inside a 5-minute budget, honoring `Retry-After`, with a floor of 0.5 s. A
   `409 custom_audience_mutation_conflict` is retried the same way. Statuses OpenAI does not define are treated as not

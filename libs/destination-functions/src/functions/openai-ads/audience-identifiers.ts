@@ -21,9 +21,10 @@ export function openAiAudienceEmail(value: string): string {
 }
 export function openAiAudiencePhone(value: string): string {
   // Drop whitespace, parentheses, periods and hyphens, accept a leading "00" as "+", and require the country code.
+  // OpenAI sets no length limit for audiences; E.164 allows 15 digits and the shortest real numbers have 7.
   const digits = value.replace(/[\s().-]/g, "").replace(/^00/, "+");
   const phone = digits.startsWith("+") ? digits : `+${digits}`;
-  if (!/^\+[1-9][0-9]{7,14}$/.test(phone)) invalidOpenAiAudience("identifier");
+  if (!/^\+[1-9][0-9]{6,14}$/.test(phone)) invalidOpenAiAudience("identifier");
   return phone;
 }
 /** A raw, nonzero, hyphenated UUID. OpenAI hashes it itself and forbids pre-hashing. */

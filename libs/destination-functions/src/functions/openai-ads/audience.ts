@@ -25,8 +25,9 @@ const identifier = z
   })
   .strict();
 /**
- * One member as the core stores it: every identifier we send for an Add, and the `identity` the core compares across
- * runs. The identity is a single identifier (email, else phone, else GAID); a Remove sends only that one.
+ * One member as the core stores it: every identifier we send, and the `identity` the core compares across runs. The
+ * identity is a single identifier (email, else phone, else GAID). Add and Remove both send every identifier: OpenAI
+ * treats each as a matching candidate, so a Remove with only the identity could leave a person matched by another one.
  */
 export const openAiAudienceWire = z
   .object({ identifiers: z.array(identifier).min(1).max(3), identity: z.record(z.string()) })
@@ -35,24 +36,14 @@ export const openAiAudienceWire = z
 /** At most 3 identifiers per member, so 3,000 members stay within OpenAI's 10,000-identifier small-update path. */
 const batchSize = 3000;
 
-export function normalizeOpenAiAudience(input: unknown, action: Action): JsonObject {
+export function normalizeOpenAiAudience(input: unknown): JsonObject {
   const identifiers = openAiAudienceIdentifiers(OpenAiAudienceRow.parse(input) as Record<string, unknown>);
   const key = identifiers[0];
-  return {
-    identifiers: action === "remove" ? [key] : identifiers,
-    identity: { [key.identifier_type]: key.identifier },
-  };
+  return { identifiers, identity: { [key.identifier_type]: key.identifier } };
 }
 export function projectOpenAiAudience(_action: Action, input: unknown) {
   const row = openAiAudienceWire.parse(input);
-  const [type, value] = Object.entries(row.identity)[0];
-  return [
-    {
-      identity: row.identity,
-      upsert: row as JsonObject,
-      remove: { identifiers: [{ identifier_type: type, identifier: value }], identity: row.identity },
-    },
-  ];
+  return [{ identity: row.identity, upsert: row as JsonObject, remove: row as JsonObject }];
 }
 
 export function createOpenAiAudience(
@@ -89,28 +80,14 @@ export function createOpenAiAudience(
     );
     const key = `jitsu-${batchBinding(ctx, batch, action)}`;
     const call = callFor(ctx);
+    // Only a refused submit proves nothing was applied. Once OpenAI has returned an operation, an error while waiting
+    // for it (a 401, 403 or 404 after access was revoked, say) says nothing about the operation: it throws, the core
+    // marks the batch unknown, and recovery replays the same key.
+    let operation;
     try {
-      const operation = await submitMembership(
-        call,
-        audienceId,
-        action === "remove" ? "remove" : "add",
-        identifiers,
-        key,
-        { wait }
-      );
-      const done = await waitForOperation(call, audienceId, operation.operation_id, { wait });
-      if (done.status === "succeeded") {
-        await log(
-          `OpenAI applied ${batch.records.length} audience ${
-            action === "remove" ? "removals" : "additions"
-          }; matching and audience size are separate.`
-        );
-        return accepted(ctx, batch, action);
-      }
-      await log(
-        "OpenAI reported the audience change as failed; part of it may have been applied. Provider error text is omitted."
-      );
-      return rejectedOperation(ctx, batch, action, done.failure_reason?.code ?? undefined);
+      operation = await submitMembership(call, audienceId, action === "remove" ? "remove" : "add", identifiers, key, {
+        wait,
+      });
     } catch (error) {
       if (error instanceof OpenAiApiError) {
         await log(`${error.message}; audience request ${error.rejected ? "rejected" : "unconfirmed"}.`);
@@ -118,6 +95,25 @@ export function createOpenAiAudience(
       }
       throw error;
     }
+    let done;
+    try {
+      done = await waitForOperation(call, audienceId, operation.operation_id, { wait });
+    } catch (error) {
+      if (error instanceof OpenAiApiError) await log(`${error.message}; audience request unconfirmed.`);
+      throw error;
+    }
+    if (done.status === "succeeded") {
+      await log(
+        `OpenAI applied ${batch.records.length} audience ${
+          action === "remove" ? "removals" : "additions"
+        }; matching and audience size are separate.`
+      );
+      return accepted(ctx, batch, action);
+    }
+    await log(
+      "OpenAI reported the audience change as failed; part of it may have been applied. Check the audience in Ads Manager before resetting the sync. Provider error text is omitted."
+    );
+    return rejectedOperation(ctx, batch, action, done.failure_reason?.code ?? undefined);
   }
   async function submit(ctx: Context, batch: WriteBatch<JsonObject>, action: Action) {
     if (!batch.records.length || batch.records.length > batchSize)
@@ -140,8 +136,8 @@ export function createOpenAiAudience(
     name: "audience",
     displayName: "Custom Audiences",
     options: OpenAiAudienceOptions as z.ZodType<JsonObject>,
-    rowType: OpenAiAudienceRow.transform(row => normalizeOpenAiAudience(row, "upsert")) as z.ZodType<JsonObject>,
-    removeRowType: OpenAiAudienceRow.transform(row => normalizeOpenAiAudience(row, "remove")) as z.ZodType<JsonObject>,
+    rowType: OpenAiAudienceRow.transform(row => normalizeOpenAiAudience(row)) as z.ZodType<JsonObject>,
+    removeRowType: OpenAiAudienceRow.transform(row => normalizeOpenAiAudience(row)) as z.ZodType<JsonObject>,
     batchSize,
     capabilities: {
       supportsUpsert: true,

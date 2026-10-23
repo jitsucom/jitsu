@@ -36,10 +36,12 @@ a model delete column; their existing membership is not imported as a mirror bas
 OpenAI Ads audiences: the first run creates the audience (Jitsu keeps a marker so an interrupted creation is found,
 never repeated). Each batch is one Add or Remove that Jitsu waits for, so removals follow accepted additions. A batch
 whose outcome is unknown is replayed under its original idempotency key and OpenAI returns the original operation, so
-nothing is applied twice; a failed operation stops the run, and the next run recomputes the difference. An existing
+nothing is applied twice; a failed operation stops the run and the sync stays stopped until an administrator has checked
+the audience (part of the change may have been applied). An existing
 OpenAI audience supports additions and explicit removals only. A member is identified by one identifier (email, else
-phone, else Android advertising ID): changing it while the person stays in the model can remove them, because OpenAI
-matches people, not identifiers. Empty and small audiences can only exclude people; inclusion needs roughly 25,000
+phone, else Android advertising ID), and an Add or a Remove sends every identifier the row has. Changing the identifier
+while the person stays in the model can remove them, because OpenAI matches people, not identifiers, and members who
+share a phone or email are removed together. Empty and small audiences can only exclude people; inclusion needs roughly 25,000
 matched users, and custom audiences are not available for campaigns targeting the EEA or Switzerland.
 
 ## Webhook delivery

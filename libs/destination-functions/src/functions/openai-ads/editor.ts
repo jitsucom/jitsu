@@ -215,7 +215,7 @@ export const openAiAudienceEditor: ReverseStreamEditor = {
               presentation: "warning" as const,
               showIcon: true,
               title:
-                "Tracked members missing from the model are removed. An empty model clears tracked membership. Changing a member's email can remove them, because OpenAI matches people, not identifiers.",
+                "Tracked members missing from the model are removed. An empty model clears tracked membership. Changing a member's email can remove them, because OpenAI matches people, not identifiers. Members who share a phone or email are removed together.",
             },
           ]
         : []),

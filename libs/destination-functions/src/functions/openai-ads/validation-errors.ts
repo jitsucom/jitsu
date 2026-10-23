@@ -25,7 +25,7 @@ export function invalidOpenAiConversion(reason: keyof typeof openAiConversionVal
 // Audience rows. Same rule: fixed, value-free text shared with the runner's failure allowlist.
 export const openAiAudienceValidationErrors = {
   identifier:
-    "A member identifier is invalid. Check email, phone (E.164 with the country code, 8-15 digits) and Android advertising ID (a hyphenated UUID), and the raw versus SHA-256 columns.",
+    "A member identifier is invalid. Check email, phone (E.164 with the country code, 7-15 digits) and Android advertising ID (a hyphenated UUID), and the raw versus SHA-256 columns.",
   noIdentifier: "Each member needs at least one identifier: map Email, Phone or Android advertising ID.",
 } as const;
 

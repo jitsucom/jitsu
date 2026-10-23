@@ -61,7 +61,7 @@ function setup(options: ReverseDestinationConfig["options"] = managed, destinati
   return { ads, store, log, config, services, build, context };
 }
 const member = (n: number, extra: Record<string, unknown> = {}) =>
-  normalizeOpenAiAudience({ email: `m${n}@example.com`, ...extra }, "upsert");
+  normalizeOpenAiAudience({ email: `m${n}@example.com`, ...extra });
 function batch(rows: JsonObject[], id = "batch-1"): WriteBatch<JsonObject> {
   return {
     batchId: id,
@@ -209,18 +209,27 @@ describe("OpenAI audience delivery", () => {
     expect(adds(t.ads)).toHaveLength(2);
     expect(new Set(adds(t.ads).map(o => o.key)).size).toBe(2);
   });
-  it("removes by the identity identifier only", async () => {
-    const t = setup();
+  it("removes with every identifier of the member, as an Add sends them", async () => {
+    // An existing audience removes the rows the model marks deleted, parsed by the stream's own remove row type.
+    const t = setup({
+      stream: "audience",
+      mode: "upsert",
+      streamOptions: { audience: { kind: "existing", audienceId: audienceId(1) } },
+    });
+    t.ads.audiences.set(audienceId(1), { created: -60_000, description: "someone's audience", name: "n", revision: 0 });
     const adapter = await t.build();
     const writer = await adapter.stream.createWriter(t.context(adapter));
-    const removal = (n: number) =>
-      normalizeOpenAiAudience({ email: `m${n}@example.com`, phone: "+12025550124" }, "remove");
-    const result = await writer.remove!(batch([removal(1)]));
+    const removal = adapter.stream.removeRowType!.parse({
+      email: "M1@example.com",
+      phone: "+12025550124",
+    }) as JsonObject;
+    const result = await writer.remove!(batch([removal]));
     expect(result.outcomes[0].status).toBe("accepted");
     const [op] = adds(t.ads);
     expect(op.action).toBe("remove");
     expect(JSON.parse(op.body).identifiers).toEqual([
       { identifier_type: "email_sha256", identifier: sha("m1@example.com") },
+      { identifier_type: "phone_number_sha256", identifier: sha("+12025550124") },
     ]);
   });
   it("rejects the batch when OpenAI reports the operation failed, with a controlled code and no provider text", async () => {
@@ -277,6 +286,28 @@ describe("OpenAI audience delivery", () => {
     t.ads.hooks.intercept = route =>
       route.endsWith("/add") ? new Response("error code: 1010\n", { status: 403 }) : undefined;
     await expect(writer.upsert(batch([member(1)]))).rejects.toMatchObject({ status: 403, rejected: false });
+  });
+  it("does not read an error while waiting for an accepted operation as a rejection: it throws and recovery replays", async () => {
+    const t = setup();
+    const adapter = await t.build();
+    const writer = await adapter.stream.createWriter(t.context(adapter));
+    for (const status of [401, 403, 404]) {
+      t.ads.hooks.operationCalls = 0;
+      t.ads.hooks.operationStatus = calls => (calls === 1 ? refusal(status, "access_denied") : "");
+      const rows = [member(status)];
+      await expect(writer.upsert(batch(rows, `batch-${status}`))).rejects.toMatchObject({ status });
+      const opsBefore = adds(t.ads).length;
+      // Access is back: recovery replays the same key and the same operation is accepted, nothing applied twice.
+      const recovery = adapter.recovery!({});
+      const result = await recovery.reconcileBatch!(
+        batch(rows, `batch-${status}`),
+        "upsert",
+        undefined,
+        t.context(adapter)
+      );
+      expect(result.outcomes.map(o => o.status)).toEqual(["accepted"]);
+      expect(adds(t.ads)).toHaveLength(opsBefore);
+    }
   });
   it("recovers a lost submit answer by replaying the same key: applied once, accepted", async () => {
     const t = setup();
@@ -359,7 +390,7 @@ describe("OpenAI audience mirror contract", () => {
     t.ads.audiences.get(audienceId(1))!.description = "no marker";
     await expect(adapter.verifyMirrorBaseline!(new AbortController().signal)).rejects.toThrow("ownership marker");
   });
-  it("identifies a member by one identifier, and a removal depends only on that identity", async () => {
+  it("identifies a member by one identifier, and a removal carries every identifier the member was added with", async () => {
     const t = setup();
     const adapter = await t.build();
     const project = adapter.mirror!.projection;
@@ -370,14 +401,15 @@ describe("OpenAI audience mirror contract", () => {
       "email_sha256",
       "phone_number_sha256",
     ]);
-    expect(effect.remove).toEqual({
-      identifiers: [{ identifier_type: "email_sha256", identifier: sha("jamie@example.com") }],
-      identity: { email_sha256: sha("jamie@example.com") },
-    });
-    // The same person with another phone has the same identity, so the removal is the same.
+    expect(effect.remove).toEqual(effect.upsert);
+    expect(openAiAudienceWire.parse(effect.remove).identifiers.map(i => i.identifier_type)).toEqual([
+      "email_sha256",
+      "phone_number_sha256",
+    ]);
+    // The same person with another phone has the same identity, and the removal carries that phone.
     const [other] = project.project(project.rowType.parse({ email: "jamie@example.com", phone: "+12025550199" }));
     expect(other.identity).toEqual(effect.identity);
-    expect(other.remove).toEqual(effect.remove);
+    expect(openAiAudienceWire.parse(other.remove).identifiers[1].identifier).toBe(sha("+12025550199"));
     // Without an email the phone is the identity; without either, the GAID.
     expect(project.project(project.rowType.parse({ phone: "+12025550124" }))[0].identity).toEqual({
       phone_number_sha256: sha("+12025550124"),
@@ -448,7 +480,7 @@ describe("OpenAI audience failure messages", () => {
     for (const reason of ["identifier", "noIdentifier"] as const)
       thrown.push(
         await Promise.resolve()
-          .then(() => normalizeOpenAiAudience(reason === "identifier" ? { email: "x" } : {}, "upsert"))
+          .then(() => normalizeOpenAiAudience(reason === "identifier" ? { email: "x" } : {}))
           .catch(e => e)
       );
     const unexplained = thrown.filter(e => !reverseEtlFailure(e)).map(e => e.message);

@@ -74,9 +74,17 @@ describe("OpenAI audience identifiers (Custom Audiences API rules)", () => {
     invalid({ hashedPhone: sha("x").slice(0, 63) });
     invalid({ email: "no-at-sign" });
     invalid({ phone: "12345" });
+    invalid({ phone: "123456" });
+    invalid({ phone: "+1234567890123456" });
     invalid({ phone: "+0123456789" });
     invalid({ email: 5 });
     invalid({ gaid: 7 });
+  });
+  it("accepts valid E.164 numbers shorter than eight digits, such as Niue and Tokelau", () => {
+    const phone = (value: string) => openAiAudienceIdentifiers({ phone: value })[0].identifier;
+    expect(phone("+6837012")).toBe(sha("+6837012"));
+    expect(phone("+690 7290")).toBe(sha("+6907290"));
+    expect(phone("006907290")).toBe(sha("+6907290"));
   });
   it("needs at least one identifier and treats null and empty cells as absent", () => {
     invalid({}, "noIdentifier");

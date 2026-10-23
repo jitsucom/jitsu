@@ -430,6 +430,27 @@ describe("OpenAI Ads audience runner integration", () => {
       wire.fetch.mockRestore();
     }
   });
+  it("stays stopped after a failed operation: the next run resumes it, reads nothing and sends nothing", async () => {
+    const f = audienceFixture();
+    let wire = openAi({ failOperations: true });
+    try {
+      f.setRows([{ id: "a@example.com" }]);
+      expect(await execute(f.input)).toBe("FAILED");
+      wire.fetch.mockRestore();
+      // OpenAI is healthy again and the member has left the model, but the failed batch may have applied part of its
+      // change, so the run is not discarded: the next run must not read the source or send a removal.
+      wire = openAi();
+      f.input.taskId = "openai-audience-after-failed";
+      f.setRows([]);
+      f.calls.length = 0;
+      expect(await execute(f.input)).toBe("FAILED");
+      expect(f.calls).not.toContain("reader");
+      expect(wire.operations.size).toBe(0);
+      expect(wire.requests.filter(r => /\/(add|remove)$/.test(r.path))).toHaveLength(0);
+    } finally {
+      wire.fetch.mockRestore();
+    }
+  });
 });
 
 describe("runner-owned Google audience provisioning", () => {

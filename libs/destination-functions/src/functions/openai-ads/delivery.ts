@@ -110,7 +110,8 @@ export function rejectedOperation(
       operationId: r.operationId,
       status: "rejected",
       code,
-      safeReason: "OpenAI could not apply the audience change; check the audience in Ads Manager and the Ads API key",
+      safeReason:
+        "OpenAI could not apply the audience change, and part of it may have been applied; check the audience in Ads Manager and the Ads API key before resetting the sync",
     })),
   };
 }
