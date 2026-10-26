@@ -19,6 +19,7 @@ import { checkDomain, checkOrAddToIngress, isDomainAvailable } from "../server/c
 import { ZodType, ZodTypeDef } from "zod";
 import { getServerLog } from "../server/log";
 import { getWildcardDomains } from "../../pages/api/[workspaceId]/domain-check";
+import { isSlackWebhookUrl } from "../shared/slack-webhook";
 import { getDestinationSecretPaths, getServiceSecretPaths, maskSecrets, removeMaskedValues } from "./secrets";
 import { db } from "../server/db";
 import { ConfigApiDeleteOptions } from "../useApi";
@@ -384,5 +385,11 @@ const configObjectTypes: Record<string, ConfigObjectType> = {
   },
   notification: {
     schema: NotificationChannel,
+    inputFilter: async (obj: NotificationChannel) => {
+      if (obj.channel === "slack" && obj.slackWebhookUrl && !isSlackWebhookUrl(obj.slackWebhookUrl)) {
+        throw new ApiError("Slack webhook URL must look like https://hooks.slack.com/services/...", { status: 400 });
+      }
+      return obj;
+    },
   },
 } as const;
