@@ -6,6 +6,7 @@ import {
   firebase,
   firebaseAuthCookieName,
   getAuthCookieDomain,
+  impersonationSessionLifetimeMs,
   isUnverifiedPasswordAccount,
 } from "../../../lib/server/firebase-server";
 import { ApiError } from "../../../lib/shared/errors";
@@ -45,7 +46,15 @@ export const api: Api = {
       if (isUnverifiedPasswordAccount(decodedIdToken)) {
         throw new ApiError("Email address is not verified", { status: 403 });
       }
-      const { cookie, expiresIn } = await createSessionCookie(idToken);
+      const impersonated = !!decodedIdToken.impersonatedBy;
+      // auth_time survives token refreshes, so a "become" session cannot be extended past its first hour
+      if (impersonated && Date.now() - decodedIdToken.auth_time * 1000 > impersonationSessionLifetimeMs) {
+        throw new ApiError("Impersonation session expired", { status: 401 });
+      }
+      const { cookie, expiresIn } = await createSessionCookie(
+        idToken,
+        impersonated ? impersonationSessionLifetimeMs : undefined
+      );
 
       // Audit logging lives in /api/fb-auth/audit-login which the client
       // calls only at the actual sign-in moment. This endpoint is hit on
