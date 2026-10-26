@@ -6,6 +6,7 @@ import { db } from "../../../lib/server/db";
 import { hint, randomId } from "juava";
 import { createHash } from "juava";
 import { mcpServer } from "../../../lib/server/mcp-server";
+import { WorkspaceRolesZodType } from "../../../lib/workspace-roles";
 import { assertCanCreateKey, resolveKeyWorkspace } from "../../../lib/server/key-creation";
 
 const CreateKeyBody = z.object({
@@ -15,6 +16,8 @@ const CreateKeyBody = z.object({
   expiresAt: z.coerce.date().nullish(),
   // Workspace id or slug. When set, the key works only in that workspace.
   workspaceId: z.string().nullish(),
+  // Highest role the key may act with. Never raises the user's own role.
+  role: WorkspaceRolesZodType.nullish(),
 });
 
 const api: Api = {
@@ -36,6 +39,7 @@ const api: Api = {
           name: true,
           expiresAt: true,
           workspaceId: true,
+          role: true,
           oauthClient: { select: { name: true } },
         },
         orderBy: { createdAt: "desc" },
@@ -68,6 +72,7 @@ const api: Api = {
           name: body.name ?? null,
           expiresAt: body.expiresAt ?? null,
           workspaceId: workspaceId ?? null,
+          role: body.role ?? null,
         },
       });
       return {
@@ -80,6 +85,7 @@ const api: Api = {
         name: created.name,
         expiresAt: created.expiresAt,
         workspaceId: created.workspaceId,
+        role: created.role,
       };
     },
   },

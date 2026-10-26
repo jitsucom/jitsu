@@ -22,6 +22,8 @@ export const SessionUser = z.object({
   tokenType: z.string().nullish().optional(),
   // Set only when authType === "bearer" and the key is scoped: the only workspace the key may be used in.
   tokenWorkspaceId: z.string().nullish().optional(),
+  // Set only when authType === "bearer" and the key has a role limit.
+  tokenRole: z.string().nullish().optional(),
 });
 export type SessionUser = z.infer<typeof SessionUser>;
 
@@ -351,6 +353,8 @@ export const ApiKey = z.object({
   expiresAt: z.coerce.date().nullish(),
   // Workspace the key is limited to; empty = the key works in every workspace of its user
   workspaceId: z.string().nullish(),
+  // Highest role the key may act with; empty = the user's own role
+  role: z.string().nullish(),
   // When set, this row is an MCP-issued refresh token. Its presence is the
   // single source of truth for "MCP-ness" (we don't set type="mcp").
   // mcpClientName carries the registered client_name for display on /user.

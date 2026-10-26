@@ -330,6 +330,7 @@ export async function getUser(
         tokenId: token.id,
         tokenType: token.type ?? inferTokenTypeFromId(token.id),
         tokenWorkspaceId: token.workspaceId,
+        tokenRole: token.role,
       };
     }
   }
@@ -602,6 +603,23 @@ export function assertTokenWorkspaceScope(user: SessionUser, workspaceId: string
   }
 }
 
+/**
+ * A key with a role limit cannot do more than that role, whatever the user's own role in the workspace is.
+ */
+export function assertTokenRoleAllows(user: SessionUser, requiredPermission: WorkspacePermissionsType): void {
+  if (user.authType === "bearer" && user.tokenRole) {
+    if (!hasPermission(user.tokenRole as WorkspaceRoleType, requiredPermission)) {
+      throw new ApiError(
+        `API key ${user.tokenId} has the role '${user.tokenRole}', which doesn't allow '${requiredPermission}'`,
+        {
+          status: 403,
+          responseObject: { requiredPermission },
+        }
+      );
+    }
+  }
+}
+
 export async function verifyAccess(user: SessionUser, workspaceId: string) {
   if (isAdminServiceAccount(user)) {
     return;
@@ -645,6 +663,7 @@ export async function verifyAccessWithRole(
   }
 
   assertTokenWorkspaceScope(user, workspaceId);
+  assertTokenRoleAllows(user, requiredPermission);
   const userId = requireDefined(user.internalId, `internalId is not defined`);
   const access = await db.prisma().workspaceAccess.findFirst({
     where: { userId, workspaceId },

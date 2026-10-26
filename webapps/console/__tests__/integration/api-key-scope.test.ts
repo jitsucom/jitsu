@@ -14,10 +14,10 @@ async function seedTwoWorkspaces() {
   return { user: a.user, a: a.workspace, b: b.workspace };
 }
 
-async function bearerUser(userId: string, workspaceId?: string) {
+async function bearerUser(userId: string, workspaceId?: string, role?: string) {
   const secret = randomId(24);
   const token = await deps().prisma.userApiToken.create({
-    data: { hint: "x***", hash: createHash(secret), userId, workspaceId },
+    data: { hint: "x***", hash: createHash(secret), userId, workspaceId, role },
   });
   const req: any = { headers: { authorization: `Bearer ${token.id}:${secret}` }, query: {}, cookies: {} };
   return (await getUser({} as any, req))!;
@@ -51,6 +51,42 @@ describe("workspace-scoped API keys", () => {
     const key = await bearerUser(admin.user.internalId, admin.workspace.id);
     await expect(verifyAccess(key, other.workspace.id)).rejects.toMatchObject({ status: 403 });
     await expect(verifyAccessWithRole(key, other.workspace.id, "editEntities")).rejects.toMatchObject({ status: 403 });
+  });
+});
+
+describe("role-limited API keys", () => {
+  it("cannot do more than its role, even for an owner", async () => {
+    const { user, workspace } = await seedWorkspace(); // owner
+    const analyst = await bearerUser(user.internalId, undefined, "analyst");
+    const editor = await bearerUser(user.internalId, undefined, "editor");
+    const unlimited = await bearerUser(user.internalId);
+
+    expect(analyst.tokenRole).toBe("analyst");
+    await expect(verifyAccessWithRole(analyst, workspace.id, "readEntities")).resolves.toMatchObject({ role: "owner" });
+    await expect(verifyAccessWithRole(analyst, workspace.id, "editEntities")).rejects.toMatchObject({ status: 403 });
+    await expect(verifyAccessWithRole(analyst, workspace.id, "manageUsers")).rejects.toMatchObject({ status: 403 });
+
+    await expect(verifyAccessWithRole(editor, workspace.id, "editEntities")).resolves.toBeDefined();
+    await expect(verifyAccessWithRole(editor, workspace.id, "deleteEntities")).resolves.toBeDefined();
+    await expect(verifyAccessWithRole(editor, workspace.id, "manageUsers")).rejects.toMatchObject({ status: 403 });
+
+    await expect(verifyAccessWithRole(unlimited, workspace.id, "manageUsers")).resolves.toBeDefined();
+  });
+
+  it("does not raise the role of the user", async () => {
+    const analystUser = await seedWorkspace({ role: "analyst" });
+    const key = await bearerUser(analystUser.user.internalId, undefined, "owner");
+    await expect(verifyAccessWithRole(key, analystUser.workspace.id, "editEntities")).rejects.toMatchObject({
+      status: 403,
+    });
+  });
+
+  it("applies to platform admins too", async () => {
+    const admin = await seedWorkspace({ admin: true });
+    const other = await seedWorkspace();
+    const key = await bearerUser(admin.user.internalId, undefined, "analyst");
+    await expect(verifyAccessWithRole(key, other.workspace.id, "editEntities")).rejects.toMatchObject({ status: 403 });
+    await expect(verifyAccessWithRole(key, other.workspace.id, "readEntities")).resolves.toBeDefined();
   });
 });
 
