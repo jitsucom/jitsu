@@ -3,6 +3,7 @@ import { EventsStore, FunctionChainContext, FunctionContext } from "@jitsu/desti
 import { DropRetryErrorName, RetryErrorName, NoRetryErrorName, RetryError } from "@jitsu/functions-lib";
 import { getLog, LogLevel, parseNumber } from "juava";
 import { getServerEnv } from "../serverEnv";
+import { functionsServerAuthHeaders } from "./functions-server-auth";
 import { Agent, request, interceptors } from "undici";
 
 const { dns } = interceptors;
@@ -85,6 +86,7 @@ export async function callFunctionsServer(
       method: "POST",
       headers: {
         "Content-Type": "application/json",
+        ...functionsServerAuthHeaders(serverEnv.FUNCTIONS_SERVER_AUTH_KEY),
         ...(fetchTimeoutMs ? { "x-request-timeout-ms": String(fetchTimeoutMs) } : {}),
       },
       body: JSON.stringify({

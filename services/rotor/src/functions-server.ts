@@ -25,6 +25,7 @@ import isEqual from "lodash/isEqual";
 import { IngestMessage } from "@jitsu/protocols/async-request";
 import type { MongoClient } from "mongodb";
 import { compileUdfFunction, compileUdfToIIFE } from "./lib/udf-shared";
+import { createFunctionsServerAuth } from "./lib/functions-server-auth";
 import { runFunctionChain, type ChainFunction } from "./lib/udf-chain";
 import type {
   ExecMessage,
@@ -1341,6 +1342,15 @@ async function main() {
   //   }
   // }, 60_000);
 
+  const serverAuth = createFunctionsServerAuth(env);
+  if (!serverAuth.enabled) {
+    log
+      .atWarn()
+      .log(
+        "FUNCTIONS_SERVER_AUTH_TOKENS / FUNCTIONS_SERVER_RAW_AUTH_TOKENS are not set. The functions server is open."
+      );
+  }
+
   // @ts-ignore
   const server = (Deno as any).serve(
     { port, hostname: "0.0.0.0" },
@@ -1375,6 +1385,13 @@ async function main() {
         // Health check
         if (pathname === "/health" || pathname === "/") {
           return handleHealth();
+        }
+
+        if (!serverAuth.isAuthorized(req.headers.get("authorization"))) {
+          return new Response(JSON.stringify({ error: "unauthorized" }), {
+            status: 401,
+            headers: { "Content-Type": "application/json", ...extraHeaders },
+          });
         }
 
         const endpoint =

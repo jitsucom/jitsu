@@ -81,6 +81,11 @@ const ServerEnvSchema = z.object({
   FUNCTIONS_SERVER_URL_TEMPLATE: z.string().default("http://fs-${workspaceId}:3456"),
   FUNCTIONS_SERVER_TIMEOUT_MS: z.string().optional().default("30000"),
 
+  // Functions server HTTP auth (see lib/functions-server-auth.ts). Tokens set on the functions-server, key on its callers
+  FUNCTIONS_SERVER_AUTH_TOKENS: z.string().optional(),
+  FUNCTIONS_SERVER_RAW_AUTH_TOKENS: z.string().optional(),
+  FUNCTIONS_SERVER_AUTH_KEY: z.string().optional(),
+
   // Authentication Configuration
   ROTOR_AUTH_TOKENS: z.string().optional(),
   ROTOR_RAW_AUTH_TOKENS: z.string().optional(),

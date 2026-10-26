@@ -1,5 +1,6 @@
 import { getLog, requireDefined } from "juava";
 import { getServerEnv } from "../serverEnv";
+import { functionsServerAuthHeaders } from "../lib/functions-server-auth";
 import { connectionsStore } from "../lib/repositories";
 import { undiciAgent } from "../lib/functions-server-client";
 import { request } from "undici";
@@ -46,7 +47,10 @@ export const ProfileUDFRunHandler = async (req, res) => {
 
     const response = await request(url, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        ...functionsServerAuthHeaders(serverEnv.FUNCTIONS_SERVER_AUTH_KEY),
+      },
       body: JSON.stringify(body),
       bodyTimeout: 30000,
       headersTimeout: 30000,

@@ -1,4 +1,5 @@
 import { ProfileBuilder, EventsStore, bulkerDestination } from "@jitsu/destination-functions";
+import { functionsServerAuthHeaders } from "./functions-server-auth";
 import { AggregationCursor, MongoClient, Document, ReadPreference } from "mongodb";
 import { db, ProfileBuilderQueueInfo } from "./db";
 import { getLog, getSingleton, hash, LogFactory, LogLevel, parseNumber, requireDefined, stopwatch } from "juava";
@@ -383,7 +384,10 @@ async function processProfile(
     const { request } = await import("undici");
     const response = await request(url, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        ...functionsServerAuthHeaders(serverEnv.FUNCTIONS_SERVER_AUTH_KEY),
+      },
       body: JSON.stringify({ profileId }),
       bodyTimeout: fsTimeoutMs,
       headersTimeout: fsTimeoutMs,
