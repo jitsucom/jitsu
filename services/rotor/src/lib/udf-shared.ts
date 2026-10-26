@@ -15,15 +15,32 @@ export function createWhitelistPlugin(allowedPackages: string[]): esbuild.Plugin
   return {
     name: "whitelist-imports",
     setup(build) {
-      // Intercept all bare module imports (not relative/absolute paths)
+      // Relative and absolute paths from the function's own code would bundle arbitrary files of the host
+      // (e.g. credentials under /data/connections) into the output. Imports made by an allowed package
+      // itself are left alone: only the function's code (esbuild's stdin) is checked.
+      build.onResolve({ filter: /^[./]/ }, args => {
+        if (args.importer === "<stdin>") {
+          return {
+            errors: [
+              { text: `Import "${args.path}" is not allowed in UDF functions: only package imports are supported` },
+            ],
+          };
+        }
+        return null;
+      });
+      // Intercept all bare module imports
       build.onResolve({ filter: /^[^./]/ }, args => {
         // Extract package name (handle scoped packages like @scope/package)
         const packageName = args.path.startsWith("@")
           ? args.path.split("/").slice(0, 2).join("/")
           : args.path.split("/")[0];
 
-        // Allow whitelisted packages - let esbuild resolve and bundle them
+        // Allow whitelisted packages - let esbuild resolve and bundle them. A subpath that climbs out of the
+        // package (`@jitsu/functions-lib/../../x`) is not a package import
         if (allowedPackages.includes(packageName)) {
+          if (args.path.split("/").includes("..")) {
+            return { errors: [{ text: `Import "${args.path}" is not allowed in UDF functions` }] };
+          }
           return null;
         }
 
