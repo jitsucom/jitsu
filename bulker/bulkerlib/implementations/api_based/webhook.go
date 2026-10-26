@@ -59,9 +59,6 @@ func NewWebhookBulker(bulkerConfig bulker.Config) (bulker.Bulker, error) {
 	if err := utils.ParseObject(bulkerConfig.DestinationConfig, &webhookConfig); err != nil {
 		return nil, fmt.Errorf("failed to parse destination config: %v", err)
 	}
-	httpClient := &http.Client{
-		Timeout: time.Duration(5) * time.Second,
-	}
 	var payload []byte
 	if webhookConfig.CustomPayload {
 		pl := WebhookConfigPayload{}
@@ -78,6 +75,12 @@ func NewWebhookBulker(bulkerConfig bulker.Config) (bulker.Bulker, error) {
 		if LocalIngestEndpoint != "" {
 			url = LocalIngestEndpoint
 		}
+	}
+
+	// The ingest endpoint is our own service reached on its internal address; any other URL is the customer's
+	httpClient := &http.Client{Timeout: time.Duration(5) * time.Second}
+	if !isIngest {
+		httpClient = newOutboundHTTPClient(time.Duration(5) * time.Second)
 	}
 
 	return &WebhookBulker{Service: appbase.NewServiceBase(WebhookBulkerTypeId), config: webhookConfig, httpClient: httpClient,
