@@ -77,8 +77,14 @@ it.each([
   const rows = await collect(reader.stream(m));
   expect(rows.map(row => row.deleted)).toEqual([false, true]);
   const preview = await reader.preview(query);
-  expect(rows.map(row => row.row.removed)).toEqual(preview.rows.map(row => row.removed));
-  expect(rows[1].checkpoint?.value).toBe(String(preview.rows[1].removed));
+  // Preview has no ordering guarantee; match by primary key, not UNION ALL branch order.
+  const previewById = new Map(preview.rows.map(row => [String(row.id), row]));
+  for (const row of rows) {
+    const previewRow = previewById.get(String(row.row.id));
+    expect(previewRow).toBeDefined();
+    expect(row.row.removed).toBe(previewRow!.removed);
+    expect(row.checkpoint?.value).toBe(String(previewRow!.removed));
+  }
   expect(await collect(reader.stream(m, rows[0].checkpoint))).toEqual(rows.slice(1));
 });
 it.each([

@@ -42,7 +42,7 @@ export async function prepareSource(
       config.options.mode === "mirror" && !config.model.cursor && !config.model.deleteColumn,
       "Preflight requires a full mirror source"
     );
-    ensure(Object.keys(config.options.mapping).length > 0, "Invalid mirror mapping");
+    ensure(mappedColumns(config.options).length > 0, "Invalid mirror mapping");
     index.sql.exec("CREATE TABLE source_rows (sequence INTEGER PRIMARY KEY, key TEXT NOT NULL, row BLOB NOT NULL)");
     const put = index.sql.prepare("INSERT INTO source_rows VALUES (?,?,?)");
     const columns = new Set([...config.model.primaryKey, ...mappedColumns(config.options)]);
