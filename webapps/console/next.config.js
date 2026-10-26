@@ -88,6 +88,11 @@ module.exports = withBundleAnalyzer({
             value: "strict-origin-when-cross-origin",
           },
           {
+            // Enforced: the console uses no plugins, no <base> tag and is never framed, so these three cost nothing
+            key: "Content-Security-Policy",
+            value: "object-src 'none'; base-uri 'self'; frame-ancestors 'none'",
+          },
+          {
             // Report-only: nothing is blocked yet, violations show up in the browser console. The directives that need
             // no inventory of third-party hosts are meant to be enforced first, script-src needs nonces to be useful
             key: "Content-Security-Policy-Report-Only",
