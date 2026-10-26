@@ -152,6 +152,9 @@ const ServerEnvSchema = z.object({
   CONFIG_DIR: z.string().optional().default("./data"),
   // Functions class for this server instance (dedicated, free, premium)
   FUNCTIONS_CLASS: z.string().optional().default(""),
+  // Run UDFs of every functions class in permissionless Deno workers (the free class always does). Without it,
+  // other classes run user code inside the functions-server process itself, with all of its permissions
+  FUNCTIONS_ISOLATE_UDFS: z.string().optional().default(""),
   FAST_STORE: z.string().optional().default("false"),
   // Deployment ID for prometheus metrics labeling (set by operator)
   DEPLOYMENT_ID: z.string().optional().default(""),
