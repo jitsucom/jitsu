@@ -34,7 +34,7 @@ import (
 //   - Main sidecar runs RenewLeaseLoop() in a goroutine, refreshing every 20s.
 //     If a refresh detects we no longer hold the lease (renewTime advanced past
 //     ours, or the lease object disappeared and was recreated by someone else),
-//     the sidecar SIGTERMs PID 1 to terminate the entire Pod.
+//     the sidecar exits non-zero; the controller observes the failure and deletes the Pod.
 
 const (
 	leaseAPIPath            = "/apis/coordination.k8s.io/v1/namespaces/%s/leases"
@@ -403,13 +403,11 @@ func startLeaseRenewer() {
 			if !ok {
 				leaseLost.Store(true)
 				logging.Errorf("[lease-renew] lease %q (sync %s) lost — terminating Pod", LeaseNameForSync(syncID), syncID)
-				// shareProcessNamespace=true means the source connector's
-				// process is reachable. SIGTERM PID 1 (the pause container);
-				// kubelet will clean up siblings.
-				if err := syscall.Kill(1, syscall.SIGTERM); err != nil {
-					logging.Errorf("[lease-renew] SIGTERM PID 1 failed: %v", err)
-					os.Exit(int(syscall.SIGTERM))
-				}
+				// Do not share a PID namespace with customer connector images: that
+				// exposes our credential-bearing environment through /proc.
+				// Closing the pipes stops output consumption immediately; the
+				// controller cleans up siblings on a non-zero sidecar exit.
+				os.Exit(1)
 				return
 			}
 		}

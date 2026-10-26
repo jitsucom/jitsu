@@ -312,3 +312,25 @@ Secrets are generated automatically by `deploy`. To (re)apply them manually:
 ```bash
 ./dev-deploy.sh secrets
 ```
+
+### Functions-server request authentication
+
+Before running the signed-request functions-server release, provision an Ed25519 key pair
+(PKCS#8 PEM private key, SPKI PEM public key). Keep the private key in the existing
+`jitsu-secrets` Kubernetes Secret, not in Helm values or git:
+
+- `FUNCTIONS_SERVER_PRIVATE_KEY`: console, rotor and profiles callers.
+- `INGEST_FUNCTIONS_SERVER_PRIVATE_KEY`: ingest caller.
+- `OPERATOR_FUNCTIONS_SERVER_PUBLIC_KEY`: operator; it passes only the public key to generated functions-server pods.
+
+Upgrade callers first, then operator, then functions-server. Older functions servers ignore
+the new signature headers. Updated functions servers require a configured public key and
+reject unsigned requests with HTTP 401; health probes remain unauthenticated. Development
+setups must also provision keys. Requests bind the method, path/query, deployment ID and
+SHA-256 of the exact body to an Ed25519 signature with a 60-second clock-skew window.
+This authenticates requests; it does not provide exactly-once execution or replace network isolation.
+
+The S2S ingest endpoints now require a hashed private write key (`id:secret`). Public
+stream IDs, browser keys and legacy plaintext private keys no longer authorize S2S calls.
+Migrate any clients using those values before upgrading ingest. Browser collection still
+supports public stream IDs and configured domains.

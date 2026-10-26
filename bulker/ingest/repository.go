@@ -22,13 +22,12 @@ func (r *RepositoryConfig) PostInit(settings *appbase.AppSettings) error {
 }
 
 type Streams struct {
-	streams                   []*StreamWithDestinations
-	apiKeyBindings            map[string]*ApiKeyBinding
-	streamsByPlainKeyOrIds    map[string]*StreamWithDestinations
-	s2sStreamsByPlainKeyOrIds map[string]*StreamWithDestinations
-	streamsByDomains          map[string][]*StreamWithDestinations
-	otlpWorkspaces            map[string]bool
-	lastModified              time.Time
+	streams                []*StreamWithDestinations
+	apiKeyBindings         map[string]*ApiKeyBinding
+	streamsByPlainKeyOrIds map[string]*StreamWithDestinations
+	streamsByDomains       map[string][]*StreamWithDestinations
+	otlpWorkspaces         map[string]bool
+	lastModified           time.Time
 }
 
 func (s *Streams) getStreamByKeyId(keyId string) *ApiKeyBinding {
@@ -37,10 +36,6 @@ func (s *Streams) getStreamByKeyId(keyId string) *ApiKeyBinding {
 
 func (s *Streams) GetStreamByPlainKeyOrId(plainKeyOrSlug string) *StreamWithDestinations {
 	return s.streamsByPlainKeyOrIds[plainKeyOrSlug]
-}
-
-func (s *Streams) GetS2SStreamByPlainKeyOrId(plainKeyOrSlug string) *StreamWithDestinations {
-	return s.s2sStreamsByPlainKeyOrIds[plainKeyOrSlug]
 }
 
 func (s *Streams) GetStreamsByDomain(domain string) []*StreamWithDestinations {
@@ -72,7 +67,6 @@ func (s *StreamsRepositoryData) Init(reader io.Reader, tag any) error {
 	streams := make([]*StreamWithDestinations, 0)
 	apiKeyBindings := map[string]*ApiKeyBinding{}
 	streamsByPlainKeyOrIds := map[string]*StreamWithDestinations{}
-	s2sStreamsByPlainKeyOrIds := map[string]*StreamWithDestinations{}
 	streamsByDomains := map[string][]*StreamWithDestinations{}
 	otlpWorkspaces := map[string]bool{}
 	// while the array contains values
@@ -88,7 +82,6 @@ func (s *StreamsRepositoryData) Init(reader io.Reader, tag any) error {
 		}
 		streams = append(streams, &swd)
 		streamsByPlainKeyOrIds[swd.Stream.Id] = &swd
-		s2sStreamsByPlainKeyOrIds[swd.Stream.Id] = &swd
 		for _, domain := range swd.Stream.Domains {
 			domainStreams, ok := streamsByDomains[domain]
 			if !ok {
@@ -109,9 +102,6 @@ func (s *StreamsRepositoryData) Init(reader io.Reader, tag any) error {
 			}
 		}
 		for _, key := range swd.Stream.PrivateKeys {
-			if key.Plaintext != "" {
-				s2sStreamsByPlainKeyOrIds[key.Plaintext] = &swd
-			}
 			if key.Id != "" && key.Hash != "" {
 				apiKeyBindings[key.Id] = &ApiKeyBinding{
 					Hash:     key.Hash,
@@ -129,12 +119,11 @@ func (s *StreamsRepositoryData) Init(reader io.Reader, tag any) error {
 	}
 
 	data := Streams{
-		streams:                   streams,
-		apiKeyBindings:            apiKeyBindings,
-		streamsByPlainKeyOrIds:    streamsByPlainKeyOrIds,
-		s2sStreamsByPlainKeyOrIds: s2sStreamsByPlainKeyOrIds,
-		streamsByDomains:          streamsByDomains,
-		otlpWorkspaces:            otlpWorkspaces,
+		streams:                streams,
+		apiKeyBindings:         apiKeyBindings,
+		streamsByPlainKeyOrIds: streamsByPlainKeyOrIds,
+		streamsByDomains:       streamsByDomains,
+		otlpWorkspaces:         otlpWorkspaces,
 	}
 	if tag != nil {
 		data.lastModified = tag.(time.Time)
@@ -222,11 +211,11 @@ type TagDestinationConfig struct {
 }
 
 type StreamWithDestinations struct {
-	Stream                   StreamConfig             `json:"stream"`
-	UpdateAt                 time.Time                `json:"updatedAt"`
-	BackupEnabled            bool                     `json:"backupEnabled"`
-	Throttle                 int                      `json:"throttle"`
-	Shard                    int                      `json:"shard"`
+	Stream        StreamConfig `json:"stream"`
+	UpdateAt      time.Time    `json:"updatedAt"`
+	BackupEnabled bool         `json:"backupEnabled"`
+	Throttle      int          `json:"throttle"`
+	Shard         int          `json:"shard"`
 	// CaptureHeaders enables capturing HTTP request headers into event
 	// context.headers. Off by default; the console export sets it per stream from
 	// the workspace-level `captureHeaders` feature flag.

@@ -676,7 +676,7 @@ func (r *Router) processSyncDestination(message *IngestMessage, stream *StreamWi
 		for deploymentID, destinations := range byDeployment {
 			fsURL := strings.Replace(r.config.FunctionsServerURLTemplate, "${workspaceId}", deploymentID, 1)
 			endpointURL := fsURL + "/multi"
-			r.callFunctionsEndpoint(stream, destinations, endpointURL, messageBytes, functionsResults, false, message.MessageId, parseReceivedAt(message.MessageCreated))
+			r.callFunctionsEndpoint(stream, destinations, endpointURL, deploymentID, messageBytes, functionsResults, false, message.MessageId, parseReceivedAt(message.MessageCreated))
 		}
 	}
 
@@ -736,7 +736,7 @@ type ConnectionChainResult struct {
 
 // callFunctionsEndpoint sends a request to functions endpoint and expects new format with execLog
 // Response format: map[connectionId]{ events: [], execLog: [] }
-func (r *Router) callFunctionsEndpoint(stream *StreamWithDestinations, destinations []*ShortDestinationConfig, baseURL string, messageBytes []byte, functionsResults map[string]any, fullEvents bool, messageId string, receivedAt time.Time) (result map[string]ConnectionChainResult, err error) {
+func (r *Router) callFunctionsEndpoint(stream *StreamWithDestinations, destinations []*ShortDestinationConfig, baseURL string, deploymentID string, messageBytes []byte, functionsResults map[string]any, fullEvents bool, messageId string, receivedAt time.Time) (result map[string]ConnectionChainResult, err error) {
 	if len(destinations) == 0 {
 		return
 	}
@@ -778,8 +778,8 @@ func (r *Router) callFunctionsEndpoint(stream *StreamWithDestinations, destinati
 
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("X-Request-Timeout-Ms", strconv.Itoa(int(0.9*float64(r.config.DeviceFunctionsTimeoutMs))))
-	if r.config.RotorAuthKey != "" {
-		req.Header.Set("Authorization", "Bearer "+r.config.RotorAuthKey)
+	if err = utils.SignFunctionsRequest(req, messageBytes, deploymentID, r.config.FunctionsServerPrivateKey); err != nil {
+		return nil, err
 	}
 
 	res, err := r.httpClient.Do(req)
@@ -1143,7 +1143,7 @@ type StreamLocator func(loc *StreamCredentials, s2sEndpoint bool) *StreamWithDes
 
 func (r *Router) getStream(loc *StreamCredentials, strict, s2sEndpoint bool) *StreamWithDestinations {
 	var locators []StreamLocator
-	if strict {
+	if strict || s2sEndpoint || loc.IngestType == IngestTypeS2S {
 		locators = []StreamLocator{r.WriteKeyStreamLocator}
 	} else if loc.IngestType == IngestTypeWriteKeyDefined {
 		locators = []StreamLocator{r.WriteKeyStreamLocator, r.SlugStreamLocator, r.AmbiguousDomainStreamLocator, r.SoleStreamLocator}
@@ -1186,16 +1186,17 @@ func (r *Router) WriteKeyStreamLocator(loc *StreamCredentials, s2sEndpoint bool)
 	if loc.WriteKey != "" {
 		parts := strings.Split(loc.WriteKey, ":")
 		if len(parts) == 1 {
-			loc.IngestType = utils.Ternary(s2sEndpoint, IngestTypeS2S, IngestTypeBrowser)
-			if s2sEndpoint {
-				return r.repository.GetData().GetS2SStreamByPlainKeyOrId(loc.WriteKey)
+			if s2sEndpoint || loc.IngestType == IngestTypeS2S {
+				return nil
 			} else {
+				loc.IngestType = IngestTypeBrowser
 				return r.repository.GetData().GetStreamByPlainKeyOrId(loc.WriteKey)
 			}
-		} else {
+		} else if len(parts) == 2 && parts[0] != "" && parts[1] != "" {
 			binding := r.repository.GetData().getStreamByKeyId(parts[0])
 			if binding != nil {
-				if loc.IngestType != IngestTypeWriteKeyDefined && binding.KeyType != string(loc.IngestType) {
+				if (s2sEndpoint && binding.KeyType != string(IngestTypeS2S)) ||
+					(loc.IngestType != IngestTypeWriteKeyDefined && binding.KeyType != string(loc.IngestType)) {
 					r.Debugf("[stream: %s]%s invalid key type found %s", binding.StreamId, loc.String(), binding.KeyType)
 				} else if !r.checkHash(binding.Hash, parts[1]) {
 					r.Debugf("[stream: %s]%s invalid key secret", binding.StreamId, loc.String())

@@ -1,3 +1,4 @@
+import { signFunctionsRequest } from "juava/src/functions-auth";
 import { getLog, requireDefined } from "juava";
 import { getServerEnv } from "../serverEnv";
 import { connectionsStore } from "../lib/repositories";
@@ -44,10 +45,14 @@ export const ProfileUDFRunHandler = async (req, res) => {
     const baseUrl = template.replace("${workspaceId}", deploymentId);
     const url = `${baseUrl}/profileudfrun`;
 
+    const requestBody = JSON.stringify(body);
     const response = await request(url, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
+      headers: {
+        "Content-Type": "application/json",
+        ...signFunctionsRequest(serverEnv.FUNCTIONS_SERVER_PRIVATE_KEY, deploymentId, url, requestBody),
+      },
+      body: requestBody,
       bodyTimeout: 30000,
       headersTimeout: 30000,
       dispatcher: undiciAgent,

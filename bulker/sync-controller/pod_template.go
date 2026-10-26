@@ -520,7 +520,7 @@ func buildSyncPodTemplate(c *Config, pc PodCtx, secretName string) v1.PodTemplat
 		},
 		Spec: v1.PodSpec{
 			RestartPolicy:                 v1.RestartPolicyNever,
-			ShareProcessNamespace:         ptr.To(true),
+			ShareProcessNamespace:         ptr.To(false),
 			TerminationGracePeriodSeconds: ptr.To(int64(c.ContainerGraceShutdownSeconds)),
 			ServiceAccountName:            c.PodsServiceAccount,
 			NodeSelector:                  parseNodeSelector(c.KubernetesNodeSelector),
