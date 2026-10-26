@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { describeRedirect } from "../../lib/shared/oauth-redirect";
 import { useRouter } from "next/router";
 import Link from "next/link";
 import { Button } from "antd";
@@ -19,6 +20,7 @@ const Authorize = ({ clientName }: { clientName: string | null }) => {
   const q = router.query;
   const clientId = typeof q.client_id === "string" ? q.client_id : undefined;
   const redirectUri = typeof q.redirect_uri === "string" ? q.redirect_uri : undefined;
+  const redirect = describeRedirect(redirectUri);
   const codeChallenge = typeof q.code_challenge === "string" ? q.code_challenge : undefined;
   const codeChallengeMethod = typeof q.code_challenge_method === "string" ? q.code_challenge_method : undefined;
   const responseType = typeof q.response_type === "string" ? q.response_type : undefined;
@@ -100,13 +102,19 @@ const Authorize = ({ clientName }: { clientName: string | null }) => {
     <Wrap>
       <h1 className="text-lg mb-3">Authorize MCP client</h1>
       <div className="mb-4">
-        <div className="text-textLight text-sm">Client</div>
+        <div className="text-textLight text-sm">Client name (chosen by the client, not verified)</div>
         <div className="font-mono text-sm break-all">{clientName ?? clientId}</div>
       </div>
       <div className="mb-4">
         <div className="text-textLight text-sm">Redirect URI</div>
         <div className="font-mono text-xs break-all">{redirectUri}</div>
       </div>
+      {redirect && !redirect.isLocal && (
+        <div className="text-amber-700 text-sm mb-4 border border-amber-300 rounded px-2.5 py-1.5">
+          This client is not running on your computer: access will be handed to <b>{redirect.host}</b>. Anyone can
+          register a client under any name, so approve only if you started this connection yourself.
+        </div>
+      )}
       <div className="mb-4">
         <div className="text-textLight text-sm">Account</div>
         <div className="text-sm">{user.email}</div>
