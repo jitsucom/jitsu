@@ -1143,12 +1143,12 @@ type StreamLocator func(loc *StreamCredentials, s2sEndpoint bool) *StreamWithDes
 
 func (r *Router) getStream(loc *StreamCredentials, strict, s2sEndpoint bool) *StreamWithDestinations {
 	var locators []StreamLocator
-	if strict || s2sEndpoint || loc.IngestType == IngestTypeS2S {
+	if strict {
 		locators = []StreamLocator{r.WriteKeyStreamLocator}
+	} else if s2sEndpoint || loc.IngestType == IngestTypeS2S {
+		locators = []StreamLocator{r.WriteKeyStreamLocator, r.S2SSlugStreamLocator}
 	} else if loc.IngestType == IngestTypeWriteKeyDefined {
 		locators = []StreamLocator{r.WriteKeyStreamLocator, r.SlugStreamLocator, r.AmbiguousDomainStreamLocator, r.SoleStreamLocator}
-	} else if loc.IngestType == IngestTypeS2S {
-		locators = []StreamLocator{r.WriteKeyStreamLocator, r.SlugStreamLocator, r.AmbiguousDomainStreamLocator}
 	} else {
 		locators = []StreamLocator{r.SlugStreamLocator, r.DomainStreamLocator, r.WriteKeyStreamLocator, r.SoleStreamLocator}
 	}
@@ -1213,6 +1213,20 @@ func (r *Router) WriteKeyStreamLocator(loc *StreamCredentials, s2sEndpoint bool)
 				}
 			}
 		}
+	}
+	return nil
+}
+
+// S2SSlugStreamLocator is a workspace-controlled compatibility exception. It
+// accepts only an explicit source ID, never a public-key alias or a domain.
+func (r *Router) S2SSlugStreamLocator(loc *StreamCredentials, _ bool) *StreamWithDestinations {
+	if loc.Slug == "" {
+		return nil
+	}
+	stream := r.repository.GetData().GetStreamByPlainKeyOrId(loc.Slug)
+	if stream != nil && stream.Stream.Id == loc.Slug && stream.S2SSlugAuth && !stream.Stream.Strict {
+		loc.IngestType = IngestTypeS2S
+		return stream
 	}
 	return nil
 }

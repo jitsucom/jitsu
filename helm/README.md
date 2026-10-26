@@ -330,7 +330,26 @@ setups must also provision keys. Requests bind the method, path/query, deploymen
 SHA-256 of the exact body to an Ed25519 signature with a 60-second clock-skew window.
 This authenticates requests; it does not provide exactly-once execution or replace network isolation.
 
-The S2S ingest endpoints now require a hashed private write key (`id:secret`). Public
-stream IDs, browser keys and legacy plaintext private keys no longer authorize S2S calls.
-Migrate any clients using those values before upgrading ingest. Browser collection still
-supports public stream IDs and configured domains.
+S2S ingestion requires an explicitly configured private key: a hashed `id:secret` key
+or a legacy plaintext private key. Browser collection continues to support public
+stream IDs and configured domains.
+
+The workspace feature flag `s2s-slug-auth` is an explicit compatibility exception:
+non-strict S2S ingestion may resolve an explicit source-ID slug after missing or invalid
+credentials. This allows anyone who knows that source ID to submit S2S events to that
+workspace. Enable it only for clients that need this behavior; remove it after migrating
+them to valid private keys. It does not enable domain fallback, public-key aliases as
+slugs, strict source fallback, or synchronous-function authentication bypass.
+
+| Authentication | Default behavior | With `s2s-slug-auth` |
+| --- | --- | --- |
+| Valid configured private `id:secret` key | Accepted | Accepted |
+| Explicitly configured legacy plaintext private key | Accepted | Accepted |
+| Missing/invalid key with explicit source-ID slug, non-strict S2S ingestion | Rejected | Accepted for sources in the opted-in workspace |
+| Public stream ID or browser key used only as a write key | Rejected for S2S | Rejected without an eligible explicit slug |
+| Domain-only S2S fallback | Rejected | Rejected |
+| Strict source or synchronous-function call without a valid private key | Rejected | Rejected |
+| Browser collection | Unchanged | Unchanged |
+
+Deploy the console exporter before ingest so opted-in workspaces receive `s2sSlugAuth`
+in their stream configuration. Keep manual deployment ordering described above.

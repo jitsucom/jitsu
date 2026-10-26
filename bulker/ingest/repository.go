@@ -231,6 +231,8 @@ type StreamWithDestinations struct {
 	// context.headers. Off by default; the console export sets it per stream from
 	// the workspace-level `captureHeaders` feature flag.
 	CaptureHeaders bool `json:"captureHeaders"`
+	// S2SSlugAuth permits non-strict S2S slug fallback for opted-in workspaces.
+	S2SSlugAuth bool `json:"s2sSlugAuth"`
 	// OtlpExportEnabled: workspace has the Live Events observability export
 	// enabled (JITSU-138); set per stream by the console export
 	OtlpExportEnabled        bool                     `json:"otlpExportEnabled"`

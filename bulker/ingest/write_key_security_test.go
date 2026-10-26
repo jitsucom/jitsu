@@ -74,3 +74,42 @@ func TestPrivatePlainKeysAreScopedAndRevokedOnReload(t *testing.T) {
 	require.Nil(t, data.GetData().GetStreamByPrivatePlainKey("second-secret"))
 	require.Equal(t, "first", data.GetData().GetStreamByPrivatePlainKey("rotated-secret").Stream.Id)
 }
+
+func TestS2SSlugAuthWorkspaceException(t *testing.T) {
+	const config = `[
+ {"stream":{"id":"enabled","workspaceId":"opted-in","domains":["events.example.com"],"publicKeys":[{"plaintext":"public-alias"}],"privateKeys":[{"plaintext":"enabled-secret"}]},"s2sSlugAuth":true},
+ {"stream":{"id":"disabled","workspaceId":"default","domains":["events.example.com"],"privateKeys":[{"plaintext":"disabled-secret"}]}},
+ {"stream":{"id":"strict","workspaceId":"opted-in","strict":true},"s2sSlugAuth":true}
+ ]`
+	data := &StreamsRepositoryData{}
+	require.NoError(t, data.Init(strings.NewReader(config), nil))
+	r := &Router{repository: securityStreamsRepository{data: data.GetData()}}
+	for _, it := range []IngestType{IngestTypeWriteKeyDefined, IngestTypeS2S} {
+		for _, key := range []string{"", "unknown:secret", "unconfigured-plain", "enabled", "public-alias"} {
+			loc := StreamCredentials{WriteKey: key, Slug: "enabled", IngestType: it}
+			stream := r.getStream(&loc, false, true)
+			require.NotNil(t, stream)
+			require.Equal(t, "enabled", stream.Stream.Id)
+			require.Equal(t, IngestTypeS2S, loc.IngestType)
+			loc = StreamCredentials{WriteKey: key, Slug: "enabled", IngestType: it}
+			require.Nil(t, r.getStream(&loc, true, true), "strict callers must still require a key")
+		}
+	}
+	for _, loc := range []StreamCredentials{
+		{Slug: "disabled", IngestType: IngestTypeS2S},
+		{Slug: "strict", IngestType: IngestTypeS2S},
+		{Slug: "public-alias", IngestType: IngestTypeS2S},
+		{WriteKey: "enabled", IngestType: IngestTypeS2S},
+		{Domain: "events.example.com", IngestType: IngestTypeS2S},
+	} {
+		require.Nil(t, r.getStream(&loc, false, true), "%+v", loc)
+	}
+	loc := StreamCredentials{Slug: "enabled", IngestType: IngestTypeS2S}
+	require.NotNil(t, r.getStream(&loc, false, false), "explicit S2S type must also honor flag")
+	loc = StreamCredentials{WriteKey: "disabled-secret", Slug: "enabled", IngestType: IngestTypeS2S}
+	require.Equal(t, "disabled", r.getStream(&loc, false, true).Stream.Id, "valid keys take precedence over slug fallback")
+	require.NoError(t, data.Init(strings.NewReader(strings.ReplaceAll(config, `"s2sSlugAuth":true`, `"s2sSlugAuth":false`)), nil))
+	r.repository = securityStreamsRepository{data: data.GetData()}
+	loc = StreamCredentials{Slug: "enabled", IngestType: IngestTypeS2S}
+	require.Nil(t, r.getStream(&loc, false, true), "removing the flag revokes slug access on refresh")
+}

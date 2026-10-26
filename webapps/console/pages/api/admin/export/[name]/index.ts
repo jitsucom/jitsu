@@ -990,6 +990,8 @@ async function exportStreamsWithDestinations(writer: Writer) {
           // opt-in per workspace (Settings → Capture HTTP headers): ingest stores
           // request headers in event context.headers (AI agent / bot detection)
           captureHeaders: (obj.workspace.featuresEnabled || []).includes("captureHeaders"),
+          // Explicit compatibility exception for clients relying on S2S slug routing.
+          s2sSlugAuth: (obj.workspace.featuresEnabled || []).includes("s2s-slug-auth"),
           // Live Events observability export (JITSU-138): ingest fans function
           // events out to the workspace's otlp topic when enabled
           otlpExportEnabled: observabilityExports.has(obj.workspace.id),
