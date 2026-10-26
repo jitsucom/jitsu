@@ -90,21 +90,19 @@ describe("source preflight", () => {
       await staged.close();
     }
   });
-  it.each([undefined, {}, { contact: {} }])(
-    "rejects empty mappings/compositions before reading rows (%#)",
-    async objectMappings => {
-      const reader = source();
-      await expect(
-        prepareSource(
-          { ...config, options: { ...config.options, mapping: {}, objectMappings } },
-          validation,
-          reader,
-          new AbortController().signal,
-          defaultLimits
-        )
-      ).rejects.toThrow("read 0 rows, saved 0");
-      expect(reader.stream).not.toHaveBeenCalled();
-      expect(reader.close).toHaveBeenCalledTimes(1);
-    }
-  );
+  const emptyObjectMappings: ReverseRunConfig["options"]["objectMappings"][] = [undefined, {}, { contact: {} }];
+  it.each(emptyObjectMappings)("rejects empty mappings/compositions before reading rows (%#)", async objectMappings => {
+    const reader = source();
+    await expect(
+      prepareSource(
+        { ...config, options: { ...config.options, mapping: {}, objectMappings } },
+        validation,
+        reader,
+        new AbortController().signal,
+        defaultLimits
+      )
+    ).rejects.toThrow("read 0 rows, saved 0");
+    expect(reader.stream).not.toHaveBeenCalled();
+    expect(reader.close).toHaveBeenCalledTimes(1);
+  });
 });
