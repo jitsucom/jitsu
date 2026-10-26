@@ -88,6 +88,24 @@ module.exports = withBundleAnalyzer({
             value: "strict-origin-when-cross-origin",
           },
           {
+            // Report-only: nothing is blocked yet, violations show up in the browser console. The directives that need
+            // no inventory of third-party hosts are meant to be enforced first, script-src needs nonces to be useful
+            key: "Content-Security-Policy-Report-Only",
+            value: [
+              "default-src 'self'",
+              "script-src 'self' 'unsafe-inline' 'unsafe-eval' https:",
+              "style-src 'self' 'unsafe-inline' https:",
+              "img-src 'self' data: blob: https:",
+              "font-src 'self' data: https:",
+              "connect-src 'self' https: wss:",
+              "frame-src https:",
+              "object-src 'none'",
+              "base-uri 'self'",
+              "form-action 'self' https:",
+              "frame-ancestors 'none'",
+            ].join("; "),
+          },
+          {
             key: "Permissions-Policy",
             value: "camera=(), microphone=(), geolocation=(), browsing-topics=()",
           },
