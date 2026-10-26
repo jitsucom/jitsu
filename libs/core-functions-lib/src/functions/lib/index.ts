@@ -44,6 +44,7 @@ import NodeCache from "node-cache";
 // in 8.11.0 — import undici's own fetch, pinned to that floor, instead of relying
 // on whatever the Node runtime happens to bundle.
 import { fetch as undiciFetch, type RequestInit as UndiciRequestInit } from "undici";
+import { createGuardedAgent } from "./guarded-agent";
 
 // This module also runs inside the Deno-based functions-server (UDF sandbox), which
 // monkey-patches globalThis.fetch with its own tuned connection pool (Deno.createHttpClient,
@@ -94,6 +95,9 @@ const fetchLocalWhitelist = process.env.FETCH_LOCAL_WHITELIST
   ? process.env.FETCH_LOCAL_WHITELIST.split(",").map(h => h.trim().toLowerCase())
   : [];
 const publicHostnamesCache = new NodeCache({ stdTTL: 300, checkperiod: 60, useClones: false });
+// The pre-check in makeFetch resolves a hostname on its own and is cached, so it cannot see a DNS answer that changes
+// before the connection or a redirect to another host: with FETCH_FORBID_LOCAL on, the connection itself is guarded too
+const guardedAgent = fetchForbidLocal ? createGuardedAgent({ allowedHosts: fetchLocalWhitelist }) : undefined;
 
 /**
  * Origin of an events-log record: ids of the workspace and the source event the record was produced for.
@@ -606,6 +610,7 @@ export const makeFetch = (
         ...init,
         keepalive: true,
         signal: AbortSignal.timeout(fetchTimeoutMs),
+        ...(guardedAgent && !isDeno ? { dispatcher: guardedAgent } : {}),
       };
       fetchResult = await platformFetch(url, internalInit);
       throttle.success();
