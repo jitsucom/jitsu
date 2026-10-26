@@ -1187,7 +1187,11 @@ func (r *Router) WriteKeyStreamLocator(loc *StreamCredentials, s2sEndpoint bool)
 		parts := strings.Split(loc.WriteKey, ":")
 		if len(parts) == 1 {
 			if s2sEndpoint || loc.IngestType == IngestTypeS2S {
-				return nil
+				stream := r.repository.GetData().GetStreamByPrivatePlainKey(loc.WriteKey)
+				if stream != nil {
+					loc.IngestType = IngestTypeS2S
+				}
+				return stream
 			} else {
 				loc.IngestType = IngestTypeBrowser
 				return r.repository.GetData().GetStreamByPlainKeyOrId(loc.WriteKey)

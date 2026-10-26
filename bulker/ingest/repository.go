@@ -22,12 +22,13 @@ func (r *RepositoryConfig) PostInit(settings *appbase.AppSettings) error {
 }
 
 type Streams struct {
-	streams                []*StreamWithDestinations
-	apiKeyBindings         map[string]*ApiKeyBinding
-	streamsByPlainKeyOrIds map[string]*StreamWithDestinations
-	streamsByDomains       map[string][]*StreamWithDestinations
-	otlpWorkspaces         map[string]bool
-	lastModified           time.Time
+	streams                  []*StreamWithDestinations
+	apiKeyBindings           map[string]*ApiKeyBinding
+	streamsByPlainKeyOrIds   map[string]*StreamWithDestinations
+	streamsByPrivatePlainKey map[string]*StreamWithDestinations
+	streamsByDomains         map[string][]*StreamWithDestinations
+	otlpWorkspaces           map[string]bool
+	lastModified             time.Time
 }
 
 func (s *Streams) getStreamByKeyId(keyId string) *ApiKeyBinding {
@@ -36,6 +37,11 @@ func (s *Streams) getStreamByKeyId(keyId string) *ApiKeyBinding {
 
 func (s *Streams) GetStreamByPlainKeyOrId(plainKeyOrSlug string) *StreamWithDestinations {
 	return s.streamsByPlainKeyOrIds[plainKeyOrSlug]
+}
+
+// GetStreamByPrivatePlainKey only accepts explicitly configured private keys, never public stream IDs.
+func (s *Streams) GetStreamByPrivatePlainKey(key string) *StreamWithDestinations {
+	return s.streamsByPrivatePlainKey[key]
 }
 
 func (s *Streams) GetStreamsByDomain(domain string) []*StreamWithDestinations {
@@ -67,6 +73,7 @@ func (s *StreamsRepositoryData) Init(reader io.Reader, tag any) error {
 	streams := make([]*StreamWithDestinations, 0)
 	apiKeyBindings := map[string]*ApiKeyBinding{}
 	streamsByPlainKeyOrIds := map[string]*StreamWithDestinations{}
+	streamsByPrivatePlainKey := map[string]*StreamWithDestinations{}
 	streamsByDomains := map[string][]*StreamWithDestinations{}
 	otlpWorkspaces := map[string]bool{}
 	// while the array contains values
@@ -102,6 +109,9 @@ func (s *StreamsRepositoryData) Init(reader io.Reader, tag any) error {
 			}
 		}
 		for _, key := range swd.Stream.PrivateKeys {
+			if key.Plaintext != "" {
+				streamsByPrivatePlainKey[key.Plaintext] = &swd
+			}
 			if key.Id != "" && key.Hash != "" {
 				apiKeyBindings[key.Id] = &ApiKeyBinding{
 					Hash:     key.Hash,
@@ -119,11 +129,12 @@ func (s *StreamsRepositoryData) Init(reader io.Reader, tag any) error {
 	}
 
 	data := Streams{
-		streams:                streams,
-		apiKeyBindings:         apiKeyBindings,
-		streamsByPlainKeyOrIds: streamsByPlainKeyOrIds,
-		streamsByDomains:       streamsByDomains,
-		otlpWorkspaces:         otlpWorkspaces,
+		streams:                  streams,
+		apiKeyBindings:           apiKeyBindings,
+		streamsByPlainKeyOrIds:   streamsByPlainKeyOrIds,
+		streamsByPrivatePlainKey: streamsByPrivatePlainKey,
+		streamsByDomains:         streamsByDomains,
+		otlpWorkspaces:           otlpWorkspaces,
 	}
 	if tag != nil {
 		data.lastModified = tag.(time.Time)
