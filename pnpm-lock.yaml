@@ -16,8 +16,8 @@ catalogs:
       specifier: ^18.15.3
       version: 18.19.61
     '@vitest/ui':
-      specifier: ^4.1.11
-      version: 4.1.11
+      specifier: ^4.1.12
+      version: 4.1.12
     esbuild:
       specifier: ^0.28.1
       version: 0.28.1
@@ -46,8 +46,8 @@ catalogs:
       specifier: ^5.6.3
       version: 5.6.3
     vitest:
-      specifier: ^4.1.11
-      version: 4.1.11
+      specifier: ^4.1.12
+      version: 4.1.12
 
 overrides:
   esbuild@<0.28.1: ^0.28.1
@@ -58,7 +58,7 @@ overrides:
   '@grpc/grpc-js@<1.14.5': ^1.14.5
   lodash@<4.18.1: ^4.18.1
   axios@<1.15.2: ^1.15.2
-  handlebars@<4.7.9: ^4.7.9
+  handlebars@<4.7.10: ^4.7.10
   fast-xml-parser@<5.7.0: ^5.7.0
   fast-xml-builder@<1.1.7: ^1.1.7
   fast-uri@<3.1.8: ^3.1.8
@@ -115,7 +115,7 @@ overrides:
   brace-expansion@>=2 <2.1.7: ^2.1.7
   brace-expansion@>=3 <3.0.9: ^3.0.9
   brace-expansion@>=4 <5.0.12: ^5.0.12
-  hono@<4.13.5: ^4.13.5
+  hono@<4.13.11: ^4.13.11
   ip-address@<=10.7.0: ^10.7.1
   '@hono/node-server@<2.0.5': ^2.0.5
   '@humanfs/node@<0.16.8': ^0.16.8
@@ -131,7 +131,7 @@ overrides:
   probe-image-size@<=7.3.0: ^7.4.0
   svgo@<4.1.0: ^4.1.0
   baseline-browser-mapping@<2.11.0: ^2.11.0
-  '@vitest/mocker@<4.1.11': ^4.1.11
+  '@vitest/mocker@<4.1.12': ^4.1.12
   websocket-driver@<0.7.5: ^0.7.5
 
 importers:
@@ -210,7 +210,7 @@ importers:
         version: 18.19.61
       '@vitest/ui':
         specifier: 'catalog:'
-        version: 4.1.11(vitest@4.1.11)
+        version: 4.1.12(vitest@4.1.12)
       chalk:
         specifier: ^5.3.0
         version: 5.6.2
@@ -258,7 +258,7 @@ importers:
         version: 6.4.3(@types/node@18.19.61)(jiti@2.6.1)(less@4.8.1)(terser@5.48.0)(tsx@4.21.0)(yaml@2.8.3)
       vitest:
         specifier: 'catalog:'
-        version: 4.1.11(@opentelemetry/api@1.9.0)(@types/node@18.19.61)(@vitest/ui@4.1.11)(jsdom@16.7.0)(msw@2.15.0(@types/node@18.19.61)(typescript@5.6.3))(vite@6.4.3(@types/node@18.19.61)(jiti@2.6.1)(less@4.8.1)(terser@5.48.0)(tsx@4.21.0)(yaml@2.8.3))
+        version: 4.1.12(@opentelemetry/api@1.9.0)(@types/node@18.19.61)(@vitest/ui@4.1.12)(jsdom@16.7.0)(msw@2.15.0(@types/node@18.19.61)(typescript@5.6.3))(vite@6.4.3(@types/node@18.19.61)(jiti@2.6.1)(less@4.8.1)(terser@5.48.0)(tsx@4.21.0)(yaml@2.8.3))
 
   dev-scripts:
     dependencies:
@@ -342,7 +342,7 @@ importers:
         version: 6.4.3(@types/node@26.0.0)(jiti@2.6.1)(less@4.8.1)(terser@5.48.0)(tsx@4.21.0)(yaml@2.8.3)
       vitest:
         specifier: 'catalog:'
-        version: 4.1.11(@opentelemetry/api@1.9.0)(@types/node@26.0.0)(@vitest/ui@4.1.11)(jsdom@16.7.0)(msw@2.15.0(@types/node@26.0.0)(typescript@5.6.3))(vite@6.4.3(@types/node@26.0.0)(jiti@2.6.1)(less@4.8.1)(terser@5.48.0)(tsx@4.21.0)(yaml@2.8.3))
+        version: 4.1.12(@opentelemetry/api@1.9.0)(@types/node@26.0.0)(@vitest/ui@4.1.12)(jsdom@16.7.0)(msw@2.15.0(@types/node@26.0.0)(typescript@5.6.3))(vite@6.4.3(@types/node@26.0.0)(jiti@2.6.1)(less@4.8.1)(terser@5.48.0)(tsx@4.21.0)(yaml@2.8.3))
 
   libs/core-functions-lib:
     dependencies:
@@ -394,7 +394,7 @@ importers:
         version: 18.19.61
       '@vitest/ui':
         specifier: 'catalog:'
-        version: 4.1.11(vitest@4.1.11)
+        version: 4.1.12(vitest@4.1.12)
       express:
         specifier: ^4.21.2
         version: 4.22.1
@@ -406,7 +406,7 @@ importers:
         version: 6.4.3(@types/node@18.19.61)(jiti@2.6.1)(less@4.8.1)(terser@5.48.0)(tsx@4.21.0)(yaml@2.8.3)
       vitest:
         specifier: 'catalog:'
-        version: 4.1.11(@opentelemetry/api@1.9.0)(@types/node@18.19.61)(@vitest/ui@4.1.11)(jsdom@16.7.0)(msw@2.15.0(@types/node@18.19.61)(typescript@5.6.3))(vite@6.4.3(@types/node@18.19.61)(jiti@2.6.1)(less@4.8.1)(terser@5.48.0)(tsx@4.21.0)(yaml@2.8.3))
+        version: 4.1.12(@opentelemetry/api@1.9.0)(@types/node@18.19.61)(@vitest/ui@4.1.12)(jsdom@16.7.0)(msw@2.15.0(@types/node@18.19.61)(typescript@5.6.3))(vite@6.4.3(@types/node@18.19.61)(jiti@2.6.1)(less@4.8.1)(terser@5.48.0)(tsx@4.21.0)(yaml@2.8.3))
 
   libs/destination-functions:
     dependencies:
@@ -470,7 +470,7 @@ importers:
         version: 3.4.0
       '@vitest/ui':
         specifier: 'catalog:'
-        version: 4.1.11(vitest@4.1.11)
+        version: 4.1.12(vitest@4.1.12)
       json5:
         specifier: ^2.1.0
         version: 2.2.3
@@ -482,7 +482,7 @@ importers:
         version: 6.4.3(@types/node@18.19.61)(jiti@2.6.1)(less@4.8.1)(terser@5.48.0)(tsx@4.21.0)(yaml@2.8.3)
       vitest:
         specifier: 'catalog:'
-        version: 4.1.11(@opentelemetry/api@1.9.0)(@types/node@18.19.61)(@vitest/ui@4.1.11)(jsdom@16.7.0)(msw@2.15.0(@types/node@18.19.61)(typescript@5.6.3))(vite@6.4.3(@types/node@18.19.61)(jiti@2.6.1)(less@4.8.1)(terser@5.48.0)(tsx@4.21.0)(yaml@2.8.3))
+        version: 4.1.12(@opentelemetry/api@1.9.0)(@types/node@18.19.61)(@vitest/ui@4.1.12)(jsdom@16.7.0)(msw@2.15.0(@types/node@18.19.61)(typescript@5.6.3))(vite@6.4.3(@types/node@18.19.61)(jiti@2.6.1)(less@4.8.1)(terser@5.48.0)(tsx@4.21.0)(yaml@2.8.3))
 
   libs/functions:
     devDependencies:
@@ -500,7 +500,7 @@ importers:
         version: 18.19.61
       '@vitest/ui':
         specifier: 'catalog:'
-        version: 4.1.11(vitest@4.1.11)
+        version: 4.1.12(vitest@4.1.12)
       esbuild:
         specifier: 'catalog:'
         version: 0.28.1
@@ -515,7 +515,7 @@ importers:
         version: 6.4.3(@types/node@18.19.61)(jiti@2.6.1)(less@4.8.1)(terser@5.48.0)(tsx@4.21.0)(yaml@2.8.3)
       vitest:
         specifier: 'catalog:'
-        version: 4.1.11(@opentelemetry/api@1.9.0)(@types/node@18.19.61)(@vitest/ui@4.1.11)(jsdom@16.7.0)(msw@2.15.0(@types/node@18.19.61)(typescript@5.6.3))(vite@6.4.3(@types/node@18.19.61)(jiti@2.6.1)(less@4.8.1)(terser@5.48.0)(tsx@4.21.0)(yaml@2.8.3))
+        version: 4.1.12(@opentelemetry/api@1.9.0)(@types/node@18.19.61)(@vitest/ui@4.1.12)(jsdom@16.7.0)(msw@2.15.0(@types/node@18.19.61)(typescript@5.6.3))(vite@6.4.3(@types/node@18.19.61)(jiti@2.6.1)(less@4.8.1)(terser@5.48.0)(tsx@4.21.0)(yaml@2.8.3))
 
   libs/jitsu-js:
     dependencies:
@@ -543,7 +543,7 @@ importers:
         version: 18.19.61
       '@vitest/ui':
         specifier: 'catalog:'
-        version: 4.1.11(vitest@4.1.11)
+        version: 4.1.12(vitest@4.1.12)
       chalk:
         specifier: ^4.1.2
         version: 4.1.2
@@ -582,7 +582,7 @@ importers:
         version: 6.4.3(@types/node@18.19.61)(jiti@2.6.1)(less@4.8.1)(terser@5.48.0)(tsx@4.21.0)(yaml@2.8.3)
       vitest:
         specifier: 'catalog:'
-        version: 4.1.11(@opentelemetry/api@1.9.0)(@types/node@18.19.61)(@vitest/ui@4.1.11)(jsdom@16.7.0)(msw@2.15.0(@types/node@18.19.61)(typescript@5.6.3))(vite@6.4.3(@types/node@18.19.61)(jiti@2.6.1)(less@4.8.1)(terser@5.48.0)(tsx@4.21.0)(yaml@2.8.3))
+        version: 4.1.12(@opentelemetry/api@1.9.0)(@types/node@18.19.61)(@vitest/ui@4.1.12)(jsdom@16.7.0)(msw@2.15.0(@types/node@18.19.61)(typescript@5.6.3))(vite@6.4.3(@types/node@18.19.61)(jiti@2.6.1)(less@4.8.1)(terser@5.48.0)(tsx@4.21.0)(yaml@2.8.3))
 
   libs/jitsu-react:
     dependencies:
@@ -658,10 +658,10 @@ importers:
         version: 9.1.2(eslint@9.39.4(jiti@2.6.1))
       jest:
         specifier: ^29.7.0
-        version: 29.7.0(@types/node@22.20.3)(ts-node@10.9.2(@swc/core@1.15.2(@swc/helpers@0.5.23))(@types/node@22.20.3)(typescript@5.6.3))
+        version: 29.7.0(@types/node@26.0.0)(ts-node@10.9.2(@swc/core@1.15.2(@swc/helpers@0.5.23))(@types/node@26.0.0)(typescript@5.6.3))
       ts-jest:
         specifier: ^29.1.1
-        version: 29.4.9(@babel/core@7.29.7)(@jest/transform@29.7.0)(@jest/types@29.6.3)(babel-jest@29.7.0(@babel/core@7.29.7))(jest-util@29.7.0)(jest@29.7.0(@types/node@22.20.3)(ts-node@10.9.2(@swc/core@1.15.2(@swc/helpers@0.5.23))(@types/node@22.20.3)(typescript@5.6.3)))(typescript@5.6.3)
+        version: 29.4.9(@babel/core@7.29.7)(@jest/transform@29.7.0)(@jest/types@29.6.3)(babel-jest@29.7.0(@babel/core@7.29.7))(jest-util@29.7.0)(jest@29.7.0(@types/node@26.0.0)(ts-node@10.9.2(@swc/core@1.15.2(@swc/helpers@0.5.23))(@types/node@26.0.0)(typescript@5.6.3)))(typescript@5.6.3)
       tslib:
         specifier: 'catalog:'
         version: 2.8.1
@@ -686,13 +686,13 @@ importers:
         version: 18.19.61
       '@vitest/ui':
         specifier: 'catalog:'
-        version: 4.1.11(vitest@4.1.11)
+        version: 4.1.12(vitest@4.1.12)
       vite:
         specifier: ^6.4.3
         version: 6.4.3(@types/node@18.19.61)(jiti@2.6.1)(less@4.8.1)(terser@5.48.0)(tsx@4.21.0)(yaml@2.8.3)
       vitest:
         specifier: 'catalog:'
-        version: 4.1.11(@opentelemetry/api@1.9.0)(@types/node@18.19.61)(@vitest/ui@4.1.11)(jsdom@16.7.0)(msw@2.15.0(@types/node@18.19.61)(typescript@5.6.3))(vite@6.4.3(@types/node@18.19.61)(jiti@2.6.1)(less@4.8.1)(terser@5.48.0)(tsx@4.21.0)(yaml@2.8.3))
+        version: 4.1.12(@opentelemetry/api@1.9.0)(@types/node@18.19.61)(@vitest/ui@4.1.12)(jsdom@16.7.0)(msw@2.15.0(@types/node@18.19.61)(typescript@5.6.3))(vite@6.4.3(@types/node@18.19.61)(jiti@2.6.1)(less@4.8.1)(terser@5.48.0)(tsx@4.21.0)(yaml@2.8.3))
 
   libs/warehouse-query:
     dependencies:
@@ -738,7 +738,7 @@ importers:
         version: 5.6.3
       vitest:
         specifier: 'catalog:'
-        version: 4.1.11(@opentelemetry/api@1.9.0)(@types/node@18.19.61)(@vitest/ui@4.1.11)(jsdom@16.7.0)(msw@2.15.0(@types/node@18.19.61)(typescript@5.6.3))(vite@6.4.3(@types/node@18.19.61)(jiti@2.6.1)(less@4.8.1)(terser@5.48.0)(tsx@4.21.0)(yaml@2.8.3))
+        version: 4.1.12(@opentelemetry/api@1.9.0)(@types/node@18.19.61)(@vitest/ui@4.1.12)(jsdom@16.7.0)(msw@2.15.0(@types/node@18.19.61)(typescript@5.6.3))(vite@6.4.3(@types/node@18.19.61)(jiti@2.6.1)(less@4.8.1)(terser@5.48.0)(tsx@4.21.0)(yaml@2.8.3))
 
   services/retl-runner:
     dependencies:
@@ -790,7 +790,7 @@ importers:
         version: 5.6.3
       vitest:
         specifier: 'catalog:'
-        version: 4.1.11(@opentelemetry/api@1.9.0)(@types/node@22.20.3)(@vitest/ui@4.1.11)(jsdom@16.7.0)(msw@2.15.0(@types/node@22.20.3)(typescript@5.6.3))(vite@6.4.3(@types/node@22.20.3)(jiti@2.6.1)(less@4.8.1)(terser@5.48.0)(tsx@4.21.0)(yaml@2.8.3))
+        version: 4.1.12(@opentelemetry/api@1.9.0)(@types/node@22.20.3)(@vitest/ui@4.1.12)(jsdom@16.7.0)(msw@2.15.0(@types/node@22.20.3)(typescript@5.6.3))(vite@6.4.3(@types/node@22.20.3)(jiti@2.6.1)(less@4.8.1)(terser@5.48.0)(tsx@4.21.0)(yaml@2.8.3))
 
   services/rotor:
     dependencies:
@@ -917,7 +917,7 @@ importers:
         version: 8.58.1(eslint@9.39.4(jiti@2.6.1))(typescript@5.6.3)
       '@vitest/ui':
         specifier: 'catalog:'
-        version: 4.1.11(vitest@4.1.11)
+        version: 4.1.12(vitest@4.1.12)
       eslint:
         specifier: ^9.18.0
         version: 9.39.4(jiti@2.6.1)
@@ -944,7 +944,7 @@ importers:
         version: 6.4.3(@types/node@18.19.61)(jiti@2.6.1)(less@4.8.1)(terser@5.48.0)(tsx@4.21.0)(yaml@2.8.3)
       vitest:
         specifier: 'catalog:'
-        version: 4.1.11(@opentelemetry/api@1.9.0)(@types/node@18.19.61)(@vitest/ui@4.1.11)(jsdom@16.7.0)(msw@2.15.0(@types/node@18.19.61)(typescript@5.6.3))(vite@6.4.3(@types/node@18.19.61)(jiti@2.6.1)(less@4.8.1)(terser@5.48.0)(tsx@4.21.0)(yaml@2.8.3))
+        version: 4.1.12(@opentelemetry/api@1.9.0)(@types/node@18.19.61)(@vitest/ui@4.1.12)(jsdom@16.7.0)(msw@2.15.0(@types/node@18.19.61)(typescript@5.6.3))(vite@6.4.3(@types/node@18.19.61)(jiti@2.6.1)(less@4.8.1)(terser@5.48.0)(tsx@4.21.0)(yaml@2.8.3))
 
   types/protocols:
     dependencies:
@@ -1243,7 +1243,7 @@ importers:
         version: 18.3.1
       '@vitest/ui':
         specifier: 'catalog:'
-        version: 4.1.11(vitest@4.1.11)
+        version: 4.1.12(vitest@4.1.12)
       ansi-to-html:
         specifier: ^0.7.2
         version: 0.7.2
@@ -1306,7 +1306,7 @@ importers:
         version: 6.4.3(@types/node@18.19.61)(jiti@2.6.1)(less@4.8.1)(terser@5.48.0)(tsx@4.21.0)(yaml@2.8.3)
       vitest:
         specifier: 'catalog:'
-        version: 4.1.11(@opentelemetry/api@1.9.0)(@types/node@18.19.61)(@vitest/ui@4.1.11)(jsdom@16.7.0)(msw@2.15.0(@types/node@18.19.61)(typescript@5.6.3))(vite@6.4.3(@types/node@18.19.61)(jiti@2.6.1)(less@4.8.1)(terser@5.48.0)(tsx@4.21.0)(yaml@2.8.3))
+        version: 4.1.12(@opentelemetry/api@1.9.0)(@types/node@18.19.61)(@vitest/ui@4.1.12)(jsdom@16.7.0)(msw@2.15.0(@types/node@18.19.61)(typescript@5.6.3))(vite@6.4.3(@types/node@18.19.61)(jiti@2.6.1)(less@4.8.1)(terser@5.48.0)(tsx@4.21.0)(yaml@2.8.3))
       zod-prisma:
         specifier: ^0.5.4
         version: 0.5.4(decimal.js@10.6.0)(prisma@6.19.3(typescript@5.6.3))(zod@3.25.76)
@@ -2558,7 +2558,7 @@ packages:
     resolution: {integrity: sha512-eWpQYr67tqJLeaSUl0Q+TquuYfUdTibpOJlUMV2FfUP7+KqCC5TufnwnlXL6mobZBJbGAYRd7ZvEBDCbLInjhg==}
     engines: {node: '>=20'}
     peerDependencies:
-      hono: ^4.13.5
+      hono: ^4.13.11
 
   '@hubspot/api-client@11.2.0':
     resolution: {integrity: sha512-OWf/vwuOw3lMRywdyBprAl5nt3a3kRVpLcIwz6hT7uxobNOPBElFMbp3nv0dM5JZqMD78NMT7VUTArKjKhRQKg==}
@@ -4625,11 +4625,11 @@ packages:
     resolution: {integrity: sha512-edSdeAqkdxBVzA1yL1LrLCml1YjyCVvPMtMqJpbF+6K609tHe8V6sQUzFQSGcYNhcuhOceZtjvN32+mpIth30A==}
     engines: {node: '>=22.0.0'}
 
-  '@vitest/expect@4.1.11':
-    resolution: {integrity: sha512-VX2x5vNJXET47KAFzwERI+KRMtTTCSWTfSMKsW7JsUsXV4psq++e3DvZpuTDOpHcxytiDs6p2nhVb2tVDiiUYw==}
+  '@vitest/expect@4.1.12':
+    resolution: {integrity: sha512-vFlTt+YEu9WBpNjdGayNmlMVzrWPi1+sv853/7t2FU7hpO5gAFBKHzQmkCq5Xjpr+evegF2994LQT3hF3mRlqQ==}
 
-  '@vitest/mocker@4.1.11':
-    resolution: {integrity: sha512-2XJVD55d1o5AZous5CCGKS74g/riOj9odEt2bQpCVZeblHyHdnMeFl4jl0XjU21stf4mbjUkew2eXQZt65g5CQ==}
+  '@vitest/mocker@4.1.12':
+    resolution: {integrity: sha512-fKShNpKZzupWZuY0z7egydvL0sqW4INEZBEExMBMAa6izlENEVHwoXgdaTCaBZ5fwlr4xf2o1wXC83n9RpO+NA==}
     peerDependencies:
       msw: ^2.4.9
       vite: ^6.4.3
@@ -4639,25 +4639,25 @@ packages:
       vite:
         optional: true
 
-  '@vitest/pretty-format@4.1.11':
-    resolution: {integrity: sha512-yiZzPbGTS9Sr/JpFl8zHrcIkAofNbFV6k21vIgQN/cY/oxZeXhJv5sc/MBJ5jFKWmWs+oJHw0UXLZjmf931+Vw==}
+  '@vitest/pretty-format@4.1.12':
+    resolution: {integrity: sha512-XW9O8+Mxx4VpCtkYdMJLZQQwsVryP9wk7cPKDxtXFfwSak6yRh5+2fep/Y0XF/ElBvJHq8bcYdi6aeuai0opZA==}
 
-  '@vitest/runner@4.1.11':
-    resolution: {integrity: sha512-LztvUgdwMNJMIkj3hQnnxiC2Xy1zNxq928W/xhjCLaNCzqTZOudjwbQf6v9IntZGPw132i2Lq2rgTRZHD3JHNw==}
+  '@vitest/runner@4.1.12':
+    resolution: {integrity: sha512-NKlVKCr5QnCe8jijdMnmkpHHU+WTqiLFR6G0pHji9uRjXK9xJl1k1nTw6F3pOOj2PDcsDt2GKQMI7wIsaT491w==}
 
-  '@vitest/snapshot@4.1.11':
-    resolution: {integrity: sha512-pN7ikn1ON7h8ee4gIAp4AzyK+zBtJPzVbqOgu5LCEh4VaJVbPQcgYQYJIMGQPXVeJJq1fnfazis7a5pFNPahog==}
+  '@vitest/snapshot@4.1.12':
+    resolution: {integrity: sha512-ko1y1Qgb/slzQ9mr+b89Cuqud8WG1TKtsPD8r7ZUBdvVOGt85Af2HwCqHujrhwJq95hs/9RM7fcAPg57o1vlzw==}
 
-  '@vitest/spy@4.1.11':
-    resolution: {integrity: sha512-apNa/prQy2qCeywhnixOHPRCgGNhvg7T4Dapfl1GahLp/R+uhBm5cPyFoNVyqsNd2h1nJxL6BqqdIjiABL60YA==}
+  '@vitest/spy@4.1.12':
+    resolution: {integrity: sha512-RGq9x4JNGNTZHEJxvN0oSiJjeSCExm0n2gZKKJZHY9cX5AVA6M7VJILBT3ZJ/tJ/0J9uWT7fETV9/btoi//vSg==}
 
-  '@vitest/ui@4.1.11':
-    resolution: {integrity: sha512-r/rwyKoev21mWdRGSEkZOqkQ2BYy68mwjihg9M90nNRbf4NGrgzZ4cj6JNCEwlOGJkbKeMgsjlykvwKUbRr7gw==}
+  '@vitest/ui@4.1.12':
+    resolution: {integrity: sha512-eYUTHtsp52Fu6YGUw9T9173bba7YUr9j/Xj9CdhUaOb8AppLKcknHUaiZQeqJ8MiJ8C2VyKiZuUGSKdvPIKQKA==}
     peerDependencies:
-      vitest: 4.1.11
+      vitest: 4.1.12
 
-  '@vitest/utils@4.1.11':
-    resolution: {integrity: sha512-zTCVGpyFsGWBhllOyKlTw/vnr6D9qxsfSDyfbyZmTyjHw5N/VuvzHpHoQjm2ZJzn4RJgx5w4r7V0er69CmLgPQ==}
+  '@vitest/utils@4.1.12':
+    resolution: {integrity: sha512-Q3awXrwOfEV+qc3WmO5ONyE0yO7Q1gQ9/oyHxGLZ/pl7N3NO/ZztqQwKLuwMkV+CA1JYSIeO3gkHnRDIo4AVaA==}
 
   '@webassemblyjs/ast@1.14.1':
     resolution: {integrity: sha512-nuBEDgQfm1ccRp/8bCQrx1frohyufl4JlbMMZ4P1wpeOfDhF6FQkxZJ1b/e+PLwr6X1Nhw6OLme5usuBWYBvuQ==}
@@ -6861,8 +6861,8 @@ packages:
     resolution: {integrity: sha512-ax7ZYomf6jqPTQ4+XCpUGyXKHk5WweS+e05MBO4/y3WJ5RkmPXNKvX+bx1behVILVwr6JSQvZAku021CHPXG3Q==}
     engines: {node: '>=10'}
 
-  handlebars@4.7.9:
-    resolution: {integrity: sha512-4E71E0rpOaQuJR2A3xDZ+GM1HyWYv1clR58tC8emQNeQe3RH7MAzSbat+V0wG78LQBo6m6bzSG/L4pBuCsgnUQ==}
+  handlebars@4.7.10:
+    resolution: {integrity: sha512-P5VJMVM7qgBn6vjXMw8WG9uVI+ncf2pi72j4de4yz5ZULLj2RGqLYaKOYGsgyrViQ0tePOVlN1tDCCXXtFqXKg==}
     engines: {node: '>=0.4.7'}
     hasBin: true
 
@@ -6920,8 +6920,8 @@ packages:
     resolution: {integrity: sha512-eSmmWE5bZTK2Nou4g0AI3zZ9rswp7GRKoKXS1BLUkvPviOqs4YTN1djQIqrXy9k5gEtdLPy86JjRwsNM9tnDcA==}
     engines: {node: '>=0.10.0'}
 
-  hono@4.13.7:
-    resolution: {integrity: sha512-c8/gF9ac8Y78/agExVocyLevgR+JlpNB444Py0FSX8pJoPdYUfUzRcXtYEYGwt6l19qIlVZPN5Mfsw9jFShmQQ==}
+  hono@4.13.14:
+    resolution: {integrity: sha512-yhRLQ21U6qa9Hsu2N7Qcbh8tE+WKEcoErjIo56LeSGiGXGp9sA7UpE86Ui9uexb61KakiGwuHMn2QdV7w6i6kQ==}
     engines: {node: '>=16.9.0'}
 
   html-encoding-sniffer@2.0.1:
@@ -10525,20 +10525,20 @@ packages:
       yaml:
         optional: true
 
-  vitest@4.1.11:
-    resolution: {integrity: sha512-fhACrNXUidIbGSBr5FlbuBkO7VWC1ZyLl0DO4CU2DrQoAPxX84Ysxs+HeGQpii5lZWV1Q4gBZTTu49mF+A6Edw==}
+  vitest@4.1.12:
+    resolution: {integrity: sha512-5eWdz2yb3ajxWF3C8C4TjkXl7FGm3n2E/VlazALrQHzK7nYMSGFnCZto0bbPNl77AwkOZVLk0YnBAejUu0NiWA==}
     engines: {node: ^20.0.0 || ^22.0.0 || >=24.0.0}
     hasBin: true
     peerDependencies:
       '@edge-runtime/vm': '*'
       '@opentelemetry/api': ^1.9.0
       '@types/node': ^20.0.0 || ^22.0.0 || >=24.0.0
-      '@vitest/browser-playwright': 4.1.11
-      '@vitest/browser-preview': 4.1.11
-      '@vitest/browser-webdriverio': 4.1.11
-      '@vitest/coverage-istanbul': 4.1.11
-      '@vitest/coverage-v8': 4.1.11
-      '@vitest/ui': 4.1.11
+      '@vitest/browser-playwright': 4.1.12
+      '@vitest/browser-preview': 4.1.12
+      '@vitest/browser-webdriverio': ^4.1.11
+      '@vitest/coverage-istanbul': 4.1.12
+      '@vitest/coverage-v8': 4.1.12
+      '@vitest/ui': 4.1.12
       happy-dom: '*'
       jsdom: '*'
       vite: ^6.4.3
@@ -12628,9 +12628,9 @@ snapshots:
       protobufjs: 7.6.5
       yargs: 17.7.2
 
-  '@hono/node-server@2.0.12(hono@4.13.7)':
+  '@hono/node-server@2.0.12(hono@4.13.14)':
     dependencies:
-      hono: 4.13.7
+      hono: 4.13.14
 
   '@hubspot/api-client@11.2.0(encoding@0.1.13)':
     dependencies:
@@ -12927,41 +12927,6 @@ snapshots:
       - supports-color
       - ts-node
 
-  '@jest/core@29.7.0(ts-node@10.9.2(@swc/core@1.15.2(@swc/helpers@0.5.23))(@types/node@22.20.3)(typescript@5.6.3))':
-    dependencies:
-      '@jest/console': 29.7.0
-      '@jest/reporters': 29.7.0
-      '@jest/test-result': 29.7.0
-      '@jest/transform': 29.7.0
-      '@jest/types': 29.6.3
-      '@types/node': 22.20.3
-      ansi-escapes: 4.3.2
-      chalk: 4.1.2
-      ci-info: 3.9.0
-      exit: 0.1.2
-      graceful-fs: 4.2.11
-      jest-changed-files: 29.7.0
-      jest-config: 29.7.0(@types/node@22.20.3)(ts-node@10.9.2(@swc/core@1.15.2(@swc/helpers@0.5.23))(@types/node@22.20.3)(typescript@5.6.3))
-      jest-haste-map: 29.7.0
-      jest-message-util: 29.7.0
-      jest-regex-util: 29.6.3
-      jest-resolve: 29.7.0
-      jest-resolve-dependencies: 29.7.0
-      jest-runner: 29.7.0
-      jest-runtime: 29.7.0
-      jest-snapshot: 29.7.0
-      jest-util: 29.7.0
-      jest-validate: 29.7.0
-      jest-watcher: 29.7.0
-      micromatch: 4.0.8
-      pretty-format: 29.7.0
-      slash: 3.0.0
-      strip-ansi: 6.0.1
-    transitivePeerDependencies:
-      - babel-plugin-macros
-      - supports-color
-      - ts-node
-
   '@jest/core@29.7.0(ts-node@10.9.2(@swc/core@1.15.2(@swc/helpers@0.5.23))(@types/node@26.0.0)(typescript@5.6.3))':
     dependencies:
       '@jest/console': 29.7.0
@@ -13200,7 +13165,7 @@ snapshots:
 
   '@modelcontextprotocol/sdk@1.32.1(zod@3.25.76)':
     dependencies:
-      '@hono/node-server': 2.0.12(hono@4.13.7)
+      '@hono/node-server': 2.0.12(hono@4.13.14)
       ajv: 8.18.0
       ajv-formats: 3.0.1(ajv@8.18.0)
       content-type: 1.0.5
@@ -13210,7 +13175,7 @@ snapshots:
       eventsource-parser: 3.1.0
       express: 5.2.1
       express-rate-limit: 8.5.2(express@5.2.1)
-      hono: 4.13.7
+      hono: 4.13.14
       jose: 6.2.3
       json-schema-typed: 8.0.2
       pkce-challenge: 5.0.1
@@ -15146,74 +15111,74 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  '@vitest/expect@4.1.11':
+  '@vitest/expect@4.1.12':
     dependencies:
       '@standard-schema/spec': 1.1.0
       '@types/chai': 5.2.3
-      '@vitest/spy': 4.1.11
-      '@vitest/utils': 4.1.11
+      '@vitest/spy': 4.1.12
+      '@vitest/utils': 4.1.12
       chai: 6.2.2
       tinyrainbow: 3.1.0
 
-  '@vitest/mocker@4.1.11(msw@2.15.0(@types/node@18.19.61)(typescript@5.6.3))(vite@6.4.3(@types/node@18.19.61)(jiti@2.6.1)(less@4.8.1)(terser@5.48.0)(tsx@4.21.0)(yaml@2.8.3))':
+  '@vitest/mocker@4.1.12(msw@2.15.0(@types/node@18.19.61)(typescript@5.6.3))(vite@6.4.3(@types/node@18.19.61)(jiti@2.6.1)(less@4.8.1)(terser@5.48.0)(tsx@4.21.0)(yaml@2.8.3))':
     dependencies:
-      '@vitest/spy': 4.1.11
+      '@vitest/spy': 4.1.12
       estree-walker: 3.0.3
       magic-string: 0.30.21
     optionalDependencies:
       msw: 2.15.0(@types/node@18.19.61)(typescript@5.6.3)
       vite: 6.4.3(@types/node@18.19.61)(jiti@2.6.1)(less@4.8.1)(terser@5.48.0)(tsx@4.21.0)(yaml@2.8.3)
 
-  '@vitest/mocker@4.1.11(msw@2.15.0(@types/node@22.20.3)(typescript@5.6.3))(vite@6.4.3(@types/node@22.20.3)(jiti@2.6.1)(less@4.8.1)(terser@5.48.0)(tsx@4.21.0)(yaml@2.8.3))':
+  '@vitest/mocker@4.1.12(msw@2.15.0(@types/node@22.20.3)(typescript@5.6.3))(vite@6.4.3(@types/node@22.20.3)(jiti@2.6.1)(less@4.8.1)(terser@5.48.0)(tsx@4.21.0)(yaml@2.8.3))':
     dependencies:
-      '@vitest/spy': 4.1.11
+      '@vitest/spy': 4.1.12
       estree-walker: 3.0.3
       magic-string: 0.30.21
     optionalDependencies:
       msw: 2.15.0(@types/node@22.20.3)(typescript@5.6.3)
       vite: 6.4.3(@types/node@22.20.3)(jiti@2.6.1)(less@4.8.1)(terser@5.48.0)(tsx@4.21.0)(yaml@2.8.3)
 
-  '@vitest/mocker@4.1.11(msw@2.15.0(@types/node@26.0.0)(typescript@5.6.3))(vite@6.4.3(@types/node@26.0.0)(jiti@2.6.1)(less@4.8.1)(terser@5.48.0)(tsx@4.21.0)(yaml@2.8.3))':
+  '@vitest/mocker@4.1.12(msw@2.15.0(@types/node@26.0.0)(typescript@5.6.3))(vite@6.4.3(@types/node@26.0.0)(jiti@2.6.1)(less@4.8.1)(terser@5.48.0)(tsx@4.21.0)(yaml@2.8.3))':
     dependencies:
-      '@vitest/spy': 4.1.11
+      '@vitest/spy': 4.1.12
       estree-walker: 3.0.3
       magic-string: 0.30.21
     optionalDependencies:
       msw: 2.15.0(@types/node@26.0.0)(typescript@5.6.3)
       vite: 6.4.3(@types/node@26.0.0)(jiti@2.6.1)(less@4.8.1)(terser@5.48.0)(tsx@4.21.0)(yaml@2.8.3)
 
-  '@vitest/pretty-format@4.1.11':
+  '@vitest/pretty-format@4.1.12':
     dependencies:
       tinyrainbow: 3.1.0
 
-  '@vitest/runner@4.1.11':
+  '@vitest/runner@4.1.12':
     dependencies:
-      '@vitest/utils': 4.1.11
+      '@vitest/utils': 4.1.12
       pathe: 2.0.3
 
-  '@vitest/snapshot@4.1.11':
+  '@vitest/snapshot@4.1.12':
     dependencies:
-      '@vitest/pretty-format': 4.1.11
-      '@vitest/utils': 4.1.11
+      '@vitest/pretty-format': 4.1.12
+      '@vitest/utils': 4.1.12
       magic-string: 0.30.21
       pathe: 2.0.3
 
-  '@vitest/spy@4.1.11': {}
+  '@vitest/spy@4.1.12': {}
 
-  '@vitest/ui@4.1.11(vitest@4.1.11)':
+  '@vitest/ui@4.1.12(vitest@4.1.12)':
     dependencies:
-      '@vitest/utils': 4.1.11
+      '@vitest/utils': 4.1.12
       fflate: 0.8.3
       flatted: 3.4.2
       pathe: 2.0.3
       sirv: 3.0.2
       tinyglobby: 0.2.17
       tinyrainbow: 3.1.0
-      vitest: 4.1.11(@opentelemetry/api@1.9.0)(@types/node@18.19.61)(@vitest/ui@4.1.11)(jsdom@16.7.0)(msw@2.15.0(@types/node@18.19.61)(typescript@5.6.3))(vite@6.4.3(@types/node@18.19.61)(jiti@2.6.1)(less@4.8.1)(terser@5.48.0)(tsx@4.21.0)(yaml@2.8.3))
+      vitest: 4.1.12(@opentelemetry/api@1.9.0)(@types/node@18.19.61)(@vitest/ui@4.1.12)(jsdom@16.7.0)(msw@2.15.0(@types/node@18.19.61)(typescript@5.6.3))(vite@6.4.3(@types/node@18.19.61)(jiti@2.6.1)(less@4.8.1)(terser@5.48.0)(tsx@4.21.0)(yaml@2.8.3))
 
-  '@vitest/utils@4.1.11':
+  '@vitest/utils@4.1.12':
     dependencies:
-      '@vitest/pretty-format': 4.1.11
+      '@vitest/pretty-format': 4.1.12
       convert-source-map: 2.0.0
       tinyrainbow: 3.1.0
 
@@ -16292,21 +16257,6 @@ snapshots:
       - supports-color
       - ts-node
 
-  create-jest@29.7.0(@types/node@22.20.3)(ts-node@10.9.2(@swc/core@1.15.2(@swc/helpers@0.5.23))(@types/node@22.20.3)(typescript@5.6.3)):
-    dependencies:
-      '@jest/types': 29.6.3
-      chalk: 4.1.2
-      exit: 0.1.2
-      graceful-fs: 4.2.11
-      jest-config: 29.7.0(@types/node@22.20.3)(ts-node@10.9.2(@swc/core@1.15.2(@swc/helpers@0.5.23))(@types/node@22.20.3)(typescript@5.6.3))
-      jest-util: 29.7.0
-      prompts: 2.4.2
-    transitivePeerDependencies:
-      - '@types/node'
-      - babel-plugin-macros
-      - supports-color
-      - ts-node
-
   create-jest@29.7.0(@types/node@26.0.0)(ts-node@10.9.2(@swc/core@1.15.2(@swc/helpers@0.5.23))(@types/node@26.0.0)(typescript@5.6.3)):
     dependencies:
       '@jest/types': 29.6.3
@@ -17053,7 +17003,7 @@ snapshots:
       eslint: 9.39.4(jiti@2.6.1)
       eslint-import-resolver-node: 0.3.9
       eslint-import-resolver-typescript: 3.6.3(@typescript-eslint/parser@8.49.0(eslint@9.39.4(jiti@2.6.1))(typescript@5.6.3))(eslint-import-resolver-node@0.3.9)(eslint-plugin-import@2.32.0(@typescript-eslint/parser@8.49.0(eslint@9.39.4(jiti@2.6.1))(typescript@5.6.3))(eslint@9.39.4(jiti@2.6.1)))(eslint@9.39.4(jiti@2.6.1))
-      eslint-plugin-import: 2.32.0(@typescript-eslint/parser@8.49.0(eslint@9.39.4(jiti@2.6.1))(typescript@5.6.3))(eslint-import-resolver-typescript@3.6.3)(eslint@9.39.4(jiti@2.6.1))
+      eslint-plugin-import: 2.32.0(@typescript-eslint/parser@8.49.0(eslint@9.39.4(jiti@2.6.1))(typescript@5.6.3))(eslint-import-resolver-typescript@3.6.3(@typescript-eslint/parser@8.49.0(eslint@9.39.4(jiti@2.6.1))(typescript@5.6.3))(eslint-import-resolver-node@0.3.9)(eslint-plugin-import@2.32.0(@typescript-eslint/parser@8.49.0(eslint@9.39.4(jiti@2.6.1))(typescript@5.6.3))(eslint@9.39.4(jiti@2.6.1)))(eslint@9.39.4(jiti@2.6.1)))(eslint@9.39.4(jiti@2.6.1))
       eslint-plugin-jsx-a11y: 6.10.2(eslint@9.39.4(jiti@2.6.1))
       eslint-plugin-react: 7.37.2(eslint@9.39.4(jiti@2.6.1))
       eslint-plugin-react-hooks: 7.0.1(eslint@9.39.4(jiti@2.6.1))
@@ -17091,7 +17041,7 @@ snapshots:
       is-bun-module: 1.2.1
       is-glob: 4.0.3
     optionalDependencies:
-      eslint-plugin-import: 2.32.0(@typescript-eslint/parser@8.49.0(eslint@9.39.4(jiti@2.6.1))(typescript@5.6.3))(eslint-import-resolver-typescript@3.6.3)(eslint@9.39.4(jiti@2.6.1))
+      eslint-plugin-import: 2.32.0(@typescript-eslint/parser@8.49.0(eslint@9.39.4(jiti@2.6.1))(typescript@5.6.3))(eslint-import-resolver-typescript@3.6.3(@typescript-eslint/parser@8.49.0(eslint@9.39.4(jiti@2.6.1))(typescript@5.6.3))(eslint-import-resolver-node@0.3.9)(eslint-plugin-import@2.32.0(@typescript-eslint/parser@8.49.0(eslint@9.39.4(jiti@2.6.1))(typescript@5.6.3))(eslint@9.39.4(jiti@2.6.1)))(eslint@9.39.4(jiti@2.6.1)))(eslint@9.39.4(jiti@2.6.1))
     transitivePeerDependencies:
       - '@typescript-eslint/parser'
       - eslint-import-resolver-node
@@ -17109,7 +17059,7 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  eslint-plugin-import@2.32.0(@typescript-eslint/parser@8.49.0(eslint@9.39.4(jiti@2.6.1))(typescript@5.6.3))(eslint-import-resolver-typescript@3.6.3)(eslint@9.39.4(jiti@2.6.1)):
+  eslint-plugin-import@2.32.0(@typescript-eslint/parser@8.49.0(eslint@9.39.4(jiti@2.6.1))(typescript@5.6.3))(eslint-import-resolver-typescript@3.6.3(@typescript-eslint/parser@8.49.0(eslint@9.39.4(jiti@2.6.1))(typescript@5.6.3))(eslint-import-resolver-node@0.3.9)(eslint-plugin-import@2.32.0(@typescript-eslint/parser@8.49.0(eslint@9.39.4(jiti@2.6.1))(typescript@5.6.3))(eslint@9.39.4(jiti@2.6.1)))(eslint@9.39.4(jiti@2.6.1)))(eslint@9.39.4(jiti@2.6.1)):
     dependencies:
       '@rtsao/scc': 1.1.0
       array-includes: 3.1.9
@@ -18013,7 +17963,7 @@ snapshots:
     dependencies:
       duplexer: 0.1.2
 
-  handlebars@4.7.9:
+  handlebars@4.7.10:
     dependencies:
       minimist: 1.2.8
       neo-async: 2.6.2
@@ -18071,7 +18021,7 @@ snapshots:
     dependencies:
       parse-passwd: 1.0.0
 
-  hono@4.13.7: {}
+  hono@4.13.14: {}
 
   html-encoding-sniffer@2.0.1:
     dependencies:
@@ -18653,25 +18603,6 @@ snapshots:
       - supports-color
       - ts-node
 
-  jest-cli@29.7.0(@types/node@22.20.3)(ts-node@10.9.2(@swc/core@1.15.2(@swc/helpers@0.5.23))(@types/node@22.20.3)(typescript@5.6.3)):
-    dependencies:
-      '@jest/core': 29.7.0(ts-node@10.9.2(@swc/core@1.15.2(@swc/helpers@0.5.23))(@types/node@22.20.3)(typescript@5.6.3))
-      '@jest/test-result': 29.7.0
-      '@jest/types': 29.6.3
-      chalk: 4.1.2
-      create-jest: 29.7.0(@types/node@22.20.3)(ts-node@10.9.2(@swc/core@1.15.2(@swc/helpers@0.5.23))(@types/node@22.20.3)(typescript@5.6.3))
-      exit: 0.1.2
-      import-local: 3.2.0
-      jest-config: 29.7.0(@types/node@22.20.3)(ts-node@10.9.2(@swc/core@1.15.2(@swc/helpers@0.5.23))(@types/node@22.20.3)(typescript@5.6.3))
-      jest-util: 29.7.0
-      jest-validate: 29.7.0
-      yargs: 17.7.2
-    transitivePeerDependencies:
-      - '@types/node'
-      - babel-plugin-macros
-      - supports-color
-      - ts-node
-
   jest-cli@29.7.0(@types/node@26.0.0)(ts-node@10.9.2(@swc/core@1.15.2(@swc/helpers@0.5.23))(@types/node@26.0.0)(typescript@5.6.3)):
     dependencies:
       '@jest/core': 29.7.0(ts-node@10.9.2(@swc/core@1.15.2(@swc/helpers@0.5.23))(@types/node@26.0.0)(typescript@5.6.3))
@@ -18749,37 +18680,6 @@ snapshots:
     optionalDependencies:
       '@types/node': 22.20.3
       ts-node: 10.9.2(@swc/core@1.15.2(@swc/helpers@0.5.23))(@types/node@18.19.61)(typescript@5.6.3)
-    transitivePeerDependencies:
-      - babel-plugin-macros
-      - supports-color
-
-  jest-config@29.7.0(@types/node@22.20.3)(ts-node@10.9.2(@swc/core@1.15.2(@swc/helpers@0.5.23))(@types/node@22.20.3)(typescript@5.6.3)):
-    dependencies:
-      '@babel/core': 7.29.7
-      '@jest/test-sequencer': 29.7.0
-      '@jest/types': 29.6.3
-      babel-jest: 29.7.0(@babel/core@7.29.7)
-      chalk: 4.1.2
-      ci-info: 3.9.0
-      deepmerge: 4.3.1
-      glob: 7.2.3
-      graceful-fs: 4.2.11
-      jest-circus: 29.7.0(babel-plugin-macros@3.1.0)
-      jest-environment-node: 29.7.0
-      jest-get-type: 29.6.3
-      jest-regex-util: 29.6.3
-      jest-resolve: 29.7.0
-      jest-runner: 29.7.0
-      jest-util: 29.7.0
-      jest-validate: 29.7.0
-      micromatch: 4.0.8
-      parse-json: 5.2.0
-      pretty-format: 29.7.0
-      slash: 3.0.0
-      strip-json-comments: 3.1.1
-    optionalDependencies:
-      '@types/node': 22.20.3
-      ts-node: 10.9.2(@swc/core@1.15.2(@swc/helpers@0.5.23))(@types/node@22.20.3)(typescript@5.6.3)
     transitivePeerDependencies:
       - babel-plugin-macros
       - supports-color
@@ -19073,18 +18973,6 @@ snapshots:
       '@jest/types': 29.6.3
       import-local: 3.2.0
       jest-cli: 29.7.0(@types/node@18.19.61)(babel-plugin-macros@3.1.0)(ts-node@10.9.2(@swc/core@1.15.2(@swc/helpers@0.5.23))(@types/node@18.19.61)(typescript@5.6.3))
-    transitivePeerDependencies:
-      - '@types/node'
-      - babel-plugin-macros
-      - supports-color
-      - ts-node
-
-  jest@29.7.0(@types/node@22.20.3)(ts-node@10.9.2(@swc/core@1.15.2(@swc/helpers@0.5.23))(@types/node@22.20.3)(typescript@5.6.3)):
-    dependencies:
-      '@jest/core': 29.7.0(ts-node@10.9.2(@swc/core@1.15.2(@swc/helpers@0.5.23))(@types/node@22.20.3)(typescript@5.6.3))
-      '@jest/types': 29.6.3
-      import-local: 3.2.0
-      jest-cli: 29.7.0(@types/node@22.20.3)(ts-node@10.9.2(@swc/core@1.15.2(@swc/helpers@0.5.23))(@types/node@22.20.3)(typescript@5.6.3))
     transitivePeerDependencies:
       - '@types/node'
       - babel-plugin-macros
@@ -22441,12 +22329,12 @@ snapshots:
       '@jest/types': 29.6.3
       babel-jest: 29.7.0(@babel/core@7.29.7)
 
-  ts-jest@29.4.9(@babel/core@7.29.7)(@jest/transform@29.7.0)(@jest/types@29.6.3)(babel-jest@29.7.0(@babel/core@7.29.7))(jest-util@29.7.0)(jest@29.7.0(@types/node@22.20.3)(ts-node@10.9.2(@swc/core@1.15.2(@swc/helpers@0.5.23))(@types/node@22.20.3)(typescript@5.6.3)))(typescript@5.6.3):
+  ts-jest@29.4.9(@babel/core@7.29.7)(@jest/transform@29.7.0)(@jest/types@29.6.3)(babel-jest@29.7.0(@babel/core@7.29.7))(jest-util@29.7.0)(jest@29.7.0(@types/node@26.0.0)(ts-node@10.9.2(@swc/core@1.15.2(@swc/helpers@0.5.23))(@types/node@26.0.0)(typescript@5.6.3)))(typescript@5.6.3):
     dependencies:
       bs-logger: 0.2.6
       fast-json-stable-stringify: 2.1.0
-      handlebars: 4.7.9
-      jest: 29.7.0(@types/node@22.20.3)(ts-node@10.9.2(@swc/core@1.15.2(@swc/helpers@0.5.23))(@types/node@22.20.3)(typescript@5.6.3))
+      handlebars: 4.7.10
+      jest: 29.7.0(@types/node@26.0.0)(ts-node@10.9.2(@swc/core@1.15.2(@swc/helpers@0.5.23))(@types/node@26.0.0)(typescript@5.6.3))
       json5: 2.2.3
       lodash.memoize: 4.1.2
       make-error: 1.3.6
@@ -22474,27 +22362,6 @@ snapshots:
       '@tsconfig/node14': 1.0.3
       '@tsconfig/node16': 1.0.4
       '@types/node': 18.19.61
-      acorn: 8.17.0
-      acorn-walk: 8.3.5
-      arg: 4.1.3
-      create-require: 1.1.1
-      diff: 4.0.4
-      make-error: 1.3.6
-      typescript: 5.6.3
-      v8-compile-cache-lib: 3.0.1
-      yn: 3.1.1
-    optionalDependencies:
-      '@swc/core': 1.15.2(@swc/helpers@0.5.23)
-    optional: true
-
-  ts-node@10.9.2(@swc/core@1.15.2(@swc/helpers@0.5.23))(@types/node@22.20.3)(typescript@5.6.3):
-    dependencies:
-      '@cspotcode/source-map-support': 0.8.1
-      '@tsconfig/node10': 1.0.12
-      '@tsconfig/node12': 1.0.11
-      '@tsconfig/node14': 1.0.3
-      '@tsconfig/node16': 1.0.4
-      '@types/node': 22.20.3
       acorn: 8.17.0
       acorn-walk: 8.3.5
       arg: 4.1.3
@@ -22831,15 +22698,15 @@ snapshots:
       tsx: 4.21.0
       yaml: 2.8.3
 
-  vitest@4.1.11(@opentelemetry/api@1.9.0)(@types/node@18.19.61)(@vitest/ui@4.1.11)(jsdom@16.7.0)(msw@2.15.0(@types/node@18.19.61)(typescript@5.6.3))(vite@6.4.3(@types/node@18.19.61)(jiti@2.6.1)(less@4.8.1)(terser@5.48.0)(tsx@4.21.0)(yaml@2.8.3)):
+  vitest@4.1.12(@opentelemetry/api@1.9.0)(@types/node@18.19.61)(@vitest/ui@4.1.12)(jsdom@16.7.0)(msw@2.15.0(@types/node@18.19.61)(typescript@5.6.3))(vite@6.4.3(@types/node@18.19.61)(jiti@2.6.1)(less@4.8.1)(terser@5.48.0)(tsx@4.21.0)(yaml@2.8.3)):
     dependencies:
-      '@vitest/expect': 4.1.11
-      '@vitest/mocker': 4.1.11(msw@2.15.0(@types/node@18.19.61)(typescript@5.6.3))(vite@6.4.3(@types/node@18.19.61)(jiti@2.6.1)(less@4.8.1)(terser@5.48.0)(tsx@4.21.0)(yaml@2.8.3))
-      '@vitest/pretty-format': 4.1.11
-      '@vitest/runner': 4.1.11
-      '@vitest/snapshot': 4.1.11
-      '@vitest/spy': 4.1.11
-      '@vitest/utils': 4.1.11
+      '@vitest/expect': 4.1.12
+      '@vitest/mocker': 4.1.12(msw@2.15.0(@types/node@18.19.61)(typescript@5.6.3))(vite@6.4.3(@types/node@18.19.61)(jiti@2.6.1)(less@4.8.1)(terser@5.48.0)(tsx@4.21.0)(yaml@2.8.3))
+      '@vitest/pretty-format': 4.1.12
+      '@vitest/runner': 4.1.12
+      '@vitest/snapshot': 4.1.12
+      '@vitest/spy': 4.1.12
+      '@vitest/utils': 4.1.12
       es-module-lexer: 2.1.0
       expect-type: 1.3.0
       magic-string: 0.30.21
@@ -22856,20 +22723,20 @@ snapshots:
     optionalDependencies:
       '@opentelemetry/api': 1.9.0
       '@types/node': 18.19.61
-      '@vitest/ui': 4.1.11(vitest@4.1.11)
+      '@vitest/ui': 4.1.12(vitest@4.1.12)
       jsdom: 16.7.0
     transitivePeerDependencies:
       - msw
 
-  vitest@4.1.11(@opentelemetry/api@1.9.0)(@types/node@22.20.3)(@vitest/ui@4.1.11)(jsdom@16.7.0)(msw@2.15.0(@types/node@22.20.3)(typescript@5.6.3))(vite@6.4.3(@types/node@22.20.3)(jiti@2.6.1)(less@4.8.1)(terser@5.48.0)(tsx@4.21.0)(yaml@2.8.3)):
+  vitest@4.1.12(@opentelemetry/api@1.9.0)(@types/node@22.20.3)(@vitest/ui@4.1.12)(jsdom@16.7.0)(msw@2.15.0(@types/node@22.20.3)(typescript@5.6.3))(vite@6.4.3(@types/node@22.20.3)(jiti@2.6.1)(less@4.8.1)(terser@5.48.0)(tsx@4.21.0)(yaml@2.8.3)):
     dependencies:
-      '@vitest/expect': 4.1.11
-      '@vitest/mocker': 4.1.11(msw@2.15.0(@types/node@22.20.3)(typescript@5.6.3))(vite@6.4.3(@types/node@22.20.3)(jiti@2.6.1)(less@4.8.1)(terser@5.48.0)(tsx@4.21.0)(yaml@2.8.3))
-      '@vitest/pretty-format': 4.1.11
-      '@vitest/runner': 4.1.11
-      '@vitest/snapshot': 4.1.11
-      '@vitest/spy': 4.1.11
-      '@vitest/utils': 4.1.11
+      '@vitest/expect': 4.1.12
+      '@vitest/mocker': 4.1.12(msw@2.15.0(@types/node@22.20.3)(typescript@5.6.3))(vite@6.4.3(@types/node@22.20.3)(jiti@2.6.1)(less@4.8.1)(terser@5.48.0)(tsx@4.21.0)(yaml@2.8.3))
+      '@vitest/pretty-format': 4.1.12
+      '@vitest/runner': 4.1.12
+      '@vitest/snapshot': 4.1.12
+      '@vitest/spy': 4.1.12
+      '@vitest/utils': 4.1.12
       es-module-lexer: 2.1.0
       expect-type: 1.3.0
       magic-string: 0.30.21
@@ -22886,20 +22753,20 @@ snapshots:
     optionalDependencies:
       '@opentelemetry/api': 1.9.0
       '@types/node': 22.20.3
-      '@vitest/ui': 4.1.11(vitest@4.1.11)
+      '@vitest/ui': 4.1.12(vitest@4.1.12)
       jsdom: 16.7.0
     transitivePeerDependencies:
       - msw
 
-  vitest@4.1.11(@opentelemetry/api@1.9.0)(@types/node@26.0.0)(@vitest/ui@4.1.11)(jsdom@16.7.0)(msw@2.15.0(@types/node@26.0.0)(typescript@5.6.3))(vite@6.4.3(@types/node@26.0.0)(jiti@2.6.1)(less@4.8.1)(terser@5.48.0)(tsx@4.21.0)(yaml@2.8.3)):
+  vitest@4.1.12(@opentelemetry/api@1.9.0)(@types/node@26.0.0)(@vitest/ui@4.1.12)(jsdom@16.7.0)(msw@2.15.0(@types/node@26.0.0)(typescript@5.6.3))(vite@6.4.3(@types/node@26.0.0)(jiti@2.6.1)(less@4.8.1)(terser@5.48.0)(tsx@4.21.0)(yaml@2.8.3)):
     dependencies:
-      '@vitest/expect': 4.1.11
-      '@vitest/mocker': 4.1.11(msw@2.15.0(@types/node@26.0.0)(typescript@5.6.3))(vite@6.4.3(@types/node@26.0.0)(jiti@2.6.1)(less@4.8.1)(terser@5.48.0)(tsx@4.21.0)(yaml@2.8.3))
-      '@vitest/pretty-format': 4.1.11
-      '@vitest/runner': 4.1.11
-      '@vitest/snapshot': 4.1.11
-      '@vitest/spy': 4.1.11
-      '@vitest/utils': 4.1.11
+      '@vitest/expect': 4.1.12
+      '@vitest/mocker': 4.1.12(msw@2.15.0(@types/node@26.0.0)(typescript@5.6.3))(vite@6.4.3(@types/node@26.0.0)(jiti@2.6.1)(less@4.8.1)(terser@5.48.0)(tsx@4.21.0)(yaml@2.8.3))
+      '@vitest/pretty-format': 4.1.12
+      '@vitest/runner': 4.1.12
+      '@vitest/snapshot': 4.1.12
+      '@vitest/spy': 4.1.12
+      '@vitest/utils': 4.1.12
       es-module-lexer: 2.1.0
       expect-type: 1.3.0
       magic-string: 0.30.21
@@ -22916,7 +22783,7 @@ snapshots:
     optionalDependencies:
       '@opentelemetry/api': 1.9.0
       '@types/node': 26.0.0
-      '@vitest/ui': 4.1.11(vitest@4.1.11)
+      '@vitest/ui': 4.1.12(vitest@4.1.12)
       jsdom: 16.7.0
     transitivePeerDependencies:
       - msw

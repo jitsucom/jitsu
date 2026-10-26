@@ -15,8 +15,8 @@ catalog:
   esbuild: ^0.28.1
   tslib: ^2.6.3
   "@types/node": ^18.15.3
-  vitest: ^4.1.11
-  "@vitest/ui": ^4.1.11
+  vitest: ^4.1.12
+  "@vitest/ui": ^4.1.12
   lodash: ^4.18.1
   "@types/lodash": ^4.17.24
   ts-node: ^10.9.2
@@ -56,7 +56,7 @@ overrides:
   "@grpc/grpc-js@<1.14.5": "^1.14.5"
   "lodash@<4.18.1": "^4.18.1"
   "axios@<1.15.2": "^1.15.2"
-  "handlebars@<4.7.9": "^4.7.9"
+  "handlebars@<4.7.10": "^4.7.10"
   "fast-xml-parser@<5.7.0": "^5.7.0"
   "fast-xml-builder@<1.1.7": "^1.1.7"
   "fast-uri@<3.1.8": "^3.1.8"
@@ -113,7 +113,7 @@ overrides:
   "brace-expansion@>=2 <2.1.7": "^2.1.7"
   "brace-expansion@>=3 <3.0.9": "^3.0.9"
   "brace-expansion@>=4 <5.0.12": "^5.0.12"
-  "hono@<4.13.5": "^4.13.5"
+  "hono@<4.13.11": "^4.13.11"
   "ip-address@<=10.7.0": "^10.7.1"
   "@hono/node-server@<2.0.5": "^2.0.5"
   "@humanfs/node@<0.16.8": "^0.16.8"
@@ -129,5 +129,5 @@ overrides:
   "probe-image-size@<=7.3.0": "^7.4.0"
   "svgo@<4.1.0": "^4.1.0"
   "baseline-browser-mapping@<2.11.0": "^2.11.0"
-  "@vitest/mocker@<4.1.11": "^4.1.11"
+  "@vitest/mocker@<4.1.12": "^4.1.12"
   "websocket-driver@<0.7.5": "^0.7.5"
