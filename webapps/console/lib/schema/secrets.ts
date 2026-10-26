@@ -7,6 +7,8 @@ import set from "lodash/set";
 import unset from "lodash/unset";
 
 import isPlainObject from "lodash/isPlainObject";
+import isEqual from "lodash/isEqual";
+import { ApiError } from "../shared/errors";
 
 const log = getServerLog("secrets");
 
@@ -145,6 +147,17 @@ export function unmaskSecretsFromOriginal(object: any, dbEntity: any): any {
     return object;
   }
 
+  const changedTargets = changedConnectionTargets(object, dbEntity);
+  if (changedTargets.length > 0) {
+    // Restoring the stored password into a config that points somewhere else would send it to that host
+    throw new ApiError(
+      `Cannot reuse saved secrets because ${changedTargets.join(
+        ", "
+      )} changed. Enter the secret values again to continue.`,
+      { status: 400 }
+    );
+  }
+
   // Deep clone object to avoid mutating the original
   const result = JSON.parse(JSON.stringify(object));
 
@@ -152,6 +165,39 @@ export function unmaskSecretsFromOriginal(object: any, dbEntity: any): any {
   replaceMaskedSecrets(result, dbEntity, []);
 
   return result;
+}
+
+// Fields that decide where a credential is sent: host, url, endpoint, etc.
+// `port` is left out on purpose: the submitted object is parsed with schema defaults, so a default port
+// shows up as a difference against a stored config that never had one, and a port alone does not change the host
+const CONNECTION_TARGET_KEY = /host|url|uri|endpoint|server|address|domain/i;
+
+/**
+ * Paths of connection target fields (host, url, endpoint...) whose value in `object` differs from `original`.
+ * Only meaningful for an object that contains masked secrets: it tells whether the stored secrets
+ * would be carried over to a different target.
+ */
+export function changedConnectionTargets(object: any, original: any): string[] {
+  return containsMaskedSecrets(object) ? findChangedTargets(object, original, []) : [];
+}
+
+function findChangedTargets(node: any, original: any, path: (string | number)[]): string[] {
+  if (Array.isArray(node)) {
+    return node.flatMap((item, index) => findChangedTargets(item, original, [...path, index]));
+  }
+  if (!isPlainObject(node)) {
+    return [];
+  }
+  return Object.entries(node).flatMap(([key, value]) => {
+    const currentPath = [...path, key];
+    if (isPlainObject(value) || Array.isArray(value)) {
+      return findChangedTargets(value, original, currentPath);
+    }
+    if (value === MASKED_SECRET || !CONNECTION_TARGET_KEY.test(key)) {
+      return [];
+    }
+    return isEqual(value, get(original, currentPath)) ? [] : [currentPath.join(".")];
+  });
 }
 
 /**
