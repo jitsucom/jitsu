@@ -2,7 +2,7 @@ import React, { useState } from "react";
 import { describeRedirect } from "../../lib/shared/oauth-redirect";
 import { useRouter } from "next/router";
 import Link from "next/link";
-import { Button } from "antd";
+import { Button, Checkbox } from "antd";
 import type { GetServerSideProps } from "next";
 import { useUser } from "../../lib/context";
 import { db } from "../../lib/server/db";
@@ -21,6 +21,7 @@ const Authorize = ({ clientName }: { clientName: string | null }) => {
   const clientId = typeof q.client_id === "string" ? q.client_id : undefined;
   const redirectUri = typeof q.redirect_uri === "string" ? q.redirect_uri : undefined;
   const redirect = describeRedirect(redirectUri);
+  const [readOnly, setReadOnly] = useState(false);
   const codeChallenge = typeof q.code_challenge === "string" ? q.code_challenge : undefined;
   const codeChallengeMethod = typeof q.code_challenge_method === "string" ? q.code_challenge_method : undefined;
   const responseType = typeof q.response_type === "string" ? q.response_type : undefined;
@@ -56,6 +57,7 @@ const Authorize = ({ clientName }: { clientName: string | null }) => {
           code_challenge_method: codeChallengeMethod,
           response_type: responseType,
           state,
+          read_only: readOnly,
         }),
       });
       const body = await res.json();
@@ -126,6 +128,11 @@ const Authorize = ({ clientName }: { clientName: string | null }) => {
           your user settings
         </Link>
         .
+      </div>
+      <div className="mb-6">
+        <Checkbox checked={readOnly} onChange={e => setReadOnly(e.target.checked)}>
+          Read-only: the client can look at your workspaces but cannot create, change, delete or run anything
+        </Checkbox>
       </div>
       {error && <div className="text-red-500 text-sm mb-4 border border-red-200 rounded px-2.5 py-1.5">{error}</div>}
       <div className="flex gap-2 justify-end">
