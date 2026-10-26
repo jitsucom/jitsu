@@ -1143,12 +1143,11 @@ type StreamLocator func(loc *StreamCredentials, s2sEndpoint bool) *StreamWithDes
 
 func (r *Router) getStream(loc *StreamCredentials, strict, s2sEndpoint bool) *StreamWithDestinations {
 	var locators []StreamLocator
-	if strict {
+	if strict || s2sEndpoint || loc.IngestType == IngestTypeS2S {
+		// server-to-server requests must always present a key: the slug and domain are public
 		locators = []StreamLocator{r.WriteKeyStreamLocator}
 	} else if loc.IngestType == IngestTypeWriteKeyDefined {
 		locators = []StreamLocator{r.WriteKeyStreamLocator, r.SlugStreamLocator, r.AmbiguousDomainStreamLocator, r.SoleStreamLocator}
-	} else if loc.IngestType == IngestTypeS2S {
-		locators = []StreamLocator{r.WriteKeyStreamLocator, r.SlugStreamLocator, r.AmbiguousDomainStreamLocator}
 	} else {
 		locators = []StreamLocator{r.SlugStreamLocator, r.DomainStreamLocator, r.WriteKeyStreamLocator, r.SoleStreamLocator}
 	}

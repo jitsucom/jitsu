@@ -88,7 +88,6 @@ func (s *StreamsRepositoryData) Init(reader io.Reader, tag any) error {
 		}
 		streams = append(streams, &swd)
 		streamsByPlainKeyOrIds[swd.Stream.Id] = &swd
-		s2sStreamsByPlainKeyOrIds[swd.Stream.Id] = &swd
 		for _, domain := range swd.Stream.Domains {
 			domainStreams, ok := streamsByDomains[domain]
 			if !ok {
