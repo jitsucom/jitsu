@@ -6,12 +6,15 @@ import { db } from "../../../lib/server/db";
 import { hint, randomId } from "juava";
 import { createHash } from "juava";
 import { mcpServer } from "../../../lib/server/mcp-server";
+import { assertCanCreateKey, resolveKeyWorkspace } from "../../../lib/server/key-creation";
 
 const CreateKeyBody = z.object({
   name: z.string().optional(),
   type: z.string().optional(),
   // ISO date or null. If null/missing → never expires.
   expiresAt: z.coerce.date().nullish(),
+  // Workspace id or slug. When set, the key works only in that workspace.
+  workspaceId: z.string().nullish(),
 });
 
 const api: Api = {
@@ -32,6 +35,7 @@ const api: Api = {
           type: true,
           name: true,
           expiresAt: true,
+          workspaceId: true,
           oauthClient: { select: { name: true } },
         },
         orderBy: { createdAt: "desc" },
@@ -50,6 +54,8 @@ const api: Api = {
       result: ApiKey,
     },
     handle: async ({ user, body }) => {
+      assertCanCreateKey(user);
+      const workspaceId = await resolveKeyWorkspace(db.prisma(), user, body.workspaceId);
       const plaintext = randomId({ digits: 32, strongRandom: true });
       const id = randomId(32);
       const created = await db.prisma().userApiToken.create({
@@ -61,6 +67,7 @@ const api: Api = {
           type: body.type ?? "api",
           name: body.name ?? null,
           expiresAt: body.expiresAt ?? null,
+          workspaceId: workspaceId ?? null,
         },
       });
       return {
@@ -72,6 +79,7 @@ const api: Api = {
         type: created.type,
         name: created.name,
         expiresAt: created.expiresAt,
+        workspaceId: created.workspaceId,
       };
     },
   },

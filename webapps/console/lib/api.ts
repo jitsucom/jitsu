@@ -329,6 +329,7 @@ export async function getUser(
         authType: "bearer",
         tokenId: token.id,
         tokenType: token.type ?? inferTokenTypeFromId(token.id),
+        tokenWorkspaceId: token.workspaceId,
       };
     }
   }
@@ -589,6 +590,18 @@ export async function getWorkspace(workspaceId: string | undefined) {
   );
 }
 
+/**
+ * A scoped API key may only act in its own workspace. `workspaceId` must already be resolved from a slug to an id.
+ */
+export function assertTokenWorkspaceScope(user: SessionUser, workspaceId: string): void {
+  if (user.authType === "bearer" && user.tokenWorkspaceId && user.tokenWorkspaceId !== workspaceId) {
+    throw new ApiError(`API key ${user.tokenId} is limited to another workspace`, {
+      status: 403,
+      responseObject: { workspaceId },
+    });
+  }
+}
+
 export async function verifyAccess(user: SessionUser, workspaceId: string) {
   if (isAdminServiceAccount(user)) {
     return;
@@ -599,6 +612,7 @@ export async function verifyAccess(user: SessionUser, workspaceId: string) {
       workspaceId = w.id;
     }
   }
+  assertTokenWorkspaceScope(user, workspaceId);
   const userId = requireDefined(user.internalId, `internalId is not defined`);
   if ((await db.prisma().workspaceAccess.count({ where: { userId, workspaceId } })) === 0) {
     if ((await db.prisma().userProfile.findFirst({ where: { id: user.internalId } }))?.admin) {
@@ -630,6 +644,7 @@ export async function verifyAccessWithRole(
     }
   }
 
+  assertTokenWorkspaceScope(user, workspaceId);
   const userId = requireDefined(user.internalId, `internalId is not defined`);
   const access = await db.prisma().workspaceAccess.findFirst({
     where: { userId, workspaceId },

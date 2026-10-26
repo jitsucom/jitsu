@@ -3,6 +3,7 @@ import { ApiKey } from "../../../lib/schema";
 import { db } from "../../../lib/server/db";
 import { hint, randomId } from "juava";
 import { createHash } from "juava";
+import { assertCanCreateKey } from "../../../lib/server/key-creation";
 
 const CLI_KEY_EXPIRATION_DAYS = 90;
 
@@ -14,6 +15,7 @@ const api: Api = {
       result: ApiKey,
     },
     handle: async ({ user }) => {
+      assertCanCreateKey(user);
       const newKey = randomId({ digits: 32, strongRandom: true });
       const id = `jitsu-cli-${randomId(22)}`;
       const expiresAt = new Date();
