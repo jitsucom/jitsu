@@ -1,10 +1,28 @@
-import { createHash, sign, verify } from "node:crypto";
+import { createHash, createPrivateKey, createPublicKey, sign, verify, type KeyObject } from "node:crypto";
 
 const timestampHeader = "x-jitsu-request-timestamp";
 const signatureHeader = "x-jitsu-request-signature";
 const maxAgeMs = 60_000;
 
-function signedMessage(method: string, url: string, deploymentId: string, timestamp: string, body: Uint8Array) {
+function cacheParsedKey(parse: (pem: string) => KeyObject) {
+  // Keep only the current key, and parse rotations before replacing the cached entry.
+  let cached: { pem: string; key: KeyObject } | undefined;
+  return (pem: string): KeyObject => {
+    if (cached?.pem !== pem) cached = { pem, key: parse(pem) };
+    return cached.key;
+  };
+}
+
+const signingKey = cacheParsedKey(createPrivateKey);
+const verificationKey = cacheParsedKey(createPublicKey);
+
+function signedMessage(
+  method: string,
+  url: string,
+  deploymentId: string,
+  timestamp: string,
+  body: string | Uint8Array
+) {
   const parsed = new URL(url);
   return Buffer.from(
     [
@@ -28,7 +46,7 @@ export function signFunctionsRequest(
 ): Record<string, string> {
   if (!privateKey || !deploymentId) throw new Error("Functions request signing is not configured");
   const timestamp = String(now);
-  const signature = sign(null, signedMessage("POST", url, deploymentId, timestamp, Buffer.from(body)), privateKey);
+  const signature = sign(null, signedMessage("POST", url, deploymentId, timestamp, body), signingKey(privateKey));
   return { [timestampHeader]: timestamp, [signatureHeader]: signature.toString("base64") };
 }
 
@@ -48,7 +66,7 @@ export function verifyFunctionsRequest(
     return verify(
       null,
       signedMessage(request.method, request.url, deploymentId, timestamp, body),
-      publicKey,
+      verificationKey(publicKey),
       Buffer.from(signature, "base64")
     );
   } catch {
