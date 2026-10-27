@@ -46,9 +46,15 @@ export async function isDomainAvailable(
         and deleted = false
   `) as { id: string; workspaceId: string; domains: string[] }[];
 
+  // Same domain or a subdomain of it, on a label boundary: `not.example.com` is not under `t.example.com`
+  const bare = domainSuffix.toLowerCase();
+  const isUnder = (d: string) => {
+    const other = d.toLowerCase();
+    return bare.startsWith(".") ? other.endsWith(bare) : other === bare || other.endsWith("." + bare);
+  };
   const list = dirtyList.filter(({ domains }) => {
     return (
-      (domains || []).filter(d => d.toLowerCase().endsWith(domainSuffix)).length > 0 ||
+      (domains || []).filter(isUnder).length > 0 ||
       (domains || []).filter(d => {
         return d.startsWith("*") && domain.toLowerCase().endsWith(d.toLowerCase().replace(/^[*]/, ""));
       }).length > 0

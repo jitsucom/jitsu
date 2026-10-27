@@ -3,6 +3,7 @@ import { randomId } from "juava";
 import { deps, seedWorkspace } from "./support/harness";
 import { ConfigObjectsService } from "../../lib/server/config-objects-service";
 import { assertDestinationInWorkspace } from "../../lib/server/workspace-ownership";
+import { isDomainAvailable } from "../../lib/server/custom-domains";
 
 const svc = () => new ConfigObjectsService({ prisma: deps().prisma });
 
@@ -39,6 +40,50 @@ describe("domain objects are unique across workspaces (JITSU-255)", () => {
     const a = await seedWorkspace();
     const created = await svc().create(a.user, a.workspace.id, "domain", { name }, { generateId: true });
     expect(created.id).toBeTruthy();
+  });
+});
+
+describe("domain collisions are decided on label boundaries (JITSU-255)", () => {
+  async function claim(workspaceId: string, name: string) {
+    await deps().prisma.configurationObject.create({
+      data: { workspaceId, type: "domain", config: { name } },
+    });
+  }
+  const unique = () => `${randomId(8).toLowerCase()}.victim.example`;
+  const fullRow = (id: string) => deps().prisma.workspace.findUniqueOrThrow({ where: { id } });
+
+  it("a domain that only ends with the same letters is not a collision", async () => {
+    const base = unique();
+    const a = await seedWorkspace();
+    const b = await seedWorkspace();
+    await claim(a.workspace.id, `not.${base}`);
+    await expect(isDomainAvailable(`t.${base}`, await fullRow(b.workspace.id))).resolves.toEqual({ available: true });
+  });
+
+  it("the owner of t.<base> can keep it after another workspace added not.<base>", async () => {
+    const base = unique();
+    const a = await seedWorkspace();
+    const b = await seedWorkspace();
+    const mine = await svc().create(b.user, b.workspace.id, "domain", { name: `t.${base}` }, { generateId: true });
+    await svc().create(a.user, a.workspace.id, "domain", { name: `not.${base}` }, { generateId: true });
+    // throws "already in use by other workspace" when not.<base> is taken for a domain under t.<base>
+    await svc().update(b.user, b.workspace.id, "domain", mine.id, { name: `t.${base}` });
+  });
+
+  it.each([
+    ["the same domain", (base: string) => base, (base: string) => base],
+    ["a subdomain of the domain being added", (base: string) => `x.${base}`, (base: string) => base],
+    ["a domain under another workspace's wildcard", (base: string) => `*.${base}`, (base: string) => `sub.${base}`],
+    ["a wildcard over another workspace's subdomain", (base: string) => `x.${base}`, (base: string) => `*.${base}`],
+  ])("still a collision: %s", async (_, owned, added) => {
+    const base = unique();
+    const a = await seedWorkspace();
+    const b = await seedWorkspace();
+    await claim(a.workspace.id, owned(base));
+    expect(await isDomainAvailable(added(base), await fullRow(b.workspace.id))).toMatchObject({
+      available: false,
+      usedInWorkspace: a.workspace.id,
+    });
   });
 });
 
