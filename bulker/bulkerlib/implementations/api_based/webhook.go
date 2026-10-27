@@ -22,6 +22,9 @@ import (
 const WebhookBulkerTypeId = "webhook"
 const WebhookUnsupported = "Only 'batch' mode is supported"
 
+// maxResponseBodyBytes caps how much of a webhook response is read.
+const maxResponseBodyBytes = 64 * 1024
+
 var GlobalIngestEndpoint = os.Getenv("GLOBAL_INGEST_ENDPOINT")
 var LocalIngestEndpoint = os.Getenv("LOCAL_INGEST_ENDPOINT")
 
@@ -202,7 +205,8 @@ func (mp *WebhookBulker) Upload(reader io.Reader, eventsName string, eventsCount
 			defer res.Body.Close()
 			var bodyBytes []byte
 			statusCode = res.StatusCode
-			bodyBytes, err = io.ReadAll(res.Body)
+			// the endpoint is customer-controlled: never read more than a small answer into memory
+			bodyBytes, err = io.ReadAll(io.LimitReader(res.Body, maxResponseBodyBytes))
 			if err != nil {
 				respBody = ""
 				err = mp.fixError(err)
