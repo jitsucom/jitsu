@@ -118,6 +118,18 @@ export function parseObject(type: string, obj: any): any {
   return narrowParseResult.data;
 }
 
+/**
+ * A stored config with the schema defaults applied (a PostHog destination without a host gets the default one), or the
+ * config as it is when it doesn't parse. For comparing a stored config with a submitted one, which is always parsed.
+ */
+export function withSchemaDefaults(type: string, obj: any): any {
+  try {
+    return parseObject(type, obj);
+  } catch {
+    return obj;
+  }
+}
+
 export type OptionalKeys<T> = {
   [K in keyof T]-?: undefined extends { [K2 in keyof T]: K2 }[K] ? K : never;
 }[keyof T];
@@ -186,7 +198,7 @@ const configObjectTypes: Record<string, ConfigObjectType> = {
       const cleanedPatch = removeMaskedValues(patch, secretPaths);
       const before = deepCopy(original);
       const merged = deepMerge(original, cleanedPatch);
-      assertSecretsStayWithTarget(before, patch, merged, secretPaths);
+      assertSecretsStayWithTarget(withSchemaDefaults("destination", before), patch, merged, secretPaths);
       return merged;
     },
 
@@ -356,7 +368,7 @@ const configObjectTypes: Record<string, ConfigObjectType> = {
       const cleanedPatch = removeMaskedValues(patch, secretPaths);
       const before = deepCopy(original);
       const merged = deepMerge(original, cleanedPatch);
-      assertSecretsStayWithTarget(before, patch, merged, secretPaths);
+      assertSecretsStayWithTarget(withSchemaDefaults("service", before), patch, merged, secretPaths);
       return merged;
     },
     inputFilter: async (obj: ServiceConfig) => {

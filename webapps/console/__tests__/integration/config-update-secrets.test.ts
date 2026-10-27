@@ -76,3 +76,78 @@ describe("updating a destination that has a stored password", () => {
     expect((await stored()).password).toBe("hunter2");
   });
 });
+
+describe("other kinds of connection targets", () => {
+  async function seed(destinationType: string, config: Record<string, any>) {
+    const { user, workspace } = await seedWorkspace();
+    const { id } = await svc().create(
+      user,
+      workspace.id,
+      "destination",
+      { name: destinationType, destinationType, ...config },
+      { generateId: true }
+    );
+    return { user, workspace, id };
+  }
+
+  it("refuses new ClickHouse hosts (a list) with the stored password", async () => {
+    const { user, workspace, id } = await seed("clickhouse", {
+      hosts: ["ch.customer.com:9000"],
+      username: "jitsu",
+      password: "hunter2",
+      database: "events",
+    });
+    await expect(
+      svc().update(user, workspace.id, "destination", id, { hosts: ["attacker.example:9000"] })
+    ).rejects.toMatchObject({ status: 400, message: expect.stringMatching(/password.*hosts changed/) });
+  });
+
+  it("refuses a new Resend apiBase with the stored API key", async () => {
+    const { user, workspace, id } = await seed("resend", { apiKey: "re_real", apiBase: "https://api.resend.com" });
+    await expect(
+      svc().update(user, workspace.id, "destination", id, { apiBase: "https://attacker.example" })
+    ).rejects.toMatchObject({ status: 400, message: expect.stringMatching(/apiKey.*apiBase changed/) });
+  });
+
+  it("accepts rotating only the Postgres server CA with the stored password", async () => {
+    const { user, workspace, id } = await seed("postgres", {
+      host: "db.customer.com",
+      database: "events",
+      username: "jitsu",
+      password: "hunter2",
+      sslServerCA: "-----OLD CA-----",
+    });
+    await svc().update(user, workspace.id, "destination", id, { sslServerCA: "-----NEW CA-----" });
+    const stored = (await deps().prisma.configurationObject.findUniqueOrThrow({ where: { id } })).config as any;
+    expect(stored).toMatchObject({ sslServerCA: "-----NEW CA-----", password: "hunter2" });
+  });
+
+  it("clones a PostHog destination stored without a host, but not onto another host", async () => {
+    const { user, workspace } = await seedWorkspace();
+    const source = await deps().prisma.configurationObject.create({
+      data: {
+        id: "phsrc1",
+        workspaceId: workspace.id,
+        type: "destination",
+        config: {
+          id: "phsrc1",
+          type: "destination",
+          workspaceId: workspace.id,
+          destinationType: "posthog",
+          name: "ph",
+          key: "phc_real",
+        },
+      },
+    });
+    const clone = (extra: Record<string, any>) =>
+      svc().create(
+        user,
+        workspace.id,
+        "destination",
+        { name: "copy", destinationType: "posthog", key: MASKED_SECRET, cloneId: source.id, ...extra },
+        { generateId: true }
+      );
+    await expect(clone({ host: "https://app.posthog.com" })).resolves.toBeDefined();
+    await expect(clone({ host: "https://attacker.example" })).rejects.toMatchObject({ status: 400 });
+  });
+});

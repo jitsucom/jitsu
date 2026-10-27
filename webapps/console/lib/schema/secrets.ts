@@ -140,14 +140,17 @@ export function removeMaskedValues(obj: any, secretPaths: string[]): any {
  *
  * @param object - The d object being sent
  * @param dbEntity - The original entity from database containing real secret values
+ * @param comparedWith - The original entity with schema defaults applied, to tell a changed target from a default
  * @returns A new object with masked secrets replaced by values from db
  */
-export function unmaskSecretsFromOriginal(object: any, dbEntity: any): any {
+export function unmaskSecretsFromOriginal(object: any, dbEntity: any, comparedWith: any = dbEntity): any {
   if (!object || !dbEntity) {
     return object;
   }
 
-  const changedTargets = changedConnectionTargets(object, dbEntity);
+  // `object` is parsed with the schema defaults (a PostHog config without a host gets the default host), the stored
+  // config is not, so callers pass the stored one with the same defaults applied to compare against.
+  const changedTargets = changedConnectionTargets(object, comparedWith);
   // Only signing keys masked (webhook signatureSecret): they sign requests and are never sent to the target
   const onlySigningKeysMasked = maskedPaths(object).every(path => SIGNING_KEY.test(String(path[path.length - 1])));
   if (changedTargets.length > 0 && !onlySigningKeysMasked) {
@@ -169,10 +172,17 @@ export function unmaskSecretsFromOriginal(object: any, dbEntity: any): any {
   return result;
 }
 
-// Fields that decide where a credential is sent: host, url, endpoint, etc.
+// Fields that decide where a credential is sent: host, url, endpoint, an API base, etc.
 // `port` is left out on purpose: the submitted object is parsed with schema defaults, so a default port
 // shows up as a difference against a stored config that never had one, and a port alone does not change the host
-const CONNECTION_TARGET_KEY = /host|url|uri|endpoint|server|address|domain/i;
+const CONNECTION_TARGET_KEY = /host|url|uri|endpoint|server|address|domain|api_?base/i;
+// TLS material (`sslServerCA` contains "server") says how to trust the target, not where it is
+const TLS_KEY = /ssl|tls|cert/i;
+
+const isTargetKey = (key: string) => CONNECTION_TARGET_KEY.test(key) && !TLS_KEY.test(key);
+
+/** A list of plain values (ClickHouse and MongoDB `hosts`) is one target value, not a container to look inside. */
+const isValueList = (v: any) => Array.isArray(v) && v.every(item => item === null || typeof item !== "object");
 
 /**
  * Paths of connection target fields (host, url, endpoint...) whose value in `object` differs from `original`.
@@ -192,10 +202,10 @@ function findChangedTargets(node: any, original: any, path: (string | number)[])
   }
   return Object.entries(node).flatMap(([key, value]) => {
     const currentPath = [...path, key];
-    if (isPlainObject(value) || Array.isArray(value)) {
+    if ((isPlainObject(value) || Array.isArray(value)) && !(isTargetKey(key) && isValueList(value))) {
       return findChangedTargets(value, original, currentPath);
     }
-    if (value === MASKED_SECRET || !CONNECTION_TARGET_KEY.test(key)) {
+    if (value === MASKED_SECRET || !isTargetKey(key)) {
       return [];
     }
     return isEqual(value, get(original, currentPath)) ? [] : [currentPath.join(".")];
@@ -219,7 +229,7 @@ function maskedPaths(node: any, path: (string | number)[] = []): (string | numbe
   return [];
 }
 
-const isEmptyValue = (v: any) => v === undefined || v === null || v === "";
+const isEmptyValue = (v: any) => v === undefined || v === null || v === "" || (Array.isArray(v) && v.length === 0);
 
 /**
  * Paths of connection target fields (host, url, endpoint...) whose value differs between two objects, an empty value
@@ -234,10 +244,10 @@ export function changedTargetFieldsBetween(updated: any, original: any, path: (s
   }
   return Object.entries(updated).flatMap(([key, value]) => {
     const currentPath = [...path, key];
-    if (isPlainObject(value) || Array.isArray(value)) {
+    if ((isPlainObject(value) || Array.isArray(value)) && !(isTargetKey(key) && isValueList(value))) {
       return changedTargetFieldsBetween(value, original, currentPath);
     }
-    if (!CONNECTION_TARGET_KEY.test(key)) {
+    if (!isTargetKey(key)) {
       return [];
     }
     const before = get(original, currentPath);
