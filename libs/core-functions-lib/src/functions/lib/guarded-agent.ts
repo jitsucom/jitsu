@@ -5,6 +5,17 @@ import { isBlockedAddress } from "./public-address";
 
 type Resolved = { address: string; family: number };
 
+/**
+ * Host as it is compared against FETCH_LOCAL_WHITELIST: lowercase, without the brackets of an IPv6 literal (the URL
+ * parser keeps them in `hostname`, the socket layer does not), so `[::1]` and `::1` are the same entry.
+ */
+export function normalizeHostname(host: string): string {
+  return host
+    .trim()
+    .toLowerCase()
+    .replace(/^\[|\]$/g, "");
+}
+
 export interface GuardedAgentOptions {
   /** Hostnames (lowercase) that may resolve to local addresses, e.g. FETCH_LOCAL_WHITELIST. */
   allowedHosts?: string[];
@@ -21,7 +32,7 @@ export interface GuardedAgentOptions {
  * `lookup`, so they are checked in the connector.
  */
 export function createGuardedAgent(options: GuardedAgentOptions = {}): Agent {
-  const allowed = new Set((options.allowedHosts ?? []).map(h => h.toLowerCase()));
+  const allowed = new Set((options.allowedHosts ?? []).map(normalizeHostname));
   const resolve =
     options.resolve ??
     (async (hostname: string) => (await dns.promises.lookup(hostname, { all: true, verbatim: true })) as Resolved[]);
@@ -39,7 +50,7 @@ export function createGuardedAgent(options: GuardedAgentOptions = {}): Agent {
           return callback(Object.assign(new Error("not found"), { code: "ENOTFOUND" }));
         }
         // One non-public answer blocks the host: a name that resolves to both is not a safe destination
-        if (!allowed.has(hostname.toLowerCase()) && addresses.some(a => isBlocked(a.address))) {
+        if (!allowed.has(normalizeHostname(hostname)) && addresses.some(a => isBlocked(a.address))) {
           return callback(blocked());
         }
         if (lookupOptions?.all) {
@@ -55,8 +66,8 @@ export function createGuardedAgent(options: GuardedAgentOptions = {}): Agent {
   const connector = buildConnector({ lookup: lookup as any });
   return new Agent({
     connect: (connectOptions, callback) => {
-      const host = connectOptions.hostname.replace(/^\[|\]$/g, "");
-      if (net.isIP(host) && !allowed.has(host.toLowerCase()) && isBlocked(host)) {
+      const host = normalizeHostname(connectOptions.hostname);
+      if (net.isIP(host) && !allowed.has(host) && isBlocked(host)) {
         callback(blocked(), null);
         return;
       }

@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import * as http from "node:http";
 import { AddressInfo } from "node:net";
 import { fetch } from "undici";
-import { createGuardedAgent } from "../src/functions/lib/guarded-agent";
+import { createGuardedAgent, normalizeHostname } from "../src/functions/lib/guarded-agent";
 
 const servers: http.Server[] = [];
 afterEach(async () => {
@@ -77,4 +77,32 @@ describe("createGuardedAgent", () => {
     const res = await fetch(`http://public.example:${port}/`, { dispatcher: agent });
     expect(await res.text()).toBe("ok");
   });
+});
+
+describe("IPv6 whitelist entries", () => {
+  it("normalizes brackets and case, so `[::1]` and `::1` are the same entry", () => {
+    expect(normalizeHostname("[::1]")).toBe("::1");
+    expect(normalizeHostname(" [FD00::A] ")).toBe("fd00::a");
+    expect(normalizeHostname("LocalHost")).toBe("localhost");
+  });
+
+  it.each(["[::1]", "::1"])(
+    "lets a whitelisted IPv6 loopback literal (%s) through and refuses it otherwise",
+    async entry => {
+      const server = http.createServer((_, res) => res.end("ok"));
+      servers.push(server);
+      const listening = await new Promise<boolean>(resolve => {
+        server.once("error", () => resolve(false));
+        server.listen(0, "::1", () => resolve(true));
+      });
+      if (!listening) return; // no IPv6 loopback on this machine
+      const port = (server.address() as AddressInfo).port;
+      const allowed = await fetch(`http://[::1]:${port}/`, {
+        dispatcher: createGuardedAgent({ allowedHosts: [entry] }),
+      });
+      expect(await allowed.text()).toBe("ok");
+      const refused = await fetch(`http://[::1]:${port}/`, { dispatcher: createGuardedAgent() }).catch(e => e);
+      expect(causeCode(refused)).toBe("EBLOCKED");
+    }
+  );
 });

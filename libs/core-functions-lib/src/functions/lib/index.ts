@@ -44,7 +44,8 @@ import NodeCache from "node-cache";
 // in 8.11.0 — import undici's own fetch, pinned to that floor, instead of relying
 // on whatever the Node runtime happens to bundle.
 import { fetch as undiciFetch, type RequestInit as UndiciRequestInit } from "undici";
-import { createGuardedAgent } from "./guarded-agent";
+import { createGuardedAgent, normalizeHostname } from "./guarded-agent";
+import { fetchWithCheckedRedirects } from "./checked-redirects";
 
 // This module also runs inside the Deno-based functions-server (UDF sandbox), which
 // monkey-patches globalThis.fetch with its own tuned connection pool (Deno.createHttpClient,
@@ -92,7 +93,7 @@ export function isPrivateIP(addr: string): boolean {
 
 const fetchForbidLocal = isTruish(process.env.FETCH_FORBID_LOCAL);
 const fetchLocalWhitelist = process.env.FETCH_LOCAL_WHITELIST
-  ? process.env.FETCH_LOCAL_WHITELIST.split(",").map(h => h.trim().toLowerCase())
+  ? process.env.FETCH_LOCAL_WHITELIST.split(",").map(normalizeHostname)
   : [];
 const publicHostnamesCache = new NodeCache({ stdTTL: 300, checkperiod: 60, useClones: false });
 // The pre-check in makeFetch resolves a hostname on its own and is cached, so it cannot see a DNS answer that changes
@@ -564,6 +565,17 @@ export const makeFetch = (
     return true;
   }
 
+  // With FETCH_FORBID_LOCAL on, a host has to be whitelisted or resolve to public addresses only
+  async function assertHostAllowed(url: string) {
+    if (!fetchForbidLocal) {
+      return;
+    }
+    const host = new URL(url).hostname;
+    if (!fetchLocalWhitelist.includes(normalizeHostname(host)) && !(await isPublic(normalizeHostname(host)))) {
+      throw newError(`fetch failed`);
+    }
+  }
+
   return async (
     url: string,
     init?: FetchOpts,
@@ -596,10 +608,8 @@ export const makeFetch = (
 
     let fetchResult: any = undefined;
     try {
-      const host = new URL(url).hostname; //this will throw if url is invalid
-      if (fetchForbidLocal && !fetchLocalWhitelist.includes(host.toLowerCase()) && !(await isPublic(host))) {
-        throw newError(`fetch failed`);
-      }
+      new URL(url); //this will throw if url is invalid
+      await assertHostAllowed(url);
       const throttleValue = throttle.throttle();
       if (throttleValue > 0 && Math.random() < throttleValue) {
         const e = new Error(`Fetch request throttled because of timeout rate: ${throttleValue}`);
@@ -612,7 +622,17 @@ export const makeFetch = (
         signal: AbortSignal.timeout(fetchTimeoutMs),
         ...(guardedAgent && !isDeno ? { dispatcher: guardedAgent } : {}),
       };
-      fetchResult = await platformFetch(url, internalInit);
+      // Deno's native fetch takes no dispatcher, so it cannot use the guarded agent and follows redirects on its own:
+      // follow them here instead and check every hop
+      fetchResult =
+        fetchForbidLocal && isDeno
+          ? await fetchWithCheckedRedirects(
+              platformFetch as any,
+              target => assertHostAllowed(target.href),
+              url,
+              internalInit
+            )
+          : await platformFetch(url, internalInit);
       throttle.success();
     } catch (err: any) {
       if (err.name === "TimeoutError") {

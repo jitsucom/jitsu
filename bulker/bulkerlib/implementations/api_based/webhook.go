@@ -57,6 +57,13 @@ type WebhookBulker struct {
 	closed *atomic.Bool
 }
 
+// isIngestEndpoint tells whether the destination URL is exactly the configured global ingest endpoint. It has to be an
+// exact match: a suffix match let any URL ending in the endpoint (e.g. http://127.0.0.1:8123/admin#<endpoint>) take
+// the unguarded client that is meant for our own service.
+func isIngestEndpoint(url string) bool {
+	return GlobalIngestEndpoint != "" && strings.TrimRight(url, "/") == strings.TrimRight(GlobalIngestEndpoint, "/")
+}
+
 func NewWebhookBulker(bulkerConfig bulker.Config) (bulker.Bulker, error) {
 	webhookConfig := WebhookConfig{}
 	if err := utils.ParseObject(bulkerConfig.DestinationConfig, &webhookConfig); err != nil {
@@ -73,7 +80,7 @@ func NewWebhookBulker(bulkerConfig bulker.Config) (bulker.Bulker, error) {
 	url := webhookConfig.URL
 	originalUrl := url
 	isIngest := false
-	if GlobalIngestEndpoint != "" && strings.HasSuffix(url, GlobalIngestEndpoint) {
+	if isIngestEndpoint(url) {
 		isIngest = true
 		if LocalIngestEndpoint != "" {
 			url = LocalIngestEndpoint
