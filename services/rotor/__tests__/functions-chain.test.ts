@@ -445,12 +445,14 @@ function ingestMessage(connectionId: string, messageId: string, event: any): Ing
 const messageId = "message1";
 
 // Test modes to run
-const testModes: Array<{ name: string; functionsClass: string }> = [
+const testModes: Array<{ name: string; functionsClass: string; isolate?: boolean }> = [
   { name: "free", functionsClass: "free" },
   { name: "dedicated", functionsClass: "dedicated" },
+  // JITSU-263: a paid class whose UDFs run in the sandboxed workers (FUNCTIONS_ISOLATE_UDFS), warehouse queries included
+  { name: "dedicated-isolated", functionsClass: "dedicated", isolate: true },
 ];
 
-describe.each(testModes)("Test Functions Chain ($name mode)", ({ name: modeName, functionsClass }) => {
+describe.each(testModes)("Test Functions Chain ($name mode)", ({ name: modeName, functionsClass, isolate }) => {
   let webhookServer: SimpleSyrup;
   let functionsServer: TestFunctionsServer | null = null;
   let lastError: any;
@@ -488,7 +490,12 @@ describe.each(testModes)("Test Functions Chain ($name mode)", ({ name: modeName,
       // Start functions server on a deterministic, per-mode port so free- and
       // dedicated-mode servers never collide (SIGTERM + immediate respawn on the
       // same port lets waitForServer latch onto the old process before it exits).
-      const fsPort = functionsClass === "free" ? 3457 : 3557;
+      const fsPort = isolate ? 3657 : functionsClass === "free" ? 3457 : 3557;
+      if (isolate) {
+        process.env.FUNCTIONS_ISOLATE_UDFS = "true";
+      } else {
+        delete process.env.FUNCTIONS_ISOLATE_UDFS;
+      }
       functionsServer = await startTestFunctionsServer(configDir, fsPort);
 
       // Configure rotor to use the test functions server
@@ -569,6 +576,8 @@ describe.each(testModes)("Test Functions Chain ($name mode)", ({ name: modeName,
     delete process.env.FUNCTIONS_CLASS;
     // Reset cache so original env value is restored
     resetServerEnvCache();
+
+    delete process.env.FUNCTIONS_ISOLATE_UDFS;
 
     // Stop functions server if running
     if (functionsServer) {
