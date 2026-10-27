@@ -1,8 +1,11 @@
 import { describe, expect, it } from "vitest";
 import { createHash, randomId } from "juava";
 import { deps, seedWorkspace } from "./support/harness";
-import { getUser, verifyAccess, verifyAccessWithRole } from "../../lib/api";
+import { getUser, verifyAccess, verifyAccessWithRole, verifyAdmin } from "../../lib/api";
 import { assertCanCreateKey, resolveKeyWorkspace } from "../../lib/server/key-creation";
+import { AuthChecker } from "../../lib/server/mcp-server/auth";
+import { OAuthHandlers } from "../../lib/server/mcp-server/oauth";
+import { principalFromAuth } from "../../lib/server/mcp-server/tools";
 
 // JITSU-264: a UserApiToken used to reach every workspace of its user, and a key could mint further keys.
 
@@ -62,7 +65,9 @@ describe("role-limited API keys", () => {
     const unlimited = await bearerUser(user.internalId);
 
     expect(analyst.tokenRole).toBe("analyst");
-    await expect(verifyAccessWithRole(analyst, workspace.id, "readEntities")).resolves.toMatchObject({ role: "owner" });
+    await expect(verifyAccessWithRole(analyst, workspace.id, "readEntities")).resolves.toMatchObject({
+      role: "analyst",
+    });
     await expect(verifyAccessWithRole(analyst, workspace.id, "editEntities")).rejects.toMatchObject({ status: 403 });
     await expect(verifyAccessWithRole(analyst, workspace.id, "manageUsers")).rejects.toMatchObject({ status: 403 });
 
@@ -71,6 +76,29 @@ describe("role-limited API keys", () => {
     await expect(verifyAccessWithRole(editor, workspace.id, "manageUsers")).rejects.toMatchObject({ status: 403 });
 
     await expect(verifyAccessWithRole(unlimited, workspace.id, "manageUsers")).resolves.toBeDefined();
+  });
+
+  it("returns permissions capped at the key's role, so callers cannot unmask secrets or list invitation links", async () => {
+    const { user, workspace } = await seedWorkspace(); // owner
+    const analyst = await bearerUser(user.internalId, undefined, "analyst");
+    const editor = await bearerUser(user.internalId, undefined, "editor");
+    const unlimited = await bearerUser(user.internalId);
+    await expect(verifyAccessWithRole(analyst, workspace.id, "readEntities")).resolves.toEqual({
+      role: "analyst",
+      readEntities: true,
+      editEntities: false,
+      deleteEntities: false,
+      manageUsers: false,
+    });
+    await expect(verifyAccessWithRole(editor, workspace.id, "readEntities")).resolves.toMatchObject({
+      role: "editor",
+      editEntities: true,
+      manageUsers: false,
+    });
+    await expect(verifyAccessWithRole(unlimited, workspace.id, "readEntities")).resolves.toMatchObject({
+      role: "owner",
+      manageUsers: true,
+    });
   });
 
   it("does not raise the role of the user", async () => {
@@ -113,5 +141,88 @@ describe("creating keys", () => {
     const prisma = deps().prisma;
     await expect(resolveKeyWorkspace(prisma, mine.user, foreign.workspace.id)).rejects.toMatchObject({ status: 403 });
     await expect(resolveKeyWorkspace(prisma, mine.user, "no-such-workspace")).rejects.toMatchObject({ status: 404 });
+  });
+});
+
+describe("restricted keys on platform admin routes", () => {
+  it("a platform admin's scoped or role-limited key is refused, an unrestricted one is not", async () => {
+    const admin = await seedWorkspace({ admin: true });
+    const id = admin.user.internalId;
+    await expect(verifyAdmin(await bearerUser(id))).resolves.toBeUndefined();
+    await expect(verifyAdmin(await bearerUser(id, admin.workspace.id))).rejects.toMatchObject({ status: 403 });
+    await expect(verifyAdmin(await bearerUser(id, undefined, "analyst"))).rejects.toMatchObject({ status: 403 });
+  });
+});
+
+describe("restricted keys through MCP", () => {
+  async function mcpPrincipal(userId: string, workspaceId?: string, role?: string) {
+    const secret = randomId(24);
+    const token = await deps().prisma.userApiToken.create({
+      data: { hint: "x***", hash: createHash(secret), userId, workspaceId, role },
+    });
+    const res: any = { headersSent: false, setHeader() {}, status: () => res, json: () => res };
+    const info = await new AuthChecker(deps().prisma, () => {}).requireAccessToken(
+      { headers: { authorization: `Bearer ${token.id}:${secret}` } } as any,
+      res
+    );
+    return principalFromAuth(info);
+  }
+
+  it("keeps the workspace scope and the role limit of the key", async () => {
+    const { user, a, b } = await seedTwoWorkspaces();
+    const scoped = await mcpPrincipal(user.internalId, a.id);
+    await expect(verifyAccess(scoped, a.id)).resolves.toBeUndefined();
+    await expect(verifyAccess(scoped, b.id)).rejects.toMatchObject({ status: 403 });
+
+    const analyst = await mcpPrincipal(user.internalId, undefined, "analyst");
+    await expect(verifyAccessWithRole(analyst, a.id, "readEntities")).resolves.toBeDefined();
+    await expect(verifyAccessWithRole(analyst, a.id, "editEntities")).rejects.toMatchObject({ status: 403 });
+
+    const unrestricted = await mcpPrincipal(user.internalId);
+    await expect(verifyAccessWithRole(unrestricted, b.id, "editEntities")).resolves.toBeDefined();
+  });
+});
+
+describe("approving an OAuth client", () => {
+  it("is refused to an API key", async () => {
+    const { user } = await seedWorkspace();
+    const secret = randomId(24);
+    const token = await deps().prisma.userApiToken.create({
+      data: { hint: "x***", hash: createHash(secret), userId: user.internalId, role: "analyst" },
+    });
+    const res: any = {
+      statusCode: 200,
+      body: undefined,
+      setHeader() {},
+      status(code: number) {
+        this.statusCode = code;
+        return this;
+      },
+      json(payload: any) {
+        this.body = payload;
+        return this;
+      },
+    };
+    const req: any = {
+      method: "POST",
+      headers: { authorization: `Bearer ${token.id}:${secret}` },
+      query: {},
+      cookies: {},
+      body: {
+        client_id: "x",
+        redirect_uri: "https://example.com/cb",
+        code_challenge: "c",
+        code_challenge_method: "S256",
+      },
+    };
+    const handlers = new OAuthHandlers({
+      prisma: deps().prisma,
+      kv: {},
+      accessTokenTtlSec: 3600,
+      refreshTokenTtlDays: 30,
+    } as any);
+    await handlers.approve(req, res);
+    expect(res.statusCode).toBe(403);
+    expect(res.body).toMatchObject({ error: "forbidden" });
   });
 });

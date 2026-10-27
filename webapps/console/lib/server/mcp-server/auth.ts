@@ -166,6 +166,9 @@ export class AuthChecker {
         // Attribute audit rows to the API key itself (no OAuth refresh token here).
         refreshTokenId: token.id,
         clientName: token.name ?? undefined,
+        // The key's own limits, so MCP tools enforce them like the REST API does.
+        role: token.role,
+        workspaceId: token.workspaceId,
       },
     };
   }
