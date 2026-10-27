@@ -1,3 +1,4 @@
+import { signFunctionsRequest } from "juava/src/functions-auth";
 import { ProfileBuilder, EventsStore, bulkerDestination } from "@jitsu/destination-functions";
 import { AggregationCursor, MongoClient, Document, ReadPreference } from "mongodb";
 import { db, ProfileBuilderQueueInfo } from "./db";
@@ -381,10 +382,19 @@ async function processProfile(
     const fsTimeoutMs = parseNumber(serverEnv.FUNCTIONS_SERVER_TIMEOUT_MS, 30000);
 
     const { request } = await import("undici");
+    const requestBody = JSON.stringify({ profileId });
     const response = await request(url, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ profileId }),
+      headers: {
+        "Content-Type": "application/json",
+        ...signFunctionsRequest(
+          serverEnv.FUNCTIONS_SERVER_PRIVATE_KEY,
+          functionsServerInfo.deploymentId,
+          url,
+          requestBody
+        ),
+      },
+      body: requestBody,
       bodyTimeout: fsTimeoutMs,
       headersTimeout: fsTimeoutMs,
       dispatcher: undiciAgent,

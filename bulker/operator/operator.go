@@ -1539,6 +1539,7 @@ func (o *Operator) buildDeploymentFromData(data *DeploymentData) *appsv1.Deploym
 
 	// Build environment variables for functions-server
 	envVars := []corev1.EnvVar{
+		{Name: "FUNCTIONS_SERVER_PUBLIC_KEY", Value: o.config.FunctionsServerPublicKey},
 		{
 			Name:  "CONFIG_DIR",
 			Value: "/data",

@@ -37,8 +37,9 @@ type Config struct {
 	PodsTopologySpreadConstraints string `mapstructure:"PODS_TOPOLOGY_SPREAD_CONSTRAINTS"` // topology spread constraints for sync pods in json format
 
 	// Functions server configuration
-	FunctionsServerImage string `mapstructure:"FUNCTIONS_SERVER_IMAGE" default:"jitsucom/functions-server:latest"`
-	FunctionsServerPort  int    `mapstructure:"FUNCTIONS_SERVER_PORT" default:"3456"`
+	FunctionsServerPublicKey string `mapstructure:"FUNCTIONS_SERVER_PUBLIC_KEY"`
+	FunctionsServerImage     string `mapstructure:"FUNCTIONS_SERVER_IMAGE" default:"jitsucom/functions-server:latest"`
+	FunctionsServerPort      int    `mapstructure:"FUNCTIONS_SERVER_PORT" default:"3456"`
 
 	// Service configuration
 	ServiceType string `mapstructure:"SERVICE_TYPE" default:"ClusterIP"`
@@ -103,6 +104,7 @@ func (c *Config) CalculateOperatorConfigHash() string {
 
 	// Include all config fields that affect deployment specs
 	h.Write([]byte(c.FunctionsServerImage))
+	h.Write([]byte(c.FunctionsServerPublicKey))
 	h.Write([]byte(fmt.Sprintf("%d", c.FunctionsServerPort)))
 	h.Write([]byte(c.ServiceType))
 	h.Write([]byte(c.KubernetesNodeSelector))

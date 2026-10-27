@@ -15,28 +15,22 @@ export function createWhitelistPlugin(allowedPackages: string[]): esbuild.Plugin
   return {
     name: "whitelist-imports",
     setup(build) {
-      // Intercept all bare module imports (not relative/absolute paths)
-      build.onResolve({ filter: /^[^./]/ }, args => {
-        // Extract package name (handle scoped packages like @scope/package)
-        const packageName = args.path.startsWith("@")
-          ? args.path.split("/").slice(0, 2).join("/")
-          : args.path.split("/")[0];
-
-        // Allow whitelisted packages - let esbuild resolve and bundle them
-        if (allowedPackages.includes(packageName)) {
+      // User functions are single source files. Never let esbuild read imports
+      // from the filesystem, including paths hidden behind package subpaths.
+      build.onResolve({ filter: /.*/ }, args => {
+        if (allowedPackages.includes(args.path)) {
           return null;
         }
-
-        // Node built-ins - mark as external with node: prefix (required by Deno)
-        if (NODE_BUILTINS.includes(packageName)) {
-          return { path: `node:${args.path}`, external: true };
+        const builtin = args.path.replace(/^node:/, "");
+        if (NODE_BUILTINS.includes(builtin)) {
+          return { path: `node:${builtin}`, external: true };
         }
 
         // Everything else - error
         return {
           errors: [
             {
-              text: `Import "${packageName}" is not allowed in UDF functions. Allowed packages: ${[
+              text: `Import "${args.path}" is not allowed in UDF functions. Allowed packages: ${[
                 ...allowedPackages,
                 ...NODE_BUILTINS,
               ].join(", ")}`,

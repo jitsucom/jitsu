@@ -1,5 +1,6 @@
 // @ts-ignore
 import fs from "fs";
+import { generateKeyPairSync } from "node:crypto";
 // @ts-ignore
 import path from "path";
 // @ts-ignore
@@ -75,8 +76,12 @@ export async function startTestFunctionsServer(configDir: string, port: number =
   const rotorDir = path.resolve(__dirname, "..");
 
   // Start the functions server using ts-node
+  const keys = generateKeyPairSync("ed25519");
+  process.env.FUNCTIONS_SERVER_PRIVATE_KEY = keys.privateKey.export({ type: "pkcs8", format: "pem" }).toString();
   const env = {
     ...process.env,
+    FUNCTIONS_SERVER_PUBLIC_KEY: keys.publicKey.export({ type: "spki", format: "pem" }).toString(),
+    DEPLOYMENT_ID: process.env.FUNCTIONS_CLASS || "test",
     PORT: String(port),
     ROTOR_METRICS_PORT: String(port + 1), // Metrics on different port
     CONFIG_DIR: configDir,
