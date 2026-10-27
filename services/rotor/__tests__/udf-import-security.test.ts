@@ -91,6 +91,8 @@ for (const mode of ["file", "worker"] as const) {
       'export default () => require("node:crypto", import("./" + globalThis.name + ".json"));',
       'function decorate(x) { return x; } @decorate class Helper { load(name) { return import("./" + name + ".json"); } } export default name => new Helper().load(name);',
       'function decorate(x) { return x; } @decorate class Helper { load(name) { return require("./" + name + ".json"); } } export default name => new Helper().load(name);',
+      'module.exports = name => require("./" + name + ".json"); return;',
+      'with ({}) { module.exports = name => module.require("./" + name + ".json"); }',
     ])("rejects nested and alternate computed import syntax: %s", async code => {
       vi.mocked(esbuild.build).mockClear();
       await expect(compile(code)).rejects.toThrow("Computed imports are not allowed");
@@ -131,6 +133,8 @@ for (const mode of ["file", "worker"] as const) {
       'export default () => import("node:crypto");',
       'export default () => require("crypto");',
       'module.exports = () => module.require("node:crypto");',
+      "module.exports = event => event; return;",
+      "module.exports = () => 077;",
       "export default () => import(`node:crypto`);",
       'export default () => import("node:" + "crypto");',
       "export default () => require(`crypto`);",
@@ -143,5 +147,11 @@ for (const mode of ["file", "worker"] as const) {
       expect(result).toBeTruthy();
       if (mode === "file") await fs.rm(result, { force: true });
     });
+
+    if (mode === "worker") {
+      it("preserves CommonJS non-strict syntax supported by worker output", async () => {
+        expect(await compile("with ({ value: 42 }) { module.exports = () => value; }")).toBeTruthy();
+      });
+    }
   });
 }

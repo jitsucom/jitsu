@@ -10,7 +10,17 @@ import { transform } from "esbuild";
 // here. Literal specifiers still go through the existing import allowlist.
 export async function validateAndNormalizeUdfCode(code: string): Promise<string> {
   const normalized = await transform(code, { loader: "js", target: "es2022", logLevel: "silent" });
-  const ast = parse(normalized.code, { ecmaVersion: "latest", sourceType: "module", locations: true });
+  // esbuild accepts both ESM and CommonJS (including top-level return and
+  // non-strict script syntax). It has already checked the source grammar;
+  // preserve either mode when extracting the tree for import validation.
+  const options = { ecmaVersion: "latest", allowReturnOutsideFunction: true, locations: true } as const;
+  let ast: ReturnType<typeof parse>;
+  try {
+    ast = parse(normalized.code, { ...options, sourceType: "module" });
+  } catch (error) {
+    if (!(error instanceof SyntaxError)) throw error;
+    ast = parse(normalized.code, { ...options, sourceType: "script" });
+  }
   const check = (source: AnyNode | undefined) => {
     if (
       source &&
