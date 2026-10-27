@@ -1199,8 +1199,9 @@ func (r *Router) WriteKeyStreamLocator(loc *StreamCredentials, s2sEndpoint bool)
 		} else if len(parts) == 2 && parts[0] != "" && parts[1] != "" {
 			binding := r.repository.GetData().getStreamByKeyId(parts[0])
 			if binding != nil {
-				if (s2sEndpoint && binding.KeyType != string(IngestTypeS2S)) ||
-					(loc.IngestType != IngestTypeWriteKeyDefined && binding.KeyType != string(loc.IngestType)) {
+				// Key-defined handlers accept either key type, including on S2S URLs.
+				// The validated key determines the event's ingest type.
+				if loc.IngestType != IngestTypeWriteKeyDefined && binding.KeyType != string(loc.IngestType) {
 					r.Debugf("[stream: %s]%s invalid key type found %s", binding.StreamId, loc.String(), binding.KeyType)
 				} else if !r.checkHash(binding.Hash, parts[1]) {
 					r.Debugf("[stream: %s]%s invalid key secret", binding.StreamId, loc.String())
