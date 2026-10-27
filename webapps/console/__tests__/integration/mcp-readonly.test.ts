@@ -116,7 +116,7 @@ const asMcpUser = (auth: any, user: any) => ({
 describe("MCP read-only approval", () => {
   it("gives the tokens the analyst role, which cannot change anything", async () => {
     const { auth, user, workspace } = await connect(true);
-    expect(auth.extra.role).toBe("analyst");
+    expect(auth.extra!.role).toBe("analyst");
     const mcpUser = asMcpUser(auth, user);
     await expect(verifyAccessWithRole(mcpUser, workspace.id, "readEntities")).resolves.toBeDefined();
     await expect(verifyAccessWithRole(mcpUser, workspace.id, "editEntities")).rejects.toMatchObject({ status: 403 });
@@ -140,7 +140,7 @@ describe("MCP read-only approval", () => {
 
   it("without the read-only choice nothing changes", async () => {
     const { auth, user, workspace } = await connect(false);
-    expect(auth.extra.role).toBeNull();
+    expect(auth.extra!.role).toBeNull();
     await expect(verifyAccessWithRole(asMcpUser(auth, user), workspace.id, "editEntities")).resolves.toBeDefined();
   });
 });
