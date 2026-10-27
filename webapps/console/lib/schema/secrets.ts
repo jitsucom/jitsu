@@ -148,7 +148,9 @@ export function unmaskSecretsFromOriginal(object: any, dbEntity: any): any {
   }
 
   const changedTargets = changedConnectionTargets(object, dbEntity);
-  if (changedTargets.length > 0) {
+  // Only signing keys masked (webhook signatureSecret): they sign requests and are never sent to the target
+  const onlySigningKeysMasked = maskedPaths(object).every(path => SIGNING_KEY.test(String(path[path.length - 1])));
+  if (changedTargets.length > 0 && !onlySigningKeysMasked) {
     // Restoring the stored password into a config that points somewhere else would send it to that host
     throw new ApiError(
       `Cannot reuse saved secrets because ${changedTargets.join(
@@ -198,6 +200,88 @@ function findChangedTargets(node: any, original: any, path: (string | number)[])
     }
     return isEqual(value, get(original, currentPath)) ? [] : [currentPath.join(".")];
   });
+}
+
+// Secrets that are used to sign requests and are never sent to the connection target
+const SIGNING_KEY = /signature|signing|hmac/i;
+
+/** Paths of every MASKED_SECRET value in an object. */
+function maskedPaths(node: any, path: (string | number)[] = []): (string | number)[][] {
+  if (node === MASKED_SECRET) {
+    return [path];
+  }
+  if (Array.isArray(node)) {
+    return node.flatMap((item, index) => maskedPaths(item, [...path, index]));
+  }
+  if (isPlainObject(node)) {
+    return Object.entries(node).flatMap(([key, value]) => maskedPaths(value, [...path, key]));
+  }
+  return [];
+}
+
+const isEmptyValue = (v: any) => v === undefined || v === null || v === "";
+
+/**
+ * Paths of connection target fields (host, url, endpoint...) whose value differs between two objects, an empty value
+ * counting as no value. Unlike {@link changedConnectionTargets} it does not need a masked secret in the object.
+ */
+export function changedTargetFieldsBetween(updated: any, original: any, path: (string | number)[] = []): string[] {
+  if (Array.isArray(updated)) {
+    return updated.flatMap((item, index) => changedTargetFieldsBetween(item, original, [...path, index]));
+  }
+  if (!isPlainObject(updated)) {
+    return [];
+  }
+  return Object.entries(updated).flatMap(([key, value]) => {
+    const currentPath = [...path, key];
+    if (isPlainObject(value) || Array.isArray(value)) {
+      return changedTargetFieldsBetween(value, original, currentPath);
+    }
+    if (!CONNECTION_TARGET_KEY.test(key)) {
+      return [];
+    }
+    const before = get(original, currentPath);
+    if (isEmptyValue(value) && isEmptyValue(before)) {
+      return [];
+    }
+    return isEqual(value, before) ? [] : [currentPath.join(".")];
+  });
+}
+
+/**
+ * An update that keeps stored secrets (masked values and omitted fields both keep them) must not point the object at
+ * a different host: that would send the stored password to wherever the editor says. When a connection target changes,
+ * every secret that has a stored value has to be supplied again in the patch.
+ *
+ * @param original the stored object, before the merge
+ * @param patch the incoming patch, with masked values still in it
+ * @param merged the result of merging the patch into the original
+ */
+export function assertSecretsStayWithTarget(original: any, patch: any, merged: any, secretPaths: string[]): void {
+  const changed = changedTargetFieldsBetween(merged, original);
+  if (changed.length === 0) {
+    return;
+  }
+  const keptSecrets = secretPaths.filter(path => {
+    // A signing key (webhook `signatureSecret`) only signs what is sent: the receiver never gets it
+    if (SIGNING_KEY.test(String(path).split(".").pop() ?? "")) {
+      return false;
+    }
+    const stored = get(original, path);
+    if (isEmptyValue(stored)) {
+      return false;
+    }
+    const supplied = get(patch, path);
+    return isEmptyValue(supplied) || supplied === MASKED_SECRET;
+  });
+  if (keptSecrets.length > 0) {
+    throw new ApiError(
+      `Cannot keep the saved secrets (${keptSecrets.join(", ")}) because ${changed.join(
+        ", "
+      )} changed. Enter the secret values again to continue.`,
+      { status: 400 }
+    );
+  }
 }
 
 /**

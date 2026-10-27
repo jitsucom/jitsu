@@ -14,12 +14,18 @@ import {
   StreamConfig,
   WorkspaceDomain,
 } from "./index";
-import { assertDefined, createHash, deepMerge, requireDefined } from "juava";
+import { assertDefined, createHash, deepCopy, deepMerge, requireDefined } from "juava";
 import { checkDomain, checkOrAddToIngress, isDomainAvailable } from "../server/custom-domains";
 import { ZodType, ZodTypeDef } from "zod";
 import { getServerLog } from "../server/log";
 import { getWildcardDomains } from "../../pages/api/[workspaceId]/domain-check";
-import { getDestinationSecretPaths, getServiceSecretPaths, maskSecrets, removeMaskedValues } from "./secrets";
+import {
+  assertSecretsStayWithTarget,
+  getDestinationSecretPaths,
+  getServiceSecretPaths,
+  maskSecrets,
+  removeMaskedValues,
+} from "./secrets";
 import { db } from "../server/db";
 import { ConfigApiDeleteOptions } from "../useApi";
 import pick from "lodash/pick";
@@ -178,7 +184,10 @@ const configObjectTypes: Record<string, ConfigObjectType> = {
       // Remove masked values before merge
       const secretPaths = getDestinationSecretPaths(original.destinationType);
       const cleanedPatch = removeMaskedValues(patch, secretPaths);
-      return deepMerge(original, cleanedPatch);
+      const before = deepCopy(original);
+      const merged = deepMerge(original, cleanedPatch);
+      assertSecretsStayWithTarget(before, patch, merged, secretPaths);
+      return merged;
     },
 
     inputFilter: async (obj: DestinationConfig, context) => {
@@ -345,7 +354,10 @@ const configObjectTypes: Record<string, ConfigObjectType> = {
       // Remove masked values before merge
       const secretPaths = await getServiceSecretPaths(original.package, original.version);
       const cleanedPatch = removeMaskedValues(patch, secretPaths);
-      return deepMerge(original, cleanedPatch);
+      const before = deepCopy(original);
+      const merged = deepMerge(original, cleanedPatch);
+      assertSecretsStayWithTarget(before, patch, merged, secretPaths);
+      return merged;
     },
     inputFilter: async (obj: ServiceConfig) => {
       // Remove masked values

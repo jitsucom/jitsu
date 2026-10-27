@@ -51,6 +51,17 @@ describe("unmaskSecretsFromOriginal", () => {
     ]);
   });
 
+  it("lets a webhook url change keep a masked signing key, which is never sent to the receiver", () => {
+    const webhook = { id: "w", url: "https://a.example/hook", signatureSecret: "hmac-key" };
+    const submitted = { ...webhook, url: "https://b.example/hook", signatureSecret: MASKED_SECRET };
+    expect(unmaskSecretsFromOriginal(submitted, webhook)).toEqual({ ...submitted, signatureSecret: "hmac-key" });
+    // but not when a password is masked as well
+    const withPassword = { ...webhook, password: "pw" };
+    expect(() => unmaskSecretsFromOriginal({ ...submitted, password: MASKED_SECRET }, withPassword)).toThrow(
+      /url changed/
+    );
+  });
+
   it("does not care about target changes when nothing is masked", () => {
     const submitted = { ...stored, host: "other.example", password: "typed-by-user" };
     expect(unmaskSecretsFromOriginal(submitted, stored)).toEqual(submitted);
