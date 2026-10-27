@@ -35,7 +35,6 @@ for (const mode of ["file", "worker"] as const) {
         // Escapes and comments must be parsed, not checked with a source regex.
         `"\\x2e${prefix.slice(1)}" /* path */ + name + ".json"`,
         `(${JSON.stringify(prefix)} + (name) + ".json")`,
-        `name ? ${JSON.stringify(prefix + "secret.json")} : "node:crypto"`,
         "name",
       ];
       for (const expression of expressions) {
@@ -45,6 +44,32 @@ for (const mode of ["file", "worker"] as const) {
         );
         expect(esbuild.build).not.toHaveBeenCalled();
       }
+    });
+
+    it("still rejects filesystem paths when normalization turns a conditional into literal imports", async () => {
+      const specifier = "./" + path.relative(process.cwd(), path.join(fixture, "secret.json"));
+      for (const method of ["import", "require"]) {
+        await expect(
+          compile(`export default name => ${method}(name ? ${JSON.stringify(specifier)} : "node:crypto");`)
+        ).rejects.toThrow("not allowed");
+      }
+    });
+
+    it.each([
+      "module.require",
+      'module["require"]',
+      'module["requ" + "ire"]',
+      "module[`require`]",
+      "module.require?.",
+      "module?.require",
+      "(true && module).require",
+    ])("rejects CommonJS %s globs before bundling", async method => {
+      const prefix = "./" + path.relative(process.cwd(), fixture) + "/";
+      vi.mocked(esbuild.build).mockClear();
+      await expect(
+        compile(`module.exports = name => ${method}(${JSON.stringify(prefix)} + name + ".json");`)
+      ).rejects.toThrow("Computed imports are not allowed");
+      expect(esbuild.build).not.toHaveBeenCalled();
     });
 
     it("rejects computed compressed-byte imports before bundling", async () => {
@@ -64,6 +89,8 @@ for (const mode of ["file", "worker"] as const) {
       'export default name => require(...["./" + name + ".json"]);',
       'export default async name => { try { return await import("./" + name + ".json"); } catch { return null; } };',
       'export default () => require("node:crypto", import("./" + globalThis.name + ".json"));',
+      'function decorate(x) { return x; } @decorate class Helper { load(name) { return import("./" + name + ".json"); } } export default name => new Helper().load(name);',
+      'function decorate(x) { return x; } @decorate class Helper { load(name) { return require("./" + name + ".json"); } } export default name => new Helper().load(name);',
     ])("rejects nested and alternate computed import syntax: %s", async code => {
       vi.mocked(esbuild.build).mockClear();
       await expect(compile(code)).rejects.toThrow("Computed imports are not allowed");
@@ -103,11 +130,14 @@ for (const mode of ["file", "worker"] as const) {
       'import { webcrypto } from "node:crypto"; export default () => webcrypto;',
       'export default () => import("node:crypto");',
       'export default () => require("crypto");',
+      'module.exports = () => module.require("node:crypto");',
       "export default () => import(`node:crypto`);",
+      'export default () => import("node:" + "crypto");',
       "export default () => require(`crypto`);",
       'export { RetryError as default } from "@jitsu/functions-lib";',
       '// import("./" + name)\nexport default () => "require(`./${name}.json`)";',
       'export default event => ({ ...event, value: event?.nested?.value ?? "default", amount: 1_000 });',
+      "function decorate(x) { return x; } @decorate class Helper {} export default () => new Helper();",
     ])("preserves supported imports and ordinary JavaScript: %s", async code => {
       const result = await compile(code);
       expect(result).toBeTruthy();
