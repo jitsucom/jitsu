@@ -20,7 +20,8 @@ export function checkDomain(domain: string): boolean {
  */
 export async function isDomainAvailable(
   domain: string,
-  workspace: z.infer<typeof WorkspaceDbModel>
+  workspace: z.infer<typeof WorkspaceDbModel>,
+  client: Pick<PrismaClient, "$queryRaw"> = db.prisma()
 ): Promise<DomainAvailability> {
   const workspaceId = workspace.id;
   const siblings = (workspace.featuresEnabled ?? [])
@@ -32,7 +33,7 @@ export async function isDomainAvailable(
   const fullTextPattern = `%${domainSuffix.toLowerCase()}%`;
   const pattern = `%${domainSuffix.toLowerCase()}`;
   // objects of a deleted workspace stay in the table, but no longer route, so they do not hold the domain
-  const dirtyList = (await db.prisma().$queryRaw`
+  const dirtyList = (await client.$queryRaw`
       select id,type, "workspaceId", config->'domains' as domains
       from newjitsu."ConfigurationObject"
       where type = 'stream'
@@ -81,7 +82,8 @@ function claimedDomains(type: string, object: any): string[] {
 /**
  * isDomainAvailable() followed by an insert is check-then-act: two workspaces claiming the same domain at the same
  * moment both pass the check. Writes that claim a domain run under one global lock and repeat the check after taking
- * it, so the second claim sees the first (the lock is released at commit).
+ * it, so the second claim sees the first (the lock is released at commit). The repeat runs on the transaction's own
+ * connection: a second one from the pool could starve when the pool is small or full of claims waiting for the lock.
  */
 export async function writeClaimingDomains<T>(
   prisma: PrismaClient,
@@ -95,7 +97,7 @@ export async function writeClaimingDomains<T>(
   return prisma.$transaction(async tx => {
     await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended('domain-claim', 0))`;
     for (const domain of domains) {
-      if (!(await isDomainAvailable(domain, workspace)).available) {
+      if (!(await isDomainAvailable(domain, workspace, tx)).available) {
         throw new ApiError(`Domain ${domain} is already in use by other workspace`);
       }
     }
