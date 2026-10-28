@@ -30,12 +30,14 @@ export async function isDomainAvailable(
   const domainSuffix = domain.replace(/^[*]/, "");
   const fullTextPattern = `%${domainSuffix.toLowerCase()}%`;
   const pattern = `%${domainSuffix.toLowerCase()}`;
+  // objects of a deleted workspace stay in the table, but no longer route, so they do not hold the domain
   const dirtyList = (await db.prisma().$queryRaw`
       select id,type, "workspaceId", config->'domains' as domains
       from newjitsu."ConfigurationObject"
       where type = 'stream'
         and config::TEXT ilike ${fullTextPattern}
         and "workspaceId" not in (${Prisma.join(siblings)})
+        and "workspaceId" not in (select id from newjitsu."Workspace" where deleted = true)
         and deleted = false
       union
       select id,type, "workspaceId", jsonb_build_array(config->'name') as domains
@@ -43,6 +45,7 @@ export async function isDomainAvailable(
       where type = 'domain'
         and (config->>'name' ilike ${pattern} or ${domain.toLowerCase()} ilike REPLACE(config->>'name','*','%') )
         and "workspaceId" not in (${Prisma.join(siblings)})
+        and "workspaceId" not in (select id from newjitsu."Workspace" where deleted = true)
         and deleted = false
   `) as { id: string; workspaceId: string; domains: string[] }[];
 

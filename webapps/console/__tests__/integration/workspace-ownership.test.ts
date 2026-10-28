@@ -87,6 +87,28 @@ describe("domain collisions are decided on label boundaries (JITSU-255)", () => 
   });
 });
 
+describe("domains of deleted workspaces are free (JITSU-255)", () => {
+  const unique = () => `${randomId(8).toLowerCase()}.victim.example`;
+  const fullRow = (id: string) => deps().prisma.workspace.findUniqueOrThrow({ where: { id } });
+  const objects = {
+    "domain object": (base: string) => ({ type: "domain", config: { name: base } }),
+    "stream domain": (base: string) => ({ type: "stream", config: { name: "site", domains: [base] } }),
+  };
+
+  it.each(Object.keys(objects))("a %s of a deleted workspace does not block another workspace", async kind => {
+    const base = unique();
+    const a = await seedWorkspace();
+    const b = await seedWorkspace();
+    await deps().prisma.configurationObject.create({
+      data: { workspaceId: a.workspace.id, ...objects[kind](base) },
+    });
+    expect(await isDomainAvailable(base, await fullRow(b.workspace.id))).toMatchObject({ available: false });
+
+    await deps().prisma.workspace.update({ where: { id: a.workspace.id }, data: { deleted: true } });
+    await expect(isDomainAvailable(base, await fullRow(b.workspace.id))).resolves.toEqual({ available: true });
+  });
+});
+
 describe("assertDestinationInWorkspace (JITSU-255)", () => {
   async function destination(workspaceId: string, extra: Record<string, any> = {}) {
     return deps().prisma.configurationObject.create({
