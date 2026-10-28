@@ -206,6 +206,60 @@ describe("GA4 request context", () => {
   });
 });
 
+describe("GA4 track event mapping", () => {
+  async function sendTrack(event: Partial<AnalyticsServerEvent>) {
+    let request: Record<string, any> | undefined;
+    await Ga4Destination(
+      {
+        type: "track",
+        messageId: "message-id",
+        anonymousId: "anonymous-id",
+        timestamp: "2026-07-14T12:00:00.000Z",
+        context: {},
+        ...event,
+      } as AnalyticsServerEvent,
+      {
+        props: { apiSecret: "secret", measurementId: "G-TEST123", events: "" },
+        fetch: async (url: string, opts?: { body?: string | Uint8Array }) => {
+          request = JSON.parse(opts?.body as string);
+          return new Response(null, { status: 204 });
+        },
+        log: { info: vi.fn(), warn: vi.fn(), debug: vi.fn(), error: vi.fn() },
+      } as any
+    );
+    return request;
+  }
+
+  test("maps a tracked Order Completed event to the GA4 purchase event", async () => {
+    const request = await sendTrack({
+      event: "Order Completed",
+      properties: {
+        order_id: "order-1",
+        total: 30,
+        currency: "USD",
+        products: [{ product_id: "sku-1", name: "T-shirt", price: 15, quantity: 2 }],
+      },
+    });
+
+    expect(request?.events).toHaveLength(1);
+    expect(request?.events[0]).toMatchObject({
+      name: "purchase",
+      params: {
+        transaction_id: "order-1",
+        value: 30,
+        currency: "USD",
+        items: [{ item_id: "sku-1", item_name: "T-shirt", price: 15, quantity: 2 }],
+      },
+    });
+  });
+
+  test("maps a tracked Products Searched event to the GA4 search event", async () => {
+    const request = await sendTrack({ event: "Products Searched", properties: { query: "blue shirt" } });
+
+    expect(request?.events[0]).toMatchObject({ name: "search", params: { search_term: "blue shirt" } });
+  });
+});
+
 // Live test. Set TEST_GA4_DESTINATION_CONFIG to JSON credentials, then run:
 // TEST_GA4_DESTINATION_CONFIG='{ "apiSecret": "...", "measurementId": "G-..." }' pnpm --filter @jitsu/destination-functions exec vitest run __tests__/ga4-destination.test.ts -t ga4-destination-integration
 test("ga4-destination-integration", async () => {
