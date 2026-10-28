@@ -29,15 +29,31 @@ export async function serializeResponse(res: Response): Promise<SerializedRespon
 
 const nullBodyStatuses = new Set([101, 204, 205, 304]);
 
-/** A real Response, so UDFs keep headers.get(), arrayBuffer(), clone(), etc. as with the in-process fetch. */
+/**
+ * A real Response (headers.get(), status, instanceof), whose body can be read more than once, as with the in-process
+ * fetch: a UDF that reads text() for a diagnostic and then json() must keep working.
+ */
 export function deserializeResponse(s: SerializedResponse): Response {
-  const res = new Response(nullBodyStatuses.has(s.status) ? null : s.body, {
+  const bytes = nullBodyStatuses.has(s.status) ? new Uint8Array(0) : s.body;
+  const res = new Response(nullBodyStatuses.has(s.status) ? null : bytes, {
     status: s.status,
     statusText: s.statusText,
     headers: s.headers,
   });
-  // not settable through the constructor
-  for (const [key, value] of Object.entries({ url: s.url, type: s.type, redirected: s.redirected })) {
+  const text = () => new TextDecoder().decode(bytes);
+  const reusable = {
+    // not settable through the constructor
+    url: s.url,
+    type: s.type,
+    redirected: s.redirected,
+    text: async () => text(),
+    json: async () => JSON.parse(text()),
+    arrayBuffer: async () => bytes.slice().buffer,
+    bytes: async () => bytes.slice(),
+    blob: async () => new Blob([bytes], { type: res.headers.get("content-type") ?? "" }),
+    clone: () => deserializeResponse(s),
+  };
+  for (const [key, value] of Object.entries(reusable)) {
     Object.defineProperty(res, key, { value, configurable: true });
   }
   return res;
@@ -46,6 +62,14 @@ export function deserializeResponse(s: SerializedResponse): Response {
 /** Same rule as the in-process runtime: with fetchLogLevel "debug" (nofetchlogs) log only while debugging is active. */
 export function isFetchLogEnabled(fetchLogLevel: string | undefined, debugTill: Date | undefined, now = Date.now()) {
   return fetchLogLevel !== "debug" || !!(debugTill && debugTill.getTime() > now);
+}
+
+/**
+ * Whether one fetch call is logged: the connection-level rule, and the caller's own `log: false` (third argument of
+ * ctx.fetch) which suppresses it for payloads that must not be stored. `log: true` cannot override the connection rule.
+ */
+export function isFetchCallLogged(connectionEnabled: boolean, perCall?: { log?: boolean }): boolean {
+  return connectionEnabled && (typeof perCall?.log === "boolean" ? perCall.log : true);
 }
 
 /** The timeout the caller asked for (x-request-timeout-ms), else the server default. */

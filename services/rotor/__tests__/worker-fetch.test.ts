@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   deserializeResponse,
+  isFetchCallLogged,
   isFetchLogEnabled,
   proxiedFetchTimeoutMs,
   serializeResponse,
@@ -28,6 +29,24 @@ describe("proxied fetch response", () => {
     expect(await json.json()).toEqual({ a: 1 });
     const text = deserializeResponse(await serializeResponse(new Response("héllo")));
     expect(await text.text()).toBe("héllo");
+  });
+
+  it("can be read more than once, in any combination, like the in-process fetch", async () => {
+    const res = deserializeResponse(await serializeResponse(Response.json({ a: 1 })));
+    expect(await res.text()).toBe('{"a":1}');
+    expect(await res.json()).toEqual({ a: 1 });
+    expect(await res.text()).toBe('{"a":1}');
+    expect(new Uint8Array(await res.arrayBuffer())).toEqual(new Uint8Array(await res.arrayBuffer()));
+    expect(await (await res.blob()).text()).toBe('{"a":1}');
+    expect(await res.clone().json()).toEqual({ a: 1 });
+    expect(res).toBeInstanceOf(Response);
+    expect(res.headers.get("content-type")).toContain("application/json");
+  });
+
+  it("hands out a fresh buffer each time, so one caller cannot change what the next reads", async () => {
+    const res = deserializeResponse(await serializeResponse(new Response(new Uint8Array([1, 2, 3]))));
+    new Uint8Array(await res.arrayBuffer()).fill(9);
+    expect(Array.from(new Uint8Array(await res.arrayBuffer()))).toEqual([1, 2, 3]);
   });
 
   it("carries url, type and redirected, which the constructor cannot set", async () => {
@@ -61,5 +80,19 @@ describe("proxiedFetchTimeoutMs", () => {
   });
   it.each([undefined, null, "5000", 0, -1, NaN, Infinity])("falls back to the default for %s", v => {
     expect(proxiedFetchTimeoutMs(v, 2000)).toBe(2000);
+  });
+});
+
+describe("isFetchCallLogged", () => {
+  it("follows the connection rule when the call says nothing", () => {
+    expect(isFetchCallLogged(true)).toBe(true);
+    expect(isFetchCallLogged(true, {})).toBe(true);
+    expect(isFetchCallLogged(false)).toBe(false);
+  });
+
+  it("a call with log:false is not logged, and log:true cannot override a disabled connection", () => {
+    expect(isFetchCallLogged(true, { log: false })).toBe(false);
+    expect(isFetchCallLogged(true, { log: true })).toBe(true);
+    expect(isFetchCallLogged(false, { log: true })).toBe(false);
   });
 });
