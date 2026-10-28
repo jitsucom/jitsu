@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { MASKED_SECRET } from "../../lib/schema/destinations";
+import { withSchemaDefaults } from "../../lib/schema/config-objects";
 import {
   assertSecretsStayWithTarget,
   changedConnectionTargets,
@@ -99,6 +100,30 @@ describe("Snowflake account (the host name is <account>.snowflakecomputing.com)"
     expect(changedConnectionTargets(submitted, source)).toEqual([]);
     expect(unmaskSecretsFromOriginal(submitted, source)).toEqual({ account: "other", password: "real" });
     expect(changedTargetFieldsBetween({ account: "other" }, source)).toEqual([]);
+  });
+});
+
+describe("empty optional targets", () => {
+  it("an empty endpoint is the same as an omitted one", () => {
+    const stored = { accessKeyId: "AKIA", secretAccessKey: "real" };
+    const submitted = { accessKeyId: "AKIA", endpoint: "", secretAccessKey: MASKED_SECRET };
+    expect(changedConnectionTargets(submitted, stored)).toEqual([]);
+    expect(unmaskSecretsFromOriginal(submitted, stored)).toMatchObject({ secretAccessKey: "real" });
+  });
+
+  it("a real endpoint is still a change from an omitted one", () => {
+    const submitted = { accessKeyId: "AKIA", endpoint: "https://attacker.example", secretAccessKey: MASKED_SECRET };
+    expect(changedConnectionTargets(submitted, { accessKeyId: "AKIA" })).toEqual(["endpoint"]);
+  });
+});
+
+describe("withSchemaDefaults", () => {
+  it("applies defaults to a stored config that has no id and no workspaceId, and adds neither", () => {
+    const stored = { type: "destination", destinationType: "posthog", name: "ph", key: "phc_real" };
+    const out = withSchemaDefaults("destination", stored);
+    expect(out.host).toBe("https://app.posthog.com");
+    expect(out).not.toHaveProperty("id");
+    expect(out).not.toHaveProperty("workspaceId");
   });
 });
 

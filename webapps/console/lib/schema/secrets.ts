@@ -180,6 +180,8 @@ const CONNECTION_TARGET_KEY = /host|url|uri|endpoint|server|address|domain|api_?
 // TLS material (`sslServerCA` contains "server") says how to trust the target, not where it is
 const TLS_KEY = /ssl|tls|cert/i;
 
+const isEmptyValue = (v: any) => v === undefined || v === null || v === "" || (Array.isArray(v) && v.length === 0);
+
 const isTargetKey = (key: string) => CONNECTION_TARGET_KEY.test(key) && !TLS_KEY.test(key);
 
 // Snowflake's `account` becomes the host name (<account>.snowflakecomputing.com). The same word is a plain label on
@@ -221,7 +223,12 @@ function findChangedTargets(
     if (value === MASKED_SECRET || !isTarget(key)) {
       return [];
     }
-    return isEqual(value, get(original, currentPath)) ? [] : [currentPath.join(".")];
+    const before = get(original, currentPath);
+    // an empty optional target is the same as an omitted one (S3 `endpoint: ""` is the default AWS endpoint)
+    if (isEmptyValue(value) && isEmptyValue(before)) {
+      return [];
+    }
+    return isEqual(value, before) ? [] : [currentPath.join(".")];
   });
 }
 
@@ -241,8 +248,6 @@ function maskedPaths(node: any, path: (string | number)[] = []): (string | numbe
   }
   return [];
 }
-
-const isEmptyValue = (v: any) => v === undefined || v === null || v === "" || (Array.isArray(v) && v.length === 0);
 
 /**
  * Paths of connection target fields (host, url, endpoint...) whose value differs between two objects, an empty value

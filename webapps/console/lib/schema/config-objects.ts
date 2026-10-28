@@ -123,8 +123,15 @@ export function parseObject(type: string, obj: any): any {
  * config as it is when it doesn't parse. For comparing a stored config with a submitted one, which is always parsed.
  */
 export function withSchemaDefaults(type: string, obj: any): any {
+  // A stored config has no `id` and `workspaceId` (the service removes them before saving) but the schema requires
+  // them, so they are supplied for parsing and taken out of the result again
+  const entity = { type, id: "-", workspaceId: "-", ...obj };
   try {
-    return parseObject(type, obj);
+    const parsed = parseObject(type, entity);
+    for (const key of ["id", "workspaceId"]) {
+      if (!(key in (obj ?? {}))) delete parsed[key];
+    }
+    return parsed;
   } catch {
     return obj;
   }

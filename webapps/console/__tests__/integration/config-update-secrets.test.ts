@@ -132,6 +132,18 @@ describe("other kinds of connection targets", () => {
     ).rejects.toMatchObject({ status: 400, message: expect.stringMatching(/password.*account changed/) });
   });
 
+  it("tests an S3 destination stored without an endpoint when the submission has an empty one", async () => {
+    const { user, workspace, id } = await seed("s3", {
+      accessKeyId: "AKIA",
+      secretAccessKey: "real-secret",
+      bucket: "b",
+      region: "us-east-1",
+    });
+    await expect(
+      svc().update(user, workspace.id, "destination", id, { endpoint: "", secretAccessKey: MASKED_SECRET })
+    ).resolves.not.toThrow();
+  });
+
   it("refuses a new Resend apiBase with the stored API key", async () => {
     const { user, workspace, id } = await seed("resend", { apiKey: "re_real", apiBase: "https://api.resend.com" });
     await expect(
@@ -159,10 +171,9 @@ describe("other kinds of connection targets", () => {
         id: "phsrc1",
         workspaceId: workspace.id,
         type: "destination",
+        // as ConfigObjectsService stores it: no id and no workspaceId inside the config
         config: {
-          id: "phsrc1",
           type: "destination",
-          workspaceId: workspace.id,
           destinationType: "posthog",
           name: "ph",
           key: "phc_real",
