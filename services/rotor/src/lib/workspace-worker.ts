@@ -17,6 +17,7 @@ import type {
 import type { AnyEvent, EventContext, FullContext } from "@jitsu/protocols/functions";
 import type { FunctionExecLog } from "@jitsu/core-functions-lib";
 import { runFunctionChain, type ChainFunction } from "./udf-chain";
+import { deserializeResponse, isFetchLogEnabled, type SerializedResponse } from "./worker-fetch";
 
 import * as functionsLib from "@jitsu/functions-lib";
 
@@ -83,7 +84,8 @@ function buildContext(
   eventContext: EventContext,
   functionId: string,
   functionType: string,
-  logs: SerializedLogEntry[]
+  logs: SerializedLogEntry[],
+  fetchTimeoutMs: number
 ): FullContext {
   const debugTill = chain.debugTill ? new Date(chain.debugTill) : undefined;
 
@@ -121,6 +123,8 @@ function buildContext(
     error: (message: string, ...args: any[]) => addLogEntry("error", message, args),
   };
 
+  const fetchLogEnabled = isFetchLogEnabled(chain.fetchLogLevel, debugTill);
+
   // Proxied fetch – delegates to main process, logs request/response like makeFetch
   const proxiedFetch = async (url: string, init?: any) => {
     const startTime = Date.now();
@@ -136,10 +140,10 @@ function buildContext(
     };
 
     try {
-      const serialized = await callMain("fetch", [chain.connection.id, url, init]);
+      const serialized: SerializedResponse = await callMain("fetch", [chain.connection.id, url, init, fetchTimeoutMs]);
       const elapsedMs = Date.now() - startTime;
 
-      if (baseInfo) {
+      if (fetchLogEnabled) {
         logs.push({
           level: "info",
           functionId,
@@ -154,22 +158,10 @@ function buildContext(
         });
       }
 
-      return {
-        status: serialized.status,
-        statusText: serialized.statusText,
-        ok: serialized.ok,
-        url: serialized.url,
-        type: serialized.type,
-        redirected: serialized.redirected,
-        headers: serialized.headers,
-        bodyUsed: true,
-        body: serialized.body,
-        text: () => Promise.resolve(serialized.body),
-        json: () => Promise.resolve(JSON.parse(serialized.body)),
-      };
+      return deserializeResponse(serialized);
     } catch (err: any) {
       const elapsedMs = Date.now() - startTime;
-      if (baseInfo) {
+      if (fetchLogEnabled) {
         logs.push({
           level: "error",
           functionId,
@@ -229,7 +221,7 @@ async function runChainInWorker(
   fetchTimeoutMs: number
 ): Promise<{ events: AnyEvent[]; execLog: FunctionExecLog; logs: SerializedLogEntry[] }> {
   return runFunctionChain<SerializedLogEntry>(chain.functions, event, eventContext, (functionId, functionType, logs) =>
-    buildContext(chain, eventContext, functionId, functionType, logs)
+    buildContext(chain, eventContext, functionId, functionType, logs, fetchTimeoutMs)
   );
 }
 

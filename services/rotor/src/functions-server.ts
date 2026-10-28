@@ -37,6 +37,7 @@ import type {
   WorkerToMainMessage,
 } from "./lib/worker-protocol";
 import { runUdfInWorker } from "./lib/worker-udf-runner";
+import { proxiedFetchTimeoutMs, serializeResponse } from "./lib/worker-fetch";
 import {
   loadProfileBuilders,
   initProfileBuilderRuntimes,
@@ -913,28 +914,14 @@ function createWorkspaceWorker(
           const op = method.split(".")[1];
           result = await (store as any)[op](...args);
         } else if (method === "fetch") {
-          const [connectionId, url, init] = args;
+          const [connectionId, url, init, requestedTimeoutMs] = args;
           const fetchImpl = makeFetch(
             connectionId,
             { log() {}, close() {}, deadLetter() {} },
             "debug",
-            parseNumber(env.FETCH_TIMEOUT_MS, 2000)
+            proxiedFetchTimeoutMs(requestedTimeoutMs, parseNumber(env.FETCH_TIMEOUT_MS, 2000))
           );
-          const res = await fetchImpl(url, init);
-          const headers: Record<string, string> = {};
-          res.headers.forEach((v: string, k: string) => {
-            headers[k] = v;
-          });
-          result = {
-            status: res.status,
-            statusText: res.statusText,
-            ok: res.ok,
-            url: res.url,
-            type: res.type,
-            redirected: res.redirected,
-            headers,
-            body: await res.text(),
-          };
+          result = await serializeResponse(await fetchImpl(url, init));
         } else if (method === "warehouse.query") {
           const [destinationId, sql, params] = args;
           const storeMetrics: StoreMetrics = {
