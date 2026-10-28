@@ -563,6 +563,22 @@ function isLimitedKey(user: SessionUser): boolean {
 }
 
 /**
+ * Account-level endpoints (invitations, keys, password) act across every workspace of the user, so a key limited to a
+ * workspace or a role may not use them: it would otherwise read or accept an invitation to a workspace it is kept
+ * out of, or delete the user's other keys. Sessions and unrestricted keys are unaffected.
+ */
+export function assertNotLimitedKey(user: SessionUser): void {
+  if (isLimitedKey(user)) {
+    throw new ApiError(
+      `API key ${user.tokenId} is limited to a workspace or role and cannot use account-level endpoints`,
+      {
+        status: 403,
+      }
+    );
+  }
+}
+
+/**
  * Whether this call has platform-admin reach: an admin service account, or a user with the admin flag, unless the
  * call comes through a limited key. Use it instead of reading `userProfile.admin`, which a limited key of an admin
  * also passes.

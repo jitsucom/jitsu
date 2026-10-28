@@ -1,9 +1,21 @@
 import { describe, expect, it, vi } from "vitest";
 import { createHash, randomId } from "juava";
 import { deps, seedWorkspace } from "./support/harness";
-import { getUser, isPlatformAdmin, verifyAccess, verifyAccessWithRole, verifyAdmin } from "../../lib/api";
+import {
+  assertNotLimitedKey,
+  getUser,
+  isPlatformAdmin,
+  verifyAccess,
+  verifyAccessWithRole,
+  verifyAdmin,
+} from "../../lib/api";
 import { ConfigObjectsService } from "../../lib/server/config-objects-service";
 import { api as emailTemplatesApi } from "../../pages/api/admin/email-templates/index";
+import invitationsRoute from "../../pages/api/user/invitations";
+import acceptRoute from "../../pages/api/user/accept";
+import rejectRoute from "../../pages/api/user/reject";
+import keysRoute from "../../pages/api/user/keys";
+import initUserRoute from "../../pages/api/init-user";
 import { assertCanCreateKey, resolveKeyWorkspace } from "../../lib/server/key-creation";
 import { AuthChecker } from "../../lib/server/mcp-server/auth";
 import { OAuthHandlers } from "../../lib/server/mcp-server/oauth";
@@ -261,5 +273,97 @@ describe("approving an OAuth client", () => {
     await handlers.approve(req, res);
     expect(res.statusCode).toBe(403);
     expect(res.body).toMatchObject({ error: "forbidden" });
+  });
+});
+
+describe("account-level endpoints and limited keys", () => {
+  async function call(handler: any, method: string, key: string, body?: any, query: any = {}) {
+    const headers = { authorization: `Bearer ${key}` };
+    const res: any = {
+      statusCode: 200,
+      body: undefined as any,
+      headers: {} as Record<string, any>,
+      status(code: number) {
+        this.statusCode = code;
+        return this;
+      },
+      json(b: any) {
+        this.body = b;
+        return this;
+      },
+      send(b: any) {
+        this.body = b;
+        return this;
+      },
+      setHeader(k: string, v: any) {
+        this.headers[k] = v;
+      },
+      getHeader(k: string) {
+        return this.headers[k];
+      },
+      end() {},
+    };
+    await handler({ method, headers, query, body, cookies: {}, url: "/" }, res);
+    return res;
+  }
+
+  async function keyString(userId: string, workspaceId?: string, role?: string) {
+    const secret = randomId(24);
+    const token = await deps().prisma.userApiToken.create({
+      data: { hint: "x***", hash: createHash(secret), userId, workspaceId, role },
+    });
+    return `${token.id}:${secret}`;
+  }
+
+  it("assertNotLimitedKey refuses scoped and role-limited keys, not sessions or unrestricted keys", async () => {
+    const { user, a } = await seedTwoWorkspaces();
+    const scoped = await bearerUser(user.internalId, a.id);
+    const roleLimited = await bearerUser(user.internalId, undefined, "editor");
+    const unrestricted = await bearerUser(user.internalId);
+    expect(() => assertNotLimitedKey(scoped)).toThrow(/limited/);
+    expect(() => assertNotLimitedKey(roleLimited)).toThrow(/limited/);
+    expect(() => assertNotLimitedKey(unrestricted)).not.toThrow();
+    expect(() => assertNotLimitedKey({ ...unrestricted, authType: "next-auth" } as any)).not.toThrow();
+  });
+
+  it("a key limited to workspace A cannot read, accept or reject an invitation to workspace B", async () => {
+    const { user, a, b } = await seedTwoWorkspaces();
+    const invited = await deps().prisma.invitationToken.create({
+      data: { token: `inv-${randomId(12)}`, email: user.email, workspaceId: b.id, role: "owner" },
+    });
+    const scoped = await keyString(user.internalId, a.id);
+    const analyst = await keyString(user.internalId, undefined, "analyst");
+    for (const key of [scoped, analyst]) {
+      const list = await call(invitationsRoute, "GET", key);
+      expect(list.statusCode).toBe(403);
+      expect(JSON.stringify(list.body ?? "")).not.toContain(invited.token);
+      expect((await call(acceptRoute, "POST", key, { invitationToken: invited.token })).statusCode).toBe(403);
+      expect((await call(rejectRoute, "POST", key, { invitationToken: invited.token })).statusCode).toBe(403);
+    }
+    const stored = await deps().prisma.invitationToken.findUniqueOrThrow({ where: { id: invited.id } });
+    expect(stored.usedBy).toBeNull();
+  });
+
+  it("an unrestricted key and the user's own invitations keep working", async () => {
+    const { user, b } = await seedTwoWorkspaces();
+    const invited = await deps().prisma.invitationToken.create({
+      data: { token: `inv-${randomId(12)}`, email: user.email, workspaceId: b.id, role: "owner" },
+    });
+    const list = await call(invitationsRoute, "GET", await keyString(user.internalId));
+    expect(list.statusCode).toBe(200);
+    expect(JSON.stringify(list.body)).toContain(invited.token);
+  });
+
+  it("a limited key cannot list, rename or delete the user's keys", async () => {
+    const { user, a } = await seedTwoWorkspaces();
+    const unrestricted = await keyString(user.internalId);
+    const unrestrictedId = unrestricted.split(":")[0];
+    const scoped = await keyString(user.internalId, a.id);
+    expect((await call(initUserRoute, "GET", scoped)).statusCode).toBe(403);
+    expect((await call(keysRoute, "GET", scoped)).statusCode).toBe(403);
+    expect((await call(keysRoute, "PATCH", scoped, { name: "x" }, { id: unrestrictedId })).statusCode).toBe(403);
+    expect((await call(keysRoute, "DELETE", scoped, undefined, { id: unrestrictedId })).statusCode).toBe(403);
+    expect(await deps().prisma.userApiToken.count({ where: { id: unrestrictedId } })).toBe(1);
+    expect((await call(keysRoute, "GET", unrestricted)).statusCode).toBe(200);
   });
 });

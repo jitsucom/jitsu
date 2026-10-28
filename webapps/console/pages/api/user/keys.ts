@@ -1,4 +1,4 @@
-import { Api, inferUrl, nextJsApiHandler } from "../../../lib/api";
+import { Api, assertNotLimitedKey, inferUrl, nextJsApiHandler } from "../../../lib/api";
 import { ApiError } from "../../../lib/shared/errors";
 import { ApiKey } from "../../../lib/schema";
 import { z } from "zod";
@@ -28,6 +28,7 @@ const api: Api = {
       result: z.array(ApiKey),
     },
     handle: async ({ user }) => {
+      assertNotLimitedKey(user);
       const rows = await db.prisma().userApiToken.findMany({
         where: { userId: user.internalId },
         select: {
@@ -101,6 +102,7 @@ const api: Api = {
       result: ApiKey,
     },
     handle: async ({ user, query, body }) => {
+      assertNotLimitedKey(user);
       const existing = await db.prisma().userApiToken.findUnique({ where: { id: query.id } });
       if (!existing || existing.userId !== user.internalId) {
         throw new ApiError(`Key not found`, { status: 404 });
@@ -134,6 +136,7 @@ const api: Api = {
       result: z.object({ ok: z.boolean() }),
     },
     handle: async ({ user, query }) => {
+      assertNotLimitedKey(user);
       const existing = await db.prisma().userApiToken.findUnique({ where: { id: query.id } });
       if (!existing || existing.userId !== user.internalId) {
         throw new ApiError(`Key not found`, { status: 404 });
