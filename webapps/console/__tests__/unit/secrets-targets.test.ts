@@ -74,6 +74,34 @@ describe("Cloud SQL instance (Postgres private service connect)", () => {
   });
 });
 
+describe("Snowflake account (the host name is <account>.snowflakecomputing.com)", () => {
+  const stored = { destinationType: "snowflake", account: "orig-acct", username: "jitsu", password: "real" };
+
+  it("refuses unmasking into another account", () => {
+    const submitted = { ...stored, account: "attacker-acct", password: MASKED_SECRET };
+    expect(() => unmaskSecretsFromOriginal(submitted, stored)).toThrow(/account changed/);
+  });
+
+  it("refuses a saved config that moves to another account and keeps the password", () => {
+    const patch = { account: "attacker-acct" };
+    expect(() => assertSecretsStayWithTarget(stored, patch, { ...stored, ...patch }, ["password"])).toThrow(
+      /account changed/
+    );
+  });
+
+  it("unmasks when the account is the same", () => {
+    expect(unmaskSecretsFromOriginal({ ...stored, password: MASKED_SECRET }, stored)).toEqual(stored);
+  });
+
+  it("`account` on anything else is a plain label, not a target", () => {
+    const source = { account: "orig", password: "real" };
+    const submitted = { account: "other", password: MASKED_SECRET };
+    expect(changedConnectionTargets(submitted, source)).toEqual([]);
+    expect(unmaskSecretsFromOriginal(submitted, source)).toEqual({ account: "other", password: "real" });
+    expect(changedTargetFieldsBetween({ account: "other" }, source)).toEqual([]);
+  });
+});
+
 describe("TLS material is not a target", () => {
   it("rotating only the server CA keeps the stored password usable", () => {
     const stored = { host: "db.customer.com", password: "real", sslServerCA: "-----OLD CA-----" };

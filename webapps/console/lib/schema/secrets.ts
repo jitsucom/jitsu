@@ -182,6 +182,13 @@ const TLS_KEY = /ssl|tls|cert/i;
 
 const isTargetKey = (key: string) => CONNECTION_TARGET_KEY.test(key) && !TLS_KEY.test(key);
 
+// Snowflake's `account` becomes the host name (<account>.snowflakecomputing.com). The same word is a plain label on
+// some Airbyte sources, so it is a target only for a Snowflake destination.
+const targetKeyFor = (...roots: any[]): ((key: string) => boolean) =>
+  roots.some(root => root?.destinationType === "snowflake")
+    ? key => isTargetKey(key) || key === "account"
+    : isTargetKey;
+
 /** A list of plain values (ClickHouse and MongoDB `hosts`) is one target value, not a container to look inside. */
 const isValueList = (v: any) => Array.isArray(v) && v.every(item => item === null || typeof item !== "object");
 
@@ -191,22 +198,27 @@ const isValueList = (v: any) => Array.isArray(v) && v.every(item => item === nul
  * would be carried over to a different target.
  */
 export function changedConnectionTargets(object: any, original: any): string[] {
-  return containsMaskedSecrets(object) ? findChangedTargets(object, original, []) : [];
+  return containsMaskedSecrets(object) ? findChangedTargets(object, original, [], targetKeyFor(object, original)) : [];
 }
 
-function findChangedTargets(node: any, original: any, path: (string | number)[]): string[] {
+function findChangedTargets(
+  node: any,
+  original: any,
+  path: (string | number)[],
+  isTarget: (key: string) => boolean
+): string[] {
   if (Array.isArray(node)) {
-    return node.flatMap((item, index) => findChangedTargets(item, original, [...path, index]));
+    return node.flatMap((item, index) => findChangedTargets(item, original, [...path, index], isTarget));
   }
   if (!isPlainObject(node)) {
     return [];
   }
   return Object.entries(node).flatMap(([key, value]) => {
     const currentPath = [...path, key];
-    if ((isPlainObject(value) || Array.isArray(value)) && !(isTargetKey(key) && isValueList(value))) {
-      return findChangedTargets(value, original, currentPath);
+    if ((isPlainObject(value) || Array.isArray(value)) && !(isTarget(key) && isValueList(value))) {
+      return findChangedTargets(value, original, currentPath, isTarget);
     }
-    if (value === MASKED_SECRET || !isTargetKey(key)) {
+    if (value === MASKED_SECRET || !isTarget(key)) {
       return [];
     }
     return isEqual(value, get(original, currentPath)) ? [] : [currentPath.join(".")];
@@ -236,19 +248,28 @@ const isEmptyValue = (v: any) => v === undefined || v === null || v === "" || (A
  * Paths of connection target fields (host, url, endpoint...) whose value differs between two objects, an empty value
  * counting as no value. Unlike {@link changedConnectionTargets} it does not need a masked secret in the object.
  */
-export function changedTargetFieldsBetween(updated: any, original: any, path: (string | number)[] = []): string[] {
+export function changedTargetFieldsBetween(updated: any, original: any): string[] {
+  return targetFieldsBetween(updated, original, [], targetKeyFor(updated, original));
+}
+
+function targetFieldsBetween(
+  updated: any,
+  original: any,
+  path: (string | number)[],
+  isTarget: (key: string) => boolean
+): string[] {
   if (Array.isArray(updated)) {
-    return updated.flatMap((item, index) => changedTargetFieldsBetween(item, original, [...path, index]));
+    return updated.flatMap((item, index) => targetFieldsBetween(item, original, [...path, index], isTarget));
   }
   if (!isPlainObject(updated)) {
     return [];
   }
   return Object.entries(updated).flatMap(([key, value]) => {
     const currentPath = [...path, key];
-    if ((isPlainObject(value) || Array.isArray(value)) && !(isTargetKey(key) && isValueList(value))) {
-      return changedTargetFieldsBetween(value, original, currentPath);
+    if ((isPlainObject(value) || Array.isArray(value)) && !(isTarget(key) && isValueList(value))) {
+      return targetFieldsBetween(value, original, currentPath, isTarget);
     }
-    if (!isTargetKey(key)) {
+    if (!isTarget(key)) {
       return [];
     }
     const before = get(original, currentPath);

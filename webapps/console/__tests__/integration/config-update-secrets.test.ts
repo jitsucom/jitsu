@@ -118,6 +118,20 @@ describe("other kinds of connection targets", () => {
     });
   });
 
+  it("refuses another Snowflake account with the stored password", async () => {
+    const { user, workspace, id } = await seed("snowflake", {
+      authenticationMethod: "password",
+      account: "orig-acct",
+      warehouse: "wh",
+      database: "events",
+      username: "jitsu",
+      password: "hunter2",
+    });
+    await expect(
+      svc().update(user, workspace.id, "destination", id, { account: "attacker-acct" })
+    ).rejects.toMatchObject({ status: 400, message: expect.stringMatching(/password.*account changed/) });
+  });
+
   it("refuses a new Resend apiBase with the stored API key", async () => {
     const { user, workspace, id } = await seed("resend", { apiKey: "re_real", apiBase: "https://api.resend.com" });
     await expect(
