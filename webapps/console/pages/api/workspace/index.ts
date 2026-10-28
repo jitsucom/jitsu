@@ -1,4 +1,4 @@
-import { createRoute, isPlatformAdmin, verifyAccessWithRole } from "../../../lib/api";
+import { assertNotLimitedKey, createRoute, isPlatformAdmin, verifyAccessWithRole } from "../../../lib/api";
 import { z } from "zod";
 import { Prisma } from "@prisma/client";
 import { db } from "../../../lib/server/db";
@@ -138,6 +138,8 @@ export const route = createRoute()
     rateLimit: { bucket: "workspace-create", bearer: 2, session: 2, windowMs: 5 * 60_000 },
   })
   .handler(async ({ req, user, body }) => {
+    // creates a workspace and an owner membership on the user's account, outside whatever the key is limited to
+    assertNotLimitedKey(user);
     const nameResult = validateWorkspaceName(body.name || "");
     if (!nameResult.valid) {
       throw new ApiError(`Invalid workspace name: ${nameResult.reason}`, { status: 400 });

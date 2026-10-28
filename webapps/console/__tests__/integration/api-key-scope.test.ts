@@ -17,6 +17,7 @@ import rejectRoute from "../../pages/api/user/reject";
 import keysRoute from "../../pages/api/user/keys";
 import initUserRoute from "../../pages/api/init-user";
 import becomeRoute from "../../pages/api/admin/become";
+import workspaceRoute from "../../pages/api/workspace/index";
 import { assertCanCreateKey, resolveKeyWorkspace } from "../../lib/server/key-creation";
 import { AuthChecker } from "../../lib/server/mcp-server/auth";
 import { OAuthHandlers } from "../../lib/server/mcp-server/oauth";
@@ -343,6 +344,22 @@ describe("account-level endpoints and limited keys", () => {
     }
     const stored = await deps().prisma.invitationToken.findUniqueOrThrow({ where: { id: invited.id } });
     expect(stored.usedBy).toBeNull();
+  });
+
+  it("a limited key cannot create a workspace, an unrestricted key can", async () => {
+    const { user, a } = await seedTwoWorkspaces();
+    const before = await deps().prisma.workspaceAccess.count({ where: { userId: user.internalId } });
+    const body = () => ({ name: `Created ${randomId(6)}`, slug: `created-${randomId(8).toLowerCase()}` });
+    for (const key of [
+      await keyString(user.internalId, a.id),
+      await keyString(user.internalId, undefined, "analyst"),
+    ]) {
+      expect((await call(workspaceRoute, "POST", key, body())).statusCode).toBe(403);
+    }
+    expect(await deps().prisma.workspaceAccess.count({ where: { userId: user.internalId } })).toBe(before);
+    const ok = await call(workspaceRoute, "POST", await keyString(user.internalId), body());
+    expect(ok.statusCode).toBe(200);
+    expect(await deps().prisma.workspaceAccess.count({ where: { userId: user.internalId } })).toBe(before + 1);
   });
 
   it("a limited key of a platform admin cannot become another user", async () => {
