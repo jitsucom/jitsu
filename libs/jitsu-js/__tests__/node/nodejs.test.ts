@@ -1,7 +1,7 @@
 import { createServer, SimpleSyrup } from "../simple-syrup";
 import { AnalyticsClientEvent, AnalyticsInterface } from "@jitsu/protocols/analytics";
 import { getTopLevelDomain } from "../../src/tlds";
-import { jitsuAnalytics } from "../../src";
+import { emptyRuntime, jitsuAnalytics, parseQuery } from "../../src";
 
 describe("Test Jitsu NodeJS client", () => {
   let server: SimpleSyrup;
@@ -270,6 +270,32 @@ describe("Test Jitsu NodeJS client", () => {
     expect(requestLog[1].body.context.awesome.nestedKey).toBe("awesome-key");
     expect(requestLog[2].body.context.awesomeIdentifier).toBe("awesome-identifier");
     expect(requestLog[2].body.context.awesome.nestedKey).toBe("awesome-key");
+  });
+
+  test("a stray % in the page URL does not drop the event", async () => {
+    const config = {
+      host: server.baseUrl,
+      writeKey: "key:secret",
+    };
+    const runtime = {
+      ...emptyRuntime(config),
+      pageUrl: () => "https://shop.example.com/sale?discount=50%&utm_source=newsletter",
+    };
+    const client = jitsuAnalytics({ ...config, runtime });
+    await Promise.race([client.track("Sale Viewed"), new Promise(resolve => setTimeout(resolve, 2000))]);
+    await new Promise(resolve => setTimeout(resolve, 500));
+
+    expect(requestLog.length).toBe(1);
+    expect(requestLog[0].body.event).toBe("Sale Viewed");
+    expect(requestLog[0].body.context.campaign).toEqual({ source: "newsletter" });
+  });
+
+  test("parseQuery keeps malformed percent-encoding as is", () => {
+    expect(parseQuery("?discount=50%&utm_source=news%20letter")).toEqual({
+      discount: "50%",
+      utm_source: "news letter",
+    });
+    expect(parseQuery("?q=%E0%A4%A")).toEqual({ q: "%E0%A4%A" });
   });
 
   test("node-js", async () => {
