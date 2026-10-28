@@ -1,6 +1,7 @@
 import { AnalyticsClientEvent } from "@jitsu/protocols/analytics";
 import { applyFilters, CommonDestinationCredentials, InternalPlugin } from "./index";
 import { isInBrowser, randomId } from "../analytics-plugin";
+import { replaceMacro } from "./tag-macro";
 
 export type TagDestinationCredentials = {
   code: string;
@@ -78,8 +79,4 @@ function execJs(code: string, event: any) {
     delete window[varName];
   }
   return iif;
-}
-
-function replaceMacro(code, event) {
-  return code.replace(/{{\s*event\s*}}/g, JSON.stringify(event));
 }
