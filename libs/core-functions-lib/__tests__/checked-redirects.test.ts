@@ -124,4 +124,46 @@ describe("fetchWithCheckedRedirects", () => {
     });
     expect(headersOf(calls[1])).toEqual({ authorization: "Bearer x" });
   });
+
+  describe("keeps the caller's redirect policy", () => {
+    const routes = () => ({
+      "https://a.example/": redirect(307, "https://b.example/in"),
+      "https://b.example/in": ok("followed"),
+    });
+
+    it('with "manual" returns the redirect itself and neither checks nor requests the target', async () => {
+      const { fetchOnce, calls } = fakeFetch(routes());
+      const checked: string[] = [];
+      const res = await fetchWithCheckedRedirects(
+        fetchOnce,
+        async url => {
+          checked.push(url.href);
+        },
+        "https://a.example/",
+        { method: "POST", body: "payload", redirect: "manual" }
+      );
+      expect([res.status, res.headers.get("location")]).toEqual([307, "https://b.example/in"]);
+      expect(calls.map(c => c.url)).toEqual(["https://a.example/"]);
+      expect(checked).toEqual([]);
+    });
+
+    it('with "error" rejects and does not replay the body to the target', async () => {
+      const { fetchOnce, calls } = fakeFetch(routes());
+      await expect(
+        fetchWithCheckedRedirects(fetchOnce, allowAll, "https://a.example/", {
+          method: "POST",
+          body: "payload",
+          redirect: "error",
+        })
+      ).rejects.toThrow(/unexpected redirect/);
+      expect(calls.map(c => c.url)).toEqual(["https://a.example/"]);
+    });
+
+    it.each([undefined, "follow"])("with %s follows it", async redirect => {
+      const { fetchOnce, calls } = fakeFetch(routes());
+      const res = await fetchWithCheckedRedirects(fetchOnce, allowAll, "https://a.example/", { redirect });
+      expect(await res.text()).toBe("followed");
+      expect(calls.map(c => c.url)).toEqual(["https://a.example/", "https://b.example/in"]);
+    });
+  });
 });

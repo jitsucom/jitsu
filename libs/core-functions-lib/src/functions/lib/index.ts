@@ -45,6 +45,7 @@ import NodeCache from "node-cache";
 // on whatever the Node runtime happens to bundle.
 import { fetch as undiciFetch, type RequestInit as UndiciRequestInit } from "undici";
 import { createGuardedAgent, normalizeHostname } from "./guarded-agent";
+import { isBlockedAddress } from "./public-address";
 import { fetchWithCheckedRedirects } from "./checked-redirects";
 
 // This module also runs inside the Deno-based functions-server (UDF sandbox), which
@@ -556,7 +557,8 @@ export const makeFetch = (
       return false;
     }
     for (const addr of addresses) {
-      if (isPrivateIP(addr.address)) {
+      // same classifier as the connect-time guard: it also decodes IPv4-mapped forms such as ::ffff:7f00:1
+      if (isBlockedAddress(addr.address)) {
         publicHostnamesCache.set(hostname, false);
         return false;
       }

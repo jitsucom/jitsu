@@ -25,6 +25,8 @@ export async function fetchWithCheckedRedirects(
   init: RedirectInit = {},
   maxRedirects: number = MAX_REDIRECTS
 ): Promise<Response> {
+  // The caller's policy is kept: "manual" hands the redirect back, "error" refuses it, only "follow" is followed here
+  const policy = init.redirect ?? "follow";
   let currentUrl = url;
   let currentInit: RedirectInit = { ...init, redirect: "manual" };
   for (let hop = 0; ; hop++) {
@@ -33,7 +35,13 @@ export async function fetchWithCheckedRedirects(
     if (!REDIRECT_STATUSES.has(res.status) || !location) {
       return res;
     }
+    if (policy === "manual") {
+      return res;
+    }
     await res.body?.cancel().catch(() => {});
+    if (policy === "error") {
+      throw new TypeError(`fetch failed: unexpected redirect to ${location}`);
+    }
     if (hop >= maxRedirects) {
       throw new Error(`fetch failed: more than ${maxRedirects} redirects`);
     }
