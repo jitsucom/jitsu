@@ -9,7 +9,8 @@ export type SerializedResponse = {
   type: string;
   redirected: boolean;
   headers: [string, string][];
-  body: Uint8Array;
+  /** bytes; a string is accepted for producers that still send the decoded text */
+  body: Uint8Array | string;
 };
 
 export async function serializeResponse(res: Response): Promise<SerializedResponse> {
@@ -34,7 +35,11 @@ const nullBodyStatuses = new Set([101, 204, 205, 304]);
  * fetch: a UDF that reads text() for a diagnostic and then json() must keep working.
  */
 export function deserializeResponse(s: SerializedResponse): Response {
-  const bytes = nullBodyStatuses.has(s.status) ? new Uint8Array(0) : s.body;
+  const bytes = nullBodyStatuses.has(s.status)
+    ? new Uint8Array(0)
+    : typeof s.body === "string"
+    ? new TextEncoder().encode(s.body)
+    : s.body;
   const res = new Response(nullBodyStatuses.has(s.status) ? null : bytes, {
     status: s.status,
     statusText: s.statusText,

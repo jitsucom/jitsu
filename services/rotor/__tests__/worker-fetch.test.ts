@@ -49,6 +49,22 @@ describe("proxied fetch response", () => {
     expect(Array.from(new Uint8Array(await res.arrayBuffer()))).toEqual([1, 2, 3]);
   });
 
+  it("accepts the shape the Functions Debugger used to send: a decoded text body and a plain headers object", async () => {
+    const res = deserializeResponse({
+      status: 200,
+      statusText: "OK",
+      ok: true,
+      url: "https://example.com/",
+      type: "basic",
+      redirected: false,
+      headers: { "content-type": "application/json" } as any,
+      body: '{"a":1}',
+    });
+    expect(res.headers.get("content-type")).toBe("application/json");
+    expect(await res.text()).toBe('{"a":1}');
+    expect(await res.json()).toEqual({ a: 1 });
+  });
+
   it("carries url, type and redirected, which the constructor cannot set", async () => {
     const s = await serializeResponse(original());
     const res = deserializeResponse({ ...s, url: "https://example.com/x", type: "basic", redirected: true });
