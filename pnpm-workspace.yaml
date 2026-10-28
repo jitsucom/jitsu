@@ -1,3 +1,6 @@
+patchedDependencies:
+  "@clickhouse/client@1.18.3": patches/@clickhouse__client@1.18.3.patch
+
 packages:
   - e2e
   - examples/*

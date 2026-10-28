@@ -134,6 +134,11 @@ overrides:
   '@vitest/mocker@<4.1.12': ^4.1.12
   websocket-driver@<0.7.5: ^0.7.5
 
+patchedDependencies:
+  '@clickhouse/client@1.18.3':
+    hash: a25df4b75d235ea32174d1998782b7b0a041e739370361a52c1b3495358daf1b
+    path: patches/@clickhouse__client@1.18.3.patch
+
 importers:
 
   .:
@@ -698,7 +703,7 @@ importers:
     dependencies:
       '@clickhouse/client':
         specifier: ^1.18.3
-        version: 1.18.3
+        version: 1.18.3(patch_hash=a25df4b75d235ea32174d1998782b7b0a041e739370361a52c1b3495358daf1b)
       google-auth-library:
         specifier: ^10.6.2
         version: 10.6.2
@@ -802,7 +807,7 @@ importers:
         version: 3.1029.0
       '@clickhouse/client':
         specifier: ^1.18.3
-        version: 1.18.3
+        version: 1.18.3(patch_hash=a25df4b75d235ea32174d1998782b7b0a041e739370361a52c1b3495358daf1b)
       '@clickhouse/client-web':
         specifier: ^1.18.3
         version: 1.18.3
@@ -966,7 +971,7 @@ importers:
         version: 7.3.4(zod@3.25.76)
       '@clickhouse/client':
         specifier: ^1.18.3
-        version: 1.18.3
+        version: 1.18.3(patch_hash=a25df4b75d235ea32174d1998782b7b0a041e739370361a52c1b3495358daf1b)
       '@dnd-kit/core':
         specifier: ^6.0.8
         version: 6.3.1(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
@@ -12004,7 +12009,7 @@ snapshots:
     dependencies:
       '@clickhouse/client-common': 1.18.3
 
-  '@clickhouse/client@1.18.3':
+  '@clickhouse/client@1.18.3(patch_hash=a25df4b75d235ea32174d1998782b7b0a041e739370361a52c1b3495358daf1b)':
     dependencies:
       '@clickhouse/client-common': 1.18.3
 

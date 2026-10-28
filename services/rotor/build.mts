@@ -1,16 +1,14 @@
 import * as esbuild from "esbuild";
-import { writeFileSync, mkdirSync, rmSync, statSync, readdirSync } from "fs";
+import { copyFileSync, readFileSync, mkdirSync, rmSync, statSync, readdirSync } from "fs";
 import { execSync } from "child_process";
 import { join } from "path";
 
-// Native modules that need to be external and installed with their versions
-const nativeDeps = {
-  "@confluentinc/kafka-javascript": "1.9.0",
-  "@mongodb-js/zstd": "2.0.0",
-  esbuild: "0.27.0",
-  mongodb: "6.12.0",
-  "prom-client": "15.1.3",
-};
+// Dependencies kept outside the bundle have their own lockfile, including
+// transitive dependencies. Install them for the target platform with npm ci.
+const runtimeDepsDir = new URL("./runtime-deps/", import.meta.url);
+const nativeDeps: Record<string, string> = JSON.parse(
+  readFileSync(new URL("package.json", runtimeDepsDir), "utf8")
+).dependencies;
 
 // External deps for Deno functions-server.
 // Only runtime-compiled code and native binaries stay external.
@@ -179,11 +177,12 @@ esbuild
     mkdirSync("dist", { recursive: true });
     // Remove old node_modules to force recompilation of native addons for current platform
     rmSync("dist/node_modules", { recursive: true, force: true });
-    writeFileSync("dist/package.json", JSON.stringify({ dependencies: nativeDeps }, null, 2));
+    copyFileSync(new URL("package.json", runtimeDepsDir), "dist/package.json");
+    copyFileSync(new URL("package-lock.json", runtimeDepsDir), "dist/package-lock.json");
 
     // Install native deps
     console.log("Installing native dependencies...");
-    execSync("cd dist && npm install --prod --no-package-lock", { stdio: "inherit" });
+    execSync("npm ci --omit=dev --no-audit --no-fund", { cwd: "dist", stdio: "inherit" });
 
     // Show sizes
     function getDirSize(dirPath: string): number {
