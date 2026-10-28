@@ -25,6 +25,7 @@ ENV NPM_CONFIG_STORE_DIR=/pnpm-store
 
 # Copy only the files needed for dependency fetching and Playwright version extraction
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+COPY patches ./patches
 COPY libs/jitsu-js/package.json ./libs/jitsu-js/package.json
 
 # Extract Playwright version before cleanup
@@ -37,7 +38,7 @@ RUN PLAYWRIGHT_VERSION=$(jq -r '.devDependencies["@playwright/test"]' ./libs/jit
 # The store will be available to all.Dockerfile when it uses this image as builder
 # Use --ignore-scripts to skip compilation - only fetch source packages
 RUN pnpm fetch --ignore-scripts --loglevel debug --verbose
-RUN rm -rf /package.json /pnpm-lock.yaml /pnpm-workspace.yaml /libs
+RUN rm -rf /package.json /pnpm-lock.yaml /pnpm-workspace.yaml /patches /libs
 
 # Install Playwright globally with pnpm
 RUN PLAYWRIGHT_VERSION=$(cat /tmp/playwright-version.txt) && \

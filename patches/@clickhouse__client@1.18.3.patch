@@ -1,0 +1,14 @@
+diff --git a/dist/utils/encoder.js b/dist/utils/encoder.js
+--- a/dist/utils/encoder.js
++++ b/dist/utils/encoder.js
+@@ -24,7 +24,9 @@ class NodeValuesEncoder {
+                 return values;
+             }
+             // JSON* formats streams
+-            return stream_1.default.pipeline(values, (0, stream_2.mapStream)((value) => (0, client_common_1.encodeJSON)(value, format, this.json.stringify)), pipelineCb);
++            // Node 24.22.x can lose 'drain' for chunked non-ASCII strings.
++            // Keep UTF-8 byte accounting consistent: https://github.com/nodejs/node/issues/66781
++            return stream_1.default.pipeline(values, (0, stream_2.mapStream)((value) => Buffer.from((0, client_common_1.encodeJSON)(value, format, this.json.stringify), 'utf8')), pipelineCb);
+         }
+         // JSON* arrays
+         if (Array.isArray(values)) {
