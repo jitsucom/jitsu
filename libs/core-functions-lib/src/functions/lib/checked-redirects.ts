@@ -18,6 +18,15 @@ type RedirectInit = {
   [key: string]: any;
 };
 
+/** Each hop is fetched on its own, so the final response does not know it is the end of a chain; native fetch says so. */
+function asRedirected(res: Response, finalUrl: string): Response {
+  Object.defineProperty(res, "redirected", { value: true, configurable: true });
+  if (!res.url) {
+    Object.defineProperty(res, "url", { value: finalUrl, configurable: true });
+  }
+  return res;
+}
+
 export async function fetchWithCheckedRedirects(
   fetchOnce: (url: string, init: any) => Promise<Response>,
   assertAllowed: (url: URL) => Promise<void>,
@@ -33,7 +42,7 @@ export async function fetchWithCheckedRedirects(
     const res = await fetchOnce(currentUrl, currentInit);
     const location = res.headers.get("location");
     if (!REDIRECT_STATUSES.has(res.status) || !location) {
-      return res;
+      return hop > 0 ? asRedirected(res, currentUrl) : res;
     }
     if (policy === "manual") {
       return res;

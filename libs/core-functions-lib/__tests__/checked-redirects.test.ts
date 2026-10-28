@@ -125,6 +125,33 @@ describe("fetchWithCheckedRedirects", () => {
     expect(headersOf(calls[1])).toEqual({ authorization: "Bearer x" });
   });
 
+  describe("Response.redirected, as native fetch reports it", () => {
+    it("is false when nothing was followed", async () => {
+      const { fetchOnce } = fakeFetch({ "https://a.example/": ok() });
+      const res = await fetchWithCheckedRedirects(fetchOnce, allowAll, "https://a.example/");
+      expect(res.redirected).toBe(false);
+    });
+
+    it("is true after one redirect, with the url of the final hop", async () => {
+      const { fetchOnce } = fakeFetch({
+        "https://a.example/": redirect(302, "https://b.example/final"),
+        "https://b.example/final": ok("done"),
+      });
+      const res = await fetchWithCheckedRedirects(fetchOnce, allowAll, "https://a.example/");
+      expect([res.redirected, res.url, await res.text()]).toEqual([true, "https://b.example/final", "done"]);
+    });
+
+    it("is true after a chain", async () => {
+      const { fetchOnce } = fakeFetch({
+        "https://a.example/": redirect(301, "/b"),
+        "https://a.example/b": redirect(307, "/c"),
+        "https://a.example/c": ok(),
+      });
+      const res = await fetchWithCheckedRedirects(fetchOnce, allowAll, "https://a.example/");
+      expect([res.redirected, res.url]).toEqual([true, "https://a.example/c"]);
+    });
+  });
+
   describe("keeps the caller's redirect policy", () => {
     const routes = () => ({
       "https://a.example/": redirect(307, "https://b.example/in"),
