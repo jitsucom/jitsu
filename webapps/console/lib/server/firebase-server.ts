@@ -190,8 +190,6 @@ export async function linkFirebaseUser(firebaseId: string, internalId: string) {
 }
 
 export const sessionLifetimeMs = 60 * 60 * 24 * 5 * 1000;
-// Sessions minted by an admin "become" are short-lived: they carry the `impersonatedBy` claim
-export const impersonationSessionLifetimeMs = 60 * 60 * 1000;
 
 export async function createSessionCookie(
   idToken: string,

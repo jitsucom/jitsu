@@ -6,13 +6,13 @@ import {
   firebase,
   firebaseAuthCookieName,
   getAuthCookieDomain,
-  impersonationSessionLifetimeMs,
   isUnverifiedPasswordAccount,
 } from "../../../lib/server/firebase-server";
 import { ApiError } from "../../../lib/shared/errors";
 import { SerializeOptions, serialize } from "cookie";
 import { getAppEndpoint } from "../../../lib/domains";
 import { getServerLog } from "../../../lib/server/log";
+import { impersonationCookieLifetimeMs, impersonationState } from "../../../lib/shared/impersonation";
 
 const log = getServerLog("firebase");
 
@@ -46,15 +46,21 @@ export const api: Api = {
       if (isUnverifiedPasswordAccount(decodedIdToken)) {
         throw new ApiError("Email address is not verified", { status: 403 });
       }
-      const impersonated = !!decodedIdToken.impersonatedBy;
-      // auth_time survives token refreshes, so a "become" session cannot be extended past its first hour
-      if (impersonated && Date.now() - decodedIdToken.auth_time * 1000 > impersonationSessionLifetimeMs) {
+      // auth_time survives token refreshes, so a "become" session cannot be extended past its first hour,
+      // and the cookie is cut to what is left of that hour rather than getting a fresh one
+      const imp = impersonationState(decodedIdToken);
+      if (imp.impersonated && imp.expired) {
         throw new ApiError("Impersonation session expired", { status: 401 });
       }
-      const { cookie, expiresIn } = await createSessionCookie(
-        idToken,
-        impersonated ? impersonationSessionLifetimeMs : undefined
-      );
+      let cookieLifetime: number | undefined;
+      if (imp.impersonated) {
+        cookieLifetime = impersonationCookieLifetimeMs(imp.remainingMs);
+        if (cookieLifetime === undefined) {
+          // under Firebase's five-minute minimum: the cookie already issued ends by the same deadline
+          return { ok: true };
+        }
+      }
+      const { cookie, expiresIn } = await createSessionCookie(idToken, cookieLifetime);
 
       // Audit logging lives in /api/fb-auth/audit-login which the client
       // calls only at the actual sign-in moment. This endpoint is hit on
