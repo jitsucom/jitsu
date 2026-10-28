@@ -73,7 +73,8 @@ export const api: Api = {
       // Never log the cookie value itself — it's a bearer session credential.
       log.atDebug().log(`Setting firebase auth cookie (domain: ${domain ?? "host-only"}, maxAge: ${expiresIn}ms)`);
       const options: SerializeOptions = {
-        maxAge: expiresIn,
+        // `cookie` takes seconds, expiresIn is milliseconds
+        maxAge: Math.floor(expiresIn / 1000),
         httpOnly: true,
         secure,
         path: "/",
