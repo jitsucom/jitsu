@@ -54,6 +54,26 @@ describe("API base (Resend, SendGrid)", () => {
   });
 });
 
+describe("Cloud SQL instance (Postgres private service connect)", () => {
+  const stored = { authenticationMethod: "google-psc", instanceConnectionName: "proj:region:orig", password: "real" };
+
+  it("refuses unmasking into another instance", () => {
+    const submitted = { ...stored, instanceConnectionName: "attacker-proj:region:evil", password: MASKED_SECRET };
+    expect(() => unmaskSecretsFromOriginal(submitted, stored)).toThrow(/instanceConnectionName changed/);
+  });
+
+  it("refuses a saved config that moves to another instance and keeps the password", () => {
+    const patch = { instanceConnectionName: "attacker-proj:region:evil" };
+    expect(() => assertSecretsStayWithTarget(stored, patch, { ...stored, ...patch }, ["password"])).toThrow(
+      /instanceConnectionName changed/
+    );
+  });
+
+  it("unmasks when the instance is the same", () => {
+    expect(unmaskSecretsFromOriginal({ ...stored, password: MASKED_SECRET }, stored)).toEqual(stored);
+  });
+});
+
 describe("TLS material is not a target", () => {
   it("rotating only the server CA keeps the stored password usable", () => {
     const stored = { host: "db.customer.com", password: "real", sslServerCA: "-----OLD CA-----" };

@@ -102,6 +102,22 @@ describe("other kinds of connection targets", () => {
     ).rejects.toMatchObject({ status: 400, message: expect.stringMatching(/password.*hosts changed/) });
   });
 
+  it("refuses another Cloud SQL instance (Postgres private service connect) with the stored password", async () => {
+    const { user, workspace, id } = await seed("postgres", {
+      authenticationMethod: "google-psc",
+      instanceConnectionName: "proj:region:orig",
+      database: "events",
+      username: "jitsu",
+      password: "hunter2",
+    });
+    await expect(
+      svc().update(user, workspace.id, "destination", id, { instanceConnectionName: "attacker-proj:region:evil" })
+    ).rejects.toMatchObject({
+      status: 400,
+      message: expect.stringMatching(/password.*instanceConnectionName changed/),
+    });
+  });
+
   it("refuses a new Resend apiBase with the stored API key", async () => {
     const { user, workspace, id } = await seed("resend", { apiKey: "re_real", apiBase: "https://api.resend.com" });
     await expect(

@@ -175,7 +175,8 @@ export function unmaskSecretsFromOriginal(object: any, dbEntity: any, comparedWi
 // Fields that decide where a credential is sent: host, url, endpoint, an API base, etc.
 // `port` is left out on purpose: the submitted object is parsed with schema defaults, so a default port
 // shows up as a difference against a stored config that never had one, and a port alone does not change the host
-const CONNECTION_TARGET_KEY = /host|url|uri|endpoint|server|address|domain|api_?base/i;
+// `instanceConnectionName` is the Cloud SQL instance a Postgres connection goes to (private service connect)
+const CONNECTION_TARGET_KEY = /host|url|uri|endpoint|server|address|domain|api_?base|instance_?connection_?name/i;
 // TLS material (`sslServerCA` contains "server") says how to trust the target, not where it is
 const TLS_KEY = /ssl|tls|cert/i;
 
