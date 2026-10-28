@@ -9,6 +9,7 @@ import { WORK_EMAIL_REQUIRED_MESSAGE } from "../lib/shared/email-domains";
 import { Button, Modal } from "antd";
 import { encrypt, getLog, randomId, rpc } from "juava";
 import { useUserSessionControls } from "../lib/context";
+import { isLocalCliRedirect } from "../lib/auth-redirect";
 
 const log = getLog("index");
 
@@ -50,8 +51,8 @@ function WorkspaceRedirect() {
     const origin = router.query.origin as string;
     const redirect = (router.query.redirect as string) ?? "";
     const redir = (query: string) => {
-      if (redirect.match(/http:\/\/localhost:\d{4,5}\//)) {
-        window.location.href = `${router.query.redirect}?${query}`;
+      if (isLocalCliRedirect(redirect)) {
+        window.location.href = `${redirect}?${query}`;
       } else {
         router.push(`/cli?${query}`);
       }
