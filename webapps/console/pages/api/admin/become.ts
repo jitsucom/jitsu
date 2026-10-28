@@ -2,7 +2,7 @@
  * Pre-existing implicit-`any` debt, exempted when the unsafe-any gate was
  * introduced for pages/api/admin (JITSU-158 action item 3). Fix the `any`
  * flows in this file, then remove this header - do not add new ones. */
-import { createRoute } from "../../../lib/api";
+import { assertNotLimitedKey, createRoute } from "../../../lib/api";
 import { z } from "zod";
 import { assertDefined, assertTrue, requireDefined } from "juava";
 import { firebase, isFirebaseEnabled } from "../../../lib/server/firebase-server";
@@ -29,6 +29,8 @@ export default createRoute()
     }),
   })
   .handler(async ({ req, user, body }) => {
+    // a key limited to a workspace or role must not turn into an unrestricted session by becoming a user
+    assertNotLimitedKey(user);
     await check(user);
 
     const firebaseUser = await firebase().auth().getUser(body.externalId);

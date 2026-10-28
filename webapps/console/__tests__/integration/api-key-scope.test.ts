@@ -16,6 +16,7 @@ import acceptRoute from "../../pages/api/user/accept";
 import rejectRoute from "../../pages/api/user/reject";
 import keysRoute from "../../pages/api/user/keys";
 import initUserRoute from "../../pages/api/init-user";
+import becomeRoute from "../../pages/api/admin/become";
 import { assertCanCreateKey, resolveKeyWorkspace } from "../../lib/server/key-creation";
 import { AuthChecker } from "../../lib/server/mcp-server/auth";
 import { OAuthHandlers } from "../../lib/server/mcp-server/oauth";
@@ -342,6 +343,17 @@ describe("account-level endpoints and limited keys", () => {
     }
     const stored = await deps().prisma.invitationToken.findUniqueOrThrow({ where: { id: invited.id } });
     expect(stored.usedBy).toBeNull();
+  });
+
+  it("a limited key of a platform admin cannot become another user", async () => {
+    const admin = await seedWorkspace({ admin: true });
+    const scoped = await keyString(admin.user.internalId, admin.workspace.id);
+    const analyst = await keyString(admin.user.internalId, undefined, "analyst");
+    for (const key of [scoped, analyst]) {
+      const res = await call(becomeRoute, "POST", key, { externalId: admin.user.externalId });
+      expect(res.statusCode).toBe(403);
+      expect(JSON.stringify(res.body)).toMatch(/limited to a workspace or role/);
+    }
   });
 
   it("an unrestricted key and the user's own invitations keep working", async () => {
