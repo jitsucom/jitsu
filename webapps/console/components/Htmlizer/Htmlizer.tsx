@@ -23,12 +23,20 @@ const ALLOWED_TAGS = [
 ];
 const ALLOWED_ATTR = ["href", "class", "style", "target", "rel"];
 
+// Own instance: hooks are registered on the shared default one (the billing banner strips every non-relative href),
+// and must not change what links survive here
+let purifier: ReturnType<typeof DOMPurify> | undefined;
+
 export const sanitizeHtml = (html: string): string | undefined => {
   // Without a DOM (server render) DOMPurify returns its input untouched, so give up on markup instead
-  if (!DOMPurify.isSupported) {
+  if (typeof window === "undefined") {
     return undefined;
   }
-  return DOMPurify.sanitize(html, { ALLOWED_TAGS, ALLOWED_ATTR });
+  purifier ??= DOMPurify(window);
+  if (!purifier.isSupported) {
+    return undefined;
+  }
+  return purifier.sanitize(html, { ALLOWED_TAGS, ALLOWED_ATTR });
 };
 
 export const Htmlizer: React.FC<PropsWithChildren<{}>> = ({ children }) => {

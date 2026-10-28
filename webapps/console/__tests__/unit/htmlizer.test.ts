@@ -3,6 +3,7 @@ import React from "react";
 import { afterEach, describe, expect, it } from "vitest";
 import { cleanup, render } from "@testing-library/react";
 import Convert from "ansi-to-html";
+import DOMPurify from "dompurify";
 import { Htmlizer } from "../../components/Htmlizer/Htmlizer";
 
 afterEach(cleanup);
@@ -22,6 +23,23 @@ describe("Htmlizer", () => {
     expect(container.querySelector("code")).not.toBeNull();
     expect(container.querySelector("a")?.getAttribute("href")).toBe("https://example.com/docs");
     expect(container.querySelector("li")?.textContent).toBe("one");
+  });
+
+  it("keeps https links after the billing banner hooks the shared DOMPurify", () => {
+    // same hook as BillingBanners: drop every href that is not a workspace-relative path
+    DOMPurify.addHook("afterSanitizeAttributes", node => {
+      if (node.tagName === "A" && !(node.getAttribute("href") || "").startsWith("/")) {
+        node.removeAttribute("href");
+      }
+    });
+    try {
+      const { container } = render(
+        React.createElement(Htmlizer, null, `<a href="https://clickhouse.com/docs/async-insert">docs</a>`)
+      );
+      expect(container.querySelector("a")?.getAttribute("href")).toBe("https://clickhouse.com/docs/async-insert");
+    } finally {
+      DOMPurify.removeAllHooks();
+    }
   });
 
   it("strips scripts, event handlers and javascript: links", () => {
