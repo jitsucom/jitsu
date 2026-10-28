@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import crypto from "node:crypto";
-import { createHash, randomId } from "juava";
+import { randomId } from "juava";
 import { deps, seedWorkspace } from "./support/harness";
 import { AuthChecker } from "../../lib/server/mcp-server/auth";
 import { OAuthHandlers } from "../../lib/server/mcp-server/oauth";
