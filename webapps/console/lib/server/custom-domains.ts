@@ -4,7 +4,8 @@ import { getLog, requireDefined } from "juava";
 import { httpAgent, httpsAgent } from "./http-agent";
 import { z } from "zod";
 import { WorkspaceDbModel } from "../../prisma/schema";
-import { Prisma } from "@prisma/client";
+import { Prisma, PrismaClient } from "@prisma/client";
+import { ApiError } from "../shared/errors";
 import { getServerEnv } from "./serverEnv";
 
 type DomainAvailability = { available: true; usedInWorkspaces?: never } | { available: false; usedInWorkspace: string };
@@ -69,6 +70,37 @@ export async function isDomainAvailable(
   } else {
     return { available: true };
   }
+}
+
+/** Domains an object of this type claims: stream `domains`, domain `name`. */
+function claimedDomains(type: string, object: any): string[] {
+  const names = type === "stream" ? object?.domains : type === "domain" ? [object?.name] : [];
+  return (names ?? []).filter(Boolean).map((d: string) => d.trim().toLowerCase());
+}
+
+/**
+ * isDomainAvailable() followed by an insert is check-then-act: two workspaces claiming the same domain at the same
+ * moment both pass the check. Writes that claim a domain run under one global lock and repeat the check after taking
+ * it, so the second claim sees the first (the lock is released at commit).
+ */
+export async function writeClaimingDomains<T>(
+  prisma: PrismaClient,
+  workspace: z.infer<typeof WorkspaceDbModel>,
+  type: string,
+  object: unknown,
+  write: (db: Prisma.TransactionClient) => Promise<T>
+): Promise<T> {
+  const domains = claimedDomains(type, object);
+  if (domains.length === 0) return write(prisma);
+  return prisma.$transaction(async tx => {
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended('domain-claim', 0))`;
+    for (const domain of domains) {
+      if (!(await isDomainAvailable(domain, workspace)).available) {
+        throw new ApiError(`Domain ${domain} is already in use by other workspace`);
+      }
+    }
+    return write(tx);
+  });
 }
 
 export async function resolveCname(domain: string): Promise<string | undefined> {

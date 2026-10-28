@@ -43,6 +43,26 @@ describe("domain objects are unique across workspaces (JITSU-255)", () => {
   });
 });
 
+describe("simultaneous claims of one domain (JITSU-255)", () => {
+  it("lets exactly one workspace win, for domain objects and stream domains alike", async () => {
+    for (let round = 0; round < 10; round++) {
+      const name = `race-${randomId(8).toLowerCase()}.victim.example`;
+      const a = await seedWorkspace();
+      const b = await seedWorkspace();
+      const results = await Promise.allSettled([
+        svc().create(a.user, a.workspace.id, "domain", { name }, { generateId: true }),
+        svc().create(b.user, b.workspace.id, "stream", { name: "site", domains: [name] }, { generateId: true }),
+      ]);
+      expect(results.filter(r => r.status === "fulfilled")).toHaveLength(1);
+      expect(
+        await deps().prisma.configurationObject.count({
+          where: { workspaceId: { in: [a.workspace.id, b.workspace.id] }, type: { in: ["domain", "stream"] } },
+        })
+      ).toBe(1);
+    }
+  });
+});
+
 describe("domain collisions are decided on label boundaries (JITSU-255)", () => {
   async function claim(workspaceId: string, name: string) {
     await deps().prisma.configurationObject.create({
