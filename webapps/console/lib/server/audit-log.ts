@@ -266,6 +266,49 @@ export async function authAuditLog(
   // auth events are info severity — no email dispatch.
 }
 
+/**
+ * An admin signed in as another user ("become"). Written with security severity and always logged, since
+ * the audit table is optional (CONSOLE_ENABLE_AUDIT_LOG) and this action must leave a trace either way.
+ */
+export async function impersonationAuditLog(
+  admin: Pick<SessionUser, "internalId" | "email" | "authType">,
+  target: { externalId: string; internalId?: string; email?: string },
+  req?: NextApiRequest
+): Promise<void> {
+  log
+    .atWarn()
+    .log(
+      `Admin ${admin.email} (${admin.internalId}) became user ${target.email ?? "?"} (${
+        target.internalId ?? target.externalId
+      })`
+    );
+  if (!enableAuditLog) {
+    return;
+  }
+  const { ip, headers } = extractRequestProvenance(req);
+  try {
+    await db.prisma().auditLog.create({
+      data: {
+        type: "auth-impersonate",
+        severity: "security",
+        userId: admin.internalId,
+        objectId: target.internalId ?? target.externalId,
+        authType: admin.authType ?? null,
+        ip,
+        requestHeaders: headers ?? undefined,
+        changes: {
+          adminEmail: admin.email,
+          targetUserId: target.internalId,
+          targetExternalId: target.externalId,
+          targetEmail: target.email,
+        },
+      },
+    });
+  } catch (err) {
+    log.atError().withCause(err).log(`Failed to write impersonation audit log`);
+  }
+}
+
 const membershipEventToType: Record<MembershipOp, AccountAlertEventType> = {
   invited: "member-invited",
   joined: "member-joined",

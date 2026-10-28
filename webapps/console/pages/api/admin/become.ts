@@ -8,8 +8,11 @@ import { assertDefined, assertTrue, requireDefined } from "juava";
 import { firebase, isFirebaseEnabled } from "../../../lib/server/firebase-server";
 import { db } from "../../../lib/server/db";
 import { SessionUser } from "../../../lib/schema";
+import { assertInteractiveAdminSession } from "../../../lib/server/admin-become";
+import { impersonationAuditLog } from "../../../lib/server/audit-log";
 
 async function check(user: SessionUser) {
+  assertInteractiveAdminSession(user);
   assertDefined(isFirebaseEnabled(), `Admin users-tool works with firebase only`);
   const userModel = requireDefined(
     await db.prisma().userProfile.findUnique({ where: { id: user.internalId } }),
@@ -32,9 +35,20 @@ export default createRoute()
     await check(user);
 
     const firebaseUser = await firebase().auth().getUser(body.externalId);
-    const token = await firebase()
-      .auth()
-      .createCustomToken(firebaseUser.uid, { internalId: firebaseUser.customClaims?.internalId });
+    // `impersonatedBy` makes create-session cap the resulting session at one hour
+    const token = await firebase().auth().createCustomToken(firebaseUser.uid, {
+      internalId: firebaseUser.customClaims?.internalId,
+      impersonatedBy: user.internalId,
+    });
+    await impersonationAuditLog(
+      user,
+      {
+        externalId: body.externalId,
+        internalId: firebaseUser.customClaims?.internalId,
+        email: firebaseUser.email,
+      },
+      req
+    );
     return { token };
   })
   .toNextApiHandler();
