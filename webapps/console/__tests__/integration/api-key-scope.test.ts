@@ -1,11 +1,16 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { createHash, randomId } from "juava";
 import { deps, seedWorkspace } from "./support/harness";
-import { getUser, verifyAccess, verifyAccessWithRole, verifyAdmin } from "../../lib/api";
+import { getUser, isPlatformAdmin, verifyAccess, verifyAccessWithRole, verifyAdmin } from "../../lib/api";
+import { ConfigObjectsService } from "../../lib/server/config-objects-service";
+import { api as emailTemplatesApi } from "../../pages/api/admin/email-templates/index";
 import { assertCanCreateKey, resolveKeyWorkspace } from "../../lib/server/key-creation";
 import { AuthChecker } from "../../lib/server/mcp-server/auth";
 import { OAuthHandlers } from "../../lib/server/mcp-server/oauth";
 import { principalFromAuth } from "../../lib/server/mcp-server/tools";
+
+// the email templates are not what is tested and need the mjml renderer
+vi.mock("../../lib/server/templates", () => ({}));
 
 // JITSU-264: a UserApiToken used to reach every workspace of its user, and a key could mint further keys.
 
@@ -151,6 +156,38 @@ describe("restricted keys on platform admin routes", () => {
     await expect(verifyAdmin(await bearerUser(id))).resolves.toBeUndefined();
     await expect(verifyAdmin(await bearerUser(id, admin.workspace.id))).rejects.toMatchObject({ status: 403 });
     await expect(verifyAdmin(await bearerUser(id, undefined, "analyst"))).rejects.toMatchObject({ status: 403 });
+  });
+});
+
+describe("platform-admin reach follows the key limits, not just the admin flag", () => {
+  it("isPlatformAdmin is true for a session and an unrestricted key, false for a limited key and for a non-admin", async () => {
+    const admin = await seedWorkspace({ admin: true });
+    const id = admin.user.internalId;
+    expect(await isPlatformAdmin(admin.user)).toBe(true);
+    expect(await isPlatformAdmin(await bearerUser(id))).toBe(true);
+    expect(await isPlatformAdmin(await bearerUser(id, admin.workspace.id))).toBe(false);
+    expect(await isPlatformAdmin(await bearerUser(id, undefined, "analyst"))).toBe(false);
+    const member = await seedWorkspace();
+    expect(await isPlatformAdmin(await bearerUser(member.user.internalId))).toBe(false);
+  });
+
+  it("an admin route that used to read the flag itself refuses a limited key", async () => {
+    const admin = await seedWorkspace({ admin: true });
+    const id = admin.user.internalId;
+    const handle = (user: any) => (emailTemplatesApi.GET as any).handle({ user });
+    await expect(handle(await bearerUser(id))).resolves.toHaveProperty("templates");
+    await expect(handle(await bearerUser(id, admin.workspace.id))).rejects.toMatchObject({ status: 403 });
+    await expect(handle(await bearerUser(id, undefined, "analyst"))).rejects.toMatchObject({ status: 403 });
+  });
+
+  it("the workspace list of an admin's limited key is the admin's own, not every workspace", async () => {
+    const admin = await seedWorkspace({ admin: true });
+    const other = await seedWorkspace();
+    const svc = new ConfigObjectsService({ prisma: deps().prisma });
+    const ids = async (user: any) => (await svc.listWorkspaces(user, {})).workspaces.map((w: any) => w.id);
+    expect(await ids(await bearerUser(admin.user.internalId))).toContain(other.workspace.id);
+    expect(await ids(await bearerUser(admin.user.internalId, admin.workspace.id))).not.toContain(other.workspace.id);
+    expect(await ids(await bearerUser(admin.user.internalId, undefined, "analyst"))).not.toContain(other.workspace.id);
   });
 });
 

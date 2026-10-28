@@ -557,19 +557,36 @@ function stackToArray(stack?: string) {
   const lines = stack.split("\n");
   return lines.length > 0 ? lines.map(s => s.trim()) : undefined;
 }
-export async function verifyAdmin(user: SessionUser) {
+/** A key limited to one workspace or to a role has no business with anything that spans every workspace. */
+function isLimitedKey(user: SessionUser): boolean {
+  return isKeyAuth(user) && !!(user.tokenWorkspaceId || user.tokenRole);
+}
+
+/**
+ * Whether this call has platform-admin reach: an admin service account, or a user with the admin flag, unless the
+ * call comes through a limited key. Use it instead of reading `userProfile.admin`, which a limited key of an admin
+ * also passes.
+ */
+export async function isPlatformAdmin(user: SessionUser): Promise<boolean> {
   if (isAdminServiceAccount(user)) {
-    return;
+    return true;
   }
-  // Platform-admin routes span every workspace, so a key limited to one workspace or to a role has no business here.
-  if (isKeyAuth(user) && (user.tokenWorkspaceId || user.tokenRole)) {
+  if (isLimitedKey(user)) {
+    return false;
+  }
+  return !!(await db.prisma().userProfile.findFirst({ where: { id: user.internalId } }))?.admin;
+}
+
+export async function verifyAdmin(user: SessionUser) {
+  if (isLimitedKey(user) && !isAdminServiceAccount(user)) {
     throw new ApiError(`API key ${user.tokenId} is limited and can't be used for admin operations`, { status: 403 });
   }
-  const userId = requireDefined(user.internalId, `internalId is not defined`);
-  if ((await db.prisma().userProfile.findFirst({ where: { id: user.internalId } }))?.admin) {
+  if (await isPlatformAdmin(user)) {
     return;
   }
-  throw new ApiError(`User ${userId} is not an admin`, { status: 403 });
+  throw new ApiError(`User ${requireDefined(user.internalId, `internalId is not defined`)} is not an admin`, {
+    status: 403,
+  });
 }
 
 export function looksLikeCuid(id: string) {
