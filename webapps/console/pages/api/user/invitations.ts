@@ -1,4 +1,4 @@
-import { createRoute } from "../../../lib/api";
+import { assertNotLimitedKey, createRoute } from "../../../lib/api";
 import { z } from "zod";
 import { db } from "../../../lib/server/db";
 
@@ -19,6 +19,7 @@ export default createRoute()
     result: z.array(InvitationInfo),
   })
   .handler(async ({ user }) => {
+    assertNotLimitedKey(user);
     // Get all pending invitations for the current user's email
     const invitations = await db.prisma().invitationToken.findMany({
       where: {

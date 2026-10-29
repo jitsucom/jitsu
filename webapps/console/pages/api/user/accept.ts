@@ -1,4 +1,4 @@
-import { createRoute } from "../../../lib/api";
+import { assertNotLimitedKey, createRoute } from "../../../lib/api";
 import { z } from "zod";
 import { requireDefined } from "juava";
 import { db } from "../../../lib/server/db";
@@ -16,6 +16,7 @@ export default createRoute()
     }),
   })
   .handler(async ({ user, req, body }) => {
+    assertNotLimitedKey(user);
     const token = await db.prisma().invitationToken.findFirst({ where: { token: body.invitationToken } });
     if (!token) {
       return { accepted: false, details: `Token ${body.invitationToken} was not found` };

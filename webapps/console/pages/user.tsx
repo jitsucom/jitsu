@@ -1,5 +1,5 @@
 import { FaArrowLeft } from "react-icons/fa";
-import { Button, DatePicker, Form, Input, Modal, Radio, Table, Tag, Tooltip } from "antd";
+import { Button, DatePicker, Form, Input, Modal, Radio, Select, Table, Tag, Tooltip } from "antd";
 import dayjs, { Dayjs } from "dayjs";
 import { useRouter } from "next/router";
 import { useUser } from "../lib/context";
@@ -167,11 +167,25 @@ const ExpirationField: React.FC<{
   );
 };
 
+export type WorkspaceOption = { id: string; name: string; slug?: string | null };
+export type KeyRole = "editor" | "analyst";
+
+const keyRoleOptions: { value: KeyRole; label: string }[] = [
+  { value: "editor", label: "Editor: can read and change configuration" },
+  { value: "analyst", label: "Analyst: read-only" },
+];
+
 type KeyModalProps =
   | {
       mode: "create";
       generated: { id: string; plaintext: string } | null;
-      onSubmit: (vals: { name?: string; expiresAt: Date | null }) => Promise<void>;
+      workspaces: WorkspaceOption[];
+      onSubmit: (vals: {
+        name?: string;
+        expiresAt: Date | null;
+        workspaceId?: string;
+        role?: KeyRole;
+      }) => Promise<void>;
       onClose: () => void;
     }
   | {
@@ -191,6 +205,8 @@ const KeyModal: React.FC<KeyModalProps> = props => {
   const initialEditDate = !isCreate && props.target.expiresAt ? dayjs(props.target.expiresAt) : null;
   const [editDate, setEditDate] = useState<Dayjs | null>(initialEditDate);
   const [loading, setLoading] = useState(false);
+  const [workspaceId, setWorkspaceId] = useState<string | undefined>();
+  const [role, setRole] = useState<KeyRole | undefined>();
   const generated = isCreate ? props.generated : null;
 
   const title = isCreate ? (generated ? "Save your secret key" : "Create new API key") : "Edit API key";
@@ -199,7 +215,12 @@ const KeyModal: React.FC<KeyModalProps> = props => {
     setLoading(true);
     try {
       if (isCreate) {
-        await props.onSubmit({ name: name.trim() || undefined, expiresAt: choiceToDate(expiration) });
+        await props.onSubmit({
+          name: name.trim() || undefined,
+          expiresAt: choiceToDate(expiration),
+          workspaceId,
+          role,
+        });
       } else {
         // Edit mode: same end-of-day snap as create. The DatePicker is
         // date-only; without this, choosing "today" would mark the key
@@ -258,6 +279,34 @@ const KeyModal: React.FC<KeyModalProps> = props => {
               onChange={e => setName(e.target.value)}
             />
           </Form.Item>
+          {isCreate && (
+            <>
+              <Form.Item
+                label="Workspace"
+                help="Limit the key to one workspace. Without it the key works in every workspace you belong to."
+              >
+                <Select
+                  allowClear
+                  placeholder="All my workspaces"
+                  value={workspaceId}
+                  onChange={v => setWorkspaceId(v)}
+                  options={props.workspaces.map(w => ({ value: w.id, label: w.name || w.slug || w.id }))}
+                />
+              </Form.Item>
+              <Form.Item
+                label="Access"
+                help="The key can never do more than you can. Without a limit it acts with your own role."
+              >
+                <Select
+                  allowClear
+                  placeholder="Same as my role"
+                  value={role}
+                  onChange={v => setRole(v)}
+                  options={keyRoleOptions}
+                />
+              </Form.Item>
+            </>
+          )}
           <Form.Item
             label="Expiration"
             help={
@@ -286,6 +335,10 @@ type ModalState = { kind: "closed" } | { kind: "create" } | { kind: "edit"; targ
 
 function ApiKeys() {
   const apiRes = useApi<ApiKey[]>("/api/user/keys");
+  const workspacesRes = useApi<WorkspaceOption[] | { workspaces: WorkspaceOption[] }>("/api/workspace");
+  const workspaces: WorkspaceOption[] = Array.isArray(workspacesRes.data)
+    ? workspacesRes.data
+    : workspacesRes.data?.workspaces ?? [];
   const [modal, setModal] = useState<ModalState>({ kind: "closed" });
   const [generated, setGenerated] = useState<{ id: string; plaintext: string } | null>(null);
 
@@ -312,6 +365,19 @@ function ApiKeys() {
             title: "Type",
             key: "type",
             render: (k: ApiKey) => <TypeTag type={effectiveType(k)} />,
+          },
+          {
+            title: "Access",
+            key: "access",
+            render: (k: ApiKey) => {
+              const ws = k.workspaceId ? workspaces.find(w => w.id === k.workspaceId) : undefined;
+              return (
+                <span className="text-sm whitespace-nowrap">
+                  {k.workspaceId ? ws?.name || ws?.slug || "One workspace" : "All workspaces"}
+                  {k.role && <Tag className="ml-2">{k.role === "analyst" ? "read-only" : k.role}</Tag>}
+                </span>
+              );
+            },
           },
           {
             title: "Key ID",
@@ -433,11 +499,18 @@ function ApiKeys() {
               <KeyModal
                 mode="create"
                 generated={generated}
+                workspaces={workspaces}
                 onSubmit={async vals => {
                   try {
                     const created = await get("/api/user/keys", {
                       method: "POST",
-                      body: { name: vals.name, expiresAt: vals.expiresAt, type: "api" },
+                      body: {
+                        name: vals.name,
+                        expiresAt: vals.expiresAt,
+                        type: "api",
+                        workspaceId: vals.workspaceId,
+                        role: vals.role,
+                      },
                     });
                     setGenerated({ id: created.id, plaintext: created.plaintext });
                     await apiRes.reload();

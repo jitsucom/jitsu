@@ -2,9 +2,8 @@
  * Pre-existing implicit-`any` debt, exempted when the unsafe-any gate was
  * introduced for pages/api/admin (JITSU-158 action item 3). Fix the `any`
  * flows in this file, then remove this header - do not add new ones. */
-import { createRoute } from "../../../lib/api";
+import { createRoute, verifyAdmin } from "../../../lib/api";
 import { db } from "../../../lib/server/db";
-import { assertDefined, assertTrue } from "juava";
 import { isDomainCnameValid } from "../../../lib/server/custom-domains";
 
 export default createRoute()
@@ -13,9 +12,7 @@ export default createRoute()
     streaming: true,
   })
   .handler(async ({ res, user }) => {
-    const userProfile = await db.prisma().userProfile.findFirst({ where: { id: user.internalId } });
-    assertDefined(userProfile, "User profile not found");
-    assertTrue(userProfile.admin, "Not enough permissions");
+    await verifyAdmin(user);
 
     const domains = await db.pgPool().query(`
         select

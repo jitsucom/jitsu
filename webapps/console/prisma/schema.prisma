@@ -150,6 +150,10 @@ model UserApiToken {
   type      String?
   name      String?
   expiresAt DateTime? /// @zod.custom(z.coerce.date())
+  // When set, the key works only in this workspace. Null (all keys created before scoping) = every workspace of the user.
+  workspaceId String?
+  // Upper limit on what the key may do ("owner" | "editor" | "analyst"). Null = whatever the user's role allows.
+  role        String?
 
   // For MCP-issued tokens: oauthClientId is set and this row IS the refresh
   // token. MCP-ness is inferred from oauthClientId IS NOT NULL (we don't set

@@ -1,4 +1,4 @@
-import { Api, inferUrl, nextJsApiHandler } from "../../../lib/api";
+import { Api, assertNotLimitedKey, inferUrl, nextJsApiHandler } from "../../../lib/api";
 import { ApiError } from "../../../lib/shared/errors";
 import { ApiKey } from "../../../lib/schema";
 import { z } from "zod";
@@ -6,12 +6,18 @@ import { db } from "../../../lib/server/db";
 import { hint, randomId } from "juava";
 import { createHash } from "juava";
 import { mcpServer } from "../../../lib/server/mcp-server";
+import { WorkspaceRolesZodType } from "../../../lib/workspace-roles";
+import { assertCanCreateKey, resolveKeyWorkspace } from "../../../lib/server/key-creation";
 
 const CreateKeyBody = z.object({
   name: z.string().optional(),
   type: z.string().optional(),
   // ISO date or null. If null/missing → never expires.
   expiresAt: z.coerce.date().nullish(),
+  // Workspace id or slug. When set, the key works only in that workspace.
+  workspaceId: z.string().nullish(),
+  // Highest role the key may act with. Never raises the user's own role.
+  role: WorkspaceRolesZodType.nullish(),
 });
 
 const api: Api = {
@@ -22,6 +28,7 @@ const api: Api = {
       result: z.array(ApiKey),
     },
     handle: async ({ user }) => {
+      assertNotLimitedKey(user);
       const rows = await db.prisma().userApiToken.findMany({
         where: { userId: user.internalId },
         select: {
@@ -32,6 +39,8 @@ const api: Api = {
           type: true,
           name: true,
           expiresAt: true,
+          workspaceId: true,
+          role: true,
           oauthClient: { select: { name: true } },
         },
         orderBy: { createdAt: "desc" },
@@ -50,6 +59,8 @@ const api: Api = {
       result: ApiKey,
     },
     handle: async ({ user, body }) => {
+      assertCanCreateKey(user);
+      const workspaceId = await resolveKeyWorkspace(db.prisma(), user, body.workspaceId);
       const plaintext = randomId({ digits: 32, strongRandom: true });
       const id = randomId(32);
       const created = await db.prisma().userApiToken.create({
@@ -61,6 +72,8 @@ const api: Api = {
           type: body.type ?? "api",
           name: body.name ?? null,
           expiresAt: body.expiresAt ?? null,
+          workspaceId: workspaceId ?? null,
+          role: body.role ?? null,
         },
       });
       return {
@@ -72,6 +85,8 @@ const api: Api = {
         type: created.type,
         name: created.name,
         expiresAt: created.expiresAt,
+        workspaceId: created.workspaceId,
+        role: created.role,
       };
     },
   },
@@ -87,6 +102,7 @@ const api: Api = {
       result: ApiKey,
     },
     handle: async ({ user, query, body }) => {
+      assertNotLimitedKey(user);
       const existing = await db.prisma().userApiToken.findUnique({ where: { id: query.id } });
       if (!existing || existing.userId !== user.internalId) {
         throw new ApiError(`Key not found`, { status: 404 });
@@ -120,6 +136,7 @@ const api: Api = {
       result: z.object({ ok: z.boolean() }),
     },
     handle: async ({ user, query }) => {
+      assertNotLimitedKey(user);
       const existing = await db.prisma().userApiToken.findUnique({ where: { id: query.id } });
       if (!existing || existing.userId !== user.internalId) {
         throw new ApiError(`Key not found`, { status: 404 });
