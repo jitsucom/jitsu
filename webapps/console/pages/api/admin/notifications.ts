@@ -26,6 +26,7 @@ import { DefaultUserNotificationsPreferences } from "../../../lib/server/user-pr
 import pick from "lodash/pick";
 import ConnectionDeadLettered from "../../../emails/connection-dead-lettered";
 import { getServerEnv } from "../../../lib/server/serverEnv";
+import { isSlackWebhookUrl } from "../../../lib/shared/slack-webhook";
 
 dayjs.extend(utc);
 
@@ -1562,6 +1563,9 @@ export async function sendSlackNotification(
   }
 
   if (!dryRun) {
+    if (!isSlackWebhookUrl(channel.slackWebhookUrl ?? "")) {
+      throw new Error("Slack webhook URL must look like https://hooks.slack.com/services/...");
+    }
     console.debug(`Sending slack notification to ${channel.id} (${channel.name}): ${payload.text}`);
     const res = await fetch(channel.slackWebhookUrl!, {
       method: "POST",
@@ -1569,10 +1573,12 @@ export async function sendSlackNotification(
         "Content-Type": "application/json",
       },
       body: JSON.stringify(payload),
+      redirect: "manual",
     });
 
     if (!res.ok) {
-      throw new Error(`HTTP Error: ${res.status}: ${await res.text()}`);
+      // The response body is not returned: this error reaches the user who set the URL
+      throw new Error(`Slack webhook responded with HTTP ${res.status}`);
     }
   }
   return {
