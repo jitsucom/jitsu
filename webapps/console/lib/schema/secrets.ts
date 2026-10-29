@@ -245,7 +245,11 @@ const CONNECTION_STRING_FIELDS: Record<string, string[]> = {
 };
 const CONNECTION_STRING_BREAKER = /[\s'\\]/;
 
-/** Fields of a Postgres or Redshift destination whose value would split or quote the connection string. */
+/**
+ * Fields of a Postgres or Redshift destination whose value would split or quote the connection string. Whitespace at
+ * either end is ignored: it cannot start a setting (the connection string reader skips it after `=` and ends the value
+ * at it), and a stored schema with a leading space exists in production and has always worked.
+ */
 export function connectionStringBreakers(...objects: any[]): string[] {
   const type = objects.map(o => o?.destinationType).find(t => t in CONNECTION_STRING_FIELDS);
   if (!type) {
@@ -253,7 +257,7 @@ export function connectionStringBreakers(...objects: any[]): string[] {
   }
   const object = objects[0];
   return CONNECTION_STRING_FIELDS[type].filter(
-    field => typeof object?.[field] === "string" && CONNECTION_STRING_BREAKER.test(object[field])
+    field => typeof object?.[field] === "string" && CONNECTION_STRING_BREAKER.test(object[field].trim())
   );
 }
 

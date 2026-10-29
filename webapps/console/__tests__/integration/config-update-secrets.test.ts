@@ -134,6 +134,25 @@ describe("other kinds of connection targets", () => {
     await svc().update(user, workspace.id, "destination", id, { database: "events_2" });
   });
 
+  it("keeps editing a Postgres destination whose schema has a leading space, as one in production does", async () => {
+    const { user, workspace, id } = await seed("postgres", {
+      host: "db.customer.com",
+      database: "events",
+      username: "jitsu",
+      password: "hunter2",
+      defaultSchema: " jitsu_events",
+    });
+    for (const patch of [{ name: "renamed", password: MASKED_SECRET }, { name: "renamed again" }]) {
+      await svc().update(user, workspace.id, "destination", id, patch);
+      const stored = (await deps().prisma.configurationObject.findUniqueOrThrow({ where: { id } })).config as any;
+      expect(stored).toMatchObject({ name: patch.name, defaultSchema: " jitsu_events", password: "hunter2" });
+    }
+    // a space inside the value is still refused
+    await expect(
+      svc().update(user, workspace.id, "destination", id, { defaultSchema: " jitsu_events host=attacker.example" })
+    ).rejects.toMatchObject({ status: 400, message: expect.stringMatching(/defaultSchema contains a space/) });
+  });
+
   it("refuses another Snowflake account with the stored password", async () => {
     const { user, workspace, id } = await seed("snowflake", {
       authenticationMethod: "password",

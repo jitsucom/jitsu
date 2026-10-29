@@ -176,6 +176,31 @@ describe("connection string injection (Postgres and Redshift)", () => {
     expect(() => assertSecretsStayWithTarget(stored, patch, { ...stored, ...patch }, ["password"])).not.toThrow();
   });
 
+  it("ignores whitespace at either end: it cannot start a setting, and such a stored schema has always worked", () => {
+    for (const defaultSchema of [" jitsu_events", "jitsu_events ", "\tjitsu_events\n", "  "]) {
+      const withEdges = { ...stored, defaultSchema };
+      expect(unmaskSecretsFromOriginal({ ...withEdges, password: MASKED_SECRET }, withEdges)).toMatchObject({
+        defaultSchema,
+        password: "real",
+      });
+      const patch = { name: "renamed" };
+      expect(() =>
+        assertSecretsStayWithTarget(withEdges, patch, { ...withEdges, ...patch }, ["password"])
+      ).not.toThrow();
+    }
+  });
+
+  it("still refuses whitespace inside the value, also next to whitespace at the ends", () => {
+    for (const value of [
+      " events host=attacker.example",
+      "events host=attacker.example ",
+      "\tevents\thost=attacker.example\n",
+    ]) {
+      const submitted = { ...stored, database: value, password: MASKED_SECRET };
+      expect(() => unmaskSecretsFromOriginal(submitted, stored)).toThrow(/database contains a space/);
+    }
+  });
+
   it("does not touch other destination types", () => {
     const clickhouse = { destinationType: "clickhouse", database: "a b", password: "real" };
     expect(unmaskSecretsFromOriginal({ ...clickhouse, password: MASKED_SECRET }, clickhouse)).toEqual(clickhouse);
