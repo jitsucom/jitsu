@@ -118,6 +118,22 @@ describe("other kinds of connection targets", () => {
     });
   });
 
+  it("refuses a Postgres database name that adds a host to the connection string, with the stored password", async () => {
+    const { user, workspace, id } = await seed("postgres", {
+      host: "db.customer.com",
+      database: "events",
+      username: "jitsu",
+      password: "hunter2",
+    });
+    await expect(
+      svc().update(user, workspace.id, "destination", id, { database: "events host=attacker.example" })
+    ).rejects.toMatchObject({
+      status: 400,
+      message: expect.stringMatching(/password.*database contains a space/),
+    });
+    await svc().update(user, workspace.id, "destination", id, { database: "events_2" });
+  });
+
   it("refuses another Snowflake account with the stored password", async () => {
     const { user, workspace, id } = await seed("snowflake", {
       authenticationMethod: "password",

@@ -127,6 +127,61 @@ describe("withSchemaDefaults", () => {
   });
 });
 
+describe("connection string injection (Postgres and Redshift)", () => {
+  const stored = {
+    destinationType: "postgres",
+    host: "db.customer.com",
+    database: "events",
+    username: "jitsu",
+    password: "real",
+  };
+
+  it.each([
+    ["database", "events host=attacker.example"],
+    ["username", "jitsu host=attacker.example"],
+    ["defaultSchema", "public host=attacker.example"],
+    ["database", "events\thost=attacker.example"],
+    ["database", "'events host=attacker.example'"],
+    ["database", "events\\ host=attacker.example"],
+  ])("refuses unmasking with %s = %j", (field, value) => {
+    const submitted = { ...stored, [field]: value, password: MASKED_SECRET };
+    expect(() => unmaskSecretsFromOriginal(submitted, stored)).toThrow(new RegExp(`${field} contains a space`));
+  });
+
+  it("refuses a saved config that keeps the password while a field carries the injection", () => {
+    const patch = { database: "events host=attacker.example" };
+    expect(() => assertSecretsStayWithTarget(stored, patch, { ...stored, ...patch }, ["password"])).toThrow(
+      /database contains a space/
+    );
+    const withMasked = { ...patch, password: MASKED_SECRET };
+    expect(() => assertSecretsStayWithTarget(stored, withMasked, { ...stored, ...withMasked }, ["password"])).toThrow(
+      /database contains a space/
+    );
+  });
+
+  it("applies to Redshift too", () => {
+    const redshift = { ...stored, destinationType: "redshift" };
+    expect(() =>
+      unmaskSecretsFromOriginal({ ...redshift, database: "x host=attacker.example", password: MASKED_SECRET }, redshift)
+    ).toThrow(/database contains a space/);
+  });
+
+  it("lets ordinary names through, and a new password makes a strange name the editor's own business", () => {
+    for (const database of ["events", "events-2026", "events_v2", "my.db", "db$1", "événements"]) {
+      expect(
+        unmaskSecretsFromOriginal({ ...stored, database, password: MASKED_SECRET }, { ...stored, database })
+      ).toMatchObject({ database, password: "real" });
+    }
+    const patch = { database: "events host=attacker.example", password: "typed-again" };
+    expect(() => assertSecretsStayWithTarget(stored, patch, { ...stored, ...patch }, ["password"])).not.toThrow();
+  });
+
+  it("does not touch other destination types", () => {
+    const clickhouse = { destinationType: "clickhouse", database: "a b", password: "real" };
+    expect(unmaskSecretsFromOriginal({ ...clickhouse, password: MASKED_SECRET }, clickhouse)).toEqual(clickhouse);
+  });
+});
+
 describe("TLS material is not a target", () => {
   it("rotating only the server CA keeps the stored password usable", () => {
     const stored = { host: "db.customer.com", password: "real", sslServerCA: "-----OLD CA-----" };
