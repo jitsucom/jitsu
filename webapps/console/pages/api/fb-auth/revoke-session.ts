@@ -1,4 +1,4 @@
-import { createRoute } from "../../../lib/api";
+import { assertNotLimitedKey, createRoute } from "../../../lib/api";
 import {
   clearLegacyHostAuthCookie,
   firebaseAuthCookieName,
@@ -16,6 +16,8 @@ const log = getServerLog("firebase");
 export default createRoute()
   .GET({ auth: true })
   .handler(async ({ req, body, res, user }) => {
+    // revokes every session of the account, so a key limited to a workspace or role may not call it
+    assertNotLimitedKey(user);
     await signOut(user.externalId);
     try {
       await authAuditLog(

@@ -18,6 +18,7 @@ import keysRoute from "../../pages/api/user/keys";
 import initUserRoute from "../../pages/api/init-user";
 import becomeRoute from "../../pages/api/admin/become";
 import workspaceRoute from "../../pages/api/workspace/index";
+import revokeSessionRoute from "../../pages/api/fb-auth/revoke-session";
 import { assertCanCreateKey, resolveKeyWorkspace } from "../../lib/server/key-creation";
 import { AuthChecker } from "../../lib/server/mcp-server/auth";
 import { OAuthHandlers } from "../../lib/server/mcp-server/oauth";
@@ -25,6 +26,12 @@ import { principalFromAuth } from "../../lib/server/mcp-server/tools";
 
 // the email templates are not what is tested and need the mjml renderer
 vi.mock("../../lib/server/templates", () => ({}));
+// revoke-session signs the account out of Firebase; only whether it is reached matters here
+const signOut = vi.hoisted(() => vi.fn(async () => undefined));
+vi.mock("../../lib/server/firebase-server", async importOriginal => ({
+  ...(await importOriginal<typeof import("../../lib/server/firebase-server")>()),
+  signOut,
+}));
 
 // JITSU-264: a UserApiToken used to reach every workspace of its user, and a key could mint further keys.
 
@@ -360,6 +367,18 @@ describe("account-level endpoints and limited keys", () => {
     const ok = await call(workspaceRoute, "POST", await keyString(user.internalId), body());
     expect(ok.statusCode).toBe(200);
     expect(await deps().prisma.workspaceAccess.count({ where: { userId: user.internalId } })).toBe(before + 1);
+  });
+
+  it("a limited key cannot sign the account out of every session", async () => {
+    const { user, a } = await seedTwoWorkspaces();
+    signOut.mockClear();
+    for (const key of [
+      await keyString(user.internalId, a.id),
+      await keyString(user.internalId, undefined, "analyst"),
+    ]) {
+      expect((await call(revokeSessionRoute, "GET", key)).statusCode).toBe(403);
+    }
+    expect(signOut).not.toHaveBeenCalled();
   });
 
   it("a limited key of a platform admin cannot become another user", async () => {
