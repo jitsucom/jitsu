@@ -210,9 +210,11 @@ describe("model editor", () => {
     await screen.findByText("Preview · 1 rows");
     expect(screen.getAllByTitle("jsonb").every(element => element.textContent === "traits")).toBe(true);
     fireEvent.click(screen.getByRole("tab", { name: "Columns" }));
+    // Text queries on purpose: findByRole("cell", { name }) computes accessible names across the whole Ant Design
+    // table and took about 0.8 s per call (about 4 s of this test), which pushed it over the timeout on CI
     for (const name of ["bigint", "jsonb", "text[]", "unknown"])
-      expect(await screen.findByRole("cell", { name })).toBeTruthy();
-    expect(screen.queryByRole("cell", { name: "3802" })).toBeNull();
+      expect((await screen.findAllByText(name)).some(element => element.tagName === "TD")).toBe(true);
+    expect(screen.queryAllByText("3802")).toHaveLength(0);
     client.clear();
   });
   it("preserves an API-configured lookback when changing the name", async () => {
