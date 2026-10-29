@@ -46,7 +46,6 @@ import NodeCache from "node-cache";
 import { fetch as undiciFetch, type RequestInit as UndiciRequestInit } from "undici";
 import { createGuardedAgent, normalizeHostname } from "./guarded-agent";
 import { isBlockedAddress } from "./public-address";
-import { fetchWithCheckedRedirects } from "./checked-redirects";
 
 // This module also runs inside the Deno-based functions-server (UDF sandbox), which
 // monkey-patches globalThis.fetch with its own tuned connection pool (Deno.createHttpClient,
@@ -56,8 +55,11 @@ import { fetchWithCheckedRedirects } from "./checked-redirects";
 // not captured into a module-level constant — capturing it here would grab the pre-wrap
 // native fetch and silently skip the pool configuration for the module's whole lifetime.
 const isDeno = typeof (globalThis as any).Deno !== "undefined";
+// With FETCH_FORBID_LOCAL the guarded undici agent does the connecting under Deno too: Deno's native fetch takes no
+// dispatcher, so it cannot check the address a connection is actually made to (DNS rebinding) or each redirect hop.
+// Without the guard the native fetch (and its tuned pool) stays in use.
 const platformFetch: typeof undiciFetch = (...args) =>
-  (isDeno ? (globalThis.fetch as unknown as typeof undiciFetch) : undiciFetch)(...args);
+  (isDeno && !fetchForbidLocal ? (globalThis.fetch as unknown as typeof undiciFetch) : undiciFetch)(...args);
 
 const log = getLog("functions-context");
 
@@ -622,19 +624,9 @@ export const makeFetch = (
         ...init,
         keepalive: true,
         signal: AbortSignal.timeout(fetchTimeoutMs),
-        ...(guardedAgent && !isDeno ? { dispatcher: guardedAgent } : {}),
+        ...(guardedAgent ? { dispatcher: guardedAgent } : {}),
       };
-      // Deno's native fetch takes no dispatcher, so it cannot use the guarded agent and follows redirects on its own:
-      // follow them here instead and check every hop
-      fetchResult =
-        fetchForbidLocal && isDeno
-          ? await fetchWithCheckedRedirects(
-              platformFetch as any,
-              target => assertHostAllowed(target.href),
-              url,
-              internalInit
-            )
-          : await platformFetch(url, internalInit);
+      fetchResult = await platformFetch(url, internalInit);
       throttle.success();
     } catch (err: any) {
       if (err.name === "TimeoutError") {
