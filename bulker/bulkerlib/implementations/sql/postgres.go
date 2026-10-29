@@ -167,9 +167,11 @@ func NewPostgres(bulkerConfig bulker.Config) (bulker.Bulker, error) {
 			if username == "" {
 				username = utils.DefaultString(os.Getenv("GOOGLE_PSC_SQL_USERNAME"), os.Getenv("BULKER_GOOGLE_PSC_SQL_USERNAME"))
 			}
-			connectionString := fmt.Sprintf("user=%s database=%s search_path=%s", username, cfg.Db, config.Schema)
-			for k, v := range config.Parameters {
-				connectionString += " " + k + "=" + v + " "
+			connectionString, err := pgConnectionString([]pgSetting{
+				{"user", username}, {"database", cfg.Db}, {"search_path", config.Schema},
+			}, config.Parameters)
+			if err != nil {
+				return nil, fmt.Errorf("invalid connection config: %v", err)
 			}
 			pgxConfig, err := pgx.ParseConfig(connectionString)
 			if err != nil {
@@ -191,11 +193,13 @@ func NewPostgres(bulkerConfig bulker.Config) (bulker.Bulker, error) {
 			dataSource.SetMaxIdleConns(10)
 			return dataSource, nil
 		} else {
-			connectionString := fmt.Sprintf("host=%s port=%d dbname=%s user=%s password=%s search_path=%s",
-				config.Host, config.Port, config.Db, config.Username, config.Password, config.Schema)
-			//concat provided connection parameters
-			for k, v := range config.Parameters {
-				connectionString += " " + k + "=" + v + " "
+			// every value is quoted: a space in the database name or the username would otherwise start a new setting
+			connectionString, err := pgConnectionString([]pgSetting{
+				{"host", config.Host}, {"port", fmt.Sprint(config.Port)}, {"dbname", config.Db},
+				{"user", config.Username}, {"password", config.Password}, {"search_path", config.Schema},
+			}, config.Parameters)
+			if err != nil {
+				return nil, fmt.Errorf("invalid connection config: %v", err)
 			}
 			//log only what identifies the destination: the password is a customer secret, and
 			//the connection parameters are free-form enough to carry one too (sslpassword, options, ...)
