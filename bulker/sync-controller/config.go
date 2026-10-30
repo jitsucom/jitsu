@@ -57,6 +57,16 @@ type Config struct {
 	// SYNCCTL_CRON_TEMPLATE_REVISION. 0 (unset) keeps the compiled-in constant.
 	CronTemplateRevision int `mapstructure:"CRON_TEMPLATE_REVISION" default:"0"`
 
+	// SyncAllowedImagePrefixes, when set, restricts connector images (the sync's source package) to those starting with
+	// one of the comma-separated prefixes, e.g. "airbyte/,jitsucom/". Empty allows any image. The console UI blocks
+	// custom images, but syncctl is the component that actually starts the container, so the check lives here too.
+	SyncAllowedImagePrefixes string `mapstructure:"SYNC_ALLOWED_IMAGE_PREFIXES"`
+
+	// SyncFastShutdownIDs enables sentinel-based connector termination for these sync IDs (comma separated).
+	// Empty retains controller cleanup only; "*" enables it for all tasks, including inline checks.
+	// This never changes process isolation: containers always have separate PID namespaces.
+	SyncFastShutdownIDs string `mapstructure:"SYNC_FAST_SHUTDOWN_IDS"`
+
 	LocalIngestEndpoint  string `mapstructure:"LOCAL_INGEST_ENDPOINT"`
 	GlobalIngestEndpoint string `mapstructure:"GLOBAL_INGEST_ENDPOINT"`
 
