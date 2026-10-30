@@ -95,11 +95,11 @@ func NewMySQL(bulkerConfig bulker.Config) (bulker.Bulker, error) {
 	utils.MapPutIfAbsent(config.Parameters, "charset", "utf8mb4,utf8")
 
 	dbConnectFunction := func(ctx context.Context, cfg *DataSourceConfig) (*sql.DB, error) {
-		connectionString := mySQLDriverConnectionString(config)
-		dataSource, err := sql.Open("mysql", connectionString)
+		connector, err := mySQLConnector(config)
 		if err != nil {
 			return nil, err
 		}
+		dataSource := sql.OpenDB(connector)
 
 		if err := dataSource.PingContext(ctx); err != nil {
 			dataSource.Close()
@@ -474,22 +474,6 @@ func (m *MySQL) renameTable(ctx context.Context, ifExists bool, namespace, table
 		}
 	}
 	return m.SQLAdapterBase.renameTable(ctx, false, namespace, tableName, newTableName)
-}
-
-func mySQLDriverConnectionString(config *DataSourceConfig) string {
-	// [user[:password]@][net[(addr)]]/dbname[?param1=value1&paramN=valueN]
-	connectionString := fmt.Sprintf("%s:%s@tcp(%s:%d)/%s",
-		config.Username, config.Password, config.Host, config.Port, config.Db)
-	if len(config.Parameters) > 0 {
-		connectionString += "?"
-		paramList := make([]string, 0, len(config.Parameters))
-		//concat provided connection parameters
-		for k, v := range config.Parameters {
-			paramList = append(paramList, k+"="+v)
-		}
-		connectionString += strings.Join(paramList, "&")
-	}
-	return connectionString
 }
 
 // mySQLColumnDDL returns column DDL (quoted column name, mapped sql type and 'not null' if pk field)
