@@ -1,6 +1,9 @@
 package sql
 
 import (
+	"fmt"
+	"sort"
+	"strings"
 	"testing"
 	"time"
 
@@ -85,23 +88,70 @@ func TestMySQLDriverConfigUsernameAndPasswordWithDelimiters(t *testing.T) {
 	}
 }
 
-func TestMySQLDriverConfigParameterValuesAreEscaped(t *testing.T) {
-	config := mysqlTestConfig()
-	config.Parameters = map[string]string{"sql_mode": "A&B=C", "time_zone": "'+00:00'"}
-	cfg, err := mySQLDriverConfig(config)
-	require.NoError(t, err)
-	require.Equal(t, "A&B=C", cfg.Params["sql_mode"])
-	require.Equal(t, "'+00:00'", cfg.Params["time_zone"])
-	require.Equal(t, "db.customer.com:3306", cfg.Addr)
+func TestMySQLDriverConfigIPv6AndPort(t *testing.T) {
+	// the old string form needed the brackets in the host; an unbracketed literal is accepted too
+	for _, host := range []string{"::1", "[::1]"} {
+		config := mysqlTestConfig()
+		config.Host = host
+		config.Port = 3307
+		cfg, err := mySQLDriverConfig(config)
+		require.NoError(t, err)
+		require.Equal(t, "[::1]:3307", cfg.Addr, "host=%q", host)
+	}
 }
 
-func TestMySQLDriverConfigIPv6AndPort(t *testing.T) {
+// What the MySQL DSN used to be: every field formatted into one string. Kept to prove that existing configs keep
+// meaning what they meant (it is only used on ordinary values, never on the attack strings).
+func legacyMySQLDSN(config *DataSourceConfig) string {
+	dsn := fmt.Sprintf("%s:%s@tcp(%s:%d)/%s", config.Username, config.Password, config.Host, config.Port, config.Db)
+	if len(config.Parameters) > 0 {
+		pairs := make([]string, 0, len(config.Parameters))
+		for k, v := range config.Parameters {
+			pairs = append(pairs, k+"="+v)
+		}
+		sort.Strings(pairs)
+		dsn += "?" + strings.Join(pairs, "&")
+	}
+	return dsn
+}
+
+func TestMySQLDriverConfigKeepsMeaningOfExistingConfigs(t *testing.T) {
+	cases := map[string]func(*DataSourceConfig){
+		"ordinary with Bulker defaults": func(c *DataSourceConfig) {
+			c.Parameters = map[string]string{"tls": "preferred", "timeout": "60s", "writeTimeout": "60s", "readTimeout": "60s", "charset": "utf8mb4,utf8"}
+		},
+		"pre-encoded time zone location": func(c *DataSourceConfig) { c.Parameters = map[string]string{"tls": "preferred", "loc": "US%2FPacific"} },
+		"pre-encoded system variable":    func(c *DataSourceConfig) { c.Parameters = map[string]string{"time_zone": "%27%2B00%3A00%27"} },
+		"bracketed IPv6 host":            func(c *DataSourceConfig) { c.Host = "[::1]"; c.Parameters = map[string]string{"tls": "false"} },
+		"user@server username":           func(c *DataSourceConfig) { c.Username = "jitsu@servername" },
+		"no parameters":                  func(c *DataSourceConfig) { c.Parameters = nil },
+	}
+	for name, mutate := range cases {
+		config := mysqlTestConfig()
+		mutate(config)
+		old, err := mysql.ParseDSN(legacyMySQLDSN(config))
+		require.NoError(t, err, name)
+		cfg, err := mySQLDriverConfig(config)
+		require.NoError(t, err, name)
+		require.Equal(t, old.FormatDSN(), cfg.FormatDSN(), name)
+	}
+}
+
+func TestMySQLDriverConfigParameterValues(t *testing.T) {
 	config := mysqlTestConfig()
-	config.Host = "::1"
-	config.Port = 3307
+	// an already encoded value is decoded by the driver, as before
+	config.Parameters = map[string]string{"loc": "US%2FPacific", "time_zone": "%27%2B00%3A00%27"}
 	cfg, err := mySQLDriverConfig(config)
 	require.NoError(t, err)
-	require.Equal(t, "[::1]:3307", cfg.Addr)
+	require.Equal(t, "US/Pacific", cfg.Loc.String())
+	require.Equal(t, "'+00:00'", cfg.Params["time_zone"])
+	// a plain '/' used to be read as the database separator and break the DSN; it works now
+	config.Parameters = map[string]string{"loc": "US/Pacific"}
+	cfg, err = mySQLDriverConfig(config)
+	require.NoError(t, err)
+	require.Equal(t, "US/Pacific", cfg.Loc.String())
+	require.Equal(t, "db.customer.com:3306", cfg.Addr)
+	require.Equal(t, "events", cfg.DBName)
 }
 
 // The driver derives the TLS server name from the address when it normalizes the config: parsing the parameters
