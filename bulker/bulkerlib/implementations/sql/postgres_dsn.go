@@ -7,9 +7,11 @@ import (
 	"strings"
 )
 
-// pgParamName is what libpq accepts as a connection parameter name. Anything else (a space, '=', a quote) in a
-// user-supplied name would start a new setting, so it is refused instead of quoted.
-var pgParamName = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)
+// pgParamName is what libpq and pgx accept as a connection parameter name: a plain identifier, or dot-separated
+// identifiers for the server settings of extensions (`pg_trgm.similarity_threshold`), which pgx forwards to the server.
+// Anything else (a space, '=', a quote) in a user-supplied name would start a new setting, so it is refused instead of
+// quoted.
+var pgParamName = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*(\.[A-Za-z_][A-Za-z0-9_]*)*$`)
 
 // pgSetting is one `name=value` of a libpq keyword/value connection string.
 type pgSetting struct {

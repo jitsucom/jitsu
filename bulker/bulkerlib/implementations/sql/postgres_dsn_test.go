@@ -1,6 +1,8 @@
 package sql
 
 import (
+	"context"
+	"fmt"
 	"testing"
 
 	"github.com/jackc/pgx/v5"
@@ -93,12 +95,38 @@ func TestPgConnectionStringParameterValuesAreQuoted(t *testing.T) {
 }
 
 func TestPgConnectionStringRefusesBadParameterNames(t *testing.T) {
-	for _, name := range []string{"", "a b", "a=b", "host=attacker.example x", "a'b", "1abc", "a-b"} {
+	for _, name := range []string{"", "a b", "a=b", "host=attacker.example x", "a'b", "1abc", "a-b", "a..b", ".a", "a.", "a. b", "a.1b", "ext.x=host"} {
 		_, err := pgConnectionString(baseSettings(), map[string]string{name: "v"})
 		require.Error(t, err, "%q", name)
 	}
 	_, err := pgConnectionString([]pgSetting{{"dbname", "a\x00b"}}, nil)
 	require.Error(t, err)
+}
+
+// Server settings of extensions have dotted names and pgx forwards them to the server as runtime parameters.
+func TestPgConnectionStringAllowsDottedParameterNames(t *testing.T) {
+	cfg := parsePg(t, baseSettings(), map[string]string{"pg_trgm.similarity_threshold": "0.5", "my_ext.nested.name": "x y"})
+	require.Equal(t, "0.5", cfg.RuntimeParams["pg_trgm.similarity_threshold"])
+	require.Equal(t, "x y", cfg.RuntimeParams["my_ext.nested.name"])
+	require.Equal(t, "db.customer.com", cfg.Host)
+}
+
+// End to end against the Postgres container: the server confirms the dotted setting, as the previous DSN allowed.
+func TestPostgresDottedRuntimeParameterReachesTheServer(t *testing.T) {
+	if postgresContainer == nil {
+		t.Skip("needs the Postgres test container (BULKER_TEST_CONFIGS=postgres or all)")
+	}
+	cs, err := pgConnectionString([]pgSetting{
+		{"host", postgresContainer.Host}, {"port", fmt.Sprint(postgresContainer.Port)}, {"dbname", postgresContainer.Database},
+		{"user", postgresContainer.Username}, {"password", postgresContainer.Password},
+	}, map[string]string{"sslmode": "disable", "pg_trgm.similarity_threshold": "0.5"})
+	require.NoError(t, err)
+	conn, err := pgx.Connect(context.Background(), cs)
+	require.NoError(t, err)
+	defer conn.Close(context.Background())
+	var got string
+	require.NoError(t, conn.QueryRow(context.Background(), "SHOW pg_trgm.similarity_threshold").Scan(&got))
+	require.Equal(t, "0.5", got)
 }
 
 func TestPgConnectionStringIsDeterministic(t *testing.T) {
