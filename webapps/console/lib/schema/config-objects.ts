@@ -14,12 +14,18 @@ import {
   StreamConfig,
   WorkspaceDomain,
 } from "./index";
-import { assertDefined, createHash, deepMerge, requireDefined } from "juava";
+import { assertDefined, createHash, deepCopy, deepMerge, requireDefined } from "juava";
 import { checkDomain, checkOrAddToIngress, isDomainAvailable } from "../server/custom-domains";
 import { ZodType, ZodTypeDef } from "zod";
 import { getServerLog } from "../server/log";
 import { getWildcardDomains } from "../../pages/api/[workspaceId]/domain-check";
-import { getDestinationSecretPaths, getServiceSecretPaths, maskSecrets, removeMaskedValues } from "./secrets";
+import {
+  assertSecretsStayWithTarget,
+  getDestinationSecretPaths,
+  getServiceSecretPaths,
+  maskSecrets,
+  removeMaskedValues,
+} from "./secrets";
 import { db } from "../server/db";
 import { ConfigApiDeleteOptions } from "../useApi";
 import pick from "lodash/pick";
@@ -112,6 +118,25 @@ export function parseObject(type: string, obj: any): any {
   return narrowParseResult.data;
 }
 
+/**
+ * A stored config with the schema defaults applied (a PostHog destination without a host gets the default one), or the
+ * config as it is when it doesn't parse. For comparing a stored config with a submitted one, which is always parsed.
+ */
+export function withSchemaDefaults(type: string, obj: any): any {
+  // A stored config has no `id` and `workspaceId` (the service removes them before saving) but the schema requires
+  // them, so they are supplied for parsing and taken out of the result again
+  const entity = { type, id: "-", workspaceId: "-", ...obj };
+  try {
+    const parsed = parseObject(type, entity);
+    for (const key of ["id", "workspaceId"]) {
+      if (!(key in (obj ?? {}))) delete parsed[key];
+    }
+    return parsed;
+  } catch {
+    return obj;
+  }
+}
+
 export type OptionalKeys<T> = {
   [K in keyof T]-?: undefined extends { [K2 in keyof T]: K2 }[K] ? K : never;
 }[keyof T];
@@ -178,7 +203,10 @@ const configObjectTypes: Record<string, ConfigObjectType> = {
       // Remove masked values before merge
       const secretPaths = getDestinationSecretPaths(original.destinationType);
       const cleanedPatch = removeMaskedValues(patch, secretPaths);
-      return deepMerge(original, cleanedPatch);
+      const before = deepCopy(original);
+      const merged = deepMerge(original, cleanedPatch);
+      assertSecretsStayWithTarget(withSchemaDefaults("destination", before), patch, merged, secretPaths);
+      return merged;
     },
 
     inputFilter: async (obj: DestinationConfig, context) => {
@@ -345,7 +373,10 @@ const configObjectTypes: Record<string, ConfigObjectType> = {
       // Remove masked values before merge
       const secretPaths = await getServiceSecretPaths(original.package, original.version);
       const cleanedPatch = removeMaskedValues(patch, secretPaths);
-      return deepMerge(original, cleanedPatch);
+      const before = deepCopy(original);
+      const merged = deepMerge(original, cleanedPatch);
+      assertSecretsStayWithTarget(withSchemaDefaults("service", before), patch, merged, secretPaths);
+      return merged;
     },
     inputFilter: async (obj: ServiceConfig) => {
       // Remove masked values

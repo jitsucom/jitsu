@@ -2,7 +2,12 @@ import type { PrismaClient } from "@prisma/client";
 import type { NextApiRequest } from "next";
 import { deepCopy, randomId, requireDefined, rpc } from "juava";
 import { SessionUser, SyncOptionsType } from "../schema";
-import { getAllConfigObjectTypeNames, getConfigObjectType, parseObject } from "../schema/config-objects";
+import {
+  getAllConfigObjectTypeNames,
+  getConfigObjectType,
+  parseObject,
+  withSchemaDefaults,
+} from "../schema/config-objects";
 import { containsMaskedSecrets, unmaskSecretsFromOriginal } from "../schema/secrets";
 import { getCoreDestinationTypeNonStrict, MASKED_SECRET } from "../schema/destinations";
 import { verifyAccess, verifyAccessWithRole } from "../api";
@@ -251,7 +256,11 @@ export class ConfigObjectsService {
           where: { id: incoming.cloneId, workspaceId },
         });
         if (clonesOriginal?.config) {
-          object = unmaskSecretsFromOriginal(object, clonesOriginal.config as any);
+          object = unmaskSecretsFromOriginal(
+            object,
+            clonesOriginal.config as any,
+            withSchemaDefaults(type, clonesOriginal.config)
+          );
         }
       }
     }

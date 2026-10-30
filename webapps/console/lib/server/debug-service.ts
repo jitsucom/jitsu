@@ -5,7 +5,7 @@ import { getErrorMessage, randomId, requireDefined, rpc } from "juava";
 import { SessionUser } from "../schema";
 import { verifyAccessWithRole } from "../api";
 import { ApiError } from "../shared/errors";
-import { getConfigObjectType, parseObject } from "../schema/config-objects";
+import { getConfigObjectType, parseObject, withSchemaDefaults } from "../schema/config-objects";
 import { containsMaskedSecrets, unmaskSecretsFromOriginal } from "../schema/secrets";
 import { httpAgent, httpsAgent } from "./http-agent";
 import { getServerEnv } from "./serverEnv";
@@ -105,7 +105,11 @@ export class DebugService {
         : testedExisting;
       if (existingEntity?.config) {
         log.atInfo().log(`Unmasking secrets for ${type} test: ${body.id}`);
-        object = unmaskSecretsFromOriginal(object, existingEntity.config as any);
+        object = unmaskSecretsFromOriginal(
+          object,
+          existingEntity.config as any,
+          withSchemaDefaults(type, existingEntity.config)
+        );
       }
     }
     // Must run before inputFilter: a stream filter provisions submitted
