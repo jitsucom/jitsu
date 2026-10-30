@@ -3,7 +3,7 @@ import { randomId } from "juava";
 import { deps, seedWorkspace } from "./support/harness";
 import { ConfigObjectsService } from "../../lib/server/config-objects-service";
 import { assertDestinationInWorkspace } from "../../lib/server/workspace-ownership";
-import { isDomainAvailable, writeClaimingDomains } from "../../lib/server/custom-domains";
+import { isDomainAvailable } from "../../lib/server/custom-domains";
 
 const svc = () => new ConfigObjectsService({ prisma: deps().prisma });
 
@@ -44,6 +44,31 @@ describe("domain objects are unique across workspaces (JITSU-255)", () => {
 });
 
 describe("simultaneous claims of one domain (JITSU-255)", () => {
+  it("serializes updates of domain objects against updates of stream domains", async () => {
+    for (let round = 0; round < 5; round++) {
+      const name = `update-race-${randomId(8).toLowerCase()}.example`;
+      const a = await seedWorkspace();
+      const b = await seedWorkspace();
+      const domain = await svc().create(
+        a.user,
+        a.workspace.id,
+        "domain",
+        { name: `old-${name}` },
+        { generateId: true }
+      );
+      const stream = await svc().create(b.user, b.workspace.id, "stream", { name: "site" }, { generateId: true });
+      const results = await Promise.allSettled([
+        svc().update(a.user, a.workspace.id, "domain", domain.id, { name }),
+        svc().update(b.user, b.workspace.id, "stream", stream.id, { domains: [name] }),
+      ]);
+      expect(results.filter(r => r.status === "fulfilled")).toHaveLength(1);
+      const rows = await deps().prisma.configurationObject.findMany({ where: { id: { in: [domain.id, stream.id] } } });
+      expect(
+        rows.filter(row => (row.config as any).name === name || (row.config as any).domains?.includes(name))
+      ).toHaveLength(1);
+    }
+  });
+
   it("lets exactly one workspace win, for domain objects and stream domains alike", async () => {
     for (let round = 0; round < 10; round++) {
       const name = `race-${randomId(8).toLowerCase()}.victim.example`;
@@ -65,8 +90,7 @@ describe("simultaneous claims of one domain (JITSU-255)", () => {
 
 describe("the locked recheck of a domain claim (JITSU-255)", () => {
   it("runs on the transaction's own connection, not on a second one from the pool", async () => {
-    const { workspace } = await seedWorkspace();
-    const row = await deps().prisma.workspace.findUniqueOrThrow({ where: { id: workspace.id } });
+    const { workspace, user } = await seedWorkspace();
     let onTx = 0;
     const counting: any = new Proxy(deps().prisma, {
       get: (target, prop) =>
@@ -80,7 +104,13 @@ describe("the locked recheck of a domain claim (JITSU-255)", () => {
           : (target as any)[prop],
     });
     const name = `tx-${randomId(8).toLowerCase()}.example`;
-    await writeClaimingDomains(counting, row, "domain", { name }, async () => "written");
+    await new ConfigObjectsService({ prisma: counting }).create(
+      user,
+      workspace.id,
+      "domain",
+      { name },
+      { generateId: true }
+    );
     expect(onTx).toBeGreaterThan(0);
   });
 });

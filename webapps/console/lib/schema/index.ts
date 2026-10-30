@@ -2,7 +2,6 @@ import { z } from "zod";
 import { getLog } from "juava";
 import { UserProfileDbModel, WorkspaceDbModel } from "../../prisma/schema";
 import { WorkspaceRolesZodType } from "../workspace-roles";
-import { ConfigApiDeleteOptions } from "../useApi";
 import { monthlyEventsQuota } from "../events-quota";
 import { ModelDefinition } from "@jitsu/warehouse-query/src/schema";
 
@@ -531,12 +530,6 @@ export type ConfigObjectType<T = any> = {
    * Clean object before sending to client. Can remove fields, hide values etc
    */
   outputFilter?: OutputFilter<T> | ((original: T) => Promise<T>);
-
-  /**
-   * Called before deleting the object. Can perform validation and cleanup.
-   * Should throw ApiError if deletion is not allowed.
-   */
-  onDelete?: (original: T, options?: ConfigApiDeleteOptions) => Promise<void>;
 };
 
 const SafeUserProfile = UserProfileDbModel.pick({

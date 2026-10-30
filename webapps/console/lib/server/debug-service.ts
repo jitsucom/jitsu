@@ -1,11 +1,12 @@
 import { signFunctionsRequest } from "juava/src/functions-auth";
+import { getServerConfigObjectType } from "./config-object-types";
 import type { PrismaClient } from "@prisma/client";
 import type { NextApiRequest } from "next";
 import { getErrorMessage, randomId, requireDefined, rpc } from "juava";
 import { SessionUser } from "../schema";
 import { verifyAccessWithRole } from "../api";
 import { ApiError } from "../shared/errors";
-import { getConfigObjectType, parseObject } from "../schema/config-objects";
+import { parseObject } from "../schema/config-objects";
 import { containsMaskedSecrets, unmaskSecretsFromOriginal } from "../schema/secrets";
 import { httpAgent, httpsAgent } from "./http-agent";
 import { getServerEnv } from "./serverEnv";
@@ -70,9 +71,8 @@ export class DebugService {
     type: string,
     opts: { config?: any; id?: string; req?: NextApiRequest }
   ): Promise<any> {
-    // Testing an arbitrary configuration can run mutating input filters (stream
-    // domain provisioning is one), so it requires the same permission as a
-    // configuration write.
+    // Testing an arbitrary configuration can provision stream domains, so it
+    // requires the same permission as a configuration write.
     await verifyAccessWithRole(user, workspaceId, "editEntities");
     const workspace = requireDefined(
       await this.prisma.workspace.findFirst({ where: { id: workspaceId } }),
@@ -97,7 +97,7 @@ export class DebugService {
       });
     }
     body = { ...body, workspaceId, type, id: body.id ?? randomId() };
-    const configObjectType = getConfigObjectType(type);
+    const configObjectType = getServerConfigObjectType(type);
     let object = parseObject(type, body);
     if (containsMaskedSecrets(object)) {
       const existingEntity = body.cloneId
@@ -108,11 +108,11 @@ export class DebugService {
         object = unmaskSecretsFromOriginal(object, existingEntity.config as any);
       }
     }
-    // Must run before inputFilter: a stream filter provisions submitted
-    // domains in ingress. Treat domains already stored on the tested object as
+    // Must run before afterTestValidation provisions submitted domains in ingress. Treat domains already stored on the tested object as
     // grandfathered, matching update and domain-check behavior.
     await assertCustomDomainsAllowed(user, workspace, type, object, testedExisting?.config, opts.req);
     object = await configObjectType.inputFilter(object, "create", workspace);
+    await configObjectType.afterTestValidation?.({ prisma: this.prisma, workspace, object });
 
     if (type === "destination" && object.destinationType === "redshift" && !object.bucket?.trim()) {
       // No ingestion/S3 staging is involved. Test the same TLS/password path the

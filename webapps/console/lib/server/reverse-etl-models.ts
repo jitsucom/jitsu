@@ -12,28 +12,13 @@ import { previewModelRows } from "@jitsu/warehouse-query/src/reader";
 
 type ModelDb = Pick<PrismaClient, "workspace" | "configurationObject" | "configurationObjectLink" | "$queryRaw">;
 
-// Serialize reference checks with config writes across console instances. Remote
-// warehouse inspection happens BEFORE this short transaction, never under a lock.
-export async function modelMutation<T>(
-  prisma: PrismaClient,
-  workspaceId: string,
-  type: string,
-  write: (db: ModelDb) => Promise<T>
-): Promise<T> {
-  if (!["model", "destination"].includes(type)) return write(prisma);
-  return prisma.$transaction(async tx => {
-    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`retl-models:${workspaceId}`}, 0))`;
-    return write(tx);
-  });
-}
-
 export async function recheckModelWarehouse(
   prisma: ModelDb,
   workspaceId: string,
   warehouseId: string,
   inspectedConfig: unknown
 ) {
-  // Called only by create/update inside modelMutation's final transaction, after
+  // Called by the model beforeWrite hook inside the final transaction, after
   // remote inspection. The row lock also serializes with flag updates that do not
   // take our advisory lock, keeping the gate stable until the model write commits.
   await prisma.$queryRaw`SELECT id FROM "Workspace" WHERE id = ${workspaceId} FOR SHARE`;

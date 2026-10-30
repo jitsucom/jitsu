@@ -15,13 +15,10 @@ import {
   WorkspaceDomain,
 } from "./index";
 import { assertDefined, createHash, deepMerge, requireDefined } from "juava";
-import { checkDomain, checkOrAddToIngress, isDomainAvailable } from "../server/custom-domains";
+import { checkDomain, isDomainAvailable } from "../server/custom-domains";
 import { ZodType, ZodTypeDef } from "zod";
 import { getServerLog } from "../server/log";
-import { getWildcardDomains } from "../../pages/api/[workspaceId]/domain-check";
 import { getDestinationSecretPaths, getServiceSecretPaths, maskSecrets, removeMaskedValues } from "./secrets";
-import { db } from "../server/db";
-import { ConfigApiDeleteOptions } from "../useApi";
 import pick from "lodash/pick";
 
 const log = getServerLog("config-objects");
@@ -38,58 +35,6 @@ function hashKeys(newKeys: ApiKey[], oldKeys: ApiKey[]): ApiKey[] {
       : requireDefined(oldKeysIndex[k.id], `Key with id ${k.id} should either be known, or hash a plaintext value`)
           .hash,
   }));
-}
-
-/**
- * Handles linked connections check and deletion for stream, destination, and service objects.
- * This is a shared method used by onDelete handlers.
- */
-export async function handleLinkedConnections(
-  workspaceId: string,
-  objectId: string,
-  objectType: string,
-  options?: ConfigApiDeleteOptions
-): Promise<void> {
-  if (!options?.strict && !options?.cascade) {
-    return;
-  }
-  // Check for linked connections
-  const linkedConnections = await db.prisma().configurationObjectLink.findMany({
-    where: {
-      workspaceId,
-      deleted: false,
-      OR: [{ fromId: objectId }, { toId: objectId }],
-    },
-  });
-  if (linkedConnections.length === 0) {
-    return;
-  }
-
-  // Cascade takes precedence over strict
-  if (options?.cascade) {
-    // Delete all linked connections before deleting the object.
-    // Sync deletions are picked up by syncctl on its next /api/admin/export/syncs poll.
-    for (const link of linkedConnections) {
-      await db.prisma().configurationObjectLink.update({
-        where: { id: link.id },
-        data: { deleted: true },
-      });
-    }
-  } else if (options?.strict) {
-    throw new ApiError(`Cannot delete ${objectType} because it has ${linkedConnections.length} linked connections`, {
-      status: 409,
-      responseObject: {
-        code: "LINKED_CONNECTIONS_EXIST",
-        linkedConnectionsCount: linkedConnections.length,
-        linkedConnections: linkedConnections.map(link => ({
-          id: link.id,
-          type: link.type || "push",
-          fromId: link.fromId,
-          toId: link.toId,
-        })),
-      },
-    });
-  }
 }
 
 export function parseObject(type: string, obj: any): any {
@@ -142,7 +87,6 @@ export const getConfigObjectType: (type: string) => Required<ConfigObjectType> =
     outputFilter: async function (original: any) {
       return original;
     },
-    onDelete: async function (_original: any, _options?: ConfigApiDeleteOptions) {},
   };
 
   return { ...defaults, ...configType };
@@ -195,9 +139,6 @@ const configObjectTypes: Record<string, ConfigObjectType> = {
       assertDefined(destinationType, `Unknown destination type ${type}`);
       return DestinationConfig.merge(destinationType.credentials);
     },
-    onDelete: async (original: DestinationConfig, options) => {
-      await handleLinkedConnections(original.workspaceId, original.id, "destination", options);
-    },
   },
   stream: {
     schema: StreamConfig,
@@ -221,7 +162,7 @@ const configObjectTypes: Record<string, ConfigObjectType> = {
 
     inputFilter: async (obj, _, workspace) => {
       const workspaceId = workspace.id;
-      outer: for (const domain of obj.domains || []) {
+      for (const domain of obj.domains || []) {
         const domainToCheck = domain.trim().toLowerCase();
         if (!checkDomain(domainToCheck)) {
           log.atWarn().log(`Domain '${domainToCheck}' is not a valid domain name`);
@@ -235,26 +176,6 @@ const configObjectTypes: Record<string, ConfigObjectType> = {
               `Domain ${domainToCheck} can't be added to workspace ${workspaceId}, it is already in use by other workspaces: ${domainAvailability.usedInWorkspace}`
             );
           throw new ApiError(`Domain ${domainToCheck} is already in use by other workspace`);
-        }
-        const wildcardDomains = await getWildcardDomains(workspaceId);
-        for (const wildcardDomain of wildcardDomains) {
-          if (domainToCheck.endsWith(wildcardDomain.toLowerCase().replace("*", ""))) {
-            log
-              .atInfo()
-              .log(
-                `No need to check ingress status for ${domainToCheck} since it is under wildcard domain: ${wildcardDomain}`
-              );
-            continue outer;
-          }
-        }
-        try {
-          const ingressStatus = await checkOrAddToIngress(domainToCheck);
-          log.atInfo().log(`Ingress status for ${domainToCheck}: ${JSON.stringify(ingressStatus)}`);
-          if (!ingressStatus) {
-            log.atWarn().log(`Incorrect ingress status ${domainToCheck} is not valid`);
-          }
-        } catch (e) {
-          log.atError().withCause(e).log(`Error checking ingress status for ${domainToCheck}`);
         }
       }
       return {
@@ -272,67 +193,9 @@ const configObjectTypes: Record<string, ConfigObjectType> = {
         publicKeys: (original.publicKeys || []).map(k => ({ ...k, plaintext: undefined, hash: undefined })),
       };
     },
-    onDelete: async (original: StreamConfig, options) => {
-      await handleLinkedConnections(original.workspaceId, original.id, "stream", options);
-    },
   },
   function: {
     schema: FunctionConfig,
-    onDelete: async (original: FunctionConfig, options) => {
-      if (!options?.strict) {
-        return;
-      }
-
-      // Check if function is used in any connections
-      const allLinks = await db.prisma().configurationObjectLink.findMany({
-        where: { workspaceId: original.workspaceId, deleted: false, type: "push" },
-      });
-
-      const connectionsUsingFunction = allLinks.filter(link => {
-        const functions = link.data?.["functions"];
-        if (Array.isArray(functions)) {
-          return functions.some((f: any) => f.functionId === "udf." + original.id);
-        }
-        return false;
-      });
-
-      // Check if function is used in any profile builders
-      const profileBuilders = await db.prisma().profileBuilder.findMany({
-        where: { workspaceId: original.workspaceId, deleted: false },
-      });
-
-      const profileBuildersUsingFunction = profileBuilders.filter(pb => {
-        const functions = pb.connectionOptions?.["functions"];
-        if (Array.isArray(functions)) {
-          return functions.some((f: any) => f.functionId === "udf." + original.id);
-        }
-        return false;
-      });
-
-      if (connectionsUsingFunction.length > 0 || profileBuildersUsingFunction.length > 0) {
-        throw new ApiError(
-          `Cannot delete function because it is being used by ${connectionsUsingFunction.length} connection(s) and ${profileBuildersUsingFunction.length} profile builder(s)`,
-          {
-            status: 409,
-            responseObject: {
-              code: "FUNCTION_IN_USE",
-              connectionsCount: connectionsUsingFunction.length,
-              profileBuildersCount: profileBuildersUsingFunction.length,
-              connections: connectionsUsingFunction.map(link => ({
-                id: link.id,
-                type: link.type || "push",
-                fromId: link.fromId,
-                toId: link.toId,
-              })),
-              profileBuilders: profileBuildersUsingFunction.map(pb => ({
-                id: pb.id,
-                name: pb.name,
-              })),
-            },
-          }
-        );
-      }
-    },
   },
   service: {
     schema: ServiceConfig,
@@ -351,9 +214,6 @@ const configObjectTypes: Record<string, ConfigObjectType> = {
       // Remove masked values
       const secretPaths = await getServiceSecretPaths(obj.package, obj.version);
       return removeMaskedValues(obj, secretPaths);
-    },
-    onDelete: async (original: ServiceConfig, options) => {
-      await handleLinkedConnections(original.workspaceId, original.id, "service", options);
     },
   },
   "custom-image": {
