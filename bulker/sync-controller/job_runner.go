@@ -473,6 +473,14 @@ func (j *JobRunner) CreatePod(pc PodCtx) TaskStatus {
 	ts.PackageVersion = ver
 	ts.StorageKey = storageKey
 
+	if !j.config.sourceImageAllowed(pkg) {
+		j.Errorf("refusing to start %s: image %q is not allowed by SYNC_ALLOWED_IMAGE_PREFIXES", podName, pkg)
+		ts.Status = StatusCreateFailed
+		ts.Error = "connector image is not allowed"
+		j.sendStatus(&ts)
+		return ts
+	}
+
 	// Create per-Pod Secret with serviceConfig.json + destinationConfig.json
 	// when the task needs them. oauth-refresh / load-catalog-state read from
 	// /config/* via this Secret.

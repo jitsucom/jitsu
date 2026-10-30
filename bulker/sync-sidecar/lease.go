@@ -348,8 +348,8 @@ func runLeaseAcquire() {
 // startLeaseRenewer launches a background goroutine that keeps the lease
 // alive while the main sidecar processes records. If the lease can't be
 // renewed (lost it — i.e. another pod with a different identity took it
-// over), the goroutine SIGTERMs PID 1 to terminate the Pod and stop the
-// sync mid-flight.
+// over), the goroutine requests connector termination and exits nonzero. The
+// controller cleans up the Pod even if optional sentinel supervision fails.
 //
 // Also installs a SIGTERM/SIGINT handler that releases the lease on clean
 // shutdown so the next scheduled or manual run isn't blocked waiting for
@@ -403,15 +403,37 @@ func startLeaseRenewer() {
 			if !ok {
 				leaseLost.Store(true)
 				logging.Errorf("[lease-renew] lease %q (sync %s) lost — terminating Pod", LeaseNameForSync(syncID), syncID)
-				// Do not share a PID namespace with customer connector images: that
-				// exposes our credential-bearing environment through /proc.
-				// Closing the pipes stops output consumption immediately; the
-				// controller cleans up siblings on a non-zero sidecar exit.
-				os.Exit(1)
+				terminatePod()
 				return
 			}
 		}
 	}()
+}
+
+// terminatePod always leaves controller cleanup available as a fallback.
+func terminatePod() {
+	requestConnectorTermination()
+	os.Exit(1)
+}
+
+// requestConnectorTermination accelerates cleanup for opted-in syncs. Never
+// signal PID 1: source and sidecar always use separate PID namespaces.
+func requestConnectorTermination() {
+	if sentinel := os.Getenv("TERMINATE_SENTINEL"); sentinel != "" {
+		if err := writeTerminateSentinel(sentinel); err != nil {
+			logging.Errorf("[lease-renew] writing %s failed; falling back to controller cleanup: %v", sentinel, err)
+		}
+	}
+}
+
+func writeTerminateSentinel(path string) error {
+	// /shared is connector-writable. Never follow symlinks, truncate existing
+	// entries, or block opening a FIFO; existence alone is the signal.
+	file, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o644)
+	if err != nil {
+		return err
+	}
+	return file.Close()
 }
 
 // ReleaseSyncLease is callable from the main sidecar's normal-exit path

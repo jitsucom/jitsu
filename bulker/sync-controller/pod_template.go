@@ -4,7 +4,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"regexp"
 	"strconv"
+	"strings"
 
 	"github.com/jitsucom/bulker/jitsubase/utils"
 	v1 "k8s.io/api/core/v1"
@@ -214,6 +216,64 @@ func (c *PodCtx) startedByOrDefault() string {
 		return `{"trigger":"scheduled"}`
 	}
 	return `{"trigger":"manual"}`
+}
+
+// terminateSentinel is coordination with the sidecar, not an isolation boundary.
+const terminateSentinel = "/shared/terminate"
+
+// terminableCommand keeps a shell as PID 1. Lease loss uses USR1 to stop the
+// namespace immediately; ordinary TERM/INT is forwarded to the connector and
+// waits for it, with Kubernetes enforcing the Pod's termination grace period.
+// cmd must exec the connector so $! names its entrypoint, not an intermediate shell.
+func terminableCommand(cmd, sentinel string) string {
+	return fmt.Sprintf(`pid=
+trap 'exit 143' USR1
+trap 'trap "" TERM INT; if [ -n "$pid" ]; then kill -TERM "$pid" 2>/dev/null; wait "$pid"; fi; exit 143' TERM INT
+%[1]s &
+pid=$!
+( while [ ! -e %[2]s ]; do sleep 1; done; kill -USR1 $$ ) &
+watcher=$!
+wait "$pid"
+rc=$?
+kill "$watcher" 2>/dev/null
+wait "$watcher" 2>/dev/null
+exit "$rc"`, cmd, sentinel)
+}
+
+var k8sDollar = regexp.MustCompile(`\$[$(]`)
+
+// Escape shell PID/command substitution from Kubernetes command/args expansion.
+func k8sEscape(script string) string {
+	return k8sDollar.ReplaceAllStringFunc(script, func(m string) string {
+		if m == "$$" {
+			return "$$$$"
+		}
+		return "$$("
+	})
+}
+
+func (c *Config) syncFastShutdownEnabled(syncID string) bool {
+	for _, id := range strings.Split(c.SyncFastShutdownIDs, ",") {
+		id = strings.TrimSpace(id)
+		if id == "*" || (syncID != "" && id == syncID) {
+			return true
+		}
+	}
+	return false
+}
+
+// sourceImageAllowed reports whether a connector image may be started. With SYNC_ALLOWED_IMAGE_PREFIXES unset every
+// image is allowed.
+func (c *Config) sourceImageAllowed(pkg string) bool {
+	if strings.TrimSpace(c.SyncAllowedImagePrefixes) == "" {
+		return true
+	}
+	for _, prefix := range strings.Split(c.SyncAllowedImagePrefixes, ",") {
+		if prefix = strings.TrimSpace(prefix); prefix != "" && strings.HasPrefix(pkg, prefix) {
+			return true
+		}
+	}
+	return false
 }
 
 // buildSyncPodTemplate is the single source of truth for the autonomous
@@ -478,11 +538,19 @@ func buildSyncPodTemplate(c *Config, pc PodCtx, secretName string) v1.PodTemplat
 	sourceVolumeMounts := []v1.VolumeMount{sharedMount, pipesMount}
 	sidecarVolumeMounts := []v1.VolumeMount{sharedMount, pipesMount}
 
+	sourceCommand := pc.sourceCommand()
+	if sourceCommand != "" && c.syncFastShutdownEnabled(syncID) {
+		// The commands are generated above, never user-supplied shell scripts.
+		sourceCommand = strings.Replace(sourceCommand, `eval "`, `eval "exec `, 1)
+		sourceCommand = k8sEscape(terminableCommand(sourceCommand, terminateSentinel))
+		sidecarEnv = append(sidecarEnv, v1.EnvVar{Name: "TERMINATE_SENTINEL", Value: terminateSentinel})
+	}
+
 	containers := []v1.Container{
 		{
 			Name:    "source",
 			Image:   sourceImage,
-			Command: []string{"sh", "-c", pc.sourceCommand()},
+			Command: []string{"sh", "-c", sourceCommand},
 			Env: []v1.EnvVar{
 				{Name: "USE_STREAM_CAPABLE_STATE", Value: "true"},
 				{Name: "AUTO_DETECT_SCHEMA", Value: "true"},
