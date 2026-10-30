@@ -245,6 +245,67 @@ describe("connection string injection (Postgres and Redshift)", () => {
     });
   });
 
+  describe("service connector image (package)", () => {
+    const service = {
+      protocol: "airbyte",
+      package: "airbyte/source-faker",
+      version: "1.0.0",
+      credentials: { api_key: "real-key", start_date: "2024-01-01" },
+    };
+    const secretPaths = ["credentials.api_key"];
+
+    it("refuses unmasking into another package: the image would receive the stored credentials", () => {
+      const submitted = {
+        ...service,
+        package: "attacker/connector",
+        credentials: { ...service.credentials, api_key: MASKED_SECRET },
+      };
+      expect(() => unmaskSecretsFromOriginal(submitted, service)).toThrow(/package changed/);
+      expect(changedConnectionTargets(submitted, service)).toEqual(["package"]);
+      expect(changedTargetFieldsBetween(submitted, service)).toContain("package");
+    });
+
+    it("refuses a saved service that changes the package and keeps the key, masked or omitted", () => {
+      for (const patch of [
+        { package: "attacker/connector", credentials: { api_key: MASKED_SECRET } },
+        { package: "attacker/connector" },
+      ]) {
+        const merged = { ...service, ...patch, credentials: { ...service.credentials, ...(patch.credentials ?? {}) } };
+        expect(() => assertSecretsStayWithTarget(service, patch, merged, secretPaths)).toThrow(/package changed/);
+      }
+    });
+
+    it("allows the change when the credentials are entered again", () => {
+      const patch = { package: "airbyte/source-other", credentials: { api_key: "new-key" } };
+      const merged = { ...service, ...patch, credentials: { ...service.credentials, ...patch.credentials } };
+      expect(() => assertSecretsStayWithTarget(service, patch, merged, secretPaths)).not.toThrow();
+    });
+
+    it("does not ask for the credentials again on a new version of the same package", () => {
+      const submitted = {
+        ...service,
+        version: "2.0.0",
+        credentials: { ...service.credentials, api_key: MASKED_SECRET },
+      };
+      expect(unmaskSecretsFromOriginal(submitted, service)).toMatchObject({
+        version: "2.0.0",
+        credentials: { api_key: "real-key" },
+      });
+      const patch = { version: "2.0.0" };
+      expect(() => assertSecretsStayWithTarget(service, patch, { ...service, ...patch }, secretPaths)).not.toThrow();
+    });
+
+    it("an unchanged package, or one that differs only by surrounding spaces, is not a change", () => {
+      expect(changedTargetFieldsBetween({ ...service, package: " airbyte/source-faker " }, service)).toEqual([]);
+      expect(changedTargetFieldsBetween(service, service)).toEqual([]);
+    });
+
+    it("only services have a package: objects without one are unaffected", () => {
+      expect(changedTargetFieldsBetween({ host: "a" }, { host: "a" })).toEqual([]);
+      expect(changedTargetFieldsBetween({ package: "x" }, {})).toEqual([]);
+    });
+  });
+
   it("does not touch other destination types", () => {
     const clickhouse = { destinationType: "clickhouse", database: "a b", password: "real" };
     expect(unmaskSecretsFromOriginal({ ...clickhouse, password: MASKED_SECRET }, clickhouse)).toEqual(clickhouse);

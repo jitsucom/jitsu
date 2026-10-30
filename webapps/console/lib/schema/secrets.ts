@@ -204,7 +204,26 @@ const isValueList = (v: any) => Array.isArray(v) && v.every(item => item === nul
  * would be carried over to a different target.
  */
 export function changedConnectionTargets(object: any, original: any): string[] {
-  return containsMaskedSecrets(object) ? findChangedTargets(object, original, [], targetKeyFor(object, original)) : [];
+  return containsMaskedSecrets(object)
+    ? [
+        ...changedServiceImage(object, original),
+        ...findChangedTargets(object, original, [], targetKeyFor(object, original)),
+      ]
+    : [];
+}
+
+/**
+ * A service (an Airbyte connector) is a Docker image that receives the stored credentials in its config file, so the
+ * image is where they go: another `package` can read and send them anywhere, with no host field changing. A new
+ * `version` of the same package is not a target (an upgrade must not ask for the credentials again; the tags of a
+ * package are controlled by whoever owns it).
+ */
+function changedServiceImage(updated: any, original: any): string[] {
+  return typeof updated?.package === "string" &&
+    typeof original?.package === "string" &&
+    updated.package.trim() !== original.package.trim()
+    ? ["package"]
+    : [];
 }
 
 function findChangedTargets(
@@ -307,7 +326,10 @@ function maskedPaths(node: any, path: (string | number)[] = []): (string | numbe
  * counting as no value. Unlike {@link changedConnectionTargets} it does not need a masked secret in the object.
  */
 export function changedTargetFieldsBetween(updated: any, original: any): string[] {
-  return targetFieldsBetween(updated, original, [], targetKeyFor(updated, original));
+  return [
+    ...changedServiceImage(updated, original),
+    ...targetFieldsBetween(updated, original, [], targetKeyFor(updated, original)),
+  ];
 }
 
 function targetFieldsBetween(

@@ -174,6 +174,75 @@ describe("other kinds of connection targets", () => {
     });
   });
 
+  describe("service connector image", () => {
+    const pkg = `airbyte/source-mk-${Math.random().toString(36).slice(2, 8)}`;
+    async function seedService() {
+      const specs = {
+        connectionSpecification: {
+          properties: { api_key: { type: "string", airbyte_secret: true }, start_date: { type: "string" } },
+        },
+      };
+      await deps().prisma.source_spec.upsert({
+        where: { package_version: { package: pkg, version: "1.0.0" } },
+        create: { package: pkg, version: "1.0.0", specs },
+        update: { specs },
+      });
+      await deps().prisma.source_spec.upsert({
+        where: { package_version: { package: pkg, version: "1.1.0" } },
+        create: { package: pkg, version: "1.1.0", specs },
+        update: { specs },
+      });
+      const { user, workspace } = await seedWorkspace();
+      const { id } = await svc().create(
+        user,
+        workspace.id,
+        "service",
+        {
+          name: "src",
+          protocol: "airbyte",
+          package: pkg,
+          version: "1.0.0",
+          credentials: { api_key: "real-key", start_date: "2024-01-01" },
+        },
+        { generateId: true }
+      );
+      const stored = async () =>
+        (await deps().prisma.configurationObject.findUniqueOrThrow({ where: { id } })).config as any;
+      return { user, workspace, id, stored };
+    }
+
+    it("refuses another package with the stored credentials, masked or omitted", async () => {
+      const { user, workspace, id, stored } = await seedService();
+      for (const patch of [
+        { package: "attacker/connector", credentials: { api_key: MASKED_SECRET } },
+        { package: "attacker/connector" },
+      ]) {
+        await expect(svc().update(user, workspace.id, "service", id, patch)).rejects.toMatchObject({
+          status: 400,
+          message: expect.stringMatching(/api_key.*package changed/),
+        });
+      }
+      expect(await stored()).toMatchObject({ package: pkg, credentials: { api_key: "real-key" } });
+    });
+
+    it("allows another package when the credentials are entered again, and a new version without them", async () => {
+      const { user, workspace, id, stored } = await seedService();
+      await svc().update(user, workspace.id, "service", id, {
+        version: "1.1.0",
+        credentials: { api_key: MASKED_SECRET },
+      });
+      expect(await stored()).toMatchObject({ package: pkg, version: "1.1.0", credentials: { api_key: "real-key" } });
+      await svc().update(user, workspace.id, "service", id, {
+        package: "airbyte/source-other",
+        credentials: { api_key: "typed-again" },
+      });
+      expect(await stored()).toMatchObject({
+        package: "airbyte/source-other",
+        credentials: { api_key: "typed-again" },
+      });
+    });
+  });
+
   it("refuses another Snowflake account with the stored password", async () => {
     const { user, workspace, id } = await seed("snowflake", {
       authenticationMethod: "password",
