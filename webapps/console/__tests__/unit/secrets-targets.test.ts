@@ -201,6 +201,50 @@ describe("connection string injection (Postgres and Redshift)", () => {
     }
   });
 
+  describe("MySQL: the driver splits the DSN at its last @ and /", () => {
+    const mysqlStored = {
+      destinationType: "mysql",
+      host: "db.customer.com",
+      database: "events",
+      username: "jitsu",
+      password: "real",
+    };
+
+    it.each([
+      "x@tcp(attacker.example:3306)/events",
+      "events?tls=false",
+      "events/../other",
+      "events@evil",
+      " x@tcp(attacker.example:3306)/events ",
+    ])("refuses unmasking with database = %j", database => {
+      const submitted = { ...mysqlStored, database, password: MASKED_SECRET };
+      expect(() => unmaskSecretsFromOriginal(submitted, mysqlStored)).toThrow(/database contains @, \/ or \?/);
+    });
+
+    it("refuses a saved config that keeps the password while the database carries the address", () => {
+      const patch = { database: "x@tcp(attacker.example:3306)/events" };
+      expect(() => assertSecretsStayWithTarget(mysqlStored, patch, { ...mysqlStored, ...patch }, ["password"])).toThrow(
+        /database contains @, \/ or \?/
+      );
+    });
+
+    it("lets ordinary names through, user@server usernames included, and a typed password", () => {
+      for (const database of ["events", "my-db_2", "db$1", "événements", "a b"]) {
+        expect(
+          unmaskSecretsFromOriginal({ ...mysqlStored, database, password: MASKED_SECRET }, { ...mysqlStored, database })
+        ).toMatchObject({ database, password: "real" });
+      }
+      const azure = { ...mysqlStored, username: "jitsu@servername" };
+      expect(unmaskSecretsFromOriginal({ ...azure, password: MASKED_SECRET }, azure)).toMatchObject({
+        password: "real",
+      });
+      const patch = { database: "x@tcp(attacker.example:3306)/events", password: "typed-again" };
+      expect(() =>
+        assertSecretsStayWithTarget(mysqlStored, patch, { ...mysqlStored, ...patch }, ["password"])
+      ).not.toThrow();
+    });
+  });
+
   it("does not touch other destination types", () => {
     const clickhouse = { destinationType: "clickhouse", database: "a b", password: "real" };
     expect(unmaskSecretsFromOriginal({ ...clickhouse, password: MASKED_SECRET }, clickhouse)).toEqual(clickhouse);

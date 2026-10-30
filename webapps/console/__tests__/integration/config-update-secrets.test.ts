@@ -153,6 +153,27 @@ describe("other kinds of connection targets", () => {
     ).rejects.toMatchObject({ status: 400, message: expect.stringMatching(/defaultSchema contains a space/) });
   });
 
+  it("refuses a MySQL database name that carries another address, with the stored password", async () => {
+    const { user, workspace, id } = await seed("mysql", {
+      host: "db.customer.com",
+      database: "events",
+      username: "jitsu@servername",
+      password: "hunter2",
+    });
+    await expect(
+      svc().update(user, workspace.id, "destination", id, { database: "x@tcp(attacker.example:3306)/events" })
+    ).rejects.toMatchObject({ status: 400, message: expect.stringMatching(/password.*database contains @, \/ or \?/) });
+    // an ordinary edit of the same destination still keeps its secret
+    await svc().update(user, workspace.id, "destination", id, { name: "renamed", database: "events_2" });
+    const stored = (await deps().prisma.configurationObject.findUniqueOrThrow({ where: { id } })).config as any;
+    expect(stored).toMatchObject({
+      name: "renamed",
+      database: "events_2",
+      username: "jitsu@servername",
+      password: "hunter2",
+    });
+  });
+
   it("refuses another Snowflake account with the stored password", async () => {
     const { user, workspace, id } = await seed("snowflake", {
       authenticationMethod: "password",
