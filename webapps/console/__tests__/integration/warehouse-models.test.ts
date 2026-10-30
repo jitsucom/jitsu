@@ -1,10 +1,11 @@
+import { withConfigTransaction, modelMutationLock } from "../../lib/server/config-object-lifecycle";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { http, HttpResponse } from "msw";
 import { createWarehouseReader, SourceRecord } from "@jitsu/warehouse-query";
 import { ModelDefinition } from "@jitsu/warehouse-query/src/schema";
 import { compilePostgresPreview, postgresSql } from "@jitsu/warehouse-query/src/postgres";
 import { ConfigObjectsService } from "../../lib/server/config-objects-service";
-import { modelColumns, modelMutation, previewModel, recheckModelWarehouse } from "../../lib/server/reverse-etl-models";
+import { modelColumns, previewModel, recheckModelWarehouse } from "../../lib/server/reverse-etl-models";
 import { getServerEnv } from "../../lib/server/serverEnv";
 import { deleteReverseSync } from "../../lib/server/reverse-syncs";
 import { deps, seedWorkspace } from "./support/harness";
@@ -741,10 +742,10 @@ describe("Models service", () => {
   );
   it("keeps the final rollout check stable against ordinary workspace updates until commit", async () => {
     const { workspace, warehouse } = await fixture();
-    await modelMutation(deps().prisma, workspace.id, "model", async tx => {
+    await withConfigTransaction(deps().prisma, [modelMutationLock(workspace.id)], async tx => {
       await recheckModelWarehouse(tx, workspace.id, warehouse.id, warehouse.config);
       // A separate transaction updating flags must wait for the reader's SHARE
-      // lock even though it does not participate in modelMutation's advisory lock.
+      // lock even though it does not participate in the model advisory lock.
       await expect(
         deps().prisma.$transaction(async competing => {
           await competing.$executeRaw`SET LOCAL lock_timeout = '100ms'`;
@@ -754,7 +755,7 @@ describe("Models service", () => {
     });
     await deps().prisma.workspace.update({ where: { id: workspace.id }, data: { featuresEnabled: [] } });
     await expect(
-      modelMutation(deps().prisma, workspace.id, "model", tx =>
+      withConfigTransaction(deps().prisma, [modelMutationLock(workspace.id)], tx =>
         recheckModelWarehouse(tx, workspace.id, warehouse.id, warehouse.config)
       )
     ).rejects.toMatchObject({ status: 403 });

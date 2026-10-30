@@ -1,6 +1,6 @@
 import type { PrismaClient } from "@prisma/client";
 import type { NextApiRequest } from "next";
-import { deepCopy, randomId, requireDefined, rpc } from "juava";
+import { deepCopy, randomId, requireDefined } from "juava";
 import { SessionUser, SyncOptionsType } from "../schema";
 import { getAllConfigObjectTypeNames, getConfigObjectType, parseObject } from "../schema/config-objects";
 import { containsMaskedSecrets, unmaskSecretsFromOriginal } from "../schema/secrets";
@@ -8,60 +8,17 @@ import { getCoreDestinationTypeNonStrict, MASKED_SECRET } from "../schema/destin
 import { verifyAccess, verifyAccessWithRole } from "../api";
 import { prepareZodObjectForDeserialization } from "../zod";
 import { ApiError } from "../shared/errors";
-import { assertCustomDomainsAllowed, assertIdentityStitchingAllowed } from "./plan-gate";
+import { assertIdentityStitchingAllowed } from "./plan-gate";
 import { configObjectAuditLog } from "./audit-log";
 import { productTelemetryEnabled, trackTelemetryEvent, withProductAnalytics } from "./telemetry";
 import { scheduleSync, validateSyncSchedule } from "./sync";
-import { getEeServerConnection, isEEAvailable, serviceTokenHeaders } from "./ee";
-import { writeClaimingDomains } from "./custom-domains";
 import { omitDeletedList } from "./omit-deleted";
 import { getServerLog } from "./log";
-import {
-  guardModelReferences,
-  guardReverseDeliveryChanges,
-  validateModelForSave,
-  modelMutation,
-  recheckModelWarehouse,
-} from "./reverse-etl-models";
-import { supportsWarehouseReader } from "@jitsu/warehouse-query/src/schema";
+import { getServerConfigObjectType } from "./config-object-types";
+import { runConfigMutation, withConfigTransaction, modelMutationLock } from "./config-object-lifecycle";
+import { eventDestinationError, ingestionDestinationError } from "./config-destination-validation";
 
 const log = getServerLog("config-objects-service");
-
-function missingMetaEventPixel(config: any): boolean {
-  return (
-    config?.destinationType === "facebook-conversions" && (typeof config.pixelId !== "string" || !config.pixelId.trim())
-  );
-}
-
-const metaEventPixelError = () =>
-  new ApiError("Meta event connections require a Pixel / Dataset ID on the destination", { status: 400 });
-
-function eventDestinationError(config: any): ApiError | undefined {
-  if (getCoreDestinationTypeNonStrict(config?.destinationType)?.reverseEtlOnly)
-    return new ApiError("This destination supports Reverse ETL only, not event connections", { status: 400 });
-  if (missingMetaEventPixel(config)) return metaEventPixelError();
-  if (
-    config?.destinationType === "google-ads" &&
-    !config.conversionActionId?.trim() &&
-    !config.conversionActions?.some((value: unknown) => {
-      if (typeof value !== "string") return false;
-      const equals = value.indexOf("=");
-      return equals > 0 && !!value.slice(0, equals).trim() && /^\d+$/.test(value.slice(equals + 1).trim());
-    })
-  )
-    return new ApiError(
-      "Google Ads event connections require a default Conversion Action ID or per-event conversion actions",
-      { status: 400 }
-    );
-}
-
-function ingestionDestinationError(config: any): ApiError | undefined {
-  if (config?.destinationType === "redshift" && !config.bucket?.trim())
-    return new ApiError(
-      "Redshift ingestion connections and ordinary syncs require an S3 staging bucket. A source-only Reverse ETL warehouse does not.",
-      { status: 400 }
-    );
-}
 
 export interface ConfigObjectsServiceDeps {
   prisma: PrismaClient;
@@ -237,7 +194,7 @@ export class ConfigObjectsService {
       await this.prisma.workspace.findFirst({ where: { id: workspaceId } }),
       `Workspace ${workspaceId} not found`
     );
-    const configObjectType = getConfigObjectType(type);
+    const configObjectType = getServerConfigObjectType(type);
     // Inject type/workspaceId so parseObject sees a complete object. `id` is
     // caller-dependent: the HTTP route requires the client to send it (the base
     // schema mandates it, and a missing id must stay a validation error so client
@@ -256,27 +213,18 @@ export class ConfigObjectsService {
         }
       }
     }
-    // JITSU-228: *before* inputFilter, not after. The stream filter calls
-    // checkOrAddToIngress() for every submitted domain, which provisions it —
-    // so gating afterwards returns 403 to the caller while the externally
-    // visible side effect has already happened. Nothing is lost by checking
-    // first: domainsOf() trims and lowercases exactly as the filter does.
-    await assertCustomDomainsAllowed(user, workspace, type, object, undefined, opts.req);
     object = await configObjectType.inputFilter(object, "create", workspace);
-    const inspectedWarehouse =
-      type === "model" ? await validateModelForSave(this.prisma, workspaceId, object) : undefined;
     const id = object.id;
     delete object.id;
     delete object.workspaceId;
     delete object.cloneId;
 
-    const createRow = async (tx: Parameters<typeof recheckModelWarehouse>[0]) => {
-      if (type === "model") await recheckModelWarehouse(tx, workspaceId, object.warehouseId, inspectedWarehouse);
-      return tx.configurationObject.create({ data: { id, workspaceId, config: object, type } });
-    };
-    const created = await (["stream", "domain"].includes(type)
-      ? writeClaimingDomains(this.prisma, workspace, type, object, createRow)
-      : modelMutation(this.prisma, workspaceId, type, createRow));
+    const created = await runConfigMutation(
+      this.prisma,
+      configObjectType.mutation,
+      { operation: "create", user, workspace, id, next: object, req: opts.req },
+      tx => tx.configurationObject.create({ data: { id, workspaceId, config: object, type } })
+    );
 
     if (["destination", "service"].includes(type)) {
       const count = await this.prisma.configurationObject.count({
@@ -312,23 +260,6 @@ export class ConfigObjectsService {
     );
     await configObjectAuditLog(user, workspaceId, created.id, type, "create", { newVersion: object }, opts.req);
 
-    if (type === "stream" && isEEAvailable()) {
-      // Provision the workspace's event-archive bucket on first stream. Server-side
-      // so API/MCP/CLI stream creation triggers it too (this replaced a browser-only
-      // eeRpc call in ConfigEditor). Best-effort: the hourly backup-retention-sync
-      // job on ee-api is the backstop, so a failure must not fail stream creation.
-      try {
-        await rpc(`${getEeServerConnection().host}api/s3-init?workspaceId=${encodeURIComponent(workspaceId)}`, {
-          method: "GET",
-          headers: { "Content-Type": "application/json", ...serviceTokenHeaders() },
-          // This await sits on the stream-creation response path; a hung
-          // ee-api must degrade to the reconciler backstop, not stall the UI.
-          signal: AbortSignal.timeout(5_000),
-        });
-      } catch (e) {
-        log.atWarn().withCause(e).log(`Failed to provision backup bucket for workspace ${workspaceId}`);
-      }
-    }
     return { id: created.id };
   }
 
@@ -348,7 +279,7 @@ export class ConfigObjectsService {
       await this.prisma.workspace.findFirst({ where: { id: workspaceId } }),
       `Workspace ${workspaceId} not found`
     );
-    const configObjectType = getConfigObjectType(type);
+    const configObjectType = getServerConfigObjectType(type);
     // Constrain by `type` so merge/inputFilter can't be applied to a different resource type.
     const object = await this.prisma.configurationObject.findFirst({
       where: { workspaceId, id, type, deleted: false },
@@ -360,60 +291,19 @@ export class ConfigObjectsService {
     const prevVersion = deepCopy(object.config);
     const merged = await configObjectType.merge(object.config, { ...body, id, workspaceId });
     const parsed = parseObject(type, merged);
-    // JITSU-228: before inputFilter, for the same reason as in create — the
-    // filter provisions the domain in ingress before we have decided whether
-    // the caller may have it. Only a domain that is not already on the object
-    // is refused.
-    await assertCustomDomainsAllowed(user, workspace, type, parsed, prevVersion, opts.req);
     const filtered = await configObjectType.inputFilter(parsed, "update", workspace);
-    const inspectedWarehouse =
-      type === "model" ? await validateModelForSave(this.prisma, workspaceId, filtered) : undefined;
     delete filtered.id;
     delete filtered.workspaceId;
-    const updateRow = async (tx: Parameters<typeof recheckModelWarehouse>[0]) => {
-      await guardReverseDeliveryChanges(tx, workspaceId, id, type);
-      if (type === "model") await recheckModelWarehouse(tx, workspaceId, filtered.warehouseId, inspectedWarehouse);
-      if (type === "destination") {
-        // merge() can mutate object.config, and another request may have updated
-        // the destination since we read it. Compare the row under the lock.
-        const current = await tx.configurationObject.findFirstOrThrow({
+    await runConfigMutation(
+      this.prisma,
+      configObjectType.mutation,
+      { operation: "update", user, workspace, id, next: filtered, previous: prevVersion, req: opts.req },
+      tx =>
+        tx.configurationObject.update({
           where: { id, workspaceId, type, deleted: false },
-        });
-        if (
-          ingestionDestinationError(filtered) &&
-          (await tx.configurationObjectLink.count({
-            where: {
-              workspaceId,
-              toId: id,
-              deleted: false,
-              OR: [{ type: { in: ["push", "sync"] } }, { type: null }],
-            },
-          })) > 0
-        )
-          throw ingestionDestinationError(filtered)!;
-        if (
-          eventDestinationError(filtered) &&
-          (await tx.configurationObjectLink.count({
-            where: { workspaceId, toId: id, deleted: false, from: { type: "stream" } },
-          })) > 0
-        ) {
-          throw eventDestinationError(filtered)!;
-        }
-        if (
-          !supportsWarehouseReader(filtered) ||
-          filtered.destinationType !== (current.config as any).destinationType
-        ) {
-          await guardModelReferences(tx, workspaceId, id, type);
-        }
-      }
-      await tx.configurationObject.update({
-        where: { id, workspaceId, type, deleted: false },
-        data: { config: filtered },
-      });
-    };
-    await (["stream", "domain"].includes(type)
-      ? writeClaimingDomains(this.prisma, workspace, type, filtered, updateRow)
-      : modelMutation(this.prisma, workspaceId, type, updateRow));
+          data: { config: filtered },
+        })
+    );
     await trackTelemetryEvent("config-object-update", { objectType: type });
     // Emit for HTTP and MCP callers alike; origin (ui/api/cli/mcp) is stamped by withProductAnalytics.
     await withProductAnalytics(p => p.track("update_object", objectAnalyticsProps(type, id, filtered)), {
@@ -434,7 +324,7 @@ export class ConfigObjectsService {
   ): Promise<any | null> {
     await verifyAccessWithRole(user, workspaceId, "deleteEntities");
     this.assertKnownType(type);
-    // Constrain by `type` so the onDelete hook and audit type match the actual object.
+    // Constrain by `type` so the delete hook and audit type match the actual object.
     const object = await this.prisma.configurationObject.findFirst({
       where: { workspaceId, id, type, deleted: false },
     });
@@ -442,27 +332,32 @@ export class ConfigObjectsService {
       return null;
     }
     // Rollout flags gate use, not cleanup. Roles and live references still apply.
-    const configObjectType = getConfigObjectType(type);
-    await modelMutation(this.prisma, workspaceId, type, async tx => {
-      await guardModelReferences(tx, workspaceId, id, type);
-      if (configObjectType.onDelete) {
-        await configObjectType.onDelete(object, { strict: opts.strict === true, cascade: opts.cascade === true });
-      }
-      await tx.configurationObject.update({ where: { id: object.id }, data: { deleted: true } });
-    });
+    const configObjectType = getServerConfigObjectType(type);
+    const workspace = requireDefined(
+      await this.prisma.workspace.findFirst({ where: { id: workspaceId } }),
+      `Workspace ${workspaceId} not found`
+    );
+    await runConfigMutation(
+      this.prisma,
+      configObjectType.mutation,
+      {
+        operation: "delete",
+        user,
+        workspace,
+        id,
+        previous: object.config,
+        req: opts.req,
+        options: { strict: opts.strict === true, cascade: opts.cascade === true },
+      },
+      tx => tx.configurationObject.update({ where: { id, workspaceId, type, deleted: false }, data: { deleted: true } })
+    );
     await trackTelemetryEvent("config-object-delete", { objectType: type });
-    // Emit for HTTP and MCP callers alike (origin is stamped by withProductAnalytics).
-    // delete() doesn't otherwise load the workspace — fetch it only when telemetry is on
-    // and we're going to emit, so name/slug reach the group traits.
     if (productTelemetryEnabled) {
-      const workspace = await this.prisma.workspace.findFirst({ where: { id: workspaceId } });
-      if (workspace) {
-        await withProductAnalytics(p => p.track("delete_object", objectAnalyticsProps(type, id, object.config)), {
-          user,
-          workspace,
-          req: opts.req,
-        });
-      }
+      await withProductAnalytics(p => p.track("delete_object", objectAnalyticsProps(type, id, object.config)), {
+        user,
+        workspace,
+        req: opts.req,
+      });
     }
     await configObjectAuditLog(user, workspaceId, id, type, "delete", { prevVersion: object.config }, opts.req);
     return { ...((object.config as any) || {}), workspaceId, id, type };
@@ -712,7 +607,7 @@ export class ConfigObjectsService {
     type: string,
     write: (db: Pick<PrismaClient, "configurationObjectLink">) => Promise<T>
   ): Promise<T> {
-    return modelMutation(this.prisma, workspaceId, "destination", async tx => {
+    return withConfigTransaction(this.prisma, [modelMutationLock(workspaceId)], async tx => {
       const destination = await tx.configurationObject.findFirst({
         where: { workspaceId, id: toId, type: "destination", deleted: false },
       });
