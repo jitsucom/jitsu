@@ -13,6 +13,7 @@ const (
 	maxConsumerControlPollInterval = 10 * time.Second
 	consumerAssignmentPollInterval = time.Second
 	consumerReconnectMaxBackoff    = 30 * time.Second
+	consumerFencingCheckInterval   = time.Minute
 )
 
 var (
@@ -52,6 +53,8 @@ type consumerRuntimeHooks struct {
 	infof        func(string, ...any)
 	errorf       func(string, ...any)
 	onKafkaError func(kafka.Error)
+	// checkRecovery must fail closed unless the fenced static identity is absent.
+	checkRecovery func(groupID, instanceID string) error
 }
 
 type consumerCommand struct {
@@ -80,9 +83,11 @@ type consumerRuntime struct {
 type consumerSession struct {
 	runtime *consumerRuntime
 
-	consumer    groupConsumer
-	wanted      bool
-	terminalErr error
+	consumer        groupConsumer
+	wanted          bool
+	terminalErr     error
+	recoveryCheckAt time.Time
+	recoveryUsed    bool
 	// False after an assignment callback, even when this member receives no partitions.
 	assignmentPending bool
 	//pauseRequested is the desired state. Keep it separate from pauseApplied
@@ -108,7 +113,6 @@ func newConsumerRuntime(config kafka.ConfigMap, topic string, hooks consumerRunt
 
 func newConsumerRuntimeWithFactory(config kafka.ConfigMap, topic string, hooks consumerRuntimeHooks, factory groupConsumerFactory, maintenanceInterval time.Duration) *consumerRuntime {
 	runtime := &consumerRuntime{
-		config:              config,
 		topic:               topic,
 		factory:             factory,
 		hooks:               hooks,
@@ -116,6 +120,11 @@ func newConsumerRuntimeWithFactory(config kafka.ConfigMap, topic string, hooks c
 		commands:            make(chan consumerCommand),
 		stop:                make(chan struct{}),
 		done:                make(chan struct{}),
+	}
+	// Recovery changes membership only for this runtime, not the caller's config.
+	runtime.config = make(kafka.ConfigMap, len(config))
+	for key, value := range config {
+		runtime.config[key] = value
 	}
 	return runtime
 }
@@ -172,8 +181,9 @@ func (runtime *consumerRuntime) execute(run func(*consumerSession)) error {
 func (runtime *consumerRuntime) init() (created bool, err error) {
 	executeErr := runtime.execute(func(session *consumerSession) {
 		if session.terminalErr != nil {
-			err = session.terminalErr
-			return
+			if err = session.recoverFenced(); err != nil {
+				return
+			}
 		}
 		session.wanted = true
 		if session.consumer != nil {
@@ -418,6 +428,9 @@ func (session *consumerSession) open() error {
 	}
 	consumer, err := session.runtime.factory(&session.runtime.config)
 	if err != nil {
+		if err = session.checkFencing(err); session.terminalErr != nil {
+			return err
+		}
 		session.scheduleReconnect()
 		return err
 	}
@@ -428,7 +441,13 @@ func (session *consumerSession) open() error {
 		session.rebalanceLost, session.rebalanceErr = session.handleRebalance(event)
 		return session.rebalanceErr
 	}); err != nil {
-		_ = consumer.Close()
+		closeErr := consumer.Close()
+		if err = session.checkFencing(err); session.terminalErr != nil {
+			return err
+		}
+		if session.checkFencing(closeErr); session.terminalErr != nil {
+			return session.terminalErr
+		}
 		session.scheduleReconnect()
 		return err
 	}
@@ -575,7 +594,7 @@ func (session *consumerSession) handleKafkaError(kafkaErr kafka.Error) {
 	}
 }
 
-// Fencing means another process owns this static identity. Recreating here would
+// Fencing means another process may own this static identity. Recreating here would
 // fence that process in turn. ErrFatal from synchronous APIs hides the underlying
 // cause, so it must also stop rather than risk rejoining or repairing offsets.
 func (session *consumerSession) checkFencing(err error) error {
@@ -588,11 +607,44 @@ func (session *consumerSession) checkFencing(err error) error {
 	}
 	session.terminalErr = fmt.Errorf("%w: static consumer stopped; another instance may own its identity: %w", errConsumerAssignmentChanged, err)
 	session.wanted = false
+	session.recoveryCheckAt = time.Now().Add(consumerFencingCheckInterval)
 	session.runtime.hooks.errorf("%v", session.terminalErr)
 	if closeErr := session.closeCurrent(false); closeErr != nil {
 		session.runtime.hooks.errorf("Failed to close fenced Kafka consumer: %v", closeErr)
 	}
 	return session.terminalErr
+}
+
+// Only init may recover, at a batch boundary. Maintenance and offset repair must
+// never revive a fenced consumer while the previous batch is still unwinding.
+func (session *consumerSession) recoverFenced() error {
+	if session.recoveryUsed || session.runtime.hooks.checkRecovery == nil || time.Now().Before(session.recoveryCheckAt) {
+		return session.terminalErr
+	}
+	groupID, _ := session.runtime.config["group.id"].(string)
+	instanceID, _ := session.runtime.config["group.instance.id"].(string)
+	if groupID == "" || instanceID == "" {
+		return session.terminalErr
+	}
+	session.recoveryCheckAt = time.Now().Add(consumerFencingCheckInterval)
+	if err := session.runtime.hooks.checkRecovery(groupID, instanceID); err != nil {
+		session.runtime.hooks.errorf("Fenced consumer recovery deferred for group %s instance %s: %v", groupID, instanceID, err)
+		return fmt.Errorf("%w; recovery deferred: %v", session.terminalErr, err)
+	}
+	select {
+	case <-session.runtime.stop:
+		return errConsumerRuntimeClosed
+	default:
+	}
+	// DescribeGroups is not a lease: the old owner can return after the check.
+	// Join dynamically so that Kafka assigns partitions through a rebalance and
+	// we can never fence that owner by reclaiming its static identity. Keep this
+	// mode on all subsequent reconnects, with no second fencing recovery.
+	delete(session.runtime.config, "group.instance.id")
+	session.recoveryUsed = true
+	session.terminalErr = nil
+	session.runtime.hooks.infof("Recovering fenced consumer for group %s as a dynamic member; static identity %s will not be reclaimed", groupID, instanceID)
+	return nil
 }
 
 func (session *consumerSession) handleRebalance(event kafka.Event) (lost bool, err error) {
