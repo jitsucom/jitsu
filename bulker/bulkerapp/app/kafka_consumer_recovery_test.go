@@ -45,7 +45,7 @@ func allowRecoveryCheck(t *testing.T, runtime *consumerRuntime) {
 }
 
 func TestConsumerRuntimeGuardedFencingRecovery(t *testing.T) {
-	for _, source := range []string{"poll", "commit", "lost-membership-close"} {
+	for _, source := range []string{"poll", "commit", "lost-membership-fence"} {
 		t.Run(source, func(t *testing.T) {
 			first, second := newFakeGroupConsumer(), newFakeGroupConsumer()
 			cfg := kafka.ConfigMap{"group.id": "group", "group.instance.id": "owner", "enable.auto.commit": false, "auto.offset.reset": "earliest", "isolation.level": "read_committed"}
@@ -80,11 +80,17 @@ func TestConsumerRuntimeGuardedFencingRecovery(t *testing.T) {
 			case "commit":
 				first.commitErr = fenced
 				_, err = runtime.commitMessage(&kafka.Message{}, epoch)
-			case "lost-membership-close":
+			case "lost-membership-fence":
 				first.assignmentLost = true
 				first.closeErr = kafka.NewError(kafka.ErrFatal, "static consumer fenced", true)
 				first.events <- kafka.RevokedPartitions{}
 				_, err = runtime.readMessage(time.Second, epoch)
+				require.ErrorIs(t, err, errConsumerAssignmentChanged)
+				assert.Zero(t, first.closeCount.Load(), "loss alone must not replace the consumer")
+				first.events <- fenced
+				_, currentEpoch, assignmentErr := runtime.assignment(0)
+				require.NoError(t, assignmentErr)
+				_, err = runtime.readMessage(time.Second, currentEpoch)
 			default:
 				first.events <- fenced
 				_, err = runtime.readMessage(time.Second, epoch)

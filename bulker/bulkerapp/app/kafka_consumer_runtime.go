@@ -49,10 +49,11 @@ type groupConsumer interface {
 type groupConsumerFactory func(*kafka.ConfigMap) (groupConsumer, error)
 
 type consumerRuntimeHooks struct {
-	debugf       func(string, ...any)
-	infof        func(string, ...any)
-	errorf       func(string, ...any)
-	onKafkaError func(kafka.Error)
+	debugf           func(string, ...any)
+	infof            func(string, ...any)
+	errorf           func(string, ...any)
+	onKafkaError     func(kafka.Error)
+	onAssignmentLost func()
 	// checkRecovery must fail closed unless the fenced static identity is absent.
 	checkRecovery func(groupID, instanceID string) error
 }
@@ -534,16 +535,19 @@ func (session *consumerSession) poll(timeout time.Duration) (*kafka.Message, err
 		}
 		rebalanceLost, rebalanceErr := session.rebalanceLost, session.rebalanceErr
 		session.rebalanceLost, session.rebalanceErr = false, nil
-		if rebalanceLost || rebalanceErr != nil {
+		if rebalanceErr != nil {
 			if err := session.checkFencing(rebalanceErr); session.terminalErr != nil {
 				return nil, err
 			}
 			if err := session.recreate(); err != nil {
 				session.runtime.hooks.errorf("Failed to recreate Kafka consumer after rebalance failure: %v", err)
 			}
-			if rebalanceErr != nil {
-				return nil, fmt.Errorf("failed to apply Kafka rebalance: %w", rebalanceErr)
-			}
+			return nil, fmt.Errorf("failed to apply Kafka rebalance: %w", rebalanceErr)
+		}
+		if rebalanceLost {
+			// A successful revoke lets librdkafka finish its existing rejoin.
+			// Lost assignment also precedes fatal fencing: keep polling so the
+			// real error is handled, rather than replacing a recovering member.
 			return nil, errConsumerAssignmentChanged
 		}
 		if len(session.rewindPartitions) > 0 {
@@ -708,7 +712,11 @@ func (session *consumerSession) onRevoked(partitions []kafka.TopicPartition) (lo
 	}
 	session.pauseApplied = false
 	if lost {
-		session.runtime.hooks.onKafkaError(kafka.NewError(kafka.ErrUnknownMemberID, "partition assignment lost during rebalance", false))
+		// AssignmentLost does not identify the cause. In particular, fencing
+		// and session expiry must not be reported as broker UNKNOWN_MEMBER_ID.
+		if session.runtime.hooks.onAssignmentLost != nil {
+			session.runtime.hooks.onAssignmentLost()
+		}
 	}
 	session.runtime.hooks.debugf("Consumer revoked partitions at epoch %d: %v", session.epoch, partitions)
 	return
