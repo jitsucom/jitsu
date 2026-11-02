@@ -14,6 +14,9 @@ const stored = {
   credentials: { endpoint: "https://s3.customer.com", secretKey: "real-secret" },
 };
 
+// A service (Airbyte connector) config has no destination schema, its target fields are recognised by name
+const service = { ...stored, destinationType: undefined };
+
 describe("unmaskSecretsFromOriginal", () => {
   it("restores secrets when the connection target is unchanged", () => {
     const submitted = {
@@ -37,18 +40,18 @@ describe("unmaskSecretsFromOriginal", () => {
 
   it("refuses when the changed target is in a nested object and the masked secret is elsewhere", () => {
     const submitted = {
-      ...stored,
+      ...service,
       password: MASKED_SECRET,
-      credentials: { ...stored.credentials, endpoint: "https://attacker.example" },
+      credentials: { ...service.credentials, endpoint: "https://attacker.example" },
     };
-    expect(() => unmaskSecretsFromOriginal(submitted, stored)).toThrow(/credentials\.endpoint changed/);
+    expect(() => unmaskSecretsFromOriginal(submitted, service)).toThrow(/credentials\.endpoint changed/);
   });
 
   it("ignores port, which schema defaults can add, and refuses a newly added url", () => {
     expect(changedConnectionTargets({ ...stored, port: 6543, password: MASKED_SECRET }, stored)).toEqual([]);
-    expect(changedConnectionTargets({ ...stored, url: "https://x.example", password: MASKED_SECRET }, stored)).toEqual([
-      "url",
-    ]);
+    expect(
+      changedConnectionTargets({ ...service, url: "https://x.example", password: MASKED_SECRET }, service)
+    ).toEqual(["url"]);
   });
 
   it("lets a webhook url change keep a masked signing key, which is never sent to the receiver", () => {

@@ -1,10 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { MASKED_SECRET } from "../../lib/schema/destinations";
+import { coreDestinations, MASKED_SECRET } from "../../lib/schema/destinations";
 import { withSchemaDefaults } from "../../lib/schema/config-objects";
 import {
   assertSecretsStayWithTarget,
   changedConnectionTargets,
   changedTargetFieldsBetween,
+  getDestinationTargetKeys,
   unmaskSecretsFromOriginal,
 } from "../../lib/schema/secrets";
 
@@ -342,5 +343,135 @@ describe("defaults of the stored config", () => {
   it("another host is still refused", () => {
     const submitted = { key: MASKED_SECRET, host: "https://attacker.example" };
     expect(() => unmaskSecretsFromOriginal(submitted, stored, withDefaults)).toThrow(/host changed/);
+  });
+});
+
+describe("target fields are declared in the destination schema (`target: true` in credentialsUi)", () => {
+  // Fields whose name looks like a host but whose value cannot send a secret anywhere else
+  const NOT_TARGETS: Record<string, string> = {
+    "redshift.serverless": "a boolean: Redshift Serverless or not",
+    "braze.endpoint": "an enum of Braze's own dashboards",
+    "segment-proxy.apiBase": "an enum of Segment's own API bases",
+  };
+  const NAME_LOOKS_LIKE_TARGET = /host|url|uri|endpoint|server|address|domain|api_?base|instance_?connection_?name/i;
+
+  it("every field named like a host is either marked as a target or listed as not being one", () => {
+    const unmarked = coreDestinations.flatMap(d =>
+      Object.keys(d.credentials.shape)
+        .filter(key => NAME_LOOKS_LIKE_TARGET.test(key) && !/ssl|tls|cert/i.test(key))
+        .filter(key => !(d.credentialsUi as any)?.[key]?.target && !NOT_TARGETS[`${d.id}.${key}`])
+        .map(key => `${d.id}.${key}`)
+    );
+    expect(unmarked).toEqual([]);
+  });
+
+  it("every marked target is a field of that destination", () => {
+    const unknown = coreDestinations.flatMap(d =>
+      Object.entries(d.credentialsUi ?? {})
+        .filter(([key, ui]) => (ui as any).target && !(key in d.credentials.shape))
+        .map(([key]) => `${d.id}.${key}`)
+    );
+    expect(unknown).toEqual([]);
+  });
+
+  it("the targets of the destinations that hold a stored secret", () => {
+    const targetsOf = (id: string) => getDestinationTargetKeys(id).sort();
+    expect(targetsOf("postgres")).toEqual(["host", "instanceConnectionName"]);
+    expect(targetsOf("redshift")).toEqual(["host"]);
+    expect(targetsOf("mysql")).toEqual(["host", "parameters"]);
+    expect(targetsOf("clickhouse")).toEqual(["hosts", "parameters"]);
+    expect(targetsOf("snowflake")).toEqual(["account", "parameters"]);
+    expect(targetsOf("mongodb")).toEqual(["hosts", "options", "url"]);
+    expect(targetsOf("s3")).toEqual(["endpoint"]);
+    expect(targetsOf("webhook")).toEqual(["url"]);
+    expect(targetsOf("resend")).toEqual(["apiBase"]);
+    expect(targetsOf("sendgrid")).toEqual(["apiBase"]);
+    expect(targetsOf("posthog")).toEqual(["host"]);
+  });
+});
+
+describe("connection parameters are targets (MySQL, ClickHouse, Snowflake, MongoDB options)", () => {
+  const cases: [string, Record<string, any>, Record<string, any>][] = [
+    [
+      "mysql",
+      { host: "db.customer.com", password: "real", parameters: { tls: "preferred" } },
+      { parameters: { tls: "false" } },
+    ],
+    [
+      "clickhouse",
+      { hosts: ["ch.customer.com:9000"], password: "real", parameters: { secure: "true" } },
+      { parameters: { secure: "false" } },
+    ],
+    [
+      "snowflake",
+      { account: "acct", password: "real", parameters: { role: "ANALYST" } },
+      { parameters: { role: "SYSADMIN" } },
+    ],
+    [
+      "mongodb",
+      { hosts: ["m.customer.com:27017"], password: "real", options: { tls: "true" } },
+      { options: { tls: "false" } },
+    ],
+  ];
+
+  it.each(cases)(
+    "%s: changing the parameters while keeping the password is refused",
+    (destinationType, stored, change) => {
+      const original = { destinationType, ...stored };
+      const field = Object.keys(change)[0];
+      const submitted = { ...original, ...change, password: MASKED_SECRET };
+      expect(() => unmaskSecretsFromOriginal(submitted, original)).toThrow(new RegExp(`${field} changed`));
+      expect(() => assertSecretsStayWithTarget(original, change, { ...original, ...change }, ["password"])).toThrow(
+        new RegExp(`${field} changed`)
+      );
+    }
+  );
+
+  it.each(cases)(
+    "%s: the same parameters keep the password, and a typed password is the editor's own business",
+    (destinationType, stored, change) => {
+      const original = { destinationType, ...stored };
+      expect(unmaskSecretsFromOriginal({ ...original, password: MASKED_SECRET }, original)).toEqual(original);
+      const typed = { ...original, ...change, password: "typed" };
+      expect(unmaskSecretsFromOriginal(typed, original)).toEqual(typed);
+    }
+  );
+
+  it("empty parameters are the same as omitted ones", () => {
+    expect(
+      changedTargetFieldsBetween(
+        { destinationType: "mysql", host: "h", parameters: {} },
+        { destinationType: "mysql", host: "h" }
+      )
+    ).toEqual([]);
+    expect(
+      changedTargetFieldsBetween(
+        { destinationType: "mysql", host: "h", parameters: { a: "b" } },
+        { destinationType: "mysql", host: "h" }
+      )
+    ).toEqual(["parameters"]);
+  });
+});
+
+describe("only the schema's target fields count for a destination", () => {
+  const pg = { destinationType: "postgres", host: "db.customer.com", password: "real" };
+
+  it("a field that merely looks like a host is not a target (Redshift serverless is a flag)", () => {
+    const redshift = { destinationType: "redshift", host: "rs.customer.com", serverless: false, password: "real" };
+    expect(changedTargetFieldsBetween({ ...redshift, serverless: true }, redshift)).toEqual([]);
+    expect(changedTargetFieldsBetween({ ...redshift, host: "attacker.example" }, redshift)).toEqual(["host"]);
+  });
+
+  it("only top-level fields are looked at: a nested key with the same name is not a target", () => {
+    expect(changedTargetFieldsBetween({ ...pg, extra: { host: "attacker.example" } }, pg)).toEqual([]);
+  });
+
+  it("a destination type without a schema falls back to the field names", () => {
+    expect(
+      changedTargetFieldsBetween(
+        { destinationType: "custom", url: "https://b.example" },
+        { destinationType: "custom", url: "https://a.example" }
+      )
+    ).toEqual(["url"]);
   });
 });

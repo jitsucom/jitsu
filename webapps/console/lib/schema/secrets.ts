@@ -36,6 +36,16 @@ export function getDestinationSecretPaths(destinationType: string): string[] {
 }
 
 /**
+ * Names of the fields of a destination type that decide where its secrets are sent (`target: true` in `credentialsUi`)
+ */
+export function getDestinationTargetKeys(destinationType: string): string[] {
+  const credentialsUi = coreDestinationsMap[destinationType]?.credentialsUi || {};
+  return Object.entries(credentialsUi)
+    .filter(([, ui]) => (ui as PropertyUI).target)
+    .map(([fieldName]) => fieldName);
+}
+
+/**
  * Get all secret field paths for a service (Airbyte source)
  */
 export async function getServiceSecretPaths(packageName: string, version: string): Promise<string[]> {
@@ -176,27 +186,48 @@ export function unmaskSecretsFromOriginal(object: any, dbEntity: any, comparedWi
   return result;
 }
 
-// Fields that decide where a credential is sent: host, url, endpoint, an API base, etc.
+// Fields that decide where a credential is sent. A destination says which ones they are in its schema
+// (`target: true` in `credentialsUi`). A service (an Airbyte connector) has no such marker in its spec, so there they
+// are guessed from the name: host, url, endpoint, an API base, etc.
 // `port` is left out on purpose: the submitted object is parsed with schema defaults, so a default port
 // shows up as a difference against a stored config that never had one, and a port alone does not change the host
-// `instanceConnectionName` is the Cloud SQL instance a Postgres connection goes to (private service connect)
 const CONNECTION_TARGET_KEY = /host|url|uri|endpoint|server|address|domain|api_?base|instance_?connection_?name/i;
 // TLS material (`sslServerCA` contains "server") says how to trust the target, not where it is
 const TLS_KEY = /ssl|tls|cert/i;
 
-const isEmptyValue = (v: any) => v === undefined || v === null || v === "" || (Array.isArray(v) && v.length === 0);
-
-const isTargetKey = (key: string) => CONNECTION_TARGET_KEY.test(key) && !TLS_KEY.test(key);
-
-// Snowflake's `account` becomes the host name (<account>.snowflakecomputing.com). The same word is a plain label on
-// some Airbyte sources, so it is a target only for a Snowflake destination.
-const targetKeyFor = (...roots: any[]): ((key: string) => boolean) =>
-  roots.some(root => root?.destinationType === "snowflake")
-    ? key => isTargetKey(key) || key === "account"
-    : isTargetKey;
+const isEmptyValue = (v: any) =>
+  v === undefined ||
+  v === null ||
+  v === "" ||
+  (Array.isArray(v) && v.length === 0) ||
+  (isPlainObject(v) && Object.keys(v).length === 0);
 
 /** A list of plain values (ClickHouse and MongoDB `hosts`) is one target value, not a container to look inside. */
 const isValueList = (v: any) => Array.isArray(v) && v.every(item => item === null || typeof item !== "object");
+
+type TargetMatcher = {
+  isTarget: (key: string, path: (string | number)[]) => boolean;
+  /** a target is compared as one value (a list of hosts, a parameters object), not looked into */
+  isOneValue: (value: any) => boolean;
+};
+
+const nameMatcher: TargetMatcher = {
+  isTarget: key => CONNECTION_TARGET_KEY.test(key) && !TLS_KEY.test(key),
+  isOneValue: isValueList,
+};
+
+/**
+ * Which fields are targets in these objects. Destinations of a known type use the fields their schema marks, at the top
+ * level of the config only. Anything else (a service, an unknown type) falls back to the field names.
+ */
+const targetMatcherFor = (...roots: any[]): TargetMatcher => {
+  const types = roots.map(root => root?.destinationType).filter(type => typeof type === "string");
+  if (types.length === 0 || !types.every(type => coreDestinationsMap[type])) {
+    return nameMatcher;
+  }
+  const keys = new Set(types.flatMap(getDestinationTargetKeys));
+  return { isTarget: (key, path) => path.length === 0 && keys.has(key), isOneValue: () => true };
+};
 
 /**
  * Paths of connection target fields (host, url, endpoint...) whose value in `object` differs from `original`.
@@ -207,7 +238,7 @@ export function changedConnectionTargets(object: any, original: any): string[] {
   return containsMaskedSecrets(object)
     ? [
         ...changedServiceImage(object, original),
-        ...findChangedTargets(object, original, [], targetKeyFor(object, original)),
+        ...findChangedTargets(object, original, [], targetMatcherFor(object, original)),
       ]
     : [];
 }
@@ -226,24 +257,20 @@ function changedServiceImage(updated: any, original: any): string[] {
     : [];
 }
 
-function findChangedTargets(
-  node: any,
-  original: any,
-  path: (string | number)[],
-  isTarget: (key: string) => boolean
-): string[] {
+function findChangedTargets(node: any, original: any, path: (string | number)[], matcher: TargetMatcher): string[] {
   if (Array.isArray(node)) {
-    return node.flatMap((item, index) => findChangedTargets(item, original, [...path, index], isTarget));
+    return node.flatMap((item, index) => findChangedTargets(item, original, [...path, index], matcher));
   }
   if (!isPlainObject(node)) {
     return [];
   }
   return Object.entries(node).flatMap(([key, value]) => {
     const currentPath = [...path, key];
-    if ((isPlainObject(value) || Array.isArray(value)) && !(isTarget(key) && isValueList(value))) {
-      return findChangedTargets(value, original, currentPath, isTarget);
+    const isTarget = matcher.isTarget(key, path);
+    if ((isPlainObject(value) || Array.isArray(value)) && !(isTarget && matcher.isOneValue(value))) {
+      return findChangedTargets(value, original, currentPath, matcher);
     }
-    if (value === MASKED_SECRET || !isTarget(key)) {
+    if (value === MASKED_SECRET || !isTarget) {
       return [];
     }
     const before = get(original, currentPath);
@@ -328,28 +355,24 @@ function maskedPaths(node: any, path: (string | number)[] = []): (string | numbe
 export function changedTargetFieldsBetween(updated: any, original: any): string[] {
   return [
     ...changedServiceImage(updated, original),
-    ...targetFieldsBetween(updated, original, [], targetKeyFor(updated, original)),
+    ...targetFieldsBetween(updated, original, [], targetMatcherFor(updated, original)),
   ];
 }
 
-function targetFieldsBetween(
-  updated: any,
-  original: any,
-  path: (string | number)[],
-  isTarget: (key: string) => boolean
-): string[] {
+function targetFieldsBetween(updated: any, original: any, path: (string | number)[], matcher: TargetMatcher): string[] {
   if (Array.isArray(updated)) {
-    return updated.flatMap((item, index) => targetFieldsBetween(item, original, [...path, index], isTarget));
+    return updated.flatMap((item, index) => targetFieldsBetween(item, original, [...path, index], matcher));
   }
   if (!isPlainObject(updated)) {
     return [];
   }
   return Object.entries(updated).flatMap(([key, value]) => {
     const currentPath = [...path, key];
-    if ((isPlainObject(value) || Array.isArray(value)) && !(isTarget(key) && isValueList(value))) {
-      return targetFieldsBetween(value, original, currentPath, isTarget);
+    const isTarget = matcher.isTarget(key, path);
+    if ((isPlainObject(value) || Array.isArray(value)) && !(isTarget && matcher.isOneValue(value))) {
+      return targetFieldsBetween(value, original, currentPath, matcher);
     }
-    if (!isTarget(key)) {
+    if (!isTarget) {
       return [];
     }
     const before = get(original, currentPath);
