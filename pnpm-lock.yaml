@@ -122,7 +122,6 @@ overrides:
   '@hono/node-server@<2.1.3': ^2.1.3
   '@azure/identity@<4.14.1': ^4.14.1
   '@azure/msal-node@<7.1.0': ^7.1.0
-  zod@<4.6.6: ^4.6.6
   '@humanfs/node@<0.16.8': ^0.16.8
   browserslist@<4.28.7: ^4.28.7
   fflate@<0.8.3: ^0.8.3
@@ -381,8 +380,8 @@ importers:
         specifier: ^8.12.2
         version: 8.12.3
       zod:
-        specifier: ^4.6.6
-        version: 4.6.7
+        specifier: ^3.23.8
+        version: 3.25.76
     devDependencies:
       '@jitsu/common-config':
         specifier: workspace:*
@@ -454,8 +453,8 @@ importers:
         specifier: ^3.4.0
         version: 3.4.0
       zod:
-        specifier: ^4.6.6
-        version: 4.6.7
+        specifier: ^3.23.8
+        version: 3.25.76
     devDependencies:
       '@jitsu/common-config':
         specifier: workspace:*
@@ -728,8 +727,8 @@ importers:
         specifier: 3.4.0
         version: 3.4.0(asn1.js@5.4.1)
       zod:
-        specifier: ^4.6.6
-        version: 4.6.7
+        specifier: ^3.23.8
+        version: 3.25.76
     devDependencies:
       '@jitsu/common-config':
         specifier: workspace:*
@@ -771,8 +770,8 @@ importers:
         specifier: ^8.18.0
         version: 8.20.0
       zod:
-        specifier: ^4.6.6
-        version: 4.6.7
+        specifier: ^3.23.8
+        version: 3.25.76
     devDependencies:
       '@jitsu/common-config':
         specifier: workspace:*
@@ -901,8 +900,8 @@ importers:
         specifier: ^7.30.1
         version: 7.30.1
       zod:
-        specifier: ^4.6.6
-        version: 4.6.7
+        specifier: ^3.23.8
+        version: 3.25.76
     devDependencies:
       '@jitsu/common-config':
         specifier: workspace:*
@@ -965,8 +964,8 @@ importers:
   types/protocols:
     dependencies:
       zod:
-        specifier: ^4.6.6
-        version: 4.6.7
+        specifier: ^3.23.8
+        version: 3.25.76
     devDependencies:
       '@jitsu/common-config':
         specifier: workspace:*
@@ -979,7 +978,7 @@ importers:
         version: 1.24.0(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
       '@asteasolutions/zod-to-openapi':
         specifier: ^7.3.0
-        version: 7.3.4(zod@4.6.7)
+        version: 7.3.4(zod@3.25.76)
       '@clickhouse/client':
         specifier: ^1.18.3
         version: 1.18.3(patch_hash=a25df4b75d235ea32174d1998782b7b0a041e739370361a52c1b3495358daf1b)
@@ -1030,7 +1029,7 @@ importers:
         version: 5.16.7(react@18.3.1)
       '@modelcontextprotocol/sdk':
         specifier: ^1.31.0
-        version: 1.32.1(zod@4.6.7)
+        version: 1.32.1(zod@3.25.76)
       '@monaco-editor/react':
         specifier: ^4.6.0
         version: 4.7.0(monaco-editor@0.52.2)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
@@ -1209,11 +1208,11 @@ importers:
         specifier: ^10.0.4
         version: 10.1.1(react@18.3.1)
       zod:
-        specifier: ^4.6.6
-        version: 4.6.7
+        specifier: ^3.23.8
+        version: 3.25.76
       zod-to-json-schema:
         specifier: ^3.23.2
-        version: 3.25.2(zod@4.6.7)
+        version: 3.25.2(zod@3.25.76)
     devDependencies:
       '@ant-design/icons':
         specifier: ^5.5.1
@@ -1325,7 +1324,7 @@ importers:
         version: 4.1.12(@opentelemetry/api@1.9.0)(@types/node@18.19.61)(@vitest/ui@4.1.12)(jsdom@16.7.0)(msw@2.15.0(@types/node@18.19.61)(typescript@5.6.3))(vite@6.4.5(@types/node@18.19.61)(jiti@2.6.1)(less@4.8.1)(terser@5.48.0)(tsx@4.21.0)(yaml@2.8.3))
       zod-prisma:
         specifier: ^0.5.4
-        version: 0.5.4(decimal.js@10.6.0)(prisma@6.19.3(typescript@5.6.3))(zod@4.6.7)
+        version: 0.5.4(decimal.js@10.6.0)(prisma@6.19.3(typescript@5.6.3))(zod@3.25.76)
 
   webapps/shared:
     dependencies:
@@ -1366,8 +1365,8 @@ importers:
         specifier: 'catalog:'
         version: 2.8.1
       zod:
-        specifier: ^4.6.6
-        version: 4.6.7
+        specifier: ^3.23.8
+        version: 3.25.76
     devDependencies:
       '@jitsu/common-config':
         specifier: workspace:*
@@ -1475,7 +1474,7 @@ packages:
   '@asteasolutions/zod-to-openapi@7.3.4':
     resolution: {integrity: sha512-/2rThQ5zPi9OzVwes6U7lK1+Yvug0iXu25olp7S0XsYmOqnyMfxH7gdSQjn/+DSOHRg7wnotwGJSyL+fBKdnEA==}
     peerDependencies:
-      zod: ^4.6.6
+      zod: ^3.20.2
 
   '@aws-crypto/crc32@5.2.0':
     resolution: {integrity: sha512-nLbCWqQNgUiwwtFsen1AdzAtvuLRsQS8rYgMuxCrdKf9kOssamGLuPwyTY9wyYblNr9+1XM8v6zoDTPPSIeANg==}
@@ -2950,7 +2949,7 @@ packages:
     engines: {node: '>=18'}
     peerDependencies:
       '@cfworker/json-schema': ^4.1.1
-      zod: ^4.6.6
+      zod: ^3.25 || ^4.0
     peerDependenciesMeta:
       '@cfworker/json-schema':
         optional: true
@@ -3849,6 +3848,7 @@ packages:
   '@smithy/core@3.36.0':
     resolution: {integrity: sha512-3hJiwG1F5t1SoXqp/yOCmYXziyx7ZVqF63S5W6YU201e/qwVaHPex+E/3vvyY9a3ORq/b+BydeNZpP2saQ9X2g==}
     engines: {node: '>=18.0.0'}
+    deprecated: Deprecated due to a bug in custom logger data redaction. See https://github.com/aws/aws-sdk-js-v3/issues/8393.
 
   '@smithy/credential-provider-imds@4.2.13':
     resolution: {integrity: sha512-wboCPijzf6RJKLOvnjDAiBxGSmSnGXj35o5ZAWKDaHa/cvQ5U3ZJ13D4tMCE8JG4dxVAZFy/P0x/V9CwwdfULQ==}
@@ -10854,7 +10854,7 @@ packages:
     peerDependencies:
       decimal.js: ^10.0.0
       prisma: ^3.0.0
-      zod: ^4.6.6
+      zod: ^3.0.0
     peerDependenciesMeta:
       decimal.js:
         optional: true
@@ -10862,13 +10862,16 @@ packages:
   zod-to-json-schema@3.25.2:
     resolution: {integrity: sha512-O/PgfnpT1xKSDeQYSCfRI5Gy3hPf91mKVDuYLUHZJMiDFptvP41MSnWofm8dnCm0256ZNfZIM7DSzuSMAFnjHA==}
     peerDependencies:
-      zod: ^4.6.6
+      zod: ^3.25.28 || ^4
 
   zod-validation-error@4.0.2:
     resolution: {integrity: sha512-Q6/nZLe6jxuU80qb/4uJ4t5v2VEZ44lzQjPDhYJNztRQ4wyWc6VF3D3Kb/fAuPetZQnhS3hnajCf9CsWesghLQ==}
     engines: {node: '>=18.0.0'}
     peerDependencies:
-      zod: ^4.6.6
+      zod: ^3.25.0 || ^4.0.0
+
+  zod@3.25.76:
+    resolution: {integrity: sha512-gzUt/qt81nXsFGKIFcC3YnfEAx5NkunCfnDlvuBSSFS02bcXu4Lmea0AFIUwbLWxWPx3d9p8S5QoaujKcNQxcQ==}
 
   zod@4.6.7:
     resolution: {integrity: sha512-g8W2D2kU6a8untc053fX1uVBKzM7yqAxW/3zwk83+6RyF2+SKOuV+c0wBDhUwzV1PaGapmZH+rmcUzPf+3CGwg==}
@@ -10987,10 +10990,10 @@ snapshots:
       react-dom: 18.3.1(react@18.3.1)
       throttle-debounce: 5.0.2
 
-  '@asteasolutions/zod-to-openapi@7.3.4(zod@4.6.7)':
+  '@asteasolutions/zod-to-openapi@7.3.4(zod@3.25.76)':
     dependencies:
       openapi3-ts: 4.5.0
-      zod: 4.6.7
+      zod: 3.25.76
 
   '@aws-crypto/crc32@5.2.0':
     dependencies:
@@ -13180,7 +13183,7 @@ snapshots:
       ip6addr: 0.2.5
       maxmind: 4.3.22
 
-  '@modelcontextprotocol/sdk@1.32.1(zod@4.6.7)':
+  '@modelcontextprotocol/sdk@1.32.1(zod@3.25.76)':
     dependencies:
       '@hono/node-server': 2.1.5(hono@4.13.14)
       ajv: 8.18.0
@@ -13197,8 +13200,8 @@ snapshots:
       json-schema-typed: 8.0.2
       pkce-challenge: 5.0.1
       raw-body: 3.0.2
-      zod: 4.6.7
-      zod-to-json-schema: 3.25.2(zod@4.6.7)
+      zod: 3.25.76
+      zod-to-json-schema: 3.25.2(zod@3.25.76)
     transitivePeerDependencies:
       - supports-color
 
@@ -17021,7 +17024,7 @@ snapshots:
       eslint: 9.39.4(jiti@2.6.1)
       eslint-import-resolver-node: 0.3.9
       eslint-import-resolver-typescript: 3.6.3(@typescript-eslint/parser@8.49.0(eslint@9.39.4(jiti@2.6.1))(typescript@5.6.3))(eslint-import-resolver-node@0.3.9)(eslint-plugin-import@2.32.0(@typescript-eslint/parser@8.49.0(eslint@9.39.4(jiti@2.6.1))(typescript@5.6.3))(eslint@9.39.4(jiti@2.6.1)))(eslint@9.39.4(jiti@2.6.1))
-      eslint-plugin-import: 2.32.0(@typescript-eslint/parser@8.49.0(eslint@9.39.4(jiti@2.6.1))(typescript@5.6.3))(eslint-import-resolver-typescript@3.6.3(@typescript-eslint/parser@8.49.0(eslint@9.39.4(jiti@2.6.1))(typescript@5.6.3))(eslint-import-resolver-node@0.3.9)(eslint-plugin-import@2.32.0(@typescript-eslint/parser@8.49.0(eslint@9.39.4(jiti@2.6.1))(typescript@5.6.3))(eslint@9.39.4(jiti@2.6.1)))(eslint@9.39.4(jiti@2.6.1)))(eslint@9.39.4(jiti@2.6.1))
+      eslint-plugin-import: 2.32.0(@typescript-eslint/parser@8.49.0(eslint@9.39.4(jiti@2.6.1))(typescript@5.6.3))(eslint-import-resolver-typescript@3.6.3)(eslint@9.39.4(jiti@2.6.1))
       eslint-plugin-jsx-a11y: 6.10.2(eslint@9.39.4(jiti@2.6.1))
       eslint-plugin-react: 7.37.2(eslint@9.39.4(jiti@2.6.1))
       eslint-plugin-react-hooks: 7.0.1(eslint@9.39.4(jiti@2.6.1))
@@ -17059,7 +17062,7 @@ snapshots:
       is-bun-module: 1.2.1
       is-glob: 4.0.3
     optionalDependencies:
-      eslint-plugin-import: 2.32.0(@typescript-eslint/parser@8.49.0(eslint@9.39.4(jiti@2.6.1))(typescript@5.6.3))(eslint-import-resolver-typescript@3.6.3(@typescript-eslint/parser@8.49.0(eslint@9.39.4(jiti@2.6.1))(typescript@5.6.3))(eslint-import-resolver-node@0.3.9)(eslint-plugin-import@2.32.0(@typescript-eslint/parser@8.49.0(eslint@9.39.4(jiti@2.6.1))(typescript@5.6.3))(eslint@9.39.4(jiti@2.6.1)))(eslint@9.39.4(jiti@2.6.1)))(eslint@9.39.4(jiti@2.6.1))
+      eslint-plugin-import: 2.32.0(@typescript-eslint/parser@8.49.0(eslint@9.39.4(jiti@2.6.1))(typescript@5.6.3))(eslint-import-resolver-typescript@3.6.3)(eslint@9.39.4(jiti@2.6.1))
     transitivePeerDependencies:
       - '@typescript-eslint/parser'
       - eslint-import-resolver-node
@@ -17077,7 +17080,7 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  eslint-plugin-import@2.32.0(@typescript-eslint/parser@8.49.0(eslint@9.39.4(jiti@2.6.1))(typescript@5.6.3))(eslint-import-resolver-typescript@3.6.3(@typescript-eslint/parser@8.49.0(eslint@9.39.4(jiti@2.6.1))(typescript@5.6.3))(eslint-import-resolver-node@0.3.9)(eslint-plugin-import@2.32.0(@typescript-eslint/parser@8.49.0(eslint@9.39.4(jiti@2.6.1))(typescript@5.6.3))(eslint@9.39.4(jiti@2.6.1)))(eslint@9.39.4(jiti@2.6.1)))(eslint@9.39.4(jiti@2.6.1)):
+  eslint-plugin-import@2.32.0(@typescript-eslint/parser@8.49.0(eslint@9.39.4(jiti@2.6.1))(typescript@5.6.3))(eslint-import-resolver-typescript@3.6.3)(eslint@9.39.4(jiti@2.6.1)):
     dependencies:
       '@rtsao/scc': 1.1.0
       array-includes: 3.1.9
@@ -23169,22 +23172,24 @@ snapshots:
       compress-commons: 6.0.2
       readable-stream: 4.7.0
 
-  zod-prisma@0.5.4(decimal.js@10.6.0)(prisma@6.19.3(typescript@5.6.3))(zod@4.6.7):
+  zod-prisma@0.5.4(decimal.js@10.6.0)(prisma@6.19.3(typescript@5.6.3))(zod@3.25.76):
     dependencies:
       '@prisma/generator-helper': 3.8.1
       parenthesis: 3.1.8
       prisma: 6.19.3(typescript@5.6.3)
       ts-morph: 13.0.3
-      zod: 4.6.7
+      zod: 3.25.76
     optionalDependencies:
       decimal.js: 10.6.0
 
-  zod-to-json-schema@3.25.2(zod@4.6.7):
+  zod-to-json-schema@3.25.2(zod@3.25.76):
     dependencies:
-      zod: 4.6.7
+      zod: 3.25.76
 
   zod-validation-error@4.0.2(zod@4.6.7):
     dependencies:
       zod: 4.6.7
+
+  zod@3.25.76: {}
 
   zod@4.6.7: {}

@@ -106,7 +106,7 @@
     "timezones-list": "^3.0.2",
     "tslib": "catalog:",
     "use-debounce": "^10.0.4",
-    "zod": "^4.6.6",
+    "zod": "^3.23.8",
     "zod-to-json-schema": "^3.23.2"
   },
   "devDependencies": {
