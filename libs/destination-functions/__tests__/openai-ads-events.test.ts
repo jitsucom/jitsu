@@ -71,12 +71,27 @@ describe("event names", () => {
   });
   it("lets a user line win over the table, and ignores lines that are not name=standard-event", () => {
     const p = props({
-      eventMappings: ["Order Completed=lead_created", "Broken line", "x=not_an_event", "=order_created"],
+      eventMappings: "Order Completed=lead_created\nBroken line\nx=not_an_event\n=order_created",
     });
     expect(built(event(), p).type).toBe("lead_created");
     const { mappings, invalid } = parseOpenAiEventMappings(p.eventMappings);
     expect([...mappings.keys()]).toEqual(["Order Completed"]);
     expect(invalid).toEqual(["Broken line", "x=not_an_event", "=order_created"]);
+  });
+  it("reads one mapping per line from the multi-line setting, keeping the spaces inside event names", () => {
+    const text = "Order Completed = trial_started\r\n\r\n  Newsletter Signup=lead_created  \nPage Viewed=page_viewed\n";
+    const { mappings, invalid } = parseOpenAiEventMappings(text);
+    expect(Object.fromEntries(mappings)).toEqual({
+      "Order Completed": "trial_started",
+      "Newsletter Signup": "lead_created",
+      "Page Viewed": "page_viewed",
+    });
+    expect(invalid).toEqual([]);
+    expect(built(event({ event: "Newsletter Signup" }), props({ eventMappings: text })).type).toBe("lead_created");
+    // A list from an older save is still understood.
+    expect([...parseOpenAiEventMappings(["Order Completed=lead_created"]).mappings.keys()]).toEqual([
+      "Order Completed",
+    ]);
   });
   it("turns arbitrary names into valid custom names of at most 64 characters", () => {
     const long = built(event({ event: `A very long event name, with: punctuation! ${"x".repeat(80)}` }));
@@ -357,7 +372,7 @@ describe("settings", () => {
       conversionsApiKey: " k-1 ",
       pixelId: "px_1",
       events: "*",
-      eventMappings: ["a=custom"],
+      eventMappings: "a=custom",
       actionSource: "other",
     };
     expect(OpenAiAdsCredentials.parse(saved)).toEqual({ conversionsApiKey: "k-1" });
@@ -365,6 +380,7 @@ describe("settings", () => {
   it("defaults the event settings and validates the pixel", () => {
     expect(OpenAiAdsDestinationCredentials.parse({ conversionsApiKey: "k" })).toMatchObject({
       events: "",
+      eventMappings: "",
       actionSource: "web",
       phoneFieldName: "",
     });

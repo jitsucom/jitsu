@@ -29,13 +29,14 @@ export const openAiDefaultEventMap: Readonly<Record<string, EventType>> = {
 };
 
 /** `eventName=openaiEvent` lines. Lines that are not a name and one of OpenAI's standard events are returned as invalid. */
-export function parseOpenAiEventMappings(lines: string[] | undefined): {
+export function parseOpenAiEventMappings(input: string | string[] | undefined): {
   mappings: Map<string, EventType>;
   invalid: string[];
 } {
   const mappings = new Map<string, EventType>();
   const invalid: string[] = [];
-  for (const line of lines || []) {
+  const lines = typeof input === "string" ? input.split(/\r?\n/) : input || [];
+  for (const line of lines) {
     if (typeof line !== "string" || !line.trim()) continue;
     const eq = line.lastIndexOf("=");
     const name = eq > 0 ? line.slice(0, eq).trim() : "";

@@ -85,9 +85,12 @@ export const OpenAiAdsDestinationCredentials = OpenAiAdsCredentials.extend({
       "Pixel ID::Required for event connections: the Pixel ID from Ads Manager (Conversions). Reverse ETL conversions set the pixel on the sync and audiences do not use one."
     ),
   events: z.string().optional().default("").describe(eventsParamDescription),
+  // A plain multi-line text, not a list control: the list editor strips spaces, and event names such as "Order Completed"
+  // contain them.
   eventMappings: z
-    .array(z.string())
+    .string()
     .optional()
+    .default("")
     .describe(
       "Event names::Map your events to OpenAI events. One <code>eventName=openaiEvent</code> per line, e.g. <code>Order Completed=order_created</code>. Common ecommerce and sign-up events are mapped for you; anything else is sent as a custom event named after your event."
     ),
@@ -104,7 +107,7 @@ export const OpenAiAdsDestinationCredentials = OpenAiAdsCredentials.extend({
 });
 export const OpenAiAdsDestinationCredentialsUi = {
   ...OpenAiAdsCredentialsUi,
-  eventMappings: { editor: "StringArrayEditor" },
+  eventMappings: { textarea: true },
 };
 export type OpenAiAdsDestinationCredentials = z.infer<typeof OpenAiAdsDestinationCredentials>;
 
