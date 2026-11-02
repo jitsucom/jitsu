@@ -5,8 +5,14 @@ Checked against a live OpenAI test account on 2026-10-22: the Conversions API wi
 approved write of two synthetic events (sent through the adapter, then resent once), and the Custom Audiences API on two
 throwaway audiences with fake hashed identifiers. See "Unconfirmed" for what was not observed.
 
-Destination ID `openai-ads`, registered as `builtin.reverse.openai-ads`. Reverse ETL only: there is no OpenAI event
-destination. Two streams: `conversions` and `audience` (Custom Audiences).
+Destination ID `openai-ads`, registered as `builtin.reverse.openai-ads`. Two streams: `conversions` and `audience`
+(Custom Audiences).
+
+The same destination also accepts ordinary event connections (a site or app stream), registered as
+`builtin.destination.openai-ads` (`events.ts`). Their settings (`pixelId`, `events`, `eventMappings`, `actionSource`,
+`phoneFieldName`) live on the destination; this document's Reverse ETL side never reads them and parses only the API
+keys. A destination bound to a Reverse ETL sync cannot be edited (the console refuses any change until the sync is
+removed), so set the event settings before creating the first sync.
 
 ## Authentication
 
