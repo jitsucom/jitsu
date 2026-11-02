@@ -46,13 +46,17 @@ export function parseOpenAiEventMappings(lines: string[] | undefined): {
   return { mappings, invalid };
 }
 
-/** OpenAI lowercases custom names and allows 1-64 of a-z, 0-9, _ and -, starting and ending with a letter or digit. */
-function customEventName(name: string): string | undefined {
-  const cleaned = name
+/** OpenAI lowercases names and allows 1-64 of a-z, 0-9, _ and -, starting and ending with a letter or digit. */
+function sanitizeEventName(name: string): string {
+  return name
     .toLowerCase()
     .replace(/[^a-z0-9_-]+/g, "_")
     .slice(0, 64)
     .replace(/^[_-]+|[_-]+$/g, "");
+}
+
+function customEventName(name: string): string | undefined {
+  const cleaned = sanitizeEventName(name);
   if (!cleaned || !OpenAiCustomEventName.safeParse(cleaned).success) return undefined;
   return Object.hasOwn(openAiEventDataTypes, cleaned) ? undefined : cleaned;
 }
@@ -126,11 +130,13 @@ export function toOpenAiEvent(
   if (!name) return { skip: "the event has no name" };
   if (!event.messageId) return { skip: "the event has no message ID to deduplicate on" };
   const { mappings } = parseOpenAiEventMappings(props.eventMappings);
-  const lower = name.toLowerCase();
+  // "Trial Started" is OpenAI's trial_started once sanitized; only "custom" itself cannot be used as a name.
+  const sanitized = sanitizeEventName(name);
   const standard: EventType | undefined =
     mappings.get(name) ??
-    openAiDefaultEventMap[name] ??
-    (lower !== "custom" && Object.hasOwn(openAiEventDataTypes, lower) ? (lower as EventType) : undefined);
+    // Own properties only: names like "constructor" or "toString" must reach the custom fallback.
+    (Object.hasOwn(openAiDefaultEventMap, name) ? openAiDefaultEventMap[name] : undefined) ??
+    (sanitized !== "custom" && Object.hasOwn(openAiEventDataTypes, sanitized) ? (sanitized as EventType) : undefined);
   const type: EventType = standard ?? "custom";
   const custom = type === "custom" ? customEventName(name) : undefined;
   if (type === "custom" && !custom) return { skip: `"${name}" cannot be turned into an OpenAI custom event name` };

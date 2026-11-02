@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { createHash } from "node:crypto";
 import { RetryError } from "@jitsu/functions-lib";
 import OpenAiAdsDestination, {
@@ -137,6 +137,39 @@ describe("payload fields", () => {
     expect(e.data.amount).toBe(1);
     expect(e.opt_out).toBe(true);
     expect(e.type).toBe("order_created");
+  });
+});
+
+describe("awkward event names and hostile overrides", () => {
+  afterEach(() => {
+    delete (Object.prototype as any).polluted;
+  });
+  it("recognizes a standard OpenAI name written with spaces or capitals instead of skipping it", () => {
+    expect(built(event({ event: "Trial Started" })).type).toBe("trial_started");
+    expect(built(event({ event: "Page Viewed" })).type).toBe("page_viewed");
+    expect(built(event({ event: "Order Created" })).type).toBe("order_created");
+    expect(built(event({ event: "SUBSCRIPTION CREATED" })).type).toBe("subscription_created");
+    // The one standard name that cannot be a custom event name stays unusable.
+    expect(skipped(event({ event: "Custom" }))).toContain("custom event name");
+  });
+  it("sends names that are properties of every JavaScript object as ordinary custom events", () => {
+    for (const name of ["constructor", "toString", "hasOwnProperty", "__proto__", "valueOf"]) {
+      const e = built(event({ event: name }));
+      expect(e.type).toBe("custom");
+      expect(e.data.type).toBe("custom");
+      expect(e.custom_event_name).toBe(name.toLowerCase().replace(/^[_-]+|[_-]+$/g, ""));
+    }
+  });
+  it("lets an override reach the payload but never Object.prototype", () => {
+    const hostile = JSON.parse(
+      '{"__proto__":{"polluted":"yes"},"constructor":{"prototype":{"polluted":"yes"}},"opt_out":true}'
+    );
+    const e = built(event({ openaiAdsEvent: hostile }));
+    expect(({} as any).polluted).toBeUndefined();
+    expect((Object.prototype as any).polluted).toBeUndefined();
+    expect(e.opt_out).toBe(true);
+    // Later events are not affected either: a trait-less event still has no email.
+    expect(built(event({ context: { traits: {} } })).user.emails_sha256).toBeUndefined();
   });
 });
 
