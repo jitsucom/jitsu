@@ -6,6 +6,9 @@ export function deepMerge(target: any, source: any) {
     return source;
   }
   return Object.entries(source).reduce((acc, [key, value]) => {
+    // Sources come from callers' JSON (for example an event's `facebookEvent`): a `__proto__` key there would merge
+    // into Object.prototype and change every later object in the process.
+    if (key === "__proto__" || key === "constructor" || key === "prototype") return acc;
     acc[key] = deepMerge(target[key], value);
     return acc;
   }, target);
