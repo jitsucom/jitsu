@@ -14,7 +14,7 @@
   "license": "MIT",
   "private": false,
   "dependencies": {
-    "zod": "^3.23.8"
+    "zod": "^4.6.6"
   },
   "scripts": {
     "typecheck": "tsc --noEmit"

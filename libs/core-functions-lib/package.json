@@ -30,7 +30,7 @@
     "express": "^4.21.2",
     "json5": "^2.1.0",
     "vitest": "catalog:",
-    "vite": "^6.4.3"
+    "vite": "^6.4.4"
   },
   "dependencies": {
     "@amplitude/ua-parser-js": "^0.7.33",
@@ -40,7 +40,7 @@
     "node-cache": "^5.1.2",
     "parse-duration": "^2.1.6",
     "tslib": "catalog:",
-    "undici": "^8.11.0",
-    "zod": "^3.23.8"
+    "undici": "^8.12.2",
+    "zod": "^4.6.6"
   }
 }
