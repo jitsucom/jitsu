@@ -26,8 +26,8 @@ import {
   MicrosoftAdsCredentialsUi,
 } from "@jitsu/destination-functions/src/functions/microsoft-ads/meta";
 import {
-  OpenAiAdsCredentials,
-  OpenAiAdsCredentialsUi,
+  OpenAiAdsDestinationCredentials,
+  OpenAiAdsDestinationCredentialsUi,
 } from "@jitsu/destination-functions/src/functions/openai-ads/reverse-meta";
 import { HubspotCredentials } from "@jitsu/destination-functions/src/meta";
 import { branding } from "../branding";
@@ -1073,12 +1073,11 @@ export const coreDestinations: DestinationType<any>[] = [
     icon: openAiAdsIcon,
     title: "OpenAI Ads (ChatGPT)",
     tags: "Advertising",
-    reverseEtlOnly: true,
-    credentials: OpenAiAdsCredentials,
-    credentialsUi: OpenAiAdsCredentialsUi,
+    credentials: OpenAiAdsDestinationCredentials,
+    credentialsUi: OpenAiAdsDestinationCredentialsUi,
     connectionOptions: CloudDestinationsConnectionOptions,
     description:
-      "Send conversion events and sync warehouse models to OpenAI Ads Custom Audiences. Reverse ETL only; no pixel on your site is required.",
+      "Send conversion events to OpenAI Ads through the Conversions API from your site and app event streams, or sync warehouse models as conversion events and Custom Audiences with Reverse ETL. No pixel on your site is required.",
   },
   {
     id: "facebook-conversions",

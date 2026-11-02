@@ -323,5 +323,45 @@ describe("ConfigObjectsService", () => {
       const connections = await deps().prisma.configurationObjectLink.count({ where: { toId, deleted: false } });
       expect(connections === 0 || (destination.config as any).pixelId === "123").toBe(true);
     });
+
+    async function seedOpenAi(pixelId?: string) {
+      const { user, workspace } = await seedWorkspace();
+      const { id } = await svc().create(
+        user,
+        workspace.id,
+        "destination",
+        { name: "OpenAI", destinationType: "openai-ads", conversionsApiKey: "test-key", pixelId },
+        { generateId: true }
+      );
+      const stream = await deps().prisma.configurationObject.create({
+        data: { workspaceId: workspace.id, type: "stream", config: { name: "site" } },
+      });
+      return { user, workspace, id, fromId: stream.id, toId: id };
+    }
+
+    it.each([undefined, "", "   "])(
+      "allows a Reverse ETL-only OpenAI destination but rejects event connections with pixel %j",
+      async pixelId => {
+        const { user, workspace, fromId, toId } = await seedOpenAi(pixelId);
+        await expect(svc().upsertLink(user, workspace.id, { fromId, toId })).rejects.toThrow(
+          /OpenAI event connections require a Pixel ID/
+        );
+        expect(await deps().prisma.configurationObjectLink.count({ where: { toId } })).toBe(0);
+        await expect(
+          svc().update(user, workspace.id, "destination", toId, { name: "Audiences" })
+        ).resolves.toBeUndefined();
+      }
+    );
+
+    it("allows OpenAI event connections with a pixel and protects it while the connection exists", async () => {
+      const { user, workspace, fromId, toId } = await seedOpenAi("px_1");
+      const link = await svc().upsertLink(user, workspace.id, { fromId, toId, data: { disabled: true } });
+      await expect(svc().update(user, workspace.id, "destination", toId, { pixelId: "" })).rejects.toThrow(
+        /OpenAI event connections require a Pixel ID/
+      );
+      await svc().update(user, workspace.id, "destination", toId, { pixelId: "px_2" });
+      await svc().deleteLink(user, workspace.id, { id: link.id });
+      await expect(svc().update(user, workspace.id, "destination", toId, { pixelId: "" })).resolves.toBeUndefined();
+    });
   });
 });
