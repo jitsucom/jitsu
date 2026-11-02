@@ -283,6 +283,21 @@ describe("destination function", () => {
       expect(err.message).toContain(`HTTP ${status}`);
     }
   });
+  it("tells the user what to check when OpenAI refuses the pixel or the key, and only then", async () => {
+    for (const status of [401, 403]) {
+      const err = await run(fresh(), cfg, answer(status, { error: { message: "403: unknown pid", code: null } })).catch(
+        e => e
+      );
+      expect(err.message).toBe(
+        `OpenAI Ads API error: HTTP ${status}. Check the Pixel ID and the Conversions API key on the destination`
+      );
+      expect(err.message).not.toContain("unknown pid");
+    }
+    for (const status of [400, 404, 422]) {
+      const err = await run(fresh(), cfg, answer(status, { error: { code: "invalid_request" } })).catch(e => e);
+      expect(err.message).not.toContain("Check the Pixel ID");
+    }
+  });
   it("retries rate limiting, server errors and lost connections with the same event id", async () => {
     for (const status of [429, 500, 502, 503]) {
       const err = await run(fresh(), cfg, answer(status, { error: { code: "server_error" } })).catch(e => e);

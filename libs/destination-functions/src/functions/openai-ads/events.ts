@@ -252,6 +252,11 @@ const OpenAiAdsDestination: JitsuFunction<AnalyticsServerEvent, OpenAiAdsDestina
     if (e instanceof OpenAiApiError) {
       const message = `OpenAI Ads API error: HTTP ${e.status}${e.code ? ` (${e.code})` : ""}${
         e.details.length ? ` ${JSON.stringify(e.details)}` : ""
+      }${
+        // OpenAI answers a wrong pixel with a bare 403 ("unknown pid") and a wrong key with 401; its own text is not kept.
+        e.status === 401 || e.status === 403
+          ? ". Check the Pixel ID and the Conversions API key on the destination"
+          : ""
       }`;
       // A refusal other than rate limiting would fail the same way every time; a retry carries the same event ID,
       // which OpenAI deduplicates.
