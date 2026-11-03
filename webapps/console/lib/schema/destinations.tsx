@@ -1078,7 +1078,7 @@ export const coreDestinations: DestinationType<any>[] = [
     credentialsUi: OpenAiAdsCredentialsUi,
     connectionOptions: CloudDestinationsConnectionOptions,
     description:
-      "Send conversion events from warehouse models to OpenAI Ads through the Conversions API. Reverse ETL only; no pixel on your site is required.",
+      "Send conversion events and sync warehouse models to OpenAI Ads Custom Audiences. Reverse ETL only; no pixel on your site is required.",
   },
   {
     id: "facebook-conversions",

@@ -52,6 +52,8 @@ export class OpenAiApiError extends Error {
     return [400, 401, 403, 404, 413, 422].includes(this.status) && this.hasEnvelope;
   }
   hasEnvelope = false;
+  /** Seconds from a Retry-After header, when OpenAI sent one (Ads API only). */
+  retryAfter?: number;
 }
 const errorEnvelope = z.object({
   error: z.object({
@@ -92,6 +94,14 @@ export async function openAiSendEvents(
     throw new OpenAiTransportError();
   }
   if (response.ok) return;
+  throw await readOpenAiApiError(response);
+}
+
+/**
+ * Reads a non-2xx response. A body that is not OpenAI's error envelope (for example Cloudflare's plain-text
+ * "error code: 1010" block) proves nothing about delivery, so it never counts as a definite refusal.
+ */
+export async function readOpenAiApiError(response: { status: number; json(): Promise<unknown> }) {
   let parsed: ReturnType<typeof errorEnvelope.safeParse> | undefined;
   try {
     parsed = errorEnvelope.safeParse(await response.json());
@@ -105,5 +115,5 @@ export async function openAiSendEvents(
     parsed?.success ? parsed.data.error.errors.map(e => ({ code: e.code, param: e.param ?? undefined })) : undefined
   );
   error.hasEnvelope = !!parsed?.success;
-  throw error;
+  return error;
 }

@@ -269,7 +269,11 @@ describe("OpenAI Ads settings", () => {
   });
   it("rejects what cannot work before any run", () => {
     expect(() => validateOpenAiAdsReverseSettings(options(), {}, {})).toThrow("Conversions API key");
-    expect(() => validateOpenAiAdsReverseSettings({ ...options(), stream: "audience" }, {}, ok)).toThrow("Unsupported");
+    expect(() => validateOpenAiAdsReverseSettings({ ...options(), stream: "segments" }, {}, ok)).toThrow("Unsupported");
+    // Each stream needs its own key: an Ads API key alone does not send conversions.
+    expect(() => validateOpenAiAdsReverseSettings(options(), {}, { adsApiKey: "ads-key" })).toThrow(
+      "Conversions API key"
+    );
     expect(() => validateOpenAiAdsReverseSettings({ ...options(), mode: "mirror" }, {}, ok)).toThrow("insert mode");
     expect(() => validateOpenAiAdsReverseSettings(options(), { deleteColumn: "d" }, ok)).toThrow("delete column");
     expect(() => validateOpenAiAdsReverseSettings(options({ pixelId: "" }), {}, ok)).toThrow("Pixel ID");
@@ -300,10 +304,13 @@ describe("OpenAI Ads settings", () => {
       conversionsApiKey: "sk-abc",
     });
     expect(OpenAiAdsCredentials.safeParse({ conversionsApiKey: "has space" }).success).toBe(false);
-    expect(OpenAiAdsCredentials.safeParse({}).success).toBe(false);
+    expect(OpenAiAdsCredentials.safeParse({ adsApiKey: " ads-key " }).data).toEqual({ adsApiKey: "ads-key" });
+    expect(OpenAiAdsCredentials.safeParse({ adsApiKey: "has space" }).success).toBe(false);
+    // Both keys are optional on the destination; each stream checks for its own when a sync is saved and when it runs.
+    expect(OpenAiAdsCredentials.safeParse({}).success).toBe(true);
   });
   it("is registered in the browser catalog and the runner registry, and the editor lists missing settings", () => {
-    expect(reverseDestinationMetadata.get("openai-ads")?.streams.map(s => s.id)).toEqual(["conversions"]);
+    expect(reverseDestinationMetadata.get("openai-ads")?.streams.map(s => s.id)).toEqual(["conversions", "audience"]);
     expect(reverseDestinationRuntime.has("openai-ads")).toBe(true);
     const errors = streamRequirementErrors(openAiConversionEditor, openAiConversionEditor.defaults());
     expect(errors).toEqual(expect.arrayContaining(["Pixel ID is required.", "Source URL is required."]));

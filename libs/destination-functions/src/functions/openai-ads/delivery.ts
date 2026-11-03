@@ -13,29 +13,53 @@ export class OpenAiUncertainDelivery extends ReverseEtlManualReconciliationError
     this.message = openAiUncertainMessage;
   }
 }
-export function batchBinding(ctx: Context, batch: WriteBatch<JsonObject>) {
+export const openAiOperationFailedMessage =
+  "OpenAI reported an audience change as failed; manual reconciliation required";
+/**
+ * The operation reached `failed`. OpenAI says a failed Add or Remove may have applied part of its change, and nothing
+ * here can tell which part. Throwing (not returning a rejection) keeps the batch unknown, so the runner does not
+ * discard the run: every later run goes through recovery, which replays the same request, gets the same failed
+ * operation back and stops again, until an administrator has checked the audience in Ads Manager and reset the sync.
+ */
+export class OpenAiOperationFailed extends ReverseEtlManualReconciliationError {
+  constructor() {
+    super();
+    this.message = openAiOperationFailedMessage;
+  }
+}
+export type Action = "upsert" | "remove";
+/** Binds a result or an idempotency key to one batch of one run. The default keeps conversions' bindings unchanged. */
+export function batchBinding(ctx: Context, batch: WriteBatch<JsonObject>, action: Action = "upsert") {
   return contentHash({
     sync: ctx.syncId,
     run: ctx.logicalRunId,
     target: ctx.targetIdentity,
     revision: ctx.configRevision,
-    action: "upsert",
+    action,
     batchId: batch.batchId,
     records: batch.records,
   });
 }
-export function accepted(ctx: Context, batch: WriteBatch<JsonObject>): BatchResult {
+export function accepted(ctx: Context, batch: WriteBatch<JsonObject>, action: Action = "upsert"): BatchResult {
   return {
     outcomes: batch.records.map(r => ({ operationId: r.operationId, status: "accepted" })),
     /** Only built from a 2xx or an OpenAI error envelope, so the response confirms receipt of the whole batch. */
     submitted: true,
-    providerCheckpoint: { binding: batchBinding(ctx, batch) },
+    providerCheckpoint: { binding: batchBinding(ctx, batch, action) },
   };
 }
-export function savedReceipt(ctx: Context, batch: WriteBatch<JsonObject>, saved?: BatchResult) {
+export function savedReceipt(
+  ctx: Context,
+  batch: WriteBatch<JsonObject>,
+  saved?: BatchResult,
+  action: Action = "upsert"
+) {
   if (!saved) return;
   validateBatchResult(batch, saved);
-  if (saved.providerCheckpoint?.binding !== batchBinding(ctx, batch) || saved.outcomes.some(r => r.status === "staged"))
+  if (
+    saved.providerCheckpoint?.binding !== batchBinding(ctx, batch, action) ||
+    saved.outcomes.some(r => r.status === "staged")
+  )
     throw new OpenAiUncertainDelivery();
   return saved;
 }
@@ -45,7 +69,13 @@ function rejectionCode(error: OpenAiApiError) {
     ? `OPENAI_${error.code.toUpperCase()}`
     : `http_${error.status}`;
 }
-export function rejected(ctx: Context, batch: WriteBatch<JsonObject>, error: OpenAiApiError): BatchResult {
+export function rejected(
+  ctx: Context,
+  batch: WriteBatch<JsonObject>,
+  error: OpenAiApiError,
+  action: Action = "upsert",
+  stream: "conversions" | "audience" = "conversions"
+): BatchResult {
   const code = rejectionCode(error);
   const details = safeRejectionDetails(
     error.details.length
@@ -55,12 +85,15 @@ export function rejected(ctx: Context, batch: WriteBatch<JsonObject>, error: Ope
       : []
   );
   return {
-    ...accepted(ctx, batch),
+    ...accepted(ctx, batch, action),
     outcomes: batch.records.map(r => ({
       operationId: r.operationId,
       status: "rejected",
       code,
-      safeReason: "OpenAI rejected the conversion batch; check the Conversions API key, Pixel ID and event mappings",
+      safeReason:
+        stream === "audience"
+          ? "OpenAI rejected the audience change; check the Ads API key, the audience and the identifier mappings"
+          : "OpenAI rejected the conversion batch; check the Conversions API key, Pixel ID and event mappings",
       ...(details.length ? { details } : {}),
     })),
   };
