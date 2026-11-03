@@ -542,11 +542,25 @@ describe("OpenAI Ads audience runner integration", () => {
   });
   it("stays stopped after the second of two batches fails: the first batch was accepted", async () => {
     const f = audienceFixture();
+    // A journal record budget of 2 makes three members two Add batches, without thousands of rows (a 3,001-row
+    // version took over 30 s on a loaded CI runner, past the 10 s idle-in-transaction limit, and was cancelled).
+    const bounded = new Database(
+      {
+        host: container.getHost(),
+        port: container.getMappedPort(5432),
+        database: "runner_test",
+        user: "runner_runtime",
+        password: "runtime",
+      },
+      { ...storage, limits: { batchRecords: 2 } }
+    );
+    f.input.db = bounded;
     let wire = openAi({ failFrom: 2 });
     try {
-      // 3,001 members are two Add batches (3,000 each at most); the second one fails after the first was accepted.
-      f.setRows(Array.from({ length: 3001 }, (_, i) => ({ id: `m${i}@example.com` })));
+      f.setRows([{ id: "m0@example.com" }, { id: "m1@example.com" }, { id: "m2@example.com" }]);
       expect(await execute(f.input)).toBe("FAILED");
+      // The first batch (2 members) was accepted, the second (1 member) failed.
+      expect([...wire.operations.values()].map(o => `${o.action}:${o.identifiers.length}`)).toEqual(["add:2", "add:1"]);
       wire.fetch.mockRestore();
       wire = openAi();
       f.input.taskId = "openai-audience-after-failed-second-batch";
@@ -556,8 +570,9 @@ describe("OpenAI Ads audience runner integration", () => {
       expect({ outcome, readSource: f.calls.includes("reader") }).toEqual({ outcome: "FAILED", readSource: false });
     } finally {
       wire.fetch.mockRestore();
+      await bounded.close();
     }
-  }, 60_000);
+  });
 });
 
 describe("runner-owned Google audience provisioning", () => {
