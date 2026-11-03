@@ -1,3 +1,4 @@
+import { signFunctionsRequest } from "juava/src/functions-auth";
 import type { PrismaClient } from "@prisma/client";
 import type { NextApiRequest } from "next";
 import { getErrorMessage, randomId, requireDefined, rpc } from "juava";
@@ -184,19 +185,20 @@ export class DebugService {
     }
     const url = this.functionsServerUrl(deploymentId, "/udfrun");
     log.atInfo().log(`Running function ${opts.functionId} for workspace ${workspaceId} via ${url}`);
+    const body = {
+      functionId: opts.functionId,
+      functionName,
+      code,
+      event: opts.event,
+      variables: opts.variables ?? {},
+      store: opts.store ?? {},
+      userAgent: opts.userAgent,
+      workspaceId,
+    };
     return await rpc(url, {
       method: "POST",
-      body: {
-        functionId: opts.functionId,
-        functionName,
-        code,
-        event: opts.event,
-        variables: opts.variables ?? {},
-        store: opts.store ?? {},
-        userAgent: opts.userAgent,
-        workspaceId,
-      },
-      headers: this.rotorAuthHeaders(),
+      body,
+      headers: this.functionsAuthHeaders(deploymentId, url, body),
     });
   }
 
@@ -239,20 +241,23 @@ export class DebugService {
     }
     const url = this.profileBuilderRunUrl(deploymentId);
     log.atInfo().log(`Running profile builder ${opts.profileBuilderId} for workspace ${workspaceId} via ${url}`);
+    const body = {
+      id: pb.id,
+      name: pb.name,
+      version: opts.version ?? pb.version,
+      code,
+      events: opts.events,
+      settings: opts.settings ?? pb.connectionOptions ?? {},
+      store: opts.store ?? {},
+      userAgent: opts.userAgent,
+      workspaceId,
+    };
     return await rpc(url, {
       method: "POST",
-      body: {
-        id: pb.id,
-        name: pb.name,
-        version: opts.version ?? pb.version,
-        code,
-        events: opts.events,
-        settings: opts.settings ?? pb.connectionOptions ?? {},
-        store: opts.store ?? {},
-        userAgent: opts.userAgent,
-        workspaceId,
-      },
-      headers: this.rotorAuthHeaders(),
+      body,
+      headers: getServerEnv().FUNCTIONS_SERVER_URL_TEMPLATE
+        ? this.functionsAuthHeaders(deploymentId, url, body)
+        : this.rotorAuthHeaders(),
     });
   }
 
@@ -291,6 +296,13 @@ export class DebugService {
       return rotorURL + "/profileudfrun";
     }
     return this.functionsServerUrl(deploymentId, "/profileudfrun");
+  }
+
+  private functionsAuthHeaders(deploymentId: string, url: string, body: unknown): Record<string, string> {
+    return {
+      "Content-Type": "application/json",
+      ...signFunctionsRequest(getServerEnv().FUNCTIONS_SERVER_PRIVATE_KEY, deploymentId, url, JSON.stringify(body)),
+    };
   }
 
   private rotorAuthHeaders(): Record<string, string> {

@@ -28,6 +28,8 @@ const identifier = z
  * One member as the core stores it: every identifier we send, and the `identity` the core compares across runs. The
  * identity is a single identifier (email, else phone, else GAID). Add and Remove both send every identifier: OpenAI
  * treats each as a matching candidate, so a Remove with only the identity could leave a person matched by another one.
+ * A mirror maps one identifier type (see `validateOpenAiAdsReverseSettings`), so its members carry one identifier; rows
+ * of an existing audience may carry several.
  */
 export const openAiAudienceWire = z
   .object({ identifiers: z.array(identifier).min(1).max(3), identity: z.record(z.string()) })

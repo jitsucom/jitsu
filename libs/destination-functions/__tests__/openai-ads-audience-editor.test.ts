@@ -93,7 +93,14 @@ describe("OpenAI Ads audience editor", () => {
       );
     expect(() => save(managed({ email: "e" }))).not.toThrow();
     expect(() => save(existing({ hashedPhone: "p" }))).not.toThrow();
-    expect(() => save(managed({}))).toThrow("Map at least one member identifier");
+    expect(() => save(managed({}))).toThrow("Map a member identifier");
+    // A mirror tracks people by one identifier type; raw and hashed of one type count as that one type (and are refused
+    // together), several types are refused, and an existing audience may map several.
+    expect(() => save(managed({ hashedPhone: "p" }))).not.toThrow();
+    expect(() => save(managed({ gaid: "g" }))).not.toThrow();
+    expect(() => save(managed({ email: "e", phone: "p" }))).toThrow("supports one identifier type");
+    expect(() => save(managed({ hashedEmail: "h", gaid: "g" }))).toThrow("supports one identifier type");
+    expect(() => save(existing({ email: "e", phone: "p", gaid: "g" }))).not.toThrow();
     expect(() => save(managed({ email: "e", hashedEmail: "h" }))).toThrow("raw or SHA-256");
     expect(() => save(managed({ email: "e", bogus: "x" }))).toThrow("Unknown OpenAI audience mapping field");
     expect(() => save(managed({ email: "e" }, { exclusiveManagementConfirmed: false }))).toThrow(

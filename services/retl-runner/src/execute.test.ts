@@ -304,13 +304,17 @@ describe("OpenAI Ads audience runner integration", () => {
     return f;
   };
   /** OpenAI's audience API, answering at once: ready on create, operations succeeded on the first poll. */
-  const openAi = (options: { loseAddResponses?: number; failOperations?: boolean } = {}) => {
+  const openAi = (options: { loseAddResponses?: number; failOperations?: boolean; failFrom?: number } = {}) => {
     const audienceId = `caud_${"0".repeat(31)}1`;
     let description = "";
     let lose = options.loseAddResponses ?? 0;
     const operations = new Map<string, { id: string; action: string; identifiers: any[] }>();
     const byKey = new Map<string, string>();
     const requests: { method: string; path: string; key?: string }[] = [];
+    /** Every operation fails, or only those from the nth submitted on (`caudop_<n>`). */
+    const failed = (operationId: string) =>
+      options.failOperations ||
+      (options.failFrom !== undefined && Number(operationId.split("_")[1]) >= options.failFrom);
     const fetch = vi.spyOn(globalThis, "fetch").mockImplementation(async (url, init) => {
       const path = String(url).replace("https://api.ads.openai.com/v1", "");
       const headers = init!.headers as Record<string, string>;
@@ -347,10 +351,8 @@ describe("OpenAI Ads audience runner integration", () => {
           operation_id: poll[1],
           custom_audience_id: audienceId,
           operation: operations.get(poll[1])?.action,
-          status: options.failOperations ? "failed" : "succeeded",
-          ...(options.failOperations
-            ? { failure_reason: { code: "audience_too_small", message: "private detail" } }
-            : {}),
+          status: failed(poll[1]) ? "failed" : "succeeded",
+          ...(failed(poll[1]) ? { failure_reason: { code: "audience_too_small", message: "private detail" } } : {}),
         });
       throw new Error(`Unexpected OpenAI request ${init!.method} ${path}`);
     });
@@ -386,6 +388,45 @@ describe("OpenAI Ads audience runner integration", () => {
       expect(logs).not.toContain("ads-key-secret");
       expect(logs).not.toContain("@example.com");
       expect(JSON.stringify(wire.requests)).not.toContain("@example.com");
+    } finally {
+      wire.fetch.mockRestore();
+    }
+  });
+  it("keeps a member two rows share until both rows are gone: one identifier type means one member", async () => {
+    const f = audienceFixture();
+    f.input.config.options = { ...f.input.config.options, mapping: { email: "email" } };
+    const wire = openAi();
+    try {
+      f.setRows([
+        { id: "1", email: "shared@example.com" },
+        { id: "2", email: "shared@example.com" },
+      ]);
+      expect(await execute(f.input)).toBe("COMPLETE");
+      const added = [...wire.operations.values()].flatMap(o => emails(o.identifiers));
+      expect(added).toEqual([sha("shared@example.com")]);
+      f.input.taskId = "openai-audience-shared-one-row-gone";
+      f.setRows([{ id: "2", email: "shared@example.com" }]);
+      expect(await execute(f.input)).toBe("COMPLETE");
+      expect([...wire.operations.values()].map(o => o.action)).toEqual(["add"]);
+      f.input.taskId = "openai-audience-shared-both-gone";
+      f.setRows([]);
+      expect(await execute(f.input)).toBe("COMPLETE");
+      expect([...wire.operations.values()].map(o => o.action)).toEqual(["add", "remove"]);
+    } finally {
+      wire.fetch.mockRestore();
+    }
+  });
+  it("refuses a mirror that maps two identifier types, before reading the source or calling OpenAI", async () => {
+    const f = audienceFixture();
+    f.input.config.options = { ...f.input.config.options, mapping: { email: "id", phone: "id" } };
+    const wire = openAi();
+    try {
+      f.setRows([{ id: "a@example.com" }]);
+      f.calls.length = 0;
+      expect(await execute(f.input)).toBe("FAILED");
+      expect(String((await task()).error)).toContain("one identifier type");
+      expect(f.calls).not.toContain("reader");
+      expect(wire.requests).toHaveLength(0);
     } finally {
       wire.fetch.mockRestore();
     }
@@ -451,6 +492,72 @@ describe("OpenAI Ads audience runner integration", () => {
       wire.fetch.mockRestore();
     }
   });
+  it("stays stopped after a failed Add in a later run, when members left the model since: they are removed once reconciled", async () => {
+    const f = audienceFixture();
+    let wire = openAi();
+    try {
+      f.setRows([{ id: "a@example.com" }]);
+      expect(await execute(f.input)).toBe("COMPLETE");
+      wire.fetch.mockRestore();
+      // Run 2 adds b, and OpenAI reports the operation failed: part of it may have been applied.
+      wire = openAi({ failOperations: true });
+      f.input.taskId = "openai-audience-failed-add";
+      f.setRows([{ id: "a@example.com" }, { id: "b@example.com" }]);
+      expect(await execute(f.input)).toBe("FAILED");
+      wire.fetch.mockRestore();
+      // OpenAI is healthy again and b has left the model. If b was applied it must not be forgotten: the run may not
+      // be discarded and restarted from a fresh read of the source.
+      wire = openAi();
+      f.input.taskId = "openai-audience-after-failed-add";
+      f.setRows([{ id: "a@example.com" }]);
+      f.calls.length = 0;
+      const outcome = await execute(f.input);
+      expect({ outcome, readSource: f.calls.includes("reader") }).toEqual({ outcome: "FAILED", readSource: false });
+    } finally {
+      wire.fetch.mockRestore();
+    }
+  });
+  it("stays stopped after a failed Remove: members that came back are not forgotten by a fresh read", async () => {
+    const f = audienceFixture();
+    let wire = openAi();
+    try {
+      f.setRows([{ id: "a@example.com" }, { id: "b@example.com" }]);
+      expect(await execute(f.input)).toBe("COMPLETE");
+      wire.fetch.mockRestore();
+      // Run 2 removes b; OpenAI reports the Remove failed, so b may or may not still be in the audience.
+      wire = openAi({ failFrom: 2 });
+      f.input.taskId = "openai-audience-failed-remove";
+      f.setRows([{ id: "a@example.com" }]);
+      expect(await execute(f.input)).toBe("FAILED");
+      wire.fetch.mockRestore();
+      wire = openAi();
+      f.input.taskId = "openai-audience-after-failed-remove";
+      f.setRows([{ id: "a@example.com" }]);
+      f.calls.length = 0;
+      const outcome = await execute(f.input);
+      expect({ outcome, readSource: f.calls.includes("reader") }).toEqual({ outcome: "FAILED", readSource: false });
+    } finally {
+      wire.fetch.mockRestore();
+    }
+  });
+  it("stays stopped after the second of two batches fails: the first batch was accepted", async () => {
+    const f = audienceFixture();
+    let wire = openAi({ failFrom: 2 });
+    try {
+      // 3,001 members are two Add batches (3,000 each at most); the second one fails after the first was accepted.
+      f.setRows(Array.from({ length: 3001 }, (_, i) => ({ id: `m${i}@example.com` })));
+      expect(await execute(f.input)).toBe("FAILED");
+      wire.fetch.mockRestore();
+      wire = openAi();
+      f.input.taskId = "openai-audience-after-failed-second-batch";
+      f.setRows([{ id: "m0@example.com" }]);
+      f.calls.length = 0;
+      const outcome = await execute(f.input);
+      expect({ outcome, readSource: f.calls.includes("reader") }).toEqual({ outcome: "FAILED", readSource: false });
+    } finally {
+      wire.fetch.mockRestore();
+    }
+  }, 60_000);
 });
 
 describe("runner-owned Google audience provisioning", () => {
@@ -812,7 +919,7 @@ function fixture() {
   let pending = false;
   let failInit = false;
   let failBatch = false;
-  let rows = [{ id: "a" }, { id: "b" }];
+  let rows: { id: string; email?: string }[] = [{ id: "a" }, { id: "b" }];
   const writer = (ctx: ReverseEtlContext<JsonObject, JsonObject>) => ({
     init: async () => {
       calls.push("init");
@@ -2782,7 +2889,8 @@ describe("webhook destination through the runner", () => {
   describe("Postgres column types arrive as plain JSON", () => {
     // [name, column type, value expression, expected JSON value as received by the endpoint]
     // Expectations were reviewed one by one against the plan's type table (H11): types that fail a run without
-    // conversion (float NaN/Infinity, interval, bytea) must be converted; everything else must arrive unchanged.
+    // conversion (float NaN/Infinity, interval, bytea) must be converted. The warehouse reader also
+    // preserves exact numeric arrays; JSON payloads intentionally use native JS values.
     const cases: Array<[string, string, string, unknown]> = [
       ["int4", "int4", "42", 42],
       ["int8", "int8", "123456789012345678", "123456789012345678"],
@@ -2807,10 +2915,12 @@ describe("webhook destination through the runner", () => {
       ["uuid", "uuid", "'11111111-2222-3333-4444-555555555555'", "11111111-2222-3333-4444-555555555555"],
       ["json", "json", `'{"a":[1,2]}'`, { a: [1, 2] }],
       ["jsonb", "jsonb", `'{"a":[1,2]}'`, { a: [1, 2] }],
+      ["json JS number", "json", `'{"id":9007199254740993}'`, { id: 9007199254740992 }],
+      ["jsonb JS number", "jsonb", `'{"id":9007199254740993}'`, { id: 9007199254740992 }],
       ["int[]", "int[]", "ARRAY[1,2,3]", [1, 2, 3]],
       ["text[]", "text[]", "ARRAY['a','b']", ["a", "b"]],
       ["int8[]", "int8[]", "ARRAY[9007199254740993]", ["9007199254740993"]],
-      ["numeric[]", "numeric[]", "ARRAY[1.5,2.5]", [1.5, 2.5]],
+      ["numeric[]", "numeric[]", "ARRAY[1.5,2.5]", ["1.5", "2.5"]],
       ["bytea", "bytea", "'\\xdeadbeef'", "3q2+7w=="],
       ["bytea[]", "bytea[]", "ARRAY['\\xde'::bytea]", ["3g=="]],
       ["interval[]", "interval[]", "ARRAY['1 day'::interval]", ["P0Y0M1DT0H0M0S"]],
@@ -2897,12 +3007,12 @@ describe("webhook destination through the runner", () => {
       ["Decimal(18,4)", "Decimal(18,4)", "1.2345", "1.2345"],
       ["Decimal256(10)", "Decimal256(10)", "123.456", "123.456"],
       ["Float64", "Float64", "1.5", 1.5],
-      ["Float64 nan", "Float64", "nan", null],
-      ["Float64 inf", "Float64", "inf", null],
+      ["Float64 nan", "Float64", "nan", "nan"],
+      ["Float64 inf", "Float64", "inf", "inf"],
       ["Date", "Date", "'2026-01-01'", "2026-01-01"],
       ["Date32", "Date32", "'2026-01-01'", "2026-01-01"],
-      ["DateTime", "DateTime('UTC')", "'2026-01-01 12:00:00'", "2026-01-01 12:00:00"],
-      ["DateTime64(6)", "DateTime64(6,'UTC')", "'2026-01-01 12:00:00.123456'", "2026-01-01 12:00:00.123456"],
+      ["DateTime", "DateTime('UTC')", "'2026-01-01 12:00:00'", "2026-01-01T12:00:00Z"],
+      ["DateTime64(6)", "DateTime64(6,'UTC')", "'2026-01-01 12:00:00.123456'", "2026-01-01T12:00:00.123456Z"],
       ["String", "String", "'héllo'", "héllo"],
       ["FixedString(3)", "FixedString(3)", "'abc'", "abc"],
       ["UUID", "UUID", "'11111111-2222-3333-4444-555555555555'", "11111111-2222-3333-4444-555555555555"],

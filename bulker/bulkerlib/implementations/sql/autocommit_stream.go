@@ -3,12 +3,21 @@ package sql
 import (
 	"context"
 	"fmt"
+	"time"
 
 	bulker "github.com/jitsucom/bulker/bulkerlib"
 	"github.com/jitsucom/bulker/bulkerlib/types"
 	"github.com/jitsucom/bulker/jitsubase/errorj"
 	"github.com/jitsucom/bulker/jitsubase/jsonorder"
 )
+
+// existingTableRefreshInterval bounds how long AutoCommitStream can run on a
+// destination-schema snapshot that has drifted from reality (e.g. a column
+// dropped out-of-band). Hardcoded, no env var/toggle. Time-triggered, not
+// error-triggered: a destination outage must not add load on top of every
+// failing insert. 1h per Ildar - a schema fetch is a cheap catalog query,
+// no reason to wait longer. See JITSU-237.
+const existingTableRefreshInterval = 1 * time.Hour
 
 type AutoCommitStream struct {
 	*AbstractSQLStream
@@ -55,6 +64,18 @@ func (ps *AutoCommitStream) Consume(ctx context.Context, object types.Object) (s
 	}
 	if ps.existingTable == nil {
 		ps.existingTable, _ = ps.sqlAdapter.TableHelper().Get(ctx, ps.sqlAdapter, ps.namespace, ps.tableName, true)
+		ps.existingTableFetchedAt = time.Now()
+	} else if time.Since(ps.existingTableFetchedAt) >= existingTableRefreshInterval {
+		// cacheTable=false: bypass the shared TableHelper cache so this
+		// actually re-reads the real schema instead of returning the same
+		// stale shared entry.
+		if fresh, fetchErr := ps.sqlAdapter.TableHelper().Get(ctx, ps.sqlAdapter, ps.namespace, ps.tableName, false); fetchErr == nil {
+			ps.existingTable = fresh
+		}
+		// Stamp the attempt regardless of outcome - a failed refresh (e.g.
+		// the destination is down) must wait for the next interval, not
+		// retry on every subsequent Consume() call.
+		ps.existingTableFetchedAt = time.Now()
 	}
 
 	if ps.existingTable.Exists() {

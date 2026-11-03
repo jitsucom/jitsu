@@ -1,6 +1,7 @@
 // Browser-safe: types and Zod only. Do not re-export server writers from here.
 import { z } from "zod";
 import { rejectionDetail, safeRejectionDetails } from "./rejection-details";
+import { mappedColumns } from "./mapping";
 import type {
   BatchResult,
   FinishResult,
@@ -130,6 +131,7 @@ export function validateReverseEtlConfig<Row, Options>(
     cursor?: unknown;
     deleteColumn?: string;
     mapping: Record<string, string>;
+    objectMappings?: Record<string, Record<string, string>>;
     columns: string[];
     options: unknown;
   }
@@ -140,10 +142,15 @@ export function validateReverseEtlConfig<Row, Options>(
     throw new ReverseEtlProtocolError("Mirror requires a full model and mirror-capable stream");
   if (input.deleteColumn && !stream.capabilities.supportsExplicitRemove)
     throw new ReverseEtlProtocolError("Delete-column models require explicit remove support");
-  if (
-    !Object.keys(input.mapping).length ||
-    Object.values(input.mapping).some(column => !input.columns.includes(column))
-  ) {
+  const fields = new Set([
+    ...Object.keys(input.mapping),
+    ...Object.entries(input.objectMappings ?? {})
+      .filter(([, p]) => Object.keys(p).length)
+      .map(([field]) => field),
+  ]);
+  if (Object.keys(input.objectMappings ?? {}).some(field => Object.hasOwn(input.mapping, field)))
+    throw new ReverseEtlProtocolError("Choose either a model column or object composition");
+  if (!fields.size || mappedColumns(input).some(column => !input.columns.includes(column))) {
     throw new ReverseEtlProtocolError("Mappings must reference projected model columns");
   }
   let schema: z.ZodTypeAny = stream.rowType;
@@ -151,10 +158,8 @@ export function validateReverseEtlConfig<Row, Options>(
   if (schema instanceof z.ZodObject) {
     const shape = schema.shape;
     if (
-      Object.keys(input.mapping).some(field => !Object.hasOwn(shape, field)) ||
-      Object.entries(shape).some(
-        ([field, value]) => !(value as z.ZodTypeAny).isOptional() && !Object.hasOwn(input.mapping, field)
-      )
+      [...fields].some(field => !Object.hasOwn(shape, field)) ||
+      Object.entries(shape).some(([field, value]) => !(value as z.ZodTypeAny).isOptional() && !fields.has(field))
     ) {
       throw new ReverseEtlProtocolError("Mapping must include required stream fields and no unknown fields");
     }

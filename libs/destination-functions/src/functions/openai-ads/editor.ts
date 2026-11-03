@@ -156,7 +156,7 @@ export const openAiAudienceEditor: ReverseStreamEditor = {
         key: "member-identifier",
         title: "Member identifier",
         description:
-          "Map at least one. Jitsu sends every identifier it has for a member and identifies the member by the first available of email, phone and Android advertising ID.",
+          "Map one. A mirrored audience supports one identifier type (OpenAI adds and removes people, not identifiers, so a row that gained, dropped or swapped an identifier would make the mirror remove a person it still wants). For an existing audience you can map several; Jitsu sends them all.",
         options: [
           { label: "Email", fields: [mappingKey("email")] },
           { label: "Phone", fields: [mappingKey("phone")] },
@@ -215,7 +215,7 @@ export const openAiAudienceEditor: ReverseStreamEditor = {
               presentation: "warning" as const,
               showIcon: true,
               title:
-                "Tracked members missing from the model are removed. An empty model clears tracked membership. Changing a member's email can remove them, because OpenAI matches people, not identifiers. Members who share a phone or email are removed together.",
+                "Tracked members missing from the model are removed. An empty model clears tracked membership. Changing a member's email can remove them, because OpenAI matches people, not identifiers. Rows that share the same value are one member, kept until the last of them is gone.",
             },
           ]
         : []),

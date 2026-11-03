@@ -22,10 +22,29 @@ export const ModelDefinition = z.object({
     .refine(c => c.lookbackSeconds === undefined || c.type === "timestamp", "Lookback requires a timestamp cursor")
     .optional(),
   deleteColumn: column.optional(),
+  nestedObjects: z.enum(["leaveAsIs", "flatten", "stringify"]).default("leaveAsIs"),
   pageSize: z.number().int().min(1).max(10_000).default(1_000),
   description: z.string().max(10_000).optional(),
 });
 export type ModelDefinition = z.infer<typeof ModelDefinition>;
+
+const objectProperty = z
+  .string()
+  .min(1)
+  .max(128)
+  .refine(
+    value =>
+      value === value.trim() && !["__proto__", "prototype", "constructor"].includes(value) && !value.includes("\0"),
+    "Invalid object property name"
+  );
+export const ObjectMappings = z
+  .record(
+    objectProperty,
+    z
+      .record(objectProperty, column)
+      .refine(value => Object.keys(value).length <= 100, "At most 100 properties may be composed")
+  )
+  .refine(value => Object.keys(value).length <= 32, "Too many composed objects");
 
 export const ReverseSyncOptions = z
   .object({
@@ -34,6 +53,7 @@ export const ReverseSyncOptions = z
     stream: z.string().min(1),
     mode: z.enum(["upsert", "mirror"]),
     mapping: z.record(z.string().min(1)),
+    objectMappings: ObjectMappings.optional(),
     streamOptions: z.record(z.unknown()).default({}),
     schedule: z.string().optional(),
     timezone: z.string().optional(),
@@ -49,7 +69,7 @@ export function validateReverseSyncModel(model: ModelDefinition, options: Revers
     throw new Error("Mirror requires a model without an incremental cursor");
 }
 
-export const PreviewRequest = ModelDefinition.pick({ warehouseId: true, query: true });
+export const PreviewRequest = ModelDefinition.pick({ warehouseId: true, query: true, nestedObjects: true });
 export const WarehouseColumn = z.object({
   name: z.string(),
   type: z.string(),
@@ -59,6 +79,8 @@ export const WarehouseColumn = z.object({
 export type WarehouseColumn = z.infer<typeof WarehouseColumn>;
 export const PreviewResult = z.object({
   columns: z.array(WarehouseColumn),
+  // SQL projection, before payload transformations: only these can be keys/cursors/delete columns.
+  sourceColumns: z.array(WarehouseColumn).optional(),
   rows: z.array(z.record(z.unknown())),
   truncated: z.boolean(),
 });

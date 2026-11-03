@@ -38,10 +38,12 @@ never repeated). Each batch is one Add or Remove that Jitsu waits for, so remova
 whose outcome is unknown is replayed under its original idempotency key and OpenAI returns the original operation, so
 nothing is applied twice; a failed operation stops the run and the sync stays stopped until an administrator has checked
 the audience (part of the change may have been applied). An existing
-OpenAI audience supports additions and explicit removals only. A member is identified by one identifier (email, else
-phone, else Android advertising ID), and an Add or a Remove sends every identifier the row has. Changing the identifier
-while the person stays in the model can remove them, because OpenAI matches people, not identifiers, and members who
-share a phone or email are removed together. Empty and small audiences can only exclude people; inclusion needs roughly 25,000
+OpenAI audience supports additions and explicit removals only, and a row may carry several identifiers (email, phone,
+Android advertising ID), all sent on an Add or a Remove. A mirrored audience supports one identifier type per sync
+(email, phone or Android advertising ID), because OpenAI adds and removes people, not identifiers: a row that gained,
+dropped or swapped an identifier would make the mirror remove a person the model still wants. Changing a member's
+identifier while the person stays in the model can still remove them; rows that share the same value are one member, kept
+until the last of them is gone. Empty and small audiences can only exclude people; inclusion needs roughly 25,000
 matched users, and custom audiences are not available for campaigns targeting the EEA or Switzerland.
 
 ## Webhook delivery

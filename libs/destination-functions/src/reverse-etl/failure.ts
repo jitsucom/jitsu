@@ -1,6 +1,7 @@
 import { metaConversionValidationErrors } from "../functions/facebook/validation-errors";
 import {
   openAiAudienceValidationErrors,
+  openAiMirrorOneIdentifierType,
   openAiConversionValidationErrors,
 } from "../functions/openai-ads/validation-errors";
 
@@ -32,6 +33,14 @@ export function requiresManualReconciliation(error: unknown): boolean {
 
 /** Exact core-owned reasons only. Never expose arbitrary SDK/SQL messages or causes. */
 const failures = new Map<string, string>([
+  [
+    "Nested object flattening produces conflicting field names; rename or alias the conflicting fields",
+    "Flattening the model produces duplicate field names. Rename conflicting properties or SQL aliases, or use Leave as is / Stringify. This row was not submitted; earlier batches may already have been submitted. Preserve sync state.",
+  ],
+  [
+    "Nested objects exceed the flattening depth limit (100)",
+    "The model contains objects nested more than 100 levels deep. Reduce the nesting in SQL or use Leave as is / Stringify. This row was not submitted; earlier batches may already have been submitted. Preserve sync state.",
+  ],
   [
     "Microsoft Ads developer token is missing",
     "Microsoft Ads requires a developer token. Set Developer Token on the destination, or configure MICROSOFT_ADS_DEVELOPER_TOKEN in the runner runtime Secret and deploy a syncctl version that forwards it. This worker submitted no Microsoft requests. Preserve existing sync state and retry after fixing the configuration.",
@@ -97,6 +106,10 @@ const failures = new Map<string, string>([
       string
     ];
   }),
+  [
+    openAiMirrorOneIdentifierType,
+    `${openAiMirrorOneIdentifierType} Change the mapping, then run the sync again. Nothing was sent.`,
+  ],
   [
     "Add the Conversions API key to this OpenAI Ads destination.",
     "This sync sends conversions, which needs the Conversions API key. Add it to the OpenAI Ads destination, then run the sync again. Nothing was sent.",
@@ -183,6 +196,14 @@ const failures = new Map<string, string>([
   [
     "Source row failed destination validation",
     "A source row has invalid identifiers or consent. Check the model output, field mappings and raw versus hashed identifier settings, then retry.",
+  ],
+  [
+    "A mapped model column is missing from the source row",
+    "An object property's mapped column is missing from the model result. Check the object composition and model columns, then retry. This row was not submitted; earlier batches may already have been submitted.",
+  ],
+  [
+    "Choose either a model column or object composition",
+    "An object field has both a whole-column mapping and composed properties. Choose one mapping mode and save the sync before retrying.",
   ],
   [
     "Destination rejected a row; the run stopped without skipping it",

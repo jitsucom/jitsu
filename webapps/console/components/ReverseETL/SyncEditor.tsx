@@ -79,7 +79,14 @@ export function SyncEditor({ sync, reload }: { sync?: ReverseSyncView; reload: (
     ?.streams.find(s => s.id === options.stream);
   const model = models.find(m => m.id === fromId);
   const columns = useQuery({
-    queryKey: ["reverse-etl-model-columns", workspace.id, fromId, model?.warehouseId, model?.query],
+    queryKey: [
+      "reverse-etl-model-columns",
+      workspace.id,
+      fromId,
+      model?.warehouseId,
+      model?.query,
+      model?.nestedObjects,
+    ],
     enabled: !!model && enabled && role.editEntities && !maintenance,
     queryFn: async ({ signal }) => {
       const result = await rpc(`/api/${workspace.id}/models/columns`, { query: { modelId: fromId }, signal });
@@ -123,6 +130,7 @@ export function SyncEditor({ sync, reload }: { sync?: ReverseSyncView; reload: (
             options.mode,
             options.stream,
             options.mapping,
+            options.objectMappings,
             options.streamOptions,
           ])}
           workspaceId={workspace.id}
@@ -132,7 +140,7 @@ export function SyncEditor({ sync, reload }: { sync?: ReverseSyncView; reload: (
           options={options}
           columns={columns.data ?? []}
           disabled={disabled || columns.isFetching || !!columns.error}
-          onApply={mapping => update({ mapping })}
+          onApply={update}
         />
       ),
     });
@@ -201,7 +209,7 @@ export function SyncEditor({ sync, reload }: { sync?: ReverseSyncView; reload: (
           showLink
           onSelect={id => {
             setToId(id);
-            update({ stream: "", mapping: {}, streamOptions: {} });
+            update({ stream: "", mapping: {}, objectMappings: undefined, streamOptions: {} });
           }}
         />
       ),

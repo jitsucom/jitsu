@@ -107,7 +107,7 @@ it("uses encrypted keys, ignores unsafe connection parameters, and streams exact
     streamResult: true,
     rowMode: "array",
     fetchAsString: ["Number", "Date", "JSON"],
-    parameters: { TIME_OUTPUT_FORMAT: "HH24:MI:SS.FF9" },
+    parameters: { TIME_OUTPUT_FORMAT: "HH24:MI:SS.FF9", STRICT_JSON_OUTPUT: true },
   });
   expect(f.connection.destroy).toHaveBeenCalled();
   await reader.close();
@@ -313,7 +313,7 @@ it.each(["__jitsu_retl_key_count", "__JITSU_RETL_KEY_COUNT"])(
     const records = await collect(testModel({ primaryKey: ["ID"], cursor: { column: "ID", type: "number" } }));
     expect(records).toEqual([
       {
-        row: { ID: "1", PAYLOAD: '{"value":9007199254740993}' },
+        row: { ID: "1", PAYLOAD: { value: 9007199254740992 } },
         deleted: false,
         checkpoint: { value: "1", primaryKeyValues: ["1"] },
       },
@@ -463,8 +463,8 @@ it.each(["key", "cursor"])("rejects a SQL-null numeric %s after actual SDK decod
     collect(testModel(kind === "cursor" ? { cursor: { column: "updated", type: "number" } } : {}))
   ).rejects.toThrow(/non-null/);
 });
-it.each(["object", "array", "map"])(
-  "serializes %s payloads before SDK parsing while preserving original metadata",
+it.each(["variant", "object", "array", "map"])(
+  "decodes %s payloads to native values while preserving original metadata",
   async type => {
     const payload = type === "array" ? "[9007199254740993]" : '{"id":9007199254740993}';
     const f = decodedFixture(
@@ -478,11 +478,36 @@ it.each(["object", "array", "map"])(
     try {
       const preview = await reader.preview("SELECT * FROM source");
       expect(preview.columns[1].type).toBe(type.toUpperCase());
-      expect(preview.rows.map(r => r['pay"load'])).toEqual([payload, null]);
-      expect((await collect()).map(r => r.row['pay"load'])).toEqual([payload, null]);
+      expect(preview.rows.map(r => r['pay"load'])).toEqual([JSON.parse(payload), null]);
+      expect((await collect()).map(r => r.row['pay"load'])).toEqual([JSON.parse(payload), null]);
       const query = f.connection.execute.mock.calls.at(-1)![0].sqlText;
-      expect(query).toContain('TO_JSON(TO_VARIANT("pay""load")) AS "pay""load"');
-      expect(query).toMatch(/ORDER BY lossless_model\."id" ASC$/);
+      if (type !== "variant") {
+        expect(query).toContain('TO_JSON(TO_VARIANT("pay""load")) AS "pay""load"');
+        expect(query).toMatch(/ORDER BY lossless_model\."id" ASC$/);
+      }
+    } finally {
+      await reader.close();
+    }
+  }
+);
+
+it.each(['[true,null,{"x":1}]', '[289,2188,null,"NaN","Infinity","-Infinity"]', '"hello"', "true", "42", "null", null])(
+  "decodes VARIANT %s but does not parse text columns",
+  async payload => {
+    const f = decodedFixture(
+      [numberColumn("id"), { name: "payload", type: "variant" }, { name: "text", type: "text" }],
+      [["1", payload, payload]]
+    );
+    const reader = createSnowflakeReader(config);
+    try {
+      const preview = await reader.preview("SELECT * FROM source");
+      expect(preview.rows).toEqual([
+        { id: "1", payload: payload === null ? null : JSON.parse(payload), text: payload },
+      ]);
+      expect((await collect())[0].row).toEqual(preview.rows[0]);
+      expect(f.connection.execute.mock.calls.every(([options]) => options.parameters.STRICT_JSON_OUTPUT === true)).toBe(
+        true
+      );
     } finally {
       await reader.close();
     }

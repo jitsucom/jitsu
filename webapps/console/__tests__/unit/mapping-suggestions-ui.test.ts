@@ -62,7 +62,58 @@ it("reviews suggestions before changing the form", async () => {
   await screen.findByText("Review suggested mappings");
   expect(p.onApply).not.toHaveBeenCalled();
   fireEvent.click(screen.getByRole("button", { name: "Apply selected mappings" }));
-  expect(p.onApply).toHaveBeenCalledWith({ email: "email" });
+  expect(p.onApply).toHaveBeenCalledWith({ mapping: { email: "email" } });
+});
+
+it("reviews and applies declared properties without overwriting the rest of the composed object", async () => {
+  const conversions = reverseDestinationMetadata
+    .get("facebook-conversions")!
+    .streams.find(s => s.id === "conversions")!;
+  const source = [
+    { name: "advertising_enabled", type: "integer" },
+    { name: "app_enabled", type: "integer" },
+  ];
+  const properties = [
+    { key: "advertiser_tracking_enabled", label: "Advertiser tracking enabled", column: source[0].name },
+    { key: "application_tracking_enabled", label: "Application tracking enabled", column: source[1].name },
+  ];
+  vi.mocked(rpc).mockResolvedValue({
+    columns: source,
+    suggestions: properties.map(p => {
+      const candidate = { key: "appData", property: p.key, column: p.column, probability: 0.98 };
+      return {
+        id: `object:${JSON.stringify(["appData", p.key])}`,
+        label: `App data / ${p.label}`,
+        confidence: 0.95,
+        noMatch: false,
+        recommended: candidate,
+        alternatives: [candidate],
+      };
+    }),
+  });
+  const p = {
+    ...props(),
+    stream: conversions,
+    options: { ...conversions.defaults(), objectMappings: { appData: { extinfo: "existing_array" } } },
+    columns: source,
+  };
+  render(React.createElement(MappingSuggestions, p));
+  fireEvent.click(screen.getByRole("button", { name: "Suggest mappings" }));
+  await screen.findByText("App data / Advertiser tracking enabled");
+  expect(screen.getByText("App data / Application tracking enabled")).toBeTruthy();
+  expect(p.onApply).not.toHaveBeenCalled();
+  expect(vi.mocked(rpc).mock.calls[0][1]?.body).toMatchObject({ objectMappings: p.options.objectMappings });
+  fireEvent.click(screen.getByRole("button", { name: "Apply selected mappings" }));
+  expect(p.onApply).toHaveBeenCalledWith({
+    mapping: {},
+    objectMappings: {
+      appData: {
+        extinfo: "existing_array",
+        advertiser_tracking_enabled: "advertising_enabled",
+        application_tracking_enabled: "app_enabled",
+      },
+    },
+  });
 });
 
 it("does not preselect ambiguous mappings", async () => {

@@ -2,8 +2,8 @@ import { createClient } from "@clickhouse/client";
 import { z } from "zod";
 import { Parser } from "node-sql-parser";
 import { ModelDefinition } from "./schema";
-import { createSqlDialect } from "./sql";
-import { boundedPreview, decodeRecord } from "./reader";
+import { createSqlDialect, decodeDelete } from "./sql";
+import { boundedPreview, decodeRecord, numericDeleteValue } from "./reader";
 import type { WarehouseReader } from "./types";
 import { StreamDeadline } from "./stream-deadline";
 import { spoolJsonRows } from "./stream-spool";
@@ -79,6 +79,21 @@ export const clickhouseSql = createSqlDialect({
       bind(value, type, index) {
         const parameterType = checkpointType(type);
         queryParams["p" + index] = value;
+        // ISO output carries the exact UTC instant. Native timestamp parameters
+        // expect wall-clock text; parse explicitly without losing fractional digits.
+        const scalar = parameterType.replace(/^Nullable\((.*)\)$/, "$1");
+        const timestamp = scalar.match(/^DateTime64\((\d+)(?:,\s*('[^']+'))?\)$/);
+        if (timestamp) {
+          // BestEffort misparses negative fractional epochs on ClickHouse 25.4.
+          // Our ISO output is UTC: bind its unchanged digits as native UTC text,
+          // without a JS Date/Number round trip that would lose submilliseconds.
+          const utc = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,9})?Z$/.test(value);
+          if (utc) queryParams["p" + index] = value.slice(0, -1).replace("T", " ");
+          const timezone = utc ? "'UTC'" : timestamp[2];
+          return `toDateTime64({p${index}: String}, ${timestamp[1]}${timezone ? `, ${timezone}` : ""})`;
+        }
+        const seconds = scalar.match(/^DateTime(?:\(('[^']+')\))?$/);
+        if (seconds) return `parseDateTimeBestEffort({p${index}: String}${seconds[1] ? `, ${seconds[1]}` : ""})`;
         return "{p" + index + ": " + parameterType + "}";
       },
     };
@@ -110,6 +125,11 @@ export function createClickHouseReader(input: Record<string, any>): WarehouseRea
       max_memory_usage: "268435456",
       output_format_json_quote_64bit_integers: 1,
       output_format_json_quote_decimals: 1,
+      // Otherwise NaN/Infinity become JSON null, hiding invalid flags/keys.
+      output_format_json_quote_denormals: 1,
+      // Local wall-clock output collapses distinct instants during DST fallback.
+      // Preserve timezone and subsecond precision in payloads, keys and cursors.
+      date_time_output_format: "iso" as const,
     },
   } satisfies NonNullable<Parameters<typeof createClient>[0]>;
   const client = createClient(clientOptions);
@@ -162,6 +182,17 @@ export function createClickHouseReader(input: Record<string, any>): WarehouseRea
       const sql = clickhouseSql.validateQuery(model.query);
       const cols = await columns(sql, signal);
       const compiled = clickhouseSql.compileModel(model, cols, after);
+      const numericDelete = /^(?:U?Int\d+|Float\d+|Decimal\w*\(.*\))$/.test(
+        unwrapLowCardinality(cols.find(c => c.name === model.deleteColumn)?.type ?? "").replace(
+          /^Nullable\((.*)\)$/,
+          "$1"
+        )
+      );
+      const floatIdentityColumns = [...model.primaryKey, ...(model.cursor ? [model.cursor.column] : [])].filter(name =>
+        /^Float(?:32|64)$/.test(
+          unwrapLowCardinality(cols.find(c => c.name === name)?.type ?? "").replace(/^Nullable\((.*)\)$/, "$1")
+        )
+      );
       signal?.throwIfAborted();
       // Socket inactivity also includes time our consumer spends persisting a page.
       // Disable that timer for streaming only; bound actual reads and total extraction
@@ -174,7 +205,7 @@ export function createClickHouseReader(input: Record<string, any>): WarehouseRea
       });
       streams.set(streaming, deadline);
       try {
-        const result = await deadline.read(() =>
+        const result = await deadline.wait(() =>
           streaming.query({
             query: compiled.query,
             query_params: compiled.queryParams,
@@ -185,16 +216,30 @@ export function createClickHouseReader(input: Record<string, any>): WarehouseRea
         );
         const iterator = result.stream<Record<string, unknown>>()[Symbol.asyncIterator]();
         const rows = async function* () {
+          let first = true;
           for (;;) {
-            const chunk = await deadline.read(() => iterator.next());
+            // Some servers/proxies send headers before query execution finishes.
+            const chunk = await (first ? deadline.wait(() => iterator.next()) : deadline.read(() => iterator.next()));
+            first = false;
             if (chunk.done) break;
             for (const item of chunk.value) yield item.text;
           }
         };
         // ClickHouse/proxies can time out a paused HTTP response even with the
         // client timer disabled. Fully drain this single query to bounded disk.
-        for await (const row of spoolJsonRows<Record<string, unknown>>(rows(), deadline.signal))
-          yield decodeRecord(model, row);
+        for await (const row of spoolJsonRows<Record<string, unknown>>(rows(), deadline.signal)) {
+          const record = decodeRecord({ ...model, deleteColumn: undefined }, row);
+          for (const name of floatIdentityColumns)
+            if (!Number.isFinite(Number(row[name])))
+              throw new Error(
+                "ClickHouse keys and cursors must contain finite values; filter or cast non-finite values in the model query"
+              );
+          if (model.deleteColumn) {
+            const value = row[model.deleteColumn];
+            record.deleted = decodeDelete(numericDelete ? numericDeleteValue(value) : value);
+          }
+          yield record;
+        }
       } finally {
         deadline.close();
         streams.delete(streaming);
