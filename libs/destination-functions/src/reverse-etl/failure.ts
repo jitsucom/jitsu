@@ -111,6 +111,10 @@ const failures = new Map<string, string>([
     `${openAiMirrorOneIdentifierType} Change the mapping, then run the sync again. Nothing was sent.`,
   ],
   [
+    "OpenAI reported an audience change as failed; manual reconciliation required",
+    "OpenAI reported an audience change as failed, and part of it may have been applied. Check the audience in Ads Manager, then ask your Jitsu administrator to reset the sync. Do not reset it before checking; saved requests are retained and nothing further is sent.",
+  ],
+  [
     "Add the Conversions API key to this OpenAI Ads destination.",
     "This sync sends conversions, which needs the Conversions API key. Add it to the OpenAI Ads destination, then run the sync again. Nothing was sent.",
   ],

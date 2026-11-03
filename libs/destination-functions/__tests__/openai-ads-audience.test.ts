@@ -5,11 +5,15 @@ import { createOpenAiAdsRuntime } from "../src/functions/openai-ads/runtime";
 import { normalizeOpenAiAudience, openAiAudienceWire } from "../src/functions/openai-ads/audience";
 import { OpenAiAudienceUnusable, OpenAiWaitTimeout } from "../src/functions/openai-ads/audience-api";
 import { OpenAiTransportError } from "../src/functions/openai-ads/client";
-import { OpenAiUncertainDelivery } from "../src/functions/openai-ads/delivery";
+import {
+  OpenAiOperationFailed,
+  OpenAiUncertainDelivery,
+  openAiOperationFailedMessage,
+} from "../src/functions/openai-ads/delivery";
 import { openAiAudienceStateStream } from "../src/functions/openai-ads/reverse-meta";
 import { createBufferedSyncStore } from "../src/reverse-etl/identity";
 import { validateBatchResult } from "../src/reverse-etl/meta";
-import { reverseEtlFailure } from "../src/reverse-etl/failure";
+import { requiresManualReconciliation, reverseEtlFailure } from "../src/reverse-etl/failure";
 import { audienceId, fakeAds, hash, json, memoryTargetState, refusal } from "./lib/openai-ads-fake";
 import { createHash } from "node:crypto";
 
@@ -24,6 +28,8 @@ function setup(options: ReverseDestinationConfig["options"] = managed, destinati
   const ads = fakeAds();
   const store = memoryTargetState();
   const log = vi.fn(async (_message: string) => {});
+  /** The host's first-snapshot validation: it runs before the managed audience is created. */
+  const validateSource = vi.fn(async (_validation: unknown) => {});
   const config: ReverseDestinationConfig = {
     id: "sync",
     workspaceId: "ws",
@@ -37,6 +43,7 @@ function setup(options: ReverseDestinationConfig["options"] = managed, destinati
       fetch,
       signal: new AbortController().signal,
       log,
+      validateSource,
       getAccessToken: async () => "",
       targetState: () => store.state,
     } as unknown as DestinationServices);
@@ -58,7 +65,7 @@ function setup(options: ReverseDestinationConfig["options"] = managed, destinati
       store: createBufferedSyncStore(),
       delivery: {},
     } as unknown as ReverseEtlContext<JsonObject, JsonObject>);
-  return { ads, store, log, config, services, build, context };
+  return { ads, store, log, validateSource, config, services, build, context };
 }
 const member = (n: number, extra: Record<string, unknown> = {}) =>
   normalizeOpenAiAudience({ email: `m${n}@example.com`, ...extra });
@@ -88,6 +95,25 @@ describe("OpenAI audience provisioning", () => {
     expect(t.ads.audiences.get(audienceId(1))!.name).toBe("My audience");
     await t.build();
     expect(t.ads.log.filter(l => l === "POST /custom_audiences")).toHaveLength(1);
+  });
+  it("validates the first snapshot before creating the audience, and creates nothing when it is refused", async () => {
+    const t = setup();
+    t.validateSource.mockRejectedValueOnce(new Error("Source row failed mirror validation"));
+    await expect(t.build()).rejects.toThrow("Source row failed mirror validation");
+    expect(t.ads.audiences.size).toBe(0);
+    expect(t.store.state.read()).resolves.toBeUndefined();
+    // Corrected: validated once, then the audience is created.
+    await t.build();
+    expect(t.validateSource).toHaveBeenCalledTimes(2);
+    const validation = t.validateSource.mock.calls.at(-1)![0] as any;
+    expect(validation.stream.name).toBe("audience");
+    expect(validation.projection.rowType.parse({ email: "Jamie@Example.com" }).identity).toEqual({
+      email_sha256: sha("jamie@example.com"),
+    });
+    expect(t.ads.audiences.size).toBe(1);
+    // A ready audience is never validated again: the warehouse is not re-read while discovering or reusing it.
+    await t.build();
+    expect(t.validateSource).toHaveBeenCalledTimes(2);
   });
   it("finds the audience by its marker after a lost create answer instead of creating a second one", async () => {
     const t = setup();
@@ -232,11 +258,11 @@ describe("OpenAI audience delivery", () => {
       { identifier_type: "phone_number_sha256", identifier: sha("+12025550124") },
     ]);
   });
-  it("rejects the batch when OpenAI reports the operation failed, with a controlled code and no provider text", async () => {
-    for (const [code, expected] of [
-      ["audience_too_small_for_campaign", "OPENAI_AUDIENCE_TOO_SMALL_FOR_CAMPAIGN"],
-      ["Contains Private Value!", "OPENAI_OPERATION_FAILED"],
-      [undefined, "OPENAI_OPERATION_FAILED"],
+  it("stops with a manual-reconciliation error when OpenAI reports the operation failed, logging only a controlled code", async () => {
+    for (const [code, logged] of [
+      ["audience_too_small_for_campaign", "(audience_too_small_for_campaign)"],
+      ["Contains Private Value!", undefined],
+      [undefined, undefined],
     ] as const) {
       const t = setup();
       const adapter = await t.build();
@@ -249,11 +275,17 @@ describe("OpenAI audience delivery", () => {
           status: "failed",
           failure_reason: { code, message: "private detail m1@example.com" },
         });
-      const result = await writer.upsert(batch([member(1)]));
-      expect(result.outcomes.every(o => o.status === "rejected" && (o as any).code === expected)).toBe(true);
-      expect(result.submitted).toBe(true);
-      expect(JSON.stringify(result)).not.toContain("private detail");
-      expect(JSON.stringify(t.log.mock.calls)).not.toContain("private detail");
+      // Thrown, not returned as a rejection: a rejection would let the runner clean up and forget a partly applied batch.
+      const error = await writer.upsert(batch([member(1)])).catch(e => e);
+      expect(error).toBeInstanceOf(OpenAiOperationFailed);
+      expect(error.message).toBe(openAiOperationFailedMessage);
+      expect(requiresManualReconciliation(error)).toBe(true);
+      const logs = JSON.stringify(t.log.mock.calls);
+      expect(logs).toContain("part of it may have been applied");
+      if (logged) expect(logs).toContain(logged);
+      expect(logs).not.toContain("private detail");
+      expect(logs).not.toContain("Private Value");
+      expect(error.message).not.toContain("private detail");
     }
   });
   it("rejects the batch on a definite refusal at submit and keeps the provider message out", async () => {

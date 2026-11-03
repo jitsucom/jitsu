@@ -13,6 +13,20 @@ export class OpenAiUncertainDelivery extends ReverseEtlManualReconciliationError
     this.message = openAiUncertainMessage;
   }
 }
+export const openAiOperationFailedMessage =
+  "OpenAI reported an audience change as failed; manual reconciliation required";
+/**
+ * The operation reached `failed`. OpenAI says a failed Add or Remove may have applied part of its change, and nothing
+ * here can tell which part. Throwing (not returning a rejection) keeps the batch unknown, so the runner does not
+ * discard the run: every later run goes through recovery, which replays the same request, gets the same failed
+ * operation back and stops again, until an administrator has checked the audience in Ads Manager and reset the sync.
+ */
+export class OpenAiOperationFailed extends ReverseEtlManualReconciliationError {
+  constructor() {
+    super();
+    this.message = openAiOperationFailedMessage;
+  }
+}
 export type Action = "upsert" | "remove";
 /** Binds a result or an idempotency key to one batch of one run. The default keeps conversions' bindings unchanged. */
 export function batchBinding(ctx: Context, batch: WriteBatch<JsonObject>, action: Action = "upsert") {
@@ -91,27 +105,4 @@ export function assertContext(ctx: Context, target: string, options: unknown, cr
     contentHash(ctx.credentials) !== contentHash(credentials)
   )
     throw new Error("OpenAI writer binding does not match the saved target and settings");
-}
-
-/** The operation reached `failed`. OpenAI says a failed Add or Remove may have applied part of its change. */
-export function rejectedOperation(
-  ctx: Context,
-  batch: WriteBatch<JsonObject>,
-  action: Action,
-  failureCode?: string
-): BatchResult {
-  const code =
-    failureCode && /^[a-z][a-z0-9_]{0,40}$/.test(failureCode)
-      ? `OPENAI_${failureCode.toUpperCase()}`
-      : "OPENAI_OPERATION_FAILED";
-  return {
-    ...accepted(ctx, batch, action),
-    outcomes: batch.records.map(r => ({
-      operationId: r.operationId,
-      status: "rejected",
-      code,
-      safeReason:
-        "OpenAI could not apply the audience change, and part of it may have been applied; check the audience in Ads Manager and the Ads API key before resetting the sync",
-    })),
-  };
 }

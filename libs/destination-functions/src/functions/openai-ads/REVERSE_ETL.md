@@ -124,7 +124,9 @@ after the new one is added, and that can remove the person if both match them. K
 
 ### Provisioning (managed audience)
 
-The first run creates the audience. The runner saves the creation intent and a random marker (`jitsu-retl-<64 hex>`,
+The first run reads and validates the whole first snapshot (row shapes, identifiers, mapping) before anything is created or
+saved, so a wrong mapping fails that run with no audience created and nothing locked, and can still be corrected. Then the
+runner creates the audience: it saves the creation intent and a random marker (`jitsu-retl-<64 hex>`,
 placed in the description) in its target state before the request, claims the creation with a compare-and-set, and
 records the audience id once it exists. OpenAI's create has no idempotency key. If the answer is lost, the next run does
 not create a second audience: it scans the account's audiences newest first for the marker and adopts the single match,
@@ -148,10 +150,12 @@ the revision rises on every accepted operation, no-ops included, so it cannot de
 - A submit refused with OpenAI's error envelope (HTTP 400, 401, 403, 404, 413 or 422) rejects the whole batch with nothing
   applied: one malformed identifier fails all of it, so values are validated locally first. Shown code is
   `OPENAI_<error code>` or `http_<status>`; provider messages are never kept.
-- An operation that reaches `failed` rejects the batch with `OPENAI_<failure code>` (or `OPENAI_OPERATION_FAILED`). OpenAI
-  says a failed Add or Remove may have applied part of its change, and the batch is recorded as rejected. The run stops
-  and the sync stays stopped: the next run resumes the same run, reads nothing, sends nothing and fails the same way
-  (pinned by a runner test against the fake). Check the audience in Ads Manager before anyone resets the sync, because
+- An operation that reaches `failed` stops the run with a manual-reconciliation error, not a rejection. OpenAI says a
+  failed Add or Remove may have applied part of its change, so the batch stays unknown and the runner does not discard
+  the run. The next run goes through recovery: it replays the same request under the same idempotency key, OpenAI returns
+  the same failed operation, and the run stops again, reading nothing and creating no operation (pinned by runner tests
+  against a fake whose failed operations stay failed). The run log names OpenAI's failure code when it is a short enum
+  (`audience_too_small`, say), never its message. Check the audience in Ads Manager before anyone resets the sync, because
   a reset discards the record of what that batch may have applied.
 - An error while waiting for an operation OpenAI already accepted (a 401, 403 or 404 after access was revoked, say) is not
   a rejection: it throws, the core marks the batch unknown, and recovery replays the same key once access is back.
