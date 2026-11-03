@@ -156,7 +156,7 @@ export const openAiAudienceEditor: ReverseStreamEditor = {
         key: "member-identifier",
         title: "Member identifier",
         description:
-          "Map at least one. Jitsu sends every identifier it has for a member and identifies the member by the first available of email, phone and Android advertising ID.",
+          "Map one. A mirrored audience supports one identifier type (OpenAI adds and removes people, not identifiers, so a row that gained, dropped or swapped an identifier would make the mirror remove a person it still wants). For an existing audience you can map several; Jitsu sends them all.",
         options: [
           { label: "Email", fields: [mappingKey("email")] },
           { label: "Phone", fields: [mappingKey("phone")] },

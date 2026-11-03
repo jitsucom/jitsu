@@ -385,43 +385,31 @@ describe("OpenAI audience mirror contract", () => {
       replay: "idempotency-key",
     });
     expect(adapter.mirror?.batchDelivery).toBe("accepted");
-    expect(adapter.stream.batchSize).toBe(1000);
+    expect(adapter.stream.batchSize).toBe(3000);
     expect(await adapter.verifyMirrorBaseline!(new AbortController().signal)).toBe("tracked");
     t.ads.audiences.get(audienceId(1))!.description = "no marker";
     await expect(adapter.verifyMirrorBaseline!(new AbortController().signal)).rejects.toThrow("ownership marker");
   });
-  it("identifies a person by one identifier, and keeps what earlier Adds sent for the removal", async () => {
+  it("identifies a member by one identifier, and a removal carries every identifier the member was added with", async () => {
     const t = setup();
     const adapter = await t.build();
     const project = adapter.mirror!.projection;
-    const [first] = project.project(project.rowType.parse({ email: "Jamie@Example.com", phone: "+12025550124" }));
-    expect(first.identity).toEqual({ email_sha256: sha("jamie@example.com") });
-    expect(openAiAudienceWire.parse(first.upsert).identifiers.map(i => i.identifier_type)).toEqual([
+    const raw = project.rowType.parse({ email: "Jamie@Example.com", phone: "+12025550124" });
+    const [effect] = project.project(raw);
+    expect(effect.identity).toEqual({ email_sha256: sha("jamie@example.com") });
+    expect(openAiAudienceWire.parse(effect.upsert).identifiers.map(i => i.identifier_type)).toEqual([
       "email_sha256",
       "phone_number_sha256",
     ]);
-    expect(first.remove).toEqual(first.upsert);
-    // The same person with another phone has the same identity; the kept removal holds the new phone and the old one.
-    const [other] = project.project(project.rowType.parse({ email: "jamie@example.com", phone: "+12025550199" }));
-    expect(other.identity).toEqual(first.identity);
-    const merged = openAiAudienceWire.parse(project.mergeRemove!(first.remove, other.remove));
-    expect(merged.identifiers).toEqual([
-      { identifier_type: "email_sha256", identifier: sha("jamie@example.com") },
-      { identifier_type: "phone_number_sha256", identifier: sha("+12025550199") },
-      { identifier_type: "phone_number_sha256", identifier: sha("+12025550124") },
+    expect(effect.remove).toEqual(effect.upsert);
+    expect(openAiAudienceWire.parse(effect.remove).identifiers.map(i => i.identifier_type)).toEqual([
+      "email_sha256",
+      "phone_number_sha256",
     ]);
-    expect(merged.identity).toEqual(first.identity);
-    // A dropped phone is still remembered; the same Add twice changes nothing; the oldest of a type goes after three.
-    const [dropped] = project.project(project.rowType.parse({ email: "jamie@example.com" }));
-    expect(openAiAudienceWire.parse(project.mergeRemove!(first.remove, dropped.remove)).identifiers).toHaveLength(2);
-    expect(project.mergeRemove!(merged as JsonObject, other.remove)).toEqual(merged);
-    let kept = first.remove;
-    for (const n of [1, 2, 3, 4]) {
-      const [row] = project.project(project.rowType.parse({ email: "jamie@example.com", phone: `+1202555010${n}` }));
-      kept = project.mergeRemove!(kept, row.remove);
-    }
-    const phones = openAiAudienceWire.parse(kept).identifiers.filter(i => i.identifier_type === "phone_number_sha256");
-    expect(phones.map(p => p.identifier)).toEqual([sha("+12025550104"), sha("+12025550103"), sha("+12025550102")]);
+    // The same person with another phone has the same identity, and the removal carries that phone.
+    const [other] = project.project(project.rowType.parse({ email: "jamie@example.com", phone: "+12025550199" }));
+    expect(other.identity).toEqual(effect.identity);
+    expect(openAiAudienceWire.parse(other.remove).identifiers[1].identifier).toBe(sha("+12025550199"));
     // Without an email the phone is the identity; without either, the GAID.
     expect(project.project(project.rowType.parse({ phone: "+12025550124" }))[0].identity).toEqual({
       phone_number_sha256: sha("+12025550124"),

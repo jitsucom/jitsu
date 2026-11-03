@@ -1,6 +1,7 @@
 import { metaConversionValidationErrors } from "../functions/facebook/validation-errors";
 import {
   openAiAudienceValidationErrors,
+  openAiMirrorOneIdentifierType,
   openAiConversionValidationErrors,
 } from "../functions/openai-ads/validation-errors";
 
@@ -105,6 +106,10 @@ const failures = new Map<string, string>([
       string
     ];
   }),
+  [
+    openAiMirrorOneIdentifierType,
+    `${openAiMirrorOneIdentifierType} Change the mapping, then run the sync again. Nothing was sent.`,
+  ],
   [
     "Add the Conversions API key to this OpenAI Ads destination.",
     "This sync sends conversions, which needs the Conversions API key. Add it to the OpenAI Ads destination, then run the sync again. Nothing was sent.",

@@ -29,6 +29,10 @@ export const openAiAudienceValidationErrors = {
   noIdentifier: "Each member needs at least one identifier: map Email, Phone or Android advertising ID.",
 } as const;
 
+/** Save-time and run-time refusal of a mirror that maps more than one identifier type; also in the runner's failure allowlist. */
+export const openAiMirrorOneIdentifierType =
+  "A mirrored OpenAI audience supports one identifier type: map Email, Phone or Android advertising ID, not several.";
+
 export function invalidOpenAiAudience(reason: keyof typeof openAiAudienceValidationErrors): never {
   throw new Error(`Invalid OpenAI audience member: ${openAiAudienceValidationErrors[reason]}`);
 }

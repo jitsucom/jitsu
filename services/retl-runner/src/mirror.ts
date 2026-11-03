@@ -33,8 +33,6 @@ export interface MirrorProjection<Row> {
   rowType: ZodType<Row>;
   /** [] deliberately excludes a valid source row; invalid input/projection must throw, never return []. */
   project(row: Row): Identity[];
-  /** See `ReverseRuntimeAdapter.mirror.projection.mergeRemove`. */
-  mergeRemove?(previous: JsonObject, next: JsonObject): JsonObject;
 }
 export interface SnapshotMirrorAdapter<Credentials, Row, Options> {
   stream: ReverseEtlStream<Credentials, JsonObject, Options>;
@@ -54,21 +52,12 @@ function projectedEnvelope(row: unknown): Effect {
 const mirrorSession = Symbol("mirror-persistence");
 
 /** Bind the journal to already-normalized Effect envelopes, not an adapter that might hash twice. */
-export async function openMirrorPersistence(
-  db: Database,
-  input: RunInput,
-  mergeRemove?: MirrorProjection<unknown>["mergeRemove"]
-) {
+export async function openMirrorPersistence(db: Database, input: RunInput) {
   ensure(input.mode === "mirror" && input.extraction === "full", "Snapshot mirror requires full extraction");
-  const run = await openPersistence(
-    db,
-    input,
-    (_, row) => {
-      const { identity, upsert, remove } = projectedEnvelope(row);
-      return [{ identity, upsert, remove }];
-    },
-    mergeRemove
-  );
+  const run = await openPersistence(db, input, (_, row) => {
+    const { identity, upsert, remove } = projectedEnvelope(row);
+    return [{ identity, upsert, remove }];
+  });
   return { ...run, [mirrorSession]: true as const };
 }
 type MirrorPersistence = Awaited<ReturnType<typeof openMirrorPersistence>>;

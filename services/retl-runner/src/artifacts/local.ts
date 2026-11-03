@@ -2,7 +2,6 @@ import { DatabaseSync } from "node:sqlite";
 import { mkdtemp, chmod, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type { JsonObject } from "@jitsu/protocols/reverse-etl";
 import { canonicalJson } from "@jitsu/destination-functions/src/reverse-etl/identity";
 import { ensure, type Effect } from "../persistence/types";
 
@@ -15,12 +14,8 @@ export interface Member {
 
 /** Disposable per-worker indexes. Durable evidence lives exclusively in artifacts. */
 export class LocalIndex {
-  private constructor(
-    private readonly dir: string,
-    readonly sql: DatabaseSync,
-    private readonly mergeRemove?: (previous: JsonObject, next: JsonObject) => JsonObject
-  ) {}
-  static async create(mergeRemove?: (previous: JsonObject, next: JsonObject) => JsonObject) {
+  private constructor(private readonly dir: string, readonly sql: DatabaseSync) {}
+  static async create() {
     const dir = await mkdtemp(join(tmpdir(), "jitsu-retl-"));
     try {
       const file = join(dir, "index.sqlite");
@@ -33,7 +28,7 @@ export class LocalIndex {
         CREATE TABLE operations (id TEXT PRIMARY KEY, sequence INTEGER UNIQUE, status TEXT NOT NULL, batch TEXT NOT NULL);
         CREATE TABLE touched (identity TEXT PRIMARY KEY);
       `);
-      return new LocalIndex(dir, sql, mergeRemove);
+      return new LocalIndex(dir, sql);
     } catch (error) {
       await rm(dir, { recursive: true, force: true });
       throw error;
@@ -94,23 +89,6 @@ export class LocalIndex {
     });
   }
   apply(effect: Effect, action: "upsert" | "remove", sequence: number, acceptedAt: string, uncertain = false) {
-    if (action === "upsert" && this.mergeRemove) {
-      // The removal kept for a member accumulates what earlier Adds sent, so a later Remove reaches all of it. A Remove
-      // (a tombstone) forgets it: it removed everything.
-      const kept = this.sql.prepare("SELECT value, sequence FROM members WHERE identity=?").get(effect.identityHash);
-      if (kept?.value) {
-        const old = JSON.parse(String(kept.value)) as Effect;
-        const remove = this.mergeRemove(old.remove, effect.remove);
-        if (Number(kept.sequence) >= sequence) {
-          // A stale write is ignored, but what it sent is still remembered.
-          this.sql
-            .prepare("UPDATE members SET value=? WHERE identity=?")
-            .run(canonicalJson({ ...old, remove }), effect.identityHash);
-          return;
-        }
-        effect = { ...effect, remove };
-      }
-    }
     this.putMember(this.upsertMember(), effect, action, sequence, acceptedAt, uncertain);
   }
   private upsert?: ReturnType<DatabaseSync["prepare"]>;

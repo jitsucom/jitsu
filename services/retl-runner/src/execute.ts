@@ -184,7 +184,7 @@ export async function execute(input: ExecuteOptions): Promise<TaskResult> {
     const mirror = config.options.mode === "mirror";
     // Restoring large object-backed baselines must not outlive worker ownership.
     const run = mirror
-      ? await openMirrorPersistence(db, runInput, adapter.mirror?.projection.mergeRemove)
+      ? await openMirrorPersistence(db, runInput)
       : await openPersistence(db, runInput, adapter.project);
     const scope = run.scope;
     run.core.onPublish = head => progress.observe(head);

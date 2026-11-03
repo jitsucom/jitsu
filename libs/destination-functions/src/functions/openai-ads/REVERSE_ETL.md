@@ -89,7 +89,7 @@ Accepted means OpenAI answered 2xx. It does **not** mean the events matched a pe
 | --------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Endpoints       | `POST /custom_audiences` (create), `GET /custom_audiences` and `/{id}` (read, discover), `POST /{id}/add` and `/remove`, `GET /{id}/operations/{operation}` (poll), `POST .../resume`, all on `https://api.ads.openai.com/v1` |
 | Modes           | Managed audience: mirror (`snapshot-diff`). Existing audience: additions and explicit removals via the model's delete column, no mirror                                                                                       |
-| Batch           | At most 1,000 members, at most 9,000 identifiers: 3 current ones, and the older ones kept for a Remove (OpenAI's small-update path is up to 10,000; the body limit is 16 MiB)                                                                                                       |
+| Batch           | At most 3,000 members, at most 9,000 identifiers (OpenAI's small-update path is up to 10,000; the body limit is 16 MiB)                                                                                                       |
 | Replay          | `idempotency-key`                                                                                                                                                                                                             |
 | Delivery        | `accepted`: the writer waits for each operation inside the call                                                                                                                                                               |
 | Target identity | `openai-audience:<ad account id>:<audience id>`                                                                                                                                                                               |
@@ -110,16 +110,17 @@ Pre-hashed values must be 64 hex characters (lowercased). A malformed value fail
 fails the run; nothing is dropped. Hashing happens once when a row is extracted. Saved payloads hold hashes and the
 GAID only.
 
-**Identity.** The mirror identifies a member (a person) by one identifier: the first available of email, phone, GAID.
-That identity is what the runner compares between runs. OpenAI removes matched people, not identifiers, so a Remove
-that names only an old phone would remove the person if that phone matches them. The mirror therefore never sends a
-Remove for an identifier a row changed or dropped while the person stays: it sends an Add with the row's current
-identifiers. It also keeps, for each person, the identifiers it has sent before (at most 3 of each type, the oldest
-dropped), and when the row is deleted the Remove carries all of them, so nothing stays matched. The runner keeps this
-in the member's stored removal (`mergeRemove` on the projection). Two costs remain: two members who share an
-identifier (a household phone) are removed together when either leaves, and the mirror does not add the other back; and
-changing a member's identity identifier (for example their email) while they remain in the model removes the old
-identity after the new one is added, and that can remove the person. Keep the identity identifier stable.
+**Identity.** A mirrored (managed) audience supports **one identifier type** per sync: map exactly one of Email, Phone or
+Android advertising ID (raw or SHA-256). Saving or running a mirror with two types mapped is refused. Why: OpenAI adds and
+removes people, not identifiers, while the mirror compares identifiers between runs. With several identifiers per row, a
+row that gained an email, dropped a phone or changed a phone makes the mirror send a Remove for an identifier of a person
+the model still wants, and OpenAI removes that person; and an identifier that is forgotten is never removed. One type per
+sync avoids both. Someone with an email and a phone needs the preferred one in the model, or two syncs to two audiences.
+Existing audiences (upsert mode) can map several identifiers: Jitsu sends every identifier a row has for an Add and for an
+explicit Remove. Two costs remain in a mirror: members who share an identifier (a household phone) are removed together
+when either leaves and the mirror does not add the other back, and changing a member's identifier (for example their
+email) while they remain in the model removes the old value after the new one is added, and that can remove the person
+if both match them. Keep the identifier stable.
 
 ### Provisioning (managed audience)
 

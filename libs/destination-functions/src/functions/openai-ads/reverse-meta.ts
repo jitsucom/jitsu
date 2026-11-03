@@ -1,5 +1,6 @@
 // Browser-safe metadata shared by the console and the Reverse ETL runtime. No SDKs, no server code.
 import { z } from "zod";
+import { openAiMirrorOneIdentifierType } from "./validation-errors";
 
 export const openAiAdsDestinationId = "openai-ads";
 export const openAiAdsDestinationTitle = "OpenAI Ads (ChatGPT)";
@@ -253,6 +254,11 @@ function validateAudience(
     ["phone", "hashedPhone"],
   ])
     if (mapping[raw] && mapping[hashed]) throw new Error("Choose raw or SHA-256 for each identifier, not both.");
-  if (!["email", "hashedEmail", "phone", "hashedPhone", "gaid"].some(field => mapping[field]))
-    throw new Error("Map at least one member identifier: Email, Phone or Android advertising ID.");
+  const kinds = [["email", "hashedEmail"], ["phone", "hashedPhone"], ["gaid"]].filter(fields =>
+    fields.some(field => mapping[field])
+  ).length;
+  if (!kinds) throw new Error("Map a member identifier: Email, Phone or Android advertising ID.");
+  // OpenAI adds and removes people, not identifiers. A mirrored audience tracks a person by one identifier, so a row
+  // that gains, drops or swaps an identifier would make the mirror remove a person it still wants.
+  if (options.mode === "mirror" && kinds > 1) throw new Error(openAiMirrorOneIdentifierType);
 }

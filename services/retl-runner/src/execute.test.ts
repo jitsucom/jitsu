@@ -392,6 +392,21 @@ describe("OpenAI Ads audience runner integration", () => {
       wire.fetch.mockRestore();
     }
   });
+  it("refuses a mirror that maps two identifier types, before reading the source or calling OpenAI", async () => {
+    const f = audienceFixture();
+    f.input.config.options = { ...f.input.config.options, mapping: { email: "id", phone: "id" } };
+    const wire = openAi();
+    try {
+      f.setRows([{ id: "a@example.com" }]);
+      f.calls.length = 0;
+      expect(await execute(f.input)).toBe("FAILED");
+      expect(String((await task()).error)).toContain("one identifier type");
+      expect(f.calls).not.toContain("reader");
+      expect(wire.requests).toHaveLength(0);
+    } finally {
+      wire.fetch.mockRestore();
+    }
+  });
   it("recovers a lost submit response by replaying the same key, applying the batch once and not reading the source again", async () => {
     const f = audienceFixture();
     const wire = openAi({ loseAddResponses: 1 });
@@ -519,54 +534,6 @@ describe("OpenAI Ads audience runner integration", () => {
       wire.fetch.mockRestore();
     }
   }, 60_000);
-  it("removes an identifier the member no longer carries: a changed phone is not left matched after the row is deleted", async () => {
-    const f = audienceFixture();
-    f.input.config.options = { ...f.input.config.options, mapping: { email: "id", phone: "phone" } };
-    const wire = openAi();
-    try {
-      f.setRows([{ id: "a@example.com", phone: "+14155550101" }]);
-      expect(await execute(f.input)).toBe("COMPLETE");
-      // The same member (same email), now with another phone. The old phone was added and is still matched at OpenAI.
-      f.input.taskId = "openai-audience-phone-changed";
-      f.setRows([{ id: "a@example.com", phone: "+14155550102" }]);
-      expect(await execute(f.input)).toBe("COMPLETE");
-      f.input.taskId = "openai-audience-row-deleted";
-      f.setRows([]);
-      expect(await execute(f.input)).toBe("COMPLETE");
-      const removed = [...wire.operations.values()]
-        .filter(o => o.action === "remove")
-        .flatMap(o => emails(o.identifiers));
-      // After the member is gone nothing of theirs may stay matched: every identifier ever added is removed.
-      expect(removed).toContain(sha("+14155550101"));
-      expect(removed).toContain(sha("+14155550102"));
-      expect(removed).toContain(sha("a@example.com"));
-    } finally {
-      wire.fetch.mockRestore();
-    }
-  });
-  it("does not remove a person whose row only dropped a phone: the old phone is kept for when the row is deleted", async () => {
-    const f = audienceFixture();
-    f.input.config.options = { ...f.input.config.options, mapping: { email: "id", phone: "phone" } };
-    const wire = openAi();
-    try {
-      f.setRows([{ id: "a@example.com", phone: "+14155550101" }]);
-      expect(await execute(f.input)).toBe("COMPLETE");
-      // Same email, phone dropped. OpenAI removes matched people, so a Remove of the phone would remove this person.
-      f.input.taskId = "openai-audience-phone-dropped";
-      f.setRows([{ id: "a@example.com" }]);
-      expect(await execute(f.input)).toBe("COMPLETE");
-      expect([...wire.operations.values()].map(o => o.action)).toEqual(["add", "add"]);
-      // The row is deleted: now the person goes, with the phone they once had.
-      f.input.taskId = "openai-audience-row-gone";
-      f.setRows([]);
-      expect(await execute(f.input)).toBe("COMPLETE");
-      const last = [...wire.operations.values()].at(-1)!;
-      expect(last.action).toBe("remove");
-      expect(emails(last.identifiers).sort()).toEqual([sha("+14155550101"), sha("a@example.com")].sort());
-    } finally {
-      wire.fetch.mockRestore();
-    }
-  });
 });
 
 describe("runner-owned Google audience provisioning", () => {
@@ -928,7 +895,7 @@ function fixture() {
   let pending = false;
   let failInit = false;
   let failBatch = false;
-  let rows: { id: string; phone?: string }[] = [{ id: "a" }, { id: "b" }];
+  let rows = [{ id: "a" }, { id: "b" }];
   const writer = (ctx: ReverseEtlContext<JsonObject, JsonObject>) => ({
     init: async () => {
       calls.push("init");

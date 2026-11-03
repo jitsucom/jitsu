@@ -25,19 +25,16 @@ const identifier = z
   })
   .strict();
 /**
- * One member as the core stores it: the identifiers we send for a person (at most 3 current ones, and while a person
- * stays in the audience also the older ones, up to 3 of each type) and the `identity` the core compares across runs,
- * the first of email, phone, GAID. OpenAI removes matched people, not identifiers, so a Remove of a still-wanted
- * person's old phone would remove the person: a changed or dropped identifier is therefore never removed on its own.
- * It stays in the kept removal payload, and goes with the person when their row is deleted.
+ * One member as the core stores it: every identifier we send, and the `identity` the core compares across runs. The
+ * identity is a single identifier (email, else phone, else GAID). Add and Remove both send every identifier: OpenAI
+ * treats each as a matching candidate, so a Remove with only the identity could leave a person matched by another one.
  */
 export const openAiAudienceWire = z
-  .object({ identifiers: z.array(identifier).min(1).max(9), identity: z.record(z.string()) })
+  .object({ identifiers: z.array(identifier).min(1).max(3), identity: z.record(z.string()) })
   .strict();
 
-/** At most 9 identifiers per member (3 of each type), so 1,000 members stay within OpenAI's 10,000-identifier small-update path. */
-const batchSize = 1000;
-const perType = 3;
+/** At most 3 identifiers per member, so 3,000 members stay within OpenAI's 10,000-identifier small-update path. */
+const batchSize = 3000;
 
 export function normalizeOpenAiAudience(input: unknown): JsonObject {
   const identifiers = openAiAudienceIdentifiers(OpenAiAudienceRow.parse(input) as Record<string, unknown>);
@@ -47,24 +44,6 @@ export function normalizeOpenAiAudience(input: unknown): JsonObject {
 export function projectOpenAiAudience(_action: Action, input: unknown) {
   const row = openAiAudienceWire.parse(input);
   return [{ identity: row.identity, upsert: row as JsonObject, remove: row as JsonObject }];
-}
-/**
- * The removal kept for a person after another Add: the new identifiers first, then those of earlier Adds not sent
- * again, at most `perType` of each type (the oldest are dropped). The identity is the new one.
- */
-export function mergeOpenAiAudienceRemoval(previous: JsonObject, next: JsonObject): JsonObject {
-  const before = openAiAudienceWire.parse(previous);
-  const now = openAiAudienceWire.parse(next);
-  const seen = new Set<string>();
-  const count: Record<string, number> = {};
-  const identifiers = [...now.identifiers, ...before.identifiers].filter(one => {
-    const key = `${one.identifier_type}:${one.identifier}`;
-    if (seen.has(key) || (count[one.identifier_type] ?? 0) >= perType) return false;
-    seen.add(key);
-    count[one.identifier_type] = (count[one.identifier_type] ?? 0) + 1;
-    return true;
-  });
-  return { identifiers, identity: now.identity };
 }
 
 export function createOpenAiAudience(
@@ -186,7 +165,6 @@ export function createOpenAiAudience(
             projection: {
               rowType: rawStream.rowType,
               project: (row: JsonObject) => projectOpenAiAudience("upsert", row),
-              mergeRemove: mergeOpenAiAudienceRemoval,
             },
             // The writer waits for each operation, so a batch is accepted only once OpenAI says it succeeded, and
             // removals can only follow accepted additions.
