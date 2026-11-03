@@ -15,6 +15,7 @@
     "src/functions/webhook/**",
     "src/functions/facebook/**",
     "src/functions/microsoft-ads/**",
+    "src/functions/openai-ads/**",
     "src/functions/lib/**",
     "src/functions/google-ads-destination.ts"
   ],

@@ -186,6 +186,106 @@ describe("Meta Reverse ETL runner integration", () => {
   });
 });
 
+describe("OpenAI Ads Reverse ETL runner integration", () => {
+  const json = (body: unknown, status = 200) =>
+    new Response(JSON.stringify(body), { status }) as Awaited<ReturnType<typeof globalThis.fetch>>;
+  const openAiFixture = () => {
+    const f = fixture();
+    f.input.config.destination = { destinationType: "openai-ads", conversionsApiKey: "openai-key-secret" };
+    f.input.config.model.cursor = undefined;
+    f.input.config.options = {
+      ...f.input.config.options,
+      stream: "conversions",
+      mode: "upsert",
+      mapping: { email: "id" },
+      streamOptions: { pixelId: "px_runner", actionSource: "offline", eventType: "lead_created" },
+    };
+    f.input.adapters = createAdapterRegistry(vi.fn());
+    return f;
+  };
+  it("sends only new source keys to the pixel, with the key as a bearer token and no raw email on the wire", async () => {
+    const f = openAiFixture();
+    const sent: { url: string; auth: unknown; body: any }[] = [];
+    const wire = vi.spyOn(globalThis, "fetch").mockImplementation(async (url, init) => {
+      const body = JSON.parse(String(init!.body));
+      sent.push({ url: String(url), auth: (init!.headers as Record<string, string>).Authorization, body });
+      return json({ accepted_events: body.events.length });
+    });
+    try {
+      f.setRows([{ id: "a@example.com" }, { id: "b@example.com" }]);
+      expect(await execute(f.input)).toBe("COMPLETE");
+      f.input.taskId = "openai-conversions-next";
+      f.setRows([{ id: "a@example.com" }, { id: "b@example.com" }, { id: "c@example.com" }]);
+      expect(await execute(f.input)).toBe("COMPLETE");
+      expect(sent.map(s => s.body.events.length)).toEqual([2, 1]);
+      expect(sent.every(s => s.url === "https://bzr.openai.com/v1/events?pid=px_runner")).toBe(true);
+      expect(sent.every(s => s.auth === "Bearer openai-key-secret")).toBe(true);
+      expect(sent.every(s => s.body.integration_source === "jitsu")).toBe(true);
+      const ids = sent.flatMap(s => s.body.events.map((e: any) => e.id));
+      expect(new Set(ids).size).toBe(3);
+      expect(JSON.stringify(sent)).not.toContain("@example.com");
+      const logs = (await taskLogs("task")) + (await taskLogs("openai-conversions-next"));
+      expect(logs).not.toContain("openai-key-secret");
+      expect(logs).not.toContain("@example.com");
+    } finally {
+      wire.mockRestore();
+    }
+  });
+  it("fails the run on a definite rejection with a controlled code and field path, not OpenAI's message", async () => {
+    const f = openAiFixture();
+    const wire = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      json(
+        {
+          error: {
+            message: "private detail a@example.com",
+            type: "invalid_request_error",
+            param: "events[0]",
+            code: "invalid_event",
+            errors: [{ message: "private detail", param: "events[0].type", code: "unknown_event_type" }],
+          },
+        },
+        400
+      )
+    );
+    try {
+      f.setRows([{ id: "a@example.com" }, { id: "b@example.com" }]);
+      expect(await execute(f.input)).toBe("FAILED");
+      expect(wire).toHaveBeenCalledTimes(1);
+      const error = String((await task()).error);
+      const logs = await taskLogs("task");
+      for (const text of [error, logs]) {
+        expect(text).not.toContain("private detail");
+        expect(text).not.toContain("@example.com");
+        expect(text).not.toContain("openai-key-secret");
+      }
+      expect(error).toContain("OPENAI_INVALID_EVENT");
+      expect(logs).toContain("2 confirmed submitted in 1 batches; 0 accepted, 0 pending processing, 2 rejected");
+    } finally {
+      wire.mockRestore();
+    }
+  });
+  it("stops on an unconfirmed delivery and never sends the batch again on the next run", async () => {
+    const f = openAiFixture();
+    const wire = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValue(json({ error: { message: "slow down", type: "rate_limit", code: null, param: null } }, 429));
+    try {
+      f.setRows([{ id: "a@example.com" }, { id: "b@example.com" }]);
+      expect(await execute(f.input)).toBe("FAILED");
+      expect(wire).toHaveBeenCalledTimes(1);
+      const error = String((await task()).error);
+      expect(error).toContain("did not confirm a submitted batch");
+      expect(error).toContain("do not reset sync state");
+      expect(error).not.toContain("slow down");
+      f.input.taskId = "openai-after-unconfirmed";
+      await execute(f.input);
+      expect(wire).toHaveBeenCalledTimes(1);
+    } finally {
+      wire.mockRestore();
+    }
+  });
+});
+
 describe("runner-owned Google audience provisioning", () => {
   it.each(["invalid-row", "duplicate-key", "source-failure", "identifier-type"])(
     "validates the whole first snapshot before creating an audience: %s",
