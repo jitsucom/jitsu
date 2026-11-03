@@ -1,4 +1,11 @@
 import { describe, expect, it } from "vitest";
+
+it("reports missing composition columns without exposing arbitrary error contents", () => {
+  const reason = "A mapped model column is missing from the source row";
+  expect(failureMessage(new Error(reason), "task")).toContain("Check the object composition and model columns");
+  expect(failureDiagnostic("execution", new Error(reason)).reason).toBe(reason);
+  expect(failureMessage(new Error(reason + ": private@example.com"), "task")).not.toContain("private@example.com");
+});
 import { ReverseEtlProtocolError, ReverseEtlRejectionError } from "@jitsu/destination-functions/src/reverse-etl/meta";
 import { failureDiagnostic, failureMessage, KubernetesHttpError } from "./diagnostics";
 import { googleRequestError } from "@jitsu/destination-functions/src/functions/google-ads/clients/errors";
@@ -79,6 +86,11 @@ describe("safe failure diagnostics", () => {
     ["Reverse console admission/OAuth request denied or unavailable", "Check RETL_CONSOLE_URL and RETL_CONSOLE_TOKEN"],
     ["Reverse destination is not enabled in this runner", "Deploy a compatible runner image"],
     ["Model query contains duplicate primary keys", "Return one deterministic row per primary key"],
+    [
+      "Nested object flattening produces conflicting field names; rename or alias the conflicting fields",
+      "Flattening the model produces duplicate field names",
+    ],
+    ["Nested objects exceed the flattening depth limit (100)", "objects nested more than 100 levels deep"],
     ["Async batches require distinct member identities", "Multiple source rows identify the same audience member"],
     ["Audience is exclusively managed by a mirror sync", "This audience is reserved by another sync"],
     ["Source row failed destination validation", "Check the model output"],

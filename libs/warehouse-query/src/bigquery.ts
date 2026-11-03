@@ -3,8 +3,8 @@ import { JWT } from "google-auth-library";
 import { Parser } from "node-sql-parser";
 import { z } from "zod";
 import { ModelDefinition } from "./schema";
-import { createSqlDialect } from "./sql";
-import { boundedPreview, decodeRecord } from "./reader";
+import { createSqlDialect, decodeDelete } from "./sql";
+import { boundedPreview, decodeJson, decodeRecord, numericDeleteValue } from "./reader";
 import { StreamDeadline } from "./stream-deadline";
 import type { WarehouseReader } from "./types";
 
@@ -89,6 +89,7 @@ function decodeValue(field: Field, value: unknown): unknown {
     return (value as Cell[]).map(cell => decodeValue({ ...field, mode: undefined }, cell.v));
   if (field.type === "RECORD" || field.type === "STRUCT")
     return decodeBigQueryRow(field.fields ?? [], value as WireRow);
+  if (field.type === "JSON") return decodeJson(value);
   if (field.type === "BOOLEAN" || field.type === "BOOL") return value === true || value === "true";
   if (field.type === "TIMESTAMP") {
     const micros = BigInt(String(value));
@@ -306,8 +307,15 @@ export function createBigQueryReader(input: Record<string, any>): WarehouseReade
           type: columnType(field),
         }));
         const compiled = bigquerySql.compileModel(model, columns, after);
+        const numericDelete = /^(INTEGER|INT64|FLOAT|FLOAT64|NUMERIC|BIGNUMERIC)$/.test(
+          columns.find(c => c.name === model.deleteColumn)?.type ?? ""
+        );
         for await (const row of rows(compiled.query, compiled.queryParams, model.pageSize, time, 2 * 60 * 60 * 1000)) {
-          const record = decodeRecord(model, row);
+          const record = decodeRecord({ ...model, deleteColumn: undefined }, row);
+          if (model.deleteColumn) {
+            const value = row[model.deleteColumn];
+            record.deleted = decodeDelete(numericDelete ? numericDeleteValue(value) : value);
+          }
           // NaN never compares greater/equal in GoogleSQL; persisting it would
           // make the next incremental query silently exclude every source row.
           if (model.cursor?.type === "number" && !Number.isFinite(Number(record.checkpoint!.value)))

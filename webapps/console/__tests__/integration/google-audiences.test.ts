@@ -114,7 +114,9 @@ describe("legacy setup migration", () => {
     const revision = createHash("sha256")
       .update(
         JSON.stringify({
-          model: ModelDefinition.parse(original.from.config),
+          // Historical exports predate nestedObjects. Do not inject its new default
+          // into the legacy hash this test verifies is preserved by migration.
+          model: ModelDefinition.omit({ nestedObjects: true }).parse(original.from.config),
           warehouse: f.warehouse.config,
           destination: { ...(original.to.config as object), reverseManagedAudience: managed },
           options: delivery,

@@ -71,6 +71,38 @@ async function fixture() {
   };
 }
 describe("single-save Reverse ETL settings", () => {
+  it("round-trips object compositions and rejects ambiguous or unsupported mappings without querying the warehouse", async () => {
+    const f = await fixture();
+    const data = {
+      ...f.input.data,
+      stream: "click-conversions",
+      mode: "upsert",
+      streamOptions: { conversionActionId: "123" },
+      mapping: { gclid: "click", conversionTimestamp: "time" },
+      objectMappings: { customVariables: { tier: "tier_column" } },
+    };
+    const { id } = await f.create({ ...f.input, data });
+    expect((await listReverseSyncs(f.prisma, f.workspace.id)).find(s => s.id === id)?.options.objectMappings).toEqual(
+      data.objectMappings
+    );
+    await expect(
+      f.create({ ...f.input, data: { ...data, mapping: { ...data.mapping, customVariables: "json" } } })
+    ).rejects.toThrow("not both");
+    await expect(f.create({ ...f.input, data: { ...data, objectMappings: { gclid: { x: "col" } } } })).rejects.toThrow(
+      "not supported"
+    );
+    await expect(
+      f.create({ ...f.input, data: { ...data, objectMappings: { sessionAttributes: { unknown: "col" } } } })
+    ).rejects.toThrow("unknown object property");
+    const { objectMappings: _composed, ...columnData } = data;
+    await updateReverseSync(f.prisma, f.workspace.id, id, {
+      ...f.input,
+      data: { ...columnData, mapping: { ...data.mapping, customVariables: "json" } },
+    });
+    const saved = (await listReverseSyncs(f.prisma, f.workspace.id)).find(s => s.id === id)!;
+    expect(saved.options.objectMappings).toBeUndefined();
+    expect(saved.options.mapping.customVariables).toBe("json");
+  });
   it("rejects missing alternatives on create and delivery edits without persisting them", async () => {
     const f = await fixture();
     const invalid = { ...f.input, data: { ...f.input.data, mapping: {} } };

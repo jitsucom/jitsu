@@ -13,7 +13,16 @@ export function editorFieldKey(field: ReverseEditorField): string {
   return settingKey(field.key ?? field.name!);
 }
 export function fieldConfigured(field: ReverseEditorField, options: ReverseEditorOptions): boolean {
-  if (field.editor === "mapping") return !!options.mapping[field.field]?.trim();
+  if (field.editor === "mapping") {
+    if (options.mapping[field.field]?.trim()) return true;
+    const properties = options.objectMappings?.[field.field];
+    return (
+      !!field.object &&
+      !!properties &&
+      Object.values(properties).some(value => !!value.trim()) &&
+      (field.object.properties ?? []).filter(p => p.required).every(p => !!properties[p.key]?.trim())
+    );
+  }
   if (field.editor === "identifier")
     return !!(options.mapping[field.raw]?.trim() || options.mapping[field.hashed]?.trim());
   if (field.editor === "columns") return Object.keys(options.mapping).length > 0;
@@ -73,9 +82,36 @@ export function missingStreamRequirements(stream: ReverseStreamEditor, options: 
 export function streamRequirementErrors(stream: ReverseStreamEditor, options: ReverseEditorOptions): string[] {
   const missing = missingStreamRequirements(stream, options);
   return [
+    ...objectMappingErrors(stream, options),
     ...missing.fields.map(field => `${field.name ?? field.key} is required.`),
     ...missing.alternatives.map(group => `${group.title}: configure at least one complete option.`),
   ];
+}
+
+/** The provider owns which objects/properties may be composed; unknown fields must never reach a writer. */
+export function objectMappingErrors(stream: ReverseStreamEditor, options: ReverseEditorOptions): string[] {
+  const fields = stream.fields(options);
+  const errors: string[] = [];
+  for (const [key, properties] of Object.entries(options.objectMappings ?? {})) {
+    const field = fields.find(f => f.editor === "mapping" && f.field === key);
+    if (!field || field.editor !== "mapping" || !field.object) {
+      errors.push("Object composition is not supported for a mapped field in this stream.");
+      continue;
+    }
+    if (Object.hasOwn(options.mapping, key))
+      errors.push(`${field.name}: choose a model column or composition, not both.`);
+    if (
+      !field.object.additionalProperties &&
+      Object.keys(properties).some(p => !field.object!.properties?.some(f => f.key === p))
+    )
+      errors.push(`${field.name}: unknown object property.`);
+    if (Object.keys(properties).length)
+      for (const p of field.object.properties ?? []) {
+        if (p.required && !properties[p.key]?.trim())
+          errors.push(`${field.name}: ${p.name} is required when composing this object.`);
+      }
+  }
+  return errors;
 }
 
 /** Decorate existing provider field descriptions by stable logical keys. */

@@ -14,6 +14,7 @@ import styles from "./SQLViewer.module.css";
 
 import { CodeEditor } from "../CodeEditor/CodeEditor";
 import ClickhouseIcon from "../../lib/schema/icons/clickhouse";
+import { displayColumnType } from "../../lib/warehouse-column-type";
 
 const { Sider, Content } = Layout;
 
@@ -88,7 +89,11 @@ const SchemaTree: React.FC<SchemaTreeProps> = ({ onColumnSelect, onTableSelect, 
           selectable: true,
           isLeaf: true,
           checkable: false,
-          title: <Tooltip title={column.name + ": " + column.type}>{trimMiddle(column.name, 28)}</Tooltip>,
+          title: (
+            <Tooltip title={column.name + ": " + (displayColumnType(column.type) || "unknown")}>
+              {trimMiddle(column.name, 28)}
+            </Tooltip>
+          ),
           value: column.name,
           key: `${name}_${column.name}`,
         };
@@ -193,7 +198,7 @@ const SQLViewer: React.FC<SQLViewerProps> = ({ destinationId }) => {
 
   const columns = useMemo(() => {
     return results.meta.map(m => ({
-      title: <Tooltip title={m.name + ": " + m.type}>{m.name}</Tooltip>,
+      title: <Tooltip title={m.name + ": " + (displayColumnType(m.type) || "unknown")}>{m.name}</Tooltip>,
       dataIndex: m.name,
       fixed: m.name === "#",
       sortDirections: ["descend", "ascend"] as SortOrder[],

@@ -4,7 +4,7 @@ import { z } from "zod";
 import { ModelDefinition } from "./schema";
 import { createSqlDialect, decodeDelete } from "./sql";
 import { losslessTypes } from "./postgres";
-import { boundedPreview, decodeRecord, numericDeleteValue } from "./reader";
+import { boundedPreview, decodeJson, decodeRecord, numericDeleteValue } from "./reader";
 import { StreamDeadline } from "./stream-deadline";
 import type { WarehouseReader } from "./types";
 
@@ -103,8 +103,15 @@ export function createRedshiftReader(input: Record<string, any>): WarehouseReade
   }
   const columnsOf = (result: { fields: { name: string; dataTypeID: number }[] }) =>
     result.fields.map(field => ({ name: field.name, type: String(field.dataTypeID) }));
-  const rowsOf = (result: { fields: { name: string }[]; rows: any[][] }) =>
-    result.rows.map(row => Object.fromEntries(result.fields.map((field, index) => [field.name, row[index]])));
+  const rowsOf = (result: { fields: { name: string; dataTypeID: number }[]; rows: any[][] }) =>
+    result.rows.map(row =>
+      Object.fromEntries(
+        result.fields.map((field, index) => [
+          field.name,
+          field.dataTypeID === 4000 ? decodeJson(row[index]) : row[index], // SUPER
+        ])
+      )
+    );
   return {
     sql: redshiftSql,
     async columns(query, signal) {

@@ -17,6 +17,7 @@ import {
   validateStream,
 } from "./meta";
 import { reverseEtlFailure } from "./failure";
+import { mapReverseRow } from "./mapping";
 
 export interface ReverseSourceRecord {
   key: string;
@@ -28,6 +29,7 @@ export interface RunOptions<Credentials, Row, Options> {
   stream: ReverseEtlStream<Credentials, Row, Options>;
   context: ReverseEtlContext<Credentials, Options>;
   mapping: Record<string, string>;
+  objectMappings?: Record<string, Record<string, string>>;
   /** Code-owned adapter field populated from the model primary key, never user mapping. */
   sourceKeyField?: string;
   /** Must open lazily, only after recovery admission. Readers enforce unique keys. */
@@ -88,7 +90,7 @@ export async function runReverseEtl<C, R, O>(
     !Number.isSafeInteger(maxBatchBytes) ||
     maxBatchBytes < 1 ||
     maxBatchBytes > 10_000_000 ||
-    !Object.keys(mapping).length
+    (!Object.keys(mapping).length && !Object.values(input.objectMappings ?? {}).some(p => Object.keys(p).length))
   ) {
     throw new ReverseEtlProtocolError("Invalid batch byte limit or empty mapping");
   }
@@ -179,12 +181,7 @@ export async function runReverseEtl<C, R, O>(
       if (record.deleted && (!stream.capabilities.supportsExplicitRemove || !writer.remove)) {
         throw new ReverseEtlProtocolError("Stream does not support explicit remove");
       }
-      const mapped = Object.fromEntries(
-        Object.entries(mapping).map(([field, column]) => [
-          field,
-          Object.hasOwn(record.row, column) ? record.row[column] : undefined,
-        ])
-      );
+      const mapped = mapReverseRow(record.row, input);
       if (input.sourceKeyField) mapped[input.sourceKeyField] = record.key;
       const row = (record.deleted ? stream.removeRowType! : stream.rowType).safeParse(mapped);
       // Do not emit schema issues: they can contain raw identifiers/source values.
