@@ -67,6 +67,7 @@ func NewRouter(appContext *Context) *Router {
 	fast.GET("/log/:eventType/:actorId", router.EventsLogHandler)
 	fast.GET("/ready", router.Health)
 	fast.GET("/health", router.Health)
+	fast.GET("/status", func(c *gin.Context) { router.health(c, true) })
 
 	engine.POST("/bulk/:destinationId", router.BulkHandler)
 	engine.GET("/failed/:destinationId", router.FailedHandler)
@@ -88,35 +89,46 @@ func NewRouter(appContext *Context) *Router {
 }
 
 func (r *Router) Health(c *gin.Context) {
+	r.health(c, false)
+}
+
+func (r *Router) health(c *gin.Context, detailed bool) {
+	respond := func(code int, body gin.H) {
+		c.Header("Cache-Control", "no-store")
+		if !detailed {
+			body = gin.H{"status": body["status"]}
+		}
+		c.JSON(code, body)
+	}
 	if r.kafkaConfig == nil {
-		c.JSON(http.StatusOK, gin.H{"status": "pass"})
+		respond(http.StatusOK, gin.H{"status": "pass"})
 		return
 	}
 	updatedAt := r.topicManager.UpdatedAt()
 	if r.config.EnableConsumers {
 		if !r.topicManager.IsReady() {
 			logging.Errorf("Health check: FAILED: topic manager is not ready")
-			c.JSON(http.StatusServiceUnavailable, gin.H{"status": "fail", "output": "topic manager is not ready"})
+			respond(http.StatusServiceUnavailable, gin.H{"status": "fail", "output": "topic manager is not ready"})
 			return
 		}
 		if updatedAt.IsZero() || time.Since(updatedAt) > time.Duration(10*r.config.TopicManagerRefreshPeriodSec)*time.Second {
 			logging.Errorf("Health check: FAILED: topic manager is outdated: %s", updatedAt)
-			c.JSON(http.StatusServiceUnavailable, gin.H{"status": "fail", "output": "topic manager is outdated: " + updatedAt.String()})
+			respond(http.StatusServiceUnavailable, gin.H{"status": "fail", "output": "topic manager is outdated: " + updatedAt.String()})
 			return
 		}
 	}
 	size, err := r.producer.QueueSize()
 	if err != nil {
 		logging.Errorf("Health check: FAILED: producer queue size error: %v", err)
-		c.JSON(http.StatusServiceUnavailable, gin.H{"status": "fail", "output": "producer queue size error: " + err.Error()})
+		respond(http.StatusServiceUnavailable, gin.H{"status": "fail", "output": "producer queue size error: " + err.Error()})
 		return
 	}
 	if size >= r.config.ProducerQueueSize {
 		logging.Errorf("Health check: FAILED: producer queue full: %d/%d", size, r.config.ProducerQueueSize)
-		c.JSON(http.StatusServiceUnavailable, gin.H{"status": "fail", "output": fmt.Sprintf("producer queue full: %d/%d", size, r.config.ProducerQueueSize)})
+		respond(http.StatusServiceUnavailable, gin.H{"status": "fail", "output": fmt.Sprintf("producer queue full: %d/%d", size, r.config.ProducerQueueSize)})
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"status": "pass", "producerQueueSize": size, "topicsUpdatedAt": updatedAt})
+	respond(http.StatusOK, gin.H{"status": "pass", "producerQueueSize": size, "topicsUpdatedAt": updatedAt})
 	return
 }
 

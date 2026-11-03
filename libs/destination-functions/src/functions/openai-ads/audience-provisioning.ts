@@ -4,6 +4,7 @@ import type { DestinationServices, ReverseDestinationConfig } from "@jitsu/proto
 import type { JsonObject } from "@jitsu/protocols/reverse-etl";
 import { contentHash } from "../../reverse-etl/identity";
 import { OpenAiAdsCall, OpenAiWait, realWait } from "./ads-client";
+import { openAiAudienceValidation } from "./audience";
 import { adAccountId, createAudience, findAudiencesByMarker, getAudience, waitForAudienceReady } from "./audience-api";
 import { OpenAiApiError } from "./client";
 import {
@@ -86,6 +87,13 @@ export async function resolveOpenAiAudience(
   const state = services.targetState(openAiAudienceStateStream);
   const binding = contentHash({ workspace: config.workspaceId, sync: config.id, destination: config.toId, settings });
   let raw = await state.read();
+  // Validate the whole first snapshot before saving the creation intent: that state locks the sync's settings, so a
+  // wrong mapping must be caught while it can still be corrected. A prepared intent (not yet submitted) is validated
+  // again after a restart; a submitted or ready audience never re-reads the warehouse.
+  if (!raw || State.parse(raw).phase === "prepared") {
+    if (!services.validateSource) throw new Error("OpenAI managed audience creation requires source validation");
+    await services.validateSource(openAiAudienceValidation());
+  }
   if (!raw) {
     await state.create({
       version: 1,

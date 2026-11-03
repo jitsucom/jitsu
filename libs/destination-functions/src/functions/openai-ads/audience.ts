@@ -13,7 +13,7 @@ import {
   assertContext,
   batchBinding,
   rejected,
-  rejectedOperation,
+  OpenAiOperationFailed,
   savedReceipt,
 } from "./delivery";
 import { OpenAiAudienceOptions, OpenAiAudienceRow } from "./reverse-meta";
@@ -48,6 +48,38 @@ export function projectOpenAiAudience(_action: Action, input: unknown) {
   return [{ identity: row.identity, upsert: row as JsonObject, remove: row as JsonObject }];
 }
 
+/**
+ * What the runner needs to validate the whole first snapshot before the managed audience is created: the row and payload
+ * shapes, no provider calls, no writer. Creating the audience saves state that locks the sync's settings, so a wrong
+ * mapping has to be caught before that.
+ */
+export function openAiAudienceValidation(): Parameters<NonNullable<DestinationServices["validateSource"]>>[0] {
+  const stream: ReverseEtlStream<JsonObject, JsonObject, JsonObject> = {
+    name: "audience",
+    displayName: "Custom Audiences",
+    options: OpenAiAudienceOptions as z.ZodType<JsonObject>,
+    rowType: openAiAudienceWire as z.ZodType<JsonObject>,
+    removeRowType: openAiAudienceWire as z.ZodType<JsonObject>,
+    batchSize,
+    capabilities: {
+      supportsUpsert: true,
+      supportsExplicitRemove: true,
+      mirror: "snapshot-diff",
+      replay: "idempotency-key",
+    },
+    createWriter: async () => {
+      throw new Error("Source validation does not write");
+    },
+  };
+  return {
+    stream,
+    projection: {
+      rowType: OpenAiAudienceRow.transform(row => normalizeOpenAiAudience(row)) as z.ZodType<JsonObject>,
+      project: (row: JsonObject) => projectOpenAiAudience("upsert", row),
+    },
+  };
+}
+
 export function createOpenAiAudience(
   credentials: JsonObject,
   options: JsonObject,
@@ -75,14 +107,17 @@ export function createOpenAiAudience(
   async function apply(
     ctx: Context,
     batch: WriteBatch<JsonObject>,
-    action: Action
+    action: Action,
+    /** A replay of a batch whose first attempt may have been applied (its answer was lost or the run was cut off). */
+    replay = false
   ): Promise<ReturnType<typeof accepted>> {
     const identifiers = batch.records.flatMap(
       r => openAiAudienceWire.parse(r.row).identifiers as OpenAiAudienceIdentifier[]
     );
     const key = `jitsu-${batchBinding(ctx, batch, action)}`;
     const call = callFor(ctx);
-    // Only a refused submit proves nothing was applied. Once OpenAI has returned an operation, an error while waiting
+    // Only a refused FIRST submit proves nothing was applied. A refused replay proves nothing: the original request may
+    // already have gone through, so it stays uncertain. Once OpenAI has returned an operation, an error while waiting
     // for it (a 401, 403 or 404 after access was revoked, say) says nothing about the operation: it throws, the core
     // marks the batch unknown, and recovery replays the same key.
     let operation;
@@ -92,8 +127,9 @@ export function createOpenAiAudience(
       });
     } catch (error) {
       if (error instanceof OpenAiApiError) {
-        await log(`${error.message}; audience request ${error.rejected ? "rejected" : "unconfirmed"}.`);
-        if (error.rejected) return rejected(ctx, batch, error, action, "audience");
+        const definite = error.rejected && !replay;
+        await log(`${error.message}; audience request ${definite ? "rejected" : "unconfirmed"}.`);
+        if (definite) return rejected(ctx, batch, error, action, "audience");
       }
       throw error;
     }
@@ -112,10 +148,13 @@ export function createOpenAiAudience(
       );
       return accepted(ctx, batch, action);
     }
+    const reason = done.failure_reason?.code;
     await log(
-      "OpenAI reported the audience change as failed; part of it may have been applied. Check the audience in Ads Manager before resetting the sync. Provider error text is omitted."
+      `OpenAI reported the audience change as failed${
+        reason && /^[a-z][a-z0-9_]{0,40}$/.test(reason) ? ` (${reason})` : ""
+      }; part of it may have been applied. Check the audience in Ads Manager before resetting the sync. Provider error text is omitted.`
     );
-    return rejectedOperation(ctx, batch, action, done.failure_reason?.code ?? undefined);
+    throw new OpenAiOperationFailed();
   }
   async function submit(ctx: Context, batch: WriteBatch<JsonObject>, action: Action) {
     if (!batch.records.length || batch.records.length > batchSize)
@@ -190,7 +229,7 @@ export function createOpenAiAudience(
         const prior = savedReceipt(ctx, batch, saved, action);
         if (prior) return prior;
         await log("Replaying the saved OpenAI audience request under its original idempotency key.");
-        return apply(ctx, batch, action);
+        return apply(ctx, batch, action, true);
       },
     }),
   };
