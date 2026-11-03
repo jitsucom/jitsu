@@ -36,7 +36,15 @@ export interface ReverseRuntimeAdapter {
   project: ReverseProjection;
   mirror?: {
     stream: ReverseEtlStream<JsonObject, JsonObject, JsonObject>;
-    projection: { rowType: ZodType<JsonObject>; project(row: JsonObject): ReverseIdentity[] };
+    projection: {
+      rowType: ZodType<JsonObject>;
+      project(row: JsonObject): ReverseIdentity[];
+      /**
+       * Optional. When a member is accepted again, the removal payload kept for it becomes this merge of the one kept
+       * so far and the new one, so a later Remove still reaches what an earlier Add sent. Pure and deterministic.
+       */
+      mergeRemove?(previous: JsonObject, next: JsonObject): JsonObject;
+    };
     batchDelivery: "accepted" | "asynchronous";
     refreshAfterMs?: number;
   };

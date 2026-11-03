@@ -85,7 +85,13 @@ export class ObjectJournal implements DeliveryJournal {
     this.cache = controlFor(db, scope);
     this.snapshots = new ObjectSnapshots(this);
   }
-  static async open(db: Database, scope: Scope, project: Project, recovery: boolean) {
+  static async open(
+    db: Database,
+    scope: Scope,
+    project: Project,
+    recovery: boolean,
+    mergeRemove?: (previous: JsonObject, next: JsonObject) => JsonObject
+  ) {
     ensure(db.objectStorage, "Object storage is required");
     const artifacts = new Artifacts(db.objectStorage.store, scope, db.objectStorage.signal, db.objectStorage.retention);
     const control = await controlFor(db, scope).observe(value => value);
@@ -95,7 +101,7 @@ export class ObjectJournal implements DeliveryJournal {
       head.version === 1 && Array.isArray(head.baseline) && Array.isArray(head.batches),
       "Invalid artifact manifest"
     );
-    const local = await LocalIndex.create();
+    const local = await LocalIndex.create(mergeRemove);
     const journal = new ObjectJournal(db, scope, project, recovery, local, head, control.artifact_head, artifacts);
     try {
       await journal.restore();

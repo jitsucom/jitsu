@@ -544,35 +544,25 @@ describe("OpenAI Ads audience runner integration", () => {
       wire.fetch.mockRestore();
     }
   });
-  it("keeps a phone two rows share until both rows are gone, and removes each row's own email at once", async () => {
+  it("does not remove a person whose row only dropped a phone: the old phone is kept for when the row is deleted", async () => {
     const f = audienceFixture();
     f.input.config.options = { ...f.input.config.options, mapping: { email: "id", phone: "phone" } };
     const wire = openAi();
     try {
-      const shared = "+14155550111";
-      f.setRows([
-        { id: "a@example.com", phone: shared },
-        { id: "b@example.com", phone: shared },
-      ]);
+      f.setRows([{ id: "a@example.com", phone: "+14155550101" }]);
       expect(await execute(f.input)).toBe("COMPLETE");
-      const adds = [...wire.operations.values()].filter(o => o.action === "add").flatMap(o => emails(o.identifiers));
-      expect(adds.filter(x => x === sha(shared))).toHaveLength(1);
-      // Row a is deleted: its email goes, the phone b still carries stays.
-      f.input.taskId = "openai-audience-shared-first-gone";
-      f.setRows([{ id: "b@example.com", phone: shared }]);
+      // Same email, phone dropped. OpenAI removes matched people, so a Remove of the phone would remove this person.
+      f.input.taskId = "openai-audience-phone-dropped";
+      f.setRows([{ id: "a@example.com" }]);
       expect(await execute(f.input)).toBe("COMPLETE");
-      const removedAfterA = [...wire.operations.values()]
-        .filter(o => o.action === "remove")
-        .flatMap(o => emails(o.identifiers));
-      expect(removedAfterA).toEqual([sha("a@example.com")]);
-      // Row b is deleted too: now the phone goes with the last email.
-      f.input.taskId = "openai-audience-shared-last-gone";
+      expect([...wire.operations.values()].map(o => o.action)).toEqual(["add", "add"]);
+      // The row is deleted: now the person goes, with the phone they once had.
+      f.input.taskId = "openai-audience-row-gone";
       f.setRows([]);
       expect(await execute(f.input)).toBe("COMPLETE");
-      const removed = [...wire.operations.values()]
-        .filter(o => o.action === "remove")
-        .flatMap(o => emails(o.identifiers));
-      expect(removed.sort()).toEqual([sha("a@example.com"), sha("b@example.com"), sha(shared)].sort());
+      const last = [...wire.operations.values()].at(-1)!;
+      expect(last.action).toBe("remove");
+      expect(emails(last.identifiers).sort()).toEqual([sha("+14155550101"), sha("a@example.com")].sort());
     } finally {
       wire.fetch.mockRestore();
     }
