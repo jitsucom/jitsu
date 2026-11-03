@@ -26,6 +26,13 @@ import { supportsWarehouseReader } from "@jitsu/warehouse-query/src/schema";
 
 const log = getServerLog("config-objects-service");
 
+function missingOpenAiEventPixel(config: any): boolean {
+  return config?.destinationType === "openai-ads" && (typeof config.pixelId !== "string" || !config.pixelId.trim());
+}
+
+const openAiEventPixelError = () =>
+  new ApiError("OpenAI event connections require a Pixel ID on the destination", { status: 400 });
+
 function missingMetaEventPixel(config: any): boolean {
   return (
     config?.destinationType === "facebook-conversions" && (typeof config.pixelId !== "string" || !config.pixelId.trim())
@@ -39,6 +46,7 @@ function eventDestinationError(config: any): ApiError | undefined {
   if (getCoreDestinationTypeNonStrict(config?.destinationType)?.reverseEtlOnly)
     return new ApiError("This destination supports Reverse ETL only, not event connections", { status: 400 });
   if (missingMetaEventPixel(config)) return metaEventPixelError();
+  if (missingOpenAiEventPixel(config)) return openAiEventPixelError();
   if (
     config?.destinationType === "google-ads" &&
     !config.conversionActionId?.trim() &&

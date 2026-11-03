@@ -1,5 +1,6 @@
 // Browser-safe metadata shared by the console and the Reverse ETL runtime. No SDKs, no server code.
 import { z } from "zod";
+import { eventsParamDescription } from "../lib/metadata";
 import { openAiMirrorOneIdentifierType } from "./validation-errors";
 
 export const openAiAdsDestinationId = "openai-ads";
@@ -69,6 +70,48 @@ export const OpenAiPixelId = z
   .min(1)
   .max(128)
   .regex(/^[A-Za-z0-9_.-]+$/, "Enter the Pixel ID from Ads Manager");
+/**
+ * Settings of an ordinary event connection (a site or app stream). Reverse ETL parses the narrower
+ * `OpenAiAdsCredentials` above and never sees these: its conversions take the pixel and defaults from the sync.
+ */
+export const OpenAiAdsDestinationCredentials = OpenAiAdsCredentials.extend({
+  // Empty means "not set", as for Meta: Reverse ETL does not need it, and an event connection says so when it is missing.
+  pixelId: z
+    .string()
+    .trim()
+    .max(128)
+    .regex(/^[A-Za-z0-9_.-]*$/, "Enter the Pixel ID from Ads Manager")
+    .optional()
+    .describe(
+      "Pixel ID::Required for event connections: the Pixel ID from Ads Manager (Conversions). Reverse ETL conversions set the pixel on the sync and audiences do not use one."
+    ),
+  events: z.string().optional().default("").describe(eventsParamDescription),
+  // A plain multi-line text, not a list control: the list editor strips spaces, and event names such as "Order Completed"
+  // contain them.
+  eventMappings: z
+    .string()
+    .optional()
+    .default("")
+    .describe(
+      "Event names::Map your events to OpenAI events. One <code>eventName=openaiEvent</code> per line, e.g. <code>Order Completed=order_created</code>. Common ecommerce and sign-up events are mapped for you; anything else is sent as a custom event named after your event."
+    ),
+  actionSource: OpenAiActionSource.default("web").describe(
+    "Action source::Where the events happen. Web events need a page URL on every event; use another value for server-only events."
+  ),
+  phoneFieldName: z
+    .string()
+    .optional()
+    .default("")
+    .describe(
+      "Phone trait::Name of the user trait that holds the phone number, including the country code. If empty, no phone number is sent."
+    ),
+});
+export const OpenAiAdsDestinationCredentialsUi = {
+  ...OpenAiAdsCredentialsUi,
+  eventMappings: { textarea: true },
+};
+export type OpenAiAdsDestinationCredentials = z.infer<typeof OpenAiAdsDestinationCredentials>;
+
 /** Lowercase, 1-64 characters, starts and ends with a letter or digit (OpenAI lowercases it for us). */
 export const OpenAiCustomEventName = z
   .string()
