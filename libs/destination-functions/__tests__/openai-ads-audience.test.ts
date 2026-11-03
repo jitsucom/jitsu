@@ -4,7 +4,7 @@ import type { DestinationServices, ReverseDestinationConfig } from "@jitsu/proto
 import { createOpenAiAdsRuntime } from "../src/functions/openai-ads/runtime";
 import { normalizeOpenAiAudience, openAiAudienceWire } from "../src/functions/openai-ads/audience";
 import { OpenAiAudienceUnusable, OpenAiWaitTimeout } from "../src/functions/openai-ads/audience-api";
-import { OpenAiTransportError } from "../src/functions/openai-ads/client";
+import { OpenAiApiError, OpenAiTransportError } from "../src/functions/openai-ads/client";
 import {
   OpenAiOperationFailed,
   OpenAiUncertainDelivery,
@@ -357,6 +357,21 @@ describe("OpenAI audience delivery", () => {
     const result = await recovery.reconcileBatch!(batch(rows), "upsert", undefined, t.context(adapter));
     expect(result.outcomes.map(o => o.status)).toEqual(["accepted", "accepted"]);
     expect(adds(t.ads)).toHaveLength(1);
+  });
+  it("keeps a refused replay uncertain: it throws, where the same refusal of a first submit rejects the batch", async () => {
+    const t = setup();
+    const adapter = await t.build();
+    const rows = [member(1)];
+    const writer = await adapter.stream.createWriter(t.context(adapter));
+    t.ads.hooks.intercept = route => (route.endsWith("/add") ? refusal(403, "permission_denied") : undefined);
+    // A first submit that is refused proves nothing was applied.
+    const first = await writer.upsert(batch(rows));
+    expect(first.outcomes.map(o => o.status)).toEqual(["rejected"]);
+    // A replay that is refused proves nothing: the original request may have been applied before its answer was lost.
+    const recovery = adapter.recovery!({});
+    const replay = await recovery.reconcileBatch!(batch(rows), "upsert", undefined, t.context(adapter)).catch(e => e);
+    expect(replay).toBeInstanceOf(OpenAiApiError);
+    expect(JSON.stringify(t.log.mock.calls)).toContain("unconfirmed");
   });
   it("recovers an operation that was still running when the wait ran out", async () => {
     const t = setup();

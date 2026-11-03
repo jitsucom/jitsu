@@ -149,7 +149,9 @@ the revision rises on every accepted operation, no-ops included, so it cannot de
 - `succeeded` is accepted. It does **not** mean the members matched anyone or that the audience can be targeted.
 - A submit refused with OpenAI's error envelope (HTTP 400, 401, 403, 404, 413 or 422) rejects the whole batch with nothing
   applied: one malformed identifier fails all of it, so values are validated locally first. Shown code is
-  `OPENAI_<error code>` or `http_<status>`; provider messages are never kept.
+  `OPENAI_<error code>` or `http_<status>`; provider messages are never kept. This holds for a first submit only: a replay
+  of a batch whose first attempt may have been applied (its answer was lost) that is refused stays unknown, because the
+  refusal does not show the original request applied nothing.
 - An operation that reaches `failed` stops the run with a manual-reconciliation error, not a rejection. OpenAI says a
   failed Add or Remove may have applied part of its change, so the batch stays unknown and the runner does not discard
   the run. The next run goes through recovery: it replays the same request under the same idempotency key, OpenAI returns

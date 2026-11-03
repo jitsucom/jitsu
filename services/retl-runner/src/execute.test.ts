@@ -304,7 +304,9 @@ describe("OpenAI Ads audience runner integration", () => {
     return f;
   };
   /** OpenAI's audience API, answering at once: ready on create, operations succeeded on the first poll. */
-  const openAi = (options: { loseAddResponses?: number; failOperations?: boolean; failFrom?: number } = {}) => {
+  const openAi = (
+    options: { loseAddResponses?: number; failOperations?: boolean; failFrom?: number; refuseSubmit?: number } = {}
+  ) => {
     const audienceId = `caud_${"0".repeat(31)}1`;
     let description = "";
     let lose = options.loseAddResponses ?? 0;
@@ -323,6 +325,12 @@ describe("OpenAI Ads audience runner integration", () => {
       }
       if (path === `/custom_audiences/${audienceId}`) return reply({ id: audienceId, status: "ready", description });
       const submit = path.match(new RegExp(`^/custom_audiences/${audienceId}/(add|remove)$`));
+      // Access revoked or the like: a definite refusal of the request itself, with OpenAI's error envelope.
+      if (submit && options.refuseSubmit)
+        return reply(
+          { error: { message: "private detail", type: "invalid_request_error", code: "permission_denied" } },
+          options.refuseSubmit
+        );
       if (submit) {
         const key = headers["Idempotency-Key"];
         let id = byKey.get(key);
@@ -583,6 +591,32 @@ describe("OpenAI Ads audience runner integration", () => {
     } finally {
       wire.fetch.mockRestore();
       await bounded.close();
+    }
+  });
+  it("keeps a refused replay uncertain: the original request may have been applied, so the member is still removed later", async () => {
+    const f = audienceFixture();
+    const wire = openAi({ loseAddResponses: 1 });
+    try {
+      // Run 1: the Add is applied at OpenAI but its answer is lost, so the batch is unknown.
+      f.setRows([{ id: "a@example.com" }]);
+      expect(await execute(f.input)).toBe("FAILED");
+      expect(adds(wire)).toEqual(["add:1"]);
+      // Run 2: recovery replays the request and OpenAI refuses it (access revoked, say). That does not show the original
+      // request applied nothing, so the batch must stay unknown, not become a rejection.
+      wire.options.refuseSubmit = 403;
+      f.input.taskId = "openai-audience-replay-refused";
+      expect(await execute(f.input)).toBe("FAILED");
+      // Access is back and the member has left the model. Recovery finishes the original run, and the member, applied by
+      // the original Add, is then removed.
+      wire.options.refuseSubmit = undefined;
+      f.setRows([]);
+      f.input.taskId = "openai-audience-replay-recovered";
+      await execute(f.input);
+      f.input.taskId = "openai-audience-after-recovered";
+      expect(await execute(f.input)).toBe("COMPLETE");
+      expect(adds(wire)).toEqual(["add:1", "remove:1"]);
+    } finally {
+      wire.fetch.mockRestore();
     }
   });
   it("validates the first snapshot before creating the audience, so a wrong mapping stays correctable", async () => {

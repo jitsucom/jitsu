@@ -107,14 +107,17 @@ export function createOpenAiAudience(
   async function apply(
     ctx: Context,
     batch: WriteBatch<JsonObject>,
-    action: Action
+    action: Action,
+    /** A replay of a batch whose first attempt may have been applied (its answer was lost or the run was cut off). */
+    replay = false
   ): Promise<ReturnType<typeof accepted>> {
     const identifiers = batch.records.flatMap(
       r => openAiAudienceWire.parse(r.row).identifiers as OpenAiAudienceIdentifier[]
     );
     const key = `jitsu-${batchBinding(ctx, batch, action)}`;
     const call = callFor(ctx);
-    // Only a refused submit proves nothing was applied. Once OpenAI has returned an operation, an error while waiting
+    // Only a refused FIRST submit proves nothing was applied. A refused replay proves nothing: the original request may
+    // already have gone through, so it stays uncertain. Once OpenAI has returned an operation, an error while waiting
     // for it (a 401, 403 or 404 after access was revoked, say) says nothing about the operation: it throws, the core
     // marks the batch unknown, and recovery replays the same key.
     let operation;
@@ -124,8 +127,9 @@ export function createOpenAiAudience(
       });
     } catch (error) {
       if (error instanceof OpenAiApiError) {
-        await log(`${error.message}; audience request ${error.rejected ? "rejected" : "unconfirmed"}.`);
-        if (error.rejected) return rejected(ctx, batch, error, action, "audience");
+        const definite = error.rejected && !replay;
+        await log(`${error.message}; audience request ${definite ? "rejected" : "unconfirmed"}.`);
+        if (definite) return rejected(ctx, batch, error, action, "audience");
       }
       throw error;
     }
@@ -225,7 +229,7 @@ export function createOpenAiAudience(
         const prior = savedReceipt(ctx, batch, saved, action);
         if (prior) return prior;
         await log("Replaying the saved OpenAI audience request under its original idempotency key.");
-        return apply(ctx, batch, action);
+        return apply(ctx, batch, action, true);
       },
     }),
   };
