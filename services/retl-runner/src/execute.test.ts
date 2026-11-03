@@ -304,13 +304,17 @@ describe("OpenAI Ads audience runner integration", () => {
     return f;
   };
   /** OpenAI's audience API, answering at once: ready on create, operations succeeded on the first poll. */
-  const openAi = (options: { loseAddResponses?: number; failOperations?: boolean } = {}) => {
+  const openAi = (options: { loseAddResponses?: number; failOperations?: boolean; failFrom?: number } = {}) => {
     const audienceId = `caud_${"0".repeat(31)}1`;
     let description = "";
     let lose = options.loseAddResponses ?? 0;
     const operations = new Map<string, { id: string; action: string; identifiers: any[] }>();
     const byKey = new Map<string, string>();
     const requests: { method: string; path: string; key?: string }[] = [];
+    /** Every operation fails, or only those from the nth submitted on (`caudop_<n>`). */
+    const failed = (operationId: string) =>
+      options.failOperations ||
+      (options.failFrom !== undefined && Number(operationId.split("_")[1]) >= options.failFrom);
     const fetch = vi.spyOn(globalThis, "fetch").mockImplementation(async (url, init) => {
       const path = String(url).replace("https://api.ads.openai.com/v1", "");
       const headers = init!.headers as Record<string, string>;
@@ -347,10 +351,8 @@ describe("OpenAI Ads audience runner integration", () => {
           operation_id: poll[1],
           custom_audience_id: audienceId,
           operation: operations.get(poll[1])?.action,
-          status: options.failOperations ? "failed" : "succeeded",
-          ...(options.failOperations
-            ? { failure_reason: { code: "audience_too_small", message: "private detail" } }
-            : {}),
+          status: failed(poll[1]) ? "failed" : "succeeded",
+          ...(failed(poll[1]) ? { failure_reason: { code: "audience_too_small", message: "private detail" } } : {}),
         });
       throw new Error(`Unexpected OpenAI request ${init!.method} ${path}`);
     });
@@ -447,6 +449,130 @@ describe("OpenAI Ads audience runner integration", () => {
       expect(f.calls).not.toContain("reader");
       expect(wire.operations.size).toBe(0);
       expect(wire.requests.filter(r => /\/(add|remove)$/.test(r.path))).toHaveLength(0);
+    } finally {
+      wire.fetch.mockRestore();
+    }
+  });
+  it("stays stopped after a failed Add in a later run, when members left the model since: they are removed once reconciled", async () => {
+    const f = audienceFixture();
+    let wire = openAi();
+    try {
+      f.setRows([{ id: "a@example.com" }]);
+      expect(await execute(f.input)).toBe("COMPLETE");
+      wire.fetch.mockRestore();
+      // Run 2 adds b, and OpenAI reports the operation failed: part of it may have been applied.
+      wire = openAi({ failOperations: true });
+      f.input.taskId = "openai-audience-failed-add";
+      f.setRows([{ id: "a@example.com" }, { id: "b@example.com" }]);
+      expect(await execute(f.input)).toBe("FAILED");
+      wire.fetch.mockRestore();
+      // OpenAI is healthy again and b has left the model. If b was applied it must not be forgotten: the run may not
+      // be discarded and restarted from a fresh read of the source.
+      wire = openAi();
+      f.input.taskId = "openai-audience-after-failed-add";
+      f.setRows([{ id: "a@example.com" }]);
+      f.calls.length = 0;
+      const outcome = await execute(f.input);
+      expect({ outcome, readSource: f.calls.includes("reader") }).toEqual({ outcome: "FAILED", readSource: false });
+    } finally {
+      wire.fetch.mockRestore();
+    }
+  });
+  it("stays stopped after a failed Remove: members that came back are not forgotten by a fresh read", async () => {
+    const f = audienceFixture();
+    let wire = openAi();
+    try {
+      f.setRows([{ id: "a@example.com" }, { id: "b@example.com" }]);
+      expect(await execute(f.input)).toBe("COMPLETE");
+      wire.fetch.mockRestore();
+      // Run 2 removes b; OpenAI reports the Remove failed, so b may or may not still be in the audience.
+      wire = openAi({ failFrom: 2 });
+      f.input.taskId = "openai-audience-failed-remove";
+      f.setRows([{ id: "a@example.com" }]);
+      expect(await execute(f.input)).toBe("FAILED");
+      wire.fetch.mockRestore();
+      wire = openAi();
+      f.input.taskId = "openai-audience-after-failed-remove";
+      f.setRows([{ id: "a@example.com" }]);
+      f.calls.length = 0;
+      const outcome = await execute(f.input);
+      expect({ outcome, readSource: f.calls.includes("reader") }).toEqual({ outcome: "FAILED", readSource: false });
+    } finally {
+      wire.fetch.mockRestore();
+    }
+  });
+  it("stays stopped after the second of two batches fails: the first batch was accepted", async () => {
+    const f = audienceFixture();
+    let wire = openAi({ failFrom: 2 });
+    try {
+      // 3,001 members are two Add batches (3,000 each at most); the second one fails after the first was accepted.
+      f.setRows(Array.from({ length: 3001 }, (_, i) => ({ id: `m${i}@example.com` })));
+      expect(await execute(f.input)).toBe("FAILED");
+      wire.fetch.mockRestore();
+      wire = openAi();
+      f.input.taskId = "openai-audience-after-failed-second-batch";
+      f.setRows([{ id: "m0@example.com" }]);
+      f.calls.length = 0;
+      const outcome = await execute(f.input);
+      expect({ outcome, readSource: f.calls.includes("reader") }).toEqual({ outcome: "FAILED", readSource: false });
+    } finally {
+      wire.fetch.mockRestore();
+    }
+  }, 60_000);
+  it("removes an identifier the member no longer carries: a changed phone is not left matched after the row is deleted", async () => {
+    const f = audienceFixture();
+    f.input.config.options = { ...f.input.config.options, mapping: { email: "id", phone: "phone" } };
+    const wire = openAi();
+    try {
+      f.setRows([{ id: "a@example.com", phone: "+14155550101" }]);
+      expect(await execute(f.input)).toBe("COMPLETE");
+      // The same member (same email), now with another phone. The old phone was added and is still matched at OpenAI.
+      f.input.taskId = "openai-audience-phone-changed";
+      f.setRows([{ id: "a@example.com", phone: "+14155550102" }]);
+      expect(await execute(f.input)).toBe("COMPLETE");
+      f.input.taskId = "openai-audience-row-deleted";
+      f.setRows([]);
+      expect(await execute(f.input)).toBe("COMPLETE");
+      const removed = [...wire.operations.values()]
+        .filter(o => o.action === "remove")
+        .flatMap(o => emails(o.identifiers));
+      // After the member is gone nothing of theirs may stay matched: every identifier ever added is removed.
+      expect(removed).toContain(sha("+14155550101"));
+      expect(removed).toContain(sha("+14155550102"));
+      expect(removed).toContain(sha("a@example.com"));
+    } finally {
+      wire.fetch.mockRestore();
+    }
+  });
+  it("keeps a phone two rows share until both rows are gone, and removes each row's own email at once", async () => {
+    const f = audienceFixture();
+    f.input.config.options = { ...f.input.config.options, mapping: { email: "id", phone: "phone" } };
+    const wire = openAi();
+    try {
+      const shared = "+14155550111";
+      f.setRows([
+        { id: "a@example.com", phone: shared },
+        { id: "b@example.com", phone: shared },
+      ]);
+      expect(await execute(f.input)).toBe("COMPLETE");
+      const adds = [...wire.operations.values()].filter(o => o.action === "add").flatMap(o => emails(o.identifiers));
+      expect(adds.filter(x => x === sha(shared))).toHaveLength(1);
+      // Row a is deleted: its email goes, the phone b still carries stays.
+      f.input.taskId = "openai-audience-shared-first-gone";
+      f.setRows([{ id: "b@example.com", phone: shared }]);
+      expect(await execute(f.input)).toBe("COMPLETE");
+      const removedAfterA = [...wire.operations.values()]
+        .filter(o => o.action === "remove")
+        .flatMap(o => emails(o.identifiers));
+      expect(removedAfterA).toEqual([sha("a@example.com")]);
+      // Row b is deleted too: now the phone goes with the last email.
+      f.input.taskId = "openai-audience-shared-last-gone";
+      f.setRows([]);
+      expect(await execute(f.input)).toBe("COMPLETE");
+      const removed = [...wire.operations.values()]
+        .filter(o => o.action === "remove")
+        .flatMap(o => emails(o.identifiers));
+      expect(removed.sort()).toEqual([sha("a@example.com"), sha("b@example.com"), sha(shared)].sort());
     } finally {
       wire.fetch.mockRestore();
     }
@@ -812,7 +938,7 @@ function fixture() {
   let pending = false;
   let failInit = false;
   let failBatch = false;
-  let rows = [{ id: "a" }, { id: "b" }];
+  let rows: { id: string; phone?: string }[] = [{ id: "a" }, { id: "b" }];
   const writer = (ctx: ReverseEtlContext<JsonObject, JsonObject>) => ({
     init: async () => {
       calls.push("init");

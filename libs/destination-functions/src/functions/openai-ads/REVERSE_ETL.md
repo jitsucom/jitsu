@@ -89,7 +89,7 @@ Accepted means OpenAI answered 2xx. It does **not** mean the events matched a pe
 | --------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Endpoints       | `POST /custom_audiences` (create), `GET /custom_audiences` and `/{id}` (read, discover), `POST /{id}/add` and `/remove`, `GET /{id}/operations/{operation}` (poll), `POST .../resume`, all on `https://api.ads.openai.com/v1` |
 | Modes           | Managed audience: mirror (`snapshot-diff`). Existing audience: additions and explicit removals via the model's delete column, no mirror                                                                                       |
-| Batch           | At most 3,000 members, at most 9,000 identifiers (OpenAI's small-update path is up to 10,000; the body limit is 16 MiB)                                                                                                       |
+| Batch           | At most 3,000 members of one identifier each, so at most 3,000 identifiers (OpenAI's small-update path is up to 10,000; the body limit is 16 MiB)                                                                                                       |
 | Replay          | `idempotency-key`                                                                                                                                                                                                             |
 | Delivery        | `accepted`: the writer waits for each operation inside the call                                                                                                                                                               |
 | Target identity | `openai-audience:<ad account id>:<audience id>`                                                                                                                                                                               |
@@ -110,13 +110,12 @@ Pre-hashed values must be 64 hex characters (lowercased). A malformed value fail
 fails the run; nothing is dropped. Hashing happens once when a row is extracted. Saved payloads hold hashes and the
 GAID only.
 
-**Identity.** The mirror identifies a member by one identifier: the first available of email, phone, GAID. That
-identity is what the runner compares between runs; the Add and the Remove both send every identifier the row had, because
-OpenAI treats each as a matching candidate and a Remove with only the identity could leave a person who matched through
-another one. The cost: two members who share an identifier (a household phone) are removed together when either leaves,
-and the mirror does not add the other back. OpenAI matches people, not identifiers, so changing a member's identity identifier (for example their email) while they
-remain in the model removes the old identity after the new one is added, and that can remove the person. Keep the
-identity identifier stable.
+**Members.** The mirror makes one member per identifier of a row (email, phone, GAID), as the Google Ads audience does.
+OpenAI treats every identifier as an independent matching candidate, so each is added and removed on its own. A row
+with an email and a phone is two members. When a row's phone changes, the old phone is removed and the new one added,
+and the email is untouched. When a row is deleted, each of its identifiers is removed unless another row still carries
+it, so two rows that share a phone keep that phone until both are gone. The cost: the run's counts (members added or
+removed) count identifiers, not people, and an audience size shown by OpenAI is the matched people, not the members.
 
 ### Provisioning (managed audience)
 

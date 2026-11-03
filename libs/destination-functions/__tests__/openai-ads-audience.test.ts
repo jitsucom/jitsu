@@ -390,35 +390,34 @@ describe("OpenAI audience mirror contract", () => {
     t.ads.audiences.get(audienceId(1))!.description = "no marker";
     await expect(adapter.verifyMirrorBaseline!(new AbortController().signal)).rejects.toThrow("ownership marker");
   });
-  it("identifies a member by one identifier, and a removal carries every identifier the member was added with", async () => {
+  it("makes one member per identifier, each added and removed on its own", async () => {
     const t = setup();
     const adapter = await t.build();
     const project = adapter.mirror!.projection;
     const raw = project.rowType.parse({ email: "Jamie@Example.com", phone: "+12025550124" });
-    const [effect] = project.project(raw);
-    expect(effect.identity).toEqual({ email_sha256: sha("jamie@example.com") });
-    expect(openAiAudienceWire.parse(effect.upsert).identifiers.map(i => i.identifier_type)).toEqual([
-      "email_sha256",
-      "phone_number_sha256",
+    const members = project.project(raw);
+    expect(members.map(m => m.identity)).toEqual([
+      { email_sha256: sha("jamie@example.com") },
+      { phone_number_sha256: sha("+12025550124") },
     ]);
-    expect(effect.remove).toEqual(effect.upsert);
-    expect(openAiAudienceWire.parse(effect.remove).identifiers.map(i => i.identifier_type)).toEqual([
-      "email_sha256",
-      "phone_number_sha256",
+    for (const member of members) {
+      const wire = openAiAudienceWire.parse(member.upsert);
+      expect(wire.identifiers).toHaveLength(1);
+      expect(wire.identity).toEqual(member.identity);
+      expect(member.remove).toEqual(member.upsert);
+    }
+    // The same person with another phone keeps the email member; the old phone is no longer wanted and the new one is.
+    const other = project.project(project.rowType.parse({ email: "jamie@example.com", phone: "+12025550199" }));
+    expect(other[0].identity).toEqual(members[0].identity);
+    expect(other[1].identity).toEqual({ phone_number_sha256: sha("+12025550199") });
+    expect(other.map(m => m.identity)).not.toContainEqual(members[1].identity);
+    // A row with only a phone, or only a GAID, is one member.
+    expect(project.project(project.rowType.parse({ phone: "+12025550124" })).map(m => m.identity)).toEqual([
+      { phone_number_sha256: sha("+12025550124") },
     ]);
-    // The same person with another phone has the same identity, and the removal carries that phone.
-    const [other] = project.project(project.rowType.parse({ email: "jamie@example.com", phone: "+12025550199" }));
-    expect(other.identity).toEqual(effect.identity);
-    expect(openAiAudienceWire.parse(other.remove).identifiers[1].identifier).toBe(sha("+12025550199"));
-    // Without an email the phone is the identity; without either, the GAID.
-    expect(project.project(project.rowType.parse({ phone: "+12025550124" }))[0].identity).toEqual({
-      phone_number_sha256: sha("+12025550124"),
-    });
     expect(
-      project.project(project.rowType.parse({ gaid: "38400000-8cf0-11bd-b23e-10b96e40000d" }))[0].identity
-    ).toEqual({
-      gaid: "38400000-8cf0-11bd-b23e-10b96e40000d",
-    });
+      project.project(project.rowType.parse({ gaid: "38400000-8cf0-11bd-b23e-10b96e40000d" })).map(m => m.identity)
+    ).toEqual([{ gaid: "38400000-8cf0-11bd-b23e-10b96e40000d" }]);
   });
   it("refuses a row with no usable identifier instead of dropping it", async () => {
     const t = setup();
