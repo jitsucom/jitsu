@@ -1166,14 +1166,23 @@ async function main() {
 
   // Health check handler: GET /health or GET /
   function handleHealth(): Response {
-    return jsonResponse(200, {
-      status: "ok",
-      configDir,
-      connections: Array.from(connections.keys()),
-      runtimes: Array.from(runtimes.keys()),
-      profileBuilders: Array.from(profileBuilderRuntimes.keys()),
-      activeWorkers: workerPool ? workerPool.getActiveWorkers().map(w => w.id) : undefined,
-    });
+    return jsonResponse(200, { status: "ok" }, { "Cache-Control": "no-store" });
+  }
+
+  // Operational details are available only after request signature verification.
+  function handleStatus(): Response {
+    return jsonResponse(
+      200,
+      {
+        status: "ok",
+        configDir,
+        connections: Array.from(connections.keys()),
+        runtimes: Array.from(runtimes.keys()),
+        profileBuilders: Array.from(profileBuilderRuntimes.keys()),
+        activeWorkers: workerPool ? workerPool.getActiveWorkers().map(w => w.id) : undefined,
+      },
+      { "Cache-Control": "no-store" }
+    );
   }
 
   // Multi connection handler: POST /multi?ids=conn1,conn2,conn3&fullEvents=true
@@ -1389,6 +1398,9 @@ async function main() {
         const requestBody = new Uint8Array(await req.arrayBuffer());
         if (!verifyFunctionsRequest(env.FUNCTIONS_SERVER_PUBLIC_KEY, deploymentId, req, requestBody)) {
           return errorResponse(401, "Unauthorized");
+        }
+        if (pathname === "/status" && req.method === "POST") {
+          return handleStatus();
         }
         req = new Request(req.url, {
           method: req.method,
