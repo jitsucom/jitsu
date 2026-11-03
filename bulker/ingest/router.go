@@ -243,7 +243,7 @@ func (r *Router) CorsMiddleware(c *gin.Context) {
 func (r *Router) Health(c *gin.Context) {
 	if r.kafkaConfig == nil {
 		logging.Errorf("Health check: FAILED: kafka config is missing")
-		c.JSON(http.StatusServiceUnavailable, gin.H{"status": "fail", "output": "kafka config is missing"})
+		c.JSON(http.StatusServiceUnavailable, gin.H{"status": "fail"})
 		return
 	}
 
