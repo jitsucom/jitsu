@@ -242,6 +242,23 @@ describe("action source and skips", () => {
     expect(server.action_source).toBe("other");
     expect(server.source_url).toBeUndefined();
   });
+  it("judges the web URL requirement on the final payload, so an override can supply what the event lacks", () => {
+    const noPage = { context: { page: undefined } };
+    // action_source overridden away from web: no URL is needed.
+    const offline = built(event({ ...noPage, openaiAdsEvent: { action_source: "offline" } }));
+    expect(offline.action_source).toBe("offline");
+    expect(offline.source_url).toBeUndefined();
+    // a source_url supplied by the override satisfies the web requirement.
+    const supplied = built(event({ ...noPage, openaiAdsEvent: { source_url: "https://shop.example.com/override" } }));
+    expect(supplied.action_source).toBe("web");
+    expect(supplied.source_url).toBe("https://shop.example.com/override");
+    // an override that does not fix the problem still skips, and an unusable URL is as good as none.
+    expect(skipped(event({ ...noPage, openaiAdsEvent: { opt_out: true } }))).toContain("page URL");
+    expect(skipped(event({ ...noPage, openaiAdsEvent: { source_url: "/relative" } }))).toContain("page URL");
+    expect(skipped(event({ ...noPage, openaiAdsEvent: { source_url: "" } }))).toContain("page URL");
+    // an override that removes the URL of an event that had one is judged on what is actually sent.
+    expect(skipped(event({ openaiAdsEvent: { source_url: "" } }))).toContain("page URL");
+  });
   it("forces mobile_app for the two app events", () => {
     const e = built(event({ event: "app_installed", context: { page: undefined } }));
     expect(e.action_source).toBe("mobile_app");

@@ -157,9 +157,6 @@ export function toOpenAiEvent(
   } catch {
     /* Not a usable URL: handled below. */
   }
-  if (actionSource === "web" && !sourceUrl)
-    return { skip: "web events need a page URL; send it with the event or choose another action source" };
-
   // Identifiers: one that OpenAI would refuse is left out, never the whole event.
   const traits = getTraits(event) as Record<string, unknown>;
   const row: Record<string, unknown> = {};
@@ -220,10 +217,21 @@ export function toOpenAiEvent(
   );
   // Escape hatch, as for Meta (`facebookEvent`) and Google Ads (`googleAdsEvent`): a function can hand-tune any field.
   const override = (event as Record<string, unknown>).openaiAdsEvent;
-  return {
-    event:
-      override && typeof override === "object" && !Array.isArray(override) ? deepMerge(base, override as any) : base,
-  };
+  const final =
+    override && typeof override === "object" && !Array.isArray(override) ? deepMerge(base, override as any) : base;
+  // The requirement is judged on what would be sent, after the override: the override may supply the URL or move the
+  // event off the web action source, and it may also remove or break a URL the event had.
+  if (final.action_source === "web" && !usableUrl(final.source_url))
+    return { skip: "web events need a page URL; send it with the event or choose another action source" };
+  return { event: final };
+}
+
+function usableUrl(value: unknown): boolean {
+  try {
+    return typeof value === "string" && !!new URL(value).host;
+  } catch {
+    return false;
+  }
 }
 
 /**
