@@ -96,8 +96,9 @@ Accepted means OpenAI answered 2xx. It does **not** mean the events matched a pe
 
 ### Members and identifiers
 
-A row maps email, phone and Android advertising ID (GAID), one value each. Email and phone are raw or pre-hashed, never
-both. Rules (OpenAI's audience guide):
+A row maps email, phone and Android advertising ID (GAID), one value each. An existing audience may map all three; a
+mirrored audience maps one type (see Identity below). Email and phone are raw or pre-hashed, never both. Rules
+(OpenAI's audience guide):
 
 - email: trim, lowercase, dots and plus tags kept, then SHA-256 as `email_sha256`;
 - phone: E.164 **including the `+`**, then SHA-256 as `phone_number_sha256`. A raw value needs its country code (a
@@ -117,10 +118,9 @@ row that gained an email, dropped a phone or changed a phone makes the mirror se
 the model still wants, and OpenAI removes that person; and an identifier that is forgotten is never removed. One type per
 sync avoids both. Someone with an email and a phone needs the preferred one in the model, or two syncs to two audiences.
 Existing audiences (upsert mode) can map several identifiers: Jitsu sends every identifier a row has for an Add and for an
-explicit Remove. Two costs remain in a mirror: members who share an identifier (a household phone) are removed together
-when either leaves and the mirror does not add the other back, and changing a member's identifier (for example their
-email) while they remain in the model removes the old value after the new one is added, and that can remove the person
-if both match them. Keep the identifier stable.
+explicit Remove. In a mirror, rows that share the same value are one member, kept until the last of them is gone. One cost
+remains: changing a member's identifier (for example their email) while they remain in the model removes the old value
+after the new one is added, and that can remove the person if both match them. Keep the identifier stable.
 
 ### Provisioning (managed audience)
 

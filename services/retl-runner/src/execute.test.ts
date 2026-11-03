@@ -392,6 +392,30 @@ describe("OpenAI Ads audience runner integration", () => {
       wire.fetch.mockRestore();
     }
   });
+  it("keeps a member two rows share until both rows are gone: one identifier type means one member", async () => {
+    const f = audienceFixture();
+    f.input.config.options = { ...f.input.config.options, mapping: { email: "email" } };
+    const wire = openAi();
+    try {
+      f.setRows([
+        { id: "1", email: "shared@example.com" },
+        { id: "2", email: "shared@example.com" },
+      ]);
+      expect(await execute(f.input)).toBe("COMPLETE");
+      const added = [...wire.operations.values()].flatMap(o => emails(o.identifiers));
+      expect(added).toEqual([sha("shared@example.com")]);
+      f.input.taskId = "openai-audience-shared-one-row-gone";
+      f.setRows([{ id: "2", email: "shared@example.com" }]);
+      expect(await execute(f.input)).toBe("COMPLETE");
+      expect([...wire.operations.values()].map(o => o.action)).toEqual(["add"]);
+      f.input.taskId = "openai-audience-shared-both-gone";
+      f.setRows([]);
+      expect(await execute(f.input)).toBe("COMPLETE");
+      expect([...wire.operations.values()].map(o => o.action)).toEqual(["add", "remove"]);
+    } finally {
+      wire.fetch.mockRestore();
+    }
+  });
   it("refuses a mirror that maps two identifier types, before reading the source or calling OpenAI", async () => {
     const f = audienceFixture();
     f.input.config.options = { ...f.input.config.options, mapping: { email: "id", phone: "id" } };
@@ -895,7 +919,7 @@ function fixture() {
   let pending = false;
   let failInit = false;
   let failBatch = false;
-  let rows = [{ id: "a" }, { id: "b" }];
+  let rows: { id: string; email?: string }[] = [{ id: "a" }, { id: "b" }];
   const writer = (ctx: ReverseEtlContext<JsonObject, JsonObject>) => ({
     init: async () => {
       calls.push("init");
