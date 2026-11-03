@@ -4,7 +4,7 @@ import { Parser } from "node-sql-parser";
 import { z } from "zod";
 import { ModelDefinition, type WarehouseColumn } from "./schema";
 import { createSqlDialect, decodeDelete } from "./sql";
-import { boundedPreview, decodeRecord, numericDeleteValue } from "./reader";
+import { boundedPreview, decodeJson, decodeRecord, numericDeleteValue } from "./reader";
 import { StreamDeadline } from "./stream-deadline";
 import { spoolJsonRows } from "./stream-spool";
 import type { WarehouseReader } from "./types";
@@ -192,7 +192,8 @@ export function createMySqlReader(input: Record<string, any>): WarehouseReader {
       throw error;
     }
   }
-  const rowOf = (fields: FieldPacket[], row: unknown[]) => Object.fromEntries(fields.map((f, i) => [f.name, row[i]]));
+  const rowOf = (fields: FieldPacket[], row: unknown[]) =>
+    Object.fromEntries(fields.map((f, i) => [f.name, f.columnType === 245 ? decodeJson(row[i]) : row[i]]));
   return {
     sql: mysqlSql,
     async columns(query, signal) {

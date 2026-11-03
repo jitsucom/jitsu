@@ -8,6 +8,7 @@ import {
   mappingTargets,
   MappingSuggestions as Result,
   type MappingCandidate,
+  type MappingSuggestionPatch,
 } from "../../lib/reverse-mapping-suggestions";
 import { Failure } from "./shared";
 
@@ -28,7 +29,7 @@ export function MappingSuggestions({
   options: ReverseEditorOptions;
   columns: WarehouseColumn[];
   disabled: boolean;
-  onApply(mapping: Record<string, string>): void;
+  onApply(patch: MappingSuggestionPatch): void;
 }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<unknown>();
@@ -63,7 +64,12 @@ export function MappingSuggestions({
         placeholder={s.alternatives.length ? "Leave unmapped or choose an alternative" : "No suitable column"}
         value={
           selections[s.id]
-            ? s.alternatives.findIndex(c => c.key === selections[s.id]?.key && c.column === selections[s.id]?.column)
+            ? s.alternatives.findIndex(
+                c =>
+                  c.key === selections[s.id]?.key &&
+                  c.property === selections[s.id]?.property &&
+                  c.column === selections[s.id]?.column
+              )
             : undefined
         }
         options={s.alternatives.map((c, index) => ({
@@ -101,6 +107,7 @@ export function MappingSuggestions({
                     stream: stream.id,
                     mode: options.mode,
                     mapping: options.mapping,
+                    objectMappings: options.objectMappings,
                     streamOptions: options.streamOptions,
                   },
                   signal: controller.signal,

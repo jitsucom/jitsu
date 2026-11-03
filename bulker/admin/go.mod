@@ -1,6 +1,6 @@
 module github.com/jitsucom/bulker/admin
 
-go 1.26
+go 1.26.0
 
 require (
 	cloud.google.com/go/storage v1.62.1
@@ -8,7 +8,7 @@ require (
 	github.com/aws/aws-sdk-go-v2 v1.42.0
 	github.com/aws/aws-sdk-go-v2/config v1.32.24
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.103.3
-	github.com/confluentinc/confluent-kafka-go/v2 v2.15.0
+	github.com/confluentinc/confluent-kafka-go/v2 v2.16.0
 	github.com/gin-gonic/gin v1.12.0
 	github.com/hjson/hjson-go/v4 v4.6.0
 	github.com/jackc/pgx/v5 v5.9.2
@@ -16,9 +16,9 @@ require (
 	github.com/jitsucom/bulker/kafkabase v0.0.0-20250910114132-348f517fbb54
 	github.com/spf13/viper v1.21.0
 	google.golang.org/api v0.275.0
-	k8s.io/api v0.35.2
-	k8s.io/apimachinery v0.35.3
-	k8s.io/client-go v0.35.2
+	k8s.io/api v0.35.4
+	k8s.io/apimachinery v0.35.4
+	k8s.io/client-go v0.35.4
 	k8s.io/utils v0.0.0-20251002143259-bc988d571ff4
 )
 
@@ -68,7 +68,7 @@ require (
 	github.com/gin-contrib/sse v1.1.0 // indirect
 	github.com/go-faster/city v1.0.1 // indirect
 	github.com/go-faster/errors v0.7.1 // indirect
-	github.com/go-jose/go-jose/v4 v4.1.4 // indirect
+	github.com/go-jose/go-jose/v4 v4.1.6 // indirect
 	github.com/go-logr/logr v1.4.4 // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect
 	github.com/go-openapi/jsonpointer v0.23.1 // indirect
@@ -152,7 +152,7 @@ require (
 	go.yaml.in/yaml/v2 v2.4.4 // indirect
 	go.yaml.in/yaml/v3 v3.0.4 // indirect
 	golang.org/x/arch v0.22.0 // indirect
-	golang.org/x/crypto v0.55.0 // indirect
+	golang.org/x/crypto v0.56.0 // indirect
 	golang.org/x/net v0.58.0 // indirect
 	golang.org/x/oauth2 v0.36.0 // indirect
 	golang.org/x/sync v0.22.0 // indirect

@@ -262,6 +262,21 @@ export function googleConversionEditor(id: GoogleConversionStream): ReverseStrea
         items.push({
           editor: "mapping",
           field,
+          object:
+            field === "customVariables"
+              ? { additionalProperties: true }
+              : field === "sessionAttributes"
+              ? {
+                  properties: [
+                    ["gadSource", "Google Ads source"],
+                    ["gadCampaignId", "Google Ads campaign ID"],
+                    ["landingPageUrl", "Landing page URL"],
+                    ["sessionStartTime", "Session start time"],
+                    ["landingPageReferrer", "Landing page referrer"],
+                    ["landingPageUserAgent", "Landing page user agent"],
+                  ].map(([key, name]) => ({ key, name })),
+                }
+              : undefined,
           name,
           documentation: help ?? "Optional; leave unmapped if not used.",
         });
