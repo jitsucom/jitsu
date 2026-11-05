@@ -169,7 +169,10 @@ export class SyncService {
   ): Promise<SyncOpResult> {
     await verifyAccess(user, workspaceId);
     if (opts.syncId) {
-      const sync = await this.getSync(workspaceId, opts.syncId);
+      const sync = await this.prisma.configurationObjectLink.findFirst({
+        where: { id: opts.syncId, workspaceId, type: { in: ["sync", "reverse-sync"] }, deleted: false },
+        select: { id: true },
+      });
       if (!sync) {
         return { ok: false, error: `Sync ${opts.syncId} not found` };
       }
