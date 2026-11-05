@@ -361,11 +361,22 @@ const configObjectTypes: Record<string, ConfigObjectType> = {
   },
   domain: {
     schema: WorkspaceDomain,
-    inputFilter: async obj => {
+    inputFilter: async (obj, _, workspace) => {
       const domainToCheck = obj.name.trim().toLowerCase();
       if (!checkDomain(domainToCheck)) {
         log.atWarn().log(`Domain '${domainToCheck}' is not a valid domain name`);
         throw new ApiError(`Domain ${domainToCheck} is not a valid domain name`);
+      }
+      // Same rule as for stream domains: export merges domain objects into every stream,
+      // so a name claimed by another workspace would route that workspace's events here
+      const domainAvailability = await isDomainAvailable(domainToCheck, workspace);
+      if (!domainAvailability.available) {
+        log
+          .atWarn()
+          .log(
+            `Domain ${domainToCheck} can't be added to workspace ${workspace.id}, it is already in use by other workspaces: ${domainAvailability.usedInWorkspace}`
+          );
+        throw new ApiError(`Domain ${domainToCheck} is already in use by other workspace`);
       }
       return {
         ...obj,
