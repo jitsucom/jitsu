@@ -336,6 +336,43 @@ describe("single-save Reverse ETL settings", () => {
       "https://datamanager.googleapis.com/v1/accountTypes/GOOGLE_ADS/accounts/1234567890/userLists"
     );
     expect(JSON.stringify(result)).not.toContain("private-access-token");
+    request
+      .mockResolvedValueOnce(
+        Response.json({
+          connection_id: connectionId,
+          provider_config_key: "jitsu-cloud-dst-google-ads",
+          credentials: {
+            access_token: "private-access-token",
+            expires_at: new Date(Date.now() + 3600_000).toISOString(),
+          },
+        })
+      )
+      .mockResolvedValueOnce(
+        Response.json(
+          {
+            error: {
+              status: "PERMISSION_DENIED",
+              message: "private provider payload",
+              details: [
+                { "@type": "type.googleapis.com/google.rpc.ErrorInfo", reason: "ACCESS_TOKEN_SCOPE_INSUFFICIENT" },
+              ],
+            },
+          },
+          { status: 403 }
+        )
+      );
+    const lookupError = await reverseGoogleOptions(
+      f.prisma,
+      f.workspace.id,
+      f.destination.id,
+      "conversion-action",
+      nango,
+      "dev",
+      request
+    ).catch(error => error);
+    expect(lookupError.message).toContain("Google conversion-action lookup returned HTTP 403 (PERMISSION_DENIED)");
+    expect(lookupError.message).toContain("ACCESS_TOKEN_SCOPE_INSUFFICIENT");
+    expect(lookupError.message).not.toContain("private");
     request.mockRejectedValue(new Error("private provider payload"));
     await expect(
       reverseGoogleOptions(f.prisma, f.workspace.id, f.destination.id, "audience", nango, undefined, request)

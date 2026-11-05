@@ -32,7 +32,7 @@ it("lists direct and manager-accessible accounts with distinct access routes and
     },
     { value: `${child}:`, customerId: child, loginCustomerId: "", label: `Direct account (${child})` },
   ]);
-  expect(request.mock.calls[0][0]).toBe("https://googleads.googleapis.com/v22/customers:listAccessibleCustomers");
+  expect(request.mock.calls[0][0]).toBe("https://googleads.googleapis.com/v26/customers:listAccessibleCustomers");
   expect(request.mock.calls[0][1]?.headers).not.toHaveProperty("login-customer-id");
   expect(request.mock.calls[1][1]?.headers).toMatchObject({
     "login-customer-id": root,
@@ -126,4 +126,41 @@ it("stops on cancellation and distinguishes genuinely empty accessible accounts"
   expect(request).toHaveBeenCalledTimes(2);
   request.mockReset().mockResolvedValueOnce(json({ resourceNames: [] }));
   expect(await listGoogleAccounts("token", "dev", request)).toEqual({ options: [], truncated: false, partial: false });
+});
+
+it.each(["roots", "metadata", "hierarchy"])("preserves safe diagnostics when %s lookup fails", async stage => {
+  const request = vi.fn<typeof fetch>();
+  if (stage !== "roots") request.mockResolvedValueOnce(json({ resourceNames: [`customers/${root}`] }));
+  if (stage === "hierarchy") request.mockResolvedValueOnce(metadata(root, true));
+  request.mockResolvedValueOnce(
+    Response.json(
+      {
+        error: {
+          status: "PERMISSION_DENIED",
+          message: "private@example.com Bearer oauth-token dev-token",
+          details: [
+            {
+              "@type": "type.googleapis.com/google.ads.googleads.v26.errors.GoogleAdsFailure",
+              errors: [{ errorCode: { authorizationError: "USER_PERMISSION_DENIED" }, trigger: "private" }],
+            },
+          ],
+        },
+      },
+      { status: 403 }
+    )
+  );
+  const error = await listGoogleAccounts("oauth-token", "dev-token", request).catch(error => error);
+  expect(error).toBeInstanceOf(Error);
+  expect(error.message).toContain("Google account lookup returned HTTP 403 (PERMISSION_DENIED)");
+  expect(error.message).toContain("USER_PERMISSION_DENIED");
+  expect(error.message).not.toMatch(/private|oauth-token|dev-token/);
+});
+
+it("reports non-JSON HTTP failures without exposing their response body", async () => {
+  const request = vi
+    .fn<typeof fetch>()
+    .mockResolvedValue(new Response("<html>private proxy error</html>", { status: 503 }));
+  const error = await listGoogleAccounts("token", "dev", request).catch(error => error);
+  expect(error.message).toContain("Google account lookup returned HTTP 503");
+  expect(error.message).not.toContain("private");
 });
