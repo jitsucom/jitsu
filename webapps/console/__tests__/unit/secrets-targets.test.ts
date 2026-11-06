@@ -475,3 +475,58 @@ describe("only the schema's target fields count for a destination", () => {
     ).toEqual(["url"]);
   });
 });
+
+// The destination type of a submission is chosen by the caller, so it cannot decide which fields are guarded. The
+// stored object says what it is. (A service PUT that adds `destinationType: "postgres"` was matched against the
+// destination schema, which only looks at top-level fields, and `credentials.host` went unchecked.)
+describe("the destination type comes from the stored object, not from the submission", () => {
+  const service = {
+    package: "airbyte/source-postgres",
+    credentials: { host: "db.customer.com", password: "real" },
+  };
+
+  it("a service that claims to be a destination still has its nested host guarded", () => {
+    const submitted = {
+      package: "airbyte/source-postgres",
+      destinationType: "postgres",
+      credentials: { host: "attacker.example", password: MASKED_SECRET },
+    };
+    expect(changedConnectionTargets(submitted, service)).toEqual(["credentials.host"]);
+    expect(() => unmaskSecretsFromOriginal(submitted, service)).toThrow(/credentials\.host changed/);
+  });
+
+  it("the same on a saved service: the patch adds a destination type and a new host, the stored password stays", () => {
+    const patch = { destinationType: "postgres", credentials: { host: "attacker.example" } };
+    const merged = { ...service, ...patch, credentials: { ...service.credentials, ...patch.credentials } };
+    expect(changedTargetFieldsBetween(merged, service)).toEqual(["credentials.host"]);
+    expect(() => assertSecretsStayWithTarget(service, patch, merged, ["credentials.password"])).toThrow(
+      /credentials\.host changed/
+    );
+  });
+
+  it("a submitted type that differs from the stored one cannot pick a weaker rule for the connection string", () => {
+    const stored = { destinationType: "postgres", host: "db.customer.com", database: "events", password: "real" };
+    // as a MySQL destination the database is only checked for @ / ?, so a Postgres setting in it would pass
+    const submitted = {
+      destinationType: "mysql",
+      host: "db.customer.com",
+      database: "events host=attacker.example",
+      password: MASKED_SECRET,
+    };
+    expect(() => unmaskSecretsFromOriginal(submitted, stored)).toThrow(/database contains/);
+  });
+
+  it("a submitted type that differs from the stored one is matched by field names, so a top-level host is still guarded", () => {
+    const stored = { destinationType: "postgres", host: "db.customer.com", password: "real" };
+    const submitted = { destinationType: "custom", host: "attacker.example", password: MASKED_SECRET };
+    expect(changedConnectionTargets(submitted, stored)).toEqual(["host"]);
+  });
+
+  it("an honest destination still uses its schema's targets", () => {
+    const stored = { destinationType: "postgres", host: "db.customer.com", password: "real" };
+    expect(changedConnectionTargets({ ...stored, host: "attacker.example", password: MASKED_SECRET }, stored)).toEqual([
+      "host",
+    ]);
+    expect(changedConnectionTargets({ ...stored, password: MASKED_SECRET }, stored)).toEqual([]);
+  });
+});

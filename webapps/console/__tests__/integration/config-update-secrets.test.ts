@@ -225,6 +225,51 @@ describe("other kinds of connection targets", () => {
       expect(await stored()).toMatchObject({ package: pkg, credentials: { api_key: "real-key" } });
     });
 
+    it("refuses a new nested host with the stored password, also when the patch claims a destination type", async () => {
+      const hostPkg = `airbyte/source-mk-host-${Math.random().toString(36).slice(2, 8)}`;
+      await deps().prisma.source_spec.upsert({
+        where: { package_version: { package: hostPkg, version: "1.0.0" } },
+        create: {
+          package: hostPkg,
+          version: "1.0.0",
+          specs: {
+            connectionSpecification: {
+              properties: { host: { type: "string" }, password: { type: "string", airbyte_secret: true } },
+            },
+          },
+        },
+        update: {},
+      });
+      const { user, workspace } = await seedWorkspace();
+      const { id } = await svc().create(
+        user,
+        workspace.id,
+        "service",
+        {
+          name: "src",
+          protocol: "airbyte",
+          package: hostPkg,
+          version: "1.0.0",
+          credentials: { host: "db.customer.com", password: "real-pw" },
+        },
+        { generateId: true }
+      );
+      const stored = async () =>
+        (await deps().prisma.configurationObject.findUniqueOrThrow({ where: { id } })).config as any;
+      for (const patch of [
+        { credentials: { host: "attacker.example", password: MASKED_SECRET } },
+        { credentials: { host: "attacker.example" } },
+        { destinationType: "postgres", credentials: { host: "attacker.example", password: MASKED_SECRET } },
+        { destinationType: "postgres", credentials: { host: "attacker.example" } },
+      ]) {
+        await expect(svc().update(user, workspace.id, "service", id, patch)).rejects.toMatchObject({
+          status: 400,
+          message: expect.stringMatching(/credentials\.host changed/),
+        });
+      }
+      expect(await stored()).toMatchObject({ credentials: { host: "db.customer.com", password: "real-pw" } });
+    });
+
     it("allows another package when the credentials are entered again, and a new version without them", async () => {
       const { user, workspace, id, stored } = await seedService();
       await svc().update(user, workspace.id, "service", id, {

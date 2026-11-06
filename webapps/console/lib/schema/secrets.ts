@@ -217,15 +217,20 @@ const nameMatcher: TargetMatcher = {
 };
 
 /**
- * Which fields are targets in these objects. Destinations of a known type use the fields their schema marks, at the top
+ * Which fields are targets in these objects. A destination of a known type uses the fields its schema marks, at the top
  * level of the config only. Anything else (a service, an unknown type) falls back to the field names.
+ *
+ * The type is the one of the stored object. The submission is chosen by the caller, who can add
+ * `destinationType: "postgres"` to a service so that its nested `credentials.host` is not looked at; a submitted type
+ * that differs from the stored one gets the stricter field-name rule too.
  */
-const targetMatcherFor = (...roots: any[]): TargetMatcher => {
-  const types = roots.map(root => root?.destinationType).filter(type => typeof type === "string");
-  if (types.length === 0 || !types.every(type => coreDestinationsMap[type])) {
+const targetMatcherFor = (updated: any, original: any): TargetMatcher => {
+  const type = original?.destinationType;
+  const submitted = updated?.destinationType;
+  if (typeof type !== "string" || !coreDestinationsMap[type] || (submitted !== undefined && submitted !== type)) {
     return nameMatcher;
   }
-  const keys = new Set(types.flatMap(getDestinationTargetKeys));
+  const keys = new Set(getDestinationTargetKeys(type));
   return { isTarget: (key, path) => path.length === 0 && keys.has(key), isOneValue: () => true };
 };
 
@@ -310,19 +315,21 @@ const CONNECTION_STRING_TYPES: Record<string, { fields: string[]; breaker: RegEx
  * after `=` and ends the value at it), and a stored schema with a leading space exists in production and has always
  * worked.
  */
-export function connectionStringBreakers(...objects: any[]): { fields: string[]; what: string } {
-  const type = objects
-    .map(o => o?.destinationType)
-    .find(t => typeof t === "string" && Object.prototype.hasOwnProperty.call(CONNECTION_STRING_TYPES, t));
-  if (!type) {
-    return { fields: [], what: "" };
+export function connectionStringBreakers(object: any, original: any): { fields: string[]; what: string } {
+  // The stored type decides. A submitted type that differs from it is checked as well, never instead: the caller
+  // chooses it, and as another type (MySQL, which only looks at `@ / ?`) a Postgres setting in `database` would pass.
+  const known = (t: any): t is string =>
+    typeof t === "string" && Object.prototype.hasOwnProperty.call(CONNECTION_STRING_TYPES, t);
+  const storedType = original?.destinationType;
+  const types = typeof storedType === "string" ? [storedType, object?.destinationType].filter(known) : [];
+  for (const type of new Set(types)) {
+    const { fields, breaker, what } = CONNECTION_STRING_TYPES[type];
+    const found = fields.filter(field => typeof object?.[field] === "string" && breaker.test(object[field].trim()));
+    if (found.length > 0) {
+      return { fields: found, what };
+    }
   }
-  const { fields, breaker, what } = CONNECTION_STRING_TYPES[type];
-  const object = objects[0];
-  return {
-    fields: fields.filter(field => typeof object?.[field] === "string" && breaker.test(object[field].trim())),
-    what,
-  };
+  return { fields: [], what: "" };
 }
 
 const connectionStringReason = ({ fields, what }: { fields: string[]; what: string }) =>
