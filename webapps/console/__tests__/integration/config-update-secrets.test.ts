@@ -244,7 +244,7 @@ describe("other kinds of connection targets", () => {
       expect(await stored()).toMatchObject({ package: pkg, credentials: { api_key: "real-key" } });
     });
 
-    it("refuses a new nested host with the stored password, also when the patch claims a destination type", async () => {
+    async function seedHostService() {
       const hostPkg = `airbyte/source-mk-host-${Math.random().toString(36).slice(2, 8)}`;
       await deps().prisma.source_spec.upsert({
         where: { package_version: { package: hostPkg, version: "1.0.0" } },
@@ -275,6 +275,11 @@ describe("other kinds of connection targets", () => {
       );
       const stored = async () =>
         (await deps().prisma.configurationObject.findUniqueOrThrow({ where: { id } })).config as any;
+      return { user, workspace, id, stored };
+    }
+
+    it("refuses a new nested host with the stored password, also when the patch claims a destination type", async () => {
+      const { user, workspace, id, stored } = await seedHostService();
       for (const patch of [
         { credentials: { host: "attacker.example", password: MASKED_SECRET } },
         { credentials: { host: "attacker.example" } },
@@ -286,6 +291,17 @@ describe("other kinds of connection targets", () => {
           message: expect.stringMatching(/credentials\.host changed/),
         });
       }
+      expect(await stored()).toMatchObject({ credentials: { host: "db.customer.com", password: "real-pw" } });
+    });
+
+    it("refuses a new nested host when the password is only a property named credentials.password", async () => {
+      const { user, workspace, id, stored } = await seedHostService();
+      await expect(
+        svc().update(user, workspace.id, "service", id, {
+          credentials: { host: "attacker.example" },
+          "credentials.password": "dummy",
+        })
+      ).rejects.toMatchObject({ status: 400, message: expect.stringMatching(/credentials\.host changed/) });
       expect(await stored()).toMatchObject({ credentials: { host: "db.customer.com", password: "real-pw" } });
     });
 
@@ -305,6 +321,34 @@ describe("other kinds of connection targets", () => {
         credentials: { api_key: "typed-again" },
       });
     });
+  });
+
+  it("refuses a ClickHouse database name that adds a query string to the connection URL, with the stored password", async () => {
+    const { user, workspace } = await seedWorkspace();
+    const { id } = await svc().create(
+      user,
+      workspace.id,
+      "destination",
+      {
+        name: "ch",
+        destinationType: "clickhouse",
+        protocol: "http",
+        hosts: ["ch.customer.com:8123"],
+        username: "default",
+        database: "events",
+        password: "real-ch-pw",
+      },
+      { generateId: true }
+    );
+    const database = "events?http_proxy=http://attacker.example:8080&pad=1";
+    for (const patch of [{ database, password: MASKED_SECRET }, { database }]) {
+      await expect(svc().update(user, workspace.id, "destination", id, patch)).rejects.toMatchObject({
+        status: 400,
+        message: expect.stringMatching(/database contains/),
+      });
+    }
+    const stored = (await deps().prisma.configurationObject.findUniqueOrThrow({ where: { id } })).config as any;
+    expect(stored).toMatchObject({ database: "events", password: "real-ch-pw" });
   });
 
   it("refuses another Snowflake account with the stored password", async () => {
