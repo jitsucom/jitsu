@@ -22,6 +22,9 @@ import (
 const WebhookBulkerTypeId = "webhook"
 const WebhookUnsupported = "Only 'batch' mode is supported"
 
+// maxResponseBodyBytes caps how much of a webhook response is read.
+const maxResponseBodyBytes = 64 * 1024
+
 var GlobalIngestEndpoint = os.Getenv("GLOBAL_INGEST_ENDPOINT")
 var LocalIngestEndpoint = os.Getenv("LOCAL_INGEST_ENDPOINT")
 
@@ -54,13 +57,17 @@ type WebhookBulker struct {
 	closed *atomic.Bool
 }
 
+// isIngestEndpoint tells whether the destination URL is exactly the configured global ingest endpoint. It has to be an
+// exact match: a suffix match let any URL ending in the endpoint (e.g. http://127.0.0.1:8123/admin#<endpoint>) take
+// the unguarded client that is meant for our own service.
+func isIngestEndpoint(url string) bool {
+	return GlobalIngestEndpoint != "" && strings.TrimRight(url, "/") == strings.TrimRight(GlobalIngestEndpoint, "/")
+}
+
 func NewWebhookBulker(bulkerConfig bulker.Config) (bulker.Bulker, error) {
 	webhookConfig := WebhookConfig{}
 	if err := utils.ParseObject(bulkerConfig.DestinationConfig, &webhookConfig); err != nil {
 		return nil, fmt.Errorf("failed to parse destination config: %v", err)
-	}
-	httpClient := &http.Client{
-		Timeout: time.Duration(5) * time.Second,
 	}
 	var payload []byte
 	if webhookConfig.CustomPayload {
@@ -73,11 +80,17 @@ func NewWebhookBulker(bulkerConfig bulker.Config) (bulker.Bulker, error) {
 	url := webhookConfig.URL
 	originalUrl := url
 	isIngest := false
-	if GlobalIngestEndpoint != "" && strings.HasSuffix(url, GlobalIngestEndpoint) {
+	if isIngestEndpoint(url) {
 		isIngest = true
 		if LocalIngestEndpoint != "" {
 			url = LocalIngestEndpoint
 		}
+	}
+
+	// The ingest endpoint is our own service reached on its internal address; any other URL is the customer's
+	httpClient := &http.Client{Timeout: time.Duration(5) * time.Second}
+	if !isIngest {
+		httpClient = newOutboundHTTPClient(time.Duration(5) * time.Second)
 	}
 
 	return &WebhookBulker{Service: appbase.NewServiceBase(WebhookBulkerTypeId), config: webhookConfig, httpClient: httpClient,
@@ -199,7 +212,8 @@ func (mp *WebhookBulker) Upload(reader io.Reader, eventsName string, eventsCount
 			defer res.Body.Close()
 			var bodyBytes []byte
 			statusCode = res.StatusCode
-			bodyBytes, err = io.ReadAll(res.Body)
+			// the endpoint is customer-controlled: never read more than a small answer into memory
+			bodyBytes, err = io.ReadAll(io.LimitReader(res.Body, maxResponseBodyBytes))
 			if err != nil {
 				respBody = ""
 				err = mp.fixError(err)

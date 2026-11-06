@@ -8,6 +8,7 @@ import (
 	"io"
 	"os"
 	"time"
+	"unicode/utf8"
 
 	bulker "github.com/jitsucom/bulker/bulkerlib"
 	types2 "github.com/jitsucom/bulker/bulkerlib/types"
@@ -157,12 +158,12 @@ func (ps *ApiBasedStream) flushBatchFile(ctx context.Context) (err error) {
 		loadTime := time.Now()
 		status, resp, err := ps.implementation.Upload(batch, ps.eventsName, ps.eventsInBatch, ps.env)
 		if err != nil {
-			return fmt.Errorf("failed to upload data to %s code: %d resp: %s error: %w", ps.implementation.Type(), status, resp, err)
+			return fmt.Errorf("failed to upload data to %s code: %d resp: %s error: %w", ps.implementation.Type(), status, shortResponse(resp), err)
 		} else {
 			ps.state.Representation = map[string]any{
 				"name":     ps.implementation.Type(),
 				"status":   status,
-				"response": resp,
+				"response": shortResponse(resp),
 			}
 			if status >= 200 && status < 300 {
 				logging.Debugf("[%s] Batch file loaded to %s in %.2f s. Response: %s", ps.id, ps.implementation.Type(), time.Since(loadTime).Seconds(), resp)
@@ -172,6 +173,23 @@ func (ps *ApiBasedStream) flushBatchFile(ctx context.Context) (err error) {
 		}
 	}
 	return nil
+}
+
+// maxStoredResponseBytes is how much of a destination's response is kept in errors and in the stored task state. The
+// endpoint is customer-controlled, and when it is an address inside our network (a request forged to reach it) the answer
+// must not travel back to the person who configured it in full.
+const maxStoredResponseBytes = 512
+
+// shortResponse cuts a response to maxStoredResponseBytes on a character boundary.
+func shortResponse(resp string) string {
+	if len(resp) <= maxStoredResponseBytes {
+		return resp
+	}
+	cut := maxStoredResponseBytes
+	for cut > 0 && !utf8.RuneStart(resp[cut]) {
+		cut--
+	}
+	return resp[:cut] + "...(truncated)"
 }
 
 func (ps *ApiBasedStream) initBatch(ctx context.Context) (err error) {

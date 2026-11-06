@@ -44,6 +44,8 @@ import NodeCache from "node-cache";
 // in 8.11.0 — import undici's own fetch, pinned to that floor, instead of relying
 // on whatever the Node runtime happens to bundle.
 import { fetch as undiciFetch, type RequestInit as UndiciRequestInit } from "undici";
+import { createGuardedAgent, normalizeHostname } from "./guarded-agent";
+import { isBlockedAddress } from "./public-address";
 
 // This module also runs inside the Deno-based functions-server (UDF sandbox), which
 // monkey-patches globalThis.fetch with its own tuned connection pool (Deno.createHttpClient,
@@ -53,8 +55,11 @@ import { fetch as undiciFetch, type RequestInit as UndiciRequestInit } from "und
 // not captured into a module-level constant — capturing it here would grab the pre-wrap
 // native fetch and silently skip the pool configuration for the module's whole lifetime.
 const isDeno = typeof (globalThis as any).Deno !== "undefined";
+// With FETCH_FORBID_LOCAL the guarded undici agent does the connecting under Deno too: Deno's native fetch takes no
+// dispatcher, so it cannot check the address a connection is actually made to (DNS rebinding) or each redirect hop.
+// Without the guard the native fetch (and its tuned pool) stays in use.
 const platformFetch: typeof undiciFetch = (...args) =>
-  (isDeno ? (globalThis.fetch as unknown as typeof undiciFetch) : undiciFetch)(...args);
+  (isDeno && !fetchForbidLocal ? (globalThis.fetch as unknown as typeof undiciFetch) : undiciFetch)(...args);
 
 const log = getLog("functions-context");
 
@@ -91,9 +96,12 @@ export function isPrivateIP(addr: string): boolean {
 
 const fetchForbidLocal = isTruish(process.env.FETCH_FORBID_LOCAL);
 const fetchLocalWhitelist = process.env.FETCH_LOCAL_WHITELIST
-  ? process.env.FETCH_LOCAL_WHITELIST.split(",").map(h => h.trim().toLowerCase())
+  ? process.env.FETCH_LOCAL_WHITELIST.split(",").map(normalizeHostname)
   : [];
 const publicHostnamesCache = new NodeCache({ stdTTL: 300, checkperiod: 60, useClones: false });
+// The pre-check in makeFetch resolves a hostname on its own and is cached, so it cannot see a DNS answer that changes
+// before the connection or a redirect to another host: with FETCH_FORBID_LOCAL on, the connection itself is guarded too
+const guardedAgent = fetchForbidLocal ? createGuardedAgent({ allowedHosts: fetchLocalWhitelist }) : undefined;
 
 /**
  * Origin of an events-log record: ids of the workspace and the source event the record was produced for.
@@ -551,13 +559,25 @@ export const makeFetch = (
       return false;
     }
     for (const addr of addresses) {
-      if (isPrivateIP(addr.address)) {
+      // same classifier as the connect-time guard: it also decodes IPv4-mapped forms such as ::ffff:7f00:1
+      if (isBlockedAddress(addr.address)) {
         publicHostnamesCache.set(hostname, false);
         return false;
       }
     }
     publicHostnamesCache.set(hostname, true);
     return true;
+  }
+
+  // With FETCH_FORBID_LOCAL on, a host has to be whitelisted or resolve to public addresses only
+  async function assertHostAllowed(url: string) {
+    if (!fetchForbidLocal) {
+      return;
+    }
+    const host = new URL(url).hostname;
+    if (!fetchLocalWhitelist.includes(normalizeHostname(host)) && !(await isPublic(normalizeHostname(host)))) {
+      throw newError(`fetch failed`);
+    }
   }
 
   return async (
@@ -592,10 +612,8 @@ export const makeFetch = (
 
     let fetchResult: any = undefined;
     try {
-      const host = new URL(url).hostname; //this will throw if url is invalid
-      if (fetchForbidLocal && !fetchLocalWhitelist.includes(host.toLowerCase()) && !(await isPublic(host))) {
-        throw newError(`fetch failed`);
-      }
+      new URL(url); //this will throw if url is invalid
+      await assertHostAllowed(url);
       const throttleValue = throttle.throttle();
       if (throttleValue > 0 && Math.random() < throttleValue) {
         const e = new Error(`Fetch request throttled because of timeout rate: ${throttleValue}`);
@@ -606,6 +624,7 @@ export const makeFetch = (
         ...init,
         keepalive: true,
         signal: AbortSignal.timeout(fetchTimeoutMs),
+        ...(guardedAgent ? { dispatcher: guardedAgent } : {}),
       };
       fetchResult = await platformFetch(url, internalInit);
       throttle.success();

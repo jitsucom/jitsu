@@ -96,9 +96,7 @@ func NewOtlpBulker(bulkerConfig bulker.Config) (bulker.Bulker, error) {
 	if config.Endpoint == "" {
 		return nil, errors.New("otlp destination requires an endpoint")
 	}
-	httpClient := &http.Client{
-		Timeout: time.Duration(15) * time.Second,
-	}
+	httpClient := newOutboundHTTPClient(time.Duration(15) * time.Second)
 	return &OtlpBulker{
 		Service:        appbase.NewServiceBase(OtlpBulkerTypeId),
 		config:         config,
