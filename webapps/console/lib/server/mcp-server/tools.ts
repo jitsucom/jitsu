@@ -82,7 +82,7 @@ const DESTRUCTIVE: ToolAnnotations = {
 };
 
 /** Build a SessionUser from the MCP auth context (see auth.ts `extra`). */
-function principalFromAuth(authInfo: AuthInfo | undefined): SessionUser {
+export function principalFromAuth(authInfo: AuthInfo | undefined): SessionUser {
   const extra = (authInfo?.extra ?? {}) as Record<string, any>;
   const userId = extra.userId;
   if (!userId) {
@@ -96,6 +96,8 @@ function principalFromAuth(authInfo: AuthInfo | undefined): SessionUser {
     loginProvider: extra.loginProvider ?? "mcp",
     authType: "mcp",
     tokenId: extra.refreshTokenId ?? null,
+    tokenRole: extra.role ?? null,
+    tokenWorkspaceId: extra.workspaceId ?? null,
   };
 }
 

@@ -329,6 +329,8 @@ export async function getUser(
         authType: "bearer",
         tokenId: token.id,
         tokenType: token.type ?? inferTokenTypeFromId(token.id),
+        tokenWorkspaceId: token.workspaceId,
+        tokenRole: token.role,
       };
     }
   }
@@ -555,15 +557,52 @@ function stackToArray(stack?: string) {
   const lines = stack.split("\n");
   return lines.length > 0 ? lines.map(s => s.trim()) : undefined;
 }
-export async function verifyAdmin(user: SessionUser) {
+/** A key limited to one workspace or to a role has no business with anything that spans every workspace. */
+function isLimitedKey(user: SessionUser): boolean {
+  return isKeyAuth(user) && !!(user.tokenWorkspaceId || user.tokenRole);
+}
+
+/**
+ * Account-level endpoints (invitations, keys, password) act across every workspace of the user, so a key limited to a
+ * workspace or a role may not use them: it would otherwise read or accept an invitation to a workspace it is kept
+ * out of, or delete the user's other keys. Sessions and unrestricted keys are unaffected.
+ */
+export function assertNotLimitedKey(user: SessionUser): void {
+  if (isLimitedKey(user)) {
+    throw new ApiError(
+      `API key ${user.tokenId} is limited to a workspace or role and cannot use account-level endpoints`,
+      {
+        status: 403,
+      }
+    );
+  }
+}
+
+/**
+ * Whether this call has platform-admin reach: an admin service account, or a user with the admin flag, unless the
+ * call comes through a limited key. Use it instead of reading `userProfile.admin`, which a limited key of an admin
+ * also passes.
+ */
+export async function isPlatformAdmin(user: SessionUser): Promise<boolean> {
   if (isAdminServiceAccount(user)) {
+    return true;
+  }
+  if (isLimitedKey(user)) {
+    return false;
+  }
+  return !!(await db.prisma().userProfile.findFirst({ where: { id: user.internalId } }))?.admin;
+}
+
+export async function verifyAdmin(user: SessionUser) {
+  if (isLimitedKey(user) && !isAdminServiceAccount(user)) {
+    throw new ApiError(`API key ${user.tokenId} is limited and can't be used for admin operations`, { status: 403 });
+  }
+  if (await isPlatformAdmin(user)) {
     return;
   }
-  const userId = requireDefined(user.internalId, `internalId is not defined`);
-  if ((await db.prisma().userProfile.findFirst({ where: { id: user.internalId } }))?.admin) {
-    return;
-  }
-  throw new ApiError(`User ${userId} is not an admin`, { status: 403 });
+  throw new ApiError(`User ${requireDefined(user.internalId, `internalId is not defined`)} is not an admin`, {
+    status: 403,
+  });
 }
 
 export function looksLikeCuid(id: string) {
@@ -589,6 +628,64 @@ export async function getWorkspace(workspaceId: string | undefined) {
   );
 }
 
+/** API keys and MCP tokens: the credentials that can carry a workspace scope or a role limit. */
+function isKeyAuth(user: SessionUser): boolean {
+  return user.authType === "bearer" || user.authType === "mcp";
+}
+
+/**
+ * A scoped API key may only act in its own workspace. `workspaceId` must already be resolved from a slug to an id.
+ */
+export function assertTokenWorkspaceScope(user: SessionUser, workspaceId: string): void {
+  if (isKeyAuth(user) && user.tokenWorkspaceId && user.tokenWorkspaceId !== workspaceId) {
+    throw new ApiError(`API key ${user.tokenId} is limited to another workspace`, {
+      status: 403,
+      responseObject: { workspaceId },
+    });
+  }
+}
+
+/**
+ * A key with a role limit cannot do more than that role, whatever the user's own role in the workspace is.
+ */
+export function assertTokenRoleAllows(user: SessionUser, requiredPermission: WorkspacePermissionsType): void {
+  if (isKeyAuth(user) && user.tokenRole) {
+    if (!hasPermission(user.tokenRole as WorkspaceRoleType, requiredPermission)) {
+      throw new ApiError(
+        `API key ${user.tokenId} has the role '${user.tokenRole}', which doesn't allow '${requiredPermission}'`,
+        {
+          status: 403,
+          responseObject: { requiredPermission },
+        }
+      );
+    }
+  }
+}
+
+const roleRank: Record<WorkspaceRoleType, number> = { owner: 2, editor: 1, analyst: 0 };
+
+/**
+ * The permissions handed back to callers (they use them for masking secrets, showing invitation links and so on)
+ * must not exceed the key's role limit either.
+ */
+function limitToTokenRole(user: SessionUser, granted: WorkspaceRoleWithPermissions): WorkspaceRoleWithPermissions {
+  if (!isKeyAuth(user) || !user.tokenRole) {
+    return granted;
+  }
+  const limit = user.tokenRole as WorkspaceRoleType;
+  const limitFlags = WorkspaceRolePermissions[limit];
+  if (!limitFlags) {
+    return granted;
+  }
+  return {
+    role: roleRank[limit] < roleRank[granted.role] ? limit : granted.role,
+    editEntities: granted.editEntities && limitFlags.editEntities,
+    deleteEntities: granted.deleteEntities && limitFlags.deleteEntities,
+    manageUsers: granted.manageUsers && limitFlags.manageUsers,
+    readEntities: granted.readEntities && limitFlags.readEntities,
+  };
+}
+
 export async function verifyAccess(user: SessionUser, workspaceId: string) {
   if (isAdminServiceAccount(user)) {
     return;
@@ -599,6 +696,7 @@ export async function verifyAccess(user: SessionUser, workspaceId: string) {
       workspaceId = w.id;
     }
   }
+  assertTokenWorkspaceScope(user, workspaceId);
   const userId = requireDefined(user.internalId, `internalId is not defined`);
   if ((await db.prisma().workspaceAccess.count({ where: { userId, workspaceId } })) === 0) {
     if ((await db.prisma().userProfile.findFirst({ where: { id: user.internalId } }))?.admin) {
@@ -630,6 +728,8 @@ export async function verifyAccessWithRole(
     }
   }
 
+  assertTokenWorkspaceScope(user, workspaceId);
+  assertTokenRoleAllows(user, requiredPermission);
   const userId = requireDefined(user.internalId, `internalId is not defined`);
   const access = await db.prisma().workspaceAccess.findFirst({
     where: { userId, workspaceId },
@@ -638,10 +738,10 @@ export async function verifyAccessWithRole(
   if (!access) {
     // Check if user is admin
     if ((await db.prisma().userProfile.findFirst({ where: { id: user.internalId } }))?.admin) {
-      return {
+      return limitToTokenRole(user, {
         role: "owner",
         ...WorkspaceRolePermissions["owner"],
-      };
+      });
     }
     throw new ApiError(`User ${userId} doesn't have access to workspace ${workspaceId}`, {
       status: 403,
@@ -683,10 +783,10 @@ export async function verifyAccessWithRole(
     }
   }
 
-  return {
+  return limitToTokenRole(user, {
     role,
     ...WorkspaceRolePermissions[role],
-  };
+  });
 }
 //new type-safe route builder
 
