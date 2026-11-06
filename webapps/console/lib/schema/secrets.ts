@@ -242,9 +242,23 @@ const targetMatcherFor = (updated: any, original: any): TargetMatcher => {
 export function changedConnectionTargets(object: any, original: any): string[] {
   return containsMaskedSecrets(object)
     ? [
+        ...changedDestinationType(object, original),
         ...changedServiceImage(object, original),
         ...findChangedTargets(object, original, [], targetMatcherFor(object, original)),
       ]
+    : [];
+}
+
+/**
+ * The stored secrets belong to the stored destination type, and another type reads other fields (a MySQL destination's
+ * `parameters` are a target, a Postgres one has none). Keeping them while the type changes is a change of target in
+ * itself, so the secrets have to be entered again. Only a stored type can change: a service has none.
+ */
+function changedDestinationType(updated: any, original: any): string[] {
+  return typeof updated?.destinationType === "string" &&
+    typeof original?.destinationType === "string" &&
+    updated.destinationType !== original.destinationType
+    ? ["destinationType"]
     : [];
 }
 
@@ -361,6 +375,7 @@ function maskedPaths(node: any, path: (string | number)[] = []): (string | numbe
  */
 export function changedTargetFieldsBetween(updated: any, original: any): string[] {
   return [
+    ...changedDestinationType(updated, original),
     ...changedServiceImage(updated, original),
     ...targetFieldsBetween(updated, original, [], targetMatcherFor(updated, original)),
   ];

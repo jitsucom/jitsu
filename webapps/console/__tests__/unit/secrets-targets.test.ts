@@ -519,7 +519,41 @@ describe("the destination type comes from the stored object, not from the submis
   it("a submitted type that differs from the stored one is matched by field names, so a top-level host is still guarded", () => {
     const stored = { destinationType: "postgres", host: "db.customer.com", password: "real" };
     const submitted = { destinationType: "custom", host: "attacker.example", password: MASKED_SECRET };
-    expect(changedConnectionTargets(submitted, stored)).toEqual(["host"]);
+    expect(changedConnectionTargets(submitted, stored)).toEqual(expect.arrayContaining(["host"]));
+  });
+
+  // The stored secrets belong to the stored type. Another type reads other fields (MySQL `parameters` are a target, a
+  // Postgres destination has none), so a type change with kept secrets is a change of target in itself.
+  describe("changing the destination type while keeping the stored secrets", () => {
+    const stored = { destinationType: "postgres", host: "db.customer.com", database: "events", password: "real" };
+    const injected = { tls: "false", x: "y@tcp(attacker.example:3306)/events?tls=false&allowCleartextPasswords=true" };
+
+    it("is a changed target, whatever else is submitted", () => {
+      const submitted = { ...stored, destinationType: "mysql", parameters: injected, password: MASKED_SECRET };
+      expect(changedConnectionTargets(submitted, stored)).toContain("destinationType");
+      expect(() => unmaskSecretsFromOriginal(submitted, stored)).toThrow(/destinationType changed/);
+    });
+
+    it("is refused on a saved destination that keeps the password (masked or omitted)", () => {
+      const patch = { destinationType: "mysql", parameters: injected };
+      const merged = { ...stored, ...patch };
+      expect(changedTargetFieldsBetween(merged, stored)).toContain("destinationType");
+      expect(() => assertSecretsStayWithTarget(stored, patch, merged, ["password"])).toThrow(/destinationType changed/);
+    });
+
+    it("is fine when the secrets are typed again, and an unchanged type is not a change", () => {
+      const patch = { destinationType: "mysql", password: "typed-again" };
+      expect(() => assertSecretsStayWithTarget(stored, patch, { ...stored, ...patch }, ["password"])).not.toThrow();
+      expect(changedConnectionTargets({ ...stored, password: MASKED_SECRET }, stored)).toEqual([]);
+    });
+
+    it("does not apply to a service that merely names a type: only a stored type can change", () => {
+      const service = {
+        package: "airbyte/source-postgres",
+        credentials: { host: "db.customer.com", password: "real" },
+      };
+      expect(changedTargetFieldsBetween({ ...service, destinationType: "postgres" }, service)).toEqual([]);
+    });
   });
 
   it("an honest destination still uses its schema's targets", () => {

