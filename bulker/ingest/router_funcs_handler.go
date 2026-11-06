@@ -129,7 +129,7 @@ func (r *Router) FuncsHandler(c *gin.Context) {
 	}
 	fsURL := strings.Replace(r.config.FunctionsServerURLTemplate, "${workspaceId}", deploymentID, 1)
 	endpointURL := fsURL + "/multi"
-	result, err := r.callFunctionsEndpoint(stream, []*ShortDestinationConfig{connection}, endpointURL, ingestMessageBytes, functionsResults, true, messageId, parseReceivedAt(ingestMessage.MessageCreated))
+	result, err := r.callFunctionsEndpoint(stream, []*ShortDestinationConfig{connection}, endpointURL, deploymentID, ingestMessageBytes, functionsResults, true, messageId, parseReceivedAt(ingestMessage.MessageCreated))
 	if err != nil {
 		if strings.Contains(err.Error(), "timeout") {
 			IngestedMessages(connection.ConnectionId, "error", "timeout").Inc()

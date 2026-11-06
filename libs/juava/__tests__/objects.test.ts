@@ -1,6 +1,30 @@
 import { deepMerge } from "../src/objects";
 
 describe("deepMerge", () => {
+  describe("keys that reach prototypes", () => {
+    afterEach(() => {
+      delete (Object.prototype as any).polluted;
+    });
+
+    test("never merges into Object.prototype through a __proto__ key from parsed JSON", () => {
+      const result = deepMerge({ a: 1 }, JSON.parse('{"__proto__":{"polluted":"yes"},"b":2}'));
+      expect(({} as any).polluted).toBeUndefined();
+      expect(Object.getPrototypeOf(result)).toBe(Object.prototype);
+      expect(result).toEqual({ a: 1, b: 2 });
+    });
+
+    test("ignores constructor and prototype keys, and still merges the other keys at every depth", () => {
+      const result = deepMerge(
+        { a: { keep: 1 } },
+        JSON.parse(
+          '{"constructor":{"prototype":{"polluted":"yes"}},"prototype":{"polluted":"yes"},"a":{"__proto__":{"polluted":"yes"},"add":2}}'
+        )
+      );
+      expect(({} as any).polluted).toBeUndefined();
+      expect(result).toEqual({ a: { keep: 1, add: 2 } });
+    });
+  });
+
   describe("primitive source values", () => {
     test("returns source when source is null", () => {
       expect(deepMerge({ a: 1 }, null)).toBe(null);

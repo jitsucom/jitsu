@@ -12,6 +12,7 @@ import { ApiError } from "../../../lib/shared/errors";
 import { SerializeOptions, serialize } from "cookie";
 import { getAppEndpoint } from "../../../lib/domains";
 import { getServerLog } from "../../../lib/server/log";
+import { impersonationCookieLifetimeMs, impersonationState } from "../../../lib/shared/impersonation";
 
 const log = getServerLog("firebase");
 
@@ -45,7 +46,21 @@ export const api: Api = {
       if (isUnverifiedPasswordAccount(decodedIdToken)) {
         throw new ApiError("Email address is not verified", { status: 403 });
       }
-      const { cookie, expiresIn } = await createSessionCookie(idToken);
+      // auth_time survives token refreshes, so a "become" session cannot be extended past its first hour,
+      // and the cookie is cut to what is left of that hour rather than getting a fresh one
+      const imp = impersonationState(decodedIdToken);
+      if (imp.impersonated && imp.expired) {
+        throw new ApiError("Impersonation session expired", { status: 401 });
+      }
+      let cookieLifetime: number | undefined;
+      if (imp.impersonated) {
+        cookieLifetime = impersonationCookieLifetimeMs(imp.remainingMs);
+        if (cookieLifetime === undefined) {
+          // under Firebase's five-minute minimum: the cookie already issued ends by the same deadline
+          return { ok: true };
+        }
+      }
+      const { cookie, expiresIn } = await createSessionCookie(idToken, cookieLifetime);
 
       // Audit logging lives in /api/fb-auth/audit-login which the client
       // calls only at the actual sign-in moment. This endpoint is hit on
@@ -58,7 +73,8 @@ export const api: Api = {
       // Never log the cookie value itself — it's a bearer session credential.
       log.atDebug().log(`Setting firebase auth cookie (domain: ${domain ?? "host-only"}, maxAge: ${expiresIn}ms)`);
       const options: SerializeOptions = {
-        maxAge: expiresIn,
+        // `cookie` takes seconds, expiresIn is milliseconds
+        maxAge: Math.floor(expiresIn / 1000),
         httpOnly: true,
         secure,
         path: "/",

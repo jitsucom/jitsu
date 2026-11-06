@@ -118,7 +118,7 @@ func NewRouter(appContext *Context, partitionSelector kafkabase.PartitionSelecto
 		"/api/v1/event",
 		"/api/v1/events",
 		"/api.:ignored",
-	})
+	}, securityHeaders)
 
 	transport := http.DefaultTransport.(*http.Transport).Clone()
 	transport.MaxIdleConnsPerHost = 500
@@ -216,6 +216,15 @@ func NewRouter(appContext *Context, partitionSelector kafkabase.PartitionSelecto
 	return router
 }
 
+// Ingest serves API responses and scripts, not HTML documents. These headers do
+// not change the embedding website's policy or the credential-less CORS rules.
+func securityHeaders(c *gin.Context) {
+	c.Header("Content-Security-Policy", "default-src 'none'; base-uri 'none'; frame-ancestors 'none'")
+	c.Header("Referrer-Policy", "strict-origin-when-cross-origin")
+	c.Header("Permissions-Policy", "camera=(), microphone=(), geolocation=(), browsing-topics=()")
+	c.Next()
+}
+
 // CorsMiddleware serves the ingest API as an intentionally open, credential-less
 // endpoint: a constant wildcard origin and no Access-Control-Allow-Credentials.
 // Reflecting the Origin together with allow-credentials would let any site read
@@ -243,7 +252,7 @@ func (r *Router) CorsMiddleware(c *gin.Context) {
 func (r *Router) Health(c *gin.Context) {
 	if r.kafkaConfig == nil {
 		logging.Errorf("Health check: FAILED: kafka config is missing")
-		c.JSON(http.StatusServiceUnavailable, gin.H{"status": "fail", "output": "kafka config is missing"})
+		c.JSON(http.StatusServiceUnavailable, gin.H{"status": "fail"})
 		return
 	}
 
@@ -676,7 +685,7 @@ func (r *Router) processSyncDestination(message *IngestMessage, stream *StreamWi
 		for deploymentID, destinations := range byDeployment {
 			fsURL := strings.Replace(r.config.FunctionsServerURLTemplate, "${workspaceId}", deploymentID, 1)
 			endpointURL := fsURL + "/multi"
-			r.callFunctionsEndpoint(stream, destinations, endpointURL, messageBytes, functionsResults, false, message.MessageId, parseReceivedAt(message.MessageCreated))
+			r.callFunctionsEndpoint(stream, destinations, endpointURL, deploymentID, messageBytes, functionsResults, false, message.MessageId, parseReceivedAt(message.MessageCreated))
 		}
 	}
 
@@ -736,7 +745,7 @@ type ConnectionChainResult struct {
 
 // callFunctionsEndpoint sends a request to functions endpoint and expects new format with execLog
 // Response format: map[connectionId]{ events: [], execLog: [] }
-func (r *Router) callFunctionsEndpoint(stream *StreamWithDestinations, destinations []*ShortDestinationConfig, baseURL string, messageBytes []byte, functionsResults map[string]any, fullEvents bool, messageId string, receivedAt time.Time) (result map[string]ConnectionChainResult, err error) {
+func (r *Router) callFunctionsEndpoint(stream *StreamWithDestinations, destinations []*ShortDestinationConfig, baseURL string, deploymentID string, messageBytes []byte, functionsResults map[string]any, fullEvents bool, messageId string, receivedAt time.Time) (result map[string]ConnectionChainResult, err error) {
 	if len(destinations) == 0 {
 		return
 	}
@@ -778,8 +787,8 @@ func (r *Router) callFunctionsEndpoint(stream *StreamWithDestinations, destinati
 
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("X-Request-Timeout-Ms", strconv.Itoa(int(0.9*float64(r.config.DeviceFunctionsTimeoutMs))))
-	if r.config.RotorAuthKey != "" {
-		req.Header.Set("Authorization", "Bearer "+r.config.RotorAuthKey)
+	if err = utils.SignFunctionsRequest(req, messageBytes, deploymentID, r.config.FunctionsServerPrivateKey); err != nil {
+		return nil, err
 	}
 
 	res, err := r.httpClient.Do(req)
@@ -1145,10 +1154,10 @@ func (r *Router) getStream(loc *StreamCredentials, strict, s2sEndpoint bool) *St
 	var locators []StreamLocator
 	if strict {
 		locators = []StreamLocator{r.WriteKeyStreamLocator}
+	} else if s2sEndpoint || loc.IngestType == IngestTypeS2S {
+		locators = []StreamLocator{r.WriteKeyStreamLocator, r.S2SSlugStreamLocator}
 	} else if loc.IngestType == IngestTypeWriteKeyDefined {
 		locators = []StreamLocator{r.WriteKeyStreamLocator, r.SlugStreamLocator, r.AmbiguousDomainStreamLocator, r.SoleStreamLocator}
-	} else if loc.IngestType == IngestTypeS2S {
-		locators = []StreamLocator{r.WriteKeyStreamLocator, r.SlugStreamLocator, r.AmbiguousDomainStreamLocator}
 	} else {
 		locators = []StreamLocator{r.SlugStreamLocator, r.DomainStreamLocator, r.WriteKeyStreamLocator, r.SoleStreamLocator}
 	}
@@ -1186,15 +1195,21 @@ func (r *Router) WriteKeyStreamLocator(loc *StreamCredentials, s2sEndpoint bool)
 	if loc.WriteKey != "" {
 		parts := strings.Split(loc.WriteKey, ":")
 		if len(parts) == 1 {
-			loc.IngestType = utils.Ternary(s2sEndpoint, IngestTypeS2S, IngestTypeBrowser)
-			if s2sEndpoint {
-				return r.repository.GetData().GetS2SStreamByPlainKeyOrId(loc.WriteKey)
+			if s2sEndpoint || loc.IngestType == IngestTypeS2S {
+				stream := r.repository.GetData().GetStreamByPrivatePlainKey(loc.WriteKey)
+				if stream != nil {
+					loc.IngestType = IngestTypeS2S
+				}
+				return stream
 			} else {
+				loc.IngestType = IngestTypeBrowser
 				return r.repository.GetData().GetStreamByPlainKeyOrId(loc.WriteKey)
 			}
-		} else {
+		} else if len(parts) == 2 && parts[0] != "" && parts[1] != "" {
 			binding := r.repository.GetData().getStreamByKeyId(parts[0])
 			if binding != nil {
+				// Key-defined handlers accept either key type, including on S2S URLs.
+				// The validated key determines the event's ingest type.
 				if loc.IngestType != IngestTypeWriteKeyDefined && binding.KeyType != string(loc.IngestType) {
 					r.Debugf("[stream: %s]%s invalid key type found %s", binding.StreamId, loc.String(), binding.KeyType)
 				} else if !r.checkHash(binding.Hash, parts[1]) {
@@ -1208,6 +1223,20 @@ func (r *Router) WriteKeyStreamLocator(loc *StreamCredentials, s2sEndpoint bool)
 				}
 			}
 		}
+	}
+	return nil
+}
+
+// S2SSlugStreamLocator is a workspace-controlled compatibility exception. It
+// accepts only an explicit source ID, never a public-key alias or a domain.
+func (r *Router) S2SSlugStreamLocator(loc *StreamCredentials, _ bool) *StreamWithDestinations {
+	if loc.Slug == "" {
+		return nil
+	}
+	stream := r.repository.GetData().GetStreamByPlainKeyOrId(loc.Slug)
+	if stream != nil && stream.Stream.Id == loc.Slug && stream.S2SSlugAuth && !stream.Stream.Strict {
+		loc.IngestType = IngestTypeS2S
+		return stream
 	}
 	return nil
 }

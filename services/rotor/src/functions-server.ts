@@ -1,3 +1,5 @@
+import { verifyFunctionsRequest } from "juava/src/functions-auth";
+import { createPublicKey } from "node:crypto";
 import path from "path";
 import fs from "fs";
 import os from "os";
@@ -67,6 +69,12 @@ if (typeof Deno !== "undefined") {
 
 const env = getServerEnv();
 const deploymentId = env.DEPLOYMENT_ID || os.hostname();
+if (
+  !env.FUNCTIONS_SERVER_PUBLIC_KEY ||
+  createPublicKey(env.FUNCTIONS_SERVER_PUBLIC_KEY).asymmetricKeyType !== "ed25519"
+) {
+  throw new Error("FUNCTIONS_SERVER_PUBLIC_KEY must contain an Ed25519 public key");
+}
 const jsondiffpatchInstance = jsondiffpatch.create();
 
 disableService("prisma");
@@ -1158,14 +1166,23 @@ async function main() {
 
   // Health check handler: GET /health or GET /
   function handleHealth(): Response {
-    return jsonResponse(200, {
-      status: "ok",
-      configDir,
-      connections: Array.from(connections.keys()),
-      runtimes: Array.from(runtimes.keys()),
-      profileBuilders: Array.from(profileBuilderRuntimes.keys()),
-      activeWorkers: workerPool ? workerPool.getActiveWorkers().map(w => w.id) : undefined,
-    });
+    return jsonResponse(200, { status: "ok" }, { "Cache-Control": "no-store" });
+  }
+
+  // Operational details are available only after request signature verification.
+  function handleStatus(): Response {
+    return jsonResponse(
+      200,
+      {
+        status: "ok",
+        configDir,
+        connections: Array.from(connections.keys()),
+        runtimes: Array.from(runtimes.keys()),
+        profileBuilders: Array.from(profileBuilderRuntimes.keys()),
+        activeWorkers: workerPool ? workerPool.getActiveWorkers().map(w => w.id) : undefined,
+      },
+      { "Cache-Control": "no-store" }
+    );
   }
 
   // Multi connection handler: POST /multi?ids=conn1,conn2,conn3&fullEvents=true
@@ -1376,6 +1393,20 @@ async function main() {
         if (pathname === "/health" || pathname === "/") {
           return handleHealth();
         }
+
+        // Authenticate before parsing or executing tenant-controlled requests.
+        const requestBody = new Uint8Array(await req.arrayBuffer());
+        if (!verifyFunctionsRequest(env.FUNCTIONS_SERVER_PUBLIC_KEY, deploymentId, req, requestBody)) {
+          return errorResponse(401, "Unauthorized");
+        }
+        if (pathname === "/status" && req.method === "POST") {
+          return handleStatus();
+        }
+        req = new Request(req.url, {
+          method: req.method,
+          headers: req.headers,
+          body: req.method === "GET" || req.method === "HEAD" ? undefined : requestBody,
+        });
 
         const endpoint =
           pathname === "/multi"
