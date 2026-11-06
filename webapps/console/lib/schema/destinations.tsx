@@ -97,6 +97,11 @@ export type PropertyUI = {
    */
   password?: boolean;
   /**
+   * The field decides where the stored secrets are sent (a host, URL, endpoint, API base, connection parameters...).
+   * Changing it while keeping a saved secret is refused: the secret has to be entered again (see `lib/schema/secrets.ts`)
+   */
+  target?: boolean;
+  /**
    * Placeholder shown in the input when the field is empty
    */
   placeholder?: string;
@@ -551,6 +556,10 @@ export const coreDestinations: DestinationType<any>[] = [
     credentialsUi: {
       hosts: {
         editor: "StringArrayEditor",
+        target: true,
+      },
+      parameters: {
+        target: true,
       },
       loadAsJson: {
         hidden: true,
@@ -604,6 +613,7 @@ export const coreDestinations: DestinationType<any>[] = [
       },
       instanceConnectionName: {
         hidden: obj => obj.authenticationMethod !== "google-psc",
+        target: true,
       },
       username: {
         hidden: obj => obj.authenticationMethod === "google-psc",
@@ -614,6 +624,7 @@ export const coreDestinations: DestinationType<any>[] = [
       },
       host: {
         hidden: obj => obj.authenticationMethod === "google-psc",
+        target: true,
       },
       port: {
         hidden: obj => obj.authenticationMethod === "google-psc",
@@ -745,6 +756,13 @@ export const coreDestinations: DestinationType<any>[] = [
         hidden: obj => obj.authenticationMethod !== "key-pair",
         password: true,
       },
+      // the host name is <account>.snowflakecomputing.com
+      account: {
+        target: true,
+      },
+      parameters: {
+        target: true,
+      },
     },
     connectionOptions: BaseBulkerConnectionOptions,
     icon: snowflakeIcon,
@@ -827,6 +845,7 @@ export const coreDestinations: DestinationType<any>[] = [
       },
       host: {
         hidden: obj => obj.authenticationMethod === "iam",
+        target: true,
       },
       clusterIdentifier: {
         hidden: obj => obj.authenticationMethod !== "iam" || obj.serverless === true,
@@ -892,6 +911,12 @@ export const coreDestinations: DestinationType<any>[] = [
       password: {
         password: true,
       },
+      host: {
+        target: true,
+      },
+      parameters: {
+        target: true,
+      },
     },
     description: "MySQL is a popular open source object-relational database system.",
   },
@@ -951,6 +976,7 @@ export const coreDestinations: DestinationType<any>[] = [
       },
       endpoint: {
         hidden: obj => obj.authenticationMethod === "iam",
+        target: true,
       },
       roleARN: {
         hidden: obj => obj.authenticationMethod !== "iam",
@@ -1157,7 +1183,7 @@ export const coreDestinations: DestinationType<any>[] = [
     tags: "Email",
     connectionOptions: CloudDestinationsConnectionOptions,
     credentials: meta.ResendCredentials,
-    credentialsUi: meta.ResendCredentialsUi,
+    credentialsUi: { ...meta.ResendCredentialsUi, apiBase: { ...meta.ResendCredentialsUi.apiBase, target: true } },
     description: (
       <>
         Jitsu syncs users to Resend as contacts. Each <code>.identify()</code> creates or updates a contact and adds it
@@ -1172,7 +1198,7 @@ export const coreDestinations: DestinationType<any>[] = [
     tags: "Email",
     connectionOptions: CloudDestinationsConnectionOptions,
     credentials: meta.SendgridCredentials,
-    credentialsUi: meta.SendgridCredentialsUi,
+    credentialsUi: { ...meta.SendgridCredentialsUi, apiBase: { ...meta.SendgridCredentialsUi.apiBase, target: true } },
     description: (
       <>
         Jitsu syncs users to SendGrid as marketing contacts. Each <code>.identify()</code> upserts a contact and adds it
@@ -1216,7 +1242,12 @@ export const coreDestinations: DestinationType<any>[] = [
     tags: "Datawarehouse",
     connectionOptions: CloudDestinationsConnectionOptions,
     credentials: meta.MongodbDestinationConfig,
-    credentialsUi: meta.MongodbDestinationConfigUi,
+    credentialsUi: {
+      ...meta.MongodbDestinationConfigUi,
+      url: { ...meta.MongodbDestinationConfigUi.url, target: true },
+      hosts: { ...meta.MongodbDestinationConfigUi.hosts, target: true },
+      options: { ...meta.MongodbDestinationConfigUi.options, target: true },
+    },
     description:
       "MongoDB is a cross-platform NoSQL document-oriented database. Jitsu supports both self-hosted Mongo and MongoDB Atlas.",
   },
@@ -1240,6 +1271,7 @@ export const coreDestinations: DestinationType<any>[] = [
     credentialsUi: {
       host: {
         clientValidator: validatePosthogHost,
+        target: true,
       },
     },
     description:
@@ -1342,6 +1374,7 @@ export const coreDestinations: DestinationType<any>[] = [
     credentialsUi: {
       url: {
         clientValidator: validateWebhookUrl,
+        target: true,
       },
       headers: {
         editor: "StringArrayEditor",
