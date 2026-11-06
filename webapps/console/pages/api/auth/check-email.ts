@@ -1,3 +1,4 @@
+import { withAuthRateLimit } from "../../../lib/server/rate-limit/auth";
 import { NextApiRequest, NextApiResponse } from "next";
 import { db } from "../../../lib/server/db";
 import { z } from "zod";
@@ -27,7 +28,7 @@ type AuthMethod = {
   oidcProviderName?: string;
 };
 
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== "POST") {
     return res.status(405).json({ error: "Method not allowed" });
   }
@@ -190,3 +191,5 @@ async function checkDynamicOidcUser(email: string, existingUsers: UserProfileDbM
   }
   return authMethods;
 }
+
+export default withAuthRateLimit(handler, { bucket: "lookup" });
