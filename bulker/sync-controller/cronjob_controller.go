@@ -168,6 +168,11 @@ func (c *CronJobController) reconcile() {
 		if strings.TrimSpace(s.Schedule) == "" {
 			continue
 		}
+		if !c.reverse && !c.config.sourceImageAllowed(s.Source.Package) {
+			// left out of the desired set, so an existing CronJob for it is deleted too
+			c.Errorf("sync %s: image %q is not allowed by SYNC_ALLOWED_IMAGE_PREFIXES, no CronJob", s.ID, s.Source.Package)
+			continue
+		}
 		desired[s.ID] = s
 	}
 
