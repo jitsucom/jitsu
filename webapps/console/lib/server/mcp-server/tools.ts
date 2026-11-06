@@ -15,12 +15,18 @@ import { type DebugService } from "../debug-service";
 import { type ReportsService } from "../reports-service";
 import { AUDIT_LOG_MAX_LIMIT, AUDIT_LOG_ORIGINS, type AuditLogService } from "../audit-log-service";
 
+import { ReverseEtlService, ReverseTaskFilter } from "../reverse-etl-service";
+import { ReverseSchemaOptions, reverseSyncSchema } from "../reverse-etl-schema";
+import { ReverseSyncInput, ReverseSyncSettings } from "../../reverse-etl";
+import { PreviewRequest } from "@jitsu/warehouse-query/src/schema";
+
 const log = getServerLog("mcp-tools");
 
 export interface ToolDeps {
   service: ConfigObjectsService;
   eventsLog: EventsLogService;
   syncs: SyncService;
+  reverseEtl: ReverseEtlService;
   debug: DebugService;
   reports: ReportsService;
   auditLog: AuditLogService;
@@ -116,7 +122,7 @@ async function run(label: string, fn: () => Promise<any>): Promise<CallToolResul
 }
 
 export function registerTools(sdkServer: SdkMcpServer, deps: ToolDeps) {
-  const { service, eventsLog, syncs, debug, reports, auditLog, req } = deps;
+  const { service, eventsLog, syncs, reverseEtl, debug, reports, auditLog, req } = deps;
   const types = [...service.resourceTypes().filter(t => t !== "misc"), CONNECTION];
   const typeList = types.join(", ");
   const eventTypeList = QUERYABLE_TYPES.join(", ");
@@ -144,6 +150,202 @@ export function registerTools(sdkServer: SdkMcpServer, deps: ToolDeps) {
       }
       return (cb as any)(args, extra);
     }) as any);
+
+  const workspaceId = z.string().min(1).describe("Workspace ID from list_workspaces");
+  const syncId = z.string().min(1).describe("Reverse ETL sync ID from list_reverse_syncs");
+  const taskId = z.string().min(1).describe("Logical task ID from list_reverse_sync_tasks (not an attempt ID)");
+  const reverseWrite = { ...DESTRUCTIVE, openWorldHint: true };
+
+  register(
+    "get_reverse_sync_schema",
+    {
+      title: "Discover Reverse ETL streams and mapping requirements",
+      annotations: READ_ONLY,
+      description:
+        "List supported destinations/streams, or get a stream's defaults, settings JSON schema, mapping fields, required alternatives and object-composition properties. Pass current options to evaluate conditional requirements. Model CRUD uses the generic resource tools with type=model. Mapping values are model column names. isRequired/isHidden/configured are evaluated flags; row-dependent requirements are still checked at runtime.",
+      inputSchema: {
+        destinationType: z.string().optional(),
+        streamId: z.string().optional(),
+        options: ReverseSchemaOptions.optional(),
+      },
+    },
+    async ({ destinationType, streamId, options }, ctx) =>
+      run("get_reverse_sync_schema", async () => {
+        principalFromAuth(ctx.authInfo);
+        return reverseSyncSchema(destinationType, streamId, options);
+      })
+  );
+
+  register(
+    "list_reverse_syncs",
+    {
+      title: "List Reverse ETL syncs",
+      annotations: READ_ONLY,
+      description:
+        "List saved Reverse ETL configurations, model/destination references, latest task and delivery-setting locks. Does not return destination credentials. Use these IDs with the dedicated Reverse ETL tools, not run_sync.",
+      inputSchema: { workspaceId },
+    },
+    async (args, ctx) =>
+      run("list_reverse_syncs", () => reverseEtl.list(principalFromAuth(ctx.authInfo), args.workspaceId))
+  );
+
+  register(
+    "create_reverse_sync",
+    {
+      title: "Create a Reverse ETL sync",
+      annotations: reverseWrite,
+      description:
+        "Create a model-to-destination sync. Get stream requirements with get_reverse_sync_schema first. Use a new UUID requestId for a new sync and reuse it only when retrying the identical request. Set sync.data.disabled=true to save paused; enabled scheduled syncs can upload/delete destination records. fromId is a model ID; toId is a destination ID. Does not immediately run the sync.",
+      inputSchema: { workspaceId, requestId: z.string().uuid(), sync: ReverseSyncInput },
+    },
+    async (args, ctx) =>
+      run("create_reverse_sync", () =>
+        reverseEtl.create(principalFromAuth(ctx.authInfo), args.workspaceId, args.requestId, args.sync, req)
+      )
+  );
+
+  register(
+    "update_reverse_sync",
+    {
+      title: "Update a Reverse ETL sync",
+      annotations: reverseWrite,
+      description:
+        "Supply a full sync configuration, or a partial settings object (disabled, schedule, timezone, name). Delivery changes respect the same saved-state locks as the UI. disabled=true pauses future runs; existing tasks must be cancelled separately. Enabling scheduled syncs can upload/delete destination records.",
+      inputSchema: { workspaceId, syncId, sync: z.union([ReverseSyncInput, ReverseSyncSettings]) },
+    },
+    async (args, ctx) =>
+      run("update_reverse_sync", () =>
+        reverseEtl.update(principalFromAuth(ctx.authInfo), args.workspaceId, args.syncId, args.sync, req)
+      )
+  );
+
+  register(
+    "delete_reverse_sync",
+    {
+      title: "Delete a Reverse ETL sync",
+      annotations: DESTRUCTIVE,
+      description:
+        "Soft-delete a paused sync after its active/pending tasks have stopped. Preserves acknowledged state and task history. Does not delete the destination audience or reset ownership.",
+      inputSchema: { workspaceId, syncId },
+    },
+    async (args, ctx) =>
+      run("delete_reverse_sync", () =>
+        reverseEtl.delete(principalFromAuth(ctx.authInfo), args.workspaceId, args.syncId, req)
+      )
+  );
+
+  register(
+    "run_reverse_sync",
+    {
+      title: "Run a Reverse ETL sync",
+      annotations: { ...reverseWrite, idempotentHint: false },
+      description:
+        "Start a new logical run of an enabled sync. May upload or remove destination records according to its mode. A controller timeout can mean the run started: inspect tasks before retrying. PENDING destination acceptance does not necessarily block another run.",
+      inputSchema: { workspaceId, syncId },
+    },
+    async (args, ctx) =>
+      run("run_reverse_sync", () =>
+        reverseEtl.act(principalFromAuth(ctx.authInfo), args.workspaceId, args.syncId, { action: "run" }, req)
+      )
+  );
+
+  register(
+    "refresh_reverse_sync",
+    {
+      title: "Refresh a Reverse ETL run",
+      annotations: { ...reverseWrite, idempotentHint: false },
+      description:
+        "Request status/reconciliation for an existing logical task whose canRefresh is true. Reuses task ID and logs; may resume outstanding submissions or mirror cleanup. Does not extract a new model snapshot. Inspect tasks before retrying an ambiguous controller error.",
+      inputSchema: { workspaceId, syncId, taskId },
+    },
+    async (args, ctx) =>
+      run("refresh_reverse_sync", () =>
+        reverseEtl.act(
+          principalFromAuth(ctx.authInfo),
+          args.workspaceId,
+          args.syncId,
+          { action: "refresh", taskId: args.taskId },
+          req
+        )
+      )
+  );
+
+  register(
+    "cancel_reverse_sync",
+    {
+      title: "Cancel a Reverse ETL task",
+      annotations: reverseWrite,
+      description:
+        "Request cancellation of an active/pending logical task. Poll tasks for completion; already accepted destination changes are not rolled back. Pause the sync separately to prevent scheduled runs.",
+      inputSchema: { workspaceId, syncId, taskId },
+    },
+    async (args, ctx) =>
+      run("cancel_reverse_sync", () =>
+        reverseEtl.act(
+          principalFromAuth(ctx.authInfo),
+          args.workspaceId,
+          args.syncId,
+          { action: "cancel", taskId: args.taskId },
+          req
+        )
+      )
+  );
+
+  register(
+    "list_reverse_sync_tasks",
+    {
+      title: "List Reverse ETL tasks",
+      annotations: READ_ONLY,
+      description:
+        "Return the latest 100 matching logical tasks, including delivery statistics, latest log level and canRefresh. Includes retained history of deleted syncs. PENDING includes legacy WAITING; COMPLETE includes legacy SUCCESS. Times use ISO-8601; to is inclusive. Use narrower time filters to inspect older history.",
+      inputSchema: { workspaceId, ...ReverseTaskFilter.shape },
+    },
+    async ({ workspaceId, ...filter }, ctx) =>
+      run("list_reverse_sync_tasks", () => reverseEtl.tasks(principalFromAuth(ctx.authInfo), workspaceId, filter))
+  );
+
+  register(
+    "get_reverse_sync_logs",
+    {
+      title: "Read Reverse ETL task logs",
+      annotations: READ_ONLY,
+      description:
+        "Return up to 500 latest runner diagnostic log lines, newest first, across all attempts of a logical task. Does not expose raw provider receipts, durable row payloads or credentials.",
+      inputSchema: { workspaceId, syncId, taskId },
+    },
+    async (args, ctx) =>
+      run("get_reverse_sync_logs", () =>
+        reverseEtl.logs(principalFromAuth(ctx.authInfo), args.workspaceId, args.syncId, args.taskId)
+      )
+  );
+
+  register(
+    "preview_model",
+    {
+      title: "Preview a Reverse ETL model",
+      annotations: PROBE,
+      description:
+        "Execute a validated read-only model query against a saved warehouse, returning up to 100 rows and column types. Requires edit permission. May return sensitive source-row data; use get_model_columns when only schema is needed. Query timeout is 30 seconds.",
+      inputSchema: { workspaceId, ...PreviewRequest.shape },
+    },
+    async ({ workspaceId, ...input }, ctx) =>
+      run("preview_model", () => reverseEtl.preview(principalFromAuth(ctx.authInfo), workspaceId, input, ctx.signal))
+  );
+
+  register(
+    "get_model_columns",
+    {
+      title: "Inspect a Reverse ETL model's columns",
+      annotations: PROBE,
+      description:
+        "Inspect the saved model's output column names and types without returning row values. Requires edit permission and contacts the warehouse; timeout is 30 seconds.",
+      inputSchema: { workspaceId, modelId: z.string().min(1) },
+    },
+    async (args, ctx) =>
+      run("get_model_columns", () =>
+        reverseEtl.columns(principalFromAuth(ctx.authInfo), args.workspaceId, args.modelId, ctx.signal)
+      )
+  );
 
   register(
     "list_workspaces",
@@ -232,7 +434,7 @@ export function registerTools(sdkServer: SdkMcpServer, deps: ToolDeps) {
       annotations: ADDITIVE,
       description:
         `Create a configuration resource. type ∈ {${typeList}}. \`data\` must match get_resource_schema for the type. ` +
-        `For "${CONNECTION}", \`data\` is the connection body: { fromId, toId, type: "push"|"sync", data }.`,
+        `For "${CONNECTION}", \`data\` is the connection body: { fromId, toId, type: "push"|"sync", data }. Use create_reverse_sync for Reverse ETL.`,
       inputSchema: {
         workspaceId: z.string(),
         type: z.string().describe(`Resource type: one of ${typeList}`),
@@ -361,7 +563,7 @@ export function registerTools(sdkServer: SdkMcpServer, deps: ToolDeps) {
         'Schedule a sync (a connection of type "sync") to run immediately. Returns the new `taskId`; ' +
         "poll list_sync_tasks with it for status and get_sync_logs for output. If a task is already running " +
         "the call fails and returns `runningTask` — pass ignoreRunning=true to cancel it and start anyway. " +
-        "fullSync=true drops the saved cursor and re-syncs from scratch.",
+        "fullSync=true drops the saved cursor and re-syncs from scratch. For model-to-destination Reverse ETL use run_reverse_sync.",
       inputSchema: {
         workspaceId: z.string(),
         syncId: z.string().describe('Connection id of type "sync" (see list_resources with type "connection")'),
@@ -382,7 +584,7 @@ export function registerTools(sdkServer: SdkMcpServer, deps: ToolDeps) {
       annotations: IDEMPOTENT_WRITE,
       description:
         "Cancel a running sync task. Cancellation is asynchronous — poll list_sync_tasks until the task " +
-        "status becomes CANCELLED.",
+        "status becomes CANCELLED. For Reverse ETL use cancel_reverse_sync.",
       inputSchema: {
         workspaceId: z.string(),
         syncId: z.string(),
@@ -401,7 +603,7 @@ export function registerTools(sdkServer: SdkMcpServer, deps: ToolDeps) {
       description:
         "Up to 50 most recent sync tasks in a workspace, newest first. Filter by `syncId`, a single `taskId` " +
         "(returns `task`), `status` (RUNNING, SUCCESS, PARTIAL, FAILED, CANCELLED, SKIPPED), and a `from`/`to` " +
-        "time window.",
+        "time window. Reverse ETL IDs are supported; use list_reverse_sync_tasks for delivery statistics and refresh eligibility.",
       inputSchema: {
         workspaceId: z.string(),
         syncId: z.string().optional(),
