@@ -4,7 +4,7 @@ import { clickhouse } from "../../../lib/server/clickhouse";
 import { z } from "zod";
 import { getServerLog } from "../../../lib/server/log";
 import { getServerEnv } from "../../../lib/server/serverEnv";
-import { initEventsLogTables } from "../../../lib/server/clickhouse-init";
+import { initEventsLogTables, initMetricsTables } from "../../../lib/server/clickhouse-init";
 
 const log = getServerLog("events-log-init");
 
@@ -33,14 +33,16 @@ export default createRoute()
       }
       await verifyAdmin(user);
     }
-    log.atInfo().log(`Init events log`);
+    log.atInfo().log(`Init events log and metrics tables`);
     const chConfig = getClickhouseConfig(serverEnv);
-    await initEventsLogTables({
+    const initOpts = {
       clickhouse,
       database: requireDefined(chConfig.database, "ClickHouse database is not configured"),
       cluster: serverEnv.CLICKHOUSE_METRICS_CLUSTER || serverEnv.CLICKHOUSE_CLUSTER,
       username: chConfig.username,
       password: chConfig.password,
-    });
+    };
+    await initEventsLogTables(initOpts);
+    await initMetricsTables(initOpts);
   })
   .toNextApiHandler();
