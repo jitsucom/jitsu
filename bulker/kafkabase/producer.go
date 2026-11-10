@@ -68,6 +68,7 @@ type Producer struct {
 	waitForDelivery      time.Duration
 	closed               atomic.Bool
 	metricsLabelFunc     MetricsLabelsFunc
+	metrics              *producerMetrics
 	failoverLogger       *FailoverLogger
 
 	// previous cumulative values from librdkafka stats for delta computation
@@ -103,7 +104,16 @@ type rttStats struct {
 
 // NewProducer creates new Producer
 func NewProducer(config *KafkaConfig, kafkaConfig *kafka.ConfigMap, reportQueueLength bool, metricsLabelFunc MetricsLabelsFunc) (*Producer, error) {
-	base := appbase.NewServiceBase("producer")
+	return NewNamedProducer("", config, kafkaConfig, reportQueueLength, metricsLabelFunc)
+}
+
+// NewNamedProducer isolates metrics for a stable producer role (not a topic or workspace).
+func NewNamedProducer(name string, config *KafkaConfig, kafkaConfig *kafka.ConfigMap, reportQueueLength bool, metricsLabelFunc MetricsLabelsFunc) (*Producer, error) {
+	serviceName := "producer"
+	if name != "" {
+		serviceName += "/" + name
+	}
+	base := appbase.NewServiceBase(serviceName)
 	if config.ProducerStatisticsIntervalMs > 0 {
 		_ = kafkaConfig.SetKey("statistics.interval.ms", config.ProducerStatisticsIntervalMs)
 	}
@@ -121,11 +131,13 @@ func NewProducer(config *KafkaConfig, kafkaConfig *kafka.ConfigMap, reportQueueL
 	if config.FailoverLoggerEnabled {
 		failoverConfig, err := config.FailoverLoggerEnvConfig.ToFailoverLoggerConfig()
 		if err != nil {
+			producer.Close()
 			return nil, base.NewError("error converting failover logger config: %v", err)
 		}
 		if failoverConfig != nil {
 			failoverLogger, err = NewFailoverLogger(failoverConfig)
 			if err != nil {
+				producer.Close()
 				return nil, base.NewError("error creating failover logger: %v", err)
 			}
 		}
@@ -139,6 +151,7 @@ func NewProducer(config *KafkaConfig, kafkaConfig *kafka.ConfigMap, reportQueueL
 		asyncDeliveryChannel: make(chan kafka.Event, 1000),
 		waitForDelivery:      time.Millisecond * time.Duration(config.ProducerWaitForDeliveryMs),
 		metricsLabelFunc:     metricsLabelFunc,
+		metrics:              newProducerMetrics(name),
 		failoverLogger:       failoverLogger,
 	}, nil
 }
@@ -161,10 +174,10 @@ func (p *Producer) Start() {
 					failover, _ = mp["failover"].(bool)
 				}
 				if ev.TopicPartition.Error != nil {
-					ProducerMessages(p.metricsLabelFunc(*ev.TopicPartition.Topic, "error", KafkaErrorCode(ev.TopicPartition.Error))).Inc()
+					p.metrics.messages(p.metricsLabelFunc(*ev.TopicPartition.Topic, "error", KafkaErrorCode(ev.TopicPartition.Error))).Inc()
 					p.Errorf("Error sending message %s to kafka topic %s: %s", messageId, *ev.TopicPartition.Topic, ev.TopicPartition.Error.Error())
 				} else {
-					ProducerMessages(p.metricsLabelFunc(*ev.TopicPartition.Topic, "delivered", "")).Inc()
+					p.metrics.messages(p.metricsLabelFunc(*ev.TopicPartition.Topic, "delivered", "")).Inc()
 					//p.Debugf("Message ID: %s delivered to topic %s [%d] at offset %v", messageId, *ev.TopicPartition.Topic, ev.TopicPartition.Partition, ev.TopicPartition.Offset)
 				}
 
@@ -193,7 +206,7 @@ func (p *Producer) Start() {
 					if p.closed.Load() {
 						return
 					}
-					ProducerQueueLength.Set(float64(p.producer.Len()))
+					p.metrics.queueLength.Set(float64(p.producer.Len()))
 				}
 			}
 		})
@@ -210,10 +223,10 @@ func (p *Producer) ProduceSync(topic string, event kafka.Message) error {
 	deliveryChan := make(chan kafka.Event, 1)
 	err := p.producer.Produce(&event, deliveryChan)
 	if err != nil {
-		ProducerMessages(p.metricsLabelFunc(topic, "error", KafkaErrorCode(err))).Inc()
+		p.metrics.messages(p.metricsLabelFunc(topic, "error", KafkaErrorCode(err))).Inc()
 		return err
 	} else {
-		ProducerMessages(p.metricsLabelFunc(topic, "produced", "")).Inc()
+		p.metrics.messages(p.metricsLabelFunc(topic, "produced", "")).Inc()
 	}
 	p.Debugf("Sent message to kafka topic %s in %s", topic, time.Since(started))
 	until := time.After(p.waitForDelivery)
@@ -222,11 +235,11 @@ func (p *Producer) ProduceSync(topic string, event kafka.Message) error {
 		m := e.(*kafka.Message)
 		//messageId := GetKafkaHeader(m, MessageIdHeader)
 		if m.TopicPartition.Error != nil {
-			ProducerMessages(p.metricsLabelFunc(topic, "error", KafkaErrorCode(m.TopicPartition.Error))).Inc()
+			p.metrics.messages(p.metricsLabelFunc(topic, "error", KafkaErrorCode(m.TopicPartition.Error))).Inc()
 			p.Errorf("Error sending message to kafka topic %s: %v", *m.TopicPartition.Topic, m.TopicPartition.Error)
 			return m.TopicPartition.Error
 		} else {
-			ProducerMessages(p.metricsLabelFunc(topic, "delivered", "")).Inc()
+			p.metrics.messages(p.metricsLabelFunc(topic, "delivered", "")).Inc()
 			//p.Debugf("Message ID: %s delivered to topic %s [%d] at offset %v", messageId, *m.TopicPartition.Topic, m.TopicPartition.Partition, m.TopicPartition.Offset)
 		}
 
@@ -237,7 +250,7 @@ func (p *Producer) ProduceSync(topic string, event kafka.Message) error {
 			}
 		}
 	case <-until:
-		ProducerMessages(p.metricsLabelFunc(topic, "error", "sync_delivery_timeout")).Inc()
+		p.metrics.messages(p.metricsLabelFunc(topic, "error", "sync_delivery_timeout")).Inc()
 		p.Errorf("Timeout waiting for delivery")
 		return fmt.Errorf("timeout waiting for delivery")
 	}
@@ -279,7 +292,7 @@ func (p *Producer) ProduceAsync(topic string, messageKey string, event []byte, h
 		err = p.producer.Produce(msg, nil)
 	}
 	if err != nil {
-		ProducerMessages(p.metricsLabelFunc(topic, "error", KafkaErrorCode(err))).Inc()
+		p.metrics.messages(p.metricsLabelFunc(topic, "error", KafkaErrorCode(err))).Inc()
 		errs.Errors = append(errs.Errors, err)
 
 		// Log to failover logger for async production errors
@@ -289,7 +302,7 @@ func (p *Producer) ProduceAsync(topic string, messageKey string, event []byte, h
 			}
 		}
 	} else {
-		ProducerMessages(p.metricsLabelFunc(topic, "produced", "")).Inc()
+		p.metrics.messages(p.metricsLabelFunc(topic, "produced", "")).Inc()
 	}
 	return errs.ErrorOrNil()
 }
@@ -351,27 +364,27 @@ func (p *Producer) handleStats(ev *kafka.Stats) {
 		return
 	}
 	// Gauges for current state metrics
-	ProducerStatsMsgCnt.Set(stats.MsgCnt)
-	ProducerStatsMsgSize.Set(stats.MsgSize)
+	p.metrics.msgCnt.Set(stats.MsgCnt)
+	p.metrics.msgSize.Set(stats.MsgSize)
 
 	// Counters for cumulative metrics — add only the delta since last stats callback
 	if delta := stats.TxMsgs - p.prevTxMsgs; delta > 0 {
-		ProducerStatsTxMsgs.Add(delta)
+		p.metrics.txMsgs.Add(delta)
 	}
 	p.prevTxMsgs = stats.TxMsgs
 
 	if delta := stats.TxMsgBytes - p.prevTxMsgBytes; delta > 0 {
-		ProducerStatsTxMsgBytes.Add(delta)
+		p.metrics.txMsgBytes.Add(delta)
 	}
 	p.prevTxMsgBytes = stats.TxMsgBytes
 
 	if delta := stats.Tx - p.prevTx; delta > 0 {
-		ProducerStatsTx.Add(delta)
+		p.metrics.tx.Add(delta)
 	}
 	p.prevTx = stats.Tx
 
 	if delta := stats.TxBytes - p.prevTxBytes; delta > 0 {
-		ProducerStatsTxBytes.Add(delta)
+		p.metrics.txBytes.Add(delta)
 	}
 	p.prevTxBytes = stats.TxBytes
 
@@ -379,9 +392,9 @@ func (p *Producer) handleStats(ev *kafka.Stats) {
 		if broker.Nodeid < 0 {
 			continue // skip internal brokers
 		}
-		ProducerStatsBrokerRtt(broker.Name).Set(broker.Rtt.Avg)
-		ProducerStatsBrokerOutbufCnt(broker.Name).Set(broker.OutbufCnt)
-		ProducerStatsBrokerWaitrespCnt(broker.Name).Set(broker.WaitrespCnt)
+		producerStatsBrokerRtt.WithLabelValues(p.metrics.name, broker.Name).Set(broker.Rtt.Avg)
+		producerStatsBrokerOutbufCnt.WithLabelValues(p.metrics.name, broker.Name).Set(broker.OutbufCnt)
+		producerStatsBrokerWaitrespCnt.WithLabelValues(p.metrics.name, broker.Name).Set(broker.WaitrespCnt)
 	}
 }
 
