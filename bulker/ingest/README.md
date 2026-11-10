@@ -14,9 +14,15 @@ Budget pod memory for all three clients. Existing batch size, linger, compressio
 and delivery timeout settings apply to each producer.
 
 A full background queue cannot consume pipeline queue capacity. Backup and
-telemetry sends retain their existing best-effort behavior; this change does not
+telemetry delivery remains best effort; this change does not
 add durable backup overflow recovery. Only the pipeline producer owns the existing
 failover logger, whose files remain compatible with the reprocessing worker.
+
+Events rejected by the pipeline producer are not copied to the dead-letter topic.
+They retain the existing producer failover policy when enabled; this does not
+add recovery for errors excluded by that policy. Validation and quota rejections
+still use the telemetry producer for their dead-letter copies. HTTP responses,
+error logs, and ingestion error counters are unchanged.
 
 All `bulkerapp_producer_*` metrics have a `producer` label (`pipeline`, `backup`,
 `telemetry`; empty for callers of the existing unnamed producer API). Existing

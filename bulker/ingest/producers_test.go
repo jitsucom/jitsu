@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
@@ -73,7 +74,10 @@ func TestBackgroundQueueSaturationDoesNotBlockPipeline(t *testing.T) {
 
 	// Only the primary queue owns recovery files and retains failover behavior.
 	rejected := []byte(`{"messageId":"rejected","httpPayload":{"event":"test"}}`)
-	require.ErrorContains(t, app.producer.ProduceAsync("pipeline", "", rejected, nil, kafka.PartitionAny, "rejected", true, 0), "Queue full")
+	_, _, routeErr = router.sendToRotor(c, "rejected", rejected, stream, false)
+	require.NotNil(t, routeErr)
+	require.Equal(t, ErrProducerType, routeErr.ErrorType)
+	require.ErrorContains(t, routeErr.Error, "Queue full")
 	files, err := filepath.Glob(filepath.Join(failoverPath, "*.tmp"))
 	require.NoError(t, err)
 	require.Len(t, files, 1)
@@ -132,4 +136,50 @@ func TestProducerInitializationFailureClosesEarlierClients(t *testing.T) {
 		_, err := p.QueueSize()
 		require.ErrorContains(t, err, "closed")
 	}
+}
+
+func TestDeadLetterSkipsProducerRejections(t *testing.T) {
+	cluster, err := kafka.NewMockCluster(1)
+	require.NoError(t, err)
+	defer cluster.Close()
+	topic := "dead-letter"
+	require.NoError(t, cluster.CreateTopic(topic, 1, 1))
+	app := testProducerContext(cluster.BootstrapServers(), t.TempDir())
+	app.config.TelemetryProducerQueueSize = 10
+	app.config.KafkaDestinationsDeadLetterTopicName = topic
+	app.config.MaxIngestPayloadSize = 10
+	require.NoError(t, app.initProducers())
+	defer app.closeProducers()
+	router := &Router{config: app.config, telemetryProducer: app.telemetryProducer}
+
+	for _, failoverEnabled := range []bool{true, false} {
+		app.config.FailoverLoggerEnabled = failoverEnabled
+		router.sendToDeadLetter("producer-rejected", []byte("must not be copied"), &appbase.RouterError{
+			ErrorType: ErrProducerType, Error: errors.New("Local: Queue full"),
+		})
+	}
+	router.sendToDeadLetter("accepted", []byte("must not be copied"), nil)
+	for _, errorType := range []string{"parse error", ErrThrottledType} {
+		router.sendToDeadLetter("rejected", []byte("0123456789truncated"), &appbase.RouterError{
+			ErrorType: errorType, Error: errors.New(errorType),
+		})
+	}
+
+	consumer, err := kafka.NewConsumer(&kafka.ConfigMap{
+		"bootstrap.servers": cluster.BootstrapServers(), "group.id": "dead-letter-proof",
+		"enable.auto.commit": false,
+	})
+	require.NoError(t, err)
+	defer consumer.Close()
+	require.NoError(t, consumer.Assign([]kafka.TopicPartition{{Topic: &topic, Partition: 0, Offset: kafka.OffsetBeginning}}))
+	for _, errorType := range []string{"parse error", ErrThrottledType} {
+		message, err := consumer.ReadMessage(10 * time.Second)
+		require.NoError(t, err)
+		require.Equal(t, []byte("0123456789"), message.Value)
+		require.Contains(t, message.Headers, kafka.Header{Key: "error", Value: []byte(errorType)})
+	}
+	_, err = consumer.ReadMessage(time.Second)
+	var kafkaErr kafka.Error
+	require.ErrorAs(t, err, &kafkaErr)
+	require.Equal(t, kafka.ErrTimedOut, kafkaErr.Code())
 }

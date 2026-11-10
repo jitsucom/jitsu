@@ -73,6 +73,7 @@ const (
 
 	ConnectionIdsHeader = "connection_ids"
 
+	ErrProducerType         = "producer error"
 	ErrNoDst                = "no destinations found for stream"
 	ErrThrottledType        = "quota exceeded"
 	ErrThrottledDescription = "billing quota exceeded, event throttled"
@@ -305,6 +306,16 @@ type BatchPayload struct {
 	SentAt string `json:"sentAt"`
 }
 
+// sendToDeadLetter preserves rejected events other than Kafka producer failures.
+// Producer failures use the pipeline's existing failover policy when enabled;
+// copying them to Kafka again adds load during the same outage.
+func (r *Router) sendToDeadLetter(messageId string, payload []byte, rError *appbase.RouterError) {
+	if rError == nil || rError.ErrorType == ErrProducerType {
+		return
+	}
+	_ = r.telemetryProducer.ProduceAsync(r.config.KafkaDestinationsDeadLetterTopicName, uuid.New(), utils.TruncateBytes(payload, r.config.MaxIngestPayloadSize), map[string]string{"error": rError.Error.Error()}, kafka.PartitionAny, messageId, false, 0)
+}
+
 func (r *Router) sendToRotor(c *gin.Context, messageId string, ingestMessageBytes []byte, stream *StreamWithDestinations, sendResponse bool) (asyncDestinations []string, tagsDestinations []string, rError *appbase.RouterError) {
 	var err error
 	if stream.BackupEnabled {
@@ -358,9 +369,9 @@ func (r *Router) sendToRotor(c *gin.Context, messageId string, ingestMessageByte
 		err = r.producer.ProduceAsync(topic, messageKey, ingestMessageBytes, map[string]string{ConnectionIdsHeader: strings.Join(asyncDestinations, ",")}, partition, messageId, true, 0)
 		if err != nil {
 			for _, id := range asyncDestinations {
-				IngestedMessages(id, "error", "producer error").Inc()
+				IngestedMessages(id, "error", ErrProducerType).Inc()
 			}
-			rError = r.ResponseError(c, http.StatusInternalServerError, "producer error", true, err, sendResponse, true, false)
+			rError = r.ResponseError(c, http.StatusInternalServerError, ErrProducerType, true, err, sendResponse, true, false)
 		}
 		for _, id := range asyncDestinations {
 			IngestedMessages(id, "success", "").Inc()
