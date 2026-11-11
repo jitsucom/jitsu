@@ -15,6 +15,6 @@
   ],
   "devDependencies": {
     "vitest": "catalog:",
-    "vite": "^6.4.3"
+    "vite": "^6.4.4"
   }
 }

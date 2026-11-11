@@ -2,6 +2,8 @@ import { z } from "zod";
 import { googleCustomerId } from "./credentials";
 import { googleAdsBaseUrl, googleAdsHeaders } from "./clients/google-ads";
 
+import { GoogleRequestError, googleRequestError } from "./clients/errors";
+
 export class GoogleAccountLookupError extends Error {}
 const customer = z.object({
   id: googleCustomerId,
@@ -32,10 +34,7 @@ export async function listGoogleAccounts(
       headers: googleAdsHeaders(accessToken, developerToken.trim(), root),
       ...(body ? { body: JSON.stringify(body) } : {}),
     });
-    if (!response.ok) {
-      await response.body?.cancel();
-      throw new Error("Google account lookup failed");
-    }
+    if (!response.ok) throw await googleRequestError(response, "account lookup");
     return response.json();
   };
   try {
@@ -48,6 +47,7 @@ export async function listGoogleAccounts(
     let partial = false;
     let requests = 0;
     let successfulRoots = 0;
+    let firstProviderError: GoogleRequestError | undefined;
     for (const root of [...new Set(roots)].slice(0, 20)) {
       if (requests >= 40 || options.size >= 1000) {
         truncated = true;
@@ -118,16 +118,20 @@ export async function listGoogleAccounts(
           }
         } while (pageToken);
         successfulRoots++;
-      } catch {
+      } catch (error) {
+        if (error instanceof GoogleRequestError) firstProviderError ??= error;
         partial = true;
         if (signal.aborted) break;
       }
     }
-    if (roots.length && !successfulRoots && !options.size) throw new Error("No accounts could be read");
+    if (roots.length && !successfulRoots && !options.size)
+      throw firstProviderError ?? new Error("No accounts could be read");
     return { options: [...options.values()], truncated, partial };
-  } catch {
+  } catch (error) {
     throw new GoogleAccountLookupError(
-      "Could not load Google Ads accounts. Check OAuth Ads scope, developer token and account permissions, or enter IDs manually."
+      `Could not load Google Ads accounts.${
+        error instanceof GoogleRequestError ? ` ${error.message}.` : ""
+      } Check OAuth Ads scope, developer token and account permissions, or enter IDs manually.`
     );
   }
 }

@@ -186,6 +186,462 @@ describe("Meta Reverse ETL runner integration", () => {
   });
 });
 
+describe("OpenAI Ads Reverse ETL runner integration", () => {
+  const json = (body: unknown, status = 200) =>
+    new Response(JSON.stringify(body), { status }) as Awaited<ReturnType<typeof globalThis.fetch>>;
+  const openAiFixture = () => {
+    const f = fixture();
+    f.input.config.destination = { destinationType: "openai-ads", conversionsApiKey: "openai-key-secret" };
+    f.input.config.model.cursor = undefined;
+    f.input.config.options = {
+      ...f.input.config.options,
+      stream: "conversions",
+      mode: "upsert",
+      mapping: { email: "id" },
+      streamOptions: { pixelId: "px_runner", actionSource: "offline", eventType: "lead_created" },
+    };
+    f.input.adapters = createAdapterRegistry(vi.fn());
+    return f;
+  };
+  it("sends only new source keys to the pixel, with the key as a bearer token and no raw email on the wire", async () => {
+    const f = openAiFixture();
+    const sent: { url: string; auth: unknown; body: any }[] = [];
+    const wire = vi.spyOn(globalThis, "fetch").mockImplementation(async (url, init) => {
+      const body = JSON.parse(String(init!.body));
+      sent.push({ url: String(url), auth: (init!.headers as Record<string, string>).Authorization, body });
+      return json({ accepted_events: body.events.length });
+    });
+    try {
+      f.setRows([{ id: "a@example.com" }, { id: "b@example.com" }]);
+      expect(await execute(f.input)).toBe("COMPLETE");
+      f.input.taskId = "openai-conversions-next";
+      f.setRows([{ id: "a@example.com" }, { id: "b@example.com" }, { id: "c@example.com" }]);
+      expect(await execute(f.input)).toBe("COMPLETE");
+      expect(sent.map(s => s.body.events.length)).toEqual([2, 1]);
+      expect(sent.every(s => s.url === "https://bzr.openai.com/v1/events?pid=px_runner")).toBe(true);
+      expect(sent.every(s => s.auth === "Bearer openai-key-secret")).toBe(true);
+      expect(sent.every(s => s.body.integration_source === "jitsu")).toBe(true);
+      const ids = sent.flatMap(s => s.body.events.map((e: any) => e.id));
+      expect(new Set(ids).size).toBe(3);
+      expect(JSON.stringify(sent)).not.toContain("@example.com");
+      const logs = (await taskLogs("task")) + (await taskLogs("openai-conversions-next"));
+      expect(logs).not.toContain("openai-key-secret");
+      expect(logs).not.toContain("@example.com");
+    } finally {
+      wire.mockRestore();
+    }
+  });
+  it("fails the run on a definite rejection with a controlled code and field path, not OpenAI's message", async () => {
+    const f = openAiFixture();
+    const wire = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      json(
+        {
+          error: {
+            message: "private detail a@example.com",
+            type: "invalid_request_error",
+            param: "events[0]",
+            code: "invalid_event",
+            errors: [{ message: "private detail", param: "events[0].type", code: "unknown_event_type" }],
+          },
+        },
+        400
+      )
+    );
+    try {
+      f.setRows([{ id: "a@example.com" }, { id: "b@example.com" }]);
+      expect(await execute(f.input)).toBe("FAILED");
+      expect(wire).toHaveBeenCalledTimes(1);
+      const error = String((await task()).error);
+      const logs = await taskLogs("task");
+      for (const text of [error, logs]) {
+        expect(text).not.toContain("private detail");
+        expect(text).not.toContain("@example.com");
+        expect(text).not.toContain("openai-key-secret");
+      }
+      expect(error).toContain("OPENAI_INVALID_EVENT");
+      expect(logs).toContain("2 confirmed submitted in 1 batches; 0 accepted, 0 pending processing, 2 rejected");
+    } finally {
+      wire.mockRestore();
+    }
+  });
+  it("stops on an unconfirmed delivery and never sends the batch again on the next run", async () => {
+    const f = openAiFixture();
+    const wire = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValue(json({ error: { message: "slow down", type: "rate_limit", code: null, param: null } }, 429));
+    try {
+      f.setRows([{ id: "a@example.com" }, { id: "b@example.com" }]);
+      expect(await execute(f.input)).toBe("FAILED");
+      expect(wire).toHaveBeenCalledTimes(1);
+      const error = String((await task()).error);
+      expect(error).toContain("did not confirm a submitted batch");
+      expect(error).toContain("do not reset sync state");
+      expect(error).not.toContain("slow down");
+      f.input.taskId = "openai-after-unconfirmed";
+      await execute(f.input);
+      expect(wire).toHaveBeenCalledTimes(1);
+    } finally {
+      wire.mockRestore();
+    }
+  });
+});
+
+describe("OpenAI Ads audience runner integration", () => {
+  const reply = (body: unknown, status = 200) =>
+    new Response(JSON.stringify(body), { status }) as Awaited<ReturnType<typeof globalThis.fetch>>;
+  const audienceFixture = () => {
+    const f = fixture();
+    f.input.config.destination = { destinationType: "openai-ads", adsApiKey: "ads-key-secret" };
+    f.input.config.model.cursor = undefined;
+    f.input.config.options = {
+      ...f.input.config.options,
+      stream: "audience",
+      mode: "mirror",
+      mapping: { email: "id" },
+      streamOptions: { audience: { kind: "managed", name: "Test audience" }, exclusiveManagementConfirmed: true },
+    };
+    f.input.adapters = createAdapterRegistry(vi.fn());
+    return f;
+  };
+  /** OpenAI's audience API, answering at once: ready on create, operations succeeded on the first poll. */
+  const openAi = (
+    options: { loseAddResponses?: number; failOperations?: boolean; failFrom?: number; refuseSubmit?: number } = {}
+  ) => {
+    const audienceId = `caud_${"0".repeat(31)}1`;
+    let description = "";
+    let lose = options.loseAddResponses ?? 0;
+    const operations = new Map<string, { id: string; action: string; identifiers: any[]; fails: boolean }>();
+    const byKey = new Map<string, string>();
+    const requests: { method: string; path: string; key?: string }[] = [];
+    const fetch = vi.spyOn(globalThis, "fetch").mockImplementation(async (url, init) => {
+      const path = String(url).replace("https://api.ads.openai.com/v1", "");
+      const headers = init!.headers as Record<string, string>;
+      requests.push({ method: init!.method!, path, key: headers["Idempotency-Key"] });
+      expect(headers.Authorization).toBe("Bearer ads-key-secret");
+      if (path === "/ad_account") return reply({ id: "adacct_runner" });
+      if (path === "/custom_audiences" && init!.method === "POST") {
+        description = JSON.parse(String(init!.body)).description;
+        return reply({ id: audienceId, status: "ready", description });
+      }
+      if (path === `/custom_audiences/${audienceId}`) return reply({ id: audienceId, status: "ready", description });
+      const submit = path.match(new RegExp(`^/custom_audiences/${audienceId}/(add|remove)$`));
+      // Access revoked or the like: a definite refusal of the request itself, with OpenAI's error envelope.
+      if (submit && options.refuseSubmit)
+        return reply(
+          { error: { message: "private detail", type: "invalid_request_error", code: "permission_denied" } },
+          options.refuseSubmit
+        );
+      if (submit) {
+        const key = headers["Idempotency-Key"];
+        let id = byKey.get(key);
+        if (!id) {
+          id = `caudop_${operations.size + 1}`;
+          byKey.set(key, id);
+          // Whether an operation fails is fixed when it is created, as at OpenAI: a replay under the same key returns
+          // the same failed operation, whatever the fake's options say afterwards.
+          operations.set(id, {
+            id,
+            action: submit[1],
+            identifiers: JSON.parse(String(init!.body)).identifiers,
+            fails:
+              !!options.failOperations || (options.failFrom !== undefined && operations.size + 1 >= options.failFrom),
+          });
+        }
+        if (lose > 0) {
+          lose--;
+          throw new Error("Response lost after the request was applied");
+        }
+        return reply({ operation_id: id, custom_audience_id: audienceId, operation: submit[1], status: "processing" });
+      }
+      const poll = path.match(new RegExp(`^/custom_audiences/${audienceId}/operations/([^/]+)$`));
+      if (poll)
+        return reply({
+          operation_id: poll[1],
+          custom_audience_id: audienceId,
+          operation: operations.get(poll[1])?.action,
+          status: operations.get(poll[1])?.fails ? "failed" : "succeeded",
+          ...(operations.get(poll[1])?.fails
+            ? { failure_reason: { code: "audience_too_small", message: "private detail" } }
+            : {}),
+        });
+      throw new Error(`Unexpected OpenAI request ${init!.method} ${path}`);
+    });
+    return { fetch, requests, operations, options };
+  };
+  const sha = (value: string) => createHash("sha256").update(value).digest("hex");
+  const emails = (identifiers: any[]) => identifiers.map(i => i.identifier);
+
+  it("creates the audience once and mirrors snapshots, adding new members before removing missing ones", async () => {
+    const f = audienceFixture();
+    const wire = openAi();
+    try {
+      f.setRows([{ id: "a@example.com" }, { id: "b@example.com" }]);
+      expect(await execute(f.input)).toBe("COMPLETE");
+      f.input.taskId = "openai-audience-second";
+      f.setRows([{ id: "b@example.com" }, { id: "c@example.com" }]);
+      expect(await execute(f.input)).toBe("COMPLETE");
+      const sent = [...wire.operations.values()];
+      expect(sent.map(o => o.action)).toEqual(["add", "add", "remove"]);
+      expect(emails(sent[0].identifiers).sort()).toEqual([sha("a@example.com"), sha("b@example.com")].sort());
+      expect(emails(sent[1].identifiers)).toEqual([sha("c@example.com")]);
+      expect(emails(sent[2].identifiers)).toEqual([sha("a@example.com")]);
+      expect(wire.requests.filter(r => r.method === "POST" && r.path === "/custom_audiences")).toHaveLength(1);
+      f.input.taskId = "openai-audience-empty";
+      f.setRows([]);
+      expect(await execute(f.input)).toBe("COMPLETE");
+      expect([...wire.operations.values()].at(-1)).toMatchObject({ action: "remove" });
+      expect(emails([...wire.operations.values()].at(-1)!.identifiers).sort()).toEqual(
+        [sha("b@example.com"), sha("c@example.com")].sort()
+      );
+      expect((await durable()).members).toHaveLength(0);
+      const logs = (await taskLogs("task")) + (await taskLogs("openai-audience-second"));
+      expect(logs).not.toContain("ads-key-secret");
+      expect(logs).not.toContain("@example.com");
+      expect(JSON.stringify(wire.requests)).not.toContain("@example.com");
+    } finally {
+      wire.fetch.mockRestore();
+    }
+  });
+  it("keeps a member two rows share until both rows are gone: one identifier type means one member", async () => {
+    const f = audienceFixture();
+    f.input.config.options = { ...f.input.config.options, mapping: { email: "email" } };
+    const wire = openAi();
+    try {
+      f.setRows([
+        { id: "1", email: "shared@example.com" },
+        { id: "2", email: "shared@example.com" },
+      ]);
+      expect(await execute(f.input)).toBe("COMPLETE");
+      const added = [...wire.operations.values()].flatMap(o => emails(o.identifiers));
+      expect(added).toEqual([sha("shared@example.com")]);
+      f.input.taskId = "openai-audience-shared-one-row-gone";
+      f.setRows([{ id: "2", email: "shared@example.com" }]);
+      expect(await execute(f.input)).toBe("COMPLETE");
+      expect([...wire.operations.values()].map(o => o.action)).toEqual(["add"]);
+      f.input.taskId = "openai-audience-shared-both-gone";
+      f.setRows([]);
+      expect(await execute(f.input)).toBe("COMPLETE");
+      expect([...wire.operations.values()].map(o => o.action)).toEqual(["add", "remove"]);
+    } finally {
+      wire.fetch.mockRestore();
+    }
+  });
+  it("refuses a mirror that maps two identifier types, before reading the source or calling OpenAI", async () => {
+    const f = audienceFixture();
+    f.input.config.options = { ...f.input.config.options, mapping: { email: "id", phone: "id" } };
+    const wire = openAi();
+    try {
+      f.setRows([{ id: "a@example.com" }]);
+      f.calls.length = 0;
+      expect(await execute(f.input)).toBe("FAILED");
+      expect(String((await task()).error)).toContain("one identifier type");
+      expect(f.calls).not.toContain("reader");
+      expect(wire.requests).toHaveLength(0);
+    } finally {
+      wire.fetch.mockRestore();
+    }
+  });
+  it("recovers a lost submit response by replaying the same key, applying the batch once and not reading the source again", async () => {
+    const f = audienceFixture();
+    const wire = openAi({ loseAddResponses: 1 });
+    try {
+      f.setRows([{ id: "a@example.com" }, { id: "b@example.com" }]);
+      expect(await execute(f.input)).toBe("FAILED");
+      const stopped = String((await task()).error);
+      expect(stopped).toContain("Snapshot mirror stopped during delivery");
+      expect(stopped).toContain("do not reset sync state");
+      f.input.taskId = "openai-audience-resume";
+      f.calls.length = 0;
+      expect(await execute(f.input)).toBe("COMPLETE");
+      expect(f.calls).not.toContain("reader");
+      const adds = wire.requests.filter(r => r.path.endsWith("/add"));
+      expect(adds).toHaveLength(2);
+      expect(adds[1].key).toBe(adds[0].key);
+      expect(wire.operations.size).toBe(1);
+    } finally {
+      wire.fetch.mockRestore();
+    }
+  });
+  /** OpenAI is healthy again for NEW operations; the same fake keeps its audience, its marker and its failed operations. */
+  const heal = (wire: ReturnType<typeof openAi>) => {
+    wire.options.failOperations = false;
+    wire.options.failFrom = undefined;
+  };
+  const adds = (wire: ReturnType<typeof openAi>) =>
+    [...wire.operations.values()].map(o => `${o.action}:${o.identifiers.length}`);
+
+  it("fails the run when OpenAI reports an operation failed, with no provider text, key or address in the run", async () => {
+    const f = audienceFixture();
+    const wire = openAi({ failOperations: true });
+    try {
+      f.setRows([{ id: "a@example.com" }]);
+      expect(await execute(f.input)).toBe("FAILED");
+      const error = String((await task()).error);
+      const logs = await taskLogs("task");
+      for (const text of [error, logs]) {
+        expect(text).not.toContain("private detail");
+        expect(text).not.toContain("@example.com");
+        expect(text).not.toContain("ads-key-secret");
+      }
+      expect(error).toContain("do not reset");
+      expect(logs).toContain("part of it may have been applied");
+    } finally {
+      wire.fetch.mockRestore();
+    }
+  });
+  it("stays stopped after a failed operation: the next run replays it, reads nothing and creates no operation", async () => {
+    const f = audienceFixture();
+    const wire = openAi({ failOperations: true });
+    try {
+      f.setRows([{ id: "a@example.com" }]);
+      expect(await execute(f.input)).toBe("FAILED");
+      // OpenAI is healthy again and the member has left the model, but the failed Add may have applied part of its
+      // change. The run is not discarded: the next run replays the same request (the same operation comes back, still
+      // failed), reads nothing and sends no removal.
+      heal(wire);
+      f.input.taskId = "openai-audience-after-failed";
+      f.setRows([]);
+      f.calls.length = 0;
+      expect(await execute(f.input)).toBe("FAILED");
+      expect(f.calls).not.toContain("reader");
+      expect(adds(wire)).toEqual(["add:1"]);
+    } finally {
+      wire.fetch.mockRestore();
+    }
+  });
+  it("stays stopped after a failed Add in a later run, even when the member has left the model since", async () => {
+    const f = audienceFixture();
+    const wire = openAi();
+    try {
+      f.setRows([{ id: "a@example.com" }]);
+      expect(await execute(f.input)).toBe("COMPLETE");
+      // Run 2 adds b, and OpenAI reports the operation failed: part of it may have been applied.
+      wire.options.failOperations = true;
+      f.input.taskId = "openai-audience-failed-add";
+      f.setRows([{ id: "a@example.com" }, { id: "b@example.com" }]);
+      expect(await execute(f.input)).toBe("FAILED");
+      // b has left the model. If b was applied it must not be forgotten: no fresh read of the source, no completion.
+      heal(wire);
+      f.input.taskId = "openai-audience-after-failed-add";
+      f.setRows([{ id: "a@example.com" }]);
+      f.calls.length = 0;
+      expect({ outcome: await execute(f.input), readSource: f.calls.includes("reader") }).toEqual({
+        outcome: "FAILED",
+        readSource: false,
+      });
+      expect(adds(wire)).toEqual(["add:1", "add:1"]);
+    } finally {
+      wire.fetch.mockRestore();
+    }
+  });
+  it("stays stopped after a failed Remove: members that came back are not forgotten by a fresh read", async () => {
+    const f = audienceFixture();
+    const wire = openAi();
+    try {
+      f.setRows([{ id: "a@example.com" }, { id: "b@example.com" }]);
+      expect(await execute(f.input)).toBe("COMPLETE");
+      // Run 2 removes b; OpenAI reports the Remove failed, so b may or may not still be in the audience.
+      wire.options.failFrom = 2;
+      f.input.taskId = "openai-audience-failed-remove";
+      f.setRows([{ id: "a@example.com" }]);
+      expect(await execute(f.input)).toBe("FAILED");
+      heal(wire);
+      f.input.taskId = "openai-audience-after-failed-remove";
+      f.setRows([{ id: "a@example.com" }, { id: "b@example.com" }]);
+      f.calls.length = 0;
+      expect({ outcome: await execute(f.input), readSource: f.calls.includes("reader") }).toEqual({
+        outcome: "FAILED",
+        readSource: false,
+      });
+      expect(adds(wire)).toEqual(["add:2", "remove:1"]);
+    } finally {
+      wire.fetch.mockRestore();
+    }
+  });
+  it("stays stopped after the second of two batches fails: the first batch was accepted", async () => {
+    const f = audienceFixture();
+    // A journal record budget of 2 makes three members two Add batches, without thousands of rows (a 3,001-row
+    // version took over 30 s on a loaded CI runner, past the 10 s idle-in-transaction limit, and was cancelled).
+    const bounded = new Database(
+      {
+        host: container.getHost(),
+        port: container.getMappedPort(5432),
+        database: "runner_test",
+        user: "runner_runtime",
+        password: "runtime",
+      },
+      { ...storage, limits: { batchRecords: 2 } }
+    );
+    f.input.db = bounded;
+    const wire = openAi({ failFrom: 2 });
+    try {
+      f.setRows([{ id: "m0@example.com" }, { id: "m1@example.com" }, { id: "m2@example.com" }]);
+      expect(await execute(f.input)).toBe("FAILED");
+      // The first batch (2 members) was accepted, the second (1 member) failed.
+      expect(adds(wire)).toEqual(["add:2", "add:1"]);
+      heal(wire);
+      f.input.taskId = "openai-audience-after-failed-second-batch";
+      f.setRows([{ id: "m0@example.com" }]);
+      f.calls.length = 0;
+      expect({ outcome: await execute(f.input), readSource: f.calls.includes("reader") }).toEqual({
+        outcome: "FAILED",
+        readSource: false,
+      });
+      expect(adds(wire)).toEqual(["add:2", "add:1"]);
+    } finally {
+      wire.fetch.mockRestore();
+      await bounded.close();
+    }
+  });
+  it("keeps a refused replay uncertain: the original request may have been applied, so the member is still removed later", async () => {
+    const f = audienceFixture();
+    const wire = openAi({ loseAddResponses: 1 });
+    try {
+      // Run 1: the Add is applied at OpenAI but its answer is lost, so the batch is unknown.
+      f.setRows([{ id: "a@example.com" }]);
+      expect(await execute(f.input)).toBe("FAILED");
+      expect(adds(wire)).toEqual(["add:1"]);
+      // Run 2: recovery replays the request and OpenAI refuses it (access revoked, say). That does not show the original
+      // request applied nothing, so the batch must stay unknown, not become a rejection.
+      wire.options.refuseSubmit = 403;
+      f.input.taskId = "openai-audience-replay-refused";
+      expect(await execute(f.input)).toBe("FAILED");
+      // Access is back and the member has left the model. Recovery finishes the original run, and the member, applied by
+      // the original Add, is then removed.
+      wire.options.refuseSubmit = undefined;
+      f.setRows([]);
+      f.input.taskId = "openai-audience-replay-recovered";
+      await execute(f.input);
+      f.input.taskId = "openai-audience-after-recovered";
+      expect(await execute(f.input)).toBe("COMPLETE");
+      expect(adds(wire)).toEqual(["add:1", "remove:1"]);
+    } finally {
+      wire.fetch.mockRestore();
+    }
+  });
+  it("validates the first snapshot before creating the audience, so a wrong mapping stays correctable", async () => {
+    const f = audienceFixture();
+    const wire = openAi();
+    try {
+      // A value that is not an email: the mapping passes save-time validation but the first row cannot be normalized.
+      f.setRows([{ id: "not-an-email" }]);
+      expect(await execute(f.input)).toBe("FAILED");
+      expect(wire.requests.filter(r => r.method === "POST" && r.path === "/custom_audiences")).toHaveLength(0);
+      const state = await admin.query("SELECT count(*)::int AS n FROM newjitsu.source_state WHERE stream=$1", [
+        "_REVERSE_ETL_OPENAI_AUDIENCE_",
+      ]);
+      expect(state.rows[0].n).toBe(0);
+      // The user fixes the data (or the mapping): nothing was locked, and the next run creates the audience once.
+      f.input.taskId = "openai-audience-corrected";
+      f.setRows([{ id: "a@example.com" }]);
+      expect(await execute(f.input)).toBe("COMPLETE");
+      expect(wire.requests.filter(r => r.method === "POST" && r.path === "/custom_audiences")).toHaveLength(1);
+    } finally {
+      wire.fetch.mockRestore();
+    }
+  });
+});
+
 describe("runner-owned Google audience provisioning", () => {
   it.each(["invalid-row", "duplicate-key", "source-failure", "identifier-type"])(
     "validates the whole first snapshot before creating an audience: %s",
@@ -545,7 +1001,7 @@ function fixture() {
   let pending = false;
   let failInit = false;
   let failBatch = false;
-  let rows = [{ id: "a" }, { id: "b" }];
+  let rows: { id: string; email?: string }[] = [{ id: "a" }, { id: "b" }];
   const writer = (ctx: ReverseEtlContext<JsonObject, JsonObject>) => ({
     init: async () => {
       calls.push("init");

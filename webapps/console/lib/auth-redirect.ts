@@ -58,6 +58,16 @@ export function validateReturnUrl(returnUrl: string): string | undefined {
 }
 
 /**
+ * Checks that a redirect target is the local callback server started by jitsu-cli.
+ * The whole string must match: an unanchored check lets `https://evil/#http://localhost:1234/`
+ * through, and the CLI key then goes to the attacker's host
+ * @param redirect value of the `redirect` query parameter
+ */
+export function isLocalCliRedirect(redirect: string): boolean {
+  return /^http:\/\/localhost:\d{4,5}\/[^#?\\\s]*$/.test(redirect);
+}
+
+/**
  * Performs a safe redirect to the return URL
  * @param router Next.js router instance
  * @param returnUrl URL to redirect to
