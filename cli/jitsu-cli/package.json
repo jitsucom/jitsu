@@ -64,6 +64,6 @@
     "semver": "^7.5.4",
     "tsx": "catalog:",
     "vitest": "catalog:",
-    "vite": "^6.4.3"
+    "vite": "^6.4.4"
   }
 }

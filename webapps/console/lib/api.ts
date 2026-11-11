@@ -587,10 +587,13 @@ export async function isPlatformAdmin(user: SessionUser): Promise<boolean> {
   if (isAdminServiceAccount(user)) {
     return true;
   }
+  // Fail closed: Prisma drops a filter whose value is undefined, so without an id the lookup below would match the first
+  // profile, and the non-admin branches of the callers (workspaceAccess by userId) would list every membership.
+  const userId = requireDefined(user.internalId, `internalId is not defined`);
   if (isLimitedKey(user)) {
     return false;
   }
-  return !!(await db.prisma().userProfile.findFirst({ where: { id: user.internalId } }))?.admin;
+  return !!(await db.prisma().userProfile.findFirst({ where: { id: userId } }))?.admin;
 }
 
 export async function verifyAdmin(user: SessionUser) {

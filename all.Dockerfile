@@ -47,6 +47,7 @@ WORKDIR /app
 # STEP 1: Copy lockfiles and workspace config (smallest possible layer)
 # This layer only invalidates when dependency versions change
 COPY pnpm-lock.yaml pnpm-workspace.yaml package.json ./
+COPY patches ./patches
 
 # STEP 2: Fetch dependencies into pnpm store
 # The builder image already has most packages cached at /pnpm-store

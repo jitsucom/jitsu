@@ -3,7 +3,10 @@ import { Htmlizer } from "../Htmlizer/Htmlizer";
 import { NoRetryErrorName, DropRetryErrorName, RetryErrorName } from "@jitsu/functions-lib";
 import { CodeEditor } from "../CodeEditor/CodeEditor";
 import Convert from "ansi-to-html";
-const convert = new Convert({ newline: true });
+// escapeXML: the message is arbitrary text from the function, only the colour spans may be markup
+const convert = new Convert({ newline: true, escapeXML: true });
+const escapeHtml = (text: string) =>
+  text.replace(/[&<>"']/g, ch => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[ch]!));
 
 export const FunctionResult: React.FC<{ resultType: "ok" | "drop" | "error"; result: any; className?: string }> = ({
   result,
@@ -13,10 +16,10 @@ export const FunctionResult: React.FC<{ resultType: "ok" | "drop" | "error"; res
   return (
     <div className={`${className ?? ""} flex-auto h-full bg-backgroundLight w-full`}>
       {resultType === "error" && (
-        <div className={"font-mono p-2 text-xs"}>
+        <div className={"font-mono p-2 text-xs whitespace-pre-wrap"}>
           <Htmlizer>
-            {`<span class="text-red-600"><b>${result.name}:</b></span> ` +
-              convert.toHtml(result.message.replaceAll(" ", "&nbsp;"))}
+            {`<span class="text-red-600"><b>${escapeHtml(String(result.name))}:</b></span> ` +
+              convert.toHtml(String(result.message))}
           </Htmlizer>
           {result.name === DropRetryErrorName && (
             <div className={"pt-1"}>

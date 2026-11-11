@@ -7,6 +7,8 @@ import { metaAdsMetadata } from "../functions/facebook/editor";
 import { validateMetaReverseSettings } from "../functions/facebook/reverse-meta";
 import { microsoftAdsMetadata } from "../functions/microsoft-ads/editor";
 import { validateMicrosoftSettings } from "../functions/microsoft-ads/meta";
+import { openAiAdsMetadata } from "../functions/openai-ads/editor";
+import { validateOpenAiAdsReverseSettings } from "../functions/openai-ads/reverse-meta";
 
 /**
  * Validates a sync's settings at save time. `destination` is the saved destination configuration, so a provider can
@@ -31,4 +33,5 @@ export const reverseDestinationMetadata = new Map<string, ReverseDestinationMeta
   ["google-ads", { ...googleAdsMetadata, validateSettings: validateGoogleReverseSettings }],
   ["webhook", { ...webhookMetadata, validateSettings: validateWebhookReverseSettings }],
   ["facebook-conversions", { ...metaAdsMetadata, validateSettings: validateMetaReverseSettings }],
+  ["openai-ads", { ...openAiAdsMetadata, validateSettings: validateOpenAiAdsReverseSettings }],
 ]);

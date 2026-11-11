@@ -1,9 +1,13 @@
-import Editor from "@monaco-editor/react";
+import Editor, { loader } from "@monaco-editor/react";
 import React, { ReactNode, useCallback, useEffect, useRef } from "react";
 import { LoadingAnimation } from "../GlobalLoader/GlobalLoader";
 import debounce from "lodash/debounce";
 import * as monaco from "monaco-editor";
 import styles from "./CodeEditor.module.css";
+import { MONACO_VS_URL } from "../../lib/shared/content-security-policy";
+
+// Where the editor is loaded from, spelled out so that the Content-Security-Policy allows exactly this path
+loader.config({ paths: { vs: MONACO_VS_URL } });
 
 type CodeEditorProps = {
   value: string;

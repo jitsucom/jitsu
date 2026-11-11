@@ -9,6 +9,7 @@ import {
   verifyAccessWithRole,
   verifyAdmin,
 } from "../../lib/api";
+import { adminServiceAccountEmail } from "../../lib/shared/admin-service-account";
 import { ConfigObjectsService } from "../../lib/server/config-objects-service";
 import { api as emailTemplatesApi } from "../../pages/api/admin/email-templates/index";
 import invitationsRoute from "../../pages/api/user/invitations";
@@ -209,6 +210,46 @@ describe("platform-admin reach follows the key limits, not just the admin flag",
     expect(await ids(await bearerUser(admin.user.internalId))).toContain(other.workspace.id);
     expect(await ids(await bearerUser(admin.user.internalId, admin.workspace.id))).not.toContain(other.workspace.id);
     expect(await ids(await bearerUser(admin.user.internalId, undefined, "analyst"))).not.toContain(other.workspace.id);
+  });
+});
+
+// Prisma drops a filter whose value is undefined, so `findFirst({ where: { id: undefined } })` returns the first profile
+// and `workspaceAccess.findMany({ where: { userId: undefined } })` returns every membership. A principal without an
+// internalId (a verified Firebase token before create-user has linked the account) must be refused before either runs.
+describe("a principal without an internalId fails closed", () => {
+  const withoutId = (user: any) => ({ ...user, internalId: undefined } as any);
+
+  it("isPlatformAdmin and verifyAdmin throw instead of matching an unrelated profile", async () => {
+    // an admin profile exists, and so does a non-admin one: whichever the unfiltered query picks, the answer must not depend on it
+    await seedWorkspace({ admin: true });
+    const member = await seedWorkspace();
+    const user = withoutId(member.user);
+    await expect(isPlatformAdmin(user)).rejects.toThrow(/internalId/);
+    await expect(verifyAdmin(user)).rejects.toThrow(/internalId/);
+  });
+
+  it("the unfiltered admin lookup is never reached", async () => {
+    const member = await seedWorkspace();
+    const findFirst = vi.spyOn(deps().prisma.userProfile, "findFirst");
+    try {
+      await expect(isPlatformAdmin(withoutId(member.user))).rejects.toThrow(/internalId/);
+      expect(findFirst).not.toHaveBeenCalled();
+    } finally {
+      findFirst.mockRestore();
+    }
+  });
+
+  it("listing workspaces throws instead of listing every membership or every workspace", async () => {
+    await seedWorkspace({ admin: true });
+    const member = await seedWorkspace();
+    const svc = new ConfigObjectsService({ prisma: deps().prisma });
+    await expect(svc.listWorkspaces(withoutId(member.user), {})).rejects.toThrow(/internalId/);
+  });
+
+  it("the admin service account keeps its reach without a profile", async () => {
+    const svc = { ...(await seedWorkspace()).user, internalId: adminServiceAccountEmail, loginProvider: "admin/token" };
+    await expect(isPlatformAdmin(svc)).resolves.toBe(true);
+    await expect(verifyAdmin(svc)).resolves.toBeUndefined();
   });
 });
 
