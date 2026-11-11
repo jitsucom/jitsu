@@ -18,6 +18,7 @@ import {
 } from "@jitsu/core-functions-lib";
 import { getServerEnv } from "./serverEnv";
 import { createMongoStore, mongodb } from "./lib/mongodb";
+import { memoizedPerWorkspace } from "./lib/worker-store";
 import { warehouseQuery } from "./lib/warehouse-store";
 import { parse as semverParse } from "semver";
 import * as jsondiffpatch from "jsondiffpatch";
@@ -1058,6 +1059,9 @@ async function main() {
       });
     }
 
+    // The in-memory fallback must outlive a worker: the pool asks for a store again when it respawns an evicted worker
+    const fallbackStoreFor = memoizedPerWorkspace(() => createMemoryStore({}));
+
     // Build store factory for lazy worker creation
     const storeFactory = (wsId: string): TTLStore => {
       const storeMetrics: StoreMetrics = {
@@ -1067,7 +1071,7 @@ async function main() {
       };
       return env.MONGODB_URL
         ? createMongoStore(wsId, mongodb, false, isTruish(env.FAST_STORE), storeMetrics)
-        : createMemoryStore({});
+        : fallbackStoreFor(wsId);
     };
 
     workerPool = new LazyWorkerPool(workspaceConnections, storeFactory, conEntityStore);
