@@ -1,6 +1,7 @@
 package api_based
 
 import (
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"net/netip"
@@ -89,4 +90,76 @@ func TestForbidLocalFromEnv(t *testing.T) {
 	t.Setenv("FETCH_FORBID_LOCAL", "no")
 	on, _ = forbidLocalFromEnv()
 	require.False(t, on)
+}
+
+// FETCH_LOCAL_WHITELIST accepts an IPv6 address with or without brackets, as the function fetch in rotor does.
+func TestGuardedClientAllowsWhitelistedIPv6InEitherSpelling(t *testing.T) {
+	listener, err := net.Listen("tcp", "[::1]:0")
+	if err != nil {
+		t.Skipf("no IPv6 loopback on this machine: %v", err)
+	}
+	srv := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}))
+	srv.Listener = listener
+	srv.Start()
+	defer srv.Close()
+
+	for _, entry := range []string{"[::1]", "::1", " [::1] "} {
+		res, err := newHTTPClient(5*time.Second, true, []string{entry}).Get(srv.URL)
+		require.NoErrorf(t, err, "whitelist entry %q must allow %s", entry, srv.URL)
+		res.Body.Close()
+	}
+
+	// an entry for another address does not open it
+	_, err = newHTTPClient(5*time.Second, true, []string{"[::2]"}).Get(srv.URL)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "non-public address")
+}
+
+// The whole webhook path, not only the client: the destination reads FETCH_FORBID_LOCAL and FETCH_LOCAL_WHITELIST from
+// the environment when it is created and delivers to an IPv6 address that is whitelisted in either spelling.
+func TestWebhookDeliversToAWhitelistedIPv6Destination(t *testing.T) {
+	listener, err := net.Listen("tcp", "[::1]:0")
+	if err != nil {
+		t.Skipf("no IPv6 loopback on this machine: %v", err)
+	}
+	var hits atomic.Int32
+	srv := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		hits.Add(1)
+		_, _ = w.Write([]byte("ok"))
+	}))
+	srv.Listener = listener
+	srv.Start()
+	defer srv.Close()
+	withIngestEndpoints(t, "", "")
+
+	deliver := func(whitelist string) (int, string, error) {
+		t.Setenv("FETCH_FORBID_LOCAL", "true")
+		t.Setenv("FETCH_LOCAL_WHITELIST", whitelist)
+		return newWebhookFor(t, srv.URL).Upload(strings.NewReader(`[{"a":1}]`), "events", 1, nil)
+	}
+
+	for _, whitelist := range []string{"[::1]", "::1", "internal.example, [::1]"} {
+		before := hits.Load()
+		status, body, err := deliver(whitelist)
+		require.NoErrorf(t, err, "whitelist %q must let the webhook reach %s", whitelist, srv.URL)
+		require.Equal(t, 200, status)
+		require.Equal(t, "ok", body)
+		require.Equal(t, before+1, hits.Load())
+	}
+
+	// no entry, or an entry for another address: the guard refuses and the server is never reached
+	before := hits.Load()
+	for _, whitelist := range []string{"", "[::2]", "localhost"} {
+		_, _, err := deliver(whitelist)
+		require.Errorf(t, err, "whitelist %q must not open %s", whitelist, srv.URL)
+		require.Contains(t, err.Error(), "non-public address")
+	}
+	require.Equal(t, before, hits.Load())
+
+	// OTLP destinations build their client the same way
+	t.Setenv("FETCH_FORBID_LOCAL", "true")
+	t.Setenv("FETCH_LOCAL_WHITELIST", "[::1]")
+	res, err := newOutboundHTTPClient(5 * time.Second).Get(srv.URL)
+	require.NoError(t, err)
+	res.Body.Close()
 }

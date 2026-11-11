@@ -82,6 +82,11 @@ func forbidLocalFromEnv() (bool, []string) {
 	return true, whitelist
 }
 
+// normalizeWhitelistHost lowercases a whitelist entry and drops the brackets of an IPv6 literal.
+func normalizeWhitelistHost(host string) string {
+	return strings.Trim(strings.ToLower(strings.TrimSpace(host)), "[]")
+}
+
 // newOutboundHTTPClient returns the client for customer-supplied URLs: guarded when FETCH_FORBID_LOCAL is set.
 func newOutboundHTTPClient(timeout time.Duration) *http.Client {
 	forbidLocal, whitelist := forbidLocalFromEnv()
@@ -94,7 +99,8 @@ func newHTTPClient(timeout time.Duration, forbidLocal bool, whitelist []string) 
 	}
 	allowed := make(map[string]bool, len(whitelist))
 	for _, host := range whitelist {
-		allowed[strings.ToLower(host)] = true
+		// the dialer sees an IPv6 host without brackets, so [::1] and ::1 are the same entry
+		allowed[normalizeWhitelistHost(host)] = true
 	}
 	plain := &net.Dialer{Timeout: 30 * time.Second, KeepAlive: 30 * time.Second}
 	guarded := &net.Dialer{
