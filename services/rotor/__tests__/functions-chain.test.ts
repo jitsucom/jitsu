@@ -340,6 +340,9 @@ const expectedEvents = {
       retries: 0,
       counter: 3,
       fetched: "fetched-value",
+      contentType: "application/json; charset=utf-8",
+      reread: "fetched-value",
+      bytes: true,
       third: "3rd",
     },
     context,
@@ -537,8 +540,12 @@ describe.each(testModes)("Test Functions Chain ($name mode)", ({ name: modeName,
 
     // Endpoint used by the functionFetch test — returns a fixed JSON payload
     const fetchSourceHandler = (req, res) => {
-      res.setHeader("Content-Type", "application/json");
-      res.send({ message: "fetched-value" });
+      // Answers after 3 s: longer than the 2 s FETCH_TIMEOUT_MS default and shorter than the 5 s request timeout the
+      // test passes, so it only succeeds when the requested timeout reaches the fetch (also through the worker proxy).
+      setTimeout(() => {
+        res.setHeader("Content-Type", "application/json");
+        res.send({ message: "fetched-value" });
+      }, 3000);
     };
 
     webhookServer = await createServer({

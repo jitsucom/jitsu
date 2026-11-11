@@ -162,7 +162,11 @@ export default async function(event, { log, fetch, store, retries, props: config
     codeHash: "functionFetch-hash",
     code: `export default async function(event, { fetch, props: config }) {
   const res = await fetch(config.FETCH_URL)
+  event.properties.contentType = res.headers.get("content-type")
+  const text = await res.text()
   const body = await res.json()
+  event.properties.reread = JSON.parse(text).message
+  event.properties.bytes = (await res.arrayBuffer()).byteLength > 0
   event.properties.fetched = body.message
   event.properties.counter = (event.properties.counter || 0) + 1
   return event
