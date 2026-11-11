@@ -1053,6 +1053,12 @@ describe.each(testModes)("Test Functions Chain ($name mode)", ({ name: modeName,
         const legacy = loggedEntries.map(e => e.msg).find(m => String(m?.message?.text).startsWith("legacy-headers="));
         expect(legacy?.message.text).toBe("legacy-headers=application/json; charset=utf-8|true");
       }
+      // Whatever a UDF logs or returns has to survive the worker's postMessage. Headers that are not plain data make it
+      // throw, and the worker then drops the whole result (no events, no logs), so the event below never arrives.
+      if (functionsClass === "free" || isolate) {
+        const headersLog = loggedEntries.map(e => e.msg).find(m => m?.message?.text === "headers-in-log");
+        expect(headersLog?.message.args?.[0]?.["content-type"]).toBe("application/json; charset=utf-8");
+      }
       // `res.body` is the decoded text in every runtime (the in-process buffered response and the previous worker
       // response), so `JSON.parse(res.body)` works in every mode.
       const legacyBody = loggedEntries.map(e => e.msg).find(m => String(m?.message?.text).startsWith("legacy-body="));

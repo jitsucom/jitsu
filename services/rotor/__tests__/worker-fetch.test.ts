@@ -185,9 +185,8 @@ describe("legacy header access on the rebuilt Response", () => {
     expect(headers.get("x-missing")).toBeNull();
   });
 
-  it("is still a Headers: methods, iteration and instanceof work", () => {
+  it("keeps the Headers methods: has, keys, forEach, iteration", () => {
     const { headers } = response();
-    expect(headers instanceof Headers).toBe(true);
     expect(headers.has("x-next-page")).toBe(true);
     expect([...headers.keys()].sort()).toEqual(["content-type", "x-next-page"]);
     const seen: string[] = [];
@@ -258,5 +257,46 @@ describe("plain body access on the rebuilt Response", () => {
 
   it("keeps the body on a clone", () => {
     expect(response(new TextEncoder().encode('{"a":1}')).clone().body).toBe('{"a":1}');
+  });
+});
+
+// A worker answers its caller with postMessage, which structured-clones the result: whatever a UDF puts in an event or
+// logs has to be plain data. The previous worker response had a plain headers object, so `event.h = res.headers` and
+// `log.info("h", res.headers)` worked; a function or a Proxy in there makes postMessage throw, and the worker then
+// replaces the whole result with no events and no logs.
+describe("response headers cross a worker message", () => {
+  const response = () =>
+    deserializeResponse({
+      status: 200,
+      statusText: "OK",
+      ok: true,
+      url: "https://example.com/",
+      type: "basic",
+      redirected: false,
+      headers: [
+        ["x-next-page", "3"],
+        ["content-type", "application/json"],
+      ],
+      body: new Uint8Array(0),
+    });
+
+  it("can be structured-cloned, alone and inside an event or a log", () => {
+    const { headers } = response();
+    expect(() => structuredClone(headers)).not.toThrow();
+    expect(structuredClone(headers)).toEqual({ "x-next-page": "3", "content-type": "application/json" });
+    const message = {
+      events: [{ type: "track", properties: { upstream: headers } }],
+      logs: [{ args: ["h", headers] }],
+    };
+    expect(() => structuredClone(message)).not.toThrow();
+    expect(structuredClone(message).events[0].properties.upstream["x-next-page"]).toBe("3");
+  });
+
+  it("is plain enough for JSON and for new Headers(...)", () => {
+    const { headers } = response();
+    expect(JSON.parse(JSON.stringify(headers))).toEqual({ "x-next-page": "3", "content-type": "application/json" });
+    const copy = new Headers(headers as any);
+    expect(copy.get("x-next-page")).toBe("3");
+    expect(copy.get("Content-Type")).toBe("application/json");
   });
 });

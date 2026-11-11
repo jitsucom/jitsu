@@ -165,6 +165,7 @@ export default async function(event, { log, fetch, store, retries, props: config
   event.properties.contentType = res.headers.get("content-type")
   log.info("legacy-headers=" + res.headers["content-type"] + "|" + Object.keys(res.headers).includes("content-type"))
   log.info("legacy-body=" + JSON.parse(res.body).message)
+  log.info("headers-in-log", res.headers)
   const text = await res.text()
   const body = await res.json()
   event.properties.reread = JSON.parse(text).message

@@ -33,32 +33,35 @@ const nullBodyStatuses = new Set([101, 204, 205, 304]);
 /**
  * The free class and the Functions Debugger used to get a plain headers object (`res.headers["x-next-page"]`), the
  * in-process fetch gets a real Headers (`res.headers.get("x-next-page")`). The rebuilt Response supports both, so a UDF
- * written against either keeps working: still a Headers (methods, iteration, instanceof), and a header is also readable
- * by name, listed by Object.keys, spread and serialized as it was in the plain object. A header named like a Headers
- * method (`get`, `set`, `keys`...) is reached through the method.
+ * written against either keeps working.
+ *
+ * It is a plain object with a property per header, as before (read by name, Object.keys, spread, JSON), and the Headers
+ * methods (`get`, `has`, `forEach`, `keys`, `values`, `entries`, iteration) as non-enumerable properties. It has to stay
+ * plain data: a worker answers with postMessage, which structured-clones the result, so whatever a UDF puts in an event
+ * or logs (`event.h = res.headers`) must clone. Structured clone leaves non-enumerable properties out; a Headers or a
+ * Proxy of one makes it throw, and the worker then drops the whole result. A header named like one of these methods
+ * (`get`, `keys`...) is reached through the method.
  */
 function withPlainObjectHeaderAccess(headers: Headers): Headers {
-  return new Proxy(headers, {
-    get(target, prop) {
-      if (typeof prop === "string" && !(prop in target)) {
-        return target.get(prop) ?? undefined;
-      }
-      const value = Reflect.get(target, prop, target);
-      return typeof value === "function" ? value.bind(target) : value;
-    },
-    has(target, prop) {
-      return prop in target || (typeof prop === "string" && target.has(prop));
-    },
-    ownKeys(target) {
-      return Array.from(target.keys());
-    },
-    getOwnPropertyDescriptor(target, prop) {
-      if (typeof prop === "string" && target.has(prop)) {
-        return { value: target.get(prop), enumerable: true, configurable: true, writable: true };
-      }
-      return undefined;
-    },
+  const plain: Record<string | symbol, any> = {};
+  headers.forEach((value, name) => {
+    plain[name] = value;
   });
+  const methods: Record<string | symbol, any> = {
+    get: (name: string) => headers.get(name),
+    has: (name: string) => headers.has(name),
+    forEach: (callback: (value: string, name: string, parent: Headers) => void, thisArg?: any) =>
+      headers.forEach(callback, thisArg),
+    keys: () => headers.keys(),
+    values: () => headers.values(),
+    entries: () => headers.entries(),
+    getSetCookie: () => headers.getSetCookie?.() ?? [],
+    [Symbol.iterator]: () => headers.entries(),
+  };
+  for (const key of Reflect.ownKeys(methods)) {
+    Object.defineProperty(plain, key, { value: methods[key], enumerable: false, configurable: true, writable: true });
+  }
+  return plain as unknown as Headers;
 }
 
 /**
