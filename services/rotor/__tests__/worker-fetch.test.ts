@@ -1,10 +1,14 @@
 import { describe, expect, it } from "vitest";
 import {
   deserializeResponse,
+  hideSensitiveHeaders,
   isFetchCallLogged,
   isFetchLogEnabled,
+  parseLoggedResponse,
   proxiedFetchTimeoutMs,
+  responseBodyText,
   serializeResponse,
+  trimLoggedResponse,
 } from "../src/lib/worker-fetch";
 
 describe("proxied fetch response", () => {
@@ -110,5 +114,44 @@ describe("isFetchCallLogged", () => {
     expect(isFetchCallLogged(true, { log: false })).toBe(false);
     expect(isFetchCallLogged(true, { log: true })).toBe(true);
     expect(isFetchCallLogged(false, { log: true })).toBe(false);
+  });
+});
+
+// The http-request log entry of a paid function's fetch carries the same details as the in-process fetch's.
+describe("fetch log details", () => {
+  it("hides the sensitive request headers and keeps the rest", () => {
+    expect(
+      hideSensitiveHeaders({
+        Authorization: "Bearer a",
+        "Proxy-Authorization": "Basic b",
+        "X-Auth-Token": "c",
+        "X-Trace": "t1",
+        "Content-Type": "application/json",
+      })
+    ).toEqual({
+      Authorization: "*****",
+      "Proxy-Authorization": "*****",
+      "X-Auth-Token": "*****",
+      "X-Trace": "t1",
+      "Content-Type": "application/json",
+    });
+  });
+
+  it("cuts a long response at 1000 characters and says how long it was", () => {
+    expect(trimLoggedResponse("short")).toBe("short");
+    expect(trimLoggedResponse("a".repeat(1000))).toBe("a".repeat(1000));
+    expect(trimLoggedResponse("a".repeat(1500))).toBe(`${"a".repeat(1000)} ... [truncated, length: 1500]`);
+  });
+
+  it("logs a JSON response as an object and anything else as text", () => {
+    expect(parseLoggedResponse('{"message":"ok"}')).toEqual({ message: "ok" });
+    expect(parseLoggedResponse("plain text")).toBe("plain text");
+    expect(parseLoggedResponse("")).toBe("");
+  });
+
+  it("reads the body text from the proxied bytes, or from a text body", () => {
+    const base = { status: 200, statusText: "OK", ok: true, url: "", type: "basic", redirected: false, headers: [] };
+    expect(responseBodyText({ ...base, body: new TextEncoder().encode('{"a":1}') })).toBe('{"a":1}');
+    expect(responseBodyText({ ...base, body: "text body" })).toBe("text body");
   });
 });

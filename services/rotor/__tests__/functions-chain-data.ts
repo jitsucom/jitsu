@@ -161,7 +161,7 @@ export default async function(event, { log, fetch, store, retries, props: config
     name: "Function Fetch",
     codeHash: "functionFetch-hash",
     code: `export default async function(event, { fetch, props: config }) {
-  const res = await fetch(config.FETCH_URL)
+  const res = await fetch(config.FETCH_URL, { headers: { Authorization: "Bearer secret-value", "X-Trace": "trace-1" } })
   event.properties.contentType = res.headers.get("content-type")
   const text = await res.text()
   const body = await res.json()

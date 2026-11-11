@@ -81,3 +81,34 @@ export function isFetchCallLogged(connectionEnabled: boolean, perCall?: { log?: 
 export function proxiedFetchTimeoutMs(requested: unknown, defaultMs: number): number {
   return typeof requested === "number" && Number.isFinite(requested) && requested > 0 ? requested : defaultMs;
 }
+
+// What the in-process fetch (makeFetch in core-functions-lib) records for a call, so that a paid function run in a worker
+// shows the same details in the console's HTTP log: the request headers with the sensitive ones hidden, and the
+// response body, cut to a length the log can hold.
+
+/** Same rule as makeFetch: a header whose name contains "authorization" or "token" is hidden. */
+export function hideSensitiveHeaders(headers: Record<string, string>): Record<string, string> {
+  const result: Record<string, string> = {};
+  for (const [k, v] of Object.entries(headers)) {
+    result[k] = k.toLowerCase().includes("authorization") || k.toLowerCase().includes("token") ? "*****" : v;
+  }
+  return result;
+}
+
+/** The response text as it is logged: at most `maxLen` characters, with the full length named when it was cut. */
+export function trimLoggedResponse(text: string, maxLen: number = 1000): string {
+  return text.length > maxLen ? `${text.substring(0, maxLen)} ... [truncated, length: ${text.length}]` : text;
+}
+
+/** A JSON response is logged as an object, anything else as the text. */
+export function parseLoggedResponse(text: string): any {
+  try {
+    return JSON.parse(text);
+  } catch (err) {
+    return text;
+  }
+}
+
+export function responseBodyText(s: SerializedResponse): string {
+  return typeof s.body === "string" ? s.body : new TextDecoder().decode(s.body);
+}

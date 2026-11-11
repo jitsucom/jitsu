@@ -410,6 +410,15 @@ const streamsStore: EntityStore<StreamWithDestinations> = {
   lastModified: new Date(),
 };
 
+// Every entry the chain writes to the events log, so a test can look at what a function's fetch recorded.
+const loggedEntries: Array<{ connectionId: string; level: string; msg: Record<string, any> }> = [];
+const capturingEventsStore = {
+  ...DummyEventsStore,
+  log(connectionId: string, level: any, msg: Record<string, any>) {
+    loggedEntries.push({ connectionId, level, msg });
+  },
+};
+
 function rotorContext(
   connStore: EntityStore<EnrichedConnectionConfig>,
   funcStore: EntityStore<FunctionConfig>,
@@ -419,7 +428,7 @@ function rotorContext(
     connectionStore: connStore,
     functionsStore: funcStore,
     streamsStore: streamsStore,
-    eventsLogger: DummyEventsStore,
+    eventsLogger: capturingEventsStore,
     dummyPersistentStore: createMemoryStore({}),
     geoResolver: {
       resolve: async (ip: string): Promise<Geo> => {
@@ -1017,6 +1026,7 @@ describe.each(testModes)("Test Functions Chain ($name mode)", ({ name: modeName,
   test("fetch", async () => {
     const currentTestName = testName();
     const connStore = getConnectionStoreForMode();
+    loggedEntries.length = 0;
     try {
       await rotorMessageHandler(
         ingestMessage(currentTestName, messageId, incomingEvent),
@@ -1029,6 +1039,20 @@ describe.each(testModes)("Test Functions Chain ($name mode)", ({ name: modeName,
       );
       expect(lastError).toBeUndefined();
       expect(counters[currentTestName]).toEqual(1);
+      // What the fetch recorded in the events log. A paid function logs the same details whether it runs in process or
+      // in an isolated worker: the request headers with the sensitive ones hidden, and the response body (parsed as
+      // JSON when it is). The free class has always run in a worker and keeps its shorter entry.
+      const httpLogs = loggedEntries
+        .filter(e => e.msg.type === "http-request" && String(e.msg.url).includes("/fetch-source"))
+        .map(e => e.msg);
+      expect(httpLogs).toHaveLength(1);
+      expect(httpLogs[0]).toMatchObject({ type: "http-request", method: "GET", status: 200, statusText: "OK" });
+      if (functionsClass !== "free") {
+        expect(httpLogs[0]).toMatchObject({
+          headers: { Authorization: "*****", "X-Trace": "trace-1" },
+          response: { message: "fetched-value" },
+        });
+      }
     } catch (e: any) {
       throw e;
     }

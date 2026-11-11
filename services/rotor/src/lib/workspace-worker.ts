@@ -17,7 +17,16 @@ import type {
 import type { AnyEvent, EventContext, FullContext } from "@jitsu/protocols/functions";
 import type { FunctionExecLog } from "@jitsu/core-functions-lib";
 import { runFunctionChain, type ChainFunction } from "./udf-chain";
-import { deserializeResponse, isFetchCallLogged, isFetchLogEnabled, type SerializedResponse } from "./worker-fetch";
+import {
+  deserializeResponse,
+  hideSensitiveHeaders,
+  isFetchCallLogged,
+  isFetchLogEnabled,
+  parseLoggedResponse,
+  responseBodyText,
+  trimLoggedResponse,
+  type SerializedResponse,
+} from "./worker-fetch";
 
 import * as functionsLib from "@jitsu/functions-lib";
 
@@ -124,6 +133,9 @@ function buildContext(
   };
 
   const fetchLogEnabled = isFetchLogEnabled(chain.fetchLogLevel, debugTill);
+  // A paid class that runs in a worker (FUNCTIONS_ISOLATE_UDFS) logs the same details as the in-process fetch. The free
+  // class, which has always run in a worker, keeps its shorter entries.
+  const detailedFetchLogs = chain.functionsClass !== "free";
 
   // Proxied fetch – delegates to main process, logs request/response like makeFetch
   const proxiedFetch = async (url: string, init?: any, extra?: { log?: boolean }) => {
@@ -137,6 +149,7 @@ function buildContext(
       url,
       method: init?.method || "GET",
       body: init?.body,
+      ...(detailedFetchLogs && init?.headers ? { headers: hideSensitiveHeaders(init.headers) } : {}),
       event: {},
     };
 
@@ -154,6 +167,9 @@ function buildContext(
             status: serialized.status,
             statusText: serialized.statusText,
             elapsedMs,
+            ...(detailedFetchLogs
+              ? { response: parseLoggedResponse(trimLoggedResponse(responseBodyText(serialized))) }
+              : {}),
           },
           timestamp: new Date().toISOString(),
         });
