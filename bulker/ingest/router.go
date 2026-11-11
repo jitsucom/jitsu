@@ -118,7 +118,7 @@ func NewRouter(appContext *Context, partitionSelector kafkabase.PartitionSelecto
 		"/api/v1/event",
 		"/api/v1/events",
 		"/api.:ignored",
-	})
+	}, securityHeaders)
 
 	transport := http.DefaultTransport.(*http.Transport).Clone()
 	transport.MaxIdleConnsPerHost = 500
@@ -216,6 +216,15 @@ func NewRouter(appContext *Context, partitionSelector kafkabase.PartitionSelecto
 	return router
 }
 
+// Ingest serves API responses and scripts, not HTML documents. These headers do
+// not change the embedding website's policy or the credential-less CORS rules.
+func securityHeaders(c *gin.Context) {
+	c.Header("Content-Security-Policy", "default-src 'none'; base-uri 'none'; frame-ancestors 'none'")
+	c.Header("Referrer-Policy", "strict-origin-when-cross-origin")
+	c.Header("Permissions-Policy", "camera=(), microphone=(), geolocation=(), browsing-topics=()")
+	c.Next()
+}
+
 // CorsMiddleware serves the ingest API as an intentionally open, credential-less
 // endpoint: a constant wildcard origin and no Access-Control-Allow-Credentials.
 // Reflecting the Origin together with allow-credentials would let any site read
@@ -243,7 +252,7 @@ func (r *Router) CorsMiddleware(c *gin.Context) {
 func (r *Router) Health(c *gin.Context) {
 	if r.kafkaConfig == nil {
 		logging.Errorf("Health check: FAILED: kafka config is missing")
-		c.JSON(http.StatusServiceUnavailable, gin.H{"status": "fail", "output": "kafka config is missing"})
+		c.JSON(http.StatusServiceUnavailable, gin.H{"status": "fail"})
 		return
 	}
 

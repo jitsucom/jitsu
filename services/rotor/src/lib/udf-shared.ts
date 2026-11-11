@@ -3,6 +3,7 @@ import os from "node:os";
 import fsp from "node:fs/promises";
 import * as esbuild from "esbuild";
 import * as functionLib from "@jitsu/functions-lib";
+import { validateAndNormalizeUdfCode } from "./udf-imports";
 
 // Whitelist of packages that UDF code is allowed to import (will be bundled)
 export const ALLOWED_PACKAGES = ["@jitsu/functions-lib"];
@@ -126,12 +127,13 @@ export async function compileUdfToFile(
   functionId: string,
   env: any
 ): Promise<string> {
+  const normalizedCode = await validateAndNormalizeUdfCode(code);
   const envs = `
   const process = { env: ${JSON.stringify(env || {})}};
   const console = { log() {}, warn() {}, error() {}, info() {}, debug() {}, trace() {}, dir() {}, table() {} };
   `;
   // Prepend globals preamble to user code so it gets bundled together
-  const fullCode = envs + code;
+  const fullCode = envs + normalizedCode;
 
   const result = await esbuild.build({
     stdin: {
@@ -171,10 +173,11 @@ export async function compileUdfToFile(
 // Unlike compileUdfToFile, this does NOT write to disk – the code string
 // is sent to the worker via postMessage.
 export async function compileUdfToIIFE(code: string, functionId: string, env: any): Promise<string> {
+  const normalizedCode = await validateAndNormalizeUdfCode(code);
   const envs = `var process = { env: ${JSON.stringify(
     env || {}
   )} };\nvar console = { log() {}, warn() {}, error() {}, info() {}, debug() {}, trace() {}, dir() {}, table() {} };\n`;
-  const fullCode = envs + code;
+  const fullCode = envs + normalizedCode;
 
   const result = await esbuild.build({
     stdin: {

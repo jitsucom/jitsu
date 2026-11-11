@@ -162,9 +162,10 @@ func (t *TaskManager) ReverseCancelHandler(c *gin.Context) {
  WHERE sync_id=$1 AND task_id=$2 AND package='jitsu/retl-runner' AND status IN ('RUNNING','WAITING','PENDING')
  AND started_by->>'workspaceId'=$3 RETURNING sync_id,task_id)
  INSERT INTO task_log(id,level,logger,message,sync_id,task_id)
- SELECT gen_random_uuid()::text,'INFO','retl-runner','Run cancelled; automatic status checks stopped, unresolved delivery retained',sync_id,task_id FROM cancelled`, syncID, taskID, workspaceID)
+ SELECT gen_random_uuid(),'INFO','retl-runner','Run cancelled; automatic status checks stopped, unresolved delivery retained',sync_id,task_id FROM cancelled`, syncID, taskID, workspaceID)
 	cancel()
 	if err != nil {
+		t.Errorf("reverse cancel: updating task %s of sync %s failed: %v", taskID, syncID, err)
 		c.JSON(http.StatusServiceUnavailable, gin.H{"ok": false})
 		return
 	}
@@ -173,6 +174,7 @@ func (t *TaskManager) ReverseCancelHandler(c *gin.Context) {
 	selector := labelManagedBy + "=" + managedByValue + "," + labelSyncKind + "=reverse," + labelSyncID + "=" + syncID
 	pods, err := t.jobRunner.clientset.CoreV1().Pods(t.config.KubernetesNamespace).List(c.Request.Context(), metav1.ListOptions{LabelSelector: selector})
 	if err != nil {
+		t.Errorf("reverse cancel: listing Pods of sync %s failed: %v", syncID, err)
 		c.JSON(http.StatusServiceUnavailable, gin.H{"ok": false})
 		return
 	}
@@ -187,9 +189,10 @@ func (t *TaskManager) ReverseCancelHandler(c *gin.Context) {
 		_, err = t.dbpool.Exec(ctx, `WITH cancelled AS (INSERT INTO source_task(sync_id,task_id,package,version,status,started_by) VALUES($1,$2,'jitsu/retl-runner','1','CANCELLED',jsonb_build_object('workspaceId',$3::text,'kind','reverse'))
    ON CONFLICT(task_id) DO UPDATE SET status='CANCELLED',updated_at=clock_timestamp() WHERE source_task.sync_id=$1 AND source_task.status IN ('RUNNING','WAITING','PENDING') RETURNING sync_id,task_id)
  INSERT INTO task_log(id,level,logger,message,sync_id,task_id)
- SELECT gen_random_uuid()::text,'INFO','retl-runner','Run cancelled; automatic status checks stopped, unresolved delivery retained',sync_id,task_id FROM cancelled`, syncID, taskID, workspaceID)
+ SELECT gen_random_uuid(),'INFO','retl-runner','Run cancelled; automatic status checks stopped, unresolved delivery retained',sync_id,task_id FROM cancelled`, syncID, taskID, workspaceID)
 		cancel()
 		if err != nil {
+			t.Errorf("reverse cancel: recording cancellation of task %s of sync %s failed: %v", taskID, syncID, err)
 			c.JSON(http.StatusServiceUnavailable, gin.H{"ok": false})
 			return
 		}

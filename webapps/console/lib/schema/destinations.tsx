@@ -9,6 +9,7 @@ import devnullIcon from "./icons/devnull";
 import facebookIcon from "./icons/facebook";
 import googleAdsIcon from "./icons/google-ads";
 import microsoftAdsIcon from "./icons/microsoft-ads";
+import openAiAdsIcon from "./icons/openai-ads";
 import gcsIcon from "./icons/gcs";
 import hubspotIcon from "./icons/hubspot";
 import juneIcon from "./icons/june";
@@ -24,6 +25,10 @@ import {
   MicrosoftAdsCredentials,
   MicrosoftAdsCredentialsUi,
 } from "@jitsu/destination-functions/src/functions/microsoft-ads/meta";
+import {
+  OpenAiAdsDestinationCredentials,
+  OpenAiAdsDestinationCredentialsUi,
+} from "@jitsu/destination-functions/src/functions/openai-ads/reverse-meta";
 import { HubspotCredentials } from "@jitsu/destination-functions/src/meta";
 import { branding } from "../branding";
 import { ValidationMessages } from "./config-editor-errors";
@@ -1062,6 +1067,17 @@ export const coreDestinations: DestinationType<any>[] = [
     connectionOptions: CloudDestinationsConnectionOptions,
     description:
       "Sync warehouse models to Customer Match audiences and offline conversion goals. Reverse ETL only; no UET browser tag is required.",
+  },
+  {
+    id: "openai-ads",
+    icon: openAiAdsIcon,
+    title: "OpenAI Ads (ChatGPT)",
+    tags: "Advertising",
+    credentials: OpenAiAdsDestinationCredentials,
+    credentialsUi: OpenAiAdsDestinationCredentialsUi,
+    connectionOptions: CloudDestinationsConnectionOptions,
+    description:
+      "Send conversion events to OpenAI Ads through the Conversions API from your site and app event streams, or sync warehouse models as conversion events and Custom Audiences with Reverse ETL. No pixel on your site is required.",
   },
   {
     id: "facebook-conversions",
