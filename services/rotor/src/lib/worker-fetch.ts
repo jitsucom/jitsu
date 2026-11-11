@@ -76,9 +76,12 @@ export function deserializeResponse(s: SerializedResponse): Response {
     statusText: s.statusText,
     headers: s.headers,
   });
-  const text = () => new TextDecoder().decode(bytes);
+  let decoded: string | undefined;
+  const text = () => (decoded ??= new TextDecoder().decode(bytes));
   const reusable = {
     headers: withPlainObjectHeaderAccess(res.headers),
+    // as in the previous worker response and in the in-process buffered response
+    bodyUsed: true,
     // not settable through the constructor
     url: s.url,
     type: s.type,
@@ -93,6 +96,9 @@ export function deserializeResponse(s: SerializedResponse): Response {
   for (const [key, value] of Object.entries(reusable)) {
     Object.defineProperty(res, key, { value, configurable: true });
   }
+  // `.body` is the decoded text, as in the previous worker response and in the in-process buffered response, so a UDF
+  // can JSON.parse(res.body) and return it inside an event (a stream cannot be cloned out of the worker)
+  Object.defineProperty(res, "body", { get: text, configurable: true });
   return res;
 }
 

@@ -25,7 +25,8 @@ describe("proxied fetch response", () => {
     expect(res.status).toBe(201);
     expect(res.ok).toBe(true);
     expect(Array.from(new Uint8Array(await res.clone().arrayBuffer()))).toEqual([0, 1, 2, 255]);
-    expect(res.bodyUsed).toBe(false);
+    // as in the previous worker response and the in-process buffered response; the body is still readable
+    expect(res.bodyUsed).toBe(true);
   });
 
   it("reads text and json", async () => {
@@ -208,5 +209,54 @@ describe("legacy header access on the rebuilt Response", () => {
     const res = response();
     expect(res.clone().headers["x-next-page"]).toBe("3");
     expect((await res.blob()).type).toBe("application/json");
+  });
+});
+
+// Both the previous worker response and the in-process buffered response expose `.body` as the decoded text (and
+// bodyUsed as true), so a UDF can `JSON.parse(res.body)`. A native Response has a stream there, which that UDF cannot
+// parse, and which cannot be returned inside an event either.
+describe("plain body access on the rebuilt Response", () => {
+  const response = (body: Uint8Array | string, status = 200) =>
+    deserializeResponse({
+      status,
+      statusText: "OK",
+      ok: status >= 200 && status < 300,
+      url: "https://example.com/",
+      type: "basic",
+      redirected: false,
+      headers: [["content-type", "application/json"]],
+      body,
+    });
+
+  it("exposes the decoded text as .body, so JSON.parse(res.body) works", () => {
+    const res = response(new TextEncoder().encode('{"message":"ok","n":"é"}'));
+    expect(typeof res.body).toBe("string");
+    expect(res.body).toBe('{"message":"ok","n":"é"}');
+    expect(JSON.parse(res.body as any)).toEqual({ message: "ok", n: "é" });
+  });
+
+  it("is the same text before and after text(), json() and arrayBuffer()", async () => {
+    const res = response(new TextEncoder().encode('{"a":1}'));
+    expect(await res.text()).toBe('{"a":1}');
+    expect(res.body).toBe('{"a":1}');
+    expect(await res.json()).toEqual({ a: 1 });
+    expect(res.body).toBe('{"a":1}');
+    expect((await res.arrayBuffer()).byteLength).toBe(7);
+  });
+
+  it("can be returned inside an event: it clones, as a stream would not", () => {
+    const res = response(new TextEncoder().encode('{"a":1}'));
+    expect(() => structuredClone({ response: res.body })).not.toThrow();
+    expect(structuredClone({ response: res.body })).toEqual({ response: '{"a":1}' });
+  });
+
+  it("reports bodyUsed as true, as both previous responses did, and reads a text body and an empty one", () => {
+    expect(response(new TextEncoder().encode("x")).bodyUsed).toBe(true);
+    expect(response("text body").body).toBe("text body");
+    expect(response(new Uint8Array(0), 204).body).toBe("");
+  });
+
+  it("keeps the body on a clone", () => {
+    expect(response(new TextEncoder().encode('{"a":1}')).clone().body).toBe('{"a":1}');
   });
 });

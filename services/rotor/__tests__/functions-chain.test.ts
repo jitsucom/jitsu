@@ -1053,6 +1053,10 @@ describe.each(testModes)("Test Functions Chain ($name mode)", ({ name: modeName,
         const legacy = loggedEntries.map(e => e.msg).find(m => String(m?.message?.text).startsWith("legacy-headers="));
         expect(legacy?.message.text).toBe("legacy-headers=application/json; charset=utf-8|true");
       }
+      // `res.body` is the decoded text in every runtime (the in-process buffered response and the previous worker
+      // response), so `JSON.parse(res.body)` works in every mode.
+      const legacyBody = loggedEntries.map(e => e.msg).find(m => String(m?.message?.text).startsWith("legacy-body="));
+      expect(legacyBody?.message.text).toBe("legacy-body=fetched-value");
       if (functionsClass !== "free") {
         expect(httpLogs[0]).toMatchObject({
           headers: { Authorization: "*****", "X-Trace": "trace-1" },
