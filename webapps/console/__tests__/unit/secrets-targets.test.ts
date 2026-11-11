@@ -612,6 +612,22 @@ describe("ClickHouse database: the connection URL is formatted from it", () => {
     );
   });
 
+  it("refuses a database with a hash, which cuts the name and drops the parameters that follow", () => {
+    const submitted = { ...stored, database: "events#x", password: MASKED_SECRET };
+    expect(() => unmaskSecretsFromOriginal(submitted, stored)).toThrow(/database contains/);
+  });
+
+  // An ampersand before the first ? is ordinary path text for the driver (probed against clickhouse-go 2.45.0:
+  // database "R&D" stays "R&D" and sets no option), so a stored name with one stays editable and testable.
+  it("lets a database with an ampersand keep its stored password", () => {
+    for (const database of ["R&D", "a&b", "sales&marketing"]) {
+      const submitted = { ...stored, database, password: MASKED_SECRET };
+      expect(() => unmaskSecretsFromOriginal(submitted, stored)).not.toThrow();
+      const patch = { database };
+      expect(() => assertSecretsStayWithTarget(stored, patch, { ...stored, ...patch }, ["password"])).not.toThrow();
+    }
+  });
+
   it("lets ordinary names through, and a typed password makes a strange name the editor's own business", () => {
     for (const database of ["default", "my_db", "events-2024", "Events.v2"]) {
       const submitted = { ...stored, database, password: MASKED_SECRET };
