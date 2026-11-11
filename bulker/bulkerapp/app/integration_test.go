@@ -11,6 +11,7 @@ import (
 	"github.com/jitsucom/bulker/bulkerlib/implementations/sql/testcontainers"
 	"github.com/jitsucom/bulker/jitsubase/appbase"
 	"github.com/jitsucom/bulker/jitsubase/logging"
+	"github.com/jitsucom/bulker/jitsubase/utils"
 	"github.com/stretchr/testify/require"
 	"io"
 	"net/http"
@@ -22,8 +23,13 @@ import (
 	"time"
 )
 
-const testBulkerPort = "33042"
-const testBulkerURL = "http://localhost:" + testBulkerPort
+// The port of the app under test is chosen when the app starts, not fixed. A fixed port inside the operating system's
+// ephemeral range (33042 is inside Linux's 32768-60999) can be taken by anything else on the machine; then the app
+// cannot listen, and the test only gives up after four minutes with "bulker is not ready".
+var (
+	testBulkerPort string
+	testBulkerURL  string
+)
 
 type StepFunction func() error
 
@@ -121,6 +127,8 @@ func initApp(t *testing.T, envVars map[string]string) (app *appbase.App[Config],
 	if err != nil {
 		t.Fatalf("could not write bulker.env to temp file: %v", err)
 	}
+	testBulkerPort = fmt.Sprint(utils.GetPort())
+	testBulkerURL = "http://localhost:" + testBulkerPort
 	t.Setenv("HTTP_PORT", testBulkerPort)
 	t.Setenv("BULKER_CONFIG_PATH", dir)
 	for k, v := range envVars {
@@ -138,6 +146,7 @@ func initApp(t *testing.T, envVars map[string]string) (app *appbase.App[Config],
 		app.Run()
 	}()
 	ready := false
+	var lastErr error
 	//wait in loop for server readiness
 	for i := 0; i < 240; i++ {
 		res, err := http.Get(testBulkerURL + "/ready")
@@ -146,10 +155,14 @@ func initApp(t *testing.T, envVars map[string]string) (app *appbase.App[Config],
 			logging.Infof("bulker is ready")
 			break
 		}
+		if err == nil {
+			err = fmt.Errorf("status %d", res.StatusCode)
+		}
+		lastErr = err
 		time.Sleep(1000 * time.Millisecond)
 	}
 	if !ready {
-		t.Fatalf("bulker is not ready")
+		t.Fatalf("bulker is not ready on port %s: %v", testBulkerPort, lastErr)
 	}
 	return
 }
