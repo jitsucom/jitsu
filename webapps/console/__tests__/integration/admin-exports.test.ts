@@ -32,6 +32,43 @@ async function seedClickhouseDest(workspaceId: string, name: string) {
 }
 
 describe("admin config exports (JITSU-181)", () => {
+  it("streams-with-destinations: S2S slug auth follows only the workspace flag and invalidates on changes", async () => {
+    const { workspace } = await seedWorkspace();
+    const { workspace: otherWorkspace } = await seedWorkspace();
+    const prisma = deps().prisma;
+    const stream = await prisma.configurationObject.create({
+      data: { workspaceId: workspace.id, type: "stream", config: { name: "legacy-client" } },
+    });
+    const otherStream = await prisma.configurationObject.create({
+      data: {
+        workspaceId: otherWorkspace.id,
+        type: "stream",
+        config: { name: "default-client", s2sSlugAuth: true },
+      },
+    });
+    const exp = getExport("streams-with-destinations");
+    let rows = await runExport("streams-with-destinations");
+    expect(rows.find(s => s.id === stream.id).s2sSlugAuth).toBe(false);
+    expect(rows.find(s => s.id === otherStream.id).s2sSlugAuth).toBe(false);
+    const enabledAt = new Date((await exp.lastModified())!.getTime() + 1000);
+    await prisma.workspace.update({
+      where: { id: workspace.id },
+      data: { featuresEnabled: ["captureHeaders", "s2s-slug-auth"], updatedAt: enabledAt },
+    });
+    expect((await exp.lastModified())!.getTime()).toBe(enabledAt.getTime());
+    rows = await runExport("streams-with-destinations");
+    expect(rows.find(s => s.id === stream.id)).toMatchObject({ s2sSlugAuth: true, captureHeaders: true });
+    expect(rows.find(s => s.id === otherStream.id).s2sSlugAuth).toBe(false);
+    const disabledAt = new Date(enabledAt.getTime() + 1000);
+    await prisma.workspace.update({
+      where: { id: workspace.id },
+      data: { featuresEnabled: ["captureHeaders"], updatedAt: disabledAt },
+    });
+    expect((await exp.lastModified())!.getTime()).toBe(disabledAt.getTime());
+    rows = await runExport("streams-with-destinations");
+    expect(rows.find(s => s.id === stream.id)).toMatchObject({ s2sSlugAuth: false, captureHeaders: true });
+  });
+
   it("bulker-connections: incident shapes materialize defaults, round-trip stored options, and skip corrupt rows", async () => {
     const { workspace } = await seedWorkspace();
     const prisma = deps().prisma;

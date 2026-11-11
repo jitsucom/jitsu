@@ -13,6 +13,7 @@ import { configObjectAuditLog } from "./audit-log";
 import { productTelemetryEnabled, trackTelemetryEvent, withProductAnalytics } from "./telemetry";
 import { scheduleSync, validateSyncSchedule } from "./sync";
 import { getEeServerConnection, isEEAvailable, serviceTokenHeaders } from "./ee";
+import { writeClaimingDomains } from "./custom-domains";
 import { omitDeletedList } from "./omit-deleted";
 import { getServerLog } from "./log";
 import {
@@ -25,6 +26,13 @@ import {
 import { supportsWarehouseReader } from "@jitsu/warehouse-query/src/schema";
 
 const log = getServerLog("config-objects-service");
+
+function missingOpenAiEventPixel(config: any): boolean {
+  return config?.destinationType === "openai-ads" && (typeof config.pixelId !== "string" || !config.pixelId.trim());
+}
+
+const openAiEventPixelError = () =>
+  new ApiError("OpenAI event connections require a Pixel ID on the destination", { status: 400 });
 
 function missingMetaEventPixel(config: any): boolean {
   return (
@@ -39,6 +47,7 @@ function eventDestinationError(config: any): ApiError | undefined {
   if (getCoreDestinationTypeNonStrict(config?.destinationType)?.reverseEtlOnly)
     return new ApiError("This destination supports Reverse ETL only, not event connections", { status: 400 });
   if (missingMetaEventPixel(config)) return metaEventPixelError();
+  if (missingOpenAiEventPixel(config)) return openAiEventPixelError();
   if (
     config?.destinationType === "google-ads" &&
     !config.conversionActionId?.trim() &&
@@ -269,10 +278,13 @@ export class ConfigObjectsService {
     delete object.workspaceId;
     delete object.cloneId;
 
-    const created = await modelMutation(this.prisma, workspaceId, type, async tx => {
+    const createRow = async (tx: Parameters<typeof recheckModelWarehouse>[0]) => {
       if (type === "model") await recheckModelWarehouse(tx, workspaceId, object.warehouseId, inspectedWarehouse);
       return tx.configurationObject.create({ data: { id, workspaceId, config: object, type } });
-    });
+    };
+    const created = await (["stream", "domain"].includes(type)
+      ? writeClaimingDomains(this.prisma, workspace, type, object, createRow)
+      : modelMutation(this.prisma, workspaceId, type, createRow));
 
     if (["destination", "service"].includes(type)) {
       const count = await this.prisma.configurationObject.count({
@@ -366,7 +378,7 @@ export class ConfigObjectsService {
       type === "model" ? await validateModelForSave(this.prisma, workspaceId, filtered) : undefined;
     delete filtered.id;
     delete filtered.workspaceId;
-    await modelMutation(this.prisma, workspaceId, type, async tx => {
+    const updateRow = async (tx: Parameters<typeof recheckModelWarehouse>[0]) => {
       await guardReverseDeliveryChanges(tx, workspaceId, id, type);
       if (type === "model") await recheckModelWarehouse(tx, workspaceId, filtered.warehouseId, inspectedWarehouse);
       if (type === "destination") {
@@ -406,7 +418,10 @@ export class ConfigObjectsService {
         where: { id, workspaceId, type, deleted: false },
         data: { config: filtered },
       });
-    });
+    };
+    await (["stream", "domain"].includes(type)
+      ? writeClaimingDomains(this.prisma, workspace, type, filtered, updateRow)
+      : modelMutation(this.prisma, workspaceId, type, updateRow));
     await trackTelemetryEvent("config-object-update", { objectType: type });
     // Emit for HTTP and MCP callers alike; origin (ui/api/cli/mcp) is stamped by withProductAnalytics.
     await withProductAnalytics(p => p.track("update_object", objectAnalyticsProps(type, id, filtered)), {

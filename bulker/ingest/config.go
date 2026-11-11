@@ -50,6 +50,7 @@ type Config struct {
 	EventsLogMaxSize int    `mapstructure:"EVENTS_LOG_MAX_SIZE" default:"1000"`
 
 	RotorAuthKey               string `mapstructure:"ROTOR_AUTH_KEY"`
+	FunctionsServerPrivateKey  string `mapstructure:"FUNCTIONS_SERVER_PRIVATE_KEY"`
 	FunctionsServerURLTemplate string `mapstructure:"FUNCTIONS_SERVER_URL_TEMPLATE" default:"http://fs-${workspaceId}:3456"`
 	DefaultFunctionsClass      string `mapstructure:"DEFAULT_FUNCTIONS_CLASS" default:"free"`
 	DeviceFunctionsTimeoutMs   int    `mapstructure:"DEVICE_FUNCTIONS_TIMEOUT_MS" default:"200"`

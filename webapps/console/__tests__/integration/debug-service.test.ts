@@ -1,4 +1,6 @@
-import { describe, expect, it } from "vitest";
+import { generateKeyPairSync } from "node:crypto";
+import { verifyFunctionsRequest } from "juava/src/functions-auth";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { http, HttpResponse } from "msw";
 import { server } from "./support/msw";
 import { deps, seedWorkspace } from "./support/harness";
@@ -10,7 +12,16 @@ import { DebugService } from "../../lib/server/debug-service";
 
 const svc = () => new DebugService({ prisma: deps().prisma });
 
+const requestKeys = generateKeyPairSync("ed25519");
+const publicKey = requestKeys.publicKey.export({ type: "spki", format: "pem" }).toString();
+
 describe("DebugService", () => {
+  beforeEach(() => {
+    vi.stubEnv(
+      "FUNCTIONS_SERVER_PRIVATE_KEY",
+      requestKeys.privateKey.export({ type: "pkcs8", format: "pem" }).toString()
+    );
+  });
   it("runFunction posts the stored draft to the workspace's functions server", async () => {
     const { user, workspace } = await seedWorkspace();
     const fn = await deps().prisma.configurationObject.create({
@@ -39,7 +50,9 @@ describe("DebugService", () => {
     const runResult = { result: "ok", store: {}, logs: [{ level: "info", message: "ran" }] };
     server.use(
       http.post("http://fs-dep1.test.local/udfrun", async ({ request }) => {
-        posted = await request.json();
+        const bytes = new Uint8Array(await request.arrayBuffer());
+        expect(verifyFunctionsRequest(publicKey, "dep1", request, bytes)).toBe(true);
+        posted = JSON.parse(Buffer.from(bytes).toString());
         return HttpResponse.json(runResult);
       })
     );
