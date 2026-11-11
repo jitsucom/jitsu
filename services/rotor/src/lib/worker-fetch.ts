@@ -82,6 +82,9 @@ export function deserializeResponse(s: SerializedResponse): Response {
   let decoded: string | undefined;
   const text = () => (decoded ??= new TextDecoder().decode(bytes));
   const reusable = {
+    status: s.status,
+    statusText: s.statusText,
+    ok: s.ok,
     headers: withPlainObjectHeaderAccess(res.headers),
     // as in the previous worker response and in the in-process buffered response
     bodyUsed: true,
@@ -96,12 +99,14 @@ export function deserializeResponse(s: SerializedResponse): Response {
     blob: async () => new Blob([bytes], { type: res.headers.get("content-type") ?? "" }),
     clone: () => deserializeResponse(s),
   };
+  // The previous worker response was a plain object, so its data fields were own enumerable properties: a UDF could
+  // JSON.stringify(res), spread it or list its keys. The data stays enumerable here; the methods stay hidden.
   for (const [key, value] of Object.entries(reusable)) {
-    Object.defineProperty(res, key, { value, configurable: true });
+    Object.defineProperty(res, key, { value, configurable: true, enumerable: typeof value !== "function" });
   }
   // `.body` is the decoded text, as in the previous worker response and in the in-process buffered response, so a UDF
   // can JSON.parse(res.body) and return it inside an event (a stream cannot be cloned out of the worker)
-  Object.defineProperty(res, "body", { get: text, configurable: true });
+  Object.defineProperty(res, "body", { get: text, configurable: true, enumerable: true });
   return res;
 }
 

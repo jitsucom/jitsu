@@ -300,3 +300,48 @@ describe("response headers cross a worker message", () => {
     expect(copy.get("Content-Type")).toBe("application/json");
   });
 });
+
+// The previous worker response was a plain object: its data fields were own enumerable properties, so a UDF could
+// JSON.stringify(res), spread it or list its keys. The rebuilt Response lists the same data (its methods stay hidden).
+describe("the rebuilt Response lists its data like the previous worker response", () => {
+  const response = () =>
+    deserializeResponse({
+      status: 404,
+      statusText: "Not Found",
+      ok: false,
+      url: "https://example.com/missing",
+      type: "basic",
+      redirected: true,
+      headers: [["content-type", "application/json"]],
+      body: new TextEncoder().encode('{"a":1}'),
+    });
+  const previousShape = {
+    status: 404,
+    statusText: "Not Found",
+    ok: false,
+    url: "https://example.com/missing",
+    type: "basic",
+    redirected: true,
+    headers: { "content-type": "application/json" },
+    bodyUsed: true,
+    body: '{"a":1}',
+  };
+
+  it("serializes to the fields of the previous response", () => {
+    expect(JSON.parse(JSON.stringify(response()))).toEqual(previousShape);
+  });
+
+  it("lists, spreads and destructures them", () => {
+    const res = response();
+    expect(Object.keys(res).sort()).toEqual(Object.keys(previousShape).sort());
+    expect(JSON.parse(JSON.stringify({ ...res }))).toEqual(previousShape);
+    const { status, ok, redirected, url } = res;
+    expect([status, ok, redirected, url]).toEqual([404, false, true, "https://example.com/missing"]);
+  });
+
+  it("still reads the body and clones with its fields", async () => {
+    const res = response();
+    expect(await res.json()).toEqual({ a: 1 });
+    expect(JSON.parse(JSON.stringify(res.clone()))).toEqual(previousShape);
+  });
+});
