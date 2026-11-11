@@ -367,34 +367,65 @@ func integrationTest(t *testing.T, tt AppTestConfig, postgresContainer *testcont
 		i++
 	}
 	time.Sleep(time.Duration(tt.waitAfterAllMessageSentSec) * time.Second)
-	rowsCount, err := postgresContainer.CountRows(fmt.Sprintf("%s.%s", postgresContainer.Schema, tt.name))
+	// The consumers join their Kafka consumer groups and commit on their own schedule, which takes longer on a loaded
+	// machine, so the minimum wait above is not a promise. Keep counting until the table holds what the test expects.
+	rowsCount, err := waitForRows(postgresContainer, fmt.Sprintf("%s.%s", postgresContainer.Schema, tt.name), tt.expectedRowsCount)
 	PostStep("count_rows", tt, reqr, err)
 	logging.Infof("rows count: %d", rowsCount)
 
 	reqr.Equal(tt.expectedRowsCount, rowsCount, "unexpected rows count in table %s", tt.name)
 
+	// the same for the dead letters
+	dead, err := fetchDead(tt)
+	for deadline := time.Now().Add(maxExtraWait); err == nil && len(dead) < tt.expectedDeadCount && time.Now().Before(deadline); {
+		time.Sleep(time.Second)
+		dead, err = fetchDead(tt)
+	}
+	PostStep("check_dead_topic", tt, reqr, err)
+	for _, d := range dead {
+		logging.Infof("dead: %s", d)
+	}
+	reqr.Equal(tt.expectedDeadCount, len(dead), "unexpected dead count for table %s", tt.name)
+	logging.Infof("Test %s passed", tt.name)
+}
+
+// maxExtraWait is how long a test keeps waiting, after its minimum wait, for the expected rows and dead letters.
+const maxExtraWait = 60 * time.Second
+
+// waitForRows counts the rows of a table and, while there are fewer than expected, keeps counting for up to
+// maxExtraWait. A table that does not exist yet is not an error until the time is up. A test that expects no rows
+// counts once.
+func waitForRows(postgresContainer *testcontainers.PostgresContainer, table string, expected int) (int, error) {
+	deadline := time.Now().Add(maxExtraWait)
+	for {
+		count, err := postgresContainer.CountRows(table)
+		if expected == 0 || (err == nil && count >= expected) || time.Now().After(deadline) {
+			return count, err
+		}
+		time.Sleep(time.Second)
+	}
+}
+
+// fetchDead returns the dead letters of the test's table, one line each.
+func fetchDead(tt AppTestConfig) ([]string, error) {
 	req, _ := http.NewRequest("GET", fmt.Sprintf(testBulkerURL+"/failed/%s?tableName=%s&status=dead&mode=%s", tt.destinationId, tt.name, tt.mode), nil)
 	req.Header.Set("Authorization", "Bearer "+tt.token)
 	res, err := http.DefaultClient.Do(req)
-	if err == nil {
-		if res.StatusCode != 200 {
-			err = fmt.Errorf("unexpected status code: %d", res.StatusCode)
-		}
+	if err != nil {
+		return nil, err
 	}
-	PostStep("check_dead_topic", tt, reqr, err)
-	deadCount := 0
-	if res.StatusCode == 200 {
-		scanner = bufio.NewScanner(res.Body)
-		for scanner.Scan() {
-			logging.Infof("dead: %s", scanner.Text())
-			deadCount++
-		}
-	}
-	if res != nil && res.Body != nil {
+	defer func() {
 		_ = res.Body.Close()
+	}()
+	if res.StatusCode != 200 {
+		return nil, fmt.Errorf("unexpected status code: %d", res.StatusCode)
 	}
-	reqr.Equal(tt.expectedDeadCount, deadCount, "unexpected dead count for table %s", tt.name)
-	logging.Infof("Test %s passed", tt.name)
+	var lines []string
+	scanner := bufio.NewScanner(res.Body)
+	for scanner.Scan() {
+		lines = append(lines, scanner.Text())
+	}
+	return lines, nil
 }
 
 func PostStep(step string, testConfig AppTestConfig, reqr *require.Assertions, err error) {
