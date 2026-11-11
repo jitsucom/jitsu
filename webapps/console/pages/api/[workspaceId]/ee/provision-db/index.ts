@@ -5,6 +5,7 @@ import { assertTrue, requireDefined, rpc } from "juava";
 import { eeAuthHeadersOrServiceToken, getEeServerConnection, isEEAvailable } from "../../../../../lib/server/ee";
 import { db } from "../../../../../lib/server/db";
 import { DestinationConfig } from "../../../../../lib/schema";
+import { getConfigObjectType } from "../../../../../lib/schema/config-objects";
 
 const log = getServerLog("provision-db");
 
@@ -39,8 +40,15 @@ export const api: Api = {
       const { workspaceId } = query;
       await verifyAccess(user, workspaceId);
       const provisionedDestination = await findProvisionedDestination(workspaceId);
+      // Any member may ask whether the workspace has a provisioned database, but the raw config holds its password: give
+      // the same filtered view as the config routes (a provisioned destination is cut down to its name and flag). The
+      // credentials come from the /credentials route, which needs editEntities.
       return provisionedDestination
-        ? { provisioned: true, destinationId: provisionedDestination.id, config: provisionedDestination }
+        ? {
+            provisioned: true,
+            destinationId: provisionedDestination.id,
+            config: await getConfigObjectType("destination").outputFilter(provisionedDestination),
+          }
         : { provisioned: false };
     },
   },
