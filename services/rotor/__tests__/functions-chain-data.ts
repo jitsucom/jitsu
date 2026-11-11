@@ -160,9 +160,10 @@ export default async function(event, { log, fetch, store, retries, props: config
     workspaceId: "workspace1",
     name: "Function Fetch",
     codeHash: "functionFetch-hash",
-    code: `export default async function(event, { fetch, props: config }) {
+    code: `export default async function(event, { fetch, log, props: config }) {
   const res = await fetch(config.FETCH_URL, { headers: { Authorization: "Bearer secret-value", "X-Trace": "trace-1" } })
   event.properties.contentType = res.headers.get("content-type")
+  log.info("legacy-headers=" + res.headers["content-type"] + "|" + Object.keys(res.headers).includes("content-type"))
   const text = await res.text()
   const body = await res.json()
   event.properties.reread = JSON.parse(text).message

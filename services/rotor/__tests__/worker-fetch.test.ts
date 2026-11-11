@@ -155,3 +155,58 @@ describe("fetch log details", () => {
     expect(responseBodyText({ ...base, body: "text body" })).toBe("text body");
   });
 });
+
+// The free class and the Functions Debugger used to get a plain headers object, so `res.headers["x-next-page"]`
+// returned the value. The rebuilt Response keeps `.get()` and that access, so existing UDFs keep working.
+describe("legacy header access on the rebuilt Response", () => {
+  const response = () =>
+    deserializeResponse({
+      status: 200,
+      statusText: "OK",
+      ok: true,
+      url: "https://example.com/",
+      type: "basic",
+      redirected: false,
+      headers: [
+        ["x-next-page", "3"],
+        ["content-type", "application/json"],
+      ],
+      body: new Uint8Array(0),
+    });
+
+  it("reads a header by name like a plain object, and with .get()", () => {
+    const { headers } = response();
+    expect(headers["x-next-page"]).toBe("3");
+    expect(headers["content-type"]).toBe("application/json");
+    expect(headers.get("x-next-page")).toBe("3");
+    expect(headers.get("X-Next-Page")).toBe("3");
+    expect(headers["x-missing"]).toBeUndefined();
+    expect(headers.get("x-missing")).toBeNull();
+  });
+
+  it("is still a Headers: methods, iteration and instanceof work", () => {
+    const { headers } = response();
+    expect(headers instanceof Headers).toBe(true);
+    expect(headers.has("x-next-page")).toBe(true);
+    expect([...headers.keys()].sort()).toEqual(["content-type", "x-next-page"]);
+    const seen: string[] = [];
+    headers.forEach((v, k) => seen.push(`${k}=${v}`));
+    expect(seen.sort()).toEqual(["content-type=application/json", "x-next-page=3"]);
+    expect(Object.fromEntries(headers)).toEqual({ "content-type": "application/json", "x-next-page": "3" });
+  });
+
+  it("lists, spreads and serializes like the plain object did", () => {
+    const { headers } = response();
+    expect(Object.keys(headers).sort()).toEqual(["content-type", "x-next-page"]);
+    expect({ ...headers }).toEqual({ "content-type": "application/json", "x-next-page": "3" });
+    expect(JSON.parse(JSON.stringify(headers))).toEqual({ "content-type": "application/json", "x-next-page": "3" });
+    expect("x-next-page" in headers).toBe(true);
+    expect("x-missing" in headers).toBe(false);
+  });
+
+  it("keeps the same headers on a clone and for blob()", async () => {
+    const res = response();
+    expect(res.clone().headers["x-next-page"]).toBe("3");
+    expect((await res.blob()).type).toBe("application/json");
+  });
+});

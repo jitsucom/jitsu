@@ -1047,6 +1047,12 @@ describe.each(testModes)("Test Functions Chain ($name mode)", ({ name: modeName,
         .map(e => e.msg);
       expect(httpLogs).toHaveLength(1);
       expect(httpLogs[0]).toMatchObject({ type: "http-request", method: "GET", status: 200, statusText: "OK" });
+      // The free class and the Functions Debugger always had a plain headers object (`res.headers["content-type"]`); the
+      // rebuilt Response in a worker keeps that access next to `.get()`.
+      if (functionsClass === "free" || isolate) {
+        const legacy = loggedEntries.map(e => e.msg).find(m => String(m?.message?.text).startsWith("legacy-headers="));
+        expect(legacy?.message.text).toBe("legacy-headers=application/json; charset=utf-8|true");
+      }
       if (functionsClass !== "free") {
         expect(httpLogs[0]).toMatchObject({
           headers: { Authorization: "*****", "X-Trace": "trace-1" },

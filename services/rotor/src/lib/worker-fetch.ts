@@ -31,6 +31,37 @@ export async function serializeResponse(res: Response): Promise<SerializedRespon
 const nullBodyStatuses = new Set([101, 204, 205, 304]);
 
 /**
+ * The free class and the Functions Debugger used to get a plain headers object (`res.headers["x-next-page"]`), the
+ * in-process fetch gets a real Headers (`res.headers.get("x-next-page")`). The rebuilt Response supports both, so a UDF
+ * written against either keeps working: still a Headers (methods, iteration, instanceof), and a header is also readable
+ * by name, listed by Object.keys, spread and serialized as it was in the plain object. A header named like a Headers
+ * method (`get`, `set`, `keys`...) is reached through the method.
+ */
+function withPlainObjectHeaderAccess(headers: Headers): Headers {
+  return new Proxy(headers, {
+    get(target, prop) {
+      if (typeof prop === "string" && !(prop in target)) {
+        return target.get(prop) ?? undefined;
+      }
+      const value = Reflect.get(target, prop, target);
+      return typeof value === "function" ? value.bind(target) : value;
+    },
+    has(target, prop) {
+      return prop in target || (typeof prop === "string" && target.has(prop));
+    },
+    ownKeys(target) {
+      return Array.from(target.keys());
+    },
+    getOwnPropertyDescriptor(target, prop) {
+      if (typeof prop === "string" && target.has(prop)) {
+        return { value: target.get(prop), enumerable: true, configurable: true, writable: true };
+      }
+      return undefined;
+    },
+  });
+}
+
+/**
  * A real Response (headers.get(), status, instanceof), whose body can be read more than once, as with the in-process
  * fetch: a UDF that reads text() for a diagnostic and then json() must keep working.
  */
@@ -47,6 +78,7 @@ export function deserializeResponse(s: SerializedResponse): Response {
   });
   const text = () => new TextDecoder().decode(bytes);
   const reusable = {
+    headers: withPlainObjectHeaderAccess(res.headers),
     // not settable through the constructor
     url: s.url,
     type: s.type,
