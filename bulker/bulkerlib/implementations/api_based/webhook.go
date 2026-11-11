@@ -12,6 +12,7 @@ import (
 	"github.com/jitsucom/bulker/jitsubase/utils"
 	"io"
 	"net/http"
+	neturl "net/url"
 	"os"
 	"regexp"
 	"strings"
@@ -57,11 +58,38 @@ type WebhookBulker struct {
 	closed *atomic.Bool
 }
 
-// isIngestEndpoint tells whether the destination URL is exactly the configured global ingest endpoint. It has to be an
-// exact match: a suffix match let any URL ending in the endpoint (e.g. http://127.0.0.1:8123/admin#<endpoint>) take
-// the unguarded client that is meant for our own service.
-func isIngestEndpoint(url string) bool {
-	return GlobalIngestEndpoint != "" && strings.TrimRight(url, "/") == strings.TrimRight(GlobalIngestEndpoint, "/")
+// isIngestEndpoint tells whether the destination URL is one of our own ingest endpoints, as configured by
+// GLOBAL_INGEST_ENDPOINT. The setting comes in two forms:
+//   - a complete URL (https://ingest.example.com/api/s/s2s/batch): the destination must be exactly that URL;
+//   - a host-suffix pattern (.d.jitsu.com/batch, what cloud uses): the destination's host must end with the host part
+//     with at least one label in front of it, and its path must be the path part.
+//
+// The URL is parsed and checked part by part. A suffix match over the whole string let any URL ending in the endpoint
+// (http://127.0.0.1:8123/admin#<endpoint>) qualify. Anything that can carry a second target is refused: userinfo, a
+// port, a query, a fragment, a scheme other than http(s).
+func isIngestEndpoint(raw string) bool {
+	pattern := strings.TrimSpace(GlobalIngestEndpoint)
+	if pattern == "" || strings.ContainsAny(raw, "?#") {
+		return false
+	}
+	if strings.Contains(pattern, "://") {
+		return strings.TrimRight(raw, "/") == strings.TrimRight(pattern, "/")
+	}
+	u, err := neturl.Parse(raw)
+	if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.User != nil || u.Port() != "" || u.Opaque != "" {
+		return false
+	}
+	hostPattern, pathPattern, _ := strings.Cut(pattern, "/")
+	hostPattern = strings.ToLower(hostPattern)
+	host := strings.ToLower(u.Hostname())
+	if strings.HasPrefix(hostPattern, ".") {
+		if len(host) <= len(hostPattern) || !strings.HasSuffix(host, hostPattern) {
+			return false
+		}
+	} else if host != hostPattern {
+		return false
+	}
+	return strings.TrimRight(u.EscapedPath(), "/") == strings.TrimRight("/"+pathPattern, "/")
 }
 
 func NewWebhookBulker(bulkerConfig bulker.Config) (bulker.Bulker, error) {
@@ -80,17 +108,20 @@ func NewWebhookBulker(bulkerConfig bulker.Config) (bulker.Bulker, error) {
 	url := webhookConfig.URL
 	originalUrl := url
 	isIngest := false
+	rewrittenToLocal := false
 	if isIngestEndpoint(url) {
 		isIngest = true
 		if LocalIngestEndpoint != "" {
 			url = LocalIngestEndpoint
+			rewrittenToLocal = true
 		}
 	}
 
-	// The ingest endpoint is our own service reached on its internal address; any other URL is the customer's
-	httpClient := &http.Client{Timeout: time.Duration(5) * time.Second}
-	if !isIngest {
-		httpClient = newOutboundHTTPClient(time.Duration(5) * time.Second)
+	// Only a destination that is rewritten to our own ingest service (an internal address) takes the plain client.
+	// Everything else, an ingest-looking URL without the rewrite included, goes to the customer's address and is guarded.
+	httpClient := newOutboundHTTPClient(time.Duration(5) * time.Second)
+	if rewrittenToLocal {
+		httpClient = &http.Client{Timeout: time.Duration(5) * time.Second}
 	}
 
 	return &WebhookBulker{Service: appbase.NewServiceBase(WebhookBulkerTypeId), config: webhookConfig, httpClient: httpClient,
