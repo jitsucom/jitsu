@@ -214,6 +214,38 @@ describe("single-save Reverse ETL settings", () => {
     });
     expect(conversions.id).not.toBe(id);
   });
+  it("locks a saved OpenAI audience creation intent before any run has opened its control record", async () => {
+    const f = await fixture();
+    await f.prisma.configurationObject.update({
+      where: { id: f.destination.id },
+      data: { config: { destinationType: "openai-ads", adsApiKey: "ads-test-key" } },
+    });
+    const input = {
+      ...f.input,
+      data: {
+        ...f.input.data,
+        streamOptions: { audience: { kind: "managed", name: "OpenAI audience" }, exclusiveManagementConfirmed: true },
+      },
+    };
+    const { id } = await f.create(input);
+    expect((await listReverseSyncs(f.prisma, f.workspace.id))[0].settingsLocked).toBe(false);
+    // The runner saves this state while creating the audience, before it opens reverse_sync_control. A failed first
+    // run (a lost create answer, or a readiness timeout) leaves it behind with no running task.
+    await f.prisma.source_state.create({
+      data: { sync_id: id, stream: "_REVERSE_ETL_OPENAI_AUDIENCE_", state: { phase: "submitting" } },
+    });
+    await expect(
+      updateReverseSync(f.prisma, f.workspace.id, id, {
+        ...input,
+        data: {
+          ...input.data,
+          streamOptions: { ...input.data.streamOptions, audience: { kind: "managed", name: "Renamed audience" } },
+        },
+      })
+    ).rejects.toThrow("ownership");
+    await updateReverseSync(f.prisma, f.workspace.id, id, { schedule: "0 0 * * *", timezone: "UTC" });
+    expect((await listReverseSyncs(f.prisma, f.workspace.id))[0].settingsLocked).toBe(true);
+  });
   it("uses the latest runner log for badges with deterministic ordering and sync scoping", async () => {
     const f = await fixture();
     const { id } = await f.create();
@@ -304,6 +336,43 @@ describe("single-save Reverse ETL settings", () => {
       "https://datamanager.googleapis.com/v1/accountTypes/GOOGLE_ADS/accounts/1234567890/userLists"
     );
     expect(JSON.stringify(result)).not.toContain("private-access-token");
+    request
+      .mockResolvedValueOnce(
+        Response.json({
+          connection_id: connectionId,
+          provider_config_key: "jitsu-cloud-dst-google-ads",
+          credentials: {
+            access_token: "private-access-token",
+            expires_at: new Date(Date.now() + 3600_000).toISOString(),
+          },
+        })
+      )
+      .mockResolvedValueOnce(
+        Response.json(
+          {
+            error: {
+              status: "PERMISSION_DENIED",
+              message: "private provider payload",
+              details: [
+                { "@type": "type.googleapis.com/google.rpc.ErrorInfo", reason: "ACCESS_TOKEN_SCOPE_INSUFFICIENT" },
+              ],
+            },
+          },
+          { status: 403 }
+        )
+      );
+    const lookupError = await reverseGoogleOptions(
+      f.prisma,
+      f.workspace.id,
+      f.destination.id,
+      "conversion-action",
+      nango,
+      "dev",
+      request
+    ).catch(error => error);
+    expect(lookupError.message).toContain("Google conversion-action lookup returned HTTP 403 (PERMISSION_DENIED)");
+    expect(lookupError.message).toContain("ACCESS_TOKEN_SCOPE_INSUFFICIENT");
+    expect(lookupError.message).not.toContain("private");
     request.mockRejectedValue(new Error("private provider payload"));
     await expect(
       reverseGoogleOptions(f.prisma, f.workspace.id, f.destination.id, "audience", nango, undefined, request)

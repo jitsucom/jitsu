@@ -148,7 +148,12 @@ async function hasState(db: ReadDb, workspaceId: string, syncId: string) {
       where: {
         sync_id: syncId,
         stream: {
-          in: ["_REVERSE_ETL_GOOGLE_AUDIENCE_", "_REVERSE_ETL_META_AUDIENCE_", "__jitsu_microsoft_audience_v1"],
+          in: [
+            "_REVERSE_ETL_GOOGLE_AUDIENCE_",
+            "_REVERSE_ETL_META_AUDIENCE_",
+            "_REVERSE_ETL_OPENAI_AUDIENCE_",
+            "__jitsu_microsoft_audience_v1",
+          ],
         },
       },
       select: { sync_id: true },

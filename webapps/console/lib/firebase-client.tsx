@@ -4,6 +4,7 @@ import * as auth from "firebase/auth";
 import { AppConfig, ContextApiResponse, CreateUserResult } from "./schema";
 import { getLog, randomId, requireDefined, rpc } from "juava";
 import { useJitsu } from "@jitsu/jitsu-react";
+import { impersonationState } from "./shared/impersonation";
 
 type FirebaseClientSettings = Record<string, any>;
 export type FirebaseProviderInstance =
@@ -398,6 +399,14 @@ export function useFirebaseSession(): FirebaseSession {
           async user => {
             log.atDebug().log(`Firebase auth result`, user);
             try {
+              // An expired "become" session is refused by create-session; sign out so the user lands on
+              // the sign-in page instead of an error screen that reloads into the same 401.
+              const imp = user ? impersonationState((await user.getIdTokenResult(false)).claims) : undefined;
+              if (imp?.impersonated && imp.expired) {
+                await firebaseSignOut();
+                resolve(null);
+                return;
+              }
               const result = user ? await getUserFromFirebase(user) : null;
               // Record the login only for an explicit sign-in (recordLogin) and only after
               // getUserFromFirebase has minted/linked internalId — otherwise a first-time

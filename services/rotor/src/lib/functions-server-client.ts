@@ -1,3 +1,4 @@
+import { signFunctionsRequest } from "juava/src/functions-auth";
 import { AnyEvent, EventContext } from "@jitsu/protocols/functions";
 import { EventsStore, FunctionChainContext, FunctionContext } from "@jitsu/destination-functions";
 import { DropRetryErrorName, RetryErrorName, NoRetryErrorName, RetryError } from "@jitsu/functions-lib";
@@ -79,18 +80,17 @@ export async function callFunctionsServer(
 ): Promise<FunctionsServerResult> {
   const url = getFunctionsServerUrl(deploymentId, connectionId);
 
+  const body = JSON.stringify({ event, context: eventContext });
   let response: Awaited<ReturnType<typeof request>> | undefined;
   try {
     response = await request(url, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
+        ...signFunctionsRequest(getServerEnv().FUNCTIONS_SERVER_PRIVATE_KEY, deploymentId, url, body),
         ...(fetchTimeoutMs ? { "x-request-timeout-ms": String(fetchTimeoutMs) } : {}),
       },
-      body: JSON.stringify({
-        event,
-        context: eventContext,
-      }),
+      body,
       bodyTimeout: fsTimeoutMs,
       headersTimeout: fsTimeoutMs,
       dispatcher: undiciAgent,

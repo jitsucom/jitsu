@@ -7,6 +7,10 @@ a previously submitted row does not resend it. Use one stable primary key per ev
 Google conversion adjustments are separate events: each adjustment needs a new model
 primary key and must identify the original conversion through its mapping.
 
+OpenAI Ads conversions follow the same rule: only new model primary keys are sent, and an unproven submission (a
+timeout, a rate limit or a server error) needs manual reconciliation with no automatic replay. OpenAI fails a whole
+batch if one event is invalid, and an event must be from the last 7 days, so a row outside that window stops the run.
+
 For Meta conversions, unknown submission outcomes require manual reconciliation;
 event-ID deduplication does not provide an unlimited replay guarantee. Microsoft
 conversion submissions with uncertain outcomes are not automatically replayed.
@@ -28,6 +32,19 @@ from other tools while Jitsu exclusively manages it.
 
 Existing Meta and Microsoft audiences support additions and explicit removals via
 a model delete column; their existing membership is not imported as a mirror baseline.
+
+OpenAI Ads audiences: the first run creates the audience (Jitsu keeps a marker so an interrupted creation is found,
+never repeated). Each batch is one Add or Remove that Jitsu waits for, so removals follow accepted additions. A batch
+whose outcome is unknown is replayed under its original idempotency key and OpenAI returns the original operation, so
+nothing is applied twice; a failed operation stops the run and the sync stays stopped until an administrator has checked
+the audience (part of the change may have been applied). An existing
+OpenAI audience supports additions and explicit removals only, and a row may carry several identifiers (email, phone,
+Android advertising ID), all sent on an Add or a Remove. A mirrored audience supports one identifier type per sync
+(email, phone or Android advertising ID), because OpenAI adds and removes people, not identifiers: a row that gained,
+dropped or swapped an identifier would make the mirror remove a person the model still wants. Changing a member's
+identifier while the person stays in the model can still remove them; rows that share the same value are one member, kept
+until the last of them is gone. Empty and small audiences can only exclude people; inclusion needs roughly 25,000
+matched users, and custom audiences are not available for campaigns targeting the EEA or Switzerland.
 
 ## Webhook delivery
 

@@ -312,3 +312,44 @@ Secrets are generated automatically by `deploy`. To (re)apply them manually:
 ```bash
 ./dev-deploy.sh secrets
 ```
+
+### Functions-server request authentication
+
+Before running the signed-request functions-server release, provision an Ed25519 key pair
+(PKCS#8 PEM private key, SPKI PEM public key). Keep the private key in the existing
+`jitsu-secrets` Kubernetes Secret, not in Helm values or git:
+
+- `FUNCTIONS_SERVER_PRIVATE_KEY`: console, rotor and profiles callers.
+- `INGEST_FUNCTIONS_SERVER_PRIVATE_KEY`: ingest caller.
+- `OPERATOR_FUNCTIONS_SERVER_PUBLIC_KEY`: operator; it passes only the public key to generated functions-server pods.
+
+Upgrade callers first, then operator, then functions-server. Older functions servers ignore
+the new signature headers. Updated functions servers require a configured public key and
+reject unsigned requests with HTTP 401; health probes remain unauthenticated. Development
+setups must also provision keys. Requests bind the method, path/query, deployment ID and
+SHA-256 of the exact body to an Ed25519 signature with a 60-second clock-skew window.
+This authenticates requests; it does not provide exactly-once execution or replace network isolation.
+
+S2S ingestion requires an explicitly configured private key: a hashed `id:secret` key
+or a legacy plaintext private key. Browser collection continues to support public
+stream IDs and configured domains.
+
+The workspace feature flag `s2s-slug-auth` is an explicit compatibility exception:
+non-strict S2S ingestion may resolve an explicit source-ID slug after missing or invalid
+credentials. This allows anyone who knows that source ID to submit S2S events to that
+workspace. Enable it only for clients that need this behavior; remove it after migrating
+them to valid private keys. It does not enable domain fallback, public-key aliases as
+slugs, strict source fallback, or synchronous-function authentication bypass.
+
+| Authentication | Default behavior | With `s2s-slug-auth` |
+| --- | --- | --- |
+| Valid configured private `id:secret` key | Accepted | Accepted |
+| Explicitly configured legacy plaintext private key | Accepted | Accepted |
+| Missing/invalid key with explicit source-ID slug, non-strict S2S ingestion | Rejected | Accepted for sources in the opted-in workspace |
+| Public stream ID or browser key used only as a write key | Rejected for S2S | Rejected without an eligible explicit slug |
+| Domain-only S2S fallback | Rejected | Rejected |
+| Strict source or synchronous-function call without a valid private key | Rejected | Rejected |
+| Browser collection | Unchanged | Unchanged |
+
+Deploy the console exporter before ingest so opted-in workspaces receive `s2sSlugAuth`
+in their stream configuration. Keep manual deployment ordering described above.
