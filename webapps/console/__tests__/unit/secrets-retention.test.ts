@@ -45,7 +45,7 @@ describe("assertSecretsStayWithTarget (nested service secrets)", () => {
 
 describe("signing keys", () => {
   it("do not have to be entered again when the url changes: the receiver never gets them", () => {
-    const webhook = { url: "https://a.example/hook", signatureSecret: "hmac-key" };
+    const webhook = { destinationType: "webhook", url: "https://a.example/hook", signatureSecret: "hmac-key" };
     const patch = { url: "https://b.example/hook" };
     expect(() =>
       assertSecretsStayWithTarget(webhook, patch, { ...webhook, ...patch }, ["signatureSecret"])
