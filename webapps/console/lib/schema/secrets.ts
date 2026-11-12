@@ -191,7 +191,12 @@ export function unmaskSecretsFromOriginal(object: any, dbEntity: any, comparedWi
 // are guessed from the name: host, url, endpoint, an API base, etc.
 // `port` is left out on purpose: the submitted object is parsed with schema defaults, so a default port
 // shows up as a difference against a stored config that never had one, and a port alone does not change the host
-const CONNECTION_TARGET_KEY = /host|url|uri|endpoint|server|address|domain|api_?base|instance_?connection_?name/i;
+// `connection_string` (the MongoDB v2 connector: a non-secret string next to a secret password) and a field named exactly
+// `shop` (the WooCommerce connector: the store's domain next to its API key and secret) came from the production
+// connector specs, where the name rule missed them. `shop` is matched whole so `shop_id` and the like stay out. A name
+// list will keep missing fields; replacing it with a rule read from the spec is a separate decision (JITSU-285).
+const CONNECTION_TARGET_KEY =
+  /host|url|uri|endpoint|server|address|domain|api_?base|instance_?connection_?name|connection_?string|^shop$/i;
 // TLS material (`sslServerCA` contains "server") says how to trust the target, not where it is
 const TLS_KEY = /ssl|tls|cert/i;
 

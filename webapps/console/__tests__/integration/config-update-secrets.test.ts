@@ -305,6 +305,98 @@ describe("other kinds of connection targets", () => {
       expect(await stored()).toMatchObject({ credentials: { host: "db.customer.com", password: "real-pw" } });
     });
 
+    // field layouts of production connector specs (read-only query, 12 Nov 2026): the target is not secret and sits
+    // next to a secret field, and the name rule used to miss it
+    async function seedSpecService(properties: Record<string, any>, credentials: Record<string, any>) {
+      const specPkg = `airbyte/source-mk-spec-${Math.random().toString(36).slice(2, 8)}`;
+      await deps().prisma.source_spec.upsert({
+        where: { package_version: { package: specPkg, version: "1.0.0" } },
+        create: { package: specPkg, version: "1.0.0", specs: { connectionSpecification: { properties } } },
+        update: {},
+      });
+      const { user, workspace } = await seedWorkspace();
+      const { id } = await svc().create(
+        user,
+        workspace.id,
+        "service",
+        { name: "src", protocol: "airbyte", package: specPkg, version: "1.0.0", credentials },
+        { generateId: true }
+      );
+      const stored = async () =>
+        (await deps().prisma.configurationObject.findUniqueOrThrow({ where: { id } })).config as any;
+      return { user, workspace, id, stored };
+    }
+
+    it("refuses a new MongoDB connection_string (a non-secret field next to the secret password)", async () => {
+      const credentials = {
+        database_config: { connection_string: "mongodb://db.customer.com:27017", username: "app", password: "real-pw" },
+      };
+      const { user, workspace, id, stored } = await seedSpecService(
+        {
+          database_config: {
+            type: "object",
+            oneOf: [
+              {
+                properties: {
+                  connection_string: { type: "string" },
+                  username: { type: "string" },
+                  password: { type: "string", airbyte_secret: true },
+                },
+              },
+            ],
+          },
+        },
+        credentials
+      );
+      for (const databaseConfig of [
+        { connection_string: "mongodb://attacker.example:27017", password: MASKED_SECRET },
+        { connection_string: "mongodb://attacker.example:27017" },
+      ]) {
+        await expect(
+          svc().update(user, workspace.id, "service", id, { credentials: { database_config: databaseConfig } })
+        ).rejects.toMatchObject({
+          status: 400,
+          message: expect.stringMatching(/credentials\.database_config\.connection_string changed/),
+        });
+      }
+      expect(await stored()).toMatchObject({ credentials });
+    });
+
+    it("refuses a new WooCommerce shop with the stored API key and secret, and lets other fields change", async () => {
+      const credentials = {
+        shop: "store.customer.com",
+        api_key: "real-key",
+        api_secret: "real-secret",
+        start_date: "2024-01-01",
+      };
+      const { user, workspace, id, stored } = await seedSpecService(
+        {
+          shop: { type: "string" },
+          api_key: { type: "string", airbyte_secret: true },
+          api_secret: { type: "string", airbyte_secret: true },
+          start_date: { type: "string" },
+        },
+        credentials
+      );
+      await expect(
+        svc().update(user, workspace.id, "service", id, {
+          credentials: { shop: "attacker.example", api_key: MASKED_SECRET, api_secret: MASKED_SECRET },
+        })
+      ).rejects.toMatchObject({ status: 400, message: expect.stringMatching(/credentials\.shop changed/) });
+      expect(await stored()).toMatchObject({ credentials });
+      await svc().update(user, workspace.id, "service", id, {
+        credentials: { start_date: "2025-01-01", api_key: MASKED_SECRET, api_secret: MASKED_SECRET },
+      });
+      expect(await stored()).toMatchObject({
+        credentials: {
+          shop: "store.customer.com",
+          api_key: "real-key",
+          api_secret: "real-secret",
+          start_date: "2025-01-01",
+        },
+      });
+    });
+
     it("allows another package when the credentials are entered again, and a new version without them", async () => {
       const { user, workspace, id, stored } = await seedService();
       await svc().update(user, workspace.id, "service", id, {

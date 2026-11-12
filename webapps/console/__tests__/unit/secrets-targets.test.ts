@@ -700,3 +700,83 @@ describe("MongoDB: username and database are formatted into the connection URI",
     expect(() => assertSecretsStayWithTarget(stored, patch, { ...stored, ...patch }, ["password"])).not.toThrow();
   });
 });
+
+// Field layouts read from the production connector specs (read-only query, 12 Nov 2026): the target field is not
+// secret and sits next to a secret one, and the name rule used to miss it.
+describe("services: target fields the name rule used to miss", () => {
+  const mongo = {
+    id: "s",
+    package: "airbyte/source-mongodb-v2",
+    version: "2.0.1",
+    credentials: {
+      database_config: {
+        cluster_type: "SELF_MANAGED_REPLICA_SET",
+        connection_string: "mongodb://db.customer.com:27017",
+        username: "app",
+        password: "real",
+      },
+    },
+  };
+  const woo = {
+    id: "w",
+    package: "airbyte/source-woocommerce",
+    version: "0.5.0",
+    credentials: {
+      shop: "store.customer.com",
+      api_key: "real-key",
+      api_secret: "real-secret",
+      start_date: "2024-01-01",
+    },
+  };
+
+  it("treats a changed MongoDB connection_string as a target, so the stored password is not reused", () => {
+    const submitted = {
+      ...mongo,
+      credentials: {
+        database_config: {
+          ...mongo.credentials.database_config,
+          connection_string: "mongodb://attacker.example:27017",
+          password: MASKED_SECRET,
+        },
+      },
+    };
+    expect(changedConnectionTargets(submitted, mongo)).toEqual(["credentials.database_config.connection_string"]);
+    expect(() => unmaskSecretsFromOriginal(submitted, mongo)).toThrow(/connection_string changed/);
+    const patch = { credentials: { database_config: { connection_string: "mongodb://attacker.example:27017" } } };
+    const merged = {
+      ...mongo,
+      credentials: { database_config: { ...mongo.credentials.database_config, ...patch.credentials.database_config } },
+    };
+    expect(() => assertSecretsStayWithTarget(mongo, patch, merged, ["credentials.database_config.password"])).toThrow(
+      /connection_string changed/
+    );
+  });
+
+  it("matches the camel-case spelling too", () => {
+    const original = { credentials: { connectionString: "a", password: "real" } };
+    const submitted = { credentials: { connectionString: "b", password: MASKED_SECRET } };
+    expect(changedConnectionTargets(submitted, original)).toEqual(["credentials.connectionString"]);
+  });
+
+  it("treats a changed WooCommerce shop (a store domain) as a target, and leaves other fields alone", () => {
+    const moved = {
+      ...woo,
+      credentials: { ...woo.credentials, shop: "attacker.example", api_key: MASKED_SECRET, api_secret: MASKED_SECRET },
+    };
+    expect(changedConnectionTargets(moved, woo)).toEqual(["credentials.shop"]);
+    expect(() => unmaskSecretsFromOriginal(moved, woo)).toThrow(/credentials\.shop changed/);
+    const edited = {
+      ...woo,
+      credentials: { ...woo.credentials, start_date: "2025-01-01", api_key: MASKED_SECRET, api_secret: MASKED_SECRET },
+    };
+    expect(changedConnectionTargets(edited, woo)).toEqual([]);
+  });
+
+  it("matches `shop` only as a whole field name", () => {
+    for (const key of ["shop_id", "workshop", "shopping_cart", "bookshop_name"]) {
+      const original = { credentials: { [key]: "1", api_key: "real" } };
+      const submitted = { credentials: { [key]: "2", api_key: MASKED_SECRET } };
+      expect(changedConnectionTargets(submitted, original), key).toEqual([]);
+    }
+  });
+});
