@@ -78,6 +78,47 @@ it.each(["id", "masked", "clone"])("unmasks stored source credentials for %s tes
   expect(f.close).toHaveBeenCalledOnce();
 });
 
+it.each(["masked", "clone"])("does not send stored secrets to a different host in %s tests", async mode => {
+  const { user, workspace } = await seedWorkspace();
+  const stored = await deps().prisma.configurationObject.create({
+    data: { workspaceId: workspace.id, type: "destination", config },
+  });
+  const f = service();
+  const opts = {
+    config: {
+      ...config,
+      ...(mode === "clone" ? { cloneId: stored.id } : { id: stored.id }),
+      host: "attacker.example",
+      password: MASKED_SECRET,
+    },
+  };
+  await expect(f.svc.testConnection(user, workspace.id, "destination", opts)).rejects.toThrow(/host changed/);
+  expect(f.createWarehouseReader).not.toHaveBeenCalled();
+});
+
+it.each(["masked", "clone"])(
+  "does not send stored secrets to a host added through the database name in %s tests",
+  async mode => {
+    const { user, workspace } = await seedWorkspace();
+    const stored = await deps().prisma.configurationObject.create({
+      data: { workspaceId: workspace.id, type: "destination", config },
+    });
+    const f = service();
+    const opts = {
+      config: {
+        ...config,
+        ...(mode === "clone" ? { cloneId: stored.id } : { id: stored.id }),
+        database: `${config.database} host=attacker.example`,
+        password: MASKED_SECRET,
+      },
+    };
+    await expect(f.svc.testConnection(user, workspace.id, "destination", opts)).rejects.toThrow(
+      /database contains a space/
+    );
+    expect(f.createWarehouseReader).not.toHaveBeenCalled();
+  }
+);
+
 it.each(["create", "preview", "close"])("redacts %s failures and closes allocated readers", async stage => {
   const { user, workspace } = await seedWorkspace();
   const f = service();
