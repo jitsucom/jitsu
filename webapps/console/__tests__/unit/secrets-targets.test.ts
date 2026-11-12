@@ -637,3 +637,66 @@ describe("ClickHouse database: the connection URL is formatted from it", () => {
     expect(() => assertSecretsStayWithTarget(stored, patch, { ...stored, ...patch }, ["password"])).not.toThrow();
   });
 });
+
+// rotor builds the MongoDB URI as `protocol://username:password@hosts/database?options`, concatenated with no escaping
+// (services/rotor/src/lib/mongodb-destination.ts). Probed with the mongodb driver 7.1.1 (parse only): a username of
+// `x:y@evil.example:27017/?appName=` moves the host to evil.example and puts the stored password into `appName`, and a
+// database of `events?authMechanism=PLAIN&proxyHost=evil.example&proxyPort=1080` sets a proxy and the PLAIN mechanism.
+describe("MongoDB: username and database are formatted into the connection URI", () => {
+  const stored = {
+    destinationType: "mongodb",
+    protocol: "mongodb",
+    hosts: ["db.customer.com:27017"],
+    username: "app",
+    password: "real",
+    database: "events",
+    collection: "c",
+  };
+  const movedUsername = "x:y@evil.example:27017/?appName=";
+  const optionsDatabase = "events?authMechanism=PLAIN&proxyHost=evil.example&proxyPort=1080";
+
+  it("refuses to reuse the stored password when the username moves the connection", () => {
+    const submitted = { ...stored, username: movedUsername, password: MASKED_SECRET };
+    expect(() => unmaskSecretsFromOriginal(submitted, stored)).toThrow(/username contains/);
+  });
+
+  it("refuses to reuse the stored password when the database starts connection options", () => {
+    const submitted = { ...stored, database: optionsDatabase, password: MASKED_SECRET };
+    expect(() => unmaskSecretsFromOriginal(submitted, stored)).toThrow(/database contains/);
+  });
+
+  it("refuses a saved destination that keeps the password while either field carries a delimiter", () => {
+    for (const patch of [{ username: movedUsername }, { database: optionsDatabase }]) {
+      expect(() => assertSecretsStayWithTarget(stored, patch, { ...stored, ...patch }, ["password"])).toThrow(
+        /contains/
+      );
+    }
+  });
+
+  it("refuses each of @ / ? # in either field", () => {
+    for (const field of ["username", "database"]) {
+      for (const bad of ["a@b", "a/b", "a?b", "a#b"]) {
+        const submitted = { ...stored, [field]: bad, password: MASKED_SECRET };
+        expect(() => unmaskSecretsFromOriginal(submitted, stored), `${field} ${bad}`).toThrow(
+          new RegExp(`${field} contains`)
+        );
+      }
+    }
+  });
+
+  it("lets ordinary names through, including a percent-encoded username, which rotor passes on as it is", () => {
+    for (const username of ["app", "svc.user-1", "user%40example.com"]) {
+      const submitted = { ...stored, username, password: MASKED_SECRET };
+      expect(() => unmaskSecretsFromOriginal(submitted, stored)).not.toThrow();
+    }
+    for (const database of ["events", "my_db", "Events-2024"]) {
+      const submitted = { ...stored, database, password: MASKED_SECRET };
+      expect(() => unmaskSecretsFromOriginal(submitted, stored)).not.toThrow();
+    }
+  });
+
+  it("lets a typed password make a strange name the editor's own business", () => {
+    const patch = { username: movedUsername, password: "typed-again" };
+    expect(() => assertSecretsStayWithTarget(stored, patch, { ...stored, ...patch }, ["password"])).not.toThrow();
+  });
+});

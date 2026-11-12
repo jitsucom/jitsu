@@ -351,6 +351,42 @@ describe("other kinds of connection targets", () => {
     expect(stored).toMatchObject({ database: "events", password: "real-ch-pw" });
   });
 
+  it("refuses a MongoDB username that moves the connection, or a database that adds options, with the stored password", async () => {
+    const { user, workspace } = await seedWorkspace();
+    const { id } = await svc().create(
+      user,
+      workspace.id,
+      "destination",
+      {
+        name: "mongo",
+        destinationType: "mongodb",
+        protocol: "mongodb",
+        hosts: ["db.customer.com:27017"],
+        username: "app",
+        database: "events",
+        collection: "c",
+        password: "real-mongo-pw",
+      },
+      { generateId: true }
+    );
+    const stored = async () =>
+      (await deps().prisma.configurationObject.findUniqueOrThrow({ where: { id } })).config as any;
+    for (const patch of [
+      { username: "x:y@evil.example:27017/?appName=", password: MASKED_SECRET },
+      { username: "x:y@evil.example:27017/?appName=" },
+      { database: "events?authMechanism=PLAIN&proxyHost=evil.example&proxyPort=1080" },
+    ]) {
+      await expect(svc().update(user, workspace.id, "destination", id, patch)).rejects.toMatchObject({
+        status: 400,
+        message: expect.stringMatching(/(username|database) contains/),
+      });
+    }
+    expect(await stored()).toMatchObject({ username: "app", database: "events", password: "real-mongo-pw" });
+    // an ordinary edit keeps the stored password
+    await svc().update(user, workspace.id, "destination", id, { name: "renamed", password: MASKED_SECRET });
+    expect(await stored()).toMatchObject({ name: "renamed", username: "app", password: "real-mongo-pw" });
+  });
+
   it("refuses another Snowflake account with the stored password", async () => {
     const { user, workspace, id } = await seed("snowflake", {
       authenticationMethod: "password",

