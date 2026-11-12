@@ -1,4 +1,4 @@
-import { createRoute } from "../../../lib/api";
+import { assertNotLimitedKey, createRoute } from "../../../lib/api";
 import { z } from "zod";
 import { db } from "../../../lib/server/db";
 import { assertTrue, checkHash, createHash } from "juava";
@@ -12,6 +12,7 @@ export default createRoute()
     }),
   })
   .handler(async ({ user, body }) => {
+    assertNotLimitedKey(user);
     assertTrue(user.loginProvider === "credentials", "Only credentials login is supported");
     const password = await db.prisma().userPassword.findFirst({ where: { userId: user.internalId } });
     if (!password) {

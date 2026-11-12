@@ -190,6 +190,10 @@ export class OAuthHandlers {
     if (req.method !== "POST") return jsonError(res, 405, "method_not_allowed");
     const sessionUser = await getUser(res, req);
     if (!sessionUser) return jsonError(res, 401, "unauthenticated");
+    // An API key must not be able to approve an OAuth client: the resulting refresh token would be unrestricted and
+    // outlive the key.
+    if (sessionUser.authType === "bearer")
+      return jsonError(res, 403, "forbidden", "API keys cannot approve OAuth clients");
     const parsed = ApproveBody.safeParse(readBody(req));
     if (!parsed.success) {
       return jsonError(res, 400, "invalid_request", parsed.error.message);
