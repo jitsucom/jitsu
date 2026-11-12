@@ -56,6 +56,27 @@ describe("signing keys", () => {
       assertSecretsStayWithTarget(both, patch, { ...both, ...patch }, ["signatureSecret", "password"])
     ).toThrow(/password/);
   });
+
+  it("are not exempt on a service: the connector image gets them, so a changed package needs them again", () => {
+    const service = { package: "airbyte/source-x", version: "1.0", credentials: { hmac_key_secret: "real-hmac" } };
+    const patch = { package: "attacker/connector" };
+    expect(() =>
+      assertSecretsStayWithTarget(service, patch, { ...service, ...patch }, ["credentials.hmac_key_secret"])
+    ).toThrow(/hmac_key_secret/);
+    // typing it again is allowed
+    const typed = { ...patch, credentials: { hmac_key_secret: "typed-again" } };
+    expect(() =>
+      assertSecretsStayWithTarget(service, typed, { ...service, ...typed }, ["credentials.hmac_key_secret"])
+    ).not.toThrow();
+  });
+
+  it("are exempt only for a stored webhook: another destination type keeps them counted", () => {
+    const postgres = { destinationType: "postgres", host: "a.example", signingSecret: "real" };
+    const patch = { host: "b.example" };
+    expect(() => assertSecretsStayWithTarget(postgres, patch, { ...postgres, ...patch }, ["signingSecret"])).toThrow(
+      /signingSecret/
+    );
+  });
 });
 
 describe("changedTargetFieldsBetween", () => {

@@ -162,7 +162,7 @@ export function unmaskSecretsFromOriginal(object: any, dbEntity: any, comparedWi
   // config is not, so callers pass the stored one with the same defaults applied to compare against.
   const changedTargets = changedConnectionTargets(object, comparedWith);
   // Only signing keys masked (webhook signatureSecret): they sign requests and are never sent to the target
-  const onlySigningKeysMasked = maskedPaths(object).every(path => SIGNING_KEY.test(String(path[path.length - 1])));
+  const onlySigningKeysMasked = maskedPaths(object).every(path => isSigningKey(dbEntity, path[path.length - 1]));
   const breakers = connectionStringBreakers(object, comparedWith);
   if (breakers.fields.length > 0 && !onlySigningKeysMasked && containsMaskedSecrets(object)) {
     throw new ApiError(connectionStringError(breakers), { status: 400 });
@@ -358,8 +358,13 @@ const connectionStringReason = ({ fields, what }: { fields: string[]; what: stri
 const connectionStringError = (breakers: { fields: string[]; what: string }) =>
   `Cannot reuse saved secrets because ${connectionStringReason(breakers)}. Enter the secret values again to continue.`;
 
-// Secrets that are used to sign requests and are never sent to the connection target
+// Secrets that are used to sign requests and are never sent to the connection target. Only a webhook destination has
+// them: the receiver gets the signature, not the key. A service is different: its connector image receives the whole
+// credentials object, so a secret named like a signing key is sent to the target like any other, and the exemption
+// would let a changed `package` or host keep it. The stored type decides, never the submitted one.
 const SIGNING_KEY = /signature|signing|hmac/i;
+const isSigningKey = (stored: any, name: unknown) =>
+  stored?.destinationType === "webhook" && SIGNING_KEY.test(String(name ?? ""));
 
 /** Paths of every MASKED_SECRET value in an object. */
 function maskedPaths(node: any, path: (string | number)[] = []): (string | number)[][] {
@@ -428,7 +433,7 @@ export function assertSecretsStayWithTarget(original: any, patch: any, merged: a
   }
   const keptSecrets = secretPaths.filter(path => {
     // A signing key (webhook `signatureSecret`) only signs what is sent: the receiver never gets it
-    if (SIGNING_KEY.test(String(path).split(".").pop() ?? "")) {
+    if (isSigningKey(original, String(path).split(".").pop())) {
       return false;
     }
     const stored = get(original, path);

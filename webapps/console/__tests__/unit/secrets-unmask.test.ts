@@ -65,6 +65,25 @@ describe("unmaskSecretsFromOriginal", () => {
     );
   });
 
+  it("does not let a secret named like a signing key keep a service's secrets when the connector image changes", () => {
+    const service = {
+      id: "s",
+      package: "airbyte/source-x",
+      version: "1.0",
+      credentials: { host: "db.customer.com", hmac_key_secret: "real-hmac" },
+    };
+    const submitted = {
+      ...service,
+      package: "attacker/connector",
+      credentials: { ...service.credentials, hmac_key_secret: MASKED_SECRET },
+    };
+    expect(() => unmaskSecretsFromOriginal(submitted, service)).toThrow(/package changed/);
+    // the stored type decides: adding `destinationType: "webhook"` to the submission does not bring the exemption back
+    expect(() => unmaskSecretsFromOriginal({ ...submitted, destinationType: "webhook" }, service)).toThrow(
+      /package changed/
+    );
+  });
+
   it("does not care about target changes when nothing is masked", () => {
     const submitted = { ...stored, host: "other.example", password: "typed-by-user" };
     expect(unmaskSecretsFromOriginal(submitted, stored)).toEqual(submitted);
