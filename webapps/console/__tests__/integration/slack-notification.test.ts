@@ -71,6 +71,55 @@ describe("sendSlackNotification target restrictions", () => {
     }
   );
 
+  it("does not hold the operator's admin channel to the Slack host", async () => {
+    let posted = false;
+    server.use(
+      http.post("https://chat.example/hooks/abc", () => {
+        posted = true;
+        return HttpResponse.text("ok");
+      })
+    );
+    const admin = { ...channel("https://chat.example/hooks/abc"), id: "admin", workspaceId: "admin" };
+    await sendSlackNotification(admin, entity, [entity], "http://x", false);
+    expect(posted).toBe(true);
+  });
+
+  it("still refuses a workspace channel that is only named like the admin one", async () => {
+    const fetchSpy = vi.spyOn(globalThis, "fetch");
+    const lookalike = { ...channel("https://chat.example/hooks/abc"), id: "admin" };
+    await expect(sendSlackNotification(lookalike, entity, [entity], "http://x", false)).rejects.toThrow(
+      /hooks\.slack\.com/
+    );
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it("does not follow a redirect from the webhook", async () => {
+    let followed = false;
+    server.use(
+      http.post(
+        "https://hooks.slack.com/services/T0/B0/REDIR",
+        () =>
+          new HttpResponse(null, {
+            status: 302,
+            headers: { Location: "https://hooks.slack.com/services/T0/B0/TARGET" },
+          })
+      ),
+      http.post("https://hooks.slack.com/services/T0/B0/TARGET", () => {
+        followed = true;
+        return HttpResponse.text("ok");
+      })
+    );
+    const error = await sendSlackNotification(
+      channel("https://hooks.slack.com/services/T0/B0/REDIR"),
+      entity,
+      [entity],
+      "http://x",
+      false
+    ).catch(e => e);
+    expect(followed).toBe(false);
+    expect(error.message).toContain("302");
+  });
+
   it("does not return the response body of a failed request", async () => {
     server.use(
       http.post("https://hooks.slack.com/services/T0/B0/FAIL", () =>

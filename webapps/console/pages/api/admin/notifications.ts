@@ -96,6 +96,12 @@ const adminChannel: NotificationChannel = {
   summarizeBatchNotificationsByTable: true,
 };
 
+// A stored channel always has the workspace id the server took from the request path, so only the operator's own
+// channel (built above from the environment) can have "admin" there.
+export function isAdminChannel(channel: Pick<NotificationChannel, "id" | "workspaceId">): boolean {
+  return channel.id === "admin" && channel.workspaceId === "admin";
+}
+
 export type StatusChangeEntity = Omit<StatusChange, "type"> & {
   id: number | bigint;
   type: "batch" | "sync" | "dead" | typeof BATCH_AGGREGATE_TYPE;
@@ -1563,7 +1569,9 @@ export async function sendSlackNotification(
   }
 
   if (!dryRun) {
-    if (!isSlackWebhookUrl(channel.slackWebhookUrl ?? "")) {
+    // The restriction is for URLs that workspace members type in. The admin channel's URL is set by the operator
+    // (SLACK_WEBHOOK_URL) and may be a Slack-compatible endpoint, so it is not held to it.
+    if (!isAdminChannel(channel) && !isSlackWebhookUrl(channel.slackWebhookUrl ?? "")) {
       throw new Error("Slack webhook URL must look like https://hooks.slack.com/services/...");
     }
     console.debug(`Sending slack notification to ${channel.id} (${channel.name}): ${payload.text}`);
