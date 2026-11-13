@@ -272,6 +272,42 @@ describe("Test Jitsu NodeJS client", () => {
     expect(requestLog[2].body.context.awesome.nestedKey).toBe("awesome-key");
   });
 
+  test("per-event context does not leak into later events or other clients", async () => {
+    const config = {
+      host: server.baseUrl,
+      writeKey: "key:secret",
+      defaultPayloadContext: { app: { name: "default-app" } },
+    };
+    const client = jitsuAnalytics(config);
+    await client.track("first", {}, { context: { requestId: "req-1", app: { build: "42" } } });
+    await client.track("second");
+    const otherClient = jitsuAnalytics({ host: server.baseUrl, writeKey: "key:secret" });
+    await otherClient.track("third", {}, { context: { requestId: "req-3" } });
+    await otherClient.track("fourth");
+    await new Promise(resolve => setTimeout(resolve, 1000));
+
+    expect(requestLog.length).toBe(4);
+    expect(requestLog[0].body.context.requestId).toBe("req-1");
+    expect(requestLog[0].body.context.app).toEqual({ name: "default-app", build: "42" });
+    expect(requestLog[1].body.context.requestId).toBeUndefined();
+    expect(requestLog[1].body.context.app).toEqual({ name: "default-app" });
+    expect(requestLog[2].body.context.requestId).toBe("req-3");
+    expect(requestLog[3].body.context.requestId).toBeUndefined();
+    expect(client.getConfiguration().defaultPayloadContext).toEqual({ app: { name: "default-app" } });
+  });
+
+  test("setContextProperty on one client does not change other clients", async () => {
+    const first = jitsuAnalytics({ host: server.baseUrl, writeKey: "key:secret" });
+    const second = jitsuAnalytics({ host: server.baseUrl, writeKey: "key:secret" });
+    first.setContextProperty("tenant", "first-tenant");
+    await second.track("from-second");
+    await new Promise(resolve => setTimeout(resolve, 1000));
+
+    expect(requestLog.length).toBe(1);
+    expect(requestLog[0].body.context.tenant).toBeUndefined();
+    expect(second.getContextProperty("tenant")).toBeUndefined();
+  });
+
   test("node-js", async () => {
     const jitsu: AnalyticsInterface = jitsuAnalytics({
       writeKey: "key:secret",
