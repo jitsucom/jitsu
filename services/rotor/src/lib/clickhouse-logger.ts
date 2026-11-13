@@ -7,8 +7,8 @@ import { Readable } from "stream";
 import { EventsStore } from "@jitsu/core-functions-lib";
 import { getServerEnv } from "../serverEnv";
 
-type LogEntry = [number, string, string, LogLevel, any];
-type DeadLetterEntry = [number, string, string, string, any, any];
+type LogEntry = [string, string, string, LogLevel, any];
+type DeadLetterEntry = [string, string, string, string, any, any];
 
 const serverEnv = getServerEnv();
 
@@ -104,10 +104,10 @@ export function createClickhouseLogger(): EventsStore {
 
   return {
     log: (connectionId: string, level: LogLevel, message) => {
-      logBuffer.push([Date.now(), connectionId, "function", level, message]);
+      logBuffer.push([new Date().toISOString(), connectionId, "function", level, message]);
     },
     deadLetter: (workspaceId: string, connectionId: string, type: string, message: any, error: any) => {
-      deadLetterBuffer.push([Date.now(), workspaceId, connectionId, type, message, error]);
+      deadLetterBuffer.push([new Date().toISOString(), workspaceId, connectionId, type, message, error]);
     },
     close: () => {
       clearInterval(interval);
