@@ -1,0 +1,146 @@
+import { afterEach, describe, expect, it } from "vitest";
+import * as http from "node:http";
+import { AddressInfo, createServer as createTcpServer } from "node:net";
+import { fetch } from "undici";
+import { createGuardedAgent, normalizeHostname } from "../src/functions/lib/guarded-agent";
+
+const servers: http.Server[] = [];
+afterEach(async () => {
+  await Promise.all(servers.splice(0).map(s => new Promise(resolve => s.close(resolve))));
+});
+
+async function listen(handler: http.RequestListener): Promise<number> {
+  const server = http.createServer(handler);
+  servers.push(server);
+  await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
+  return (server.address() as AddressInfo).port;
+}
+
+const causeCode = (e: any) => e?.cause?.code ?? e?.code;
+
+describe("createGuardedAgent", () => {
+  it("refuses an IP literal that is not public", async () => {
+    let hit = false;
+    const port = await listen((_, res) => ((hit = true), res.end("secret")));
+    const error = await fetch(`http://127.0.0.1:${port}/`, { dispatcher: createGuardedAgent() }).catch(e => e);
+    expect(causeCode(error)).toBe("EBLOCKED");
+    expect(hit).toBe(false);
+  });
+
+  it("refuses a hostname that resolves to a non-public address, at connect time", async () => {
+    let hit = false;
+    const port = await listen((_, res) => ((hit = true), res.end("secret")));
+    const agent = createGuardedAgent({ resolve: async () => [{ address: "127.0.0.1", family: 4 }] });
+    const error = await fetch(`http://rebinding.example:${port}/`, { dispatcher: agent }).catch(e => e);
+    expect(causeCode(error)).toBe("EBLOCKED");
+    expect(hit).toBe(false);
+  });
+
+  it("refuses a hostname when any of its answers is non-public", async () => {
+    // the classifier is stubbed so that 192.0.2.1 (documentation range, never routed) stands for a public address:
+    // if the guard checked only the first answer, the connect attempt would go nowhere instead of to a real host
+    const agent = createGuardedAgent({
+      resolve: async () => [
+        { address: "192.0.2.1", family: 4 },
+        { address: "10.0.0.5", family: 4 },
+      ],
+      isBlocked: address => address.startsWith("10."),
+    });
+    const error = await fetch(`http://mixed.example:81/`, { dispatcher: agent }).catch(e => e);
+    expect(causeCode(error)).toBe("EBLOCKED");
+  });
+
+  it("does not follow a redirect to an internal address", async () => {
+    let internalHit = false;
+    const internal = await listen((_, res) => ((internalHit = true), res.end("secret")));
+    const redirector = await listen((_, res) => {
+      res.writeHead(302, { location: `http://127.0.0.1:${internal}/metadata` });
+      res.end();
+    });
+    // localhost is the one host allowed to be local, so the first hop works and the redirect target is what gets refused
+    const agent = createGuardedAgent({ allowedHosts: ["localhost"] });
+    const error = await fetch(`http://localhost:${redirector}/`, { dispatcher: agent }).catch(e => e);
+    expect(causeCode(error)).toBe("EBLOCKED");
+    expect(internalHit).toBe(false);
+  });
+
+  it("lets an allowed host reach a local address", async () => {
+    const port = await listen((_, res) => res.end("ok"));
+    const agent = createGuardedAgent({ allowedHosts: ["localhost"] });
+    const res = await fetch(`http://localhost:${port}/`, { dispatcher: agent });
+    expect(await res.text()).toBe("ok");
+  });
+
+  it("reaches a public address (stubbed to the local server)", async () => {
+    const port = await listen((_, res) => res.end("ok"));
+    const agent = createGuardedAgent({
+      resolve: async () => [{ address: "127.0.0.1", family: 4 }],
+      isBlocked: () => false,
+    });
+    const res = await fetch(`http://public.example:${port}/`, { dispatcher: agent });
+    expect(await res.text()).toBe("ok");
+  });
+});
+
+describe("IPv6 whitelist entries", () => {
+  it("normalizes brackets and case, so `[::1]` and `::1` are the same entry", () => {
+    expect(normalizeHostname("[::1]")).toBe("::1");
+    expect(normalizeHostname(" [FD00::A] ")).toBe("fd00::a");
+    expect(normalizeHostname("LocalHost")).toBe("localhost");
+  });
+
+  for (const entry of ["[::1]", "::1"]) {
+    it(`lets a whitelisted IPv6 loopback literal (${entry}) through and refuses it otherwise`, async ctx => {
+      const server = http.createServer((_, res) => res.end("ok"));
+      servers.push(server);
+      const listening = await new Promise<boolean>(resolve => {
+        server.once("error", () => resolve(false));
+        server.listen(0, "::1", () => resolve(true));
+      });
+      // no IPv6 loopback on this machine: shown as skipped, not as passed
+      if (!listening) return ctx.skip();
+      const port = (server.address() as AddressInfo).port;
+      const allowed = await fetch(`http://[::1]:${port}/`, {
+        dispatcher: createGuardedAgent({ allowedHosts: [entry] }),
+      });
+      expect(await allowed.text()).toBe("ok");
+      const refused = await fetch(`http://[::1]:${port}/`, { dispatcher: createGuardedAgent() }).catch(e => e);
+      expect(causeCode(refused)).toBe("EBLOCKED");
+    });
+  }
+});
+
+// Many servers send no keep-alive hint, so only the agent's own timeout decides how long an idle connection is kept.
+// undici's default is 4 s: every request after a gap longer than that opened a new connection (a TCP and TLS handshake
+// and a DNS lookup), where the pool this agent replaces on the function servers kept it.
+describe("idle connections", () => {
+  it("keeps a connection across an idle gap longer than undici's default", async () => {
+    let connections = 0;
+    const raw = createTcpServer(socket => {
+      connections++;
+      let buffer = "";
+      socket.on("data", chunk => {
+        buffer += chunk.toString();
+        while (buffer.includes("\r\n\r\n")) {
+          buffer = buffer.slice(buffer.indexOf("\r\n\r\n") + 4);
+          socket.write("HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: 2\r\n\r\nok");
+        }
+      });
+      socket.on("error", () => {});
+    });
+    await new Promise<void>(resolve => raw.listen(0, "127.0.0.1", resolve));
+    const port = (raw.address() as AddressInfo).port;
+    const agent = createGuardedAgent({ allowedHosts: ["localhost"] });
+    try {
+      for (let i = 0; i < 2; i++) {
+        const res = await fetch(`http://localhost:${port}/`, { dispatcher: agent });
+        expect(await res.text()).toBe("ok");
+        if (i === 0) await new Promise(resolve => setTimeout(resolve, 5000));
+      }
+      expect(connections).toBe(1);
+    } finally {
+      await agent.close();
+      await new Promise(resolve => raw.close(resolve));
+    }
+  }, 20_000);
+});

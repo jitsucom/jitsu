@@ -11,6 +11,7 @@ import (
 	"github.com/jitsucom/bulker/bulkerlib/implementations/sql/testcontainers"
 	"github.com/jitsucom/bulker/jitsubase/appbase"
 	"github.com/jitsucom/bulker/jitsubase/logging"
+	"github.com/jitsucom/bulker/jitsubase/utils"
 	"github.com/stretchr/testify/require"
 	"io"
 	"net/http"
@@ -22,8 +23,13 @@ import (
 	"time"
 )
 
-const testBulkerPort = "33042"
-const testBulkerURL = "http://localhost:" + testBulkerPort
+// The port of the app under test is chosen when the app starts, not fixed. A fixed port inside the operating system's
+// ephemeral range (33042 is inside Linux's 32768-60999) can be taken by anything else on the machine; then the app
+// cannot listen, and the test only gives up after four minutes with "bulker is not ready".
+var (
+	testBulkerPort string
+	testBulkerURL  string
+)
 
 type StepFunction func() error
 
@@ -121,6 +127,8 @@ func initApp(t *testing.T, envVars map[string]string) (app *appbase.App[Config],
 	if err != nil {
 		t.Fatalf("could not write bulker.env to temp file: %v", err)
 	}
+	testBulkerPort = fmt.Sprint(utils.GetPort())
+	testBulkerURL = "http://localhost:" + testBulkerPort
 	t.Setenv("HTTP_PORT", testBulkerPort)
 	t.Setenv("BULKER_CONFIG_PATH", dir)
 	for k, v := range envVars {
@@ -138,6 +146,7 @@ func initApp(t *testing.T, envVars map[string]string) (app *appbase.App[Config],
 		app.Run()
 	}()
 	ready := false
+	var lastErr error
 	//wait in loop for server readiness
 	for i := 0; i < 240; i++ {
 		res, err := http.Get(testBulkerURL + "/ready")
@@ -146,10 +155,14 @@ func initApp(t *testing.T, envVars map[string]string) (app *appbase.App[Config],
 			logging.Infof("bulker is ready")
 			break
 		}
+		if err == nil {
+			err = fmt.Errorf("status %d", res.StatusCode)
+		}
+		lastErr = err
 		time.Sleep(1000 * time.Millisecond)
 	}
 	if !ready {
-		t.Fatalf("bulker is not ready")
+		t.Fatalf("bulker is not ready on port %s: %v", testBulkerPort, lastErr)
 	}
 	return
 }
@@ -367,34 +380,65 @@ func integrationTest(t *testing.T, tt AppTestConfig, postgresContainer *testcont
 		i++
 	}
 	time.Sleep(time.Duration(tt.waitAfterAllMessageSentSec) * time.Second)
-	rowsCount, err := postgresContainer.CountRows(fmt.Sprintf("%s.%s", postgresContainer.Schema, tt.name))
+	// The consumers join their Kafka consumer groups and commit on their own schedule, which takes longer on a loaded
+	// machine, so the minimum wait above is not a promise. Keep counting until the table holds what the test expects.
+	rowsCount, err := waitForRows(postgresContainer, fmt.Sprintf("%s.%s", postgresContainer.Schema, tt.name), tt.expectedRowsCount)
 	PostStep("count_rows", tt, reqr, err)
 	logging.Infof("rows count: %d", rowsCount)
 
 	reqr.Equal(tt.expectedRowsCount, rowsCount, "unexpected rows count in table %s", tt.name)
 
+	// the same for the dead letters
+	dead, err := fetchDead(tt)
+	for deadline := time.Now().Add(maxExtraWait); err == nil && len(dead) < tt.expectedDeadCount && time.Now().Before(deadline); {
+		time.Sleep(time.Second)
+		dead, err = fetchDead(tt)
+	}
+	PostStep("check_dead_topic", tt, reqr, err)
+	for _, d := range dead {
+		logging.Infof("dead: %s", d)
+	}
+	reqr.Equal(tt.expectedDeadCount, len(dead), "unexpected dead count for table %s", tt.name)
+	logging.Infof("Test %s passed", tt.name)
+}
+
+// maxExtraWait is how long a test keeps waiting, after its minimum wait, for the expected rows and dead letters.
+const maxExtraWait = 60 * time.Second
+
+// waitForRows counts the rows of a table and, while there are fewer than expected, keeps counting for up to
+// maxExtraWait. A table that does not exist yet is not an error until the time is up. A test that expects no rows
+// counts once.
+func waitForRows(postgresContainer *testcontainers.PostgresContainer, table string, expected int) (int, error) {
+	deadline := time.Now().Add(maxExtraWait)
+	for {
+		count, err := postgresContainer.CountRows(table)
+		if expected == 0 || (err == nil && count >= expected) || time.Now().After(deadline) {
+			return count, err
+		}
+		time.Sleep(time.Second)
+	}
+}
+
+// fetchDead returns the dead letters of the test's table, one line each.
+func fetchDead(tt AppTestConfig) ([]string, error) {
 	req, _ := http.NewRequest("GET", fmt.Sprintf(testBulkerURL+"/failed/%s?tableName=%s&status=dead&mode=%s", tt.destinationId, tt.name, tt.mode), nil)
 	req.Header.Set("Authorization", "Bearer "+tt.token)
 	res, err := http.DefaultClient.Do(req)
-	if err == nil {
-		if res.StatusCode != 200 {
-			err = fmt.Errorf("unexpected status code: %d", res.StatusCode)
-		}
+	if err != nil {
+		return nil, err
 	}
-	PostStep("check_dead_topic", tt, reqr, err)
-	deadCount := 0
-	if res.StatusCode == 200 {
-		scanner = bufio.NewScanner(res.Body)
-		for scanner.Scan() {
-			logging.Infof("dead: %s", scanner.Text())
-			deadCount++
-		}
-	}
-	if res != nil && res.Body != nil {
+	defer func() {
 		_ = res.Body.Close()
+	}()
+	if res.StatusCode != 200 {
+		return nil, fmt.Errorf("unexpected status code: %d", res.StatusCode)
 	}
-	reqr.Equal(tt.expectedDeadCount, deadCount, "unexpected dead count for table %s", tt.name)
-	logging.Infof("Test %s passed", tt.name)
+	var lines []string
+	scanner := bufio.NewScanner(res.Body)
+	for scanner.Scan() {
+		lines = append(lines, scanner.Text())
+	}
+	return lines, nil
 }
 
 func PostStep(step string, testConfig AppTestConfig, reqr *require.Assertions, err error) {

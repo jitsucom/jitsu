@@ -18,6 +18,12 @@ export {
 } from "./functions/lib/index";
 
 export { isBlockedAddress, isPublicAddress } from "./functions/lib/public-address";
+export {
+  createGuardedFetch,
+  isBlockedAddressError,
+  isForbidLocalEnabled,
+  parseLocalWhitelist,
+} from "./functions/lib/guarded-fetch";
 
 export type {
   MetricsMeta,

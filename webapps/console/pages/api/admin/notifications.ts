@@ -26,6 +26,7 @@ import { DefaultUserNotificationsPreferences } from "../../../lib/server/user-pr
 import pick from "lodash/pick";
 import ConnectionDeadLettered from "../../../emails/connection-dead-lettered";
 import { getServerEnv } from "../../../lib/server/serverEnv";
+import { isSlackWebhookUrl } from "../../../lib/shared/slack-webhook";
 
 dayjs.extend(utc);
 
@@ -94,6 +95,12 @@ const adminChannel: NotificationChannel = {
   recurringAlertsPeriodHours: 24,
   summarizeBatchNotificationsByTable: true,
 };
+
+// A stored channel always has the workspace id the server took from the request path, so only the operator's own
+// channel (built above from the environment) can have "admin" there.
+export function isAdminChannel(channel: Pick<NotificationChannel, "id" | "workspaceId">): boolean {
+  return channel.id === "admin" && channel.workspaceId === "admin";
+}
 
 export type StatusChangeEntity = Omit<StatusChange, "type"> & {
   id: number | bigint;
@@ -1562,6 +1569,11 @@ export async function sendSlackNotification(
   }
 
   if (!dryRun) {
+    // The restriction is for URLs that workspace members type in. The admin channel's URL is set by the operator
+    // (SLACK_WEBHOOK_URL) and may be a Slack-compatible endpoint, so it is not held to it.
+    if (!isAdminChannel(channel) && !isSlackWebhookUrl(channel.slackWebhookUrl ?? "")) {
+      throw new Error("Slack webhook URL must look like https://hooks.slack.com/services/...");
+    }
     console.debug(`Sending slack notification to ${channel.id} (${channel.name}): ${payload.text}`);
     const res = await fetch(channel.slackWebhookUrl!, {
       method: "POST",
@@ -1569,10 +1581,12 @@ export async function sendSlackNotification(
         "Content-Type": "application/json",
       },
       body: JSON.stringify(payload),
+      redirect: "manual",
     });
 
     if (!res.ok) {
-      throw new Error(`HTTP Error: ${res.status}: ${await res.text()}`);
+      // The response body is not returned: this error reaches the user who set the URL
+      throw new Error(`Slack webhook responded with HTTP ${res.status}`);
     }
   }
   return {
