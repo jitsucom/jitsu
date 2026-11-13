@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from "vitest";
 import * as http from "node:http";
-import { AddressInfo } from "node:net";
+import { AddressInfo, createServer as createTcpServer } from "node:net";
 import { fetch } from "undici";
 import { createGuardedAgent, normalizeHostname } from "../src/functions/lib/guarded-agent";
 
@@ -108,4 +108,39 @@ describe("IPv6 whitelist entries", () => {
       expect(causeCode(refused)).toBe("EBLOCKED");
     });
   }
+});
+
+// Many servers send no keep-alive hint, so only the agent's own timeout decides how long an idle connection is kept.
+// undici's default is 4 s: every request after a gap longer than that opened a new connection (a TCP and TLS handshake
+// and a DNS lookup), where the pool this agent replaces on the function servers kept it.
+describe("idle connections", () => {
+  it("keeps a connection across an idle gap longer than undici's default", async () => {
+    let connections = 0;
+    const raw = createTcpServer(socket => {
+      connections++;
+      let buffer = "";
+      socket.on("data", chunk => {
+        buffer += chunk.toString();
+        while (buffer.includes("\r\n\r\n")) {
+          buffer = buffer.slice(buffer.indexOf("\r\n\r\n") + 4);
+          socket.write("HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: 2\r\n\r\nok");
+        }
+      });
+      socket.on("error", () => {});
+    });
+    await new Promise<void>(resolve => raw.listen(0, "127.0.0.1", resolve));
+    const port = (raw.address() as AddressInfo).port;
+    const agent = createGuardedAgent({ allowedHosts: ["localhost"] });
+    try {
+      for (let i = 0; i < 2; i++) {
+        const res = await fetch(`http://localhost:${port}/`, { dispatcher: agent });
+        expect(await res.text()).toBe("ok");
+        if (i === 0) await new Promise(resolve => setTimeout(resolve, 5000));
+      }
+      expect(connections).toBe(1);
+    } finally {
+      await agent.close();
+      await new Promise(resolve => raw.close(resolve));
+    }
+  }, 20_000);
 });

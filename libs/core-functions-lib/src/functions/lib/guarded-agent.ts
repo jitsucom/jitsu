@@ -26,6 +26,15 @@ export interface GuardedAgentOptions {
 }
 
 /**
+ * How long an idle connection is kept. undici's default is 4 s: a host that is called less often than that cost a new
+ * TCP and TLS handshake and a DNS lookup on every request, where the pool this replaces on the function servers (Deno's,
+ * with `poolIdleTimeout: false`) kept the connection. A keep-alive hint from the server still overrides this value, up
+ * to the maximum.
+ */
+const KEEP_ALIVE_TIMEOUT_MS = 60_000;
+const KEEP_ALIVE_MAX_TIMEOUT_MS = 600_000;
+
+/**
  * undici Agent that refuses to connect to non-public addresses. The check runs when a connection is opened, on the
  * address that is actually used, so it covers what a resolve-then-fetch pre-check cannot: a DNS answer that changes
  * between the check and the connection (rebinding), and every hop of a redirect chain. IP-literal hosts never reach
@@ -65,6 +74,8 @@ export function createGuardedAgent(options: GuardedAgentOptions = {}): Agent {
 
   const connector = buildConnector({ lookup: lookup as any });
   return new Agent({
+    keepAliveTimeout: KEEP_ALIVE_TIMEOUT_MS,
+    keepAliveMaxTimeout: KEEP_ALIVE_MAX_TIMEOUT_MS,
     connect: (connectOptions, callback) => {
       const host = normalizeHostname(connectOptions.hostname);
       if (net.isIP(host) && !allowed.has(host) && isBlocked(host)) {
