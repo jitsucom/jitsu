@@ -458,39 +458,59 @@ func TestConsumerRuntimeKeepsReplacementPaused(t *testing.T) {
 	}, 100*time.Millisecond, 5*time.Millisecond)
 }
 
-func TestConsumerRuntimeRecreatesConsumerAfterAssignmentIsLost(t *testing.T) {
-	first := newFakeGroupConsumer()
-	first.assignmentLost = true
-	second := newFakeGroupConsumer()
-	consumers := []groupConsumer{first, second}
-	var factoryCalls atomic.Int64
-	var membershipErrors atomic.Int64
-	noop := func(string, ...any) {}
-	runtime := newConsumerRuntimeWithFactory(kafka.ConfigMap{}, "topic", consumerRuntimeHooks{
-		debugf: noop,
-		infof:  noop,
-		errorf: noop,
-		onKafkaError: func(err kafka.Error) {
-			if err.Code() == kafka.ErrUnknownMemberID {
-				membershipErrors.Add(1)
-			}
-		},
-	}, func(*kafka.ConfigMap) (groupConsumer, error) {
-		return consumers[int(factoryCalls.Add(1))-1], nil
-	}, 5*time.Millisecond)
-	t.Cleanup(func() { require.NoError(t, runtime.close()) })
-
-	_, err := runtime.init()
-	require.NoError(t, err)
-	epoch := assignRuntime(t, runtime, first)
-	first.events <- kafka.RevokedPartitions{}
-
-	_, err = runtime.readMessage(20*time.Millisecond, epoch)
-	require.ErrorIs(t, err, errConsumerAssignmentChanged)
-	assert.Equal(t, int64(2), factoryCalls.Load())
-	assert.Equal(t, int64(1), first.closeCount.Load())
-	assert.Equal(t, int64(1), membershipErrors.Load())
-	assert.False(t, first.closedInCb.Load())
+func TestConsumerRuntimeRejoinsAfterAssignmentIsLost(t *testing.T) {
+	for _, protocol := range []string{"EAGER", "COOPERATIVE"} {
+		t.Run(protocol, func(t *testing.T) {
+			consumer := newFakeGroupConsumer()
+			consumer.protocol = protocol
+			var calls, losses, kafkaErrors int
+			runtime := newTestConsumerRuntime(func(*kafka.ConfigMap) (groupConsumer, error) {
+				calls++
+				return consumer, nil
+			})
+			runtime.maintenanceInterval = time.Hour
+			runtime.hooks.onAssignmentLost = func() { losses++ }
+			runtime.hooks.onKafkaError = func(kafka.Error) { kafkaErrors++ }
+			t.Cleanup(func() { require.NoError(t, runtime.close()) })
+			_, err := runtime.init()
+			require.NoError(t, err)
+			epoch := assignRuntime(t, runtime, consumer)
+			require.NoError(t, runtime.pause())
+			consumer.assignmentLost = true
+			topic := "topic"
+			partitions := []kafka.TopicPartition{{Topic: &topic, Partition: 0}}
+			consumer.events <- kafka.RevokedPartitions{Partitions: partitions}
+			require.NoError(t, runtime.execute(func(session *consumerSession) { session.maintain() }))
+			assert.Equal(t, 1, calls, "do not replace a handle that is already rejoining")
+			assert.Zero(t, consumer.closeCount.Load())
+			assert.Equal(t, 1, losses)
+			assert.Zero(t, kafkaErrors, "lost assignment must not fabricate a broker UNKNOWN_MEMBER_ID")
+			_, err = runtime.commitMessage(&kafka.Message{}, epoch)
+			require.ErrorIs(t, err, errConsumerAssignmentChanged)
+			assigned, _, err := runtime.assignment(0)
+			require.NoError(t, err)
+			require.Empty(t, assigned)
+			consumer.assignmentLost = false
+			consumer.events <- kafka.AssignedPartitions{Partitions: partitions}
+			assigned, newEpoch, err := runtime.assignment(100 * time.Millisecond)
+			require.NoError(t, err)
+			require.Len(t, assigned, 1)
+			require.Greater(t, newEpoch, epoch)
+			consumer.mu.Lock()
+			paused := consumer.paused
+			consumer.mu.Unlock()
+			assert.True(t, paused, "the recovered assignment must retain the paused state")
+			require.NoError(t, runtime.resume())
+			replay := &kafka.Message{TopicPartition: kafka.TopicPartition{Topic: &topic, Partition: 0, Offset: 17}}
+			consumer.events <- replay
+			message, err := runtime.readMessage(time.Second, newEpoch)
+			require.NoError(t, err)
+			require.Same(t, replay, message)
+			_, err = runtime.commitMessage(message, newEpoch)
+			require.NoError(t, err)
+			assert.Equal(t, 1, calls)
+		})
+	}
 }
 
 func TestConsumerRuntimeSupportsCooperativeRebalances(t *testing.T) {

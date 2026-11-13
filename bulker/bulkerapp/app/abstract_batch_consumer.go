@@ -120,6 +120,12 @@ func NewAbstractBatchConsumer(repository *Repository, destinationId string, batc
 		infof:        bc.Infof,
 		errorf:       bc.Errorf,
 		onKafkaError: bc.onConsumerError,
+		onAssignmentLost: func() {
+			bc.membershipLost("partition assignment lost during rebalance")
+		},
+		checkRecovery: func(groupID, instanceID string) error {
+			return checkStaticConsumerAbsent(*kafkaConfig, groupID, instanceID)
+		},
 	}, time.Duration(config.KafkaMaxPollIntervalMs)*time.Millisecond)
 	bc.idle.Store(true)
 	return bc, nil
