@@ -1,6 +1,6 @@
 import { createHmac, createPrivateKey, sign } from "crypto";
 import { JitsuFunction } from "@jitsu/protocols/functions";
-import { HTTPError, NoRetryError, NoRetryErrorName, RetryError } from "@jitsu/functions-lib";
+import { HTTPError, NoRetryError, NoRetryErrorName, RetryError, TableNameParameter } from "@jitsu/functions-lib";
 import type { AnalyticsServerEvent } from "@jitsu/protocols/analytics";
 import { WebhookDestinationConfig } from "../meta";
 import { MetricsMeta } from "@jitsu/core-functions-lib";
@@ -36,14 +36,20 @@ const WebhookDestination: JitsuFunction<AnalyticsServerEvent, WebhookDestination
       functionId: "builtin.destination.bulker",
     };
 
+    // Honor the JITSU_TABLE_NAME override like the bulker destination does, and keep it out of the payload
+    const { [TableNameParameter]: tableNameOverride, ...eventBody } = event as AnalyticsServerEvent & {
+      [TableNameParameter]?: string;
+    };
+    const tableName = tableNameOverride || event.event || event.type;
     try {
       const res = await ctx.fetch(
-        `${bulkerBase}/post/${ctx.connection.id}?tableName=${
-          event.event || event.type
-        }&modeOverride=batch${bulkerPartitionParam(ctx, event)}`,
+        `${bulkerBase}/post/${ctx.connection.id}?tableName=${tableName}&modeOverride=batch${bulkerPartitionParam(
+          ctx,
+          event
+        )}`,
         {
           method: "POST",
-          body: JSON.stringify(event),
+          body: JSON.stringify(eventBody),
           headers: {
             ...(bulkerAuthKey ? { Authorization: `Bearer ${bulkerAuthKey}` } : {}),
             metricsMeta: JSON.stringify(metricsMeta),
