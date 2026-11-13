@@ -172,7 +172,7 @@ export type KeyRole = "editor" | "analyst";
 
 const keyRoleOptions: { value: KeyRole; label: string }[] = [
   { value: "editor", label: "Editor: can read and change configuration" },
-  { value: "analyst", label: "Analyst: read-only" },
+  { value: "analyst", label: "Analyst: can read data and run syncs, cannot change configuration" },
 ];
 
 type KeyModalProps =
@@ -374,7 +374,7 @@ function ApiKeys() {
               return (
                 <span className="text-sm whitespace-nowrap">
                   {k.workspaceId ? ws?.name || ws?.slug || "One workspace" : "All workspaces"}
-                  {k.role && <Tag className="ml-2">{k.role === "analyst" ? "read-only" : k.role}</Tag>}
+                  {k.role && <Tag className="ml-2">{k.role}</Tag>}
                 </span>
               );
             },

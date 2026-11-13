@@ -778,6 +778,8 @@ describe("Models service", () => {
     await expect(
       service.update(user, workspace.id, "destination", warehouse.id, {
         ...chConfig,
+        // moving to other hosts needs the secret again (JITSU-257), so the refusal comes from the model check
+        password: "supplied-again",
         name: "Changed warehouse",
         type: "destination",
       })
