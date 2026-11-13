@@ -1,3 +1,4 @@
+import { withAuthRateLimit } from "../../../lib/server/rate-limit/auth";
 import { createRoute } from "../../../lib/api";
 import { z } from "zod";
 import { CreateUserResult } from "../../../lib/schema";
@@ -11,7 +12,7 @@ import { WORK_EMAIL_REQUIRED_MESSAGE } from "../../../lib/shared/email-domains";
  * verifies. The policy + domain list stay server-side; the typed result mirrors
  * create-user. create-user / init-user remain the authoritative backstops.
  */
-export default createRoute()
+const handler = createRoute()
   .POST({
     auth: false,
     // A pure policy check that touches no DB — keep it working during maintenance
@@ -27,3 +28,5 @@ export default createRoute()
     return { ok: true } as const;
   })
   .toNextApiHandler();
+
+export default withAuthRateLimit(handler, { bucket: "lookup", dbIndependent: true });
