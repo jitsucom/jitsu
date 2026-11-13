@@ -10,21 +10,22 @@ import (
 	"github.com/jitsucom/bulker/eventslog"
 	"github.com/jitsucom/bulker/jitsubase/appbase"
 	"github.com/jitsucom/bulker/jitsubase/logging"
-	"github.com/jitsucom/bulker/jitsubase/utils"
 	"github.com/jitsucom/bulker/kafkabase"
 )
 
 type Context struct {
-	config           *Config
-	kafkaConfig      *kafka.ConfigMap
-	repository       appbase.Repository[Streams]
-	scriptRepository appbase.Repository[Script]
-	producer         *kafkabase.Producer
-	eventsLogService eventslog.EventsLogService
-	server           *http.Server
-	metricsServer    *MetricsServer
-	backupsLogger    *BackupLogger
-	consumerMonitor  *ConsumerMonitor
+	config            *Config
+	kafkaConfig       *kafka.ConfigMap
+	repository        appbase.Repository[Streams]
+	scriptRepository  appbase.Repository[Script]
+	producer          *kafkabase.Producer
+	backupProducer    *kafkabase.Producer
+	telemetryProducer *kafkabase.Producer
+	eventsLogService  eventslog.EventsLogService
+	server            *http.Server
+	metricsServer     *MetricsServer
+	backupsLogger     *BackupLogger
+	consumerMonitor   *ConsumerMonitor
 }
 
 func (a *Context) InitContext(settings *appbase.AppSettings) error {
@@ -49,14 +50,6 @@ func (a *Context) InitContext(settings *appbase.AppSettings) error {
 		}
 	}
 	a.kafkaConfig = a.config.GetKafkaConfig()
-	//batch producer uses higher linger.ms and doesn't suit for sync delivery used by stream consumer when retrying messages
-	producerConfig := kafka.ConfigMap(utils.MapPutAll(kafka.ConfigMap{
-		"queue.buffering.max.messages": a.config.ProducerQueueSize,
-		"batch.size":                   a.config.ProducerBatchSize,
-		"linger.ms":                    a.config.ProducerLingerMs,
-		"compression.type":             a.config.KafkaTopicCompression,
-		"delivery.timeout.ms":          a.config.ProducerDeliveryTimeoutMs,
-	}, *a.kafkaConfig))
 	var partitionSelector kafkabase.PartitionSelector = &kafkabase.DummyPartitionSelector{}
 	if a.config.WeightedPartitionSelectorLagThreshold > 0 {
 		a.consumerMonitor, err = NewConsumerMonitor(a, a.config.KafkaDestinationsTopicName, "rotor")
@@ -65,11 +58,9 @@ func (a *Context) InitContext(settings *appbase.AppSettings) error {
 		}
 		partitionSelector = a.consumerMonitor
 	}
-	a.producer, err = kafkabase.NewProducer(&a.config.KafkaConfig, &producerConfig, true, nil)
-	if err != nil {
+	if err = a.initProducers(); err != nil {
 		return err
 	}
-	a.producer.Start()
 
 	// Live Events observability export (JITSU-138): fan exportable records out
 	// to the workspace's otlp destination topic + billing. Fire-and-forget
@@ -85,7 +76,7 @@ func (a *Context) InitContext(settings *appbase.AppSettings) error {
 				return data != nil && data.IsOtlpExportEnabled(workspaceId)
 			},
 			Produce: func(topic string, key string, payload []byte) error {
-				return a.producer.ProduceAsync(topic, key, payload, nil, kafka.PartitionAny, "", false, 0)
+				return a.telemetryProducer.ProduceAsync(topic, key, payload, nil, kafka.PartitionAny, "", false, 0)
 			},
 		}),
 		a.eventsLogService,
@@ -105,7 +96,7 @@ func (a *Context) InitContext(settings *appbase.AppSettings) error {
 }
 
 func (a *Context) Cleanup() error {
-	_ = a.producer.Close()
+	a.closeProducers()
 	if a.consumerMonitor != nil {
 		_ = a.consumerMonitor.Close()
 	}
