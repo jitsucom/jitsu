@@ -63,8 +63,3 @@ func (exec *Execution) run() *Execution {
 	}()
 	return exec
 }
-
-func (exec *Execution) WithRestartTimeout(timeout time.Duration) *Execution {
-	exec.restartTimeout = timeout
-	return exec
-}
