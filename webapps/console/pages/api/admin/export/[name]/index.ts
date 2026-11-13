@@ -641,6 +641,13 @@ async function exportRotorConnections(writer: Writer) {
           getLog().atError().log(`Unknown destination type: ${destinationType} for connection ${id}`);
         }
         const credentials = omit(asRecord(to.config), "destinationType", "type", "name");
+        const workspaceFlagOptions: Record<string, unknown> = {
+          ...((workspace.featuresEnabled ?? []).includes("nofetchlogs") &&
+          data.functionsEnv?.FETCH_LOGS_ENABLED !== "true"
+            ? { fetchLogLevel: "debug" }
+            : {}),
+          ...((workspace.featuresEnabled ?? []).includes("fastFunctions") ? { fastFunctions: true } : {}),
+        };
         // Output contract (JITSU-181): a violating row throws and is
         // skipped-and-logged by the catch below — never shipped malformed.
         payload = JSON.stringify(
@@ -657,15 +664,16 @@ async function exportRotorConnections(writer: Writer) {
             usesBulker: !!coreDestinationType?.usesBulker,
             options: {
               ...data,
-              ...((workspace.featuresEnabled ?? []).includes("nofetchlogs") &&
-              data.functionsEnv?.FETCH_LOGS_ENABLED !== "true"
-                ? { fetchLogLevel: "debug" }
-                : {}),
-              ...((workspace.featuresEnabled ?? []).includes("fastFunctions") ? { fastFunctions: true } : {}),
+              ...workspaceFlagOptions,
               functionsServer: selectFunctionsServer(functionsServers, workspace.id, id, functionsClassFunc(workspace)),
               workspaceUpdatedAt: workspace.updatedAt,
             },
-            optionsHash: hashValue(data),
+            // Workspace flags are part of what the function server is configured with, so they are part of the hash:
+            // the operator rewrites a connection's config only when this changes. Without flags the hash stays
+            // what it was, so this change rewrites nothing.
+            optionsHash: hashValue(
+              Object.keys(workspaceFlagOptions).length > 0 ? { ...data, ...workspaceFlagOptions } : data
+            ),
             updatedAt: dateMax(updatedAt, to.updatedAt),
             credentials: credentials,
             credentialsHash: hashValue(credentials),
