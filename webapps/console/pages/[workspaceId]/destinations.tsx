@@ -2,6 +2,7 @@ import { WorkspacePageLayout } from "../../components/PageLayout/WorkspacePageLa
 import { Alert, Button, Modal, Popover, Skeleton, Table, Tabs, Tooltip } from "antd";
 import { ConfigEditor, ConfigEditorProps, FieldDisplay } from "../../components/ConfigObjectEditor/ConfigEditor";
 import { DestinationConfig } from "../../lib/schema";
+import { testFailureMessage } from "../../lib/shared/test-failure";
 import { confirmOp, copyTextToClipboard, feedbackError, feedbackSuccess, serialization } from "../../lib/ui";
 import {
   coreDestinations,
@@ -684,7 +685,7 @@ const DestinationsList: React.FC<{ type?: string }> = ({ type }) => {
             `Failed to test destination ${workspace.id} / ${type}. This is not expected since destination tester should return 200 even in credentials are wrong`,
             error
           );
-        return { ok: false, error: "Internal error, see logs for details" };
+        return { ok: false, error: testFailureMessage(error) };
         //feedbackError("Failed to test object", { error });
       }
     },

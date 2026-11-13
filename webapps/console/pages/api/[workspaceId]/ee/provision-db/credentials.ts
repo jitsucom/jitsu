@@ -1,4 +1,4 @@
-import { createRoute, verifyAccess } from "../../../../../lib/api";
+import { createRoute, verifyAccessWithRole } from "../../../../../lib/api";
 import { z } from "zod";
 import { ClickhouseConnectionCredentials } from "../../../../../lib/schema/clickhouse-connection-credentials";
 import { assertTrue, rpc } from "juava";
@@ -17,7 +17,8 @@ export default createRoute()
   .handler(async ({ user, query, req }) => {
     assertTrue(isEEAvailable(), `EE server URL is not set, DB can't be provisioned`);
     const { workspaceId } = query;
-    await verifyAccess(user, workspaceId);
+    // The warehouse password: only a role that can edit may read it, and the EE server is not asked for anyone else
+    await verifyAccessWithRole(user, workspaceId, "editEntities");
     const { host } = getEeServerConnection();
     const provisionedDbCredentials = await rpc(`${host}api/provision-db`, {
       method: "GET",

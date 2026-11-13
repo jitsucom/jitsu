@@ -10,6 +10,7 @@ export type CodePayload = {
   redirectUri: string;
   codeChallenge: string; // PKCE S256 challenge from the authorize request
   codeChallengeMethod: "S256"; // we don't accept "plain"
+  readOnly?: boolean; // the user approved read-only access: the tokens get the analyst role
   createdAt: number;
 };
 

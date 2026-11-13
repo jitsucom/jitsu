@@ -33,6 +33,8 @@ const ApproveBody = z.object({
   code_challenge_method: z.literal("S256"),
   state: z.string().optional(),
   response_type: z.literal("code"),
+  // The user chose read-only access on the consent page
+  read_only: z.boolean().optional(),
 });
 
 const DenyBody = z.object({
@@ -190,11 +192,15 @@ export class OAuthHandlers {
     if (req.method !== "POST") return jsonError(res, 405, "method_not_allowed");
     const sessionUser = await getUser(res, req);
     if (!sessionUser) return jsonError(res, 401, "unauthenticated");
+    // An API key must not be able to approve an OAuth client: the resulting refresh token would be unrestricted and
+    // outlive the key.
+    if (sessionUser.authType === "bearer")
+      return jsonError(res, 403, "forbidden", "API keys cannot approve OAuth clients");
     const parsed = ApproveBody.safeParse(readBody(req));
     if (!parsed.success) {
       return jsonError(res, 400, "invalid_request", parsed.error.message);
     }
-    const { client_id, redirect_uri, code_challenge, code_challenge_method, state } = parsed.data;
+    const { client_id, redirect_uri, code_challenge, code_challenge_method, state, read_only } = parsed.data;
     const target = await this.resolveRedirectTarget(client_id, redirect_uri);
     if ("error" in target) return jsonError(res, 400, target.error, target.description);
     const code = await this.codes.issueCode({
@@ -203,6 +209,7 @@ export class OAuthHandlers {
       redirectUri: target.redirectUri,
       codeChallenge: code_challenge,
       codeChallengeMethod: code_challenge_method,
+      readOnly: read_only === true,
     });
     const url = new URL(target.redirectUri);
     url.searchParams.set("code", code);
@@ -293,7 +300,7 @@ export class OAuthHandlers {
         });
         await tx.userApiToken.deleteMany({ where: { id: { in: prior.map(t => t.id) } } });
       }
-      return this.createTokenPair(tx, client, codePayload.userId);
+      return this.createTokenPair(tx, client, codePayload.userId, codePayload.readOnly === true);
     });
 
     res.status(200).json(issued);
@@ -347,7 +354,7 @@ export class OAuthHandlers {
   }
 
   // Shared between fresh authorize and (in theory) future grant types.
-  private async createTokenPair(tx: Prisma.TransactionClient, client: OAuthClient, userId: string) {
+  private async createTokenPair(tx: Prisma.TransactionClient, client: OAuthClient, userId: string, readOnly = false) {
     const refreshSecret = randomId({ digits: 48, strongRandom: true });
     const refreshExpiresAt = new Date(Date.now() + this.deps.refreshTokenTtlDays * 86400 * 1000);
     const refresh = await tx.userApiToken.create({
@@ -358,6 +365,8 @@ export class OAuthHandlers {
         name: client.name,
         oauthClientId: client.id,
         expiresAt: refreshExpiresAt,
+        // read-only access is the analyst role: it can read everything and change nothing
+        role: readOnly ? "analyst" : null,
       },
     });
     const accessSecret = randomId({ digits: 48, strongRandom: true });
