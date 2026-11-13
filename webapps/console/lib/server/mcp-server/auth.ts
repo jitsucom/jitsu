@@ -104,6 +104,7 @@ export class AuthChecker {
         loginProvider: user.loginProvider,
         refreshTokenId: at.refreshTokenId,
         clientName: at.refreshToken.oauthClient?.name,
+        role: at.refreshToken.role,
       },
     };
   }
