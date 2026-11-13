@@ -24,7 +24,6 @@ import {
   getLog,
   getThrottle,
   int32Hash,
-  isTruish,
   LogLevel,
   LogMessageBuilder,
   newError,
@@ -45,6 +44,7 @@ import NodeCache from "node-cache";
 // on whatever the Node runtime happens to bundle.
 import { fetch as undiciFetch, type RequestInit as UndiciRequestInit } from "undici";
 import { createGuardedAgent, normalizeHostname } from "./guarded-agent";
+import { isBlockedAddressError, isForbidLocalEnabled, parseLocalWhitelist } from "./guarded-fetch";
 import { isBlockedAddress } from "./public-address";
 
 // This module also runs inside the Deno-based functions-server (UDF sandbox), which
@@ -94,10 +94,8 @@ export function isPrivateIP(addr: string): boolean {
   return false;
 }
 
-const fetchForbidLocal = isTruish(process.env.FETCH_FORBID_LOCAL);
-const fetchLocalWhitelist = process.env.FETCH_LOCAL_WHITELIST
-  ? process.env.FETCH_LOCAL_WHITELIST.split(",").map(normalizeHostname)
-  : [];
+const fetchForbidLocal = isForbidLocalEnabled(process.env.FETCH_FORBID_LOCAL);
+const fetchLocalWhitelist = parseLocalWhitelist(process.env.FETCH_LOCAL_WHITELIST);
 const publicHostnamesCache = new NodeCache({ stdTTL: 300, checkperiod: 60, useClones: false });
 // The pre-check in makeFetch resolves a hostname on its own and is cached, so it cannot see a DNS answer that changes
 // before the connection or a redirect to another host: with FETCH_FORBID_LOCAL on, the connection itself is guarded too
@@ -576,7 +574,8 @@ export const makeFetch = (
     }
     const host = new URL(url).hostname;
     if (!fetchLocalWhitelist.includes(normalizeHostname(host)) && !(await isPublic(normalizeHostname(host)))) {
-      throw newError(`fetch failed`);
+      // the message stays as for any network error; the code lets the caller tell a refusal from a failure
+      throw Object.assign(newError(`fetch failed`), { code: "EBLOCKED" });
     }
   }
 
@@ -635,6 +634,16 @@ export const makeFetch = (
       } else if (err.name !== "ThrottleError") {
         // we throttle only timeout errors. all other cases considered as success here
         throttle.success();
+      }
+      if (isBlockedAddressError(err)) {
+        // the function sees a plain "fetch failed"; the operator needs to tell a guard refusal from a network error
+        let host = "?";
+        try {
+          host = new URL(url).hostname;
+        } catch {
+          // keep "?"
+        }
+        log.atWarn().log(`[CON:${connectionId}]: [f:${id}] fetch to ${host} refused by FETCH_FORBID_LOCAL`);
       }
       if (logEnabled) {
         const elapsedMs = sw.elapsedMs();

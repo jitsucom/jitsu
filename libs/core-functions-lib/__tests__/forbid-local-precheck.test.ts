@@ -2,6 +2,7 @@ import dns from "node:dns";
 import http from "node:http";
 import type { AddressInfo } from "node:net";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
+import { isBlockedAddressError } from "../src/functions/lib/guarded-fetch";
 
 // JITSU-258: with FETCH_FORBID_LOCAL the destination of a fetch is checked before it is made, and again when the
 // connection is opened, on every redirect hop too. That holds under Deno as well: Deno's native fetch takes no
@@ -50,6 +51,29 @@ describe("FETCH_FORBID_LOCAL pre-check", () => {
 });
 
 const causeCode = (e: any) => e?.cause?.code ?? e?.code;
+
+describe("a refusal can be told from a network error", () => {
+  // The pre-check refuses before any connection is tried (its error carries the code itself); the connection refuses
+  // with the code as the cause. For an address the pre-check lets through, only the second layer would catch it, so
+  // this also shows that the pre-check classifies IPv4-mapped forms like the connect-time guard.
+  it.each([
+    ["dotted loopback", () => `http://127.0.0.1:${port}/x`],
+    ["IPv4-mapped loopback, canonical hex form", () => `http://[::ffff:7f00:1]:${port}/x`],
+  ])("is recognised as a guard refusal, made by the pre-check, for %s", async (_, url) => {
+    hits = [];
+    try {
+      const fetch = await loadMakeFetch();
+      const error: any = await fetch(url()).catch(e => e);
+      expect(error.message).toMatch(/fetch failed/);
+      expect(error.code).toBe("EBLOCKED");
+      expect(isBlockedAddressError(error)).toBe(true);
+      expect(hits).toEqual([]);
+    } finally {
+      delete (globalThis as any).Deno;
+      vi.unstubAllEnvs();
+    }
+  });
+});
 
 async function listenOn(handler: http.RequestListener): Promise<{ port: number; close: () => Promise<void> }> {
   const srv = http.createServer(handler);

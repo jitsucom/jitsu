@@ -37,11 +37,14 @@ describe("createGuardedAgent", () => {
   });
 
   it("refuses a hostname when any of its answers is non-public", async () => {
+    // the classifier is stubbed so that 192.0.2.1 (documentation range, never routed) stands for a public address:
+    // if the guard checked only the first answer, the connect attempt would go nowhere instead of to a real host
     const agent = createGuardedAgent({
       resolve: async () => [
-        { address: "93.184.216.34", family: 4 },
+        { address: "192.0.2.1", family: 4 },
         { address: "10.0.0.5", family: 4 },
       ],
+      isBlocked: address => address.startsWith("10."),
     });
     const error = await fetch(`http://mixed.example:81/`, { dispatcher: agent }).catch(e => e);
     expect(causeCode(error)).toBe("EBLOCKED");
@@ -86,16 +89,16 @@ describe("IPv6 whitelist entries", () => {
     expect(normalizeHostname("LocalHost")).toBe("localhost");
   });
 
-  it.each(["[::1]", "::1"])(
-    "lets a whitelisted IPv6 loopback literal (%s) through and refuses it otherwise",
-    async entry => {
+  for (const entry of ["[::1]", "::1"]) {
+    it(`lets a whitelisted IPv6 loopback literal (${entry}) through and refuses it otherwise`, async ctx => {
       const server = http.createServer((_, res) => res.end("ok"));
       servers.push(server);
       const listening = await new Promise<boolean>(resolve => {
         server.once("error", () => resolve(false));
         server.listen(0, "::1", () => resolve(true));
       });
-      if (!listening) return; // no IPv6 loopback on this machine
+      // no IPv6 loopback on this machine: shown as skipped, not as passed
+      if (!listening) return ctx.skip();
       const port = (server.address() as AddressInfo).port;
       const allowed = await fetch(`http://[::1]:${port}/`, {
         dispatcher: createGuardedAgent({ allowedHosts: [entry] }),
@@ -103,6 +106,6 @@ describe("IPv6 whitelist entries", () => {
       expect(await allowed.text()).toBe("ok");
       const refused = await fetch(`http://[::1]:${port}/`, { dispatcher: createGuardedAgent() }).catch(e => e);
       expect(causeCode(refused)).toBe("EBLOCKED");
-    }
-  );
+    });
+  }
 });
