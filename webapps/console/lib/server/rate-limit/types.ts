@@ -22,14 +22,8 @@ export type RouteRateLimitOverride = {
 
 export type RouteRateLimitSpec = false | RouteRateLimitOverride;
 
-export type RateLimitResult = {
-  allowed: boolean;
-  bucket: string;
-  limit: number;
-  remaining: number;
-  resetAt: Date;
-  retryAfterSec: number;
-};
+export type { RateLimitResult } from "juava/src/rate-limit";
+import type { RateLimitResult } from "juava/src/rate-limit";
 
 export interface RateLimiter {
   check(opts: RateLimitOpts): Promise<RateLimitResult>;
