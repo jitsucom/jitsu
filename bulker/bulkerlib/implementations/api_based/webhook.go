@@ -26,6 +26,11 @@ const WebhookUnsupported = "Only 'batch' mode is supported"
 // maxResponseBodyBytes caps how much of a webhook response is read.
 const maxResponseBodyBytes = 64 * 1024
 
+// maxDrainedBodyBytes is how much more of a response is read and thrown away after the cap, so that the connection can
+// be reused: net/http drops a connection whose body was not read to the end. Nothing is kept, and the client timeout
+// bounds the time. A response larger than this still closes the connection.
+const maxDrainedBodyBytes = 1024 * 1024
+
 var GlobalIngestEndpoint = os.Getenv("GLOBAL_INGEST_ENDPOINT")
 var LocalIngestEndpoint = os.Getenv("LOCAL_INGEST_ENDPOINT")
 
@@ -233,8 +238,10 @@ func (mp *WebhookBulker) Upload(reader io.Reader, eventsName string, eventsCount
 		if err != nil {
 			statusCode = 0
 			respBody = ""
+			// a refused address stays refused: do not spend the ingest retries on it
+			refused := errors.Is(err, ErrBlockedAddress)
 			err = mp.fixError(err)
-			if mp.isIngest {
+			if mp.isIngest && !refused {
 				time.Sleep(time.Duration(retryDelayMs) * time.Millisecond)
 				continue
 			}
@@ -245,6 +252,9 @@ func (mp *WebhookBulker) Upload(reader io.Reader, eventsName string, eventsCount
 			statusCode = res.StatusCode
 			// the endpoint is customer-controlled: never read more than a small answer into memory
 			bodyBytes, err = io.ReadAll(io.LimitReader(res.Body, maxResponseBodyBytes))
+			if err == nil {
+				_, _ = io.Copy(io.Discard, io.LimitReader(res.Body, maxDrainedBodyBytes))
+			}
 			if err != nil {
 				respBody = ""
 				err = mp.fixError(err)

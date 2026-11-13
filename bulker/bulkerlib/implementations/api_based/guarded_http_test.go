@@ -14,15 +14,27 @@ import (
 )
 
 func TestIsBlockedIP(t *testing.T) {
+	// One address per range in blockedPrefixes, so a range cannot be dropped from the table unnoticed. The same ranges
+	// are in libs/core-functions-lib/src/functions/lib/public-address.ts (rotor's guard): keep the two in step.
 	blocked := []string{
 		"127.0.0.1", "10.1.2.3", "172.16.0.1", "172.31.255.255", "192.168.1.1", "169.254.169.254", "100.64.0.1",
 		"0.0.0.0", "224.0.0.1", "255.255.255.255", "::1", "::", "fe80::1", "fd00::1", "::ffff:127.0.0.1", "::ffff:169.254.169.254",
 		"2002:7f00:1::1",
+		"192.0.0.1", "192.0.2.1", "198.18.0.1", "198.19.255.255", "198.51.100.1", "203.0.113.1",
+		"192.31.196.1", "192.52.193.1", "192.88.99.1", "192.175.48.1",
+		"2001::1", "2001:db8::1", "3fff::1", "2620:4f:8000::1", "2620:4f:8000:ffff::1",
+		"100::1", "64:ff9b::a00:1", "ff02::1",
+		"fe80::1%eth0", // a zone id is refused outright
 	}
 	for _, a := range blocked {
 		require.Truef(t, isBlockedIP(netip.MustParseAddr(a)), "%s must be blocked", a)
 	}
-	public := []string{"8.8.8.8", "93.184.216.34", "172.32.0.1", "100.128.0.1", "2606:4700:4700::1111", "::ffff:8.8.8.8"}
+	require.True(t, isBlockedIP(netip.Addr{}), "an invalid address is refused")
+	public := []string{
+		"8.8.8.8", "93.184.216.34", "172.32.0.1", "100.128.0.1", "2606:4700:4700::1111", "::ffff:8.8.8.8",
+		// just outside the narrow anycast ranges
+		"192.31.197.1", "192.52.194.1", "192.88.100.1", "192.175.49.1", "2620:4f:8001::1",
+	}
 	for _, a := range public {
 		require.Falsef(t, isBlockedIP(netip.MustParseAddr(a)), "%s must be allowed", a)
 	}
@@ -90,6 +102,21 @@ func TestForbidLocalFromEnv(t *testing.T) {
 	t.Setenv("FETCH_FORBID_LOCAL", "no")
 	on, _ = forbidLocalFromEnv()
 	require.False(t, on)
+}
+
+// The same table is in libs/core-functions-lib/__tests__/guarded-fetch.test.ts: one value set for every service has to
+// turn the guard on in Bulker and in rotor alike.
+func TestForbidLocalSpellingsMatchRotor(t *testing.T) {
+	for _, value := range []string{"true", "TRUE", " True ", "1", "yes", "on", "ON"} {
+		t.Setenv("FETCH_FORBID_LOCAL", value)
+		on, _ := forbidLocalFromEnv()
+		require.Truef(t, on, "%q turns the guard on", value)
+	}
+	for _, value := range []string{"false", "0", "no", "off", "", "   ", "enabled"} {
+		t.Setenv("FETCH_FORBID_LOCAL", value)
+		on, _ := forbidLocalFromEnv()
+		require.Falsef(t, on, "%q leaves the guard off", value)
+	}
 }
 
 // FETCH_LOCAL_WHITELIST accepts an IPv6 address with or without brackets, as the function fetch in rotor does.

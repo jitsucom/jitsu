@@ -2,7 +2,7 @@ package api_based
 
 import (
 	"context"
-	"fmt"
+	"errors"
 	"net"
 	"net/http"
 	"net/netip"
@@ -20,24 +20,29 @@ import (
 // FETCH_LOCAL_WHITELIST lists hostnames that may stay local.
 
 var blockedPrefixes = mustPrefixes(
-	"0.0.0.0/8",       // "this" network
-	"10.0.0.0/8",      // private
-	"100.64.0.0/10",   // carrier-grade NAT (also the range Tailscale uses)
-	"127.0.0.0/8",     // loopback
-	"169.254.0.0/16",  // link-local, cloud metadata
-	"172.16.0.0/12",   // private
-	"192.0.0.0/24",    // IETF protocol assignments
-	"192.0.2.0/24",    // documentation
-	"192.168.0.0/16",  // private
-	"198.18.0.0/15",   // benchmarking
-	"198.51.100.0/24", // documentation
-	"203.0.113.0/24",  // documentation
-	"224.0.0.0/4",     // multicast
-	"240.0.0.0/4",     // reserved, includes 255.255.255.255
-	"2001::/23",       // IETF protocol assignments: Teredo, benchmarking
-	"2001:db8::/32",   // documentation
-	"2002::/16",       // 6to4: embeds an IPv4 address
-	"3fff::/20",       // documentation
+	"0.0.0.0/8",         // "this" network
+	"10.0.0.0/8",        // private
+	"100.64.0.0/10",     // carrier-grade NAT (also the range Tailscale uses)
+	"127.0.0.0/8",       // loopback
+	"169.254.0.0/16",    // link-local, cloud metadata
+	"172.16.0.0/12",     // private
+	"192.0.0.0/24",      // IETF protocol assignments
+	"192.0.2.0/24",      // documentation
+	"192.31.196.0/24",   // AS112-v4 (globally reachable anycast, blocked as a special-purpose range)
+	"192.52.193.0/24",   // AMT (globally reachable anycast, blocked as a special-purpose range)
+	"192.88.99.0/24",    // deprecated 6to4 relay anycast
+	"192.168.0.0/16",    // private
+	"192.175.48.0/24",   // Direct Delegation AS112 Service (globally reachable anycast, blocked as special-purpose)
+	"198.18.0.0/15",     // benchmarking
+	"198.51.100.0/24",   // documentation
+	"203.0.113.0/24",    // documentation
+	"224.0.0.0/4",       // multicast
+	"240.0.0.0/4",       // reserved, includes 255.255.255.255
+	"2001::/23",         // IETF protocol assignments: Teredo, benchmarking
+	"2001:db8::/32",     // documentation
+	"2002::/16",         // 6to4: embeds an IPv4 address
+	"2620:4f:8000::/48", // Direct Delegation AS112 Service (globally reachable anycast, blocked as special-purpose)
+	"3fff::/20",         // documentation
 )
 
 var globalUnicastV6 = netip.MustParsePrefix("2000::/3")
@@ -107,17 +112,7 @@ func newHTTPClient(timeout time.Duration, forbidLocal bool, whitelist []string) 
 		Timeout:   30 * time.Second,
 		KeepAlive: 30 * time.Second,
 		// Control runs once the hostname is resolved, right before connect, for every address that is tried
-		Control: func(_, address string, _ syscall.RawConn) error {
-			host, _, err := net.SplitHostPort(address)
-			if err != nil {
-				return err
-			}
-			ip, err := netip.ParseAddr(host)
-			if err != nil || isBlockedIP(ip) {
-				return fmt.Errorf("connection to a non-public address is not allowed")
-			}
-			return nil
-		},
+		Control: refuseNonPublicAddress,
 	}
 	transport := http.DefaultTransport.(*http.Transport).Clone()
 	transport.DialContext = func(ctx context.Context, network, address string) (net.Conn, error) {
@@ -129,5 +124,38 @@ func newHTTPClient(timeout time.Duration, forbidLocal bool, whitelist []string) 
 	}
 	// A configured proxy would make the proxy the connection target and hide the real destination from the dialer
 	transport.Proxy = nil
-	return &http.Client{Timeout: timeout, Transport: transport}
+	return &http.Client{Timeout: timeout, Transport: addressRefusalTransport{next: transport}}
 }
+
+// refuseNonPublicAddress is the dialer's Control hook: it lets a connection go ahead only to a public unicast address.
+func refuseNonPublicAddress(_, address string, _ syscall.RawConn) error {
+	host, _, err := net.SplitHostPort(address)
+	if err != nil {
+		return err
+	}
+	ip, err := netip.ParseAddr(host)
+	if err != nil || isBlockedIP(ip) {
+		return ErrBlockedAddress
+	}
+	return nil
+}
+
+// ErrBlockedAddress is what a request fails with when the guard refuses to connect to a non-public address.
+// Retrying cannot help: the destination's address is not going to become public.
+var ErrBlockedAddress = errors.New("connection to a non-public address is not allowed")
+
+// addressRefusalTransport hands the refusal back as the bare ErrBlockedAddress. net/http and net wrap a dial error
+// with the address that was dialled, and that address (what a customer-chosen name resolved to) would otherwise
+// travel back to the customer in the batch error, which makes the refusal a way to map internal DNS.
+type addressRefusalTransport struct{ next *http.Transport }
+
+func (t addressRefusalTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	res, err := t.next.RoundTrip(req)
+	if err != nil && errors.Is(err, ErrBlockedAddress) {
+		return nil, ErrBlockedAddress
+	}
+	return res, err
+}
+
+// CloseIdleConnections lets http.Client.CloseIdleConnections reach the wrapped transport.
+func (t addressRefusalTransport) CloseIdleConnections() { t.next.CloseIdleConnections() }

@@ -265,9 +265,13 @@ func (o *OtlpBulker) Upload(reader io.Reader, _ string, _ int, _ map[string]any)
 		var res *http.Response
 		res, err = o.httpClient.Do(req)
 		if err != nil {
-			// network errors and timeouts: transient, retry in-process
 			statusCode = 0
 			respBody = ""
+			if errors.Is(err, ErrBlockedAddress) {
+				// the guard refused the endpoint's address: retrying cannot make it public
+				return
+			}
+			// network errors and timeouts: transient, retry in-process
 			time.Sleep(time.Duration(retryDelayMs) * time.Millisecond)
 			continue
 		}
