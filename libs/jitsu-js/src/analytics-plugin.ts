@@ -636,13 +636,13 @@ function adjustPayload(
     clientIds: !config.privacy?.disableUserIds ? getClientIds(runtime, config.cookieCapture || {}, query) : undefined,
     campaign: parseUtms(query),
   };
-  const timestamp = payload?.options?.timestamp ?? new Date();
+  const timestamp = new Date(payload?.options?.timestamp ?? Date.now());
   const withContext = {
     ...payload,
     userId: payload?.options?.userId || payload?.userId,
     anonymousId: payload?.options?.anonymousId || payload?.anonymousId,
     groupId: payload?.options?.groupId || storage.getItem("__group_id"),
-    timestamp: timestamp instanceof Date ? timestamp.toISOString() : timestamp,
+    timestamp: (Number.isNaN(timestamp.getTime()) ? new Date() : timestamp).toISOString(),
     sentAt: new Date().toISOString(),
     messageId: randomId(properties.path || (parsedUrl && parsedUrl.pathname)),
     writeKey: maskWriteKey(config.writeKey),
