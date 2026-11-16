@@ -46,7 +46,7 @@
     "@jitsu/protocols": "workspace:*",
     "@jitsu/warehouse-query": "workspace:*",
     "@loadable/component": "^5.15.3",
-    "@modelcontextprotocol/sdk": "^1.31.0",
+    "@modelcontextprotocol/sdk": "^1.32.2",
     "@monaco-editor/react": "^4.6.0",
     "@nangohq/frontend": "^0.21.11",
     "@prisma/client": "^6.5.0",
@@ -106,7 +106,7 @@
     "timezones-list": "^3.0.2",
     "tslib": "catalog:",
     "use-debounce": "^10.0.4",
-    "zod": "^3.23.8",
+    "zod": "^4.6.6",
     "zod-to-json-schema": "^3.23.2"
   },
   "devDependencies": {
