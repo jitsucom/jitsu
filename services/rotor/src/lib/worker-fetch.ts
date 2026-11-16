@@ -74,8 +74,12 @@ export function deserializeResponse(s: SerializedResponse): Response {
     : typeof s.body === "string"
     ? new TextEncoder().encode(s.body)
     : s.body;
+  // The Response constructor throws a RangeError for a status outside 200-599 (101 aside), but a real server can
+  // send one (999 is a known anti-bot status) and the previous plain-object response carried it. Build with a status
+  // the constructor accepts; `status` is then defined as an own property below, so the UDF sees the real one.
+  const constructible = s.status === 101 || (s.status >= 200 && s.status <= 599);
   const res = new Response(nullBodyStatuses.has(s.status) ? null : bytes, {
-    status: s.status,
+    status: constructible ? s.status : 200,
     statusText: s.statusText,
     headers: s.headers,
   });

@@ -81,6 +81,30 @@ describe("proxied fetch response", () => {
     expect(deserializeResponse(s).status).toBe(204);
     expect(deserializeResponse({ ...s, status: 304 }).status).toBe(304);
   });
+
+  // A server can answer with a status the Response constructor rejects (999 is a known anti-bot status, some APIs use
+  // 6xx); the previous plain-object response carried it, so the UDF must still get it instead of an exception
+  it.each([100, 199, 600, 999])("keeps a status the Response constructor rejects: %i", async status => {
+    const s = await serializeResponse(original());
+    const res = deserializeResponse({
+      ...s,
+      status,
+      statusText: "Odd",
+      ok: false,
+      body: new TextEncoder().encode("hi"),
+    });
+    expect(res.status).toBe(status);
+    expect(res.ok).toBe(false);
+    expect(res.statusText).toBe("Odd");
+    expect(await res.text()).toBe("hi");
+    expect(res.headers.get("x-one")).toBe("1");
+    expect(JSON.parse(JSON.stringify(res)).status).toBe(status);
+  });
+
+  it.each([200, 299, 599])("still builds the edges of the accepted range: %i", async status => {
+    const res = deserializeResponse({ ...(await serializeResponse(original())), status });
+    expect(res.status).toBe(status);
+  });
 });
 
 describe("isFetchLogEnabled", () => {
