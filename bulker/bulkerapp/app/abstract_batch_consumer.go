@@ -142,19 +142,23 @@ func (bc *AbstractBatchConsumer) initTransactionalProducer() (*kafka.Producer, e
 		ticker := time.NewTicker(time.Second)
 		errors := map[string]*int{}
 		defer ticker.Stop()
+		// Counts are logged once per second, and also when the handler exits: the producer is closed right after
+		// AbortTransaction, so errors from purged messages ("Local: Purged in queue") would otherwise never be logged.
+		flush := func() {
+			for k, v := range errors {
+				bc.Errorf("%s COUNT: %d", k, *v)
+			}
+			clear(errors)
+		}
 		for {
 			select {
 			case <-bc.closed:
 				bc.Infof("Closing producer.")
 				producer.Close()
+				flush()
 				return
 			case <-ticker.C:
-				if len(errors) > 0 {
-					for k, v := range errors {
-						bc.Errorf("%s COUNT: %d", k, *v)
-					}
-					clear(errors)
-				}
+				flush()
 			case e := <-producer.Events():
 				switch ev := e.(type) {
 				case *kafka.Message:
@@ -173,6 +177,7 @@ func (bc *AbstractBatchConsumer) initTransactionalProducer() (*kafka.Producer, e
 					bc.Errorf("Producer error: %v", ev)
 				case nil:
 					bc.Debugf("Producer closed")
+					flush()
 					return
 				}
 			}

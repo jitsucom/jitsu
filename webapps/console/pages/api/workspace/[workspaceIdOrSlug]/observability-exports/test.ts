@@ -11,34 +11,9 @@ import {
   defaultObservabilityExportsSettings,
 } from "../../../../../lib/shared/observability-exports";
 import { encodeOtlpLogsRequest, OTLP_SEVERITY } from "../../../../../lib/server/otlp-logs";
+import { sendOtlpTestRequest } from "../../../../../lib/server/otlp-test-request";
 
 const log = getServerLog("observability-exports-test");
-
-const responsePreviewLimit = 1000;
-
-// reads at most `limit` characters of the body and cancels the rest — the
-// preview cap must also be a memory cap, not a post-hoc truncation of a
-// fully-buffered response from an arbitrary endpoint
-async function readResponsePreview(response: Response, limit: number): Promise<string> {
-  const reader = response.body?.getReader();
-  if (!reader) {
-    return "";
-  }
-  const decoder = new TextDecoder();
-  let preview = "";
-  try {
-    while (preview.length < limit) {
-      const { done, value } = await reader.read();
-      if (done) {
-        break;
-      }
-      preview += decoder.decode(value, { stream: true });
-    }
-  } finally {
-    reader.cancel().catch(() => {});
-  }
-  return preview.slice(0, limit);
-}
 
 export default createRoute()
   .POST({
@@ -109,21 +84,8 @@ export default createRoute()
       ],
     });
 
-    try {
-      const response = await fetch(settings.endpoint, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/x-protobuf",
-          ...Object.fromEntries(settings.headers.map(h => [h.name, h.value])),
-        },
-        body: new Uint8Array(payload),
-        signal: AbortSignal.timeout(15_000),
-      });
-      const text = await readResponsePreview(response, responsePreviewLimit);
-      return { ok: response.ok, status: response.status, response: text };
-    } catch (e: any) {
-      log.atWarn().withCause(e).log(`Test log delivery failed for workspace ${workspace.id}`);
-      return { ok: false, error: e.message };
-    }
+    return await sendOtlpTestRequest(settings, new Uint8Array(payload), {
+      onFailure: e => log.atWarn().withCause(e).log(`Test log delivery failed for workspace ${workspace.id}`),
+    });
   })
   .toNextApiHandler();

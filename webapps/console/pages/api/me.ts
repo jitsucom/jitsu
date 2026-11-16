@@ -1,6 +1,5 @@
 import { NextApiRequest, NextApiResponse } from "next";
-import { getUser } from "../../lib/api";
-import { requireDefined } from "juava";
+import { getUser, isPlatformAdmin } from "../../lib/api";
 import { getRequestHost, getTopLevelDomain } from "../../lib/server/origin";
 import { db } from "../../lib/server/db";
 import { getServerLog } from "../../lib/server/log";
@@ -57,12 +56,10 @@ function handleCors(requestDomain: string, origin: string | undefined, res: Next
   }
 }
 
-async function getWorkspaces(internalUserId: string) {
-  const userModel = requireDefined(
-    await db.prisma().userProfile.findUnique({ where: { id: internalUserId } }),
-    `User ${internalUserId} does not exist`
-  );
-  if (userModel.admin) {
+async function getWorkspaces(user: SessionUser) {
+  const internalUserId = user.internalId;
+  // a key limited to one workspace or a role is not a platform admin here
+  if (await isPlatformAdmin(user)) {
     return await db.prisma().workspace.findMany({ where: { deleted: false } });
   }
   return (
@@ -95,7 +92,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     res.send({
       auth: true,
       user: user,
-      workspaces: req.query.workspaces === "true" ? await getWorkspaces(user.internalId) : undefined,
+      workspaces: req.query.workspaces === "true" ? await getWorkspaces(user) : undefined,
       lastUsedWorkspace: req.query.lastWorkspace === "true" ? await getLastWorkspace(user) : undefined,
     });
   }

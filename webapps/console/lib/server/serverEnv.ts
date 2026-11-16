@@ -426,6 +426,14 @@ const ServerEnvSchema = ClientEnvSchema.extend({
   MINUTE_RATE_LIMIT_SESSION_PUT: z.coerce.number().optional(),
   MINUTE_RATE_LIMIT_SESSION_PATCH: z.coerce.number().optional(),
   MINUTE_RATE_LIMIT_SESSION_DELETE: z.coerce.number().optional(),
+
+  // ============================================
+  // Outbound requests to URLs that users type in
+  // ============================================
+
+  // Comma-separated hostnames that may stay on a local address when the console calls such a URL (the OTLP logs
+  // "send test" request). The same variable the rotor and Bulker guards read.
+  FETCH_LOCAL_WHITELIST: z.string().optional(),
 });
 
 export type ServerEnv = z.infer<typeof ServerEnvSchema>;

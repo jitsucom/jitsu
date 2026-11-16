@@ -1,4 +1,4 @@
-import { createRoute } from "../../lib/api";
+import { createRoute, assertNotLimitedKey } from "../../lib/api";
 import { db } from "../../lib/server/db";
 import { requireDefined } from "juava";
 import { getServerLog } from "../../lib/server/log";
@@ -19,6 +19,7 @@ export default createRoute()
     auth: true,
   })
   .handler(async ({ req, query, user }) => {
+    assertNotLimitedKey(user);
     await initTelemetry();
     const workspaceAccess = await db.prisma().workspaceAccess.findFirst({
       where: { userId: requireDefined(user.internalId, `internal id is not defined`) },
