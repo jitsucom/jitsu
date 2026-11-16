@@ -2,6 +2,7 @@ package main
 
 import (
 	"errors"
+	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
@@ -75,9 +76,7 @@ func TestBackgroundQueueSaturationDoesNotBlockPipeline(t *testing.T) {
 	// Only the primary queue owns recovery files and retains failover behavior.
 	rejected := []byte(`{"messageId":"rejected","httpPayload":{"event":"test"}}`)
 	_, _, routeErr = router.sendToRotor(c, "rejected", rejected, stream, false)
-	require.NotNil(t, routeErr)
-	require.Equal(t, ErrProducerType, routeErr.ErrorType)
-	require.ErrorContains(t, routeErr.Error, "Queue full")
+	require.Nil(t, routeErr, "a successful failover write accepts the event")
 	files, err := filepath.Glob(filepath.Join(failoverPath, "*.tmp"))
 	require.NoError(t, err)
 	require.Len(t, files, 1)
@@ -135,6 +134,50 @@ func TestProducerInitializationFailureClosesEarlierClients(t *testing.T) {
 	for _, p := range []*kafkabase.Producer{app.producer, app.backupProducer} {
 		_, err := p.QueueSize()
 		require.ErrorContains(t, err, "closed")
+	}
+}
+
+func TestPipelineQueueFullHTTPResponse(t *testing.T) {
+	cluster, err := kafka.NewMockCluster(1)
+	require.NoError(t, err)
+	defer cluster.Close()
+	require.NoError(t, cluster.CreateTopic("pipeline", 1, 1))
+
+	for _, failoverEnabled := range []bool{true, false} {
+		t.Run(map[bool]string{true: "saved to failover", false: "failover disabled"}[failoverEnabled], func(t *testing.T) {
+			require.NoError(t, cluster.SetBrokerDown(1))
+			app := testProducerContext(cluster.BootstrapServers(), t.TempDir())
+			app.config.FailoverLoggerEnabled = failoverEnabled
+			require.NoError(t, app.initProducers())
+			defer app.closeProducers()
+			defer cluster.SetBrokerUp(1)
+			require.NoError(t, app.producer.ProduceAsync("pipeline", "", []byte(`{"queued":true}`), nil, kafka.PartitionAny, "", false, 0))
+
+			router := &Router{
+				Router: &appbase.Router{Service: appbase.NewServiceBase("failover-response-test")},
+				config: app.config, producer: app.producer,
+				partitionSelector: &kafkabase.DummyPartitionSelector{},
+			}
+			stream := &StreamWithDestinations{
+				AsynchronousDestinations: []*ShortDestinationConfig{{ConnectionId: "test-connection"}},
+			}
+			engine := gin.New()
+			engine.POST("/ingest", func(c *gin.Context) {
+				_, _, routeErr := router.sendToRotor(c, "overflow", []byte(`{"messageId":"overflow"}`), stream, true)
+				if routeErr == nil {
+					c.JSON(http.StatusOK, gin.H{"ok": true})
+				}
+			})
+			response := httptest.NewRecorder()
+			engine.ServeHTTP(response, httptest.NewRequest(http.MethodPost, "/ingest", nil))
+			if failoverEnabled {
+				require.Equal(t, http.StatusOK, response.Code)
+				require.JSONEq(t, `{"ok":true}`, response.Body.String())
+			} else {
+				require.Equal(t, http.StatusInternalServerError, response.Code)
+				require.Contains(t, response.Body.String(), ErrProducerType)
+			}
+		})
 	}
 }
 
