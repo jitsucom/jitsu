@@ -21,10 +21,10 @@ name: 🚀 Deploy console on merge
 #     race-free — the deployed image is guaranteed to contain exactly the merged
 #     code, rather than whatever beta tag happened to exist before.
 #
-# Secret:
-#   DEPLOY_GITHUB_TOKEN — org-level token with actions:write on
-#   jitsucom/jitsu-cloud-infra. Already used by services.yaml to dispatch
-#   new-release-notify.yaml in that repo.
+# Secrets:
+#   WORKFLOW_DISPATCH_APP_ID / WORKFLOW_DISPATCH_APP_PRIVATE_KEY — dedicated
+#   dispatch App installed on jitsu-cloud-infra with Actions: write.
+#   Keep the separate manifest-push App credentials restricted to infra.
 #
 # Security / fork PRs:
 #   This uses pull_request_target (see the trigger comment below) so that secrets
@@ -43,7 +43,7 @@ name: 🚀 Deploy console on merge
 on:
   # pull_request_target, not pull_request: a PR opened from a fork runs the
   # `pull_request` event WITHOUT repository secrets, which would leave
-  # DEPLOY_GITHUB_TOKEN empty and the dispatch step failing. pull_request_target
+  # the dispatch App secrets empty and the dispatch step failing. pull_request_target
   # runs in the base-repo context with secrets available. It's safe here because
   # this job never checks out or executes any PR-supplied code — it only reads
   # event metadata (the merged flag and labels) and dispatches a workflow.
@@ -70,10 +70,20 @@ jobs:
       # repo-scoped, so the extra scope is cheap.
       issues: write
     steps:
+      - name: 🔑 Mint workflow dispatch token
+        id: dispatch-token
+        uses: actions/create-github-app-token@fee1f7d63c2ff003460e3d139729b119787bc349 # v2
+        with:
+          app-id: ${{ secrets.WORKFLOW_DISPATCH_APP_ID }}
+          private-key: ${{ secrets.WORKFLOW_DISPATCH_APP_PRIVATE_KEY }}
+          owner: jitsucom
+          repositories: jitsu-cloud-infra
+          permission-actions: write
+
       - name: 🚀 Dispatch jitsu-cloud-infra deploy.yaml
         id: dispatch
         env:
-          GH_TOKEN: ${{ secrets.DEPLOY_GITHUB_TOKEN }}
+          GH_TOKEN: ${{ steps.dispatch-token.outputs.token }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
         run: |
           set -eu
