@@ -640,6 +640,51 @@ test("spa-navigation", async ({ browser }) => {
   expect(navTrackEvents[4].body.context.page.search).toBe("?utm_source=test&utm_medium=spa");
 });
 
+test("events use cached viewport dimensions until resize", async ({ page }) => {
+  await page.setViewportSize({ width: 800, height: 600 });
+  await page.addInitScript(() => {
+    window["viewportReads"] = { innerWidth: 0, innerHeight: 0 };
+    for (const key of ["innerWidth", "innerHeight"]) {
+      const descriptor = Object.getOwnPropertyDescriptor(window, key)!;
+      Object.defineProperty(window, key, {
+        ...descriptor,
+        get() {
+          window["viewportReads"][key]++;
+          return descriptor.get!.call(window);
+        },
+      });
+    }
+  });
+  await page.goto(`${server.baseUrl}/basic.html`);
+  const reads = await page.evaluate(() => window["viewportReads"]);
+  // The browser may also dispatch an initial resize while loading the page.
+  expect(reads.innerWidth).toBeGreaterThanOrEqual(1);
+  expect(reads.innerHeight).toBe(reads.innerWidth);
+
+  await page.evaluate(async () => {
+    for (let i = 0; i < 3; i++) {
+      document.body.style.padding = `${i + 1}px`;
+      await window["jitsu"].track("cached-viewport");
+    }
+  });
+  expect(await page.evaluate(() => window["viewportReads"])).toEqual(reads);
+  const events = requestLog.filter(entry => entry.body.event === "cached-viewport");
+  expect(events).toHaveLength(3);
+  for (const entry of events) {
+    expect(entry.body.context.screen).toMatchObject({ innerWidth: 800, innerHeight: 600 });
+  }
+
+  await page.setViewportSize({ width: 640, height: 480 });
+  await page.waitForFunction(initialReads => window["viewportReads"].innerWidth > initialReads, reads.innerWidth);
+  const resizedReads = await page.evaluate(() => window["viewportReads"]);
+  await page.evaluate(() => window["jitsu"].track("resized-viewport"));
+  expect(await page.evaluate(() => window["viewportReads"])).toEqual(resizedReads);
+  expect(requestLog.find(entry => entry.body.event === "resized-viewport")!.body.context.screen).toMatchObject({
+    innerWidth: 640,
+    innerHeight: 480,
+  });
+});
+
 test("basic", async ({ browser }) => {
   clearRequestLog();
   const browserContext = await browser.newContext();

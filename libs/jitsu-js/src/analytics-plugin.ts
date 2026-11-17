@@ -330,7 +330,26 @@ const cookieStorage: StorageFactory = (cookieDomain, key2cookie) => {
   };
 };
 
+const viewportSizes = new WeakMap<Window, { innerWidth: number; innerHeight: number }>();
+
+function getViewportSize(browserWindow: Window) {
+  let viewport = viewportSizes.get(browserWindow);
+  if (!viewport) {
+    const size = { innerWidth: browserWindow.innerWidth, innerHeight: browserWindow.innerHeight };
+    // Viewport reads can force layout after DOM changes. Read at initialization and
+    // on resize, not while sending events. Share one listener across SDK instances.
+    browserWindow.addEventListener("resize", () => {
+      size.innerWidth = browserWindow.innerWidth;
+      size.innerHeight = browserWindow.innerHeight;
+    });
+    viewportSizes.set(browserWindow, size);
+    viewport = size;
+  }
+  return viewport;
+}
+
 export function windowRuntime(opts: JitsuOptions): RuntimeFacade {
+  const viewport = getViewportSize(window);
   const key2Cookie = (key: string) => {
     switch (key) {
       case "__anon_id":
@@ -388,8 +407,8 @@ export function windowRuntime(opts: JitsuOptions): RuntimeFacade {
       return {
         width: window.screen.width,
         height: window.screen.height,
-        innerWidth: window.innerWidth,
-        innerHeight: window.innerHeight,
+        innerWidth: viewport.innerWidth,
+        innerHeight: viewport.innerHeight,
         density: Math.floor(window.devicePixelRatio),
       };
     },
