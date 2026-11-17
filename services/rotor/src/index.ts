@@ -243,45 +243,54 @@ function initHTTP(rotorContext: Omit<MessageHandlerContext, "connectionStore" | 
       diagnostics: isTruish(serverEnv.__DANGEROUS_ENABLE_FULL_DIAGNOSTICS) ? getDiagnostics() : undefined,
     });
   });
-  http.get("/health", async (req, res) => {
-    const mongoRequired = (serverEnv.REQUIRED_STORES ?? "").split(",").includes("mongodb");
-    if (mongoRequired) {
-      try {
-        await pingMongo();
-      } catch (e: any) {
-        log.atError().withCause(e).log("MongoDB is not healthy");
-        res.status(500).json({ error: "MongoDB is not healthy" });
+  const health =
+    (detailed: boolean): express.RequestHandler =>
+    async (req, res) => {
+      res.setHeader("Cache-Control", "no-store");
+      const mongoRequired = (serverEnv.REQUIRED_STORES ?? "").split(",").includes("mongodb");
+      if (mongoRequired) {
+        try {
+          await pingMongo();
+        } catch (e: any) {
+          log.atError().withCause(e).log("MongoDB is not healthy");
+          res.status(500).json(detailed ? { status: "fail", error: "MongoDB is not healthy" } : { status: "fail" });
+          return;
+        }
+      }
+      if (!detailed) {
+        res.json({ status: "pass" });
         return;
       }
-    }
-    res.json({
-      status: "pass",
-      workspacesStore: {
-        enabled: workspacesStore.getCurrent()?.enabled || "loading",
-        status: workspacesStore.status(),
-        lastUpdated: workspacesStore.lastRefresh(),
-        lastModified: workspacesStore.lastModified(),
-      },
-      connectionsStore: {
-        enabled: connectionsStore.getCurrent()?.enabled || "loading",
-        status: connectionsStore.status(),
-        lastUpdated: connectionsStore.lastRefresh(),
-        lastModified: connectionsStore.lastModified(),
-      },
-      functionsStore: {
-        enabled: functionsStore.getCurrent()?.enabled || "loading",
-        status: functionsStore.status(),
-        lastUpdated: functionsStore.lastRefresh(),
-        lastModified: functionsStore.lastModified(),
-      },
-      streamsStore: {
-        enabled: streamsStore.getCurrent()?.enabled || "loading",
-        status: streamsStore.status(),
-        lastUpdated: streamsStore.lastRefresh(),
-        lastModified: streamsStore.lastModified(),
-      },
-    });
-  });
+      res.json({
+        status: "pass",
+        workspacesStore: {
+          enabled: workspacesStore.getCurrent()?.enabled || "loading",
+          status: workspacesStore.status(),
+          lastUpdated: workspacesStore.lastRefresh(),
+          lastModified: workspacesStore.lastModified(),
+        },
+        connectionsStore: {
+          enabled: connectionsStore.getCurrent()?.enabled || "loading",
+          status: connectionsStore.status(),
+          lastUpdated: connectionsStore.lastRefresh(),
+          lastModified: connectionsStore.lastModified(),
+        },
+        functionsStore: {
+          enabled: functionsStore.getCurrent()?.enabled || "loading",
+          status: functionsStore.status(),
+          lastUpdated: functionsStore.lastRefresh(),
+          lastModified: functionsStore.lastModified(),
+        },
+        streamsStore: {
+          enabled: streamsStore.getCurrent()?.enabled || "loading",
+          status: streamsStore.status(),
+          lastUpdated: streamsStore.lastRefresh(),
+          lastModified: streamsStore.lastModified(),
+        },
+      });
+    };
+  http.get("/health", health(false));
+  http.get("/status", health(true));
   http.post("/profileudfrun", ProfileUDFRunHandler);
   http.post("/profileevents", ProfileEventsHandler);
   http.get("/wtf", async (req, res) => {

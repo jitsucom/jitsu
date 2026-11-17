@@ -14,12 +14,19 @@ import {
   StreamConfig,
   WorkspaceDomain,
 } from "./index";
-import { assertDefined, createHash, deepMerge, requireDefined } from "juava";
+import { assertDefined, createHash, deepCopy, deepMerge, requireDefined } from "juava";
 import { checkDomain, checkOrAddToIngress, isDomainAvailable } from "../server/custom-domains";
 import { ZodType, ZodTypeDef } from "zod";
 import { getServerLog } from "../server/log";
 import { getWildcardDomains } from "../../pages/api/[workspaceId]/domain-check";
-import { getDestinationSecretPaths, getServiceSecretPaths, maskSecrets, removeMaskedValues } from "./secrets";
+import { isSlackWebhookUrl } from "../shared/slack-webhook";
+import {
+  assertSecretsStayWithTarget,
+  getDestinationSecretPaths,
+  getServiceSecretPaths,
+  maskSecrets,
+  removeMaskedValues,
+} from "./secrets";
 import { db } from "../server/db";
 import { ConfigApiDeleteOptions } from "../useApi";
 import pick from "lodash/pick";
@@ -112,6 +119,25 @@ export function parseObject(type: string, obj: any): any {
   return narrowParseResult.data;
 }
 
+/**
+ * A stored config with the schema defaults applied (a PostHog destination without a host gets the default one), or the
+ * config as it is when it doesn't parse. For comparing a stored config with a submitted one, which is always parsed.
+ */
+export function withSchemaDefaults(type: string, obj: any): any {
+  // A stored config has no `id` and `workspaceId` (the service removes them before saving) but the schema requires
+  // them, so they are supplied for parsing and taken out of the result again
+  const entity = { type, id: "-", workspaceId: "-", ...obj };
+  try {
+    const parsed = parseObject(type, entity);
+    for (const key of ["id", "workspaceId"]) {
+      if (!(key in (obj ?? {}))) delete parsed[key];
+    }
+    return parsed;
+  } catch {
+    return obj;
+  }
+}
+
 export type OptionalKeys<T> = {
   [K in keyof T]-?: undefined extends { [K2 in keyof T]: K2 }[K] ? K : never;
 }[keyof T];
@@ -178,7 +204,10 @@ const configObjectTypes: Record<string, ConfigObjectType> = {
       // Remove masked values before merge
       const secretPaths = getDestinationSecretPaths(original.destinationType);
       const cleanedPatch = removeMaskedValues(patch, secretPaths);
-      return deepMerge(original, cleanedPatch);
+      const before = deepCopy(original);
+      const merged = deepMerge(original, cleanedPatch);
+      assertSecretsStayWithTarget(withSchemaDefaults("destination", before), patch, merged, secretPaths);
+      return merged;
     },
 
     inputFilter: async (obj: DestinationConfig, context) => {
@@ -345,7 +374,10 @@ const configObjectTypes: Record<string, ConfigObjectType> = {
       // Remove masked values before merge
       const secretPaths = await getServiceSecretPaths(original.package, original.version);
       const cleanedPatch = removeMaskedValues(patch, secretPaths);
-      return deepMerge(original, cleanedPatch);
+      const before = deepCopy(original);
+      const merged = deepMerge(original, cleanedPatch);
+      assertSecretsStayWithTarget(withSchemaDefaults("service", before), patch, merged, secretPaths);
+      return merged;
     },
     inputFilter: async (obj: ServiceConfig) => {
       // Remove masked values
@@ -361,11 +393,22 @@ const configObjectTypes: Record<string, ConfigObjectType> = {
   },
   domain: {
     schema: WorkspaceDomain,
-    inputFilter: async obj => {
+    inputFilter: async (obj, _, workspace) => {
       const domainToCheck = obj.name.trim().toLowerCase();
       if (!checkDomain(domainToCheck)) {
         log.atWarn().log(`Domain '${domainToCheck}' is not a valid domain name`);
         throw new ApiError(`Domain ${domainToCheck} is not a valid domain name`);
+      }
+      // Same rule as for stream domains: export merges domain objects into every stream,
+      // so a name claimed by another workspace would route that workspace's events here
+      const domainAvailability = await isDomainAvailable(domainToCheck, workspace);
+      if (!domainAvailability.available) {
+        log
+          .atWarn()
+          .log(
+            `Domain ${domainToCheck} can't be added to workspace ${workspace.id}, it is already in use by other workspaces: ${domainAvailability.usedInWorkspace}`
+          );
+        throw new ApiError(`Domain ${domainToCheck} is already in use by other workspace`);
       }
       return {
         ...obj,
@@ -384,5 +427,11 @@ const configObjectTypes: Record<string, ConfigObjectType> = {
   },
   notification: {
     schema: NotificationChannel,
+    inputFilter: async (obj: NotificationChannel) => {
+      if (obj.channel === "slack" && obj.slackWebhookUrl && !isSlackWebhookUrl(obj.slackWebhookUrl)) {
+        throw new ApiError("Slack webhook URL must look like https://hooks.slack.com/services/...", { status: 400 });
+      }
+      return obj;
+    },
   },
 } as const;

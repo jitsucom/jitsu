@@ -57,7 +57,8 @@ type Router struct {
 	noAuthPaths   types.Set[string]
 }
 
-func NewRouterBase(config Config, noAuthPaths []string) *Router {
+// beforeAuth middleware also runs when authentication rejects a request.
+func NewRouterBase(config Config, noAuthPaths []string, beforeAuth ...gin.HandlerFunc) *Router {
 	authTokens := strings.Split(config.AuthTokens, ",")
 	rawAuthTokens := strings.Split(config.RawAuthTokens, ",")
 	tokenSecrets := strings.Split(config.TokenSecrets, ",")
@@ -87,6 +88,7 @@ func NewRouterBase(config Config, noAuthPaths []string) *Router {
 	gin.SetMode(gin.ReleaseMode)
 	engine := gin.New()
 	engine.Use(gin.Recovery())
+	engine.Use(beforeAuth...)
 	engine.Use(router.authMiddleware)
 	engine.RemoveExtraSlash = true
 	router.engine = engine

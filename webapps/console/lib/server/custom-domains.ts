@@ -4,7 +4,8 @@ import { getLog, requireDefined } from "juava";
 import { httpAgent, httpsAgent } from "./http-agent";
 import { z } from "zod";
 import { WorkspaceDbModel } from "../../prisma/schema";
-import { Prisma } from "@prisma/client";
+import { Prisma, PrismaClient } from "@prisma/client";
+import { ApiError } from "../shared/errors";
 import { getServerEnv } from "./serverEnv";
 
 type DomainAvailability = { available: true; usedInWorkspaces?: never } | { available: false; usedInWorkspace: string };
@@ -19,7 +20,8 @@ export function checkDomain(domain: string): boolean {
  */
 export async function isDomainAvailable(
   domain: string,
-  workspace: z.infer<typeof WorkspaceDbModel>
+  workspace: z.infer<typeof WorkspaceDbModel>,
+  client: Pick<PrismaClient, "$queryRaw"> = db.prisma()
 ): Promise<DomainAvailability> {
   const workspaceId = workspace.id;
   const siblings = (workspace.featuresEnabled ?? [])
@@ -30,12 +32,14 @@ export async function isDomainAvailable(
   const domainSuffix = domain.replace(/^[*]/, "");
   const fullTextPattern = `%${domainSuffix.toLowerCase()}%`;
   const pattern = `%${domainSuffix.toLowerCase()}`;
-  const dirtyList = (await db.prisma().$queryRaw`
+  // objects of a deleted workspace stay in the table, but no longer route, so they do not hold the domain
+  const dirtyList = (await client.$queryRaw`
       select id,type, "workspaceId", config->'domains' as domains
       from newjitsu."ConfigurationObject"
       where type = 'stream'
         and config::TEXT ilike ${fullTextPattern}
         and "workspaceId" not in (${Prisma.join(siblings)})
+        and "workspaceId" not in (select id from newjitsu."Workspace" where deleted = true)
         and deleted = false
       union
       select id,type, "workspaceId", jsonb_build_array(config->'name') as domains
@@ -43,12 +47,19 @@ export async function isDomainAvailable(
       where type = 'domain'
         and (config->>'name' ilike ${pattern} or ${domain.toLowerCase()} ilike REPLACE(config->>'name','*','%') )
         and "workspaceId" not in (${Prisma.join(siblings)})
+        and "workspaceId" not in (select id from newjitsu."Workspace" where deleted = true)
         and deleted = false
   `) as { id: string; workspaceId: string; domains: string[] }[];
 
+  // Same domain or a subdomain of it, on a label boundary: `not.example.com` is not under `t.example.com`
+  const bare = domainSuffix.toLowerCase();
+  const isUnder = (d: string) => {
+    const other = d.toLowerCase();
+    return bare.startsWith(".") ? other.endsWith(bare) : other === bare || other.endsWith("." + bare);
+  };
   const list = dirtyList.filter(({ domains }) => {
     return (
-      (domains || []).filter(d => d.toLowerCase().endsWith(domainSuffix)).length > 0 ||
+      (domains || []).filter(isUnder).length > 0 ||
       (domains || []).filter(d => {
         return d.startsWith("*") && domain.toLowerCase().endsWith(d.toLowerCase().replace(/^[*]/, ""));
       }).length > 0
@@ -60,6 +71,38 @@ export async function isDomainAvailable(
   } else {
     return { available: true };
   }
+}
+
+/** Domains an object of this type claims: stream `domains`, domain `name`. */
+function claimedDomains(type: string, object: any): string[] {
+  const names = type === "stream" ? object?.domains : type === "domain" ? [object?.name] : [];
+  return (names ?? []).filter(Boolean).map((d: string) => d.trim().toLowerCase());
+}
+
+/**
+ * isDomainAvailable() followed by an insert is check-then-act: two workspaces claiming the same domain at the same
+ * moment both pass the check. Writes that claim a domain run under one global lock and repeat the check after taking
+ * it, so the second claim sees the first (the lock is released at commit). The repeat runs on the transaction's own
+ * connection: a second one from the pool could starve when the pool is small or full of claims waiting for the lock.
+ */
+export async function writeClaimingDomains<T>(
+  prisma: PrismaClient,
+  workspace: z.infer<typeof WorkspaceDbModel>,
+  type: string,
+  object: unknown,
+  write: (db: Prisma.TransactionClient) => Promise<T>
+): Promise<T> {
+  const domains = claimedDomains(type, object);
+  if (domains.length === 0) return write(prisma);
+  return prisma.$transaction(async tx => {
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended('domain-claim', 0))`;
+    for (const domain of domains) {
+      if (!(await isDomainAvailable(domain, workspace, tx)).available) {
+        throw new ApiError(`Domain ${domain} is already in use by other workspace`);
+      }
+    }
+    return write(tx);
+  });
 }
 
 export async function resolveCname(domain: string): Promise<string | undefined> {

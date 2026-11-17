@@ -1,0 +1,782 @@
+import { describe, expect, it } from "vitest";
+import { coreDestinations, MASKED_SECRET } from "../../lib/schema/destinations";
+import { withSchemaDefaults } from "../../lib/schema/config-objects";
+import {
+  assertSecretsStayWithTarget,
+  changedConnectionTargets,
+  changedTargetFieldsBetween,
+  getDestinationTargetKeys,
+  unmaskSecretsFromOriginal,
+} from "../../lib/schema/secrets";
+
+// JITSU-257: which fields count as "where the stored secret is sent".
+
+describe("list-valued targets (ClickHouse and MongoDB `hosts`)", () => {
+  const stored = { hosts: ["ch-1.customer.com:9000", "ch-2.customer.com:9000"], password: "real" };
+
+  it("refuses unmasking into a different list of hosts", () => {
+    const submitted = { hosts: ["attacker.example:9000"], password: MASKED_SECRET };
+    expect(() => unmaskSecretsFromOriginal(submitted, stored)).toThrow(/hosts changed/);
+    expect(changedConnectionTargets(submitted, stored)).toEqual(["hosts"]);
+  });
+
+  it("refuses an extra host", () => {
+    const submitted = { hosts: [...stored.hosts, "attacker.example:9000"], password: MASKED_SECRET };
+    expect(() => unmaskSecretsFromOriginal(submitted, stored)).toThrow(/hosts changed/);
+  });
+
+  it("unmasks when the list is the same", () => {
+    const submitted = { hosts: [...stored.hosts], password: MASKED_SECRET };
+    expect(unmaskSecretsFromOriginal(submitted, stored)).toEqual(stored);
+  });
+
+  it("refuses a saved config that moves to other hosts and keeps the password", () => {
+    const patch = { hosts: ["attacker.example:9000"] };
+    expect(() => assertSecretsStayWithTarget(stored, patch, { ...stored, ...patch }, ["password"])).toThrow(
+      /hosts changed/
+    );
+  });
+
+  it("treats an empty list like no value", () => {
+    expect(changedTargetFieldsBetween({ hosts: [] }, {})).toEqual([]);
+    expect(changedTargetFieldsBetween({ hosts: ["a"] }, {})).toEqual(["hosts"]);
+  });
+});
+
+describe("API base (Resend, SendGrid)", () => {
+  const stored = { apiKey: "real-key", apiBase: "https://api.resend.com" };
+
+  it("refuses a new apiBase that keeps the stored key", () => {
+    const submitted = { apiKey: MASKED_SECRET, apiBase: "https://attacker.example" };
+    expect(() => unmaskSecretsFromOriginal(submitted, stored)).toThrow(/apiBase changed/);
+    const patch = { apiBase: "https://attacker.example" };
+    expect(() => assertSecretsStayWithTarget(stored, patch, { ...stored, ...patch }, ["apiKey"])).toThrow(
+      /apiBase changed/
+    );
+  });
+});
+
+describe("Cloud SQL instance (Postgres private service connect)", () => {
+  const stored = { authenticationMethod: "google-psc", instanceConnectionName: "proj:region:orig", password: "real" };
+
+  it("refuses unmasking into another instance", () => {
+    const submitted = { ...stored, instanceConnectionName: "attacker-proj:region:evil", password: MASKED_SECRET };
+    expect(() => unmaskSecretsFromOriginal(submitted, stored)).toThrow(/instanceConnectionName changed/);
+  });
+
+  it("refuses a saved config that moves to another instance and keeps the password", () => {
+    const patch = { instanceConnectionName: "attacker-proj:region:evil" };
+    expect(() => assertSecretsStayWithTarget(stored, patch, { ...stored, ...patch }, ["password"])).toThrow(
+      /instanceConnectionName changed/
+    );
+  });
+
+  it("unmasks when the instance is the same", () => {
+    expect(unmaskSecretsFromOriginal({ ...stored, password: MASKED_SECRET }, stored)).toEqual(stored);
+  });
+});
+
+describe("Snowflake account (the host name is <account>.snowflakecomputing.com)", () => {
+  const stored = { destinationType: "snowflake", account: "orig-acct", username: "jitsu", password: "real" };
+
+  it("refuses unmasking into another account", () => {
+    const submitted = { ...stored, account: "attacker-acct", password: MASKED_SECRET };
+    expect(() => unmaskSecretsFromOriginal(submitted, stored)).toThrow(/account changed/);
+  });
+
+  it("refuses a saved config that moves to another account and keeps the password", () => {
+    const patch = { account: "attacker-acct" };
+    expect(() => assertSecretsStayWithTarget(stored, patch, { ...stored, ...patch }, ["password"])).toThrow(
+      /account changed/
+    );
+  });
+
+  it("unmasks when the account is the same", () => {
+    expect(unmaskSecretsFromOriginal({ ...stored, password: MASKED_SECRET }, stored)).toEqual(stored);
+  });
+
+  it("`account` on anything else is a plain label, not a target", () => {
+    const source = { account: "orig", password: "real" };
+    const submitted = { account: "other", password: MASKED_SECRET };
+    expect(changedConnectionTargets(submitted, source)).toEqual([]);
+    expect(unmaskSecretsFromOriginal(submitted, source)).toEqual({ account: "other", password: "real" });
+    expect(changedTargetFieldsBetween({ account: "other" }, source)).toEqual([]);
+  });
+});
+
+describe("empty optional targets", () => {
+  it("an empty endpoint is the same as an omitted one", () => {
+    const stored = { accessKeyId: "AKIA", secretAccessKey: "real" };
+    const submitted = { accessKeyId: "AKIA", endpoint: "", secretAccessKey: MASKED_SECRET };
+    expect(changedConnectionTargets(submitted, stored)).toEqual([]);
+    expect(unmaskSecretsFromOriginal(submitted, stored)).toMatchObject({ secretAccessKey: "real" });
+  });
+
+  it("a real endpoint is still a change from an omitted one", () => {
+    const submitted = { accessKeyId: "AKIA", endpoint: "https://attacker.example", secretAccessKey: MASKED_SECRET };
+    expect(changedConnectionTargets(submitted, { accessKeyId: "AKIA" })).toEqual(["endpoint"]);
+  });
+});
+
+describe("withSchemaDefaults", () => {
+  it("applies defaults to a stored config that has no id and no workspaceId, and adds neither", () => {
+    const stored = { type: "destination", destinationType: "posthog", name: "ph", key: "phc_real" };
+    const out = withSchemaDefaults("destination", stored);
+    expect(out.host).toBe("https://app.posthog.com");
+    expect(out).not.toHaveProperty("id");
+    expect(out).not.toHaveProperty("workspaceId");
+  });
+});
+
+describe("connection string injection (Postgres and Redshift)", () => {
+  const stored = {
+    destinationType: "postgres",
+    host: "db.customer.com",
+    database: "events",
+    username: "jitsu",
+    password: "real",
+  };
+
+  it.each([
+    ["database", "events host=attacker.example"],
+    ["username", "jitsu host=attacker.example"],
+    ["defaultSchema", "public host=attacker.example"],
+    ["database", "events\thost=attacker.example"],
+    ["database", "'events host=attacker.example'"],
+    ["database", "events\\ host=attacker.example"],
+  ])("refuses unmasking with %s = %j", (field, value) => {
+    const submitted = { ...stored, [field]: value, password: MASKED_SECRET };
+    expect(() => unmaskSecretsFromOriginal(submitted, stored)).toThrow(new RegExp(`${field} contains a space`));
+  });
+
+  it("refuses a saved config that keeps the password while a field carries the injection", () => {
+    const patch = { database: "events host=attacker.example" };
+    expect(() => assertSecretsStayWithTarget(stored, patch, { ...stored, ...patch }, ["password"])).toThrow(
+      /database contains a space/
+    );
+    const withMasked = { ...patch, password: MASKED_SECRET };
+    expect(() => assertSecretsStayWithTarget(stored, withMasked, { ...stored, ...withMasked }, ["password"])).toThrow(
+      /database contains a space/
+    );
+  });
+
+  it("applies to Redshift too", () => {
+    const redshift = { ...stored, destinationType: "redshift" };
+    expect(() =>
+      unmaskSecretsFromOriginal({ ...redshift, database: "x host=attacker.example", password: MASKED_SECRET }, redshift)
+    ).toThrow(/database contains a space/);
+  });
+
+  it("lets ordinary names through, and a new password makes a strange name the editor's own business", () => {
+    for (const database of ["events", "events-2026", "events_v2", "my.db", "db$1", "événements"]) {
+      expect(
+        unmaskSecretsFromOriginal({ ...stored, database, password: MASKED_SECRET }, { ...stored, database })
+      ).toMatchObject({ database, password: "real" });
+    }
+    const patch = { database: "events host=attacker.example", password: "typed-again" };
+    expect(() => assertSecretsStayWithTarget(stored, patch, { ...stored, ...patch }, ["password"])).not.toThrow();
+  });
+
+  it("ignores whitespace at either end: it cannot start a setting, and such a stored schema has always worked", () => {
+    for (const defaultSchema of [" jitsu_events", "jitsu_events ", "\tjitsu_events\n", "  "]) {
+      const withEdges = { ...stored, defaultSchema };
+      expect(unmaskSecretsFromOriginal({ ...withEdges, password: MASKED_SECRET }, withEdges)).toMatchObject({
+        defaultSchema,
+        password: "real",
+      });
+      const patch = { name: "renamed" };
+      expect(() =>
+        assertSecretsStayWithTarget(withEdges, patch, { ...withEdges, ...patch }, ["password"])
+      ).not.toThrow();
+    }
+  });
+
+  it("still refuses whitespace inside the value, also next to whitespace at the ends", () => {
+    for (const value of [
+      " events host=attacker.example",
+      "events host=attacker.example ",
+      "\tevents\thost=attacker.example\n",
+    ]) {
+      const submitted = { ...stored, database: value, password: MASKED_SECRET };
+      expect(() => unmaskSecretsFromOriginal(submitted, stored)).toThrow(/database contains a space/);
+    }
+  });
+
+  describe("MySQL: the driver splits the DSN at its last @ and /", () => {
+    const mysqlStored = {
+      destinationType: "mysql",
+      host: "db.customer.com",
+      database: "events",
+      username: "jitsu",
+      password: "real",
+    };
+
+    it.each([
+      "x@tcp(attacker.example:3306)/events",
+      "events?tls=false",
+      "events/../other",
+      "events@evil",
+      " x@tcp(attacker.example:3306)/events ",
+    ])("refuses unmasking with database = %j", database => {
+      const submitted = { ...mysqlStored, database, password: MASKED_SECRET };
+      expect(() => unmaskSecretsFromOriginal(submitted, mysqlStored)).toThrow(/database contains @, \/ or \?/);
+    });
+
+    it("refuses a saved config that keeps the password while the database carries the address", () => {
+      const patch = { database: "x@tcp(attacker.example:3306)/events" };
+      expect(() => assertSecretsStayWithTarget(mysqlStored, patch, { ...mysqlStored, ...patch }, ["password"])).toThrow(
+        /database contains @, \/ or \?/
+      );
+    });
+
+    it("lets ordinary names through, user@server usernames included, and a typed password", () => {
+      for (const database of ["events", "my-db_2", "db$1", "événements", "a b"]) {
+        expect(
+          unmaskSecretsFromOriginal({ ...mysqlStored, database, password: MASKED_SECRET }, { ...mysqlStored, database })
+        ).toMatchObject({ database, password: "real" });
+      }
+      const azure = { ...mysqlStored, username: "jitsu@servername" };
+      expect(unmaskSecretsFromOriginal({ ...azure, password: MASKED_SECRET }, azure)).toMatchObject({
+        password: "real",
+      });
+      const patch = { database: "x@tcp(attacker.example:3306)/events", password: "typed-again" };
+      expect(() =>
+        assertSecretsStayWithTarget(mysqlStored, patch, { ...mysqlStored, ...patch }, ["password"])
+      ).not.toThrow();
+    });
+  });
+
+  describe("service connector image (package)", () => {
+    const service = {
+      protocol: "airbyte",
+      package: "airbyte/source-faker",
+      version: "1.0.0",
+      credentials: { api_key: "real-key", start_date: "2024-01-01" },
+    };
+    const secretPaths = ["credentials.api_key"];
+
+    it("refuses unmasking into another package: the image would receive the stored credentials", () => {
+      const submitted = {
+        ...service,
+        package: "attacker/connector",
+        credentials: { ...service.credentials, api_key: MASKED_SECRET },
+      };
+      expect(() => unmaskSecretsFromOriginal(submitted, service)).toThrow(/package changed/);
+      expect(changedConnectionTargets(submitted, service)).toEqual(["package"]);
+      expect(changedTargetFieldsBetween(submitted, service)).toContain("package");
+    });
+
+    it("refuses a saved service that changes the package and keeps the key, masked or omitted", () => {
+      for (const patch of [
+        { package: "attacker/connector", credentials: { api_key: MASKED_SECRET } },
+        { package: "attacker/connector" },
+      ]) {
+        const merged = { ...service, ...patch, credentials: { ...service.credentials, ...(patch.credentials ?? {}) } };
+        expect(() => assertSecretsStayWithTarget(service, patch, merged, secretPaths)).toThrow(/package changed/);
+      }
+    });
+
+    it("allows the change when the credentials are entered again", () => {
+      const patch = { package: "airbyte/source-other", credentials: { api_key: "new-key" } };
+      const merged = { ...service, ...patch, credentials: { ...service.credentials, ...patch.credentials } };
+      expect(() => assertSecretsStayWithTarget(service, patch, merged, secretPaths)).not.toThrow();
+    });
+
+    it("does not ask for the credentials again on a new version of the same package", () => {
+      const submitted = {
+        ...service,
+        version: "2.0.0",
+        credentials: { ...service.credentials, api_key: MASKED_SECRET },
+      };
+      expect(unmaskSecretsFromOriginal(submitted, service)).toMatchObject({
+        version: "2.0.0",
+        credentials: { api_key: "real-key" },
+      });
+      const patch = { version: "2.0.0" };
+      expect(() => assertSecretsStayWithTarget(service, patch, { ...service, ...patch }, secretPaths)).not.toThrow();
+    });
+
+    it("an unchanged package, or one that differs only by surrounding spaces, is not a change", () => {
+      expect(changedTargetFieldsBetween({ ...service, package: " airbyte/source-faker " }, service)).toEqual([]);
+      expect(changedTargetFieldsBetween(service, service)).toEqual([]);
+    });
+
+    it("only services have a package: objects without one are unaffected", () => {
+      expect(changedTargetFieldsBetween({ host: "a" }, { host: "a" })).toEqual([]);
+      expect(changedTargetFieldsBetween({ package: "x" }, {})).toEqual([]);
+    });
+  });
+
+  it("does not touch other destination types", () => {
+    const clickhouse = { destinationType: "clickhouse", database: "a b", password: "real" };
+    expect(unmaskSecretsFromOriginal({ ...clickhouse, password: MASKED_SECRET }, clickhouse)).toEqual(clickhouse);
+  });
+});
+
+describe("TLS material is not a target", () => {
+  it("rotating only the server CA keeps the stored password usable", () => {
+    const stored = { host: "db.customer.com", password: "real", sslServerCA: "-----OLD CA-----" };
+    const submitted = { host: "db.customer.com", password: MASKED_SECRET, sslServerCA: "-----NEW CA-----" };
+    expect(changedConnectionTargets(submitted, stored)).toEqual([]);
+    expect(unmaskSecretsFromOriginal(submitted, stored)).toMatchObject({ password: "real" });
+    const patch = { sslServerCA: "-----NEW CA-----", password: MASKED_SECRET };
+    expect(() => assertSecretsStayWithTarget(stored, patch, { ...stored, ...patch }, ["password"])).not.toThrow();
+  });
+
+  it("a host change next to a CA change is still refused", () => {
+    const stored = { host: "db.customer.com", password: "real", sslServerCA: "old" };
+    const submitted = { host: "attacker.example", password: MASKED_SECRET, sslServerCA: "new" };
+    expect(changedConnectionTargets(submitted, stored)).toEqual(["host"]);
+  });
+});
+
+describe("defaults of the stored config", () => {
+  const stored = { key: "real-key" }; // PostHog stored without a host
+  const withDefaults = { key: "real-key", host: "https://app.posthog.com" };
+
+  it("a submitted default host is not a change once the stored config has its defaults applied", () => {
+    const submitted = { key: MASKED_SECRET, host: "https://app.posthog.com" };
+    expect(() => unmaskSecretsFromOriginal(submitted, stored)).toThrow(/host changed/);
+    expect(unmaskSecretsFromOriginal(submitted, stored, withDefaults)).toEqual(withDefaults);
+  });
+
+  it("another host is still refused", () => {
+    const submitted = { key: MASKED_SECRET, host: "https://attacker.example" };
+    expect(() => unmaskSecretsFromOriginal(submitted, stored, withDefaults)).toThrow(/host changed/);
+  });
+});
+
+describe("target fields are declared in the destination schema (`target: true` in credentialsUi)", () => {
+  // Fields whose name looks like a host but whose value cannot send a secret anywhere else
+  const NOT_TARGETS: Record<string, string> = {
+    "redshift.serverless": "a boolean: Redshift Serverless or not",
+    "braze.endpoint": "an enum of Braze's own dashboards",
+    "segment-proxy.apiBase": "an enum of Segment's own API bases",
+  };
+  const NAME_LOOKS_LIKE_TARGET = /host|url|uri|endpoint|server|address|domain|api_?base|instance_?connection_?name/i;
+
+  it("every field named like a host is either marked as a target or listed as not being one", () => {
+    const unmarked = coreDestinations.flatMap(d =>
+      Object.keys(d.credentials.shape)
+        .filter(key => NAME_LOOKS_LIKE_TARGET.test(key) && !/ssl|tls|cert/i.test(key))
+        .filter(key => !(d.credentialsUi as any)?.[key]?.target && !NOT_TARGETS[`${d.id}.${key}`])
+        .map(key => `${d.id}.${key}`)
+    );
+    expect(unmarked).toEqual([]);
+  });
+
+  it("every marked target is a field of that destination", () => {
+    const unknown = coreDestinations.flatMap(d =>
+      Object.entries(d.credentialsUi ?? {})
+        .filter(([key, ui]) => (ui as any).target && !(key in d.credentials.shape))
+        .map(([key]) => `${d.id}.${key}`)
+    );
+    expect(unknown).toEqual([]);
+  });
+
+  it("the targets of the destinations that hold a stored secret", () => {
+    const targetsOf = (id: string) => getDestinationTargetKeys(id).sort();
+    expect(targetsOf("postgres")).toEqual(["host", "instanceConnectionName"]);
+    expect(targetsOf("redshift")).toEqual(["host"]);
+    expect(targetsOf("mysql")).toEqual(["host", "parameters"]);
+    expect(targetsOf("clickhouse")).toEqual(["hosts", "parameters"]);
+    expect(targetsOf("snowflake")).toEqual(["account", "parameters"]);
+    expect(targetsOf("mongodb")).toEqual(["hosts", "options", "url"]);
+    expect(targetsOf("s3")).toEqual(["endpoint"]);
+    expect(targetsOf("webhook")).toEqual(["url"]);
+    expect(targetsOf("resend")).toEqual(["apiBase"]);
+    expect(targetsOf("sendgrid")).toEqual(["apiBase"]);
+    expect(targetsOf("posthog")).toEqual(["host"]);
+  });
+});
+
+describe("connection parameters are targets (MySQL, ClickHouse, Snowflake, MongoDB options)", () => {
+  const cases: [string, Record<string, any>, Record<string, any>][] = [
+    [
+      "mysql",
+      { host: "db.customer.com", password: "real", parameters: { tls: "preferred" } },
+      { parameters: { tls: "false" } },
+    ],
+    [
+      "clickhouse",
+      { hosts: ["ch.customer.com:9000"], password: "real", parameters: { secure: "true" } },
+      { parameters: { secure: "false" } },
+    ],
+    [
+      "snowflake",
+      { account: "acct", password: "real", parameters: { role: "ANALYST" } },
+      { parameters: { role: "SYSADMIN" } },
+    ],
+    [
+      "mongodb",
+      { hosts: ["m.customer.com:27017"], password: "real", options: { tls: "true" } },
+      { options: { tls: "false" } },
+    ],
+  ];
+
+  it.each(cases)(
+    "%s: changing the parameters while keeping the password is refused",
+    (destinationType, stored, change) => {
+      const original = { destinationType, ...stored };
+      const field = Object.keys(change)[0];
+      const submitted = { ...original, ...change, password: MASKED_SECRET };
+      expect(() => unmaskSecretsFromOriginal(submitted, original)).toThrow(new RegExp(`${field} changed`));
+      expect(() => assertSecretsStayWithTarget(original, change, { ...original, ...change }, ["password"])).toThrow(
+        new RegExp(`${field} changed`)
+      );
+    }
+  );
+
+  it.each(cases)(
+    "%s: the same parameters keep the password, and a typed password is the editor's own business",
+    (destinationType, stored, change) => {
+      const original = { destinationType, ...stored };
+      expect(unmaskSecretsFromOriginal({ ...original, password: MASKED_SECRET }, original)).toEqual(original);
+      const typed = { ...original, ...change, password: "typed" };
+      expect(unmaskSecretsFromOriginal(typed, original)).toEqual(typed);
+    }
+  );
+
+  it("empty parameters are the same as omitted ones", () => {
+    expect(
+      changedTargetFieldsBetween(
+        { destinationType: "mysql", host: "h", parameters: {} },
+        { destinationType: "mysql", host: "h" }
+      )
+    ).toEqual([]);
+    expect(
+      changedTargetFieldsBetween(
+        { destinationType: "mysql", host: "h", parameters: { a: "b" } },
+        { destinationType: "mysql", host: "h" }
+      )
+    ).toEqual(["parameters"]);
+  });
+});
+
+describe("only the schema's target fields count for a destination", () => {
+  const pg = { destinationType: "postgres", host: "db.customer.com", password: "real" };
+
+  it("a field that merely looks like a host is not a target (Redshift serverless is a flag)", () => {
+    const redshift = { destinationType: "redshift", host: "rs.customer.com", serverless: false, password: "real" };
+    expect(changedTargetFieldsBetween({ ...redshift, serverless: true }, redshift)).toEqual([]);
+    expect(changedTargetFieldsBetween({ ...redshift, host: "attacker.example" }, redshift)).toEqual(["host"]);
+  });
+
+  it("only top-level fields are looked at: a nested key with the same name is not a target", () => {
+    expect(changedTargetFieldsBetween({ ...pg, extra: { host: "attacker.example" } }, pg)).toEqual([]);
+  });
+
+  it("a destination type without a schema falls back to the field names", () => {
+    expect(
+      changedTargetFieldsBetween(
+        { destinationType: "custom", url: "https://b.example" },
+        { destinationType: "custom", url: "https://a.example" }
+      )
+    ).toEqual(["url"]);
+  });
+});
+
+// The destination type of a submission is chosen by the caller, so it cannot decide which fields are guarded. The
+// stored object says what it is. (A service PUT that adds `destinationType: "postgres"` was matched against the
+// destination schema, which only looks at top-level fields, and `credentials.host` went unchecked.)
+describe("the destination type comes from the stored object, not from the submission", () => {
+  const service = {
+    package: "airbyte/source-postgres",
+    credentials: { host: "db.customer.com", password: "real" },
+  };
+
+  it("a service that claims to be a destination still has its nested host guarded", () => {
+    const submitted = {
+      package: "airbyte/source-postgres",
+      destinationType: "postgres",
+      credentials: { host: "attacker.example", password: MASKED_SECRET },
+    };
+    expect(changedConnectionTargets(submitted, service)).toEqual(["credentials.host"]);
+    expect(() => unmaskSecretsFromOriginal(submitted, service)).toThrow(/credentials\.host changed/);
+  });
+
+  it("the same on a saved service: the patch adds a destination type and a new host, the stored password stays", () => {
+    const patch = { destinationType: "postgres", credentials: { host: "attacker.example" } };
+    const merged = { ...service, ...patch, credentials: { ...service.credentials, ...patch.credentials } };
+    expect(changedTargetFieldsBetween(merged, service)).toEqual(["credentials.host"]);
+    expect(() => assertSecretsStayWithTarget(service, patch, merged, ["credentials.password"])).toThrow(
+      /credentials\.host changed/
+    );
+  });
+
+  it("a submitted type that differs from the stored one cannot pick a weaker rule for the connection string", () => {
+    const stored = { destinationType: "postgres", host: "db.customer.com", database: "events", password: "real" };
+    // as a MySQL destination the database is only checked for @ / ?, so a Postgres setting in it would pass
+    const submitted = {
+      destinationType: "mysql",
+      host: "db.customer.com",
+      database: "events host=attacker.example",
+      password: MASKED_SECRET,
+    };
+    expect(() => unmaskSecretsFromOriginal(submitted, stored)).toThrow(/database contains/);
+  });
+
+  it("a submitted type that differs from the stored one is matched by field names, so a top-level host is still guarded", () => {
+    const stored = { destinationType: "postgres", host: "db.customer.com", password: "real" };
+    const submitted = { destinationType: "custom", host: "attacker.example", password: MASKED_SECRET };
+    expect(changedConnectionTargets(submitted, stored)).toEqual(expect.arrayContaining(["host"]));
+  });
+
+  // The stored secrets belong to the stored type. Another type reads other fields (MySQL `parameters` are a target, a
+  // Postgres destination has none), so a type change with kept secrets is a change of target in itself.
+  describe("changing the destination type while keeping the stored secrets", () => {
+    const stored = { destinationType: "postgres", host: "db.customer.com", database: "events", password: "real" };
+    const injected = { tls: "false", x: "y@tcp(attacker.example:3306)/events?tls=false&allowCleartextPasswords=true" };
+
+    it("is a changed target, whatever else is submitted", () => {
+      const submitted = { ...stored, destinationType: "mysql", parameters: injected, password: MASKED_SECRET };
+      expect(changedConnectionTargets(submitted, stored)).toContain("destinationType");
+      expect(() => unmaskSecretsFromOriginal(submitted, stored)).toThrow(/destinationType changed/);
+    });
+
+    it("is refused on a saved destination that keeps the password (masked or omitted)", () => {
+      const patch = { destinationType: "mysql", parameters: injected };
+      const merged = { ...stored, ...patch };
+      expect(changedTargetFieldsBetween(merged, stored)).toContain("destinationType");
+      expect(() => assertSecretsStayWithTarget(stored, patch, merged, ["password"])).toThrow(/destinationType changed/);
+    });
+
+    it("is fine when the secrets are typed again, and an unchanged type is not a change", () => {
+      const patch = { destinationType: "mysql", password: "typed-again" };
+      expect(() => assertSecretsStayWithTarget(stored, patch, { ...stored, ...patch }, ["password"])).not.toThrow();
+      expect(changedConnectionTargets({ ...stored, password: MASKED_SECRET }, stored)).toEqual([]);
+    });
+
+    it("does not apply to a service that merely names a type: only a stored type can change", () => {
+      const service = {
+        package: "airbyte/source-postgres",
+        credentials: { host: "db.customer.com", password: "real" },
+      };
+      expect(changedTargetFieldsBetween({ ...service, destinationType: "postgres" }, service)).toEqual([]);
+    });
+  });
+
+  it("an honest destination still uses its schema's targets", () => {
+    const stored = { destinationType: "postgres", host: "db.customer.com", password: "real" };
+    expect(changedConnectionTargets({ ...stored, host: "attacker.example", password: MASKED_SECRET }, stored)).toEqual([
+      "host",
+    ]);
+    expect(changedConnectionTargets({ ...stored, password: MASKED_SECRET }, stored)).toEqual([]);
+  });
+});
+
+// A secret counts as re-entered only when the value sits at its path in the patch. lodash `get` prefers a property
+// whose name is the literal dotted path, so `{ "credentials.password": "x" }` used to satisfy the check for
+// `credentials.password` while the stored nested password stayed.
+describe("a dotted property name does not stand in for a nested secret", () => {
+  const service = { package: "airbyte/source-postgres", credentials: { host: "db.customer.com", password: "real" } };
+  const moved = (patch: any) => ({
+    ...service,
+    ...patch,
+    credentials: { ...service.credentials, ...patch.credentials },
+  });
+
+  it("refuses a new host when the 'password' is only a property literally named credentials.password", () => {
+    const patch = { credentials: { host: "attacker.example" }, "credentials.password": "dummy" };
+    expect(() => assertSecretsStayWithTarget(service, patch, moved(patch), ["credentials.password"])).toThrow(
+      /credentials\.host changed/
+    );
+  });
+
+  it("still accepts a new host together with the password entered at its real path", () => {
+    const patch = { credentials: { host: "new.customer.com", password: "typed-again" } };
+    expect(() => assertSecretsStayWithTarget(service, patch, moved(patch), ["credentials.password"])).not.toThrow();
+  });
+});
+
+describe("ClickHouse database: the connection URL is formatted from it", () => {
+  const stored = {
+    destinationType: "clickhouse",
+    protocol: "http",
+    hosts: ["ch.customer.com:8123"],
+    username: "default",
+    database: "events",
+    password: "real",
+  };
+  const injected = "events?http_proxy=http://attacker.example:8080&pad=1";
+
+  it("refuses to reuse the stored password when the database carries a query string", () => {
+    const submitted = { ...stored, database: injected, password: MASKED_SECRET };
+    expect(() => unmaskSecretsFromOriginal(submitted, stored)).toThrow(/database contains/);
+  });
+
+  it("refuses a saved destination that keeps the password while the database carries it", () => {
+    const patch = { database: injected };
+    expect(() => assertSecretsStayWithTarget(stored, patch, { ...stored, ...patch }, ["password"])).toThrow(
+      /database contains/
+    );
+  });
+
+  it("refuses a database with a hash, which cuts the name and drops the parameters that follow", () => {
+    const submitted = { ...stored, database: "events#x", password: MASKED_SECRET };
+    expect(() => unmaskSecretsFromOriginal(submitted, stored)).toThrow(/database contains/);
+  });
+
+  // An ampersand before the first ? is ordinary path text for the driver (probed against clickhouse-go 2.45.0:
+  // database "R&D" stays "R&D" and sets no option), so a stored name with one stays editable and testable.
+  it("lets a database with an ampersand keep its stored password", () => {
+    for (const database of ["R&D", "a&b", "sales&marketing"]) {
+      const submitted = { ...stored, database, password: MASKED_SECRET };
+      expect(() => unmaskSecretsFromOriginal(submitted, stored)).not.toThrow();
+      const patch = { database };
+      expect(() => assertSecretsStayWithTarget(stored, patch, { ...stored, ...patch }, ["password"])).not.toThrow();
+    }
+  });
+
+  it("lets ordinary names through, and a typed password makes a strange name the editor's own business", () => {
+    for (const database of ["default", "my_db", "events-2024", "Events.v2"]) {
+      const submitted = { ...stored, database, password: MASKED_SECRET };
+      expect(() => unmaskSecretsFromOriginal(submitted, stored)).not.toThrow();
+    }
+    const patch = { database: injected, password: "typed-again" };
+    expect(() => assertSecretsStayWithTarget(stored, patch, { ...stored, ...patch }, ["password"])).not.toThrow();
+  });
+});
+
+// rotor builds the MongoDB URI as `protocol://username:password@hosts/database?options`, concatenated with no escaping
+// (services/rotor/src/lib/mongodb-destination.ts). Probed with the mongodb driver 7.1.1 (parse only): a username of
+// `x:y@evil.example:27017/?appName=` moves the host to evil.example and puts the stored password into `appName`, and a
+// database of `events?authMechanism=PLAIN&proxyHost=evil.example&proxyPort=1080` sets a proxy and the PLAIN mechanism.
+describe("MongoDB: username and database are formatted into the connection URI", () => {
+  const stored = {
+    destinationType: "mongodb",
+    protocol: "mongodb",
+    hosts: ["db.customer.com:27017"],
+    username: "app",
+    password: "real",
+    database: "events",
+    collection: "c",
+  };
+  const movedUsername = "x:y@evil.example:27017/?appName=";
+  const optionsDatabase = "events?authMechanism=PLAIN&proxyHost=evil.example&proxyPort=1080";
+
+  it("refuses to reuse the stored password when the username moves the connection", () => {
+    const submitted = { ...stored, username: movedUsername, password: MASKED_SECRET };
+    expect(() => unmaskSecretsFromOriginal(submitted, stored)).toThrow(/username contains/);
+  });
+
+  it("refuses to reuse the stored password when the database starts connection options", () => {
+    const submitted = { ...stored, database: optionsDatabase, password: MASKED_SECRET };
+    expect(() => unmaskSecretsFromOriginal(submitted, stored)).toThrow(/database contains/);
+  });
+
+  it("refuses a saved destination that keeps the password while either field carries a delimiter", () => {
+    for (const patch of [{ username: movedUsername }, { database: optionsDatabase }]) {
+      expect(() => assertSecretsStayWithTarget(stored, patch, { ...stored, ...patch }, ["password"])).toThrow(
+        /contains/
+      );
+    }
+  });
+
+  it("refuses each of @ / ? # in either field", () => {
+    for (const field of ["username", "database"]) {
+      for (const bad of ["a@b", "a/b", "a?b", "a#b"]) {
+        const submitted = { ...stored, [field]: bad, password: MASKED_SECRET };
+        expect(() => unmaskSecretsFromOriginal(submitted, stored), `${field} ${bad}`).toThrow(
+          new RegExp(`${field} contains`)
+        );
+      }
+    }
+  });
+
+  it("lets ordinary names through, including a percent-encoded username, which rotor passes on as it is", () => {
+    for (const username of ["app", "svc.user-1", "user%40example.com"]) {
+      const submitted = { ...stored, username, password: MASKED_SECRET };
+      expect(() => unmaskSecretsFromOriginal(submitted, stored)).not.toThrow();
+    }
+    for (const database of ["events", "my_db", "Events-2024"]) {
+      const submitted = { ...stored, database, password: MASKED_SECRET };
+      expect(() => unmaskSecretsFromOriginal(submitted, stored)).not.toThrow();
+    }
+  });
+
+  it("lets a typed password make a strange name the editor's own business", () => {
+    const patch = { username: movedUsername, password: "typed-again" };
+    expect(() => assertSecretsStayWithTarget(stored, patch, { ...stored, ...patch }, ["password"])).not.toThrow();
+  });
+});
+
+// Field layouts read from the production connector specs (read-only query, 12 Nov 2026): the target field is not
+// secret and sits next to a secret one, and the name rule used to miss it.
+describe("services: target fields the name rule used to miss", () => {
+  const mongo = {
+    id: "s",
+    package: "airbyte/source-mongodb-v2",
+    version: "2.0.1",
+    credentials: {
+      database_config: {
+        cluster_type: "SELF_MANAGED_REPLICA_SET",
+        connection_string: "mongodb://db.customer.com:27017",
+        username: "app",
+        password: "real",
+      },
+    },
+  };
+  const woo = {
+    id: "w",
+    package: "airbyte/source-woocommerce",
+    version: "0.5.0",
+    credentials: {
+      shop: "store.customer.com",
+      api_key: "real-key",
+      api_secret: "real-secret",
+      start_date: "2024-01-01",
+    },
+  };
+
+  it("treats a changed MongoDB connection_string as a target, so the stored password is not reused", () => {
+    const submitted = {
+      ...mongo,
+      credentials: {
+        database_config: {
+          ...mongo.credentials.database_config,
+          connection_string: "mongodb://attacker.example:27017",
+          password: MASKED_SECRET,
+        },
+      },
+    };
+    expect(changedConnectionTargets(submitted, mongo)).toEqual(["credentials.database_config.connection_string"]);
+    expect(() => unmaskSecretsFromOriginal(submitted, mongo)).toThrow(/connection_string changed/);
+    const patch = { credentials: { database_config: { connection_string: "mongodb://attacker.example:27017" } } };
+    const merged = {
+      ...mongo,
+      credentials: { database_config: { ...mongo.credentials.database_config, ...patch.credentials.database_config } },
+    };
+    expect(() => assertSecretsStayWithTarget(mongo, patch, merged, ["credentials.database_config.password"])).toThrow(
+      /connection_string changed/
+    );
+  });
+
+  it("matches the camel-case spelling too", () => {
+    const original = { credentials: { connectionString: "a", password: "real" } };
+    const submitted = { credentials: { connectionString: "b", password: MASKED_SECRET } };
+    expect(changedConnectionTargets(submitted, original)).toEqual(["credentials.connectionString"]);
+  });
+
+  it("treats a changed WooCommerce shop (a store domain) as a target, and leaves other fields alone", () => {
+    const moved = {
+      ...woo,
+      credentials: { ...woo.credentials, shop: "attacker.example", api_key: MASKED_SECRET, api_secret: MASKED_SECRET },
+    };
+    expect(changedConnectionTargets(moved, woo)).toEqual(["credentials.shop"]);
+    expect(() => unmaskSecretsFromOriginal(moved, woo)).toThrow(/credentials\.shop changed/);
+    const edited = {
+      ...woo,
+      credentials: { ...woo.credentials, start_date: "2025-01-01", api_key: MASKED_SECRET, api_secret: MASKED_SECRET },
+    };
+    expect(changedConnectionTargets(edited, woo)).toEqual([]);
+  });
+
+  it("matches `shop` only as a whole field name", () => {
+    for (const key of ["shop_id", "workshop", "shopping_cart", "bookshop_name"]) {
+      const original = { credentials: { [key]: "1", api_key: "real" } };
+      const submitted = { credentials: { [key]: "2", api_key: MASKED_SECRET } };
+      expect(changedConnectionTargets(submitted, original), key).toEqual([]);
+    }
+  });
+});

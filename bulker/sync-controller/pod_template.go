@@ -443,6 +443,9 @@ func buildSyncPodTemplate(c *Config, pc PodCtx, secretName string) v1.PodTemplat
 
 	taskDescriptor := pc.taskDescriptor()
 	annotations := taskDescriptor.ExtractAnnotations()
+	// Let finite connector jobs finish during autoscaled blue-green's
+	// pre-drain wait instead of being evicted by autoscaler scale-down.
+	annotations["cluster-autoscaler.kubernetes.io/safe-to-evict"] = "false"
 
 	appLabel := manualPodAppValue
 	if pc.Cron {

@@ -1,3 +1,4 @@
+import { GoogleRequestError } from "@jitsu/destination-functions/src/functions/google-ads/clients/errors";
 import type { PrismaClient } from "@prisma/client";
 import { listGoogleTargets } from "@jitsu/destination-functions/src/functions/google-ads/targets";
 import { GoogleConversionCredentials } from "@jitsu/destination-functions/src/functions/google-ads/conversions/meta";
@@ -6,7 +7,7 @@ import { readGoogleAudienceConnectionToken } from "./google-audience-oauth";
 import type { NangoConfig } from "./oauth/nango-config";
 import { ApiError } from "../shared/errors";
 
-/** Read-only, workspace-scoped picker. OAuth credentials and provider diagnostics never reach the browser. */
+/** Read-only, workspace-scoped picker. Only sanitized provider diagnostics may reach the browser; never OAuth credentials or raw responses. */
 export async function reverseGoogleOptions(
   prisma: PrismaClient,
   workspaceId: string,
@@ -34,9 +35,11 @@ export async function reverseGoogleOptions(
       signal
     );
     return await listGoogleTargets(credentials.data, kind, accessToken, developerToken, request, signal);
-  } catch {
+  } catch (error) {
     throw new ApiError(
-      "Could not load Google targets. Check OAuth scopes and the developer token for conversion actions, or enter the ID manually.",
+      `Could not load Google targets.${
+        error instanceof GoogleRequestError ? ` ${error.message}.` : ""
+      } Check OAuth scopes and the developer token for conversion actions, or enter the ID manually.`,
       { status: 409 }
     );
   }

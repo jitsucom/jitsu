@@ -29,6 +29,11 @@ describe("PgRateLimiter", () => {
 
     const first = await limiter.check(opts(principal));
     expect(first).toMatchObject({ allowed: true, remaining: 9 });
+    // Simulate a counter written before the two-window retention fix.
+    await deps().prisma.rateLimitCounter.updateMany({
+      where: { bucketKey: `bearer:${principal}:GET` },
+      data: { expiresAt: new Date(windowStart + W + 5 * 60_000) },
+    });
     const second = await limiter.check(opts(principal));
     expect(second).toMatchObject({ allowed: true, remaining: 8 });
 
@@ -37,7 +42,7 @@ describe("PgRateLimiter", () => {
     });
     expect(row.count).toBe(2); // the ON CONFLICT path incremented, not inserted twice
     expect(row.windowStart.getTime()).toBe(windowStart);
-    expect(row.expiresAt.getTime()).toBe(windowStart + W + 5 * 60_000);
+    expect(row.expiresAt.getTime()).toBe(windowStart + 2 * W + 5 * 60_000);
   });
 
   it("counts the previous window into the sliding limit", async () => {
@@ -67,5 +72,28 @@ describe("PgRateLimiter", () => {
     vi.setSystemTime(windowStart + W - 1000);
     const late = await limiter.check(opts(principal));
     expect(late.allowed).toBe(true);
+  });
+
+  it("retains hour-long counters until the following window has fully elapsed", async () => {
+    const prisma = deps().prisma;
+    const limiter = new PgRateLimiter({ prisma });
+    const principal = `hour-${randomId(6)}`;
+    const hour = 3_600_000;
+    const start = Math.floor(1_800_000_000_000 / hour) * hour;
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(start);
+    const spec = { ...opts(principal, 5), windowMs: hour };
+    const initial = await Promise.all(Array.from({ length: 5 }, () => limiter.check(spec)));
+    expect(initial.every(r => r.allowed)).toBe(true);
+
+    // Run the cleanup predicate well past the old expiry (end + five minutes).
+    vi.setSystemTime(start + hour + 10 * 60_000);
+    await prisma.rateLimitCounter.deleteMany({ where: { expiresAt: { lt: new Date() } } });
+    expect((await limiter.check(spec)).allowed).toBe(false);
+    const old = await prisma.rateLimitCounter.findUniqueOrThrow({
+      where: { bucketKey_windowStart: { bucketKey: `bearer:${principal}:GET`, windowStart: new Date(start) } },
+    });
+    expect(old.count).toBe(5);
+    expect(old.expiresAt.getTime()).toBe(start + 2 * hour + 5 * 60_000);
   });
 });

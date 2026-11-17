@@ -1,6 +1,5 @@
-import { createRoute } from "../../../lib/api";
-import { db, isUsingPgBouncer } from "../../../lib/server/db";
-import { assertTrue } from "juava";
+import { createRoute, verifyAdmin } from "../../../lib/api";
+import { isUsingPgBouncer } from "../../../lib/server/db";
 import { getServerEnv } from "../../../lib/server/serverEnv";
 
 const serverEnv = getServerEnv();
@@ -8,8 +7,7 @@ const serverEnv = getServerEnv();
 export default createRoute()
   .GET({ auth: true })
   .handler(async ({ user }) => {
-    const userProfile = await db.prisma().userProfile.findFirst({ where: { id: user.internalId } });
-    assertTrue(userProfile?.admin, "Not enough permissions");
+    await verifyAdmin(user);
     return {
       pgBouncer: isUsingPgBouncer(),
       isUsingSeparateAppDb: !!serverEnv.APP_DATABASE_URL,

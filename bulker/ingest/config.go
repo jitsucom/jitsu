@@ -38,6 +38,14 @@ type Config struct {
 	//Cache dir for repository and javascript data
 	CacheDir string `mapstructure:"CACHE_DIR"`
 
+	// Independent producer budgets. Byte limits are uncompressed payload KiB;
+	// native clients, message metadata and Go buffers consume additional memory.
+	ProducerQueueSizeKB          int `mapstructure:"PRODUCER_QUEUE_SIZE_KB" default:"1048576"`
+	BackupProducerQueueSize      int `mapstructure:"BACKUP_PRODUCER_QUEUE_SIZE" default:"100000"`
+	BackupProducerQueueSizeKB    int `mapstructure:"BACKUP_PRODUCER_QUEUE_SIZE_KB" default:"262144"`
+	TelemetryProducerQueueSize   int `mapstructure:"TELEMETRY_PRODUCER_QUEUE_SIZE" default:"10000"`
+	TelemetryProducerQueueSizeKB int `mapstructure:"TELEMETRY_PRODUCER_QUEUE_SIZE_KB" default:"32768"`
+
 	BackupLogDir         string `mapstructure:"BACKUP_LOG_DIR"`
 	BackupLogTTL         int    `mapstructure:"BACKUP_LOG_TTL_DAYS" default:"7"`
 	BackupLogRotateHours int    `mapstructure:"BACKUP_LOG_ROTATE_HOURS" default:"24"`

@@ -54,7 +54,7 @@ func TestReverseRecoverySchedulerDatabase(t *testing.T) {
  started_at timestamptz DEFAULT now(),updated_at timestamptz DEFAULT now(),started_by jsonb,metrics jsonb,error text,description text);
  CREATE TABLE reverse_sync_control(workspace_id text,sync_id text,run_id text,revision text,phase text,
  PRIMARY KEY(workspace_id,sync_id,run_id));
- CREATE TABLE task_log(id text,level text,logger text,message text,sync_id text,task_id text)`)
+ CREATE TABLE task_log(id uuid,level text,logger text,message text,sync_id text,task_id text)`)
 	entry := reverseFixture()
 	entry.Schedule = "0 0 * * *" // A daily model schedule must not delay recovery.
 	client := fake.NewClientset()

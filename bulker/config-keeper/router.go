@@ -46,65 +46,68 @@ func NewRouter(appContext *Context) *Router {
 		c.JSON(http.StatusOK, gin.H{"status": "ok", "repository": repName, "held": breaker.Held(), "pod": hostname, "validUntil": validUntil.Format(time.RFC3339)})
 	})
 
-	engine.GET("/health", func(c *gin.Context) {
-		reps := utils.JoinNonEmptyStrings(",", appContext.config.Repositories, "p.js")
-		healthy := true
-		repStatuses := map[string]any{}
-		now := time.Now()
-		for _, rep := range strings.Split(reps, ",") {
-			// repositories are stored under trimmed names (see InitContext)
-			rep = strings.TrimSpace(rep)
-			repository, ok := appContext.getRepository(rep)
-			if !ok {
-				healthy = false
-				repStatuses[rep] = map[string]any{"error": "not_found"}
-				continue
-			}
-			if !repository.Loaded() {
-				healthy = false
-			}
-			// a held repository (circuit breaker keeping last-known-good,
-			// JITSU-182) is deliberately NOT unhealthy: it serves good data,
-			// and failing liveness would just restart pods into the same held
-			// state. The held flag below + the "System error:" log are the signal
-			if breaker, guarded := appContext.getBreaker(rep); guarded && breaker.Held() {
-				continue
-			}
-			lastSuccess := repository.LastSuccess()
-			if lastSuccess.IsZero() || now.Sub(lastSuccess) > 10*time.Minute {
-				healthy = false
-			}
-		}
-		for name, repository := range appContext.repositorySnapshot() {
-			lastSuccess := repository.LastSuccess()
-			status := map[string]any{
-				"loaded":       repository.Loaded(),
-				"last_success": repository.LastSuccess(),
-			}
-			if breaker, guarded := appContext.getBreaker(name); guarded {
-				if held := breaker.Status(); held != nil {
-					status["breaker"] = held
-					repStatuses[name] = status
+	health := func(detailed bool) gin.HandlerFunc {
+		return func(c *gin.Context) {
+			c.Header("Cache-Control", "no-store")
+			reps := utils.JoinNonEmptyStrings(",", appContext.config.Repositories, "p.js")
+			healthy := true
+			repStatuses := map[string]any{}
+			now := time.Now()
+			for _, rep := range strings.Split(reps, ",") {
+				// repositories are stored under trimmed names (see InitContext)
+				rep = strings.TrimSpace(rep)
+				repository, ok := appContext.getRepository(rep)
+				if !ok {
+					healthy = false
+					repStatuses[rep] = map[string]any{"error": "not_found"}
 					continue
 				}
+				if !repository.Loaded() {
+					healthy = false
+				}
+				// a held repository (circuit breaker keeping last-known-good,
+				// JITSU-182) is deliberately NOT unhealthy: it serves good data,
+				// and failing liveness would just restart pods into the same held
+				// state. The held flag in authenticated /admin/health + the "System error:" log are the signal
+				if breaker, guarded := appContext.getBreaker(rep); guarded && breaker.Held() {
+					continue
+				}
+				lastSuccess := repository.LastSuccess()
+				if lastSuccess.IsZero() || now.Sub(lastSuccess) > 10*time.Minute {
+					healthy = false
+				}
 			}
-			if lastSuccess.IsZero() || now.Sub(lastSuccess) > 10*time.Minute {
-				status["error"] = fmt.Sprintf("no refreshes since: %s", lastSuccess)
+			for name, repository := range appContext.repositorySnapshot() {
+				lastSuccess := repository.LastSuccess()
+				status := map[string]any{
+					"loaded":       repository.Loaded(),
+					"last_success": repository.LastSuccess(),
+				}
+				if breaker, guarded := appContext.getBreaker(name); guarded {
+					if held := breaker.Status(); held != nil {
+						status["breaker"] = held
+						repStatuses[name] = status
+						continue
+					}
+				}
+				if lastSuccess.IsZero() || now.Sub(lastSuccess) > 10*time.Minute {
+					status["error"] = fmt.Sprintf("no refreshes since: %s", lastSuccess)
+				}
+				repStatuses[name] = status
 			}
-			repStatuses[name] = status
+			code, state := http.StatusOK, "pass"
+			if !healthy {
+				code, state = http.StatusServiceUnavailable, "fail"
+			}
+			body := gin.H{"status": state}
+			if detailed {
+				body["repositories"] = repStatuses
+			}
+			c.JSON(code, body)
 		}
-		if healthy {
-			c.JSON(http.StatusOK, gin.H{
-				"status":       "pass",
-				"repositories": repStatuses,
-			})
-		} else {
-			c.JSON(http.StatusServiceUnavailable, gin.H{
-				"status":       "fail",
-				"repositories": repStatuses,
-			})
-		}
-	})
+	}
+	engine.GET("/health", health(false))
+	engine.GET("/admin/health", health(true))
 
 	return router
 }

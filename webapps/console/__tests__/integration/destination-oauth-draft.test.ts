@@ -155,11 +155,11 @@ it("supports Google drafts without the RETL flag and validates saved ownership a
         credentials: { access_token: "private-google-token", expires_at: new Date(Date.now() + 3600000).toISOString() },
       });
     }),
-    http.get("https://googleads.googleapis.com/v22/customers:listAccessibleCustomers", ({ request }) => {
+    http.get("https://googleads.googleapis.com/v26/customers:listAccessibleCustomers", ({ request }) => {
       expect(request.headers.get("developer-token")).toBe("shared-dev-token");
       return HttpResponse.json({ resourceNames: ["customers/1111111111"] });
     }),
-    http.post("https://googleads.googleapis.com/v22/customers/1111111111/googleAds:search", async ({ request }) => {
+    http.post("https://googleads.googleapis.com/v26/customers/1111111111/googleAds:search", async ({ request }) => {
       const body = (await request.json()) as { query: string };
       return HttpResponse.json(
         body.query.includes("FROM customer_client")
@@ -201,6 +201,21 @@ it("supports Google drafts without the RETL flag and validates saved ownership a
   expect(
     await savedDestinationAccounts(prisma, workspace.id, draft.destinationId, "google-ads", nango, "shared-dev-token")
   ).toMatchObject({ options: [{ customerId: "2222222222" }] });
+  server.use(
+    http.get("https://googleads.googleapis.com/v26/customers:listAccessibleCustomers", () =>
+      HttpResponse.json({ error: { status: "UNIMPLEMENTED", message: "private provider diagnostic" } }, { status: 501 })
+    )
+  );
+  const lookupError = await savedDestinationAccounts(
+    prisma,
+    workspace.id,
+    draft.destinationId,
+    "google-ads",
+    nango,
+    "shared-dev-token"
+  ).catch(error => error);
+  expect(lookupError.message).toContain("Google account lookup returned HTTP 501 (UNIMPLEMENTED)");
+  expect(lookupError.message).not.toContain("private");
   await prisma.configurationObject.update({ where: { id: draft.destinationId }, data: { deleted: true } });
   await expect(
     savedDestinationAccounts(prisma, workspace.id, draft.destinationId, "google-ads", nango)

@@ -3,6 +3,8 @@ import { GoogleConversionCredentials } from "./conversions/meta";
 import { dataManagerBaseUrl, dataManagerHeaders } from "./clients/data-manager";
 import { googleAdsBaseUrl, googleAdsHeaders } from "./clients/google-ads";
 
+import { googleRequestError } from "./clients/errors";
+
 /** Read-only provider lookup. The host has already authorized access to these credentials. */
 export async function listGoogleTargets(
   c: z.infer<typeof GoogleConversionCredentials>,
@@ -42,7 +44,8 @@ export async function listGoogleTargets(
           }
         : {}),
     });
-    if (!response.ok) throw new Error("lookup failed");
+    if (!response.ok)
+      throw await googleRequestError(response, kind === "audience" ? "audience lookup" : "conversion-action lookup");
     const data: any = await response.json();
     const entries =
       kind === "audience"

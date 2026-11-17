@@ -45,11 +45,11 @@ describe("Google structured rejection details", () => {
     expect(error.message).not.toMatch(/private|token|secret/);
   });
 
-  it("keeps Google Ads field locations and error enums without triggers", async () => {
+  it.each(["v22", "v26"])("keeps %s Google Ads field locations and error enums without triggers", async version => {
     const error = await googleRequestError(
       response([
         {
-          "@type": "type.googleapis.com/google.ads.googleads.v22.errors.GoogleAdsFailure",
+          "@type": `type.googleapis.com/google.ads.googleads.${version}.errors.GoogleAdsFailure`,
           errors: [
             {
               errorCode: { conversionUploadError: "INVALID_GCLID" },

@@ -189,9 +189,12 @@ export async function linkFirebaseUser(firebaseId: string, internalId: string) {
   await firebase().auth().setCustomUserClaims(firebaseId, { internalId });
 }
 
-export async function createSessionCookie(idToken: string): Promise<{ cookie; expiresIn }> {
-  // Set session expiration to 5 days.
-  const expiresIn = 60 * 60 * 24 * 5 * 1000;
+export const sessionLifetimeMs = 60 * 60 * 24 * 5 * 1000;
+
+export async function createSessionCookie(
+  idToken: string,
+  expiresIn: number = sessionLifetimeMs
+): Promise<{ cookie; expiresIn }> {
   const cookie = await firebase().auth().createSessionCookie(idToken, { expiresIn });
   return { cookie, expiresIn };
 }

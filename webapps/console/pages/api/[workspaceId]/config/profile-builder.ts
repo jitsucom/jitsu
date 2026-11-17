@@ -8,6 +8,7 @@ import { ApiError } from "../../../../lib/shared/errors";
 import { MASKED_SECRET } from "../../../../lib/schema/destinations";
 import { configObjectAuditLog } from "../../../../lib/server/audit-log";
 import { omitDeletedList } from "../../../../lib/server/omit-deleted";
+import { assertDestinationInWorkspace } from "../../../../lib/server/workspace-ownership";
 
 async function updateFunctionCode(user: any, workspaceId: string, pbId: string, code: string, req?: NextApiRequest) {
   const withFunc = await db.prisma().profileBuilder.findFirst({
@@ -81,6 +82,7 @@ const upsertHandler = async (ctx: any) => {
     });
   }
   const pb = parseResult.data;
+  await assertDestinationInWorkspace(db.prisma(), workspaceId, pb.destinationId);
 
   const existingPb =
     pb.id && (await db.prisma().profileBuilder.findFirst({ where: { id: pb.id, deleted: false, workspaceId } }));

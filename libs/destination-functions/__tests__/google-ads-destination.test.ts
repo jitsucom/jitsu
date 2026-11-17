@@ -133,7 +133,7 @@ test("builds a legacy Google Ads payload from the same event", async () => {
     props: { api: "google-ads", developerToken: "dev-token", loginCustomerId: "111-222-3333", eventSource: "IN_STORE" },
   });
 
-  expect(url).toBe("https://googleads.googleapis.com/v22/customers/1234567890:uploadClickConversions");
+  expect(url).toBe("https://googleads.googleapis.com/v26/customers/1234567890:uploadClickConversions");
   expect(headers["developer-token"]).toBe("dev-token");
   //the manager account travels as a header here, not in the body
   expect(headers["login-customer-id"]).toBe("1112223333");
@@ -310,7 +310,7 @@ test("enhancement mode uses the adjustment service and keys on the order ID", as
   const { url, body } = await send(purchaseEvent(), {
     props: { api: "google-ads", developerToken: "dev-token", conversionType: "enhancement" },
   });
-  expect(url).toBe("https://googleads.googleapis.com/v22/customers/1234567890:uploadConversionAdjustments");
+  expect(url).toBe("https://googleads.googleapis.com/v26/customers/1234567890:uploadConversionAdjustments");
   expect(body.conversionAdjustments[0]).toMatchObject({
     adjustmentType: "ENHANCEMENT",
     conversionAction: "customers/1234567890/conversionActions/987654321",

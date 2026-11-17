@@ -1,4 +1,5 @@
-export const googleAdsBaseUrl = "https://googleads.googleapis.com/v22/";
+// Keep this shared endpoint on a supported version: https://developers.google.com/google-ads/api/docs/sunset-dates
+export const googleAdsBaseUrl = "https://googleads.googleapis.com/v26/";
 export function googleAdsHeaders(accessToken: string, developerToken: string, loginCustomerId?: string) {
   return {
     Authorization: `Bearer ${accessToken}`,

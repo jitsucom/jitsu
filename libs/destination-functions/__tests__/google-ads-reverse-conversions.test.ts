@@ -251,7 +251,9 @@ describe("Google Reverse ETL conversion streams", () => {
       new Response(JSON.stringify({ results: [{ conversionAction: "customers/1234567890/conversionActions/321" }] }))
     );
     expect((await (await f.adapter.stream.createWriter(f.ctx)).upsert(batch)).outcomes[0].status).toBe("accepted");
-    expect(String(f.fetch.mock.calls[0][0])).toContain(":uploadCallConversions");
+    expect(f.fetch.mock.calls[0][0]).toBe(
+      "https://googleads.googleapis.com/v26/customers/1234567890:uploadCallConversions"
+    );
     expect(f.fetch.mock.calls[0][1]!.headers).toMatchObject({ "developer-token": "test-developer-token" });
     expect(JSON.parse(f.fetch.mock.calls[0][1]!.body as string).conversions[0]).toMatchObject({
       callerId: "+14155552671",

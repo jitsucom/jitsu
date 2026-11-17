@@ -3,13 +3,22 @@
 // In next.config.js (build-time config), we use process.env directly since this runs during build
 // The serverEnv module with validation is for runtime (API routes, server-side rendering)
 const path = require("path");
+const { enforcedPolicy, strictPolicy } = require("./lib/shared/content-security-policy");
 const withBundleAnalyzer = require("@next/bundle-analyzer")({
   enabled: process.env.ANALYZE === "true",
 });
 
 module.exports = withBundleAnalyzer({
   poweredByHeader: false,
-  transpilePackages: ["juava", "@jitsu/protocols", "@jitsu/core-functions-lib", "@jitsu/destination-functions", "@jitsu-internal/webapps-shared", "@jitsu/js", "@jitsu/warehouse-query"],
+  transpilePackages: [
+    "juava",
+    "@jitsu/protocols",
+    "@jitsu/core-functions-lib",
+    "@jitsu/destination-functions",
+    "@jitsu-internal/webapps-shared",
+    "@jitsu/js",
+    "@jitsu/warehouse-query",
+  ],
   // Allow portless dev hosts (https://console[-branch].jitsu.localhost) to
   // load /_next/* resources. Without this Next 15+ blocks them as cross-origin.
   allowedDevOrigins: ["*.jitsu.localhost"],
@@ -86,6 +95,16 @@ module.exports = withBundleAnalyzer({
           {
             key: "Referrer-Policy",
             value: "strict-origin-when-cross-origin",
+          },
+          {
+            // Enforced: the console uses no plugins, no <base> tag and is never framed, so these three cost nothing
+            key: "Content-Security-Policy",
+            value: enforcedPolicy,
+          },
+          {
+            // Report-only: nothing is blocked yet, violations show up in the browser console. See the policy file
+            key: "Content-Security-Policy-Report-Only",
+            value: strictPolicy,
           },
           {
             key: "Permissions-Policy",

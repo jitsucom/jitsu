@@ -8,6 +8,7 @@ import { getResourceJsonSchema } from "../../schema/json-schema";
 import { ApiError } from "../../shared/errors";
 import { getServerLog } from "../log";
 import { isMaintenanceActive, isReadOnly } from "../maintenance";
+import { hasPermission, type WorkspaceRoleType } from "../../workspace-roles";
 import { type ConfigObjectsService, WORKSPACES_PAGE_MAX } from "../config-objects-service";
 import { type EventsLogService, QUERYABLE_TYPES } from "../events-log-service";
 import { type SyncService } from "../sync-service";
@@ -82,7 +83,7 @@ const DESTRUCTIVE: ToolAnnotations = {
 };
 
 /** Build a SessionUser from the MCP auth context (see auth.ts `extra`). */
-function principalFromAuth(authInfo: AuthInfo | undefined): SessionUser {
+export function principalFromAuth(authInfo: AuthInfo | undefined): SessionUser {
   const extra = (authInfo?.extra ?? {}) as Record<string, any>;
   const userId = extra.userId;
   if (!userId) {
@@ -96,6 +97,8 @@ function principalFromAuth(authInfo: AuthInfo | undefined): SessionUser {
     loginProvider: extra.loginProvider ?? "mcp",
     authType: "mcp",
     tokenId: extra.refreshTokenId ?? null,
+    tokenRole: extra.role ?? null,
+    tokenWorkspaceId: extra.workspaceId ?? null,
   };
 }
 
@@ -126,8 +129,21 @@ export function registerTools(sdkServer: SdkMcpServer, deps: ToolDeps) {
   // gate here: any tool not annotated read-only is rejected before its handler
   // runs. Distinguish a time-boxed maintenance window from the permanent
   // read-only switch (JITSU_CONSOLE_READ_ONLY) so the latter isn't mislabeled.
+  //
+  // A token limited to a role that cannot edit (the "read-only" choice on the consent page) is held to the same
+  // line: it may call only the tools annotated read-only. Sync runs, resets, source checks and function runs are
+  // refused too, because the page promises that such a client cannot run anything.
   const register: SdkMcpServer["registerTool"] = (name, config, cb) =>
     sdkServer.registerTool(name, config, (async (args: any, extra: any) => {
+      const tokenRole = extra?.authInfo?.extra?.role as WorkspaceRoleType | null | undefined;
+      if (!config.annotations?.readOnlyHint && tokenRole && !hasPermission(tokenRole, "editEntities")) {
+        return {
+          content: [
+            { type: "text", text: `Error (403): this connection is read-only, so '${name}' is not available to it.` },
+          ],
+          isError: true,
+        };
+      }
       if (!config.annotations?.readOnlyHint && isReadOnly()) {
         const text = isMaintenanceActive()
           ? "Error (503): Jitsu is in maintenance mode; modifications are temporarily disabled."

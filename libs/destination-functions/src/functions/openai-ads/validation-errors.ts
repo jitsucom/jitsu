@@ -21,3 +21,18 @@ export const openAiConversionValidationErrors = {
 export function invalidOpenAiConversion(reason: keyof typeof openAiConversionValidationErrors): never {
   throw new Error(`Invalid OpenAI conversion: ${openAiConversionValidationErrors[reason]}`);
 }
+
+// Audience rows. Same rule: fixed, value-free text shared with the runner's failure allowlist.
+export const openAiAudienceValidationErrors = {
+  identifier:
+    "A member identifier is invalid. Check email, phone (E.164 with the country code, 7-15 digits) and Android advertising ID (a hyphenated UUID), and the raw versus SHA-256 columns.",
+  noIdentifier: "Each member needs at least one identifier: map Email, Phone or Android advertising ID.",
+} as const;
+
+/** Save-time and run-time refusal of a mirror that maps more than one identifier type; also in the runner's failure allowlist. */
+export const openAiMirrorOneIdentifierType =
+  "A mirrored OpenAI audience supports one identifier type: map Email, Phone or Android advertising ID, not several.";
+
+export function invalidOpenAiAudience(reason: keyof typeof openAiAudienceValidationErrors): never {
+  throw new Error(`Invalid OpenAI audience member: ${openAiAudienceValidationErrors[reason]}`);
+}

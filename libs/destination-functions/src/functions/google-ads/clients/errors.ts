@@ -6,7 +6,14 @@ export class GoogleRequestError extends Error {
   constructor(
     readonly httpStatus: number,
     readonly providerCode: string | undefined,
-    readonly operation: "conversion upload" | "status lookup" | "custom-variable lookup" | "audience management",
+    readonly operation:
+      | "conversion upload"
+      | "status lookup"
+      | "custom-variable lookup"
+      | "audience management"
+      | "account lookup"
+      | "audience lookup"
+      | "conversion-action lookup",
     readonly definitiveRejection: boolean,
     details?: unknown
   ) {

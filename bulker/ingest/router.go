@@ -54,6 +54,8 @@ type Router struct {
 	repository        appbase.Repository[Streams]
 	scriptRepository  appbase.Repository[Script]
 	producer          *kafkabase.Producer
+	backupProducer    *kafkabase.Producer
+	telemetryProducer *kafkabase.Producer
 	eventsLogService  eventslog.EventsLogService
 	backupsLogger     *BackupLogger
 	httpClient        *http.Client
@@ -71,6 +73,7 @@ const (
 
 	ConnectionIdsHeader = "connection_ids"
 
+	ErrProducerType         = "producer error"
 	ErrNoDst                = "no destinations found for stream"
 	ErrThrottledType        = "quota exceeded"
 	ErrThrottledDescription = "billing quota exceeded, event throttled"
@@ -118,7 +121,7 @@ func NewRouter(appContext *Context, partitionSelector kafkabase.PartitionSelecto
 		"/api/v1/event",
 		"/api/v1/events",
 		"/api.:ignored",
-	})
+	}, securityHeaders)
 
 	transport := http.DefaultTransport.(*http.Transport).Clone()
 	transport.MaxIdleConnsPerHost = 500
@@ -147,6 +150,8 @@ func NewRouter(appContext *Context, partitionSelector kafkabase.PartitionSelecto
 		config:            appContext.config,
 		kafkaConfig:       appContext.kafkaConfig,
 		producer:          appContext.producer,
+		backupProducer:    appContext.backupProducer,
+		telemetryProducer: appContext.telemetryProducer,
 		eventsLogService:  appContext.eventsLogService,
 		backupsLogger:     appContext.backupsLogger,
 		repository:        appContext.repository,
@@ -216,6 +221,15 @@ func NewRouter(appContext *Context, partitionSelector kafkabase.PartitionSelecto
 	return router
 }
 
+// Ingest serves API responses and scripts, not HTML documents. These headers do
+// not change the embedding website's policy or the credential-less CORS rules.
+func securityHeaders(c *gin.Context) {
+	c.Header("Content-Security-Policy", "default-src 'none'; base-uri 'none'; frame-ancestors 'none'")
+	c.Header("Referrer-Policy", "strict-origin-when-cross-origin")
+	c.Header("Permissions-Policy", "camera=(), microphone=(), geolocation=(), browsing-topics=()")
+	c.Next()
+}
+
 // CorsMiddleware serves the ingest API as an intentionally open, credential-less
 // endpoint: a constant wildcard origin and no Access-Control-Allow-Credentials.
 // Reflecting the Origin together with allow-credentials would let any site read
@@ -243,7 +257,7 @@ func (r *Router) CorsMiddleware(c *gin.Context) {
 func (r *Router) Health(c *gin.Context) {
 	if r.kafkaConfig == nil {
 		logging.Errorf("Health check: FAILED: kafka config is missing")
-		c.JSON(http.StatusServiceUnavailable, gin.H{"status": "fail", "output": "kafka config is missing"})
+		c.JSON(http.StatusServiceUnavailable, gin.H{"status": "fail"})
 		return
 	}
 
@@ -292,11 +306,21 @@ type BatchPayload struct {
 	SentAt string `json:"sentAt"`
 }
 
+// sendToDeadLetter preserves rejected events other than Kafka producer failures.
+// Producer failures use the pipeline's existing failover policy when enabled;
+// copying them to Kafka again adds load during the same outage.
+func (r *Router) sendToDeadLetter(messageId string, payload []byte, rError *appbase.RouterError) {
+	if rError == nil || rError.ErrorType == ErrProducerType {
+		return
+	}
+	_ = r.telemetryProducer.ProduceAsync(r.config.KafkaDestinationsDeadLetterTopicName, uuid.New(), utils.TruncateBytes(payload, r.config.MaxIngestPayloadSize), map[string]string{"error": rError.Error.Error()}, kafka.PartitionAny, messageId, false, 0)
+}
+
 func (r *Router) sendToRotor(c *gin.Context, messageId string, ingestMessageBytes []byte, stream *StreamWithDestinations, sendResponse bool) (asyncDestinations []string, tagsDestinations []string, rError *appbase.RouterError) {
 	var err error
 	if stream.BackupEnabled {
 		backupTopic := fmt.Sprintf("%sin.id.%s_backup.m.batch.t.backup", r.config.KafkaTopicPrefix, stream.Stream.WorkspaceId)
-		err2 := r.producer.ProduceAsync(backupTopic, uuid.New(), ingestMessageBytes, nil, kafka.PartitionAny, messageId, false, 0)
+		err2 := r.backupProducer.ProduceAsync(backupTopic, uuid.New(), ingestMessageBytes, nil, kafka.PartitionAny, messageId, false, 0)
 		if err2 != nil {
 			r.Errorf("Error producing to backup topic %s: %v", backupTopic, err2)
 		}
@@ -345,9 +369,9 @@ func (r *Router) sendToRotor(c *gin.Context, messageId string, ingestMessageByte
 		err = r.producer.ProduceAsync(topic, messageKey, ingestMessageBytes, map[string]string{ConnectionIdsHeader: strings.Join(asyncDestinations, ",")}, partition, messageId, true, 0)
 		if err != nil {
 			for _, id := range asyncDestinations {
-				IngestedMessages(id, "error", "producer error").Inc()
+				IngestedMessages(id, "error", ErrProducerType).Inc()
 			}
-			rError = r.ResponseError(c, http.StatusInternalServerError, "producer error", true, err, sendResponse, true, false)
+			rError = r.ResponseError(c, http.StatusInternalServerError, ErrProducerType, true, err, sendResponse, true, false)
 		}
 		for _, id := range asyncDestinations {
 			IngestedMessages(id, "success", "").Inc()
@@ -952,14 +976,14 @@ func (r *Router) emitSyncMetrics(stream *StreamWithDestinations, destinations []
 	connMsgs, billingMsgs := buildSyncMetrics(stream.Stream.WorkspaceId, stream.Stream.Id, destinations, result, messageId, receivedAt)
 	for i := range connMsgs {
 		if cm, err := jsoniter.Marshal(&connMsgs[i]); err == nil {
-			if perr := r.producer.ProduceAsync(metricsTopic, uuid.New(), cm, nil, kafka.PartitionAny, messageId, false, 0); perr != nil {
+			if perr := r.telemetryProducer.ProduceAsync(metricsTopic, uuid.New(), cm, nil, kafka.PartitionAny, messageId, false, 0); perr != nil {
 				r.Errorf("Error producing connection metrics to %s: %v", metricsTopic, perr)
 			}
 		}
 	}
 	for i := range billingMsgs {
 		if bm, err := jsoniter.Marshal(&billingMsgs[i]); err == nil {
-			if perr := r.producer.ProduceAsync(billingTopic, billingMsgs[i].MessageId, bm, nil, kafka.PartitionAny, messageId, false, 0); perr != nil {
+			if perr := r.telemetryProducer.ProduceAsync(billingTopic, billingMsgs[i].MessageId, bm, nil, kafka.PartitionAny, messageId, false, 0); perr != nil {
 				r.Errorf("Error producing billing metrics to %s: %v", billingTopic, perr)
 			}
 		}
