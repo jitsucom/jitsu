@@ -108,3 +108,34 @@ func TestBatchSnapshotResetsInvalidOffsetsAndRejectsPartialResults(t *testing.T)
 	_, _, err = bc.snapshotOffsets(assigned, epoch)
 	require.Error(t, err)
 }
+
+type assignmentMetadataConsumer struct {
+	*fakeGroupConsumer
+	metadata *kafka.Metadata
+	err      error
+}
+
+func (c *assignmentMetadataConsumer) GetMetadata(*string, bool, int) (*kafka.Metadata, error) {
+	return c.metadata, c.err
+}
+
+func TestBatchWriterRejectsIncompleteOrFailedMetadata(t *testing.T) {
+	c := &assignmentMetadataConsumer{fakeGroupConsumer: newFakeGroupConsumer(), metadata: &kafka.Metadata{Topics: map[string]kafka.TopicMetadata{"topic": {Topic: "topic", Partitions: []kafka.PartitionMetadata{{ID: 0}, {ID: 1}}}}}}
+	runtime := newTestConsumerRuntime(func(*kafka.ConfigMap) (groupConsumer, error) { return c, nil })
+	defer runtime.close()
+	_, err := runtime.init()
+	require.NoError(t, err)
+	c.events <- kafka.AssignedPartitions{Partitions: testOffsets(0, 0).slice()}
+	assigned, epoch, err := runtime.assignment(time.Second)
+	require.NoError(t, err)
+	bc := &BatchConsumerImpl{AbstractBatchConsumer: &AbstractBatchConsumer{AbstractConsumer: &AbstractConsumer{topicId: "topic"}, consumer: runtime}}
+	require.NoError(t, bc.requireWholeTopicAssignment(assigned, epoch))
+	require.Error(t, bc.requireWholeTopicAssignment(assigned[:1], epoch))
+	require.ErrorIs(t, bc.requireWholeTopicAssignment(assigned, epoch+1), errConsumerAssignmentChanged)
+	require.NoError(t, runtime.execute(func(*consumerSession) {
+		c.err = kafka.NewError(kafka.ErrRequestTimedOut, "metadata unavailable", false)
+	}))
+	require.Error(t, bc.requireWholeTopicAssignment(assigned, epoch))
+	require.NoError(t, runtime.execute(func(*consumerSession) { c.err = nil; c.metadata = &kafka.Metadata{} }))
+	require.Error(t, bc.requireWholeTopicAssignment(assigned, epoch))
+}

@@ -36,9 +36,27 @@ func NewBatchConsumer(repository *Repository, destinationId string, batchPeriodS
 	}
 	retryTopic, _ := MakeTopicId(destinationId, retryTopicMode, allTablesToken, config.KafkaTopicPrefix, 0, false)
 	bc.retryTopic = retryTopic
+	bc.assignmentCheck = bc.requireWholeTopicAssignment
 	bc.batchSizeFunc = bc.batchSizes
 	bc.batchFunc = bc.processBatchImpl
 	return &bc, nil
+}
+
+// Multiple destination writers are not safe yet (e.g. backup object names can
+// collide). Keep offset handling generic, but fail closed on a split batch-topic
+// assignment. Retry consumers do not write destinations and may share a group.
+func (bc *BatchConsumerImpl) requireWholeTopicAssignment(assigned []kafka.TopicPartition, epoch uint64) error {
+	partitions, err := bc.consumer.topicPartitions(bc.topicId, epoch)
+	if err != nil {
+		return err
+	}
+	if len(assigned) != len(partitions) {
+		return fmt.Errorf("batch topic %s requires one writer owning all %d partitions; this member owns %d: ensure only one instance is active for its logical shard", bc.topicId, len(partitions), len(assigned))
+	}
+	if err = partitionResults(partitions, assigned); err != nil {
+		return fmt.Errorf("batch topic requires the complete partition assignment: %w", err)
+	}
+	return nil
 }
 
 // abortedTransactionMarker is the Postgres error raised by every statement that follows

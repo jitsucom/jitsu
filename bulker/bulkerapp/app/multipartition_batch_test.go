@@ -75,7 +75,7 @@ func TestBatchConsumerCommitsMultiplePartitionsAfterDestination(t *testing.T) {
 	config.KafkaSessionTimeoutMs = 15000
 	repository := &Repository{}
 	repository.repository.Store(&repositoryInternal{destinations: map[string]*Destination{}})
-	base := &AbstractBatchConsumer{AbstractConsumer: NewAbstractConsumer(config, repository, topic, nil, nil), repository: repository, consumer: runtime, mode: "batch", waitForMessages: time.Second, closed: make(chan struct{})}
+	base := &AbstractBatchConsumer{AbstractConsumer: NewAbstractConsumer(config, repository, topic, nil, nil), repository: repository, consumer: runtime, mode: "batch", waitForMessages: 5 * time.Second, closed: make(chan struct{})}
 	bc := &BatchConsumerImpl{AbstractBatchConsumer: base, eventsLogService: &eventslog.DummyEventsLogService{}}
 	_, err = runtime.init()
 	require.NoError(t, err)
@@ -87,6 +87,7 @@ func TestBatchConsumerCommitsMultiplePartitionsAfterDestination(t *testing.T) {
 	_, err = runtime.seekPartitions(starts.slice(), epoch)
 	require.NoError(t, err)
 	window := newBatchWindow(starts, ends)
+	require.EqualValues(t, 4, window.remaining())
 	sink := &recordingBulker{}
 	dst := &Destination{config: &DestinationConfig{}, bulker: sink, streamOptions: &bulker.StreamOptions{}}
 	sink.beforeComplete = func() {

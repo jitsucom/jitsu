@@ -36,6 +36,7 @@ type groupConsumer interface {
 	Pause([]kafka.TopicPartition) error
 	Resume([]kafka.TopicPartition) error
 	QueryWatermarkOffsets(string, int32, int) (int64, int64, error)
+	GetMetadata(*string, bool, int) (*kafka.Metadata, error)
 	Committed([]kafka.TopicPartition, int) ([]kafka.TopicPartition, error)
 	SeekPartitions([]kafka.TopicPartition) ([]kafka.TopicPartition, error)
 	CommitMessage(*kafka.Message) ([]kafka.TopicPartition, error)
@@ -303,6 +304,40 @@ func (runtime *consumerRuntime) seekPartitions(partitions []kafka.TopicPartition
 		err = session.checkFencing(err)
 		if err == nil {
 			session.discardPending(result)
+		}
+	})
+	if executeErr != nil {
+		err = executeErr
+	}
+	return
+}
+
+// Fetch current broker metadata under the same assignment epoch as the batch.
+func (runtime *consumerRuntime) topicPartitions(topic string, epoch uint64) (partitions []kafka.TopicPartition, err error) {
+	executeErr := runtime.execute(func(session *consumerSession) {
+		if err = session.validateEpoch(epoch); err != nil {
+			return
+		}
+		metadata, metadataErr := session.consumer.GetMetadata(&topic, false, 10000)
+		err = session.checkFencing(metadataErr)
+		if err != nil {
+			return
+		}
+		tm, ok := metadata.Topics[topic]
+		if !ok || len(tm.Partitions) == 0 {
+			err = fmt.Errorf("missing partition metadata for %s", topic)
+			return
+		}
+		if tm.Error.Code() != kafka.ErrNoError {
+			err = tm.Error
+			return
+		}
+		for _, p := range tm.Partitions {
+			if p.Error.Code() != kafka.ErrNoError {
+				err = p.Error
+				return
+			}
+			partitions = append(partitions, kafka.TopicPartition{Topic: &topic, Partition: p.ID})
 		}
 	})
 	if executeErr != nil {

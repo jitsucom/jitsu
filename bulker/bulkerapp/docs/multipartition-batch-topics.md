@@ -19,7 +19,13 @@ This remains at-least-once delivery. There is no ordering across partitions, and
 increasing partition count can change key routing. Enable it only for destinations
 that tolerate this, starting with append-only backups. One batch topic still has one
 scheduled destination writer under the current sharding scheme; this distributes
-Kafka traffic, not destination writes. Retry groups can assign multiple partitions
+Kafka traffic, not destination writes. Ordinary batch consumers verify against fresh
+broker metadata that they own **all** partitions before starting a run. If multiple
+instances share a logical shard and Kafka splits the assignment, they fail closed
+with `exclusive_assignment_required`; consumption resumes once one member owns the
+whole topic. Keep one active instance per logical shard (and stable instance IDs
+across replacements). Concurrent destination writers need a separate design for
+object naming and destination transaction semantics. Retry groups can assign multiple partitions
 per member. Physical Kafka partitions are independent of logical `.p.N` topic names.
 
 ## Configuration

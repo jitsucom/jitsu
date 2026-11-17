@@ -67,6 +67,7 @@ type AbstractBatchConsumer struct {
 	batchSizeFunc     BatchSizesFunction
 	batchFunc         BatchFunction
 	shouldConsumeFunc ShouldConsumeFunction
+	assignmentCheck   func([]kafka.TopicPartition, uint64) error
 }
 
 func NewAbstractBatchConsumer(repository *Repository, destinationId string, batchPeriodSec int, topicId, mode string, config *Config, kafkaConfig *kafka.ConfigMap, bulkerProducer *Producer, topicManager *TopicManager) (*AbstractBatchConsumer, error) {
@@ -286,6 +287,12 @@ func (bc *AbstractBatchConsumer) ConsumeAll() (counters BatchCounters, err error
 		bc.Debugf("No partitions assigned to this healthy group member")
 		bc.setQueueMetrics(nil, nil)
 		return BatchCounters{}, nil
+	}
+	if bc.assignmentCheck != nil {
+		if err = bc.assignmentCheck(assignments, consumerEpoch); err != nil {
+			bc.errorMetric("exclusive_assignment_required")
+			return counters, err
+		}
 	}
 	starts, ends, err = bc.snapshotOffsets(assignments, consumerEpoch)
 	if err != nil {
