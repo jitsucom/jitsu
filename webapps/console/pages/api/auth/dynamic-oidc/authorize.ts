@@ -1,3 +1,4 @@
+import { withAuthRateLimit } from "../../../../lib/server/rate-limit/auth";
 import { NextApiRequest, NextApiResponse } from "next";
 import jwt from "jsonwebtoken";
 import { getServerLog } from "../../../../lib/server/log";
@@ -21,7 +22,7 @@ function generatePKCE() {
   };
 }
 
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+async function handler(req: NextApiRequest, res: NextApiResponse) {
   const { providerId, loginHint } = req.query;
 
   if (!providerId || typeof providerId !== "string") {
@@ -111,3 +112,5 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(500).json({ error: "Internal server error" });
   }
 }
+
+export default withAuthRateLimit(handler, { bucket: "login" });

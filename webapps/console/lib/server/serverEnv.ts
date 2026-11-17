@@ -407,6 +407,8 @@ const ServerEnvSchema = ClientEnvSchema.extend({
 
   // Master kill switch. Set to "false" to disable rate limiting entirely.
   MINUTE_RATE_LIMIT_ENABLED: z.string().default("true").transform(isTruish),
+  AUTH_ATTEMPT_RATE_LIMIT: z.coerce.number().int().positive().default(60),
+  AUTH_SESSION_RATE_LIMIT: z.coerce.number().int().positive().default(300),
 
   // Base per-minute budget. All (auth class × HTTP method) limits derive
   // from this number via fixed multipliers (see MULTIPLIERS in

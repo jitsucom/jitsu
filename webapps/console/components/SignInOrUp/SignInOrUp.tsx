@@ -10,6 +10,7 @@ import { useFirebaseSession } from "../../lib/firebase-client";
 import { useJitsu } from "@jitsu/jitsu-react";
 import { useAppConfig } from "../../lib/context";
 import { safeRedirect } from "../../lib/auth-redirect";
+import { authRateLimitMessage } from "../../lib/auth-errors";
 import { Alert, Button, Input, Modal } from "antd";
 
 export type AuthType =
@@ -144,14 +145,10 @@ export const SignInOrUp: React.FC<SigninProps> = ({ signup }) => {
           callbackUrl,
         });
 
-        if (result?.error) {
-          setError(result.error);
-        }
-
-        if (result?.ok) {
+        if (result?.ok && !result.error) {
           safeRedirect(router, callbackUrl);
         } else {
-          setError("Invalid email or password");
+          setError(authRateLimitMessage(result?.error) ?? "Invalid email or password");
         }
       } else {
         setError("Unsupported authentication method");
@@ -354,7 +351,11 @@ export const SignInOrUp: React.FC<SigninProps> = ({ signup }) => {
 
         {router.query.error && (
           <div className="mx-auto max-w-[350px] mt-4">
-            <Alert type="error" message={`Authentication error: ${router.query.error}`} closable />
+            <Alert
+              type="error"
+              message={authRateLimitMessage(router.query.error) ?? `Authentication error: ${router.query.error}`}
+              closable
+            />
           </div>
         )}
       </SigninLayout>

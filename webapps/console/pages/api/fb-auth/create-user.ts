@@ -1,3 +1,4 @@
+import { withAuthRateLimit } from "../../../lib/server/rate-limit/auth";
 import { Api, inferUrl, nextJsApiHandler } from "../../../lib/api";
 import { requireDefined } from "juava";
 import { getFirebaseUser, linkFirebaseUser } from "../../../lib/server/firebase-server";
@@ -39,4 +40,4 @@ export const api: Api = {
   },
 };
 
-export default nextJsApiHandler(api);
+export default withAuthRateLimit(nextJsApiHandler(api), { bucket: "login" });

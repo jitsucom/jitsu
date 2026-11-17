@@ -1,3 +1,4 @@
+import { withAuthRateLimit } from "../../../lib/server/rate-limit/auth";
 import { Api, inferUrl, nextJsApiHandler } from "../../../lib/api";
 import { z } from "zod";
 import {
@@ -98,4 +99,4 @@ export const api: Api = {
   },
 };
 
-export default nextJsApiHandler(api);
+export default withAuthRateLimit(nextJsApiHandler(api), { bucket: "session", dbIndependent: true });
