@@ -136,10 +136,27 @@ export function proxiedFetchTimeoutMs(requested: unknown, defaultMs: number): nu
 // shows the same details in the console's HTTP log: the request headers with the sensitive ones hidden, and the
 // response body, cut to a length the log can hold.
 
-/** Same rule as makeFetch: a header whose name contains "authorization" or "token" is hidden. */
-export function hideSensitiveHeaders(headers: Record<string, string>): Record<string, string> {
+/** The [name, value] pairs of request headers in any form fetch accepts: an object, a Headers or Map, or an array of pairs. */
+function headerPairs(headers: any): Array<[string, any]> {
+  if (Array.isArray(headers)) {
+    return headers.filter(p => Array.isArray(p) && p.length >= 2).map(p => [String(p[0]), p[1]]);
+  }
+  if (headers && typeof headers.forEach === "function") {
+    const pairs: Array<[string, any]> = [];
+    headers.forEach((v: any, k: any) => pairs.push([String(k), v]));
+    return pairs;
+  }
+  return Object.entries(headers ?? {});
+}
+
+/**
+ * Same rule as makeFetch: a header whose name contains "authorization" or "token" is hidden. The headers may be an object,
+ * a Headers or Map, or an array of [name, value] pairs: Object.entries of an array would give the keys "0", "1" and miss
+ * the name.
+ */
+export function hideSensitiveHeaders(headers: any): Record<string, string> {
   const result: Record<string, string> = {};
-  for (const [k, v] of Object.entries(headers)) {
+  for (const [k, v] of headerPairs(headers)) {
     result[k] = k.toLowerCase().includes("authorization") || k.toLowerCase().includes("token") ? "*****" : v;
   }
   return result;

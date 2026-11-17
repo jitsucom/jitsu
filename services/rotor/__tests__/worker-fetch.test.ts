@@ -162,6 +162,33 @@ describe("fetch log details", () => {
     });
   });
 
+  // fetch accepts the headers as an object, a Headers or Map, or an array of [name, value] pairs. Object.entries of an array
+  // gives the keys "0", "1" and misses the name, so the bearer token was logged as it was.
+  it("hides the sensitive headers whatever form the UDF passed them in", () => {
+    const expected = { Authorization: "*****", "X-Api-Token": "*****", "X-Trace": "t1" };
+    const pairs = [
+      ["Authorization", "Bearer secret"],
+      ["X-Api-Token", "secret-2"],
+      ["X-Trace", "t1"],
+    ];
+    expect(hideSensitiveHeaders(pairs)).toEqual(expected);
+    expect(hideSensitiveHeaders(new Map(pairs as [string, string][]))).toEqual(expected);
+    // Headers lower-cases the names; the rule is case-insensitive.
+    expect(hideSensitiveHeaders(new Headers(pairs as [string, string][]))).toEqual({
+      authorization: "*****",
+      "x-api-token": "*****",
+      "x-trace": "t1",
+    });
+    expect(hideSensitiveHeaders(Object.fromEntries(pairs))).toEqual(expected);
+    expect(JSON.stringify(hideSensitiveHeaders(pairs))).not.toContain("secret");
+  });
+
+  it("tolerates missing and malformed headers", () => {
+    expect(hideSensitiveHeaders(undefined)).toEqual({});
+    expect(hideSensitiveHeaders(null)).toEqual({});
+    expect(hideSensitiveHeaders([["only-a-name"], "junk", null])).toEqual({});
+  });
+
   it("cuts a long response at 1000 characters and says how long it was", () => {
     expect(trimLoggedResponse("short")).toBe("short");
     expect(trimLoggedResponse("a".repeat(1000))).toBe("a".repeat(1000));
