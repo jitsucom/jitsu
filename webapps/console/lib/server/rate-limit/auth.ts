@@ -1,10 +1,12 @@
 import { createHash } from "node:crypto";
 import { isIP } from "node:net";
-import type { NextApiHandler, NextApiRequest } from "next";
+import type { NextApiHandler, NextApiRequest, NextApiResponse } from "next";
+import { authRateLimitMessage, type AuthRateLimitError } from "../../auth-errors";
 import { getRateLimiter, setRateLimitHeaders } from ".";
 import { getServerLog } from "../log";
 import { isReadOnly } from "../maintenance";
 import { getServerEnv } from "../serverEnv";
+import { getPublicOrigin } from "../origin";
 import { computeResult } from "./compute";
 import type { RateLimitOpts } from "./types";
 
@@ -41,7 +43,30 @@ type AuthLimit = {
   // the bounded per-process fallback during maintenance or a store outage.
   dbIndependent?: boolean;
   matches?: (req: NextApiRequest) => boolean;
+  nextAuth?: boolean;
 };
+
+function rejectAuthRequest(
+  req: NextApiRequest,
+  res: NextApiResponse,
+  spec: AuthLimit,
+  status: 429 | 503,
+  error: AuthRateLimitError
+) {
+  const body = { error, message: authRateLimitMessage(error) };
+  if (!spec.nextAuth) return res.status(status).json(body);
+
+  // next-auth/react parses data.url even for non-2xx responses. Use the
+  // configured origin, never a caller-controlled Host or callbackUrl.
+  const url = new URL("/signin", getPublicOrigin());
+  url.searchParams.set("error", error);
+  if (req.method === "POST" && (req.body?.json === true || req.body?.json === "true")) {
+    return res.status(status).json({ ...body, url: url.toString() });
+  }
+  // Browser OAuth callbacks and direct form submissions need a page rather
+  // than JSON. 303 also prevents replaying a credentials POST on /signin.
+  return res.redirect(303, url.toString());
+}
 
 const fallback = new Map<string, { start: number; current: number; previous: number }>();
 let lastWarning = 0;
@@ -98,15 +123,13 @@ export function withAuthRateLimit(handler: NextApiHandler, spec: AuthLimit): Nex
       setRateLimitHeaders(res, result);
       if (!result.allowed) {
         res.setHeader("Retry-After", String(result.retryAfterSec));
-        res
-          .status(429)
-          .json({ error: "rate_limit_exceeded", message: "Too many authentication attempts. Try again later." });
+        rejectAuthRequest(req, res, spec, 429, "rate_limit_exceeded");
         return;
       }
     } catch (error) {
       log.atWarn().withCause(error).log("Authentication rate limiter unavailable");
       res.setHeader("Retry-After", "5");
-      res.status(503).json({ error: "rate_limiter_unavailable" });
+      rejectAuthRequest(req, res, spec, 503, "rate_limiter_unavailable");
       return;
     }
     // Handler failures count too, and are never mistaken for limiter failures.

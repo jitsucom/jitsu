@@ -36,3 +36,9 @@ Throttling returns 429 with `Retry-After` and the standard rate-limit headers.
 Responses are marked `Cache-Control: no-store`. Roll out the console independently
 of ingest; verify normal Firebase and OAuth login, session refresh and logout on
 the beta deployment before promoting it.
+
+NextAuth client requests retain 429/503 and include its required absolute `url`
+pointing to the sign-in page with an error code. Direct NextAuth browser callbacks
+and form submissions use a 303 redirect to that page instead. Both paths display
+the throttling or temporary-unavailability message; redirect targets use the
+configured console origin, never the request's Host or callback URL.

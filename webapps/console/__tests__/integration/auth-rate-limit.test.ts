@@ -1,7 +1,11 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { NextApiHandler, NextApiRequest, NextApiResponse } from "next";
+import { signIn } from "next-auth/react";
+import { http, HttpResponse } from "msw";
+import { authRateLimitMessage } from "../../lib/auth-errors";
 import { authClientIp, isNextAuthAttempt, withAuthRateLimit } from "../../lib/server/rate-limit/auth";
 import { deps } from "./support/harness";
+import { server } from "./support/msw";
 
 function request(ip: string, action = "signin"): NextApiRequest {
   return {
@@ -28,6 +32,11 @@ async function call(handler: NextApiHandler, req: NextApiRequest) {
     },
     json(value: unknown) {
       body = value;
+      return this;
+    },
+    redirect(code: number, url: string) {
+      this.statusCode = code;
+      headers.Location = url;
       return this;
     },
   };
@@ -111,5 +120,77 @@ describe("anonymous authentication rate limits", () => {
     const req = request("not-an-ip");
     req.headers["x-forwarded-for"] = "192.0.2.99";
     expect(authClientIp(req)).toBe("127.0.0.1");
+  });
+
+  it.each([429, 503] as const)("preserves NextAuth client and browser error handling for %s", async status => {
+    vi.stubEnv("MINUTE_RATE_LIMIT_ENABLED", "true");
+    vi.stubEnv("AUTH_ATTEMPT_RATE_LIMIT", "1");
+    const error = status === 429 ? "rate_limit_exceeded" : "rate_limiter_unavailable";
+    const message =
+      status === 429
+        ? "Too many authentication attempts. Please wait and try again."
+        : "Sign-in is temporarily unavailable. Please try again shortly.";
+    const ip = `192.0.2.${status === 429 ? 21 : 22}`;
+    const handler = withAuthRateLimit((_req, res) => res.status(401).json({ error: "invalid credentials" }), {
+      bucket: "login",
+      matches: isNextAuthAttempt,
+      nextAuth: true,
+    });
+    if (status === 429) await call(handler, request(ip));
+    else
+      await deps().prisma.$executeRawUnsafe(
+        'ALTER TABLE newjitsu."RateLimitCounter" RENAME TO "RateLimitCounterHidden"'
+      );
+    try {
+      const req = request(ip);
+      // Redirect targets must not come from untrusted request fields.
+      req.headers.host = "attacker.example";
+      req.headers["x-forwarded-host"] = "attacker.example";
+      req.body = { json: "true", callbackUrl: "https://attacker.example/" };
+      const response = await call(handler, req);
+      const url = new URL(response.body.url);
+      expect(response.status).toBe(status);
+      expect(url.origin).toBe("http://console.test.local");
+      expect(url.pathname).toBe("/signin");
+      expect(url.searchParams.get("error")).toBe(error);
+      expect(response.headers["Cache-Control"]).toBe("no-store");
+      expect(Number(response.headers["Retry-After"])).toBeGreaterThan(0);
+
+      // Exercise the installed NextAuth client, including its new URL(data.url)
+      // parsing on rejected credentials requests, rather than mocking signIn.
+      server.use(
+        http.get(/\/api\/auth\/providers$/, () => HttpResponse.json({ credentials: { type: "credentials" } })),
+        http.get(/\/api\/auth\/csrf$/, () => HttpResponse.json({ csrfToken: "test-csrf" })),
+        http.post(/\/api\/auth\/callback\/credentials$/, async ({ request: incoming }) => {
+          const callback = request(ip, "callback");
+          callback.body = Object.fromEntries(new URLSearchParams(await incoming.text()));
+          const result = await call(handler, callback);
+          return HttpResponse.json(result.body, { status: result.status, headers: result.headers });
+        })
+      );
+      const result = await signIn("credentials", { redirect: false, callbackUrl: "http://console.test.local/" });
+      expect(result).toMatchObject({ ok: false, status, error, url: null });
+      expect(authRateLimitMessage(result?.error)).toBe(message);
+
+      // OAuth initiation uses the JSON URL to navigate; its browser callback
+      // and direct form submissions must redirect to the same error page.
+      req.query.nextauth = ["signin", "github"];
+      expect((await call(handler, req)).body.url).toBe(url.toString());
+      for (const method of ["GET", "POST"]) {
+        req.method = method;
+        req.query.nextauth = ["callback", "github"];
+        req.body = {};
+        const browser = await call(handler, req);
+        expect(browser.status).toBe(303);
+        expect(browser.headers.Location).toBe(url.toString());
+        expect(browser.headers["Cache-Control"]).toBe("no-store");
+        expect(authRateLimitMessage(new URL(browser.headers.Location).searchParams.get("error"))).toBe(message);
+      }
+    } finally {
+      if (status === 503)
+        await deps().prisma.$executeRawUnsafe(
+          'ALTER TABLE newjitsu."RateLimitCounterHidden" RENAME TO "RateLimitCounter"'
+        );
+    }
   });
 });

@@ -10,4 +10,4 @@ async function auth(req: NextApiRequest, res: NextApiResponse) {
   return NextAuth(req, res, nextAuthConfigForRequest(req));
 }
 
-export default withAuthRateLimit(auth, { bucket: "login", matches: isNextAuthAttempt });
+export default withAuthRateLimit(auth, { bucket: "login", matches: isNextAuthAttempt, nextAuth: true });
