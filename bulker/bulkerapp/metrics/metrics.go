@@ -138,6 +138,13 @@ var (
 	ConsumerQueueSize = func(topicId, mode, destinationId, tableName string) prometheus.Gauge {
 		return consumerQueueSize.WithLabelValues(topicId, mode, destinationId, tableName)
 	}
+	// Separate metric preserves the labels and aggregate meaning of queue_size.
+	ConsumerPartitionQueueSize = promauto.NewGaugeVec(prometheus.GaugeOpts{
+		Namespace: "bulkerapp",
+		Subsystem: "consumer",
+		Name:      "partition_queue_size",
+		Help:      "Kafka offset lag per assigned partition at the last batch snapshot; may include transaction markers.",
+	}, []string{"topicId", "mode", "destinationId", "tableName", "partition"})
 
 	consumerRuns = promauto.NewCounterVec(prometheus.CounterOpts{
 		Namespace: "bulkerapp",
@@ -194,7 +201,6 @@ var (
 	Panics = func() prometheus.Counter {
 		return panics
 	}
-
 )
 
 func KafkaErrorCode(err error) string {

@@ -39,6 +39,7 @@ type groupConsumer interface {
 	Committed([]kafka.TopicPartition, int) ([]kafka.TopicPartition, error)
 	SeekPartitions([]kafka.TopicPartition) ([]kafka.TopicPartition, error)
 	CommitMessage(*kafka.Message) ([]kafka.TopicPartition, error)
+	CommitOffsets([]kafka.TopicPartition) ([]kafka.TopicPartition, error)
 	GetConsumerGroupMetadata() (*kafka.ConsumerGroupMetadata, error)
 	Unsubscribe() error
 	Close() error
@@ -279,6 +280,9 @@ func (runtime *consumerRuntime) committed(partitions []kafka.TopicPartition, tim
 			return
 		}
 		offsets, err = session.consumer.Committed(partitions, timeoutMs)
+		if err == nil {
+			err = partitionResults(partitions, offsets)
+		}
 		err = session.checkFencing(err)
 	})
 	if executeErr != nil {
@@ -293,10 +297,77 @@ func (runtime *consumerRuntime) seekPartitions(partitions []kafka.TopicPartition
 			return
 		}
 		result, err = session.consumer.SeekPartitions(partitions)
+		if err == nil {
+			err = partitionResults(partitions, result)
+		}
 		err = session.checkFencing(err)
 		if err == nil {
 			session.discardPending(result)
 		}
+	})
+	if executeErr != nil {
+		err = executeErr
+	}
+	return
+}
+
+// Commit exactly the completed offsets, never the consumer's prefetched position.
+func (runtime *consumerRuntime) commitOffsets(offsets []kafka.TopicPartition, expectedEpoch uint64) (result []kafka.TopicPartition, err error) {
+	executeErr := runtime.execute(func(session *consumerSession) {
+		if err = session.validateEpoch(expectedEpoch); err != nil {
+			return
+		}
+		result, err = session.consumer.CommitOffsets(offsets)
+		if err == nil {
+			err = partitionResults(offsets, result)
+		}
+		err = session.checkFencing(err)
+	})
+	if executeErr != nil {
+		err = executeErr
+	}
+	return
+}
+
+// Restrict reads without giving up group membership. Every new batch/window
+// reapplies its selection, including after a cooperative rebalance.
+func (runtime *consumerRuntime) selectPartitions(active []kafka.TopicPartition, epoch uint64) (err error) {
+	executeErr := runtime.execute(func(session *consumerSession) {
+		if err = session.validateEpoch(epoch); err != nil {
+			return
+		}
+		var assigned []kafka.TopicPartition
+		assigned, err = session.consumer.Assignment()
+		if err != nil {
+			return
+		}
+		if err = partitionResults(active, assigned); err != nil {
+			return
+		}
+		if len(assigned) > 0 {
+			err = session.consumer.Pause(assigned)
+		}
+		if err == nil && len(active) > 0 {
+			err = session.consumer.Resume(active)
+		}
+		if err == nil {
+			session.pauseRequested = false
+			session.pauseApplied = false
+		}
+		err = session.checkFencing(err)
+	})
+	if executeErr != nil {
+		err = executeErr
+	}
+	return
+}
+
+func (runtime *consumerRuntime) pausePartitions(partitions []kafka.TopicPartition, epoch uint64) (err error) {
+	executeErr := runtime.execute(func(session *consumerSession) {
+		if err = session.validateEpoch(epoch); err != nil {
+			return
+		}
+		err = session.checkFencing(session.consumer.Pause(partitions))
 	})
 	if executeErr != nil {
 		err = executeErr

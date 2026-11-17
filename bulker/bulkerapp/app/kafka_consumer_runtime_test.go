@@ -157,6 +157,10 @@ func (consumer *fakeGroupConsumer) SeekPartitions(partitions []kafka.TopicPartit
 	return partitions, nil
 }
 
+func (consumer *fakeGroupConsumer) CommitOffsets(partitions []kafka.TopicPartition) ([]kafka.TopicPartition, error) {
+	return partitions, consumer.commitErr
+}
+
 func (consumer *fakeGroupConsumer) CommitMessage(message *kafka.Message) ([]kafka.TopicPartition, error) {
 	return []kafka.TopicPartition{message.TopicPartition}, consumer.commitErr
 }
