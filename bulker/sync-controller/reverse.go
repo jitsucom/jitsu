@@ -94,6 +94,8 @@ func buildReversePodTemplate(c *Config, entry *SyncEntry, secret, taskID string)
 		}},
 		Volumes: []v1.Volume{{Name: "config", VolumeSource: v1.VolumeSource{Secret: &v1.SecretVolumeSource{SecretName: secret}}}, {Name: "tmp", VolumeSource: v1.VolumeSource{EmptyDir: &v1.EmptyDirVolumeSource{SizeLimit: ptr.To(settings.scratch.DeepCopy())}}}},
 	}}
+	// Reverse syncs share the sync node pool and need the same drain protection.
+	pod.Annotations["cluster-autoscaler.kubernetes.io/safe-to-evict"] = "false"
 	if c.ExtraCAConfigMap != "" {
 		pod.Spec.Volumes = append(pod.Spec.Volumes, v1.Volume{Name: "extra-ca", VolumeSource: v1.VolumeSource{ConfigMap: &v1.ConfigMapVolumeSource{
 			LocalObjectReference: v1.LocalObjectReference{Name: c.ExtraCAConfigMap},

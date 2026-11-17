@@ -396,10 +396,20 @@ jobs:
 
           echo "Created GitHub release: $TAG"
 
+      - name: 🔑 Mint workflow dispatch token
+        id: dispatch-token
+        uses: actions/create-github-app-token@fee1f7d63c2ff003460e3d139729b119787bc349 # v2
+        with:
+          app-id: ${{ secrets.WORKFLOW_DISPATCH_APP_ID }}
+          private-key: ${{ secrets.WORKFLOW_DISPATCH_APP_PRIVATE_KEY }}
+          owner: jitsucom
+          repositories: jitsu-cloud-infra
+          permission-actions: write
+
       - name: 📢 Notify release
         id: notify
         env:
-          GH_TOKEN: ${{ secrets.DEPLOY_GITHUB_TOKEN }}
+          GH_TOKEN: ${{ steps.dispatch-token.outputs.token }}
         run: |
           gh workflow run new-release-notify.yaml \
             --repo jitsucom/jitsu-cloud-infra \
@@ -410,18 +420,9 @@ jobs:
             -f triggerAuthor=${{ github.actor }} \
             -f triggerUrl=${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
 
-          # Wait for the workflow run to be created
-          sleep 3
-
-          # Get the latest run URL using curl
-          DEPLOY_RUN_URL=$(curl -s \
-            -H "Accept: application/vnd.github+json" \
-            -H "Authorization: Bearer ${DEPLOY_GITHUB_TOKEN}" \
-            -H "X-GitHub-Api-Version: 2022-11-28" \
-            "https://api.github.com/repos/jitsucom/jitsu-cloud-infra/actions/workflows/new-release-notify.yaml/runs?per_page=1" \
-            | jq -r '.workflow_runs[0].html_url')
-
-          echo "deploy_run_url=${DEPLOY_RUN_URL}" >> $GITHUB_OUTPUT
+          # Link the workflow's runs page: selecting the latest run can point
+          # to another concurrent release notification.
+          echo "deploy_run_url=${GITHUB_SERVER_URL}/jitsucom/jitsu-cloud-infra/actions/workflows/new-release-notify.yaml?query=event%3Aworkflow_dispatch" >> "$GITHUB_OUTPUT"
 
   notify_slack:
     # Posts the release notification via the shared reusable workflow. Split

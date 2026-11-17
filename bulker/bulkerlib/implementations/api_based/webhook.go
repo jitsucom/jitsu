@@ -12,6 +12,7 @@ import (
 	"github.com/jitsucom/bulker/jitsubase/utils"
 	"io"
 	"net/http"
+	neturl "net/url"
 	"os"
 	"regexp"
 	"strings"
@@ -21,6 +22,14 @@ import (
 
 const WebhookBulkerTypeId = "webhook"
 const WebhookUnsupported = "Only 'batch' mode is supported"
+
+// maxResponseBodyBytes caps how much of a webhook response is read.
+const maxResponseBodyBytes = 64 * 1024
+
+// maxDrainedBodyBytes is how much more of a response is read and thrown away after the cap, so that the connection can
+// be reused: net/http drops a connection whose body was not read to the end. Nothing is kept, and the client timeout
+// bounds the time. A response larger than this still closes the connection.
+const maxDrainedBodyBytes = 1024 * 1024
 
 var GlobalIngestEndpoint = os.Getenv("GLOBAL_INGEST_ENDPOINT")
 var LocalIngestEndpoint = os.Getenv("LOCAL_INGEST_ENDPOINT")
@@ -54,13 +63,44 @@ type WebhookBulker struct {
 	closed *atomic.Bool
 }
 
+// isIngestEndpoint tells whether the destination URL is one of our own ingest endpoints, as configured by
+// GLOBAL_INGEST_ENDPOINT. The setting comes in two forms:
+//   - a complete URL (https://ingest.example.com/api/s/s2s/batch): the destination must be exactly that URL;
+//   - a host-suffix pattern (.d.jitsu.com/batch, what cloud uses): the destination's host must end with the host part
+//     with at least one label in front of it, and its path must be the path part.
+//
+// The URL is parsed and checked part by part. A suffix match over the whole string let any URL ending in the endpoint
+// (http://127.0.0.1:8123/admin#<endpoint>) qualify. Anything that can carry a second target is refused: userinfo, a
+// port, a query, a fragment, a scheme other than http(s).
+func isIngestEndpoint(raw string) bool {
+	pattern := strings.TrimSpace(GlobalIngestEndpoint)
+	if pattern == "" || strings.ContainsAny(raw, "?#") {
+		return false
+	}
+	if strings.Contains(pattern, "://") {
+		return strings.TrimRight(raw, "/") == strings.TrimRight(pattern, "/")
+	}
+	u, err := neturl.Parse(raw)
+	if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.User != nil || u.Port() != "" || u.Opaque != "" {
+		return false
+	}
+	hostPattern, pathPattern, _ := strings.Cut(pattern, "/")
+	hostPattern = strings.ToLower(hostPattern)
+	host := strings.ToLower(u.Hostname())
+	if strings.HasPrefix(hostPattern, ".") {
+		if len(host) <= len(hostPattern) || !strings.HasSuffix(host, hostPattern) {
+			return false
+		}
+	} else if host != hostPattern {
+		return false
+	}
+	return strings.TrimRight(u.EscapedPath(), "/") == strings.TrimRight("/"+pathPattern, "/")
+}
+
 func NewWebhookBulker(bulkerConfig bulker.Config) (bulker.Bulker, error) {
 	webhookConfig := WebhookConfig{}
 	if err := utils.ParseObject(bulkerConfig.DestinationConfig, &webhookConfig); err != nil {
 		return nil, fmt.Errorf("failed to parse destination config: %v", err)
-	}
-	httpClient := &http.Client{
-		Timeout: time.Duration(5) * time.Second,
 	}
 	var payload []byte
 	if webhookConfig.CustomPayload {
@@ -73,11 +113,20 @@ func NewWebhookBulker(bulkerConfig bulker.Config) (bulker.Bulker, error) {
 	url := webhookConfig.URL
 	originalUrl := url
 	isIngest := false
-	if GlobalIngestEndpoint != "" && strings.HasSuffix(url, GlobalIngestEndpoint) {
+	rewrittenToLocal := false
+	if isIngestEndpoint(url) {
 		isIngest = true
 		if LocalIngestEndpoint != "" {
 			url = LocalIngestEndpoint
+			rewrittenToLocal = true
 		}
+	}
+
+	// Only a destination that is rewritten to our own ingest service (an internal address) takes the plain client.
+	// Everything else, an ingest-looking URL without the rewrite included, goes to the customer's address and is guarded.
+	httpClient := newOutboundHTTPClient(time.Duration(5) * time.Second)
+	if rewrittenToLocal {
+		httpClient = &http.Client{Timeout: time.Duration(5) * time.Second}
 	}
 
 	return &WebhookBulker{Service: appbase.NewServiceBase(WebhookBulkerTypeId), config: webhookConfig, httpClient: httpClient,
@@ -189,8 +238,10 @@ func (mp *WebhookBulker) Upload(reader io.Reader, eventsName string, eventsCount
 		if err != nil {
 			statusCode = 0
 			respBody = ""
+			// a refused address stays refused: do not spend the ingest retries on it
+			refused := errors.Is(err, ErrBlockedAddress)
 			err = mp.fixError(err)
-			if mp.isIngest {
+			if mp.isIngest && !refused {
 				time.Sleep(time.Duration(retryDelayMs) * time.Millisecond)
 				continue
 			}
@@ -199,7 +250,11 @@ func (mp *WebhookBulker) Upload(reader io.Reader, eventsName string, eventsCount
 			defer res.Body.Close()
 			var bodyBytes []byte
 			statusCode = res.StatusCode
-			bodyBytes, err = io.ReadAll(res.Body)
+			// the endpoint is customer-controlled: never read more than a small answer into memory
+			bodyBytes, err = io.ReadAll(io.LimitReader(res.Body, maxResponseBodyBytes))
+			if err == nil {
+				_, _ = io.Copy(io.Discard, io.LimitReader(res.Body, maxDrainedBodyBytes))
+			}
 			if err != nil {
 				respBody = ""
 				err = mp.fixError(err)

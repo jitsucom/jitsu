@@ -1,8 +1,7 @@
-import { createRoute, verifyAccessWithRole } from "../../../lib/api";
+import { assertNotLimitedKey, createRoute, isPlatformAdmin, verifyAccessWithRole } from "../../../lib/api";
 import { z } from "zod";
 import { Prisma } from "@prisma/client";
 import { db } from "../../../lib/server/db";
-import { requireDefined } from "juava";
 import { withProductAnalytics } from "../../../lib/server/telemetry";
 import { validateSlug, validateWorkspaceName } from "./validate";
 import { ApiError } from "../../../lib/shared/errors";
@@ -52,10 +51,8 @@ export const route = createRoute()
     const limit = query.limit !== undefined ? parseInt(query.limit) || MAX_LIMIT : MAX_LIMIT;
     const offset = (page ?? 0) * limit;
 
-    const userModel = requireDefined(
-      await db.prisma().userProfile.findUnique({ where: { id: user.internalId } }),
-      `User ${user.internalId} does not exist`
-    );
+    // a key limited to one workspace or a role is not a platform admin here, so it does not list every workspace
+    const isAdmin = await isPlatformAdmin(user);
 
     // Search matches workspace id / name / slug, case-insensitively. Kept as a raw fragment so it
     // can be composed into the ordering query below (see comment there for why raw SQL).
@@ -63,7 +60,7 @@ export const route = createRoute()
       ? Prisma.sql`AND (w.id ILIKE ${`%${search}%`} OR w.name ILIKE ${`%${search}%`} OR w.slug ILIKE ${`%${search}%`})`
       : Prisma.empty;
 
-    const totalCount = userModel.admin
+    const totalCount = isAdmin
       ? await db.prisma().workspace.count({
           where: { deleted: false },
         })
@@ -81,7 +78,7 @@ export const route = createRoute()
     // workspaces (they sort last via NULLS LAST). Non-admins are scoped by WorkspaceAccess; admins
     // see every workspace plus its configuration-object count.
     const order = Prisma.sql`ORDER BY wup."lastUsed" DESC NULLS LAST, w."createdAt" ASC LIMIT ${limit} OFFSET ${offset}`;
-    const rows: any[] = userModel.admin
+    const rows: any[] = isAdmin
       ? await db.prisma().$queryRaw`
           SELECT w.*, wup."lastUsed",
             (SELECT count(*) FROM newjitsu."ConfigurationObject" co
@@ -109,7 +106,7 @@ export const route = createRoute()
         lastUsed: row.lastUsed ? new Date(row.lastUsed).toISOString() : undefined,
         // Postgres `count(*)` comes back as BigInt via $queryRaw, which fails `z.number()` and
         // JSON serialization — coerce to a plain number.
-        entities: userModel.admin && row.entities != null ? Number(row.entities) : undefined,
+        entities: isAdmin && row.entities != null ? Number(row.entities) : undefined,
       })
     );
 
@@ -141,6 +138,8 @@ export const route = createRoute()
     rateLimit: { bucket: "workspace-create", bearer: 2, session: 2, windowMs: 5 * 60_000 },
   })
   .handler(async ({ req, user, body }) => {
+    // creates a workspace and an owner membership on the user's account, outside whatever the key is limited to
+    assertNotLimitedKey(user);
     const nameResult = validateWorkspaceName(body.name || "");
     if (!nameResult.valid) {
       throw new ApiError(`Invalid workspace name: ${nameResult.reason}`, { status: 400 });

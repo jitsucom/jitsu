@@ -148,3 +148,19 @@ Request body:
 | `source_task`    | Status of running `read` command.                                                                    |
 | `source_state`   | State objects obtained while running `read` command.                                                 |
 | `task_log`       | Logs of source tasks                                                                                 |
+
+## Autoscaler eviction protection
+
+Connector pods (scheduled reads and manual spec/check/discover/read) and reverse
+ETL pods carry `cluster-autoscaler.kubernetes.io/safe-to-evict: "false"`. This lets
+finite jobs finish during GKE autoscaled blue-green's wait before draining, and
+prevents ordinary cluster-autoscaler scale-down from interrupting running jobs.
+It does not block explicit deletion, node failure, job deadlines, or upgrade
+termination after the configured wait.
+
+Deploy this controller before enabling autoscaled blue-green on the sync node
+pool. CronJob reconciliation hashes the full rendered pod template and updates
+existing CronJobs automatically. Existing Pods and Jobs are not retroactively
+changed: let old Jobs finish or annotate existing Pods and verify newly-created
+Pods from old Jobs before enabling autoscaling. No change to termination grace or
+SIGTERM handling is needed; the protection delays eviction rather than shutdown.

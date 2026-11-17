@@ -2,10 +2,15 @@ import type { PrismaClient } from "@prisma/client";
 import type { NextApiRequest } from "next";
 import { deepCopy, randomId, requireDefined, rpc } from "juava";
 import { SessionUser, SyncOptionsType } from "../schema";
-import { getAllConfigObjectTypeNames, getConfigObjectType, parseObject } from "../schema/config-objects";
+import {
+  getAllConfigObjectTypeNames,
+  getConfigObjectType,
+  parseObject,
+  withSchemaDefaults,
+} from "../schema/config-objects";
 import { containsMaskedSecrets, unmaskSecretsFromOriginal } from "../schema/secrets";
 import { getCoreDestinationTypeNonStrict, MASKED_SECRET } from "../schema/destinations";
-import { verifyAccess, verifyAccessWithRole } from "../api";
+import { isPlatformAdmin, verifyAccess, verifyAccessWithRole } from "../api";
 import { prepareZodObjectForDeserialization } from "../zod";
 import { ApiError } from "../shared/errors";
 import { assertCustomDomainsAllowed, assertIdentityStitchingAllowed } from "./plan-gate";
@@ -152,11 +157,7 @@ export class ConfigObjectsService {
   }> {
     const limit = Math.min(Math.max(opts.limit ?? WORKSPACES_PAGE_MAX, 1), WORKSPACES_PAGE_MAX);
     const offset = Math.max(opts.offset ?? 0, 0);
-    const userModel = requireDefined(
-      await this.prisma.userProfile.findUnique({ where: { id: user.internalId } }),
-      `User ${user.internalId} does not exist`
-    );
-    const [total, workspaces] = userModel.admin
+    const [total, workspaces] = (await isPlatformAdmin(user))
       ? await Promise.all([
           this.prisma.workspace.count({ where: { deleted: false } }),
           this.prisma.workspace.findMany({
@@ -260,7 +261,11 @@ export class ConfigObjectsService {
           where: { id: incoming.cloneId, workspaceId },
         });
         if (clonesOriginal?.config) {
-          object = unmaskSecretsFromOriginal(object, clonesOriginal.config as any);
+          object = unmaskSecretsFromOriginal(
+            object,
+            clonesOriginal.config as any,
+            withSchemaDefaults(type, clonesOriginal.config)
+          );
         }
       }
     }
