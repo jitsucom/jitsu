@@ -1,3 +1,4 @@
+import { withAuthRateLimit } from "../../../../lib/server/rate-limit/auth";
 import { NextApiRequest, NextApiResponse } from "next";
 import { db } from "../../../../lib/server/db";
 import jwt from "jsonwebtoken";
@@ -15,7 +16,7 @@ import { trackAuthEvent } from "../../../../lib/server/telemetry";
 
 const log = getServerLog("api/auth/dynamic-oidc/callback");
 
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+async function handler(req: NextApiRequest, res: NextApiResponse) {
   const { code, state, error } = req.query;
 
   if (error) {
@@ -318,3 +319,5 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     });
   }
 }
+
+export default withAuthRateLimit(handler, { bucket: "login" });
