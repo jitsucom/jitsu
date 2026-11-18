@@ -102,7 +102,7 @@ spec:
               readOnly: true
           livenessProbe:
             httpGet:
-              path: /api/healthcheck
+              path: /api/healthcheck?probe=live
               port: http
             initialDelaySeconds: 120
             periodSeconds: 15
@@ -116,7 +116,7 @@ spec:
             timeoutSeconds: 10
           startupProbe:
             httpGet:
-              path: /api/healthcheck
+              path: /api/healthcheck?probe=live
               port: http
             initialDelaySeconds: 30
             periodSeconds: 10
