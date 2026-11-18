@@ -659,7 +659,8 @@ async function openViewportTestPage(page: Page) {
         ...descriptor,
         get() {
           window["viewportReads"][key]++;
-          return descriptor.get!.call(window);
+          // lets a test change the viewport at an exact moment, without a real resize
+          return window["viewportOverride"]?.[key] ?? descriptor.get!.call(window);
         },
       });
     }
@@ -723,6 +724,28 @@ test("page reads no dimensions with a warm cache and still reports the viewport"
   await page.evaluate(() => new Promise<void>(resolve => requestAnimationFrame(() => resolve())));
   await page.evaluate(() => window["jitsu"].page({ caseName: "viewport-page-resized" }));
   expect(propertiesOf("viewport-page-resized")).toMatchObject({ width: 640, height: 480 });
+});
+
+test("page(name, props) takes one consistent measurement even if a property getter reads the viewport", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 800, height: 600 });
+  await openViewportTestPage(page);
+  await page.evaluate(() => window["jitsu"].track("warm-before-named-page"));
+  await page.evaluate(async () => {
+    await window["jitsu"].page("named", {
+      caseName: "viewport-named-getter",
+      get probe() {
+        // the viewport changes while the caller's properties are being read
+        window["viewportOverride"] = { innerWidth: 640 };
+        return window.innerWidth;
+      },
+    });
+  });
+  const sent = requestLog.find(entry => entry.body.properties?.caseName === "viewport-named-getter")?.body;
+  // analytics.js and the SDK must agree: both come from the cached 800x600 measurement, not a 640x600 mix
+  expect(sent.properties).toMatchObject({ width: 800, height: 600 });
+  expect(sent.context.screen).toMatchObject({ innerWidth: 800, innerHeight: 600 });
 });
 
 test("listeners run by analytics.js during page() see the real viewport", async ({ page }) => {

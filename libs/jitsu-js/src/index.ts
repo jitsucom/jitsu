@@ -120,18 +120,16 @@ function createUnderlyingAnalyticsInstance(
 
   const a = {
     ...analytics,
-    page: (...args) =>
+    page: (...args) => {
+      // Build the argument list before the viewport is replaced: spreading the caller's properties can run their
+      // getters, and one that reads window.innerWidth would use up the cached value meant for analytics.js
+      const pageArgs =
+        args.length === 2 && typeof args[0] === "string" && typeof args[1] === "object"
+          ? [{ name: args[0], ...args[1] }]
+          : args;
       // analytics.js reads window.innerWidth/innerHeight synchronously inside page(), which forces layout
-      withCachedViewport(() => {
-        if (args.length === 2 && typeof args[0] === "string" && typeof args[1] === "object") {
-          return analytics.page({
-            name: args[0],
-            ...args[1],
-          });
-        } else {
-          return (analytics.page as any)(...args);
-        }
-      }),
+      return withCachedViewport(() => (analytics.page as any)(...pageArgs));
+    },
     identify: (...args) => {
       if (args[0] && typeof args[0] !== "object" && typeof args[0] !== "string") {
         //fix the quirk of analytics.js: if you pass number as first argument, it will be converted to string
