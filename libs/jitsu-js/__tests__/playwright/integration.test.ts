@@ -9,6 +9,7 @@ import { AnalyticsClientEvent, AnalyticsInterface } from "@jitsu/protocols/analy
 
 test.use({
   ignoreHTTPSErrors: true,
+  launchOptions: { ignoreDefaultArgs: ["--disable-back-forward-cache"] },
 });
 
 const chalk = {
@@ -730,6 +731,54 @@ test("multiple sends in a native resize handler share a single measurement", asy
   expect(await page.evaluate(() => window["nativeResizeReads"])).toEqual([1, 1]);
 });
 
+test("an early pageshow send measures the restored viewport", async ({ page }) => {
+  await page.setViewportSize({ width: 800, height: 600 });
+  await page.addInitScript(() => {
+    window.addEventListener(
+      "pageshow",
+      event => {
+        if (event.persisted) window["jitsu"].group("restored-from-history");
+      },
+      true
+    );
+  });
+  await page.goto(`${server.baseUrl}/basic.html`);
+  await page.evaluate(() => window["jitsu"].group("before-history"));
+  await page.goto(`${server.baseUrl}/p.js`);
+  await page.setViewportSize({ width: 640, height: 480 });
+  await page.evaluate(() => history.back());
+  await expect
+    .poll(() => requestLog.find(entry => entry.body.groupId === "restored-from-history")?.body.context.screen)
+    .toMatchObject({ innerWidth: 640, innerHeight: 480 });
+});
+
+test("redispatching a native resize reads the current viewport", async ({ page }) => {
+  await page.setViewportSize({ width: 800, height: 600 });
+  await openViewportTestPage(page);
+  await page.evaluate(async () => {
+    await window["jitsu"].group("before-redispatch");
+    const viewport = window.visualViewport!;
+    viewport.addEventListener(
+      "resize",
+      event => {
+        if (!event.isTrusted) return;
+        window["jitsu"].group("native-before-redispatch");
+        // Redispatch after the native handler returns, before another resize is delivered.
+        setTimeout(() => {
+          Object.defineProperty(window, "innerWidth", { configurable: true, value: 720 });
+          viewport.dispatchEvent(event);
+          window["jitsu"].group("after-redispatch");
+        }, 0);
+      },
+      { once: true }
+    );
+  });
+  await page.setViewportSize({ width: 640, height: 480 });
+  await expect
+    .poll(() => requestLog.find(entry => entry.body.groupId === "after-redispatch")?.body.context.screen.innerWidth)
+    .toBe(720);
+});
+
 for (const capture of [false, true]) {
   test(`resize handler registered before SDK initialization sees the new viewport (capture=${capture})`, async ({
     page,
@@ -754,6 +803,30 @@ for (const capture of [false, true]) {
     expect(payload.context.screen).toMatchObject({ innerWidth: 640, innerHeight: 480 });
   });
 }
+
+test("a host can resize an iframe and send before resize notification", async ({ page }) => {
+  await page.goto(`${server.baseUrl}/basic.html`);
+  await page.evaluate(async () => {
+    const frame = document.createElement("iframe");
+    frame.width = "800";
+    frame.height = "600";
+    frame.src = "/basic.html";
+    const loaded = new Promise<void>(resolve => {
+      frame.onload = () => resolve();
+    });
+    document.body.append(frame);
+    await loaded;
+    const client = frame.contentWindow!["jitsu"];
+    await client.group("iframe-ready");
+    // Warm the cache and send the page view in the same task as the resize.
+    const warm = client.group("iframe-before-resize");
+    frame.width = "720";
+    await Promise.all([warm, client.page({ caseName: "synchronous-frame-resize" })]);
+  });
+  const resized = requestLog.find(entry => entry.body.properties?.caseName === "synchronous-frame-resize")?.body;
+  expect(resized?.properties).toMatchObject({ width: 720, height: 600 });
+  expect(resized?.context.screen).toMatchObject({ innerWidth: 720, innerHeight: 600 });
+});
 
 test("an iframe client follows its first same-origin navigation", async ({ page }) => {
   let releaseNavigation: () => void;

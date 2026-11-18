@@ -337,6 +337,8 @@ type ViewportCache = {
   size?: ViewportSize;
   measuredResize?: Event;
   observer?: MutationObserver;
+  suspended: boolean;
+  onPageTransition: (event: PageTransitionEvent) => void;
   onResize: (event: Event) => void;
 };
 const viewports = new WeakMap<Window, ViewportCache>();
@@ -345,8 +347,16 @@ function createViewportCache(browserWindow: Window): ViewportCache {
   const cache: ViewportCache = {
     document: browserWindow.document,
     visualViewport: browserWindow.visualViewport,
+    suspended: false,
+    onPageTransition: event => {
+      if (!event.persisted || !event.isTrusted) return;
+      cache.suspended = event.type === "pagehide";
+      cache.size = undefined;
+    },
     onResize: event => {
-      if (event.target === event.currentTarget && event !== cache.measuredResize) cache.size = undefined;
+      if (event.target === event.currentTarget && (!event.isTrusted || event !== cache.measuredResize)) {
+        cache.size = undefined;
+      }
     },
   };
   if (cache.document) {
@@ -366,6 +376,8 @@ function readViewportSize(browserWindow: Window): ViewportSize {
 function getViewportSize(browserWindow: Window): ViewportSize {
   const doc = browserWindow.document;
   if (
+    // A host can resize its iframe and send before the browser delivers any resize event.
+    (browserWindow.parent && browserWindow.parent !== browserWindow) ||
     typeof browserWindow.addEventListener !== "function" ||
     (doc && (typeof Document === "undefined" || !(doc instanceof Document) || typeof MutationObserver !== "function"))
   ) {
@@ -375,6 +387,8 @@ function getViewportSize(browserWindow: Window): ViewportSize {
   if (!cache || cache.document !== doc) {
     if (cache) {
       cache.observer?.disconnect();
+      browserWindow.removeEventListener?.("pagehide", cache.onPageTransition, true);
+      browserWindow.removeEventListener?.("pageshow", cache.onPageTransition, true);
       browserWindow.removeEventListener?.("resize", cache.onResize, true);
       cache.visualViewport?.removeEventListener?.("resize", cache.onResize, true);
     }
@@ -384,10 +398,14 @@ function getViewportSize(browserWindow: Window): ViewportSize {
   // takeRecords also catches a synchronous send before observer delivery.
   if (cache.observer?.takeRecords().length) cache.size = undefined;
   if (!cache.size) {
+    browserWindow.addEventListener("pagehide", cache.onPageTransition, true);
+    browserWindow.addEventListener("pageshow", cache.onPageTransition, true);
     browserWindow.addEventListener("resize", cache.onResize, true);
     // Safari can change innerWidth/innerHeight during pinch zoom with only a visual viewport resize.
     cache.visualViewport?.addEventListener?.("resize", cache.onResize, true);
   }
+  // A send during pagehide must not warm the cache for an early persisted pageshow handler.
+  if (cache.suspended) return readViewportSize(browserWindow);
   const event = browserWindow.event;
   // An earlier handler can send before invalidation. A browser-generated Event is
   // unique to its dispatch, whereas scripts can immediately reuse the same Event.
@@ -395,7 +413,7 @@ function getViewportSize(browserWindow: Window): ViewportSize {
     event?.type === "resize" && (event.target === browserWindow || event.target === cache.visualViewport)
       ? event
       : undefined;
-  if (!cache.size || (resize && resize !== cache.measuredResize)) {
+  if (!cache.size || (resize && (!resize.isTrusted || resize !== cache.measuredResize))) {
     cache.size = readViewportSize(browserWindow);
     cache.measuredResize = resize?.isTrusted ? resize : undefined;
   }

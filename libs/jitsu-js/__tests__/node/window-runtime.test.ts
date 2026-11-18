@@ -32,7 +32,7 @@ describe("browser screen context", () => {
     }
     expect(width).toHaveBeenCalledTimes(1);
     expect(height).toHaveBeenCalledTimes(1);
-    expect(addListener).toHaveBeenCalledTimes(1);
+    expect(addListener.mock.calls.map(([type]) => type).sort()).toEqual(["pagehide", "pageshow", "resize"]);
 
     browserWindow.screen = { width: 2560, height: 1440 };
     browserWindow.devicePixelRatio = 2;
