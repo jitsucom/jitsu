@@ -70,11 +70,14 @@ type Config struct {
 	// SyncFetchForbidLocal is the FETCH_FORBID_LOCAL value of the sync sidecar. A connector sync can write to a webhook
 	// destination whose URL the customer typed in; with the guard on (the default) the sidecar refuses to connect to
 	// private, loopback and link-local addresses. Set it to "false" to turn the guard off, for example on a self-hosted
-	// install that syncs to a webhook on its own network. Empty means "true". Anything other than 1, true, yes or on
-	// leaves the guard off, as everywhere else.
+	// install that syncs to a webhook on its own network. Unset gives "true". Anything other than 1, true, yes or on
+	// leaves the guard off, as everywhere else. The config loader ignores an empty environment value, so an empty
+	// SYNCCTL_SYNC_FETCH_FORBID_LOCAL cannot override a value set in syncctl.env: set it to "true" to turn the guard
+	// back on.
 	SyncFetchForbidLocal string `mapstructure:"SYNC_FETCH_FORBID_LOCAL" default:"true"`
 	// SyncFetchLocalWhitelist is the FETCH_LOCAL_WHITELIST value of the sync sidecar: comma-separated hostnames that may
-	// stay local while the guard is on. Empty passes nothing.
+	// stay local while the guard is on. Unset passes nothing. As above, an empty environment value does not clear a list
+	// set in syncctl.env.
 	SyncFetchLocalWhitelist string `mapstructure:"SYNC_FETCH_LOCAL_WHITELIST"`
 
 	LocalIngestEndpoint  string `mapstructure:"LOCAL_INGEST_ENDPOINT"`
