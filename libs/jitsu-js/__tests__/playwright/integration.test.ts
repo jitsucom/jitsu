@@ -710,6 +710,65 @@ for (const capture of [false, true]) {
   });
 }
 
+test("an iframe client follows its first same-origin navigation", async ({ page }) => {
+  let releaseNavigation: () => void;
+  const initialized = new Promise<void>(resolve => {
+    releaseNavigation = resolve;
+  });
+  await page.exposeFunction("frameReady", () => releaseNavigation());
+  await page.route("**/viewport-frame.html", async route => {
+    await initialized;
+    await route.fulfill({ contentType: "text/html", body: "<!doctype html><title>Frame</title>" });
+  });
+  await page.goto(`${server.baseUrl}/basic.html`);
+  await page.evaluate(async () => {
+    const frame = document.createElement("iframe");
+    frame.width = "800";
+    frame.height = "600";
+    const loaded = new Promise<void>(resolve => {
+      frame.onload = () => resolve();
+    });
+    frame.src = "/viewport-frame.html";
+    document.body.append(frame);
+    const initial = frame.contentDocument!;
+    const script = initial.createElement("script");
+    script.src = new URL("/p.js", location.href).href;
+    const ready = new Promise<void>((resolve, reject) => {
+      script.onload = () => resolve();
+      script.onerror = () => reject(new Error("Failed to load iframe SDK"));
+    });
+    initial.head.append(script);
+    await ready;
+    const client = frame.contentWindow!["jitsu"];
+    await client.group("before-frame-navigation");
+
+    await window["frameReady"]();
+    await loaded;
+    if (frame.contentDocument === initial || frame.contentWindow!["jitsu"] !== client) {
+      throw new Error("Expected a new document with the original SDK");
+    }
+    frame.width = "640";
+    await client.group("after-frame-navigation");
+
+    const doc = frame.contentDocument!;
+    doc.open();
+    doc.write("<!doctype html><title>Rewritten</title>");
+    doc.close();
+    frame.width = "700";
+    await client.group("after-frame-rewrite");
+  });
+  for (const [groupId, width] of [
+    ["before-frame-navigation", 800],
+    ["after-frame-navigation", 640],
+    ["after-frame-rewrite", 700],
+  ] as const) {
+    expect(requestLog.find(entry => entry.body.groupId === groupId)?.body.context.screen).toMatchObject({
+      innerWidth: width,
+      innerHeight: 600,
+    });
+  }
+});
+
 for (const reuseRoot of [false, true]) {
   test(`an existing client tracks viewport changes after document.open() (reuse root: ${reuseRoot})`, async ({
     page,

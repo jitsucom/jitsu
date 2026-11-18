@@ -331,18 +331,18 @@ const cookieStorage: StorageFactory = (cookieDomain, key2cookie) => {
 };
 
 type ViewportSize = { innerWidth: number; innerHeight: number };
-type ViewportCache = { size?: ViewportSize; observer?: MutationObserver };
+type ViewportCache = { document: Document; size?: ViewportSize; observer?: MutationObserver };
 const viewports = new WeakMap<Window, ViewportCache>();
 
 function createViewportCache(browserWindow: Window): ViewportCache {
-  const cache: ViewportCache = {};
+  const cache: ViewportCache = { document: browserWindow.document };
   // document.open() clears window listeners even when the original <html> is
   // reinserted. Observe direct children of Document to detect that rewrite.
-  if (browserWindow.document && typeof MutationObserver !== "undefined") {
+  if (cache.document && typeof MutationObserver !== "undefined") {
     cache.observer = new MutationObserver(() => {
       cache.size = undefined;
     });
-    cache.observer.observe(browserWindow.document, { childList: true });
+    cache.observer.observe(cache.document, { childList: true });
   }
   viewports.set(browserWindow, cache);
   return cache;
@@ -356,7 +356,12 @@ function onViewportResize(this: Window, event: Event) {
 }
 
 function getViewportSize(browserWindow: Window, deliveredEvent?: Event): ViewportSize {
-  const cache = viewports.get(browserWindow) ?? createViewportCache(browserWindow);
+  let cache = viewports.get(browserWindow);
+  // An iframe can keep its initial Window when its first navigation replaces the Document.
+  if (!cache || cache.document !== browserWindow.document) {
+    cache?.observer?.disconnect();
+    cache = createViewportCache(browserWindow);
+  }
   const event = deliveredEvent ?? browserWindow.event;
   const resize = event?.type === "resize" && event.target === browserWindow ? event : undefined;
   const measurement = resize && resizeMeasurements.get(resize);
