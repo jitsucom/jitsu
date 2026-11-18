@@ -1,12 +1,54 @@
 package main
 
 import (
+	"context"
 	"errors"
 	"strings"
 	"testing"
 
 	bulker "github.com/jitsucom/bulker/bulkerlib"
+	"github.com/jitsucom/bulker/bulkerlib/types"
 )
+
+// rejectingStream is a destination stream whose commit fails, as the guarded webhook writer does when it refuses to
+// connect to a local address.
+type rejectingStream struct{ err error }
+
+func (r *rejectingStream) Consume(context.Context, types.Object) (bulker.State, types.Object, error) {
+	return bulker.State{}, nil, nil
+}
+func (r *rejectingStream) ConsumeJSON(context.Context, []byte) (bulker.State, types.Object, error) {
+	return bulker.State{}, nil, nil
+}
+func (r *rejectingStream) ConsumeMap(context.Context, map[string]any) (bulker.State, types.Object, error) {
+	return bulker.State{}, nil, nil
+}
+func (r *rejectingStream) Abort(context.Context) bulker.State { return bulker.State{} }
+func (r *rejectingStream) Complete(context.Context) (bulker.State, error) {
+	return bulker.State{}, r.err
+}
+
+// The link before the state check: a commit the destination rejects ends up as an error on the stream only. The
+// task-level error stays empty, which is exactly why the old GLOBAL/LEGACY check let the checkpoint through.
+func TestRejectedCommitBlocksGlobalAndLegacyState(t *testing.T) {
+	st := NewActiveStream("orders", "incremental", bulker.Batch)
+	if err := st.Begin(&rejectingStream{err: errors.New("connection to a non-public address is not allowed")}); err != nil {
+		t.Fatal(err)
+	}
+	st.Commit(false)
+	if st.Error == "" {
+		t.Fatal("a rejected commit must be recorded on the stream")
+	}
+	s := stateTestSidecar("", map[string]*ActiveStream{"orders": st})
+	if s.isErr() {
+		t.Fatal("test premise: a rejected commit does not set the task-level error")
+	}
+	for _, state := range []string{"_GLOBAL_STATE", "_LEGACY_STATE"} {
+		if reason := s.stateSaveBlocker(state); reason == "" {
+			t.Fatalf("%s must not be saved after a rejected commit", state)
+		}
+	}
+}
 
 func stateTestSidecar(packageName string, streams map[string]*ActiveStream) *ReadSideCar {
 	return &ReadSideCar{
