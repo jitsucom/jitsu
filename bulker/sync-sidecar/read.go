@@ -15,6 +15,7 @@ import (
 
 	"github.com/jackc/pgx/v5/pgconn"
 	bulker "github.com/jitsucom/bulker/bulkerlib"
+	"github.com/jitsucom/bulker/bulkerlib/implementations/api_based"
 	"github.com/jitsucom/bulker/bulkerlib/implementations/sql"
 	"github.com/jitsucom/bulker/eventslog"
 	"github.com/jitsucom/bulker/jitsubase/jsonorder"
@@ -405,6 +406,12 @@ func (s *ReadSideCar) processState(state *StateRow) {
 // checkpoint would not advance even though the destination is healthy. Streams that are not due (a full refresh, or
 // any stream in a full re-sync, until they close) keep buffering, and the checkpoint waits for them.
 func (s *ReadSideCar) checkpointEligibleStreams() {
+	// After a task-level error the sidecar aborts at the end of the run instead of committing (closeActiveStreams). A
+	// commit here would not be undone by that abort, and a replace-table commit replaces the existing table with whatever
+	// partial batch the stream has buffered. saveState refuses the checkpoint itself in this case.
+	if s.isCriticalError() {
+		return
+	}
 	names := make([]string, 0, len(s.processedStreams))
 	for name := range s.processedStreams {
 		names = append(names, name)
@@ -440,13 +447,29 @@ func (s *ReadSideCar) holdSharedState(name string, data any) {
 		// A stream waits for its commit if it has records buffered, and also if it is a replace-table stream that has not
 		// committed yet even with no rows: its table is replaced only when it commits. A checkpoint saved before that would
 		// make a retry see saved state, open the stream in batch mode and append to the old table, keeping rows that were
-		// deleted at the source. The stream itself is not committed early (see checkpointEligibleStreams).
-		if stream != nil && stream.bulkerStream != nil && (stream.bufferedEventsCount > 0 || stream.bulkerMode == bulker.ReplaceTable) {
+		// deleted at the source. The stream itself is not committed early (see checkpointEligibleStreams). That only applies
+		// to a destination that replaces data, see destinationReplacesData.
+		if stream != nil && stream.bulkerStream != nil && (stream.bufferedEventsCount > 0 || (stream.bulkerMode == bulker.ReplaceTable && s.destinationReplacesData())) {
 			held.waitingFor[streamName] = stream.commitCount
 		}
 	}
 	s.pendingSharedState[name] = held
 	s.flushSharedState()
+}
+
+// destinationReplacesData reports whether committing a replace-table stream replaces data that already exists at the
+// destination. SQL warehouses and file storage do. The API-based destinations have nothing to replace: the webhook writer
+// treats replace-table like batch, and completing an empty stream sends nothing. A destination type this does not know is
+// assumed to replace, which is the cautious answer.
+func (s *ReadSideCar) destinationReplacesData() bool {
+	if s.blk == nil {
+		return true
+	}
+	switch s.blk.Type() {
+	case api_based.WebhookBulkerTypeId, api_based.MixpanelBulkerTypeId, api_based.OtlpBulkerTypeId:
+		return false
+	}
+	return true
 }
 
 // heldCheckpoint is a GLOBAL or LEGACY checkpoint that is waiting for the records it covers to be committed.

@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -9,6 +10,14 @@ import (
 	"github.com/jitsucom/bulker/jitsubase/jsonorder"
 	"github.com/jitsucom/bulker/jitsubase/pg"
 )
+
+// typedBulker is a destination of a given type. Only Type() is used by the code under test.
+type typedBulker struct {
+	bulker.Bulker
+	typeID string
+}
+
+func (b typedBulker) Type() string { return b.typeID }
 
 // Two more properties of the shared (GLOBAL and LEGACY) checkpoint, both from the JITSU-258 review:
 //
@@ -156,6 +165,52 @@ func TestSharedCheckpointScope(t *testing.T) {
 		s.closeActiveStreams(true)
 		if n, c := rows("covers"), cursor("covers"); n != 1 || c != "c1" {
 			t.Fatalf("after b's upload failed: %d row(s), cursor %q, want the saved c1 to stay", n, c)
+		}
+	})
+
+	// Third review round, first finding: after a task-level error the sidecar aborts at the end of the run instead of
+	// committing (closeActiveStreams(!cancelled && !isCriticalError())). A shared checkpoint that follows the error must not
+	// commit anything either: a warehouse replace-table commit replaces the table with the partial batch, and aborting
+	// afterwards cannot restore it.
+	t.Run("after a task-level error nothing is committed at a shared checkpoint", func(t *testing.T) {
+		a, b := &countingStream{}, &countingStream{}
+		s := newSidecar("crashed", open("a", "incremental", bulker.ReplaceTable, a, 5), open("b", "full_refresh", bulker.ReplaceTable, b, 3))
+		s.registerErr(errors.New("connector crashed"))
+		s.processState(global("c1"))
+		if a.commits != 0 || b.commits != 0 {
+			t.Fatalf("commits after a task-level error: a=%d b=%d, want 0 and 0: a replace-table commit would replace the table with a partial batch", a.commits, b.commits)
+		}
+		if n := rows("crashed"); n != 0 {
+			t.Fatalf("%d checkpoint row(s) saved after a task-level error, want 0", n)
+		}
+	})
+
+	// Third review round, second finding: the webhook writer treats replace-table like batch and completing an empty stream
+	// sends nothing, so an opened but empty stream has nothing to replace and the checkpoint must not wait for it. A
+	// destination that does replace data (a warehouse) still waits.
+	t.Run("an empty replace-table stream holds the checkpoint only for destinations that replace data", func(t *testing.T) {
+		for _, tc := range []struct {
+			destination string
+			wantRows    int
+		}{
+			{"webhook", 1},  // nothing to replace: saved at once
+			{"mixpanel", 1}, // same
+			{"postgres", 0}, // replaces its table at the stream's completion: waits for it
+		} {
+			syncID := "dest-" + tc.destination
+			a, b := &countingStream{}, &countingStream{}
+			s := newSidecar(syncID, open("a", "incremental", bulker.ReplaceTable, a, 5), open("b", "incremental", bulker.ReplaceTable, b, 0))
+			s.blk = typedBulker{typeID: tc.destination}
+			s.processState(global("c1"))
+			if a.commits != 1 {
+				t.Errorf("%s: stream a commits: %d, want 1", tc.destination, a.commits)
+			}
+			if b.commits != 0 {
+				t.Errorf("%s: the empty stream b was committed %d time(s) at the checkpoint, want 0", tc.destination, b.commits)
+			}
+			if n := rows(syncID); n != tc.wantRows {
+				t.Errorf("%s: %d checkpoint row(s) saved with an empty replace-table stream open, want %d", tc.destination, n, tc.wantRows)
+			}
 		}
 	})
 }
