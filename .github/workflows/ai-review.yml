@@ -20,7 +20,7 @@ jobs:
     # are reviewed too: the reusable workflow passes allow-bots: true to codex-action,
     # so its write-access check no longer aborts on the bot actor. Draft PRs are
     # skipped inside the reusable workflow.
-    uses: jitsucom/github-workflows/.github/workflows/ai-review.yml@4de756fd43c5e16e989a6d663071fe0db61bf2ef # Codex 0.169.0
+    uses: jitsucom/github-workflows/.github/workflows/ai-review.yml@fba42042e96d58ea9832c5099f512e784a2ff856 # Codex 0.169.0
     secrets:
       OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
       AI_CODE_REVIEW_APP_ID: ${{ secrets.AI_CODE_REVIEW_APP_ID }}
