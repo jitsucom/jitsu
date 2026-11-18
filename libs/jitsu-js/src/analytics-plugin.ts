@@ -330,37 +330,44 @@ const cookieStorage: StorageFactory = (cookieDomain, key2cookie) => {
   };
 };
 
-type ViewportSize = { innerWidth: number; innerHeight: number; resizeEvent?: Event };
-const viewportSizes = new WeakMap<Element | Window, ViewportSize>();
+type ViewportSize = { innerWidth: number; innerHeight: number };
+// Keep only the active root for each window, without retaining a detached DOM tree.
+const viewportSizes = new WeakMap<Window, WeakMap<Element | Window, ViewportSize>>();
+type ResizeMeasurement = "cached" | "live";
+const resizeMeasurements = new WeakMap<Event, ResizeMeasurement>();
 
 function onViewportResize(this: Window, event: Event) {
-  getViewportSize(this, event);
+  if (event.target === this) getViewportSize(this, event);
 }
 
-function getViewportSize(browserWindow: Window, event = browserWindow.event): ViewportSize {
-  // document.open() clears window listeners but preserves the Window and Document.
-  // A new root needs a fresh measurement and the listener reattached.
+function getViewportSize(browserWindow: Window, deliveredEvent?: Event): ViewportSize {
   const root = browserWindow.document?.documentElement ?? browserWindow;
-  let size = viewportSizes.get(root);
-  if (!size) browserWindow.addEventListener("resize", onViewportResize, true);
-
-  // A previously registered handler may send before our listener runs. Use the
-  // active window resize when available so either handler can refresh the cache.
+  let size = viewportSizes.get(browserWindow)?.get(root);
+  const event = deliveredEvent ?? browserWindow.event;
   const resize = event?.type === "resize" && event.target === browserWindow ? event : undefined;
-  if (!size || (resize && resize !== size.resizeEvent)) {
-    size = {
-      innerWidth: browserWindow.innerWidth,
-      innerHeight: browserWindow.innerHeight,
-      // Scripts can dispatch the same synthetic Event object more than once.
-      resizeEvent: resize?.isTrusted ? resize : undefined,
-    };
-    viewportSizes.set(root, size);
+  const measurement = resize && resizeMeasurements.get(resize);
+  const needsMeasurement = resize && (measurement !== "cached" || (deliveredEvent && !resize.isTrusted));
+  if (!size) {
+    // document.open() removes window listeners. Reattach when the root changes.
+    browserWindow.addEventListener("resize", onViewportResize, true);
+    size = { innerWidth: browserWindow.innerWidth, innerHeight: browserWindow.innerHeight };
+    viewportSizes.set(browserWindow, new WeakMap([[root, size]]));
+  } else if (needsMeasurement) {
+    size.innerWidth = browserWindow.innerWidth;
+    size.innerHeight = browserWindow.innerHeight;
+  }
+  if (resize && !measurement) {
+    // Scripts can redispatch an Event in the same turn and even prevent our
+    // listener from running. If the first read precedes our listener, favor
+    // a live value for that synthetic Event until the script yields.
+    resizeMeasurements.set(resize, deliveredEvent || resize.isTrusted ? "cached" : "live");
+    if (!resize.isTrusted) queueMicrotask(() => resizeMeasurements.delete(resize));
   }
   return size;
 }
 
 export function windowRuntime(opts: JitsuOptions): RuntimeFacade {
-  getViewportSize(window);
+  if (!viewportSizes.has(window)) getViewportSize(window);
   const key2Cookie = (key: string) => {
     switch (key) {
       case "__anon_id":

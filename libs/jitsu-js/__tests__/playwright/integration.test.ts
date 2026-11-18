@@ -728,6 +728,81 @@ test("an existing client tracks viewport changes after document.open()", async (
   }
 });
 
+test("restoring the original document root keeps the current viewport", async ({ page }) => {
+  await page.setViewportSize({ width: 800, height: 600 });
+  await page.goto(`${server.baseUrl}/basic.html`);
+  await page.evaluate(() => {
+    const original = document.documentElement;
+    document.replaceChild(original.cloneNode(false), original);
+    window["restoreRoot"] = () => document.replaceChild(original, document.documentElement);
+  });
+  await page.setViewportSize({ width: 640, height: 480 });
+  await page.evaluate(() => new Promise<void>(resolve => requestAnimationFrame(() => resolve())));
+  await page.evaluate(() => {
+    window["restoreRoot"]();
+    return window["jitsu"].track("restored-root");
+  });
+  expect(requestLog.find(entry => entry.body.event === "restored-root")?.body.context.screen).toMatchObject({
+    innerWidth: 640,
+    innerHeight: 480,
+  });
+});
+
+for (const earlySender of ["absent", "sends", "stops"] as const) {
+  test(`synthetic resize shares dimensions across sends (early sender: ${earlySender})`, async ({ page }) => {
+    clearRequestLog();
+    await page.addInitScript(earlySender => {
+      if (earlySender === "absent") return;
+      window.addEventListener(
+        "resize",
+        event => {
+          if (event.isTrusted) return;
+          window["sendGroups"]("early");
+          if (earlySender === "stops") event.stopImmediatePropagation();
+        },
+        true
+      );
+    }, earlySender);
+    await page.goto(`${server.baseUrl}/basic.html`);
+    const reads = await page.evaluate(async earlySender => {
+      let widthReads = 0;
+      let width = 800;
+      Object.defineProperty(window, "innerWidth", {
+        configurable: true,
+        get() {
+          widthReads++;
+          return width;
+        },
+      });
+      const sent: Promise<unknown>[] = [];
+      window["sendGroups"] = (phase: string) => {
+        for (let i = 0; i < 3; i++) sent.push(window["jitsu"].group(`synthetic-${width}-${phase}`));
+      };
+      window.addEventListener("resize", event => {
+        if (!event.isTrusted) window["sendGroups"]("late");
+      });
+      const resize = new Event("resize");
+      window.dispatchEvent(resize);
+      const first = widthReads;
+      width = 640;
+      if (earlySender === "stops") resize.initEvent("resize", false, false);
+      window.dispatchEvent(resize);
+      const second = widthReads - first;
+      await Promise.all(sent);
+      return [first, second];
+    }, earlySender);
+    if (earlySender === "absent") expect(reads).toEqual([1, 1]);
+    for (const width of [800, 640]) {
+      for (const phase of ["early", "late"]) {
+        if (phase === "early" && earlySender === "absent") continue;
+        if (phase === "late" && earlySender === "stops") continue;
+        const events = requestLog.filter(entry => entry.body.groupId === `synthetic-${width}-${phase}`);
+        expect(events.map(entry => entry.body.context.screen.innerWidth)).toEqual([width, width, width]);
+      }
+    }
+  });
+}
+
 test("basic", async ({ browser }) => {
   clearRequestLog();
   const browserContext = await browser.newContext();
