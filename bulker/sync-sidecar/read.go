@@ -66,7 +66,7 @@ type ReadSideCar struct {
 	processedStreams   map[string]*ActiveStream
 	// pendingSharedState holds the latest GLOBAL and LEGACY checkpoints (by state name) that are waiting for the records
 	// they cover to be committed, see holdSharedState.
-	pendingSharedState map[string]any
+	pendingSharedState map[string]*heldCheckpoint
 	catalog            *jsonorder.OrderedMap[string, *Stream]
 	destinationConfig  map[string]any
 	initialState       string
@@ -411,47 +411,71 @@ func (s *ReadSideCar) checkpointEligibleStreams() {
 	}
 	sort.Strings(names) // stable order for the logs and the commits
 	for _, name := range names {
-		s.checkpointIfNecessary(s.processedStreams[name])
+		stream := s.processedStreams[name]
+		// A replace-table stream that has not received a row yet (it has only been opened) is left for its own
+		// completion: committing it now would replace its table with an empty one, and if the job fails before its rows
+		// arrive the table stays empty.
+		if stream != nil && stream.IsActive() && stream.bulkerMode == bulker.ReplaceTable && stream.bufferedEventsCount == 0 {
+			continue
+		}
+		s.checkpointIfNecessary(stream)
 	}
 }
 
 // holdSharedState records a GLOBAL or LEGACY checkpoint and saves it as soon as the records it covers are committed.
 // The cursor covers every stream, so saving it while a stream still has buffered records moves the cursor past records
 // that are only in memory. A full re-sync defers every upload to the end of the stream, so it is exactly the case: if
-// that upload fails, the next run would resume past undelivered records. Only the latest checkpoint is kept.
+// that upload fails, the next run would resume past undelivered records. Only the latest checkpoint is kept. The
+// checkpoint waits only for the records it covers: the streams that have records buffered when it arrives. Records a
+// stream buffers afterwards are not covered by it and do not hold it back.
 func (s *ReadSideCar) holdSharedState(name string, data any) {
 	if data == nil {
 		return
 	}
 	if s.pendingSharedState == nil {
-		s.pendingSharedState = map[string]any{}
+		s.pendingSharedState = map[string]*heldCheckpoint{}
 	}
-	s.pendingSharedState[name] = data
+	held := &heldCheckpoint{data: data, waitingFor: map[string]int{}}
+	for streamName, stream := range s.processedStreams {
+		if stream != nil && stream.bulkerStream != nil && stream.bufferedEventsCount > 0 {
+			held.waitingFor[streamName] = stream.commitCount
+		}
+	}
+	s.pendingSharedState[name] = held
 	s.flushSharedState()
 }
 
-// flushSharedState saves the held GLOBAL and LEGACY checkpoints once no stream has records waiting to be committed.
-// saveState still refuses to save them if any stream has an error, so a failed upload drops the held checkpoint.
+// heldCheckpoint is a GLOBAL or LEGACY checkpoint that is waiting for the records it covers to be committed.
+type heldCheckpoint struct {
+	data any
+	// waitingFor maps the name of every stream that had records buffered when the checkpoint arrived to that stream's
+	// commitCount at the time. Those records are committed once the stream has committed again.
+	waitingFor map[string]int
+}
+
+// flushSharedState saves the held GLOBAL and LEGACY checkpoints whose records have all been committed. saveState still
+// refuses to save them if any stream has an error, so a failed upload drops the held checkpoint.
 func (s *ReadSideCar) flushSharedState() {
-	if len(s.pendingSharedState) == 0 || s.hasUncommittedRecords() {
-		return
-	}
 	for _, name := range []string{"_GLOBAL_STATE", "_LEGACY_STATE"} {
-		if data, ok := s.pendingSharedState[name]; ok {
-			delete(s.pendingSharedState, name)
-			s.saveState(name, data)
+		held, ok := s.pendingSharedState[name]
+		if !ok || !s.coveredRecordsCommitted(held) {
+			continue
 		}
+		delete(s.pendingSharedState, name)
+		s.saveState(name, held.data)
 	}
 }
 
-// hasUncommittedRecords reports whether any stream still has records buffered for an upload that has not happened yet.
-func (s *ReadSideCar) hasUncommittedRecords() bool {
-	for _, stream := range s.processedStreams {
-		if stream != nil && stream.bulkerStream != nil && stream.bufferedEventsCount > 0 {
-			return true
+// coveredRecordsCommitted reports whether every stream the checkpoint was waiting for has committed since, or has failed
+// (saveState then drops the checkpoint instead of it being held for ever).
+func (s *ReadSideCar) coveredRecordsCommitted(held *heldCheckpoint) bool {
+	for streamName, committedBefore := range held.waitingFor {
+		stream := s.processedStreams[streamName]
+		if stream != nil && stream.commitCount <= committedBefore && stream.Error == "" {
+			return false
 		}
 	}
-	return false
+	return true
 }
 
 // stateSaveBlocker returns the reason why the state called `stream` must not be saved now, or "" if it may be saved.
@@ -517,13 +541,11 @@ func (s *ReadSideCar) closeStream(streamName string, complete bool) {
 func (s *ReadSideCar) manageBulkerTimeout(eventsCount int) func() {
 	s.bulkerStartTime.Store(time.Now().Unix())
 	period := time.Duration(max(eventsCount/185, 3600)) * time.Second
-	timer := time.NewTimer(period)
-	go func() {
-		t := <-timer.C
-		if !t.IsZero() {
-			s.panic("Bulker is running for more than %s. Exiting", period)
-		}
-	}()
+	// AfterFunc starts no goroutine until the timer fires, so disarming it with Stop leaves nothing behind. (A goroutine
+	// blocked on a stopped timer's channel is never released: it was leaked for every commit.)
+	timer := time.AfterFunc(period, func() {
+		s.panic("Bulker is running for more than %s. Exiting", period)
+	})
 	return func() {
 		timer.Stop()
 		s.lastMessageTime.Store(time.Now().Unix())
@@ -1137,8 +1159,11 @@ type ActiveStream struct {
 	bulkerMode          bulker.BulkMode
 	bufferedEventsCount int
 	bufferedBytes       int
-	unsavedState        any
-	closed              bool
+	// commitCount is how many times this stream has committed its buffered records successfully. A held shared
+	// checkpoint uses it to know that the records it was waiting for have been committed (see holdSharedState).
+	commitCount  int
+	unsavedState any
+	closed       bool
 
 	bulkerStream          bulker.BulkerStream
 	processedObjectSample types2.Json
@@ -1194,6 +1219,7 @@ func (s *ActiveStream) Commit(strict bool) (state bulker.State) {
 			if err != nil {
 				s.Error = err.Error()
 			} else {
+				s.commitCount++
 				s.EventsCount += s.bufferedEventsCount
 				s.BytesProcessed += s.bufferedBytes
 			}
