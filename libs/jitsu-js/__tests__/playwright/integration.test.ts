@@ -671,6 +671,8 @@ async function openViewportTestPage(page: Page) {
 
 test("only the first send after invalidation measures the viewport", async ({ page }) => {
   await openViewportTestPage(page);
+  // the SDK fills the cache after the first rendered frame, before any send
+  await page.waitForFunction(() => window["viewportReads"].innerWidth === 1);
   const counts = await page.evaluate(async () => {
     const reads = () => ({ ...window["viewportReads"] });
     const history = [reads()];
@@ -692,7 +694,64 @@ test("only the first send after invalidation measures the viewport", async ({ pa
     await Promise.all(pending);
     return history;
   });
-  expect(counts).toEqual([0, 1, 1, 1, 2, 2].map(count => ({ innerWidth: count, innerHeight: count })));
+  expect(counts).toEqual([1, 1, 1, 1, 2, 2].map(count => ({ innerWidth: count, innerHeight: count })));
+});
+
+test("the cache is filled after the first frame, so even the first send reads nothing", async ({ page }) => {
+  await page.setViewportSize({ width: 800, height: 600 });
+  await openViewportTestPage(page);
+  await page.waitForFunction(() => window["viewportReads"].innerWidth === 1);
+  const warm = await page.evaluate(() => ({ ...window["viewportReads"] }));
+  await page.evaluate(() => window["jitsu"].group("first-send"));
+  expect(await page.evaluate(() => window["viewportReads"])).toEqual(warm);
+  expect(requestLog.find(entry => entry.body.groupId === "first-send")?.body.context.screen).toMatchObject({
+    innerWidth: 800,
+    innerHeight: 600,
+  });
+});
+
+test("a resize refills the cache after the frame, so the next send reads nothing", async ({ page }) => {
+  await page.setViewportSize({ width: 800, height: 600 });
+  await openViewportTestPage(page);
+  // the cache is warm however it got filled, and any start-up measurement has finished
+  await page.evaluate(() => window["jitsu"].group("warm-before-resize"));
+  await page.waitForTimeout(250);
+  const warm = await page.evaluate(() => ({ ...window["viewportReads"] }));
+  await page.setViewportSize({ width: 640, height: 480 });
+  // refilled by the SDK itself, not by a send
+  await page.waitForFunction(before => window["viewportReads"].innerWidth > before, warm.innerWidth);
+  await page.waitForTimeout(250);
+  const refilled = await page.evaluate(() => ({ ...window["viewportReads"] }));
+  await page.evaluate(() => window["jitsu"].group("after-refill"));
+  expect(await page.evaluate(() => window["viewportReads"])).toEqual(refilled);
+  expect(requestLog.find(entry => entry.body.groupId === "after-refill")?.body.context.screen).toMatchObject({
+    innerWidth: 640,
+    innerHeight: 480,
+  });
+});
+
+test("a burst of resizes is measured once, after it ends", async ({ page }) => {
+  await page.setViewportSize({ width: 800, height: 600 });
+  await openViewportTestPage(page);
+  await page.evaluate(() => window["jitsu"].group("warm-before-burst"));
+  await page.waitForTimeout(400);
+  const warm = await page.evaluate(() => ({ ...window["viewportReads"] }));
+  // a drag: a new size every few milliseconds
+  for (let i = 0; i < 12; i++) {
+    await page.setViewportSize({ width: 600 + 10 * i, height: 500 });
+    await page.waitForTimeout(8);
+  }
+  await page.waitForFunction(before => window["viewportReads"].innerWidth > before, warm.innerWidth);
+  await page.waitForTimeout(500);
+  const after = await page.evaluate(() => ({ ...window["viewportReads"] }));
+  expect(after.innerWidth - warm.innerWidth).toBe(1);
+  expect(after.innerHeight - warm.innerHeight).toBe(1);
+  await page.evaluate(() => window["jitsu"].group("after-burst"));
+  expect(await page.evaluate(() => window["viewportReads"])).toEqual(after);
+  expect(requestLog.find(entry => entry.body.groupId === "after-burst")?.body.context.screen).toMatchObject({
+    innerWidth: 710,
+    innerHeight: 500,
+  });
 });
 
 test("page reads no dimensions with a warm cache and still reports the viewport", async ({ page }) => {

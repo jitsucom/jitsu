@@ -341,6 +341,46 @@ type ViewportCache = {
   onResize: (event: Event) => void;
 };
 const viewports = new WeakMap<Window, ViewportCache>();
+/** How long the viewport has to stay unchanged before the cache is refilled. */
+const REMEASURE_QUIET_MS = 100;
+const remeasures = new WeakMap<Window, { generation: number; timer?: number }>();
+
+/**
+ * Refills the cache once the viewport has been quiet for a moment and the browser has rendered a frame. Layout is
+ * clean by then, so the read costs nothing and the next send finds a warm cache instead of paying for the layout
+ * itself. Every invalidation restarts the wait, so a drag or a scroll that resizes on every frame costs one read
+ * at the end, not one per frame. Does nothing without the timing APIs, and skips hidden documents.
+ */
+function remeasureWhenQuiet(browserWindow: Window) {
+  if (
+    typeof browserWindow.requestAnimationFrame !== "function" ||
+    typeof browserWindow.setTimeout !== "function" ||
+    typeof browserWindow.clearTimeout !== "function"
+  ) {
+    return;
+  }
+  let state = remeasures.get(browserWindow);
+  if (!state) {
+    state = { generation: 0 };
+    remeasures.set(browserWindow, state);
+  }
+  const current = state;
+  const generation = ++current.generation;
+  if (current.timer !== undefined) {
+    browserWindow.clearTimeout(current.timer);
+  }
+  current.timer = browserWindow.setTimeout(() => {
+    current.timer = undefined;
+    browserWindow.requestAnimationFrame(() =>
+      browserWindow.setTimeout(() => {
+        // a newer invalidation owns the next measurement
+        if (current.generation === generation && !browserWindow.document?.hidden) {
+          getViewportSize(browserWindow);
+        }
+      }, 0)
+    );
+  }, REMEASURE_QUIET_MS);
+}
 
 function createViewportCache(browserWindow: Window): ViewportCache {
   const cache: ViewportCache = {
@@ -348,16 +388,19 @@ function createViewportCache(browserWindow: Window): ViewportCache {
     visualViewport: browserWindow.visualViewport,
     onVisibilityChange: () => {
       cache.size = undefined;
+      remeasureWhenQuiet(browserWindow);
     },
     onResize: event => {
       if (event.target === event.currentTarget && (!event.isTrusted || event !== cache.measuredResize)) {
         cache.size = undefined;
+        remeasureWhenQuiet(browserWindow);
       }
     },
   };
   if (cache.document) {
     cache.observer = new MutationObserver(() => {
       cache.size = undefined;
+      remeasureWhenQuiet(browserWindow);
     });
     cache.observer.observe(cache.document, { childList: true });
   }
@@ -413,6 +456,16 @@ function getViewportSize(browserWindow: Window): ViewportSize {
     cache.measuredResize = resize?.isTrusted ? resize : undefined;
   }
   return cache.size;
+}
+
+/**
+ * Fills the viewport cache shortly after start-up, once a frame has rendered. A page that sends nothing until its
+ * first user interaction then starts with a warm cache instead of paying for the layout in that first send.
+ */
+export function warmViewportCache() {
+  if (isInBrowser()) {
+    remeasureWhenQuiet(window);
+  }
 }
 
 const viewportKeys = ["innerWidth", "innerHeight"] as const;

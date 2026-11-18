@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { emptyRuntime, windowRuntime, withCachedViewport } from "../../src/analytics-plugin";
+import { emptyRuntime, warmViewportCache, windowRuntime, withCachedViewport } from "../../src/analytics-plugin";
 
 afterEach(() => vi.unstubAllGlobals());
 
@@ -168,5 +168,99 @@ describe("withCachedViewport", () => {
     vi.stubGlobal("window", undefined);
     vi.stubGlobal("document", undefined);
     expect(withCachedViewport(() => 42)).toBe(42);
+  });
+});
+
+describe("warmViewportCache", () => {
+  // a window whose timers and animation frames only run when the test says so
+  const timedWindow = (extra: object = {}) => {
+    const frames: (() => void)[] = [];
+    const timers = new Map<number, { cb: () => void; ms: number }>();
+    let nextTimer = 1;
+    const reads = vi.fn(() => 800);
+    const win: any = {
+      screen: { width: 1, height: 1 },
+      innerHeight: 600,
+      requestAnimationFrame: (cb: () => void) => frames.push(cb),
+      setTimeout: (cb: () => void, ms: number) => {
+        timers.set(nextTimer, { cb, ms });
+        return nextTimer++;
+      },
+      clearTimeout: (id: number) => timers.delete(id),
+      ...extra,
+    };
+    Object.defineProperty(win, "innerWidth", { get: reads, configurable: true });
+    vi.stubGlobal("window", win);
+    vi.stubGlobal("document", {});
+    const runTimers = () => {
+      const due = [...timers.entries()];
+      timers.clear();
+      due.forEach(([, t]) => t.cb());
+    };
+    const runFrames = () => frames.splice(0).forEach(cb => cb());
+    // quiet period -> rendered frame -> the task after it
+    const settle = () => {
+      runTimers();
+      runFrames();
+      runTimers();
+    };
+    return { win, frames, timers, reads, runTimers, runFrames, settle };
+  };
+
+  it("measures once, after the quiet period and a rendered frame, not when called", () => {
+    const { timers, frames, reads, runTimers, runFrames } = timedWindow();
+    warmViewportCache();
+    expect(reads).not.toHaveBeenCalled();
+    expect([...timers.values()].map(t => t.ms)).toEqual([100]);
+    runTimers();
+    expect(frames).toHaveLength(1);
+    expect(reads).not.toHaveBeenCalled();
+    runFrames();
+    expect(reads).not.toHaveBeenCalled();
+    runTimers();
+    expect(reads).toHaveBeenCalledTimes(1);
+  });
+
+  it("restarts the wait on every call, so a burst is measured once", () => {
+    const { timers, reads, settle } = timedWindow();
+    warmViewportCache();
+    warmViewportCache();
+    warmViewportCache();
+    expect(timers.size).toBe(1);
+    settle();
+    expect(reads).toHaveBeenCalledTimes(1);
+  });
+
+  it("drops a measurement that a newer invalidation has overtaken", () => {
+    const { reads, runTimers, runFrames, settle } = timedWindow();
+    warmViewportCache();
+    runTimers();
+    runFrames();
+    // the viewport changes again after the quiet period but before the measurement runs
+    warmViewportCache();
+    runTimers();
+    expect(reads).not.toHaveBeenCalled();
+    settle();
+    expect(reads).toHaveBeenCalledTimes(1);
+  });
+
+  it("does nothing without the timing APIs, or in a hidden document", () => {
+    for (const missing of ["requestAnimationFrame", "setTimeout", "clearTimeout"]) {
+      const { reads, settle } = timedWindow({ [missing]: undefined });
+      warmViewportCache();
+      expect(() => settle()).not.toThrow();
+      expect(reads).not.toHaveBeenCalled();
+    }
+    const { reads, win, settle } = timedWindow();
+    win.document = { hidden: true };
+    warmViewportCache();
+    settle();
+    expect(reads).not.toHaveBeenCalled();
+  });
+
+  it("does nothing outside a browser", () => {
+    vi.stubGlobal("window", undefined);
+    vi.stubGlobal("document", undefined);
+    expect(() => warmViewportCache()).not.toThrow();
   });
 });

@@ -8,6 +8,7 @@ import {
   createInMemoryStorage,
   ensureAnonymousId,
   withCachedViewport,
+  warmViewportCache,
 } from "./analytics-plugin";
 import {
   Callback,
@@ -281,6 +282,9 @@ export function jitsuAnalytics(_opts: JitsuOptions): AnalyticsInterface {
   }
   const inBrowser = isInBrowser();
   const rt = opts.runtime || (inBrowser ? windowRuntime(opts) : emptyRuntime(opts));
+  if (inBrowser && !opts.runtime) {
+    warmViewportCache();
+  }
   return createUnderlyingAnalyticsInstance(opts, rt);
 
   // if (inBrowser) {
