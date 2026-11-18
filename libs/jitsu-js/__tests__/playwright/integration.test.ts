@@ -48,6 +48,9 @@ test.beforeAll(async () => {
     port: 3088,
     https: process.env.DISABLE_HTTPS !== "1" && process.env.DISABLE_HTTPS !== "true",
     handlers: {
+      "/viewport-history.html": (_req, res) => {
+        res.type("html").send('<!doctype html><script src="/p.js" data-init-only="true" defer></script>');
+      },
       "/p.js": (req, res) => {
         res.setHeader("Content-Type", "text/javascript");
         res.send(fs.readFileSync(path.join(__dirname, "../../dist/web/p.js.txt")).toString());
@@ -731,26 +734,34 @@ test("multiple sends in a native resize handler share a single measurement", asy
   expect(await page.evaluate(() => window["nativeResizeReads"])).toEqual([1, 1]);
 });
 
-test("an early pageshow send measures the restored viewport", async ({ page }) => {
-  await page.setViewportSize({ width: 800, height: 600 });
-  await page.addInitScript(() => {
-    window.addEventListener(
-      "pageshow",
-      event => {
-        if (event.persisted) window["jitsu"].group("restored-from-history");
-      },
-      true
-    );
+for (const firstSend of ["before navigation", "during pagehide"] as const) {
+  test(`an early pageshow send measures the restored viewport (first send ${firstSend})`, async ({ page }) => {
+    clearRequestLog();
+    await page.setViewportSize({ width: 800, height: 600 });
+    await page.addInitScript(firstSend => {
+      window.addEventListener(
+        "pageshow",
+        event => {
+          if (event.persisted) window["jitsu"].group("restored-from-history");
+        },
+        true
+      );
+      if (firstSend === "during pagehide") {
+        window.addEventListener("pagehide", () => window["jitsu"].group("before-history"), true);
+      }
+    }, firstSend);
+    await page.goto(`${server.baseUrl}/viewport-history.html`);
+    if (firstSend === "before navigation") {
+      await page.evaluate(() => window["jitsu"].group("before-history"));
+    }
+    await page.goto(`${server.baseUrl}/p.js`);
+    await page.setViewportSize({ width: 640, height: 480 });
+    await page.evaluate(() => history.back());
+    await expect
+      .poll(() => requestLog.find(entry => entry.body.groupId === "restored-from-history")?.body.context.screen)
+      .toMatchObject({ innerWidth: 640, innerHeight: 480 });
   });
-  await page.goto(`${server.baseUrl}/basic.html`);
-  await page.evaluate(() => window["jitsu"].group("before-history"));
-  await page.goto(`${server.baseUrl}/p.js`);
-  await page.setViewportSize({ width: 640, height: 480 });
-  await page.evaluate(() => history.back());
-  await expect
-    .poll(() => requestLog.find(entry => entry.body.groupId === "restored-from-history")?.body.context.screen)
-    .toMatchObject({ innerWidth: 640, innerHeight: 480 });
-});
+}
 
 test("redispatching a native resize reads the current viewport", async ({ page }) => {
   await page.setViewportSize({ width: 800, height: 600 });

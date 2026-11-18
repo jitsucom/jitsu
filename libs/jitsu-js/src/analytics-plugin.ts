@@ -337,8 +337,7 @@ type ViewportCache = {
   size?: ViewportSize;
   measuredResize?: Event;
   observer?: MutationObserver;
-  suspended: boolean;
-  onPageTransition: (event: PageTransitionEvent) => void;
+  onVisibilityChange: () => void;
   onResize: (event: Event) => void;
 };
 const viewports = new WeakMap<Window, ViewportCache>();
@@ -347,10 +346,7 @@ function createViewportCache(browserWindow: Window): ViewportCache {
   const cache: ViewportCache = {
     document: browserWindow.document,
     visualViewport: browserWindow.visualViewport,
-    suspended: false,
-    onPageTransition: event => {
-      if (!event.persisted || !event.isTrusted) return;
-      cache.suspended = event.type === "pagehide";
+    onVisibilityChange: () => {
       cache.size = undefined;
     },
     onResize: event => {
@@ -387,8 +383,7 @@ function getViewportSize(browserWindow: Window): ViewportSize {
   if (!cache || cache.document !== doc) {
     if (cache) {
       cache.observer?.disconnect();
-      browserWindow.removeEventListener?.("pagehide", cache.onPageTransition, true);
-      browserWindow.removeEventListener?.("pageshow", cache.onPageTransition, true);
+      cache.document?.removeEventListener("visibilitychange", cache.onVisibilityChange, true);
       browserWindow.removeEventListener?.("resize", cache.onResize, true);
       cache.visualViewport?.removeEventListener?.("resize", cache.onResize, true);
     }
@@ -398,14 +393,14 @@ function getViewportSize(browserWindow: Window): ViewportSize {
   // takeRecords also catches a synchronous send before observer delivery.
   if (cache.observer?.takeRecords().length) cache.size = undefined;
   if (!cache.size) {
-    browserWindow.addEventListener("pagehide", cache.onPageTransition, true);
-    browserWindow.addEventListener("pageshow", cache.onPageTransition, true);
+    doc?.addEventListener("visibilitychange", cache.onVisibilityChange, true);
     browserWindow.addEventListener("resize", cache.onResize, true);
     // Safari can change innerWidth/innerHeight during pinch zoom with only a visual viewport resize.
     cache.visualViewport?.addEventListener?.("resize", cache.onResize, true);
   }
-  // A send during pagehide must not warm the cache for an early persisted pageshow handler.
-  if (cache.suspended) return readViewportSize(browserWindow);
+  // Hidden documents can enter the back-forward cache. Keep the next visible send fresh,
+  // even when the first SDK call was made by a pagehide or visibilitychange handler.
+  if (doc?.hidden) return readViewportSize(browserWindow);
   const event = browserWindow.event;
   // An earlier handler can send before invalidation. A browser-generated Event is
   // unique to its dispatch, whereas scripts can immediately reuse the same Event.
