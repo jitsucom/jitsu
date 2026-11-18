@@ -451,6 +451,10 @@ func buildSyncPodTemplate(c *Config, pc PodCtx, secretName string) v1.PodTemplat
 		v1.EnvVar{Name: "GLOBAL_INGEST_ENDPOINT", Value: c.GlobalIngestEndpoint},
 		v1.EnvVar{Name: "CONFIGS_PATH", Value: "/shared"},
 		v1.EnvVar{Name: "STARTED_BY", Value: startedBy},
+		// A webhook destination's URL comes from the customer. Keep the sidecar's outbound client away from the
+		// cluster's own network (JITSU-258). Jitsu's own ingest URLs are rewritten to LOCAL_INGEST_ENDPOINT by the
+		// webhook bulker and do not go through this guard.
+		v1.EnvVar{Name: "FETCH_FORBID_LOCAL", Value: "true"},
 		taskIDEnv,
 	)
 	// STARTED_AT is intentionally not set: the env fieldRef API can't reach
