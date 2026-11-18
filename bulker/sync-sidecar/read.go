@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -380,7 +381,7 @@ func (s *ReadSideCar) processState(state *StateRow) {
 	//checkpointing. commit to bulker all processed events on saving state
 	switch state.Type {
 	case "GLOBAL":
-		s.checkpointIfNecessary(s.lastStream)
+		s.checkpointEligibleStreams()
 		s.holdSharedState("_GLOBAL_STATE", state.GlobalState)
 	case "STREAM":
 		streamName := joinStrings(state.StreamState.StreamDescriptor.Namespace, state.StreamState.StreamDescriptor.Name, ".")
@@ -393,8 +394,24 @@ func (s *ReadSideCar) processState(state *StateRow) {
 			s.flushSharedState()
 		}
 	case "LEGACY", "":
-		s.checkpointIfNecessary(s.lastStream)
+		s.checkpointEligibleStreams()
 		s.holdSharedState("_LEGACY_STATE", state.Data)
+	}
+}
+
+// checkpointEligibleStreams gives every processed stream its checkpoint, so each one that is due for a commit is
+// committed. A GLOBAL or LEGACY checkpoint covers all streams, and a source can interleave the records of several
+// streams before it; committing only the last stream that was opened would leave the others buffered and the held
+// checkpoint would not advance even though the destination is healthy. Streams that are not due (a full refresh, or
+// any stream in a full re-sync, until they close) keep buffering, and the checkpoint waits for them.
+func (s *ReadSideCar) checkpointEligibleStreams() {
+	names := make([]string, 0, len(s.processedStreams))
+	for name := range s.processedStreams {
+		names = append(names, name)
+	}
+	sort.Strings(names) // stable order for the logs and the commits
+	for _, name := range names {
+		s.checkpointIfNecessary(s.processedStreams[name])
 	}
 }
 
