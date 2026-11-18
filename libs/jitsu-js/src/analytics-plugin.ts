@@ -331,12 +331,29 @@ const cookieStorage: StorageFactory = (cookieDomain, key2cookie) => {
 };
 
 type ViewportSize = { innerWidth: number; innerHeight: number };
-type ViewportCache = { document: Document; size?: ViewportSize; observer?: MutationObserver };
+type ViewportCache = {
+  document: Document;
+  visualViewport: VisualViewport | null;
+  size?: ViewportSize;
+  observer?: MutationObserver;
+  invalidate: () => void;
+};
 const viewports = new WeakMap<Window, ViewportCache>();
 
-function invalidateViewport(this: Window, event: Event) {
-  const cache = viewports.get(this);
-  if (cache && event.target === this) cache.size = undefined;
+function createViewportCache(browserWindow: Window): ViewportCache {
+  const cache: ViewportCache = {
+    document: browserWindow.document,
+    visualViewport: browserWindow.visualViewport,
+    invalidate: () => {
+      cache.size = undefined;
+    },
+  };
+  if (cache.document) {
+    cache.observer = new MutationObserver(cache.invalidate);
+    cache.observer.observe(cache.document, { childList: true });
+  }
+  viewports.set(browserWindow, cache);
+  return cache;
 }
 
 function readViewportSize(browserWindow: Window): ViewportSize {
@@ -353,24 +370,27 @@ function getViewportSize(browserWindow: Window): ViewportSize {
   }
   let cache = viewports.get(browserWindow);
   if (!cache || cache.document !== doc) {
-    cache?.observer?.disconnect();
-    cache = { document: doc };
-    viewports.set(browserWindow, cache);
-    if (doc) {
-      const current = cache;
-      current.observer = new MutationObserver(() => {
-        current.size = undefined;
-      });
-      current.observer.observe(doc, { childList: true });
+    if (cache) {
+      cache.observer?.disconnect();
+      browserWindow.removeEventListener?.("resize", cache.invalidate);
+      cache.visualViewport?.removeEventListener?.("resize", cache.invalidate);
     }
+    cache = createViewportCache(browserWindow);
   }
   // A document rewrite clears window listeners, even if it restores the same root.
   // takeRecords also catches a synchronous send before observer delivery.
   if (cache.observer?.takeRecords().length) cache.size = undefined;
-  if (!cache.size) browserWindow.addEventListener("resize", invalidateViewport, true);
+  if (!cache.size) {
+    browserWindow.addEventListener("resize", cache.invalidate);
+    // Safari can change innerWidth/innerHeight during pinch zoom with only a visual viewport resize.
+    cache.visualViewport?.addEventListener?.("resize", cache.invalidate);
+  }
   const event = browserWindow.event;
   // An earlier handler can send before our resize listener gets called.
-  if (!cache.size || (event?.type === "resize" && event.target === browserWindow)) {
+  if (
+    !cache.size ||
+    (event?.type === "resize" && (event.target === browserWindow || event.target === cache.visualViewport))
+  ) {
     cache.size = readViewportSize(browserWindow);
   }
   return cache.size;

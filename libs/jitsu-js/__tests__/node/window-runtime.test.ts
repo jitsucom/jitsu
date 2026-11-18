@@ -8,6 +8,7 @@ describe("browser screen context", () => {
     const browserWindow = Object.assign(new EventTarget(), {
       screen: { width: 1920, height: 1080 },
       devicePixelRatio: 1.5,
+      visualViewport: new EventTarget(),
     });
     const width = vi.fn(() => 800);
     const height = vi.fn(() => 600);
@@ -43,9 +44,14 @@ describe("browser screen context", () => {
     expect(after).toEqual({ width: 2560, height: 1440, innerWidth: 640, innerHeight: 480, density: 2 });
     expect(width).toHaveBeenCalledTimes(2);
     expect(height).toHaveBeenCalledTimes(2);
+    width.mockReturnValue(320);
+    browserWindow.visualViewport.dispatchEvent(new Event("resize"));
+    expect(width).toHaveBeenCalledTimes(2);
+    expect(first.screen!()!.innerWidth).toBe(320);
+    expect(width).toHaveBeenCalledTimes(3);
     expect(before!.innerWidth).toBe(800);
     after!.innerWidth = 123;
-    expect(first.screen!()!.innerWidth).toBe(640);
+    expect(first.screen!()!.innerWidth).toBe(320);
   });
 
   it.each([{}, { addEventListener: vi.fn(), document: {} }])("can read screen dimensions from a partial DOM", shim => {
