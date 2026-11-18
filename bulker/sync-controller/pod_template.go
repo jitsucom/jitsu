@@ -262,6 +262,15 @@ func (c *Config) syncFastShutdownEnabled(syncID string) bool {
 	return false
 }
 
+// sidecarFetchForbidLocal is the FETCH_FORBID_LOCAL value for the sync sidecar: "true" unless syncctl is configured
+// otherwise (SYNC_FETCH_FORBID_LOCAL), see the field comment.
+func (c *Config) sidecarFetchForbidLocal() string {
+	if v := strings.TrimSpace(c.SyncFetchForbidLocal); v != "" {
+		return v
+	}
+	return "true"
+}
+
 // sourceImageAllowed reports whether a connector image may be started. With SYNC_ALLOWED_IMAGE_PREFIXES unset every
 // image is allowed.
 func (c *Config) sourceImageAllowed(pkg string) bool {
@@ -453,10 +462,14 @@ func buildSyncPodTemplate(c *Config, pc PodCtx, secretName string) v1.PodTemplat
 		v1.EnvVar{Name: "STARTED_BY", Value: startedBy},
 		// A webhook destination's URL comes from the customer. Keep the sidecar's outbound client away from the
 		// cluster's own network (JITSU-258). Jitsu's own ingest URLs are rewritten to LOCAL_INGEST_ENDPOINT by the
-		// webhook bulker and do not go through this guard.
-		v1.EnvVar{Name: "FETCH_FORBID_LOCAL", Value: "true"},
+		// webhook bulker and do not go through this guard. On by default; an operator can change it with
+		// SYNCCTL_SYNC_FETCH_FORBID_LOCAL and SYNCCTL_SYNC_FETCH_LOCAL_WHITELIST.
+		v1.EnvVar{Name: "FETCH_FORBID_LOCAL", Value: c.sidecarFetchForbidLocal()},
 		taskIDEnv,
 	)
+	if whitelist := strings.TrimSpace(c.SyncFetchLocalWhitelist); whitelist != "" {
+		sidecarEnv = append(sidecarEnv, v1.EnvVar{Name: "FETCH_LOCAL_WHITELIST", Value: whitelist})
+	}
 	// STARTED_AT is intentionally not set: the env fieldRef API can't reach
 	// pod.status.startTime, and any baked timestamp would either go stale
 	// (cron template is reused) or differ from k8s's own notion of pod start.
