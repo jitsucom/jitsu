@@ -90,12 +90,40 @@ func TestSharedCheckpointScope(t *testing.T) {
 		if b.commits != 1 {
 			t.Fatalf("stream b commits: %d, want 1 (it has rows and is due)", b.commits)
 		}
-		if n := rows("empty"); n != 1 {
-			t.Fatalf("%d checkpoint row(s) saved, want 1: an opened but empty stream has nothing to wait for", n)
+		// A's table has not been replaced yet. The checkpoint must not be saved past it, see the next case.
+		if n := rows("empty"); n != 0 {
+			t.Fatalf("%d checkpoint row(s) saved while stream a's table replacement is still pending, want 0", n)
 		}
 		s.closeActiveStreams(true)
 		if a.commits != 1 {
 			t.Fatalf("stream a commits after the close: %d, want 1 (its own completion handles it)", a.commits)
+		}
+		if n := rows("empty"); n != 1 {
+			t.Fatalf("%d checkpoint row(s) saved after stream a replaced its table, want 1", n)
+		}
+	})
+
+	// Second review round: A has rows and B has only been opened (STARTED), in replace-table mode because the saved state was
+	// reset. If the checkpoint were saved without B's table being replaced and the run then stopped, the retry would see a
+	// saved checkpoint and open B in batch mode: it would append to B's old table and keep rows that were deleted at the
+	// source. So the checkpoint has to stay unsaved until B's own completion has replaced its table.
+	t.Run("a pending table replacement keeps the checkpoint unsaved, so a retry replaces it", func(t *testing.T) {
+		a, b := &countingStream{}, &countingStream{}
+		s := newSidecar("retry", open("a", "incremental", bulker.ReplaceTable, a, 5), open("b", "incremental", bulker.ReplaceTable, b, 0))
+		s.processState(global("c1"))
+		if b.commits != 0 {
+			t.Fatalf("stream b was committed %d time(s) at the checkpoint while it had no rows (that would empty its table early)", b.commits)
+		}
+		if n := rows("retry"); n != 0 {
+			t.Fatalf("%d checkpoint row(s) saved although stream b's table replacement has not happened: a retry would open b in batch mode and append to its old table", n)
+		}
+		// the run stops before b commits: abort, nothing is committed
+		s.closeActiveStreams(false)
+		if n := rows("retry"); n != 0 {
+			t.Fatalf("%d checkpoint row(s) saved for a run that stopped before b's replacement", n)
+		}
+		if b.commits != 0 {
+			t.Fatalf("stream b commits after an aborted run: %d, want 0", b.commits)
 		}
 	})
 

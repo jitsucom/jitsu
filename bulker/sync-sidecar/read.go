@@ -437,7 +437,11 @@ func (s *ReadSideCar) holdSharedState(name string, data any) {
 	}
 	held := &heldCheckpoint{data: data, waitingFor: map[string]int{}}
 	for streamName, stream := range s.processedStreams {
-		if stream != nil && stream.bulkerStream != nil && stream.bufferedEventsCount > 0 {
+		// A stream waits for its commit if it has records buffered, and also if it is a replace-table stream that has not
+		// committed yet even with no rows: its table is replaced only when it commits. A checkpoint saved before that would
+		// make a retry see saved state, open the stream in batch mode and append to the old table, keeping rows that were
+		// deleted at the source. The stream itself is not committed early (see checkpointEligibleStreams).
+		if stream != nil && stream.bulkerStream != nil && (stream.bufferedEventsCount > 0 || stream.bulkerMode == bulker.ReplaceTable) {
 			held.waitingFor[streamName] = stream.commitCount
 		}
 	}
@@ -448,8 +452,9 @@ func (s *ReadSideCar) holdSharedState(name string, data any) {
 // heldCheckpoint is a GLOBAL or LEGACY checkpoint that is waiting for the records it covers to be committed.
 type heldCheckpoint struct {
 	data any
-	// waitingFor maps the name of every stream that had records buffered when the checkpoint arrived to that stream's
-	// commitCount at the time. Those records are committed once the stream has committed again.
+	// waitingFor maps the name of every stream the checkpoint depends on when it arrives (records buffered, or a
+	// replace-table stream that has not replaced its table yet) to that stream's commitCount at the time. The dependency
+	// is met once the stream has committed again.
 	waitingFor map[string]int
 }
 
