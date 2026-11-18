@@ -375,8 +375,8 @@ function getViewportSize(browserWindow: Window): ViewportSize {
   if (!cache || cache.document !== doc) {
     if (cache) {
       cache.observer?.disconnect();
-      browserWindow.removeEventListener?.("resize", cache.onResize);
-      cache.visualViewport?.removeEventListener?.("resize", cache.onResize);
+      browserWindow.removeEventListener?.("resize", cache.onResize, true);
+      cache.visualViewport?.removeEventListener?.("resize", cache.onResize, true);
     }
     cache = createViewportCache(browserWindow);
   }
@@ -384,9 +384,9 @@ function getViewportSize(browserWindow: Window): ViewportSize {
   // takeRecords also catches a synchronous send before observer delivery.
   if (cache.observer?.takeRecords().length) cache.size = undefined;
   if (!cache.size) {
-    browserWindow.addEventListener("resize", cache.onResize);
+    browserWindow.addEventListener("resize", cache.onResize, true);
     // Safari can change innerWidth/innerHeight during pinch zoom with only a visual viewport resize.
-    cache.visualViewport?.addEventListener?.("resize", cache.onResize);
+    cache.visualViewport?.addEventListener?.("resize", cache.onResize, true);
   }
   const event = browserWindow.event;
   // An earlier handler can send before invalidation. A browser-generated Event is
