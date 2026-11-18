@@ -739,6 +739,7 @@ for (const firstSend of ["before navigation", "during pagehide"] as const) {
     clearRequestLog();
     await page.setViewportSize({ width: 800, height: 600 });
     await page.addInitScript(firstSend => {
+      if (location.pathname !== "/viewport-history.html") return;
       window.addEventListener(
         "pageshow",
         event => {
