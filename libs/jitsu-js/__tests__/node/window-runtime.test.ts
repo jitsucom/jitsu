@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { emptyRuntime, windowRuntime } from "../../src/analytics-plugin";
+import { emptyRuntime, windowRuntime, withCachedViewport } from "../../src/analytics-plugin";
 
 afterEach(() => vi.unstubAllGlobals());
 
@@ -66,5 +66,92 @@ describe("browser screen context", () => {
   it("does not access window in the server runtime", () => {
     vi.stubGlobal("window", undefined);
     expect(emptyRuntime({}).screen!()).toBeUndefined();
+  });
+});
+
+describe("withCachedViewport", () => {
+  // a window without addEventListener always reads live, which is what we want for exact read counting
+  const fakeWindow = (props: PropertyDescriptorMap) => {
+    const win = { screen: { width: 1, height: 1 } };
+    Object.defineProperties(win, props);
+    vi.stubGlobal("window", win);
+    vi.stubGlobal("document", {});
+    return win as any;
+  };
+
+  it("serves the viewport from a single read and restores the original accessors", () => {
+    const width = vi.fn(() => 800);
+    const height = vi.fn(() => 600);
+    const win = fakeWindow({
+      innerWidth: { get: width, configurable: true, enumerable: true },
+      innerHeight: { get: height, configurable: true, enumerable: true },
+    });
+    const originals = ["innerWidth", "innerHeight"].map(key => Object.getOwnPropertyDescriptor(win, key));
+
+    const result = withCachedViewport(() => {
+      // what analytics.js does inside page(), repeated to prove it never reaches the real getters again
+      const seen = [win.innerWidth, win.innerHeight, win.innerWidth, win.innerHeight];
+      width.mockReturnValue(1);
+      height.mockReturnValue(1);
+      return seen;
+    });
+
+    expect(result).toEqual([800, 600, 800, 600]);
+    expect(width).toHaveBeenCalledTimes(1);
+    expect(height).toHaveBeenCalledTimes(1);
+    expect(["innerWidth", "innerHeight"].map(key => Object.getOwnPropertyDescriptor(win, key))).toEqual(originals);
+    expect(win.innerWidth).toBe(1);
+  });
+
+  it("restores plain data properties, and removes properties the window did not own", () => {
+    const win = fakeWindow({ innerWidth: { value: 800, writable: true, configurable: true, enumerable: true } });
+    const proto = { innerHeight: 600 };
+    Object.setPrototypeOf(win, proto);
+    withCachedViewport(() => {
+      expect(win.innerWidth).toBe(800);
+      expect(win.innerHeight).toBe(600);
+    });
+    expect(Object.getOwnPropertyDescriptor(win, "innerWidth")).toEqual({
+      value: 800,
+      writable: true,
+      configurable: true,
+      enumerable: true,
+    });
+    expect(Object.prototype.hasOwnProperty.call(win, "innerHeight")).toBe(false);
+    expect(win.innerHeight).toBe(600);
+  });
+
+  it("restores the window and rethrows when the callback throws", () => {
+    const win = fakeWindow({ innerWidth: { value: 800, writable: true, configurable: true, enumerable: true } });
+    expect(() =>
+      withCachedViewport(() => {
+        throw new Error("boom");
+      })
+    ).toThrow("boom");
+    expect(Object.getOwnPropertyDescriptor(win, "innerWidth")?.value).toBe(800);
+  });
+
+  it("returns the callback's value, including a promise", async () => {
+    fakeWindow({
+      innerWidth: { value: 800, configurable: true },
+      innerHeight: { value: 600, configurable: true },
+    });
+    await expect(withCachedViewport(() => Promise.resolve("sent"))).resolves.toBe("sent");
+  });
+
+  it("still runs the callback when a property cannot be redefined", () => {
+    const win = fakeWindow({
+      innerWidth: { value: 800, configurable: true },
+      innerHeight: { value: 600, configurable: false },
+    });
+    const originalWidth = Object.getOwnPropertyDescriptor(win, "innerWidth");
+    expect(withCachedViewport(() => win.innerWidth + win.innerHeight)).toBe(1400);
+    expect(Object.getOwnPropertyDescriptor(win, "innerWidth")).toEqual(originalWidth);
+  });
+
+  it("just runs the callback outside a browser", () => {
+    vi.stubGlobal("window", undefined);
+    vi.stubGlobal("document", undefined);
+    expect(withCachedViewport(() => 42)).toBe(42);
   });
 });

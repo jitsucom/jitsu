@@ -415,6 +415,56 @@ function getViewportSize(browserWindow: Window): ViewportSize {
   return cache.size;
 }
 
+const viewportKeys = ["innerWidth", "innerHeight"] as const;
+
+/**
+ * analytics.js builds the default `width`/`height` page properties by reading `window.innerWidth` and
+ * `window.innerHeight` inside its own code, before any SDK code can intervene. After a DOM change those reads
+ * force a synchronous layout. That read happens synchronously inside `analytics.page()`, so for the duration
+ * of `fn` the two properties return the SDK's cached viewport instead, and the original descriptors are
+ * restored before `fn` returns. Nothing outside `fn` ever observes the replacement.
+ *
+ * Falls back to calling `fn` untouched when there is no window or the properties can't be redefined.
+ */
+export function withCachedViewport<T>(fn: () => T): T {
+  if (!isInBrowser()) {
+    return fn();
+  }
+  const win = window as any;
+  const size = getViewportSize(win);
+  const original = viewportKeys.map(key => Object.getOwnPropertyDescriptor(win, key));
+  let shadowed = 0;
+  try {
+    for (const key of viewportKeys) {
+      Object.defineProperty(win, key, {
+        configurable: true,
+        enumerable: true,
+        get: () => size[key],
+      });
+      shadowed++;
+    }
+  } catch (e) {
+    restoreViewportKeys(win, original, shadowed);
+    return fn();
+  }
+  try {
+    return fn();
+  } finally {
+    restoreViewportKeys(win, original, shadowed);
+  }
+}
+
+function restoreViewportKeys(win: any, original: (PropertyDescriptor | undefined)[], count: number) {
+  for (let i = 0; i < count; i++) {
+    const descriptor = original[i];
+    if (descriptor) {
+      Object.defineProperty(win, viewportKeys[i], descriptor);
+    } else {
+      delete win[viewportKeys[i]];
+    }
+  }
+}
+
 export function windowRuntime(opts: JitsuOptions): RuntimeFacade {
   const key2Cookie = (key: string) => {
     switch (key) {

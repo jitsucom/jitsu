@@ -694,17 +694,35 @@ test("only the first send after invalidation measures the viewport", async ({ pa
   expect(counts).toEqual([0, 1, 1, 1, 2, 2].map(count => ({ innerWidth: count, innerHeight: count })));
 });
 
-test("page still reads dimensions in analytics page properties with a warm screen cache", async ({ page }) => {
+test("page reads no dimensions with a warm cache and still reports the viewport", async ({ page }) => {
+  await page.setViewportSize({ width: 800, height: 600 });
   await openViewportTestPage(page);
+  await page.evaluate(() => window["jitsu"].track("warm-before-page"));
+  const warm = await page.evaluate(() => ({ ...window["viewportReads"] }));
   await page.evaluate(async () => {
-    await window["jitsu"].track("warm-before-page");
-    await window["jitsu"].page({ width: 123, height: 456, caseName: "viewport-page" });
+    await window["jitsu"].page({ caseName: "viewport-page-default" });
+    await window["jitsu"].page({ width: 123, height: 456, caseName: "viewport-page-explicit" });
   });
-  expect(await page.evaluate(() => window["viewportReads"])).toEqual({ innerWidth: 2, innerHeight: 2 });
-  expect(requestLog.find(entry => entry.body.properties?.caseName === "viewport-page")?.body.properties).toMatchObject({
-    width: 123,
-    height: 456,
+  // analytics.js reads the window inside page(); the SDK serves it from the cache instead
+  expect(await page.evaluate(() => window["viewportReads"])).toEqual(warm);
+  const propertiesOf = (caseName: string) =>
+    requestLog.find(entry => entry.body.properties?.caseName === caseName)?.body.properties;
+  expect(propertiesOf("viewport-page-default")).toMatchObject({ width: 800, height: 600 });
+  expect(propertiesOf("viewport-page-explicit")).toMatchObject({ width: 123, height: 456 });
+
+  // the replacement getters never outlive the call: the original (instrumented) ones are back
+  const outside = await page.evaluate(() => {
+    const before = window["viewportReads"].innerWidth;
+    void window.innerWidth;
+    return window["viewportReads"].innerWidth - before;
   });
+  expect(outside).toBe(1);
+
+  // a real resize invalidates the cache, so the next page() reports the new size
+  await page.setViewportSize({ width: 640, height: 480 });
+  await page.evaluate(() => new Promise<void>(resolve => requestAnimationFrame(() => resolve())));
+  await page.evaluate(() => window["jitsu"].page({ caseName: "viewport-page-resized" }));
+  expect(propertiesOf("viewport-page-resized")).toMatchObject({ width: 640, height: 480 });
 });
 
 test("multiple sends in a native resize handler share a single measurement", async ({ page }) => {
@@ -752,12 +770,20 @@ for (const firstSend of ["before navigation", "during pagehide"] as const) {
       }
     }, firstSend);
     await page.goto(`${server.baseUrl}/viewport-history.html`);
+    // survives a back-forward cache restore, gone after a reload
+    await page.evaluate(() => (window["bfcacheMarker"] = true));
     if (firstSend === "before navigation") {
       await page.evaluate(() => window["jitsu"].group("before-history"));
     }
     await page.goto(`${server.baseUrl}/p.js`);
     await page.setViewportSize({ width: 640, height: 480 });
     await page.evaluate(() => history.back());
+    // a restore from the back-forward cache fires no load event
+    await page.waitForURL(`${server.baseUrl}/viewport-history.html`, { waitUntil: "commit" });
+    // Chromium Headless Shell (the browser CI installs) never restores from the back-forward cache,
+    // so there is no restored page to observe there. Full Chrome and Chromium do.
+    const restoredFromCache = await page.evaluate(() => window["bfcacheMarker"] === true);
+    test.skip(!restoredFromCache, "the browser did not restore the page from the back-forward cache");
     await expect
       .poll(() => requestLog.find(entry => entry.body.groupId === "restored-from-history")?.body.context.screen)
       .toMatchObject({ innerWidth: 640, innerHeight: 480 });

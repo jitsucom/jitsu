@@ -7,6 +7,7 @@ import {
   uuid,
   createInMemoryStorage,
   ensureAnonymousId,
+  withCachedViewport,
 } from "./analytics-plugin";
 import {
   Callback,
@@ -119,16 +120,18 @@ function createUnderlyingAnalyticsInstance(
 
   const a = {
     ...analytics,
-    page: (...args) => {
-      if (args.length === 2 && typeof args[0] === "string" && typeof args[1] === "object") {
-        return analytics.page({
-          name: args[0],
-          ...args[1],
-        });
-      } else {
-        return (analytics.page as any)(...args);
-      }
-    },
+    page: (...args) =>
+      // analytics.js reads window.innerWidth/innerHeight synchronously inside page(), which forces layout
+      withCachedViewport(() => {
+        if (args.length === 2 && typeof args[0] === "string" && typeof args[1] === "object") {
+          return analytics.page({
+            name: args[0],
+            ...args[1],
+          });
+        } else {
+          return (analytics.page as any)(...args);
+        }
+      }),
     identify: (...args) => {
       if (args[0] && typeof args[0] !== "object" && typeof args[0] !== "string") {
         //fix the quirk of analytics.js: if you pass number as first argument, it will be converted to string
