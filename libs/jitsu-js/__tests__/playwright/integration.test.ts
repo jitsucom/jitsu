@@ -710,23 +710,29 @@ for (const capture of [false, true]) {
   });
 }
 
-test("an existing client tracks viewport changes after document.open()", async ({ page }) => {
-  await page.setViewportSize({ width: 800, height: 600 });
-  await page.goto(`${server.baseUrl}/basic.html`);
-  await page.evaluate(() => {
-    document.open();
-    document.write("<!doctype html><title>Rewritten document</title>");
-    document.close();
+for (const reuseRoot of [false, true]) {
+  test(`an existing client tracks viewport changes after document.open() (reuse root: ${reuseRoot})`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 800, height: 600 });
+    await page.goto(`${server.baseUrl}/basic.html`);
+    await page.evaluate(reuseRoot => {
+      const original = document.documentElement;
+      document.open();
+      document.write("<!doctype html><title>Rewritten document</title>");
+      document.close();
+      if (reuseRoot) document.replaceChild(original, document.documentElement);
+    }, reuseRoot);
+    for (const width of [640, 700]) {
+      await page.setViewportSize({ width, height: 480 });
+      await page.evaluate(() => new Promise<void>(resolve => requestAnimationFrame(() => resolve())));
+      await page.evaluate(() => window["jitsu"].track("rewritten-viewport"));
+      expect(
+        requestLog.filter(entry => entry.body.event === "rewritten-viewport").at(-1)?.body.context.screen
+      ).toMatchObject({ innerWidth: width, innerHeight: 480 });
+    }
   });
-  for (const width of [640, 700]) {
-    await page.setViewportSize({ width, height: 480 });
-    await page.evaluate(() => new Promise<void>(resolve => requestAnimationFrame(() => resolve())));
-    await page.evaluate(() => window["jitsu"].track("rewritten-viewport"));
-    expect(
-      requestLog.filter(entry => entry.body.event === "rewritten-viewport").at(-1)?.body.context.screen
-    ).toMatchObject({ innerWidth: width, innerHeight: 480 });
-  }
-});
+}
 
 test("restoring the original document root keeps the current viewport", async ({ page }) => {
   await page.setViewportSize({ width: 800, height: 600 });
