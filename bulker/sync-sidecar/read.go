@@ -418,6 +418,11 @@ func (s *ReadSideCar) checkpointEligibleStreams() {
 	}
 	sort.Strings(names) // stable order for the logs and the commits
 	for _, name := range names {
+		// A cancellation (SIGTERM) or a task-level error can arrive while one of these commits is in flight. The end of the
+		// run then aborts instead of committing, so the commits that have not started must not start either.
+		if s.cancelled.Load() || s.isCriticalError() {
+			return
+		}
 		stream := s.processedStreams[name]
 		// A replace-table stream that has not received a row yet (it has only been opened) is left for its own
 		// completion: committing it now would replace its table with an empty one, and if the job fails before its rows

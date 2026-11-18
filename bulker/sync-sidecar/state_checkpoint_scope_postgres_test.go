@@ -19,6 +19,19 @@ type typedBulker struct {
 
 func (b typedBulker) Type() string { return b.typeID }
 
+// cancellingStream raises the sidecar's cancel flag while it commits, the way SIGTERM arrives during an upload.
+type cancellingStream struct {
+	countingStream
+	onCommit func()
+}
+
+func (c *cancellingStream) Complete(ctx context.Context) (bulker.State, error) {
+	if c.onCommit != nil {
+		c.onCommit()
+	}
+	return c.countingStream.Complete(ctx)
+}
+
 // Two more properties of the shared (GLOBAL and LEGACY) checkpoint, both from the JITSU-258 review:
 //
 //  1. An empty replace-table stream must not be committed at a checkpoint. A warehouse replace-table commit that consumed
@@ -182,6 +195,26 @@ func TestSharedCheckpointScope(t *testing.T) {
 		}
 		if n := rows("crashed"); n != 0 {
 			t.Fatalf("%d checkpoint row(s) saved after a task-level error, want 0", n)
+		}
+	})
+
+	// Fourth review round, first finding: SIGTERM can arrive while the first commit at a shared checkpoint is in flight. The
+	// end of the run then aborts instead of committing (closeActiveStreams(!cancelled ...)), so the loop must not start the
+	// remaining commits: a replace-table commit would replace the table with the partial batch and the abort cannot undo it.
+	t.Run("a cancellation during a shared checkpoint stops the remaining commits", func(t *testing.T) {
+		b := &countingStream{}
+		var s *ReadSideCar
+		a := &cancellingStream{onCommit: func() { s.cancelled.Store(true) }}
+		s = newSidecar("cancelled", open("a", "incremental", bulker.ReplaceTable, a, 5), open("b", "incremental", bulker.ReplaceTable, b, 3))
+		s.processState(global("c1"))
+		if a.commits != 1 {
+			t.Errorf("stream a commits: %d, want 1 (its commit was already in flight when the cancellation arrived)", a.commits)
+		}
+		if b.commits != 0 {
+			t.Errorf("stream b was committed %d time(s) after the task was cancelled, want 0: a replace-table commit would replace its table with a partial batch", b.commits)
+		}
+		if n := rows("cancelled"); n != 0 {
+			t.Errorf("%d checkpoint row(s) saved while stream b's records are not committed, want 0", n)
 		}
 	})
 
