@@ -334,58 +334,49 @@ type ViewportSize = { innerWidth: number; innerHeight: number };
 type ViewportCache = { document: Document; size?: ViewportSize; observer?: MutationObserver };
 const viewports = new WeakMap<Window, ViewportCache>();
 
-function createViewportCache(browserWindow: Window): ViewportCache {
-  const cache: ViewportCache = { document: browserWindow.document };
-  // document.open() clears window listeners even when the original <html> is
-  // reinserted. Observe direct children of Document to detect that rewrite.
-  if (cache.document && typeof MutationObserver !== "undefined") {
-    cache.observer = new MutationObserver(() => {
-      cache.size = undefined;
-    });
-    cache.observer.observe(cache.document, { childList: true });
+function invalidateViewport(this: Window, event: Event) {
+  const cache = viewports.get(this);
+  if (cache && event.target === this) cache.size = undefined;
+}
+
+function readViewportSize(browserWindow: Window): ViewportSize {
+  return { innerWidth: browserWindow.innerWidth, innerHeight: browserWindow.innerHeight };
+}
+
+function getViewportSize(browserWindow: Window): ViewportSize {
+  const doc = browserWindow.document;
+  if (
+    typeof browserWindow.addEventListener !== "function" ||
+    (doc && (typeof Document === "undefined" || !(doc instanceof Document) || typeof MutationObserver !== "function"))
+  ) {
+    return readViewportSize(browserWindow);
   }
-  viewports.set(browserWindow, cache);
-  return cache;
-}
-
-type ResizeMeasurement = "cached" | "live";
-const resizeMeasurements = new WeakMap<Event, ResizeMeasurement>();
-
-function onViewportResize(this: Window, event: Event) {
-  if (event.target === this) getViewportSize(this, event);
-}
-
-function getViewportSize(browserWindow: Window, deliveredEvent?: Event): ViewportSize {
   let cache = viewports.get(browserWindow);
-  // An iframe can keep its initial Window when its first navigation replaces the Document.
-  if (!cache || cache.document !== browserWindow.document) {
+  if (!cache || cache.document !== doc) {
     cache?.observer?.disconnect();
-    cache = createViewportCache(browserWindow);
+    cache = { document: doc };
+    viewports.set(browserWindow, cache);
+    if (doc) {
+      const current = cache;
+      current.observer = new MutationObserver(() => {
+        current.size = undefined;
+      });
+      current.observer.observe(doc, { childList: true });
+    }
   }
-  const event = deliveredEvent ?? browserWindow.event;
-  const resize = event?.type === "resize" && event.target === browserWindow ? event : undefined;
-  const measurement = resize && resizeMeasurements.get(resize);
-  const needsMeasurement = resize && (measurement !== "cached" || (deliveredEvent && !resize.isTrusted));
-  // A synchronous send can precede delivery of the observer callback.
-  if (!cache.size || cache.observer?.takeRecords().length) {
-    browserWindow.addEventListener("resize", onViewportResize, true);
-    cache.size = { innerWidth: browserWindow.innerWidth, innerHeight: browserWindow.innerHeight };
-  } else if (needsMeasurement) {
-    cache.size.innerWidth = browserWindow.innerWidth;
-    cache.size.innerHeight = browserWindow.innerHeight;
-  }
-  if (resize && !measurement) {
-    // Scripts can redispatch an Event in the same turn and even prevent our
-    // listener from running. If the first read precedes our listener, favor
-    // a live value for that synthetic Event until the script yields.
-    resizeMeasurements.set(resize, deliveredEvent || resize.isTrusted ? "cached" : "live");
-    if (!resize.isTrusted) queueMicrotask(() => resizeMeasurements.delete(resize));
+  // A document rewrite clears window listeners, even if it restores the same root.
+  // takeRecords also catches a synchronous send before observer delivery.
+  if (cache.observer?.takeRecords().length) cache.size = undefined;
+  if (!cache.size) browserWindow.addEventListener("resize", invalidateViewport, true);
+  const event = browserWindow.event;
+  // An earlier handler can send before our resize listener gets called.
+  if (!cache.size || (event?.type === "resize" && event.target === browserWindow)) {
+    cache.size = readViewportSize(browserWindow);
   }
   return cache.size;
 }
 
 export function windowRuntime(opts: JitsuOptions): RuntimeFacade {
-  if (!viewports.has(window)) getViewportSize(window);
   const key2Cookie = (key: string) => {
     switch (key) {
       case "__anon_id":

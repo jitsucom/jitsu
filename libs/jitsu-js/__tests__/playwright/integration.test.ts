@@ -640,8 +640,13 @@ test("spa-navigation", async ({ browser }) => {
   expect(navTrackEvents[4].body.context.page.search).toBe("?utm_source=test&utm_medium=spa");
 });
 
-test("events use cached viewport dimensions until resize", async ({ page }) => {
-  await page.setViewportSize({ width: 800, height: 600 });
+async function openViewportTestPage(page: Page) {
+  await page.route("**/viewport-test.html", route =>
+    route.fulfill({
+      contentType: "text/html",
+      body: '<!doctype html><title>Viewport test</title><script src="/p.js" data-init-only="true" defer></script>',
+    })
+  );
   await page.addInitScript(() => {
     window["viewportReads"] = { innerWidth: 0, innerHeight: 0 };
     for (const key of ["innerWidth", "innerHeight"]) {
@@ -655,33 +660,45 @@ test("events use cached viewport dimensions until resize", async ({ page }) => {
       });
     }
   });
-  await page.goto(`${server.baseUrl}/basic.html`);
-  const reads = await page.evaluate(() => window["viewportReads"]);
-  // The browser may also dispatch an initial resize while loading the page.
-  expect(reads.innerWidth).toBeGreaterThanOrEqual(1);
-  expect(reads.innerHeight).toBe(reads.innerWidth);
+  await page.goto(`${server.baseUrl}/viewport-test.html`);
+  await page.evaluate(() => new Promise<void>(resolve => requestAnimationFrame(() => resolve())));
+}
 
-  await page.evaluate(async () => {
+test("only the first send after invalidation measures the viewport", async ({ page }) => {
+  await openViewportTestPage(page);
+  const counts = await page.evaluate(async () => {
+    const reads = () => ({ ...window["viewportReads"] });
+    const history = [reads()];
+    const pending = [window["jitsu"].group("warm-viewport")];
+    history.push(reads());
     for (let i = 0; i < 3; i++) {
       document.body.style.padding = `${i + 1}px`;
-      await window["jitsu"].track("cached-viewport");
+      pending.push(window["jitsu"].group("cached-viewport"));
     }
+    history.push(reads());
+    window.dispatchEvent(new Event("resize"));
+    window.dispatchEvent(new Event("resize"));
+    history.push(reads());
+    pending.push(window["jitsu"].group("resized-viewport"));
+    history.push(reads());
+    pending.push(window["jitsu"].group("cached-again"));
+    history.push(reads());
+    await Promise.all(pending);
+    return history;
   });
-  expect(await page.evaluate(() => window["viewportReads"])).toEqual(reads);
-  const events = requestLog.filter(entry => entry.body.event === "cached-viewport");
-  expect(events).toHaveLength(3);
-  for (const entry of events) {
-    expect(entry.body.context.screen).toMatchObject({ innerWidth: 800, innerHeight: 600 });
-  }
+  expect(counts).toEqual([0, 1, 1, 1, 2, 2].map(count => ({ innerWidth: count, innerHeight: count })));
+});
 
-  await page.setViewportSize({ width: 640, height: 480 });
-  await page.waitForFunction(initialReads => window["viewportReads"].innerWidth > initialReads, reads.innerWidth);
-  const resizedReads = await page.evaluate(() => window["viewportReads"]);
-  await page.evaluate(() => window["jitsu"].track("resized-viewport"));
-  expect(await page.evaluate(() => window["viewportReads"])).toEqual(resizedReads);
-  expect(requestLog.find(entry => entry.body.event === "resized-viewport")!.body.context.screen).toMatchObject({
-    innerWidth: 640,
-    innerHeight: 480,
+test("page still reads dimensions in analytics page properties with a warm screen cache", async ({ page }) => {
+  await openViewportTestPage(page);
+  await page.evaluate(async () => {
+    await window["jitsu"].track("warm-before-page");
+    await window["jitsu"].page({ width: 123, height: 456, caseName: "viewport-page" });
+  });
+  expect(await page.evaluate(() => window["viewportReads"])).toEqual({ innerWidth: 2, innerHeight: 2 });
+  expect(requestLog.find(entry => entry.body.properties?.caseName === "viewport-page")?.body.properties).toMatchObject({
+    width: 123,
+    height: 456,
   });
 });
 
@@ -814,7 +831,9 @@ test("restoring the original document root keeps the current viewport", async ({
 });
 
 for (const earlySender of ["absent", "sends", "stops"] as const) {
-  test(`synthetic resize shares dimensions across sends (early sender: ${earlySender})`, async ({ page }) => {
+  test(`sends inside synthetic resize handlers read live dimensions (early sender: ${earlySender})`, async ({
+    page,
+  }) => {
     clearRequestLog();
     await page.addInitScript(earlySender => {
       if (earlySender === "absent") return;
@@ -856,7 +875,8 @@ for (const earlySender of ["absent", "sends", "stops"] as const) {
       await Promise.all(sent);
       return [first, second];
     }, earlySender);
-    if (earlySender === "absent") expect(reads).toEqual([1, 1]);
+    const sends = earlySender === "sends" ? 6 : 3;
+    expect(reads).toEqual([sends, sends]);
     for (const width of [800, 640]) {
       for (const phase of ["early", "late"]) {
         if (phase === "early" && earlySender === "absent") continue;

@@ -19,8 +19,8 @@ describe("browser screen context", () => {
     vi.stubGlobal("window", browserWindow);
 
     const first = windowRuntime({});
-    expect(width).toHaveBeenCalledTimes(1);
-    expect(height).toHaveBeenCalledTimes(1);
+    expect(width).not.toHaveBeenCalled();
+    expect(height).not.toHaveBeenCalled();
     const before = first.screen!();
     expect(before).toEqual({ width: 1920, height: 1080, innerWidth: 800, innerHeight: 600, density: 1 });
 
@@ -36,6 +36,9 @@ describe("browser screen context", () => {
     browserWindow.screen = { width: 2560, height: 1440 };
     browserWindow.devicePixelRatio = 2;
     browserWindow.dispatchEvent(new Event("resize"));
+    browserWindow.dispatchEvent(new Event("resize"));
+    expect(width).toHaveBeenCalledTimes(1);
+    expect(height).toHaveBeenCalledTimes(1);
     const after = first.screen!();
     expect(after).toEqual({ width: 2560, height: 1440, innerWidth: 640, innerHeight: 480, density: 2 });
     expect(width).toHaveBeenCalledTimes(2);
@@ -43,6 +46,15 @@ describe("browser screen context", () => {
     expect(before!.innerWidth).toBe(800);
     after!.innerWidth = 123;
     expect(first.screen!()!.innerWidth).toBe(640);
+  });
+
+  it.each([{}, { addEventListener: vi.fn(), document: {} }])("can read screen dimensions from a partial DOM", shim => {
+    const partial = { screen: { width: 1024, height: 768 }, innerWidth: 800, innerHeight: 600, ...shim };
+    vi.stubGlobal("window", partial);
+    const runtime = windowRuntime({});
+    expect(runtime.screen!()?.innerWidth).toBe(800);
+    partial.innerWidth = 640;
+    expect(runtime.screen!()?.innerWidth).toBe(640);
   });
 
   it("does not access window in the server runtime", () => {
