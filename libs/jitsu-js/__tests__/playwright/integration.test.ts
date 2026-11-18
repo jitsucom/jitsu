@@ -685,6 +685,49 @@ test("events use cached viewport dimensions until resize", async ({ page }) => {
   });
 });
 
+for (const capture of [false, true]) {
+  test(`resize handler registered before SDK initialization sees the new viewport (capture=${capture})`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 800, height: 600 });
+    await page.addInitScript(capture => {
+      window.addEventListener(
+        "resize",
+        () => {
+          if (window.innerWidth === 640) window["jitsu"].page({ caseName: "early-resize-handler" });
+        },
+        capture
+      );
+    }, capture);
+    await page.goto(`${server.baseUrl}/basic.html`);
+    const sent = page.waitForRequest(
+      req => req.url().endsWith("/api/s/page") && req.postDataJSON()?.properties?.caseName === "early-resize-handler"
+    );
+    await page.setViewportSize({ width: 640, height: 480 });
+    const payload = (await sent).postDataJSON();
+    expect(payload.properties).toMatchObject({ width: 640, height: 480 });
+    expect(payload.context.screen).toMatchObject({ innerWidth: 640, innerHeight: 480 });
+  });
+}
+
+test("an existing client tracks viewport changes after document.open()", async ({ page }) => {
+  await page.setViewportSize({ width: 800, height: 600 });
+  await page.goto(`${server.baseUrl}/basic.html`);
+  await page.evaluate(() => {
+    document.open();
+    document.write("<!doctype html><title>Rewritten document</title>");
+    document.close();
+  });
+  for (const width of [640, 700]) {
+    await page.setViewportSize({ width, height: 480 });
+    await page.evaluate(() => new Promise<void>(resolve => requestAnimationFrame(() => resolve())));
+    await page.evaluate(() => window["jitsu"].track("rewritten-viewport"));
+    expect(
+      requestLog.filter(entry => entry.body.event === "rewritten-viewport").at(-1)?.body.context.screen
+    ).toMatchObject({ innerWidth: width, innerHeight: 480 });
+  }
+});
+
 test("basic", async ({ browser }) => {
   clearRequestLog();
   const browserContext = await browser.newContext();
