@@ -725,6 +725,24 @@ test("page reads no dimensions with a warm cache and still reports the viewport"
   expect(propertiesOf("viewport-page-resized")).toMatchObject({ width: 640, height: 480 });
 });
 
+test("listeners run by analytics.js during page() see the real viewport", async ({ page }) => {
+  await page.setViewportSize({ width: 800, height: 600 });
+  await openViewportTestPage(page);
+  await page.evaluate(() => window["jitsu"].track("warm-before-listener"));
+  const listener = await page.evaluate(async () => {
+    const seen: { hitRealGetter?: boolean } = {};
+    window["jitsu"].on("pageStart", () => {
+      const before = window["viewportReads"].innerWidth;
+      void window.innerWidth;
+      seen.hitRealGetter = window["viewportReads"].innerWidth - before === 1;
+    });
+    await window["jitsu"].page({ caseName: "viewport-page-listener" });
+    return seen;
+  });
+  // the SDK's cached replacement must be gone by the time pageStart listeners run
+  expect(listener.hitRealGetter).toBe(true);
+});
+
 test("multiple sends in a native resize handler share a single measurement", async ({ page }) => {
   await page.setViewportSize({ width: 800, height: 600 });
   await openViewportTestPage(page);

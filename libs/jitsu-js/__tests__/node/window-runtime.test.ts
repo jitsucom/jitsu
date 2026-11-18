@@ -79,7 +79,7 @@ describe("withCachedViewport", () => {
     return win as any;
   };
 
-  it("serves the viewport from a single read and restores the original accessors", () => {
+  it("serves each property once from a single measurement, then hands the real window back", () => {
     const width = vi.fn(() => 800);
     const height = vi.fn(() => 600);
     const win = fakeWindow({
@@ -89,18 +89,33 @@ describe("withCachedViewport", () => {
     const originals = ["innerWidth", "innerHeight"].map(key => Object.getOwnPropertyDescriptor(win, key));
 
     const result = withCachedViewport(() => {
-      // what analytics.js does inside page(), repeated to prove it never reaches the real getters again
-      const seen = [win.innerWidth, win.innerHeight, win.innerWidth, win.innerHeight];
+      // what analytics.js does inside page(): both reads, back to back
+      const seen = [win.innerWidth, win.innerHeight];
+      // everything after that (pageStart listeners, plugins) must see the real window again
       width.mockReturnValue(1);
-      height.mockReturnValue(1);
-      return seen;
+      height.mockReturnValue(2);
+      return [...seen, win.innerWidth, win.innerHeight];
     });
 
-    expect(result).toEqual([800, 600, 800, 600]);
+    expect(result).toEqual([800, 600, 1, 2]);
+    // one measurement to fill the cache, one live read after the cached one was served
+    expect(width).toHaveBeenCalledTimes(2);
+    expect(height).toHaveBeenCalledTimes(2);
+    expect(["innerWidth", "innerHeight"].map(key => Object.getOwnPropertyDescriptor(win, key))).toEqual(originals);
+  });
+
+  it("restores properties the callback never read", () => {
+    const width = vi.fn(() => 800);
+    const height = vi.fn(() => 600);
+    const win = fakeWindow({
+      innerWidth: { get: width, configurable: true, enumerable: true },
+      innerHeight: { get: height, configurable: true, enumerable: true },
+    });
+    const originals = ["innerWidth", "innerHeight"].map(key => Object.getOwnPropertyDescriptor(win, key));
+    withCachedViewport(() => undefined);
+    expect(["innerWidth", "innerHeight"].map(key => Object.getOwnPropertyDescriptor(win, key))).toEqual(originals);
     expect(width).toHaveBeenCalledTimes(1);
     expect(height).toHaveBeenCalledTimes(1);
-    expect(["innerWidth", "innerHeight"].map(key => Object.getOwnPropertyDescriptor(win, key))).toEqual(originals);
-    expect(win.innerWidth).toBe(1);
   });
 
   it("restores plain data properties, and removes properties the window did not own", () => {
