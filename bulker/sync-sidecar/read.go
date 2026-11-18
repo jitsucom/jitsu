@@ -63,6 +63,9 @@ type ReadSideCar struct {
 	blk                bulker.Bulker
 	lastStream         *ActiveStream
 	processedStreams   map[string]*ActiveStream
+	// pendingSharedState holds the latest GLOBAL and LEGACY checkpoints (by state name) that are waiting for the records
+	// they cover to be committed, see holdSharedState.
+	pendingSharedState map[string]any
 	catalog            *jsonorder.OrderedMap[string, *Stream]
 	destinationConfig  map[string]any
 	initialState       string
@@ -378,7 +381,7 @@ func (s *ReadSideCar) processState(state *StateRow) {
 	switch state.Type {
 	case "GLOBAL":
 		s.checkpointIfNecessary(s.lastStream)
-		s.saveState("_GLOBAL_STATE", state.GlobalState)
+		s.holdSharedState("_GLOBAL_STATE", state.GlobalState)
 	case "STREAM":
 		streamName := joinStrings(state.StreamState.StreamDescriptor.Namespace, state.StreamState.StreamDescriptor.Name, ".")
 		var ok bool
@@ -386,11 +389,52 @@ func (s *ReadSideCar) processState(state *StateRow) {
 		if ok && stream != nil {
 			stream.unsavedState = state.StreamState.StreamState
 			s.checkpointIfNecessary(stream)
+			// this commit may have been the last thing a held GLOBAL or LEGACY checkpoint was waiting for
+			s.flushSharedState()
 		}
 	case "LEGACY", "":
 		s.checkpointIfNecessary(s.lastStream)
-		s.saveState("_LEGACY_STATE", state.Data)
+		s.holdSharedState("_LEGACY_STATE", state.Data)
 	}
+}
+
+// holdSharedState records a GLOBAL or LEGACY checkpoint and saves it as soon as the records it covers are committed.
+// The cursor covers every stream, so saving it while a stream still has buffered records moves the cursor past records
+// that are only in memory. A full re-sync defers every upload to the end of the stream, so it is exactly the case: if
+// that upload fails, the next run would resume past undelivered records. Only the latest checkpoint is kept.
+func (s *ReadSideCar) holdSharedState(name string, data any) {
+	if data == nil {
+		return
+	}
+	if s.pendingSharedState == nil {
+		s.pendingSharedState = map[string]any{}
+	}
+	s.pendingSharedState[name] = data
+	s.flushSharedState()
+}
+
+// flushSharedState saves the held GLOBAL and LEGACY checkpoints once no stream has records waiting to be committed.
+// saveState still refuses to save them if any stream has an error, so a failed upload drops the held checkpoint.
+func (s *ReadSideCar) flushSharedState() {
+	if len(s.pendingSharedState) == 0 || s.hasUncommittedRecords() {
+		return
+	}
+	for _, name := range []string{"_GLOBAL_STATE", "_LEGACY_STATE"} {
+		if data, ok := s.pendingSharedState[name]; ok {
+			delete(s.pendingSharedState, name)
+			s.saveState(name, data)
+		}
+	}
+}
+
+// hasUncommittedRecords reports whether any stream still has records buffered for an upload that has not happened yet.
+func (s *ReadSideCar) hasUncommittedRecords() bool {
+	for _, stream := range s.processedStreams {
+		if stream != nil && stream.bulkerStream != nil && stream.bufferedEventsCount > 0 {
+			return true
+		}
+	}
+	return false
 }
 
 // stateSaveBlocker returns the reason why the state called `stream` must not be saved now, or "" if it may be saved.
@@ -542,6 +586,8 @@ func (s *ReadSideCar) _closeStream(stream *ActiveStream, complete bool, strict b
 	if complete {
 		s.saveState(stream.name, stream.unsavedState)
 		stream.unsavedState = nil
+		// the records of this stream are committed now: a held GLOBAL or LEGACY checkpoint may no longer be waiting
+		s.flushSharedState()
 	}
 	s.log("Stream '%s' closed: status: %s rows: %d", stream.name, stream.Status, stream.EventsCount)
 }
