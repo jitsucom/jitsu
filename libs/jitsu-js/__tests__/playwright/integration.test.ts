@@ -673,6 +673,7 @@ test("only the first send after invalidation measures the viewport", async ({ pa
     history.push(reads());
     for (let i = 0; i < 3; i++) {
       document.body.style.padding = `${i + 1}px`;
+      document.body.dispatchEvent(new Event("resize", { bubbles: true }));
       pending.push(window["jitsu"].group("cached-viewport"));
     }
     history.push(reads());
@@ -700,6 +701,33 @@ test("page still reads dimensions in analytics page properties with a warm scree
     width: 123,
     height: 456,
   });
+});
+
+test("multiple sends in a native resize handler share a single measurement", async ({ page }) => {
+  await page.setViewportSize({ width: 800, height: 600 });
+  await openViewportTestPage(page);
+  await page.evaluate(async () => {
+    await window["jitsu"].group("before-native-resize");
+    window["nativeResizeReads"] = new Promise(resolve => {
+      window.addEventListener(
+        "resize",
+        () => {
+          const before = { ...window["viewportReads"] };
+          for (let i = 0; i < 3; i++) {
+            document.body.style.padding = `${i + 1}px`;
+            window["jitsu"].group("during-native-resize");
+          }
+          resolve([
+            window["viewportReads"].innerWidth - before.innerWidth,
+            window["viewportReads"].innerHeight - before.innerHeight,
+          ]);
+        },
+        { once: true }
+      );
+    });
+  });
+  await page.setViewportSize({ width: 640, height: 480 });
+  expect(await page.evaluate(() => window["nativeResizeReads"])).toEqual([1, 1]);
 });
 
 for (const capture of [false, true]) {
