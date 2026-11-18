@@ -1,7 +1,8 @@
-import type { PrismaClient, Prisma } from "@prisma/client";
+import { type PrismaClient, Prisma } from "@prisma/client";
 import { createHash } from "node:crypto";
 import { ModelDefinition, ReverseSyncOptions, supportsWarehouseReader } from "@jitsu/warehouse-query/src/schema";
 import { ReverseRunConfig } from "@jitsu/warehouse-query/src/runtime";
+import { getServerLog } from "./log";
 import { ApiError } from "../shared/errors";
 import { retentionConfig, webhookRetentionRefusal } from "./reverse-retention";
 import { managedGoogleAudienceForSync } from "./google-audiences";
@@ -20,16 +21,37 @@ type ReadDb = Pick<
   | "workspaceOptions"
 >;
 
+type Admission = { refreshTaskId?: string; exportPending?: boolean };
+
 /** Paused syncs are omitted unless exporting saved delivery or admitting an explicit refresh. */
 export async function readReverseSync(
   db: ReadDb,
   id: string,
   workspaceId?: string,
-  admission: { refreshTaskId?: string; exportPending?: boolean } = {}
+  admission: Admission = {}
 ): Promise<ReverseRunConfig | undefined> {
+  const snapshot = await readReverseSyncSnapshot(db, id, workspaceId, admission);
+  if (!snapshot) return;
+  const value = ReverseRunConfig.parse(snapshot);
+  serializeReverseConfig(value);
+  return value;
+}
+
+function serializeReverseConfig(value: ReverseRunConfig): string {
+  const json = JSON.stringify(value);
+  if (Buffer.byteLength(json) > 900_000)
+    throw new ApiError("Reverse configuration exceeds Secret budget", { status: 400 });
+  return json;
+}
+
+async function readReverseSyncSnapshot(db: ReadDb, id: string, workspaceId: string | undefined, admission: Admission) {
   const link = await db.configurationObjectLink.findFirst({
     where: { id, ...(workspaceId ? { workspaceId } : {}), type: "reverse-sync", deleted: false },
-    include: { from: true, to: true, workspace: true },
+    include: {
+      from: { select: { config: true, deleted: true, workspaceId: true, type: true, updatedAt: true } },
+      to: { select: { config: true, deleted: true, workspaceId: true, type: true, updatedAt: true } },
+      workspace: { select: { deleted: true, featuresEnabled: true, updatedAt: true } },
+    },
   });
   if (!link || link.workspace.deleted || !link.workspace.featuresEnabled.includes("reverse-etl")) return;
   const options = ReverseSyncOptions.parse(link.data);
@@ -58,6 +80,7 @@ export async function readReverseSync(
   const model = ModelDefinition.parse(link.from.config);
   const warehouse = await db.configurationObject.findFirst({
     where: { id: model.warehouseId, workspaceId: link.workspaceId, type: "destination", deleted: false },
+    select: { config: true, updatedAt: true },
   });
   if (!warehouse || !supportsWarehouseReader(warehouse.config as Record<string, unknown>))
     throw new ApiError("Reverse warehouse is missing or unsupported", { status: 409 });
@@ -162,7 +185,7 @@ export async function readReverseSync(
     });
     if (!control) return;
   }
-  const value = ReverseRunConfig.parse({
+  return {
     version: 1,
     kind: "reverse",
     id: link.id,
@@ -183,10 +206,38 @@ export async function readReverseSync(
     timezone: options.timezone ?? "Etc/UTC",
     ...runtime,
     ...(retention ? { retention } : {}),
-  });
-  if (Buffer.byteLength(JSON.stringify(value)) > 900_000)
-    throw new ApiError("Reverse configuration exceeds Secret budget", { status: 400 });
-  return value;
+  };
+}
+
+const log = getServerLog("reverse-sync-export");
+
+async function exportReverseSyncRow(db: PrismaClient, id: string) {
+  for (let attempt = 1; ; attempt++) {
+    const started = Date.now();
+    try {
+      const snapshot = await db.$transaction(
+        tx => readReverseSyncSnapshot(tx, id, undefined, { exportPending: true }),
+        {
+          isolationLevel: "RepeatableRead",
+          timeout: 15_000,
+        }
+      );
+      return snapshot && serializeReverseConfig(ReverseRunConfig.parse(snapshot));
+    } catch (error) {
+      const expired =
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === "P2028" &&
+        error.message.includes("expired transaction");
+      const retry = expired && attempt === 1;
+      const entry = retry ? log.atWarn() : log.atError();
+      entry.log(
+        `Reverse sync ${id} export attempt ${attempt} failed after ${Date.now() - started} ms; ${
+          retry ? "retrying expired transaction" : "aborting export"
+        }`
+      );
+      if (!retry) throw error;
+    }
+  }
 }
 
 export async function exportReverseSyncs(db: PrismaClient, writer: { write(chunk: string): unknown }) {
@@ -202,11 +253,9 @@ export async function exportReverseSyncs(db: PrismaClient, writer: { write(chunk
     });
     if (!rows.length) break;
     for (const row of rows) {
-      const config = await db.$transaction(tx => readReverseSync(tx, row.id, undefined, { exportPending: true }), {
-        isolationLevel: "RepeatableRead",
-      });
-      if (config) {
-        writer.write(`${comma ? "," : ""}${JSON.stringify(config)}`);
+      const json = await exportReverseSyncRow(db, row.id);
+      if (json) {
+        writer.write(`${comma ? "," : ""}${json}`);
         comma = true;
       }
       after = row.id;
