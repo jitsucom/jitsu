@@ -393,25 +393,48 @@ func (s *ReadSideCar) processState(state *StateRow) {
 	}
 }
 
+// stateSaveBlocker returns the reason why the state called `stream` must not be saved now, or "" if it may be saved.
+func (s *ReadSideCar) stateSaveBlocker(stream string) string {
+	if stream != "_LEGACY_STATE" && stream != "_GLOBAL_STATE" {
+		processed, ok := s.processedStreams[stream]
+		if !ok {
+			return fmt.Sprintf("cannot save state for stream '%s' because it was not processed", stream)
+		}
+		if processed.Error != "" {
+			return fmt.Sprintf("not saving state for stream '%s' because of previous errors", stream)
+		}
+		return ""
+	}
+	if s.isCriticalError() {
+		return fmt.Sprintf("not saving '%s' state because of previous errors", stream)
+	}
+	// GLOBAL and LEGACY state cover every stream. A stream whose upload failed (the error is recorded on the stream, not
+	// as a task-level error) did not deliver its records, and saving this state would move the cursor past them.
+	if failed := s.firstFailedStream(); failed != "" {
+		return fmt.Sprintf("not saving '%s' state because stream '%s' has errors", stream, failed)
+	}
+	return ""
+}
+
+// firstFailedStream returns the name (alphabetically first, so the message is stable) of a processed stream that has
+// an error, or "" if there is none.
+func (s *ReadSideCar) firstFailedStream() string {
+	failed := ""
+	for name, stream := range s.processedStreams {
+		if stream != nil && stream.Error != "" && (failed == "" || name < failed) {
+			failed = name
+		}
+	}
+	return failed
+}
+
 func (s *ReadSideCar) saveState(stream string, data any) {
 	if data == nil {
 		return
 	}
-	if stream != "_LEGACY_STATE" && stream != "_GLOBAL_STATE" {
-		processed, ok := s.processedStreams[stream]
-		if !ok {
-			s.errprint("STATE: cannot save state for stream '%s' because it was not processed", stream)
-			return
-		}
-		if processed.Error != "" {
-			s.errprint("STATE: not saving state for stream '%s' because of previous errors", stream)
-			return
-		}
-	} else {
-		if s.isCriticalError() {
-			s.errprint("STATE: not saving '%s' state because of previous errors", stream)
-			return
-		}
+	if reason := s.stateSaveBlocker(stream); reason != "" {
+		s.errprint("STATE: %s", reason)
+		return
 	}
 	stateJson, err := jsonorder.Marshal(data)
 	if err != nil {
