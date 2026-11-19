@@ -374,7 +374,7 @@ const configObjectTypes: Record<string, ConfigObjectType> = {
     merge: async (original: ServiceConfig, patch: Partial<ServiceConfig>): Promise<any> => {
       // Remove masked values before merge
       const secretPaths = await getServiceSecretPaths(original.package, original.version, original, patch);
-      const cleanedPatch = removeMaskedCredentials(removeMaskedValues(patch, secretPaths));
+      const cleanedPatch = removeMaskedCredentials(patch, original);
       const before = deepCopy(original);
       const merged = deepMerge(original, cleanedPatch);
       assertSecretsStayWithTarget(withSchemaDefaults("service", before), patch, merged, secretPaths);
@@ -382,8 +382,7 @@ const configObjectTypes: Record<string, ConfigObjectType> = {
     },
     inputFilter: async (obj: ServiceConfig) => {
       // Remove masked values
-      const secretPaths = await getServiceSecretPaths(obj.package, obj.version, obj);
-      return removeMaskedCredentials(removeMaskedValues(obj, secretPaths));
+      return removeMaskedCredentials(obj);
     },
     onDelete: async (original: ServiceConfig, options) => {
       await handleLinkedConnections(original.workspaceId, original.id, "service", options);

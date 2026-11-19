@@ -74,47 +74,52 @@ function warnNoUsableSpec(packageName: string, version: string, reason: NoUsable
     );
 }
 
-// Keys lodash would read or write on the prototype, and keys with a dot or a bracket: a path to them is read as
-// several segments (`a[0]`) or cannot be told apart from another path, so such a key is covered by masking the whole
-// `credentials` value instead
-const UNSAFE_PATH_KEY = /[.[\]]|^(__proto__|constructor|prototype)$/;
+/**
+ * A path to a secret: a dotted string (`credentials.password`, from a connector spec, where keys are plain names) or a
+ * list of keys. Credentials of a service can have any key (`a.b`, `a[0]`, `__proto__`), and a string path would be
+ * read as several keys, so the paths built from the data itself are lists and are only read by the own-key helpers.
+ */
+export type SecretPath = string | string[];
+
+const hasOwn = (node: any, key: string) => node !== null && typeof node === "object" && Object.hasOwn(node, key);
+const getOwn = (node: any, keys: string[]) => {
+  for (const key of keys) {
+    if (!hasOwn(node, key)) {
+      return undefined;
+    }
+    node = node[key];
+  }
+  return node;
+};
+const defineOwn = (node: any, key: string, value: any) =>
+  Object.defineProperty(node, key, { value, enumerable: true, writable: true, configurable: true });
+const keysOf = (path: SecretPath): string[] => (Array.isArray(path) ? path : path.split("."));
+const valueAt = (obj: any, path: SecretPath) => (Array.isArray(path) ? getOwn(obj, path) : get(obj, path));
+const labelOf = (path: SecretPath) => keysOf(path).join(".");
 
 /**
  * Paths of every value under `credentials` of the given objects (a stored service, an incoming patch). Plain objects
- * are walked by key, down to the leaf, because the guard in `assertSecretsStayWithTarget` asks for each secret
- * separately: masking a whole group would let a patch with one nested field count as supplying it all. An array is one
- * value: a merge replaces an array as a whole, so masking its entries one by one would turn the stored ones into
- * `null` when the masked list is sent back.
+ * are walked by key and arrays by index, down to the leaf, because the guard in `assertSecretsStayWithTarget` asks
+ * for each secret separately: masking a whole group would let a patch with one nested field count as supplying it all.
+ * Masking an entry keeps the shape of the value, which the editor and a clone depend on.
  */
-function credentialLeafPaths(sources: any[]): string[] {
-  const paths = new Set<string>();
-  let wholeValue = false;
-  const walk = (node: any, path: string) => {
+function credentialLeafPaths(sources: any[]): string[][] {
+  const paths = new Map<string, string[]>();
+  const walk = (node: any, path: string[]) => {
     if (isPlainObject(node)) {
-      for (const [key, value] of Object.entries(node)) {
-        if (UNSAFE_PATH_KEY.test(key)) {
-          wholeValue = true;
-        } else {
-          walk(value, `${path}.${key}`);
-        }
-      }
+      Object.keys(node).forEach(key => walk(node[key], [...path, key]));
+    } else if (Array.isArray(node)) {
+      node.forEach((item, index) => walk(item, [...path, String(index)]));
     } else {
-      paths.add(path);
+      paths.set(JSON.stringify(path), path);
     }
   };
   for (const source of sources) {
-    const credentials = source?.credentials;
-    if (credentials === undefined || credentials === null) {
-      continue;
-    }
-    if (isPlainObject(credentials)) {
-      walk(credentials, "credentials");
-    } else {
-      wholeValue = true;
+    if (source?.credentials !== undefined && source?.credentials !== null) {
+      walk(source.credentials, ["credentials"]);
     }
   }
-  // Last, so that masking it replaces what the leaf paths before it set
-  return [...paths, ...(wholeValue ? ["credentials"] : [])];
+  return [...paths.values()];
 }
 
 /**
@@ -129,7 +134,7 @@ export async function getServiceSecretPaths(
   packageName: string,
   version: string,
   ...sources: any[]
-): Promise<string[]> {
+): Promise<SecretPath[]> {
   let reason: NoUsableSpec;
   try {
     const sourceSpec = await db.prisma().source_spec.findUnique({
@@ -198,7 +203,7 @@ function serviceSpecSecretPaths(properties: any): string[] {
 /**
  * Mask secret values in an object based on the field paths
  */
-export function maskSecrets(obj: any, secretPaths: string[]): any {
+export function maskSecrets(obj: any, secretPaths: SecretPath[]): any {
   if (!obj || typeof obj !== "object") {
     return obj;
   }
@@ -206,9 +211,17 @@ export function maskSecrets(obj: any, secretPaths: string[]): any {
   const result = JSON.parse(JSON.stringify(obj)); // Deep clone
 
   for (const path of secretPaths) {
-    const value = get(obj, path);
-    if (typeof value !== "undefined") {
-      set(result, path, MASKED_SECRET); // We don't mask non-set values
+    const value = valueAt(obj, path);
+    if (typeof value === "undefined") {
+      continue; // We don't mask non-set values
+    }
+    if (Array.isArray(path)) {
+      const parent = getOwn(result, path.slice(0, -1));
+      if (path.length > 0 && parent !== null && typeof parent === "object") {
+        defineOwn(parent, path[path.length - 1], MASKED_SECRET);
+      }
+    } else {
+      set(result, path, MASKED_SECRET);
     }
   }
 
@@ -216,9 +229,10 @@ export function maskSecrets(obj: any, secretPaths: string[]): any {
 }
 
 /**
- * Remove masked values from an object before merge
+ * Remove masked values from an object before merge. A masked entry of a list is left where it is: removing it would
+ * leave a hole (stored as null), and a list is replaced as a whole by a merge.
  */
-export function removeMaskedValues(obj: any, secretPaths: string[]): any {
+export function removeMaskedValues(obj: any, secretPaths: SecretPath[]): any {
   if (!obj || typeof obj !== "object") {
     return obj;
   }
@@ -226,8 +240,15 @@ export function removeMaskedValues(obj: any, secretPaths: string[]): any {
   const result = JSON.parse(JSON.stringify(obj)); // Deep clone
 
   for (const path of secretPaths) {
-    const value = get(obj, path);
-    if (value === MASKED_SECRET) {
+    if (valueAt(obj, path) !== MASKED_SECRET) {
+      continue;
+    }
+    if (Array.isArray(path)) {
+      const parent = getOwn(result, path.slice(0, -1));
+      if (path.length > 0 && parent !== null && typeof parent === "object" && !Array.isArray(parent)) {
+        delete parent[path[path.length - 1]];
+      }
+    } else {
       unset(result, path); // Remove the masked value
     }
   }
@@ -236,29 +257,51 @@ export function removeMaskedValues(obj: any, secretPaths: string[]): any {
 }
 
 /**
- * Remove every masked value under `credentials` of a service, whatever the spec says about it. A client that read the
+ * Remove every masked value under `credentials` of a service, whatever the spec lists as secret. A client that read the
  * service while its spec was missing holds masks for ordinary fields (a host) too, and sends them back after the spec
  * has arrived, when only the listed secrets are known: a mask must never be stored over a value.
+ *
+ * A key with a mask is dropped, so that a merge keeps the stored value. A list is replaced as a whole by a merge, so a
+ * masked entry of a list (or of an object inside a list) is given the stored value at the same place instead, or is left
+ * out when there is none. `stored` is the service before the change; an incoming new service has none.
  */
-export function removeMaskedCredentials(obj: any): any {
+export function removeMaskedCredentials(obj: any, stored?: any): any {
   if (!obj || typeof obj !== "object" || obj.credentials === undefined) {
     return obj;
   }
   const result = JSON.parse(JSON.stringify(obj)); // Deep clone
-  const strip = (node: any) => {
-    for (const key of Object.keys(node)) {
-      if (node[key] === MASKED_SECRET) {
-        delete node[key];
-      } else if (isPlainObject(node[key])) {
-        strip(node[key]);
-      }
-    }
-  };
   if (result.credentials === MASKED_SECRET) {
     delete result.credentials;
-  } else if (isPlainObject(result.credentials)) {
-    strip(result.credentials);
+    return result;
   }
+  const without = (node: any, before: any, inList: boolean): any => {
+    if (Array.isArray(node)) {
+      const items: any[] = [];
+      node.forEach((item, index) => {
+        const storedItem = hasOwn(before, String(index)) ? before[index] : undefined;
+        if (item !== MASKED_SECRET) {
+          items.push(without(item, storedItem, true));
+        } else if (storedItem !== undefined) {
+          items.push(storedItem);
+        }
+      });
+      return items;
+    }
+    if (isPlainObject(node)) {
+      const copy = {};
+      for (const [key, value] of Object.entries(node)) {
+        const storedValue = hasOwn(before, key) ? before[key] : undefined;
+        if (value !== MASKED_SECRET) {
+          defineOwn(copy, key, without(value, storedValue, inList));
+        } else if (inList && storedValue !== undefined) {
+          defineOwn(copy, key, storedValue);
+        }
+      }
+      return copy;
+    }
+    return node;
+  };
+  result.credentials = without(result.credentials, stored?.credentials, false);
   return result;
 }
 
@@ -545,23 +588,6 @@ function targetFieldsBetween(updated: any, original: any, path: (string | number
   });
 }
 
-/** Every value stored in `stored`, found by its own key (a dot or bracket in a key is just a character), is given in `supplied` */
-function suppliedEveryValue(stored: any, supplied: any): boolean {
-  if (isEmptyValue(stored)) {
-    return true;
-  }
-  if (isPlainObject(stored)) {
-    return (
-      isPlainObject(supplied) &&
-      Object.entries(stored).every(
-        ([key, value]) =>
-          Object.prototype.hasOwnProperty.call(supplied, key) && suppliedEveryValue(value, supplied[key])
-      )
-    );
-  }
-  return !isEmptyValue(supplied) && supplied !== MASKED_SECRET;
-}
-
 /**
  * An update that keeps stored secrets (masked values and omitted fields both keep them) must not point the object at
  * a different host: that would send the stored password to wherever the editor says. When a connection target changes,
@@ -571,7 +597,7 @@ function suppliedEveryValue(stored: any, supplied: any): boolean {
  * @param patch the incoming patch, with masked values still in it
  * @param merged the result of merging the patch into the original
  */
-export function assertSecretsStayWithTarget(original: any, patch: any, merged: any, secretPaths: string[]): void {
+export function assertSecretsStayWithTarget(original: any, patch: any, merged: any, secretPaths: SecretPath[]): void {
   const changed = changedTargetFieldsBetween(merged, original);
   const breakers = connectionStringBreakers(merged, original);
   if (changed.length === 0 && breakers.fields.length === 0) {
@@ -579,28 +605,25 @@ export function assertSecretsStayWithTarget(original: any, patch: any, merged: a
   }
   const keptSecrets = secretPaths.filter(path => {
     // A signing key (webhook `signatureSecret`) only signs what is sent: the receiver never gets it
-    if (isSigningKey(original, String(path).split(".").pop())) {
+    if (isSigningKey(original, keysOf(path).at(-1))) {
       return false;
     }
-    const stored = get(original, path);
+    const stored = valueAt(original, path);
     if (isEmptyValue(stored)) {
       return false;
     }
     // Walk the path one segment at a time. A string path would let a property literally named `credentials.password`
     // in the patch count as the nested secret (lodash prefers it), while the stored password is kept.
-    const supplied = get(patch, String(path).split("."));
-    // A whole object as a secret (a service key that no path can name) is supplied only when every stored key is
-    // given again: the merge keeps the keys the patch leaves out
-    return isPlainObject(stored) && String(path) === "credentials"
-      ? !suppliedEveryValue(stored, supplied)
-      : isEmptyValue(supplied) || supplied === MASKED_SECRET;
+    const supplied = Array.isArray(path) ? getOwn(patch, path) : get(patch, keysOf(path));
+    // A mask anywhere inside a secret object keeps the stored value there (the merge drops the mask)
+    return isEmptyValue(supplied) || supplied === MASKED_SECRET || containsMaskedSecrets(supplied);
   });
   if (keptSecrets.length > 0) {
     const reason = changed.length > 0 ? `${changed.join(", ")} changed` : connectionStringReason(breakers);
     throw new ApiError(
-      `Cannot keep the saved secrets (${keptSecrets.join(
-        ", "
-      )}) because ${reason}. Enter the secret values again to continue.`,
+      `Cannot keep the saved secrets (${keptSecrets
+        .map(labelOf)
+        .join(", ")}) because ${reason}. Enter the secret values again to continue.`,
       { status: 400 }
     );
   }

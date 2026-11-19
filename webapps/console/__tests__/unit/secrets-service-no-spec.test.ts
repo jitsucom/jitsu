@@ -36,6 +36,12 @@ let counter = 0;
 /** A package name nobody used before in this file: the fallback warning is deduplicated per package@version */
 const freshPackage = () => `airbyte/source-no-spec-${++counter}`;
 
+/** Spec paths are dotted strings, fallback paths are lists of keys: compare both as lists, sorted */
+const segments = (paths: (string | string[])[]) =>
+  paths
+    .map(p => (Array.isArray(p) ? p : p.split(".")))
+    .sort((a, b) => (JSON.stringify(a) < JSON.stringify(b) ? -1 : 1));
+
 const specWith = (properties: any) => ({ specs: { connectionSpecification: { properties } } });
 const USABLE_WITH_SECRET = specWith({
   host: { type: "string" },
@@ -53,7 +59,10 @@ afterEach(() => {
 
 describe("getServiceSecretPaths", () => {
   const source = { credentials: { host: "db.customer.com", password: "s3cr3t-value" } };
-  const LEAVES = ["credentials.host", "credentials.password"];
+  const LEAVES = [
+    ["credentials", "host"],
+    ["credentials", "password"],
+  ];
 
   const unusable: [string, () => void][] = [
     ["no spec row", () => mocks.findUnique.mockResolvedValue(null)],
@@ -73,7 +82,7 @@ describe("getServiceSecretPaths", () => {
 
   it.each(unusable)("treats every credential value as secret: %s", async (_name, arrange) => {
     arrange();
-    expect((await getServiceSecretPaths(freshPackage(), "1.0.0", source)).sort()).toEqual(LEAVES);
+    expect(segments(await getServiceSecretPaths(freshPackage(), "1.0.0", source))).toEqual(LEAVES);
   });
 
   it("keeps the spec's own paths when the spec is usable", async () => {
@@ -90,40 +99,46 @@ describe("getServiceSecretPaths", () => {
   describe("fallback paths", () => {
     beforeEach(() => mocks.findUnique.mockResolvedValue(null));
     const paths = async (...sources: any[]) =>
-      (await getServiceSecretPaths(freshPackage(), "1.0.0", ...sources)).sort();
+      segments(await getServiceSecretPaths(freshPackage(), "1.0.0", ...sources));
 
-    it("goes down to the leaf of nested objects, and takes an array as one value", async () => {
+    it("goes down to the leaf of nested objects and of arrays, by key and by index", async () => {
       expect(
         await paths({
           credentials: { token: "t", auth: { user: "u", password: "p" }, list: [{ k: "v" }, "plain"] },
         })
-      ).toEqual(["credentials.auth.password", "credentials.auth.user", "credentials.list", "credentials.token"]);
-    });
-
-    it("also masks the whole credentials value when a key has brackets, which a path would read as segments", async () => {
-      expect(await paths({ credentials: { "a[0]": "x", "b]": "y", ok: "z" } })).toEqual([
-        "credentials",
-        "credentials.ok",
+      ).toEqual([
+        ["credentials", "auth", "password"],
+        ["credentials", "auth", "user"],
+        ["credentials", "list", "0", "k"],
+        ["credentials", "list", "1"],
+        ["credentials", "token"],
       ]);
     });
 
     it("counts a null leaf, because masking skips only a value that is not there", async () => {
-      expect(await paths({ credentials: { token: null } })).toEqual(["credentials.token"]);
+      expect(await paths({ credentials: { token: null } })).toEqual([["credentials", "token"]]);
     });
 
-    it("masks the whole credentials value too when a key contains a dot (the guard splits paths on dots)", async () => {
-      expect(await paths({ credentials: { "a.b": "x", c: "y" } })).toEqual(["credentials", "credentials.c"]);
-      expect(await paths({ credentials: { nested: { "a.b": "x" } } })).toEqual(["credentials"]);
+    it("names a key with a dot or a bracket as one key, never as several", async () => {
+      expect(await paths({ credentials: { "a.b": "x", "c[0]": "y", "d]": "z" } })).toEqual([
+        ["credentials", "a.b"],
+        ["credentials", "c[0]"],
+        ["credentials", "d]"],
+      ]);
+      expect(await paths({ credentials: { nested: { "a.b": "x" } } })).toEqual([["credentials", "nested", "a.b"]]);
     });
 
-    it("does the same for keys that point at the prototype", async () => {
+    it("names keys that point at the prototype like any other key", async () => {
       const credentials = JSON.parse('{"__proto__": {"x": 1}, "constructor": "c", "ok": "v"}');
-      expect(await paths({ credentials })).toEqual(["credentials", "credentials.ok"]);
+      expect(await paths({ credentials })).toEqual([
+        ["credentials", "__proto__", "x"],
+        ["credentials", "constructor"],
+        ["credentials", "ok"],
+      ]);
     });
 
-    it("masks the whole credentials value when it is not a plain object", async () => {
-      expect(await paths({ credentials: "a-string" })).toEqual(["credentials"]);
-      expect(await paths({ credentials: ["a"] })).toEqual(["credentials"]);
+    it("masks credentials as a whole when it is not an object", async () => {
+      expect(await paths({ credentials: "a-string" })).toEqual([["credentials"]]);
     });
 
     it("has nothing to mask when credentials are absent, null or empty", async () => {
@@ -137,7 +152,11 @@ describe("getServiceSecretPaths", () => {
     it("covers a field that is only in the second source, once", async () => {
       expect(
         await paths({ credentials: { host: "h", password: "p" } }, { credentials: { password: "q", extra: "e" } })
-      ).toEqual(["credentials.extra", "credentials.host", "credentials.password"]);
+      ).toEqual([
+        ["credentials", "extra"],
+        ["credentials", "host"],
+        ["credentials", "password"],
+      ]);
     });
   });
 
@@ -205,16 +224,31 @@ describe("the service config type, no spec", () => {
       expect(out.id).toBe("svc1");
     });
 
-    it("does not return a bracketed key in plain text", async () => {
-      const original = { ...stored(freshPackage()), credentials: { "a[0]": "real-secret", ok: "v" } };
+    it("masks a key with brackets or a dot in place: credentials stays an object", async () => {
+      const original = {
+        ...stored(freshPackage()),
+        credentials: { "a[0]": "real-1", "b.c": "real-2", ok: "v", nested: { "d]": "real-3" } },
+      };
       const out = await type.outputFilter(original as any);
-      expect(JSON.stringify(out)).not.toContain("real-secret");
+      expect(out.credentials).toEqual({
+        "a[0]": MASKED_SECRET,
+        "b.c": MASKED_SECRET,
+        ok: MASKED_SECRET,
+        nested: { "d]": MASKED_SECRET },
+      });
+      expect(JSON.stringify(out)).not.toContain("real-");
     });
 
-    it("masks the whole credentials value when a stored key has a dot, which no path can name", async () => {
-      const original = { ...stored(freshPackage()), credentials: { "a.b": "real-secret", host: "db.customer.com" } };
+    it("masks a list entry by entry, so the shape the editor expects is kept", async () => {
+      const original = {
+        ...stored(freshPackage()),
+        credentials: { hosts: ["a", "b"], rows: [{ k: "v1", n: 1 }, { k: "v2" }] },
+      };
       const out = await type.outputFilter(original as any);
-      expect(out.credentials).toBe(MASKED_SECRET);
+      expect(out.credentials).toEqual({
+        hosts: [MASKED_SECRET, MASKED_SECRET],
+        rows: [{ k: MASKED_SECRET, n: MASKED_SECRET }, { k: MASKED_SECRET }],
+      });
     });
 
     it("is unchanged with a usable spec: only the listed secret is masked", async () => {
@@ -231,6 +265,15 @@ describe("the service config type, no spec", () => {
       const input = { ...stored(freshPackage()), credentials: { host: "db2.customer.com", password: MASKED_SECRET } };
       const out = await type.inputFilter(input as any, {} as any, {} as any);
       expect(out.credentials).toEqual({ host: "db2.customer.com" });
+    });
+
+    it("drops masked list entries instead of storing null for them", async () => {
+      const input = {
+        ...stored(freshPackage()),
+        credentials: { hosts: [MASKED_SECRET, "typed"], rows: [{ k: MASKED_SECRET }] },
+      };
+      const out = await type.inputFilter(input as any, {} as any, {} as any);
+      expect(out.credentials).toEqual({ hosts: ["typed"], rows: [{}] });
     });
   });
 
@@ -253,7 +296,7 @@ describe("the service config type, no spec", () => {
       const original = { ...stored(freshPackage()), credentials: { "a.b": "real", host: "h" } };
       await expect(
         type.merge(original as any, { package: "attacker/x", credentials: { host: "h2" } } as any)
-      ).rejects.toThrow(/Cannot keep the saved secrets \(credentials\)/);
+      ).rejects.toThrow(/Cannot keep the saved secrets \(credentials\.a\.b\)/);
     });
 
     it("accepts that change when every stored key, the dotted one included, is given again", async () => {
@@ -269,11 +312,53 @@ describe("the service config type, no spec", () => {
     });
 
     it("keeps a stored list when the UI sends its masked form back", async () => {
-      const original = { ...stored(freshPackage()), credentials: { hosts: ["a", "b"], token: "t" } };
+      const original = {
+        ...stored(freshPackage()),
+        credentials: { hosts: ["a", "b"], rows: [{ k: "v1", n: 1 }, { k: "v2" }], token: "t" },
+      };
       const shown = await type.outputFilter(original as any);
-      expect(shown.credentials).toEqual({ hosts: MASKED_SECRET, token: MASKED_SECRET });
-      const merged = await type.merge(original as any, { credentials: shown.credentials } as any);
-      expect(merged.credentials).toEqual({ hosts: ["a", "b"], token: "t" });
+      const merged = await type.merge(original as any, { credentials: shown.credentials, name: "renamed" } as any);
+      expect(merged.credentials).toEqual(original.credentials);
+      expect(merged.name).toBe("renamed");
+    });
+
+    it("keeps masked entries of an edited list and takes the changed one", async () => {
+      const original = { ...stored(freshPackage()), credentials: { rows: [{ k: "v1", s: "x" }, { k: "v2" }] } };
+      const merged = await type.merge(
+        original as any,
+        {
+          credentials: { rows: [{ k: "new", s: MASKED_SECRET }, { k: MASKED_SECRET }] },
+        } as any
+      );
+      expect(merged.credentials.rows).toEqual([{ k: "new", s: "x" }, { k: "v2" }]);
+    });
+
+    it("refuses a changed host while a stored list entry would be kept", async () => {
+      const original = { ...stored(freshPackage()), credentials: { host: "h", hosts: ["a", "b"] } };
+      await expect(
+        type.merge(
+          original as any,
+          {
+            credentials: { host: "attacker.example", hosts: [MASKED_SECRET, "b"] },
+          } as any
+        )
+      ).rejects.toThrow(/Cannot keep the saved secrets \(credentials\.hosts\.0\)/);
+    });
+
+    it("refuses a changed package when the spec marks a whole credential object secret and only a mask is sent for it", async () => {
+      mocks.findUnique.mockResolvedValue(
+        specWith({ host: { type: "string" }, auth: { type: "object", airbyte_secret: true } })
+      );
+      const original = { ...stored(freshPackage()), credentials: { host: "h", auth: { token: "t", user: "u" } } };
+      await expect(
+        type.merge(
+          original as any,
+          {
+            package: "attacker/x",
+            credentials: { host: "h", auth: { token: MASKED_SECRET } },
+          } as any
+        )
+      ).rejects.toThrow(/Cannot keep the saved secrets \(credentials\.auth\)/);
     });
 
     it("does not store a mask that was read while the spec was missing, once the spec is back", async () => {
