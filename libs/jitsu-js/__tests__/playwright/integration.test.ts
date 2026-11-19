@@ -848,6 +848,45 @@ test("a send in the same task as a second viewport meta tag reports the new view
   await context.close();
 });
 
+for (const [label, name] of [
+  ["lowercase name", "viewport"],
+  ["capitalised name", "Viewport"],
+] as const) {
+  test(`a send in the same task as a viewport meta tag added to the body reports the new viewport (${label})`, async ({
+    browser,
+  }) => {
+    const context = await browser.newContext({ ...devices["Pixel 7"], ignoreHTTPSErrors: true });
+    const page = await context.newPage();
+    await page.route("**/viewport-body-meta.html", route =>
+      route.fulfill({
+        contentType: "text/html",
+        body: '<!doctype html><meta name="viewport" content="width=400"><title>Body meta</title><body><script src="/p.js" data-init-only="true"></script>',
+      })
+    );
+    await page.goto(`${server.baseUrl}/viewport-body-meta.html`);
+    await page.waitForFunction(() => !!window["jitsu"]);
+    await page.evaluate(() => window["jitsu"].track("warm-before-body-meta"));
+    await page.waitForTimeout(300);
+    const groupId = `body-meta-${name}`;
+    const live = await page.evaluate(
+      async ([metaName, id]) => {
+        // the browser applies viewport tags wherever they sit in the document, and the name is case-insensitive
+        const later = document.createElement("meta");
+        later.setAttribute("name", metaName);
+        later.setAttribute("content", "width=800");
+        document.body.append(later);
+        const width = window.innerWidth;
+        await window["jitsu"].group(id);
+        return width;
+      },
+      [name, groupId]
+    );
+    expect(live).toBeGreaterThan(600);
+    expect(requestLog.find(entry => entry.body.groupId === groupId)?.body.context.screen.innerWidth).toBe(live);
+    await context.close();
+  });
+}
+
 test("an iframe makes no viewport reads until it sends", async ({ page }) => {
   await openViewportTestPage(page);
   await page.evaluate(async () => {

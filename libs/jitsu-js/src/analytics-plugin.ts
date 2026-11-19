@@ -441,6 +441,26 @@ function createViewportCache(browserWindow: Window): ViewportCache {
 }
 
 /**
+ * The content of every viewport meta tag, in document order. The browser applies the one processed last, wherever it
+ * sits in the document and however its name is capitalised, so a tag added to the body or after the first one changes
+ * the viewport. The live meta collection is cached by the browser, which keeps this cheap. A selector would search the
+ * whole tree on every send.
+ */
+function viewportMetaContents(doc: Document | undefined): string | undefined {
+  const metas = doc?.getElementsByTagName?.("meta");
+  if (!metas) {
+    return undefined;
+  }
+  const contents: (string | null)[] = [];
+  for (let i = 0; i < metas.length; i++) {
+    if (metas[i].getAttribute("name")?.toLowerCase() === "viewport") {
+      contents.push(metas[i].getAttribute("content"));
+    }
+  }
+  return contents.join(",");
+}
+
+/**
  * Readings that cost nothing, because none of them needs layout, and that move together with the viewport: the
  * window size, the pixel ratio (page zoom), the screen orientation and the viewport meta tag. Unlike a listener,
  * comparing them works whichever handler runs first, so a send from an application handler that runs ahead of
@@ -449,15 +469,13 @@ function createViewportCache(browserWindow: Window): ViewportCache {
  */
 function viewportSignature(browserWindow: Window): string {
   const orientation = browserWindow.screen?.orientation;
-  // Every tag counts: the browser applies the one processed last, so a tag added after the first changes the viewport
-  const metas = browserWindow.document?.head?.querySelectorAll?.('meta[name="viewport" i]');
   return [
     browserWindow.outerWidth,
     browserWindow.outerHeight,
     browserWindow.devicePixelRatio,
     orientation?.type,
     orientation?.angle,
-    metas && Array.from(metas, meta => meta.getAttribute("content")).join(","),
+    viewportMetaContents(browserWindow.document),
   ].join("|");
 }
 
