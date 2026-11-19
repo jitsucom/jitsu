@@ -92,17 +92,18 @@ describe("getServiceSecretPaths", () => {
     const paths = async (...sources: any[]) =>
       (await getServiceSecretPaths(freshPackage(), "1.0.0", ...sources)).sort();
 
-    it("goes down to the leaf of nested objects and arrays", async () => {
+    it("goes down to the leaf of nested objects, and takes an array as one value", async () => {
       expect(
         await paths({
           credentials: { token: "t", auth: { user: "u", password: "p" }, list: [{ k: "v" }, "plain"] },
         })
-      ).toEqual([
-        "credentials.auth.password",
-        "credentials.auth.user",
-        "credentials.list.0.k",
-        "credentials.list.1",
-        "credentials.token",
+      ).toEqual(["credentials.auth.password", "credentials.auth.user", "credentials.list", "credentials.token"]);
+    });
+
+    it("also masks the whole credentials value when a key has brackets, which a path would read as segments", async () => {
+      expect(await paths({ credentials: { "a[0]": "x", "b]": "y", ok: "z" } })).toEqual([
+        "credentials",
+        "credentials.ok",
       ]);
     });
 
@@ -204,6 +205,12 @@ describe("the service config type, no spec", () => {
       expect(out.id).toBe("svc1");
     });
 
+    it("does not return a bracketed key in plain text", async () => {
+      const original = { ...stored(freshPackage()), credentials: { "a[0]": "real-secret", ok: "v" } };
+      const out = await type.outputFilter(original as any);
+      expect(JSON.stringify(out)).not.toContain("real-secret");
+    });
+
     it("masks the whole credentials value when a stored key has a dot, which no path can name", async () => {
       const original = { ...stored(freshPackage()), credentials: { "a.b": "real-secret", host: "db.customer.com" } };
       const out = await type.outputFilter(original as any);
@@ -240,6 +247,56 @@ describe("the service config type, no spec", () => {
       await expect(
         type.merge(original as any, { credentials: { host: "attacker.example", "a.b": "x" } } as any)
       ).rejects.toThrow(/Cannot keep the saved secrets/);
+    });
+
+    it("refuses a changed package when the patch gives only some of the credentials and a stored key has a dot", async () => {
+      const original = { ...stored(freshPackage()), credentials: { "a.b": "real", host: "h" } };
+      await expect(
+        type.merge(original as any, { package: "attacker/x", credentials: { host: "h2" } } as any)
+      ).rejects.toThrow(/Cannot keep the saved secrets \(credentials\)/);
+    });
+
+    it("accepts that change when every stored key, the dotted one included, is given again", async () => {
+      const original = { ...stored(freshPackage()), credentials: { "a.b": "real", host: "h" } };
+      const merged = await type.merge(
+        original as any,
+        {
+          package: "other/x",
+          credentials: { "a.b": "new", host: "h2" },
+        } as any
+      );
+      expect(merged.credentials).toEqual({ "a.b": "new", host: "h2" });
+    });
+
+    it("keeps a stored list when the UI sends its masked form back", async () => {
+      const original = { ...stored(freshPackage()), credentials: { hosts: ["a", "b"], token: "t" } };
+      const shown = await type.outputFilter(original as any);
+      expect(shown.credentials).toEqual({ hosts: MASKED_SECRET, token: MASKED_SECRET });
+      const merged = await type.merge(original as any, { credentials: shown.credentials } as any);
+      expect(merged.credentials).toEqual({ hosts: ["a", "b"], token: "t" });
+    });
+
+    it("does not store a mask that was read while the spec was missing, once the spec is back", async () => {
+      const original = stored(freshPackage());
+      mocks.findUnique.mockResolvedValue(USABLE_WITH_SECRET);
+      const merged = await type.merge(
+        original as any,
+        {
+          credentials: {
+            host: MASKED_SECRET,
+            password: MASKED_SECRET,
+            auth: { token: MASKED_SECRET },
+            start_date: "2026",
+          },
+        } as any
+      );
+      expect(merged.credentials).toEqual({ ...original.credentials, start_date: "2026" });
+      const created = await type.inputFilter(
+        { ...original, credentials: { host: MASKED_SECRET, password: "typed" } } as any,
+        {} as any,
+        {} as any
+      );
+      expect(created.credentials).toEqual({ password: "typed" });
     });
 
     it("refuses a changed package while the stored credentials would be kept", async () => {

@@ -74,14 +74,17 @@ function warnNoUsableSpec(packageName: string, version: string, reason: NoUsable
     );
 }
 
-// Keys lodash would read or write on the prototype, and keys with a dot: a path to them cannot be told apart from
-// another path, so such a key is covered by masking the whole `credentials` value instead
-const UNSAFE_PATH_KEY = /\.|^(__proto__|constructor|prototype)$/;
+// Keys lodash would read or write on the prototype, and keys with a dot or a bracket: a path to them is read as
+// several segments (`a[0]`) or cannot be told apart from another path, so such a key is covered by masking the whole
+// `credentials` value instead
+const UNSAFE_PATH_KEY = /[.[\]]|^(__proto__|constructor|prototype)$/;
 
 /**
  * Paths of every value under `credentials` of the given objects (a stored service, an incoming patch). Plain objects
- * are walked by key and arrays by index, down to the leaf, because the guard in `assertSecretsStayWithTarget` asks
- * for each secret separately: masking a whole group would let a patch with one nested field count as supplying it all.
+ * are walked by key, down to the leaf, because the guard in `assertSecretsStayWithTarget` asks for each secret
+ * separately: masking a whole group would let a patch with one nested field count as supplying it all. An array is one
+ * value: a merge replaces an array as a whole, so masking its entries one by one would turn the stored ones into
+ * `null` when the masked list is sent back.
  */
 function credentialLeafPaths(sources: any[]): string[] {
   const paths = new Set<string>();
@@ -95,8 +98,6 @@ function credentialLeafPaths(sources: any[]): string[] {
           walk(value, `${path}.${key}`);
         }
       }
-    } else if (Array.isArray(node)) {
-      node.forEach((item, index) => walk(item, `${path}.${index}`));
     } else {
       paths.add(path);
     }
@@ -231,6 +232,33 @@ export function removeMaskedValues(obj: any, secretPaths: string[]): any {
     }
   }
 
+  return result;
+}
+
+/**
+ * Remove every masked value under `credentials` of a service, whatever the spec says about it. A client that read the
+ * service while its spec was missing holds masks for ordinary fields (a host) too, and sends them back after the spec
+ * has arrived, when only the listed secrets are known: a mask must never be stored over a value.
+ */
+export function removeMaskedCredentials(obj: any): any {
+  if (!obj || typeof obj !== "object" || obj.credentials === undefined) {
+    return obj;
+  }
+  const result = JSON.parse(JSON.stringify(obj)); // Deep clone
+  const strip = (node: any) => {
+    for (const key of Object.keys(node)) {
+      if (node[key] === MASKED_SECRET) {
+        delete node[key];
+      } else if (isPlainObject(node[key])) {
+        strip(node[key]);
+      }
+    }
+  };
+  if (result.credentials === MASKED_SECRET) {
+    delete result.credentials;
+  } else if (isPlainObject(result.credentials)) {
+    strip(result.credentials);
+  }
   return result;
 }
 
@@ -517,6 +545,23 @@ function targetFieldsBetween(updated: any, original: any, path: (string | number
   });
 }
 
+/** Every value stored in `stored`, found by its own key (a dot or bracket in a key is just a character), is given in `supplied` */
+function suppliedEveryValue(stored: any, supplied: any): boolean {
+  if (isEmptyValue(stored)) {
+    return true;
+  }
+  if (isPlainObject(stored)) {
+    return (
+      isPlainObject(supplied) &&
+      Object.entries(stored).every(
+        ([key, value]) =>
+          Object.prototype.hasOwnProperty.call(supplied, key) && suppliedEveryValue(value, supplied[key])
+      )
+    );
+  }
+  return !isEmptyValue(supplied) && supplied !== MASKED_SECRET;
+}
+
 /**
  * An update that keeps stored secrets (masked values and omitted fields both keep them) must not point the object at
  * a different host: that would send the stored password to wherever the editor says. When a connection target changes,
@@ -544,7 +589,11 @@ export function assertSecretsStayWithTarget(original: any, patch: any, merged: a
     // Walk the path one segment at a time. A string path would let a property literally named `credentials.password`
     // in the patch count as the nested secret (lodash prefers it), while the stored password is kept.
     const supplied = get(patch, String(path).split("."));
-    return isEmptyValue(supplied) || supplied === MASKED_SECRET;
+    // A whole object as a secret (a service key that no path can name) is supplied only when every stored key is
+    // given again: the merge keeps the keys the patch leaves out
+    return isPlainObject(stored) && String(path) === "credentials"
+      ? !suppliedEveryValue(stored, supplied)
+      : isEmptyValue(supplied) || supplied === MASKED_SECRET;
   });
   if (keptSecrets.length > 0) {
     const reason = changed.length > 0 ? `${changed.join(", ")} changed` : connectionStringReason(breakers);
