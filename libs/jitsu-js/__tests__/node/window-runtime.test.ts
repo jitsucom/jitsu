@@ -279,3 +279,46 @@ describe("warmViewportCache", () => {
     expect(() => warmViewportCache()).not.toThrow();
   });
 });
+
+describe("viewport signature", () => {
+  it("re-reads when a free reading moves, even though no event arrived, and not otherwise", () => {
+    const width = vi.fn(() => 400);
+    const height = vi.fn(() => 600);
+    const browserWindow: any = Object.assign(new EventTarget(), {
+      screen: { width: 1, height: 1, orientation: { type: "portrait-primary", angle: 0 } },
+      devicePixelRatio: 1,
+      outerWidth: 400,
+      outerHeight: 600,
+      visualViewport: new EventTarget(),
+    });
+    Object.defineProperties(browserWindow, { innerWidth: { get: width }, innerHeight: { get: height } });
+    vi.stubGlobal("window", browserWindow);
+    const runtime = windowRuntime({});
+
+    expect(runtime.screen!().innerWidth).toBe(400);
+    runtime.screen!();
+    runtime.screen!();
+    expect(width).toHaveBeenCalledTimes(1);
+
+    // the window is resized: no event has reached the SDK yet, but outerWidth already shows it
+    browserWindow.outerWidth = 600;
+    width.mockReturnValue(600);
+    expect(runtime.screen!().innerWidth).toBe(600);
+    expect(width).toHaveBeenCalledTimes(2);
+    runtime.screen!();
+    expect(width).toHaveBeenCalledTimes(2);
+
+    // each of the other free readings is enough on its own
+    browserWindow.screen.orientation.angle = 90;
+    runtime.screen!();
+    expect(width).toHaveBeenCalledTimes(3);
+    browserWindow.devicePixelRatio = 2;
+    runtime.screen!();
+    expect(width).toHaveBeenCalledTimes(4);
+    browserWindow.outerHeight = 400;
+    runtime.screen!();
+    expect(width).toHaveBeenCalledTimes(5);
+    runtime.screen!();
+    expect(width).toHaveBeenCalledTimes(5);
+  });
+});

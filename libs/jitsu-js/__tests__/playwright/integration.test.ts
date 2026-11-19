@@ -1,4 +1,4 @@
-import { BrowserContext, expect, Page, test } from "@playwright/test";
+import { BrowserContext, devices, expect, Page, test } from "@playwright/test";
 import { createServer, SimpleSyrup } from "../simple-syrup";
 import * as fs from "fs";
 import * as path from "path";
@@ -728,6 +728,82 @@ test("a resize refills the cache after the frame, so the next send reads nothing
     innerWidth: 640,
     innerHeight: 480,
   });
+});
+
+test("a send from a relayed resize handler reports the new viewport", async ({ page }) => {
+  await page.setViewportSize({ width: 800, height: 600 });
+  // registered before the SDK, so it runs ahead of the SDK's own resize listener
+  await page.addInitScript(() => {
+    window.addEventListener("resize", () => window.dispatchEvent(new CustomEvent("app-relay")), true);
+    window.addEventListener("app-relay", () => window["jitsu"]?.group("relayed-send"));
+  });
+  await openViewportTestPage(page);
+  await page.evaluate(() => window["jitsu"].track("warm-before-relay"));
+  await page.setViewportSize({ width: 640, height: 480 });
+  await expect
+    .poll(() => requestLog.find(entry => entry.body.groupId === "relayed-send")?.body.context.screen)
+    .toMatchObject({ innerWidth: 640, innerHeight: 480 });
+});
+
+test("a send from a screen orientation handler reports the rotated viewport", async ({ browser }) => {
+  const context = await browser.newContext({ ...devices["Pixel 7"], ignoreHTTPSErrors: true });
+  const page = await context.newPage();
+  await page.route("**/viewport-rotate.html", route =>
+    route.fulfill({
+      contentType: "text/html",
+      body: '<!doctype html><meta name="viewport" content="width=device-width,initial-scale=1"><title>Rotate</title><script src="/p.js" data-init-only="true" defer></script>',
+    })
+  );
+  await page.goto(`${server.baseUrl}/viewport-rotate.html`);
+  await page.waitForFunction(() => !!window["jitsu"]);
+  await page.evaluate(() => {
+    // registered after the SDK started, but the browser runs it before the SDK's resize listeners
+    screen.orientation.addEventListener("change", () => {
+      window["liveInOrientationHandler"] = window.innerWidth;
+      window["jitsu"].group("orientation-send");
+    });
+  });
+  await page.evaluate(() => window["jitsu"].track("warm-before-rotation"));
+  await page.waitForTimeout(300);
+  const portrait = await page.evaluate(() => window.innerWidth);
+  const cdp = await context.newCDPSession(page);
+  await cdp.send("Emulation.setDeviceMetricsOverride", {
+    width: 915,
+    height: 412,
+    deviceScaleFactor: 2.625,
+    mobile: true,
+    screenOrientation: { type: "landscapePrimary", angle: 90 },
+  });
+  await expect.poll(() => page.evaluate(() => window["liveInOrientationHandler"])).toBeGreaterThan(portrait);
+  const live = await page.evaluate(() => window["liveInOrientationHandler"]);
+  await expect
+    .poll(() => requestLog.find(entry => entry.body.groupId === "orientation-send")?.body.context.screen.innerWidth)
+    .toBe(live);
+  await context.close();
+});
+
+test("a send in the same task as a viewport meta change reports the new viewport", async ({ browser }) => {
+  const context = await browser.newContext({ ...devices["Pixel 7"], ignoreHTTPSErrors: true });
+  const page = await context.newPage();
+  await page.route("**/viewport-meta.html", route =>
+    route.fulfill({
+      contentType: "text/html",
+      body: '<!doctype html><meta name="viewport" content="width=400"><title>Viewport meta</title><script src="/p.js" data-init-only="true" defer></script>',
+    })
+  );
+  await page.goto(`${server.baseUrl}/viewport-meta.html`);
+  await page.waitForFunction(() => !!window["jitsu"]);
+  await page.evaluate(() => window["jitsu"].track("warm-before-meta"));
+  await page.waitForTimeout(300);
+  const live = await page.evaluate(async () => {
+    document.querySelector('meta[name="viewport"]')!.setAttribute("content", "width=800");
+    const width = window.innerWidth;
+    await window["jitsu"].group("meta-same-task");
+    return width;
+  });
+  expect(live).toBeGreaterThan(600);
+  expect(requestLog.find(entry => entry.body.groupId === "meta-same-task")?.body.context.screen.innerWidth).toBe(live);
+  await context.close();
 });
 
 test("an iframe makes no viewport reads until it sends", async ({ page }) => {

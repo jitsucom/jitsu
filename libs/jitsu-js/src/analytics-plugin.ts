@@ -335,6 +335,7 @@ type ViewportCache = {
   document: Document;
   visualViewport: VisualViewport | null;
   size?: ViewportSize;
+  signature?: string;
   measuredResize?: Event;
   observer?: MutationObserver;
   onVisibilityChange: () => void;
@@ -408,6 +409,26 @@ function createViewportCache(browserWindow: Window): ViewportCache {
   return cache;
 }
 
+/**
+ * Readings that cost nothing, because none of them needs layout, and that move together with the viewport: the
+ * window size, the pixel ratio (page zoom), the screen orientation and the viewport meta tag. Unlike a listener,
+ * comparing them works whichever handler runs first, so a send from an application handler that runs ahead of
+ * the SDK's own listeners still notices a change. visualViewport.scale is left out on purpose: reading it forces
+ * layout in WebKit.
+ */
+function viewportSignature(browserWindow: Window): string {
+  const orientation = browserWindow.screen?.orientation;
+  const meta = browserWindow.document?.head?.querySelector?.('meta[name="viewport" i]');
+  return [
+    browserWindow.outerWidth,
+    browserWindow.outerHeight,
+    browserWindow.devicePixelRatio,
+    orientation?.type,
+    orientation?.angle,
+    meta?.getAttribute("content"),
+  ].join("|");
+}
+
 /** Inside an iframe the size is always read live and nothing is cached. */
 function isInFrame(browserWindow: Window): boolean {
   return !!browserWindow.parent && browserWindow.parent !== browserWindow;
@@ -449,6 +470,9 @@ function getViewportSize(browserWindow: Window): ViewportSize {
   // Hidden documents can enter the back-forward cache. Keep the next visible send fresh,
   // even when the first SDK call was made by a pagehide or visibilitychange handler.
   if (doc?.hidden) return readViewportSize(browserWindow);
+  // The viewport can change before any listener has heard of it, for example when an application handler that
+  // runs ahead of ours sends an event. The signature moves with the viewport and costs nothing to read.
+  if (cache.size && cache.signature !== viewportSignature(browserWindow)) cache.size = undefined;
   const event = browserWindow.event;
   // An earlier handler can send before invalidation. A browser-generated Event is
   // unique to its dispatch, whereas scripts can immediately reuse the same Event.
@@ -458,6 +482,7 @@ function getViewportSize(browserWindow: Window): ViewportSize {
       : undefined;
   if (!cache.size || (resize && (!resize.isTrusted || resize !== cache.measuredResize))) {
     cache.size = readViewportSize(browserWindow);
+    cache.signature = viewportSignature(browserWindow);
     cache.measuredResize = resize?.isTrusted ? resize : undefined;
   }
   return cache.size;
