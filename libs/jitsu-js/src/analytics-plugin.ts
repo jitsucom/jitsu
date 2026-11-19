@@ -418,14 +418,15 @@ function createViewportCache(browserWindow: Window): ViewportCache {
  */
 function viewportSignature(browserWindow: Window): string {
   const orientation = browserWindow.screen?.orientation;
-  const meta = browserWindow.document?.head?.querySelector?.('meta[name="viewport" i]');
+  // Every tag counts: the browser applies the one processed last, so a tag added after the first changes the viewport
+  const metas = browserWindow.document?.head?.querySelectorAll?.('meta[name="viewport" i]');
   return [
     browserWindow.outerWidth,
     browserWindow.outerHeight,
     browserWindow.devicePixelRatio,
     orientation?.type,
     orientation?.angle,
-    meta?.getAttribute("content"),
+    metas && Array.from(metas, meta => meta.getAttribute("content")).join(","),
   ].join("|");
 }
 
