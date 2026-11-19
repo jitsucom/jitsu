@@ -1123,6 +1123,25 @@ test("page() returns a rejected promise, as before, when reading the viewport th
   expect(outcome).toEqual({ kind: "rejected", message: "getter boom" });
 });
 
+test("a window that keeps throwing on read raises no error from the SDK's own timer", async ({ page }) => {
+  const errors: string[] = [];
+  page.on("pageerror", error => errors.push(error.message));
+  await openViewportTestPage(page);
+  await page.waitForFunction(() => window["viewportReads"].innerWidth === 1);
+  await page.evaluate(() => {
+    Object.defineProperty(window, "innerWidth", {
+      configurable: true,
+      get() {
+        throw new Error("getter boom");
+      },
+    });
+    window.dispatchEvent(new Event("resize"));
+  });
+  // past the quiet period, a rendered frame and the task after it, when the SDK measures again
+  await page.waitForTimeout(500);
+  expect(errors.filter(message => message.includes("getter boom"))).toEqual([]);
+});
+
 // window.parent is replaceable: a page script that declares `var parent` overwrites it. window.top is not.
 test("an iframe whose own script replaces window.parent still reports its live size", async ({ page }) => {
   await page.route("**/viewport-parent-null.html", route =>

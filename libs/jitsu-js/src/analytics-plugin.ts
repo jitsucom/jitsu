@@ -449,7 +449,12 @@ function remeasureWhenQuiet(browserWindow: Window) {
           () => {
             // a newer invalidation owns the next measurement
             if (current.generation === generation && !browserWindow.document?.hidden) {
-              getViewportSize(browserWindow);
+              try {
+                getViewportSize(browserWindow);
+              } catch (e) {
+                // The window itself threw. A send hits the same error in the caller's own code; this timer must not
+                // add an uncaught error of its own.
+              }
             }
           },
           0

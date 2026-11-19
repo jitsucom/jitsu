@@ -272,6 +272,17 @@ describe("warmViewportCache", () => {
     expect(reads).toHaveBeenCalledTimes(1);
   });
 
+  it("raises no error from its own timer when the window throws on read", () => {
+    // a send hits the same error itself, in the caller's own code. The SDK's housekeeping must not add one.
+    const { reads, settle } = timedWindow();
+    reads.mockImplementation(() => {
+      throw new Error("getter boom");
+    });
+    warmViewportCache();
+    expect(() => settle()).not.toThrow();
+    expect(reads).toHaveBeenCalled();
+  });
+
   it("drops a measurement that a newer invalidation has overtaken", () => {
     const { reads, runTimers, runFrames, settle } = timedWindow();
     warmViewportCache();
