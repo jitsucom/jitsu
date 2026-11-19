@@ -367,12 +367,12 @@ const configObjectTypes: Record<string, ConfigObjectType> = {
     schema: ServiceConfig,
     outputFilter: async (obj: ServiceConfig) => {
       // Mask secrets for services
-      const secretPaths = await getServiceSecretPaths(obj.package, obj.version);
+      const secretPaths = await getServiceSecretPaths(obj.package, obj.version, obj);
       return maskSecrets(obj, secretPaths);
     },
     merge: async (original: ServiceConfig, patch: Partial<ServiceConfig>): Promise<any> => {
       // Remove masked values before merge
-      const secretPaths = await getServiceSecretPaths(original.package, original.version);
+      const secretPaths = await getServiceSecretPaths(original.package, original.version, original, patch);
       const cleanedPatch = removeMaskedValues(patch, secretPaths);
       const before = deepCopy(original);
       const merged = deepMerge(original, cleanedPatch);
@@ -381,7 +381,7 @@ const configObjectTypes: Record<string, ConfigObjectType> = {
     },
     inputFilter: async (obj: ServiceConfig) => {
       // Remove masked values
-      const secretPaths = await getServiceSecretPaths(obj.package, obj.version);
+      const secretPaths = await getServiceSecretPaths(obj.package, obj.version, obj);
       return removeMaskedValues(obj, secretPaths);
     },
     onDelete: async (original: ServiceConfig, options) => {

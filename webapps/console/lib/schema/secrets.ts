@@ -45,10 +45,91 @@ export function getDestinationTargetKeys(destinationType: string): string[] {
     .map(([fieldName]) => fieldName);
 }
 
+type NoUsableSpec = "missing" | "empty" | "malformed" | "error";
+
+const NO_SPEC_WARNING_EVERY_MS = 5 * 60 * 1000;
+const NO_SPEC_WARNING_KEYS_MAX = 1000;
+const lastNoSpecWarning = new Map<string, number>();
+
 /**
- * Get all secret field paths for a service (Airbyte source)
+ * One warning per package@version every five minutes. Package and version are strings any member can send, so the
+ * list of what was warned about stays small. Only the name and the reason are logged, never a credential.
  */
-export async function getServiceSecretPaths(packageName: string, version: string): Promise<string[]> {
+function warnNoUsableSpec(packageName: string, version: string, reason: NoUsableSpec) {
+  const key = `${packageName}@${version}`;
+  const now = Date.now();
+  const last = lastNoSpecWarning.get(key);
+  if (last !== undefined && now - last < NO_SPEC_WARNING_EVERY_MS) {
+    return;
+  }
+  lastNoSpecWarning.delete(key);
+  lastNoSpecWarning.set(key, now);
+  if (lastNoSpecWarning.size > NO_SPEC_WARNING_KEYS_MAX) {
+    lastNoSpecWarning.delete(lastNoSpecWarning.keys().next().value as string);
+  }
+  log
+    .atWarn()
+    .log(
+      `No usable connector spec for ${key} (${reason}): masking every credential value of its services until the spec exists`
+    );
+}
+
+// Keys lodash would read or write on the prototype, and keys with a dot: a path to them cannot be told apart from
+// another path, so such a key is covered by masking the whole `credentials` value instead
+const UNSAFE_PATH_KEY = /\.|^(__proto__|constructor|prototype)$/;
+
+/**
+ * Paths of every value under `credentials` of the given objects (a stored service, an incoming patch). Plain objects
+ * are walked by key and arrays by index, down to the leaf, because the guard in `assertSecretsStayWithTarget` asks
+ * for each secret separately: masking a whole group would let a patch with one nested field count as supplying it all.
+ */
+function credentialLeafPaths(sources: any[]): string[] {
+  const paths = new Set<string>();
+  let wholeValue = false;
+  const walk = (node: any, path: string) => {
+    if (isPlainObject(node)) {
+      for (const [key, value] of Object.entries(node)) {
+        if (UNSAFE_PATH_KEY.test(key)) {
+          wholeValue = true;
+        } else {
+          walk(value, `${path}.${key}`);
+        }
+      }
+    } else if (Array.isArray(node)) {
+      node.forEach((item, index) => walk(item, `${path}.${index}`));
+    } else {
+      paths.add(path);
+    }
+  };
+  for (const source of sources) {
+    const credentials = source?.credentials;
+    if (credentials === undefined || credentials === null) {
+      continue;
+    }
+    if (isPlainObject(credentials)) {
+      walk(credentials, "credentials");
+    } else {
+      wholeValue = true;
+    }
+  }
+  // Last, so that masking it replaces what the leaf paths before it set
+  return [...paths, ...(wholeValue ? ["credentials"] : [])];
+}
+
+/**
+ * Get all secret field paths for a service (Airbyte source).
+ *
+ * `sources` are the objects whose credentials are about to be shown, stored or kept (the stored service, the patch).
+ * When the connector spec is missing or unusable nothing says which field is a secret, so every value under
+ * `credentials` of those objects is one: it is masked on output, a mask is never stored over the real value and the
+ * target guard stays on. A usable spec that lists no secret field still gives `[]`.
+ */
+export async function getServiceSecretPaths(
+  packageName: string,
+  version: string,
+  ...sources: any[]
+): Promise<string[]> {
+  let reason: NoUsableSpec;
   try {
     const sourceSpec = await db.prisma().source_spec.findUnique({
       where: {
@@ -59,50 +140,58 @@ export async function getServiceSecretPaths(packageName: string, version: string
       },
     });
 
-    if (!sourceSpec || !sourceSpec.specs) {
-      return [];
+    if (!sourceSpec) {
+      reason = "missing";
+    } else if (!sourceSpec.specs) {
+      reason = "empty";
+    } else {
+      const specs = sourceSpec.specs as any;
+      const connectionSpec = specs.connectionSpecification;
+      if (isPlainObject(connectionSpec?.properties)) {
+        return serviceSpecSecretPaths(connectionSpec.properties);
+      }
+      reason = "malformed";
     }
-
-    const specs = sourceSpec.specs as any;
-    const connectionSpec = specs.connectionSpecification;
-    if (!connectionSpec || !connectionSpec.properties) {
-      return [];
-    }
-
-    const secretPaths: string[] = [];
-
-    // Recursively find all fields with airbyte_secret: true
-    function findSecretFields(properties: any, basePath: string = "") {
-      Object.entries(properties).forEach(([key, schema]: [string, any]) => {
-        const currentPath = basePath ? `${basePath}.${key}` : key;
-
-        if (schema.airbyte_secret === true) {
-          secretPaths.push(`credentials.${currentPath}`);
-        }
-
-        // Handle oneOf/anyOf schemas
-        if (schema.oneOf || schema.anyOf) {
-          const options = schema.oneOf || schema.anyOf;
-          options.forEach((option: any) => {
-            if (option.properties) {
-              findSecretFields(option.properties, currentPath);
-            }
-          });
-        }
-
-        // Recurse into nested objects
-        if (schema.type === "object" && schema.properties) {
-          findSecretFields(schema.properties, currentPath);
-        }
-      });
-    }
-
-    findSecretFields(connectionSpec.properties);
-    return secretPaths;
   } catch (error) {
     log.atError().withCause(error).log(`Failed to get service secret paths for ${packageName}@${version}`);
-    return [];
+    reason = "error";
   }
+  warnNoUsableSpec(packageName, version, reason);
+  return credentialLeafPaths(sources);
+}
+
+/** Paths of the fields a usable spec marks `airbyte_secret: true`, under `credentials` */
+function serviceSpecSecretPaths(properties: any): string[] {
+  const secretPaths: string[] = [];
+
+  // Recursively find all fields with airbyte_secret: true
+  function findSecretFields(properties: any, basePath: string = "") {
+    Object.entries(properties).forEach(([key, schema]: [string, any]) => {
+      const currentPath = basePath ? `${basePath}.${key}` : key;
+
+      if (schema.airbyte_secret === true) {
+        secretPaths.push(`credentials.${currentPath}`);
+      }
+
+      // Handle oneOf/anyOf schemas
+      if (schema.oneOf || schema.anyOf) {
+        const options = schema.oneOf || schema.anyOf;
+        options.forEach((option: any) => {
+          if (option.properties) {
+            findSecretFields(option.properties, currentPath);
+          }
+        });
+      }
+
+      // Recurse into nested objects
+      if (schema.type === "object" && schema.properties) {
+        findSecretFields(schema.properties, currentPath);
+      }
+    });
+  }
+
+  findSecretFields(properties);
+  return secretPaths;
 }
 
 /**
