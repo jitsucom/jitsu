@@ -128,6 +128,10 @@ function createUnderlyingAnalyticsInstance(
         args.length === 2 && typeof args[0] === "string" && typeof args[1] === "object"
           ? [{ name: args[0], ...args[1] }]
           : args;
+      // A custom runtime supplies context.screen itself, so the window cache must not supply the page properties.
+      if (opts.disableViewportCache || opts.runtime) {
+        return (analytics.page as any)(...pageArgs);
+      }
       // analytics.js reads window.innerWidth/innerHeight synchronously inside page(), which forces layout
       return withCachedViewport(() => (analytics.page as any)(...pageArgs));
     },
@@ -282,8 +286,12 @@ export function jitsuAnalytics(_opts: JitsuOptions): AnalyticsInterface {
   }
   const inBrowser = isInBrowser();
   const rt = opts.runtime || (inBrowser ? windowRuntime(opts) : emptyRuntime(opts));
-  if (inBrowser && !opts.runtime) {
-    warmViewportCache();
+  if (inBrowser && !opts.runtime && !opts.disableViewportCache) {
+    try {
+      warmViewportCache();
+    } catch (e) {
+      // the cache only saves layout work, so a failure to warm it must never stop the SDK from starting
+    }
   }
   return createUnderlyingAnalyticsInstance(opts, rt);
 

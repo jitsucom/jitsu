@@ -644,11 +644,11 @@ test("spa-navigation", async ({ browser }) => {
   expect(navTrackEvents[4].body.context.page.search).toBe("?utm_source=test&utm_medium=spa");
 });
 
-async function openViewportTestPage(page: Page) {
+async function openViewportTestPage(page: Page, scriptAttributes = "") {
   await page.route("**/viewport-test.html", route =>
     route.fulfill({
       contentType: "text/html",
-      body: '<!doctype html><title>Viewport test</title><script src="/p.js" data-init-only="true" defer></script>',
+      body: `<!doctype html><title>Viewport test</title><script src="/p.js" data-init-only="true" ${scriptAttributes} defer></script>`,
     })
   );
   await page.addInitScript(() => {
@@ -954,6 +954,116 @@ for (const [tag, method] of [
     expect(requestLog.find(entry => entry.body.groupId === groupId)).toBeTruthy();
   });
 }
+
+// Counts what the viewport cache installs on the page: window resize listeners and MutationObservers
+async function countCacheInstalls(page: Page) {
+  await page.addInitScript(() => {
+    window["installs"] = { resize: 0, observers: 0 };
+    const addEventListener = EventTarget.prototype.addEventListener;
+    EventTarget.prototype.addEventListener = function (type: string, ...rest: any[]) {
+      if (type === "resize" && (this === window || this === window.visualViewport)) window["installs"].resize++;
+      return (addEventListener as any).call(this, type, ...rest);
+    };
+    const NativeObserver = window.MutationObserver;
+    window.MutationObserver = class extends NativeObserver {
+      constructor(callback: MutationCallback) {
+        super(callback);
+        window["installs"].observers++;
+      }
+    };
+  });
+}
+
+const sendAfterDomChanges = (page: Page, sends: number) =>
+  page.evaluate(async sends => {
+    for (let i = 0; i < sends; i++) {
+      document.body.style.padding = `${i + 1}px`;
+      await window["jitsu"].group(`viewport-flag-${i}`);
+    }
+  }, sends);
+
+async function expectCacheOff(page: Page) {
+  // past the start-up measurement and its quiet period, which a cache that is on would already have made
+  await page.waitForTimeout(400);
+  expect(await page.evaluate(() => window["viewportReads"])).toEqual({ innerWidth: 0, innerHeight: 0 });
+  await sendAfterDomChanges(page, 3);
+  expect(await page.evaluate(() => window["viewportReads"])).toEqual({ innerWidth: 3, innerHeight: 3 });
+  expect(await page.evaluate(() => window["installs"])).toEqual({ resize: 0, observers: 0 });
+}
+
+test("the viewport cache is installed, and warm, unless it is switched off", async ({ page }) => {
+  await countCacheInstalls(page);
+  await openViewportTestPage(page);
+  await page.waitForFunction(() => window["viewportReads"].innerWidth === 1);
+  const warm = await page.evaluate(() => ({ ...window["viewportReads"] }));
+  await sendAfterDomChanges(page, 3);
+  expect(await page.evaluate(() => window["viewportReads"])).toEqual(warm);
+  const installs = await page.evaluate(() => window["installs"]);
+  expect(installs.resize).toBeGreaterThan(0);
+  expect(installs.observers).toBeGreaterThan(0);
+});
+
+test('data-disable-viewport-cache="true" reads live and installs nothing', async ({ page }) => {
+  await countCacheInstalls(page);
+  await openViewportTestPage(page, 'data-disable-viewport-cache="true"');
+  await expectCacheOff(page);
+});
+
+test('data-disable-viewport-cache="false" leaves the cache on', async ({ page }) => {
+  // the attribute arrives as a string, and the string "false" is truthy unless the option has a boolean parser
+  await countCacheInstalls(page);
+  await openViewportTestPage(page, 'data-disable-viewport-cache="false"');
+  await page.waitForFunction(() => window["viewportReads"].innerWidth === 1);
+  const warm = await page.evaluate(() => ({ ...window["viewportReads"] }));
+  await sendAfterDomChanges(page, 3);
+  expect(await page.evaluate(() => window["viewportReads"])).toEqual(warm);
+  expect((await page.evaluate(() => window["installs"])).resize).toBeGreaterThan(0);
+});
+
+test("disableViewportCache in window.jitsuConfig reads live and installs nothing", async ({ page }) => {
+  await countCacheInstalls(page);
+  await page.addInitScript(() => {
+    window["jitsuConfig"] = { disableViewportCache: true };
+  });
+  await openViewportTestPage(page);
+  await expectCacheOff(page);
+});
+
+test("page() reads the viewport live when the cache is switched off", async ({ page }) => {
+  await openViewportTestPage(page, 'data-disable-viewport-cache="true"');
+  await page.evaluate(() => window["jitsu"].page());
+  // analytics.js reads each size for the page properties, and the screen context reads each once more
+  expect(await page.evaluate(() => window["viewportReads"])).toEqual({ innerWidth: 2, innerHeight: 2 });
+});
+
+// analytics.js reads document.title before window.innerWidth. When that read throws, the cached sizes are never read,
+// so the `finally` in withCachedViewport is the only thing that puts the window's own getters back.
+test("page() puts window.innerWidth and innerHeight back when analytics.js fails before reading them", async ({
+  page,
+}) => {
+  await openViewportTestPage(page);
+  const result = await page.evaluate(async () => {
+    const getters = () => ["innerWidth", "innerHeight"].map(key => Object.getOwnPropertyDescriptor(window, key)!.get);
+    const before = getters();
+    Object.defineProperty(document, "title", {
+      configurable: true,
+      get() {
+        throw new Error("boom");
+      },
+    });
+    let failure = "none";
+    try {
+      await window["jitsu"].page();
+    } catch (e: any) {
+      failure = e.message;
+    } finally {
+      delete (document as any).title;
+    }
+    const after = getters();
+    return { failure, restored: before.every((getter, i) => getter === after[i]), width: typeof window.innerWidth };
+  });
+  expect(result).toEqual({ failure: "boom", restored: true, width: "number" });
+});
 
 // window.parent is replaceable: a page script that declares `var parent` overwrites it. window.top is not.
 test("an iframe whose own script replaces window.parent still reports its live size", async ({ page }) => {

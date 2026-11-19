@@ -330,6 +330,47 @@ const cookieStorage: StorageFactory = (cookieDomain, key2cookie) => {
   };
 };
 
+/*
+ * Viewport cache: design notes
+ *
+ * Reading window.innerWidth/innerHeight forces a layout when the DOM changed since the last one, and an event sent
+ * right after a tap used to pay for it. The size is now read once, kept, and re-measured when it can have changed.
+ * Each mechanism below exists because a cache fed by window `resize` alone was wrong, or slow, in the case named.
+ * `disableViewportCache` bypasses all of it: nothing is read ahead, cached or registered.
+ *
+ * What empties the cache
+ *  - window `resize` (onResize): the ordinary change. A resize aimed at another target, or a browser-made one that was
+ *    already measured, is ignored.
+ *  - visualViewport `resize`: pinch zoom in iOS Safari changes the size with no window `resize`, so events kept the
+ *    size from before the zoom.
+ *  - document `visibilitychange`: a page can be restored from the back-forward cache at another size.
+ *  - MutationObserver on the document's children: a rewritten document or replaced root element drops the window
+ *    listeners. takeRecords() makes a send before the observer's callback notice it as well.
+ *  - The signature, compared on every send (viewportSignature): window size, pixel ratio, orientation and viewport meta
+ *    tags. It catches a change no listener has heard of yet: a handler that runs before ours and sends, a meta tag
+ *    edited without a resize, rotation, page zoom.
+ *
+ * When the size is read live anyway
+ *  - During a resize dispatch that has not been measured: a handler that runs before ours would otherwise send the old
+ *    size. A browser-made event is remembered once measured, so sends in the same dispatch share one read. A
+ *    script-made event is always read live, because it can be dispatched again.
+ *  - In a hidden document, and in an iframe (isInFrame), whose host can resize it before the frame hears of it.
+ *  - On a page without the DOM APIs, and whenever the cache throws (getViewportSize): the cache only saves layout work,
+ *    so a failure in it must cost that saving and never an event.
+ *
+ * How it is refilled
+ *  - remeasureWhenQuiet: 100 ms after the last invalidation, once a frame has rendered and layout is clean, so a drag
+ *    that resizes on every frame costs one read at the end.
+ *  - warmViewportCache: once after start-up, so the first send of a page that was idle does not pay for layout.
+ *  - page(): analytics.js reads both sizes itself before any plugin runs, so withCachedViewport serves each from the
+ *    cache once and puts the window's own getter back.
+ *
+ * Page code that gets in the way
+ *  - zone.js (Angular) runs change detection after every listener or timer registered in its zone: they are registered
+ *    through the originals zone.js saves (unzoned).
+ *  - A form or image named like a document method shadows it: real EventTargets are called through
+ *    EventTarget.prototype and the meta tags through Document.prototype.
+ */
 type ViewportSize = { innerWidth: number; innerHeight: number };
 type ViewportCache = {
   document: Document;
@@ -683,7 +724,7 @@ export function windowRuntime(opts: JitsuOptions): RuntimeFacade {
       return window.document.referrer;
     },
     screen(): { width: number; height: number; innerWidth: number; innerHeight: number; density: number } {
-      const viewport = getViewportSize(window);
+      const viewport = opts.disableViewportCache ? readViewportSize(window) : getViewportSize(window);
       return {
         width: window.screen.width,
         height: window.screen.height,

@@ -55,6 +55,29 @@ describe("browser screen context", () => {
     expect(first.screen!()!.innerWidth).toBe(320);
   });
 
+  it("reads live on every call and registers nothing with disableViewportCache", () => {
+    const browserWindow = Object.assign(new EventTarget(), {
+      screen: { width: 1920, height: 1080 },
+      devicePixelRatio: 1,
+      visualViewport: new EventTarget(),
+    });
+    const width = vi.fn(() => 800);
+    Object.defineProperties(browserWindow, {
+      innerWidth: { get: width },
+      innerHeight: { get: () => 600 },
+    });
+    // an earlier test leaves this same spy installed, with its calls still counted
+    const addListener = vi.spyOn(EventTarget.prototype, "addEventListener").mockClear();
+    vi.stubGlobal("window", browserWindow);
+
+    const runtime = windowRuntime({ disableViewportCache: true });
+    expect(runtime.screen!()!.innerWidth).toBe(800);
+    width.mockReturnValue(640);
+    expect(runtime.screen!()!.innerWidth).toBe(640);
+    expect(width).toHaveBeenCalledTimes(2);
+    expect(addListener).not.toHaveBeenCalled();
+  });
+
   it.each([{}, { addEventListener: vi.fn(), document: {} }])("can read screen dimensions from a partial DOM", shim => {
     const partial = { screen: { width: 1024, height: 768 }, innerWidth: 800, innerHeight: 600, ...shim };
     vi.stubGlobal("window", partial);
