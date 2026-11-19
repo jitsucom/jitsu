@@ -188,6 +188,12 @@ func TestFullSyncDefersSharedCheckpointUntilTheUploadCommits(t *testing.T) {
 type countingStream struct {
 	rejectingStream
 	commits int
+	aborts  int
+}
+
+func (c *countingStream) Abort(context.Context) bulker.State {
+	c.aborts++
+	return bulker.State{}
 }
 
 func (c *countingStream) Complete(context.Context) (bulker.State, error) {

@@ -424,6 +424,13 @@ func (s *ReadSideCar) checkpointEligibleStreams() {
 			return
 		}
 		stream := s.processedStreams[name]
+		// The connector logged an error while this stream was the only one running. The end of the run closes streams strictly
+		// and aborts such a stream (ActiveStream.Commit), but a checkpoint commit is not strict: it would replace the
+		// stream's table with the partial batch, and the later abort cannot undo it. The stream is left for that close, and
+		// the held checkpoint waits for it and is then refused because the stream has an error.
+		if stream != nil && stream.errorFromLogs != "" {
+			continue
+		}
 		// A replace-table stream that has not received a row yet (it has only been opened) is left for its own
 		// completion: committing it now would replace its table with an empty one, and if the job fails before its rows
 		// arrive the table stays empty.

@@ -218,6 +218,38 @@ func TestSharedCheckpointScope(t *testing.T) {
 		}
 	})
 
+	// Fifth review round: the connector logged an error while stream A was the only running stream, so the error is recorded
+	// on A (errorFromLogs) and not as a task-level error. A strict commit aborts such a stream, and the end of the run closes
+	// strictly. A shared checkpoint must not commit it non-strictly: on a replace-table stream that replaces the warehouse
+	// table with the partial batch, and the later strict close cannot undo it.
+	t.Run("a stream with an error from the connector logs is left for its strict close", func(t *testing.T) {
+		a, b := &countingStream{}, &countingStream{}
+		sa := open("a", "incremental", bulker.ReplaceTable, a, 5)
+		sa.errorFromLogs = "connector logged an error while only this stream was running"
+		s := newSidecar("logerr", sa, open("b", "incremental", bulker.ReplaceTable, b, 3))
+		s.processState(global("c1"))
+		if a.commits != 0 {
+			t.Errorf("stream a was committed %d time(s) at the checkpoint although the connector logged an error for it, want 0: a replace-table commit would replace its table with a partial batch", a.commits)
+		}
+		if b.commits != 1 {
+			t.Errorf("stream b commits: %d, want 1 (it has rows and no logged error)", b.commits)
+		}
+		if n := rows("logerr"); n != 0 {
+			t.Errorf("%d checkpoint row(s) saved while stream a's records are not committed, want 0", n)
+		}
+		// the end of the run closes strictly: A is aborted and carries the error, so the checkpoint is never saved
+		s.closeActiveStreams(true)
+		if a.commits != 0 || a.aborts != 1 {
+			t.Errorf("after the strict close: stream a commits=%d aborts=%d, want 0 and 1", a.commits, a.aborts)
+		}
+		if sa.Error == "" {
+			t.Errorf("stream a has no error after the strict close, want the logged error")
+		}
+		if n := rows("logerr"); n != 0 {
+			t.Errorf("%d checkpoint row(s) saved after stream a was aborted, want 0", n)
+		}
+	})
+
 	// Third review round, second finding: the webhook writer treats replace-table like batch and completing an empty stream
 	// sends nothing, so an opened but empty stream has nothing to replace and the checkpoint must not wait for it. A
 	// destination that does replace data (a warehouse) still waits.
