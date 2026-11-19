@@ -342,6 +342,29 @@ type ViewportCache = {
   onResize: (event: Event) => void;
 };
 const viewports = new WeakMap<Window, ViewportCache>();
+/**
+ * zone.js, which Angular runs on, wraps addEventListener, setTimeout and requestAnimationFrame, and runs change
+ * detection after every callback registered inside its zone. The viewport cache needs none of that, so it registers
+ * through the unpatched originals that zone.js saves under __zone_symbol__ names, and uses the plain functions
+ * everywhere else.
+ */
+function unzoned(target: any, name: string): Function | undefined {
+  const saved = target?.["__zone_symbol__" + name];
+  return typeof saved === "function" ? saved : target?.[name];
+}
+function listen(target: any, method: "addEventListener" | "removeEventListener", type: string, listener: any) {
+  unzoned(target, method)?.call(target, type, listener, true);
+}
+function startTimer(browserWindow: Window, callback: () => void, ms: number): number {
+  return unzoned(browserWindow, "setTimeout")!.call(browserWindow, callback, ms);
+}
+function stopTimer(browserWindow: Window, timer: number) {
+  unzoned(browserWindow, "clearTimeout")?.call(browserWindow, timer);
+}
+function nextFrame(browserWindow: Window, callback: () => void) {
+  unzoned(browserWindow, "requestAnimationFrame")!.call(browserWindow, callback);
+}
+
 /** How long the viewport has to stay unchanged before the cache is refilled. */
 const REMEASURE_QUIET_MS = 100;
 const remeasures = new WeakMap<Window, { generation: number; timer?: number }>();
@@ -368,19 +391,27 @@ function remeasureWhenQuiet(browserWindow: Window) {
   const current = state;
   const generation = ++current.generation;
   if (current.timer !== undefined) {
-    browserWindow.clearTimeout(current.timer);
+    stopTimer(browserWindow, current.timer);
   }
-  current.timer = browserWindow.setTimeout(() => {
-    current.timer = undefined;
-    browserWindow.requestAnimationFrame(() =>
-      browserWindow.setTimeout(() => {
-        // a newer invalidation owns the next measurement
-        if (current.generation === generation && !browserWindow.document?.hidden) {
-          getViewportSize(browserWindow);
-        }
-      }, 0)
-    );
-  }, REMEASURE_QUIET_MS);
+  current.timer = startTimer(
+    browserWindow,
+    () => {
+      current.timer = undefined;
+      nextFrame(browserWindow, () =>
+        startTimer(
+          browserWindow,
+          () => {
+            // a newer invalidation owns the next measurement
+            if (current.generation === generation && !browserWindow.document?.hidden) {
+              getViewportSize(browserWindow);
+            }
+          },
+          0
+        )
+      );
+    },
+    REMEASURE_QUIET_MS
+  );
 }
 
 function createViewportCache(browserWindow: Window): ViewportCache {
@@ -453,9 +484,9 @@ function getViewportSize(browserWindow: Window): ViewportSize {
   if (!cache || cache.document !== doc) {
     if (cache) {
       cache.observer?.disconnect();
-      cache.document?.removeEventListener("visibilitychange", cache.onVisibilityChange, true);
-      browserWindow.removeEventListener?.("resize", cache.onResize, true);
-      cache.visualViewport?.removeEventListener?.("resize", cache.onResize, true);
+      listen(cache.document, "removeEventListener", "visibilitychange", cache.onVisibilityChange);
+      listen(browserWindow, "removeEventListener", "resize", cache.onResize);
+      listen(cache.visualViewport, "removeEventListener", "resize", cache.onResize);
     }
     cache = createViewportCache(browserWindow);
   }
@@ -463,10 +494,10 @@ function getViewportSize(browserWindow: Window): ViewportSize {
   // takeRecords also catches a synchronous send before observer delivery.
   if (cache.observer?.takeRecords().length) cache.size = undefined;
   if (!cache.size) {
-    doc?.addEventListener("visibilitychange", cache.onVisibilityChange, true);
-    browserWindow.addEventListener("resize", cache.onResize, true);
+    listen(doc, "addEventListener", "visibilitychange", cache.onVisibilityChange);
+    listen(browserWindow, "addEventListener", "resize", cache.onResize);
     // Safari can change innerWidth/innerHeight during pinch zoom with only a visual viewport resize.
-    cache.visualViewport?.addEventListener?.("resize", cache.onResize, true);
+    listen(cache.visualViewport, "addEventListener", "resize", cache.onResize);
   }
   // Hidden documents can enter the back-forward cache. Keep the next visible send fresh,
   // even when the first SDK call was made by a pagehide or visibilitychange handler.

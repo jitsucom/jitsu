@@ -322,3 +322,77 @@ describe("viewport signature", () => {
     expect(width).toHaveBeenCalledTimes(5);
   });
 });
+
+describe("zone.js originals", () => {
+  // Angular runs change detection after every callback registered inside its zone. zone.js keeps the unpatched
+  // functions under __zone_symbol__ names, and the SDK's housekeeping should be registered through those.
+  const zonedWindow = () => {
+    const saved = { setTimeout: vi.fn(() => 1), clearTimeout: vi.fn(), requestAnimationFrame: vi.fn() };
+    const plain = { setTimeout: vi.fn(() => 2), clearTimeout: vi.fn(), requestAnimationFrame: vi.fn() };
+    const win: any = {
+      screen: { width: 1, height: 1 },
+      devicePixelRatio: 1,
+      innerHeight: 600,
+      setTimeout: plain.setTimeout,
+      clearTimeout: plain.clearTimeout,
+      requestAnimationFrame: plain.requestAnimationFrame,
+      __zone_symbol__setTimeout: saved.setTimeout,
+      __zone_symbol__clearTimeout: saved.clearTimeout,
+      __zone_symbol__requestAnimationFrame: saved.requestAnimationFrame,
+    };
+    Object.defineProperty(win, "innerWidth", { get: () => 800, configurable: true });
+    vi.stubGlobal("window", win);
+    vi.stubGlobal("document", {});
+    return { win, saved, plain };
+  };
+
+  it("schedules the quiet-period measurement through the saved timers", () => {
+    const { saved, plain } = zonedWindow();
+    warmViewportCache();
+    warmViewportCache();
+    // the second call restarts the wait: it stops the first timer and starts another
+    expect(saved.setTimeout).toHaveBeenCalledTimes(2);
+    expect(saved.clearTimeout).toHaveBeenCalledTimes(1);
+    // the quiet period ends: the SDK asks for a frame, and then for the task after it
+    const quietPeriodEnded = saved.setTimeout.mock.calls[1][0] as () => void;
+    quietPeriodEnded();
+    expect(saved.requestAnimationFrame).toHaveBeenCalledTimes(1);
+    const frameRendered = saved.requestAnimationFrame.mock.calls[0][0] as () => void;
+    frameRendered();
+    expect(saved.setTimeout).toHaveBeenCalledTimes(3);
+    expect(plain.setTimeout).not.toHaveBeenCalled();
+    expect(plain.clearTimeout).not.toHaveBeenCalled();
+    expect(plain.requestAnimationFrame).not.toHaveBeenCalled();
+  });
+
+  it("registers its resize listeners through the saved addEventListener", () => {
+    const visualViewport: any = { addEventListener: vi.fn(), __zone_symbol__addEventListener: vi.fn() };
+    const plainAdd = vi.fn();
+    const savedAdd = vi.fn();
+    const win: any = {
+      screen: { width: 1, height: 1 },
+      devicePixelRatio: 1,
+      innerHeight: 600,
+      visualViewport,
+      addEventListener: plainAdd,
+      __zone_symbol__addEventListener: savedAdd,
+    };
+    Object.defineProperty(win, "innerWidth", { get: () => 800, configurable: true });
+    vi.stubGlobal("window", win);
+    windowRuntime({}).screen!();
+    expect(savedAdd).toHaveBeenCalledWith("resize", expect.any(Function), true);
+    expect(visualViewport.__zone_symbol__addEventListener).toHaveBeenCalledWith("resize", expect.any(Function), true);
+    expect(plainAdd).not.toHaveBeenCalled();
+    expect(visualViewport.addEventListener).not.toHaveBeenCalled();
+  });
+
+  it("uses the plain functions when zone.js is not there", () => {
+    const { win, saved, plain } = zonedWindow();
+    for (const name of ["setTimeout", "clearTimeout", "requestAnimationFrame"]) delete win[`__zone_symbol__${name}`];
+    warmViewportCache();
+    warmViewportCache();
+    expect(plain.setTimeout).toHaveBeenCalledTimes(2);
+    expect(plain.clearTimeout).toHaveBeenCalledTimes(1);
+    expect(saved.setTimeout).not.toHaveBeenCalled();
+  });
+});
