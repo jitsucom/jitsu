@@ -417,7 +417,6 @@ func (s *ReadSideCar) checkpointEligibleStreams() {
 		names = append(names, name)
 	}
 	sort.Strings(names) // stable order for the logs and the commits
-	checkpointCanAdvance := s.checkpointCanAdvance()
 	for _, name := range names {
 		// A cancellation (SIGTERM) or a task-level error can arrive while one of these commits is in flight. The end of the
 		// run then aborts instead of committing, so the commits that have not started must not start either.
@@ -431,11 +430,21 @@ func (s *ReadSideCar) checkpointEligibleStreams() {
 		// A commit that replaces a table is not made when the checkpoint cannot be saved afterwards: the table would hold
 		// only the partial batch if the run stops before the stream finishes, and no progress would be saved for it. The
 		// stream is committed at its own close then. A batch that reached the size limit is still committed, to bound memory.
-		if stream != nil && s.replacesData(stream) && stream.bufferedEventsCount < checkpointEventsLimit && !checkpointCanAdvance {
+		// The answer is worked out again for each stream: a commit earlier in this pass may have failed.
+		if stream != nil && stream.IsActive() && s.replacesData(stream) && stream.bufferedEventsCount < checkpointEventsLimit && !s.checkpointCanAdvance() {
 			continue
 		}
 		s.checkpointIfNecessary(stream)
 	}
+}
+
+// holdsSharedCheckpoint reports whether a shared checkpoint arriving now has to wait for the stream: it has records
+// buffered, or it is a stream whose commit replaces a table and has not committed yet even with no rows. A checkpoint saved
+// before that would make a retry see saved state, open the stream in batch mode and append to the old table, keeping rows
+// that were deleted at the source. The stream itself is not committed early (see leftForOwnClose). Both holdSharedState
+// and checkpointCanAdvance decide from this, so they cannot disagree.
+func (s *ReadSideCar) holdsSharedCheckpoint(stream *ActiveStream) bool {
+	return stream != nil && stream.bulkerStream != nil && (stream.bufferedEventsCount > 0 || s.replacesData(stream))
 }
 
 // checkpointEventsLimit is the number of buffered events at which a stream is committed at a checkpoint whatever its mode.
@@ -466,15 +475,15 @@ func (s *ReadSideCar) leftForOwnClose(stream *ActiveStream) bool {
 	return stream.IsActive() && stream.bulkerMode == bulker.ReplaceTable && stream.bufferedEventsCount == 0
 }
 
-// checkpointCanAdvance reports whether a shared checkpoint arriving now could be saved after the commits of this pass: every
-// stream it would wait for (see holdSharedState) is committed in the pass.
+// checkpointCanAdvance reports whether a shared checkpoint arriving now could be saved after the commits of this pass:
+// no stream has failed (saveState refuses the cursor then, and a failed stream has no writer left to be seen below), and
+// every stream the checkpoint waits for is committed in the pass.
 func (s *ReadSideCar) checkpointCanAdvance() bool {
+	if s.firstFailedStream() != "" {
+		return false
+	}
 	for _, stream := range s.processedStreams {
-		if stream == nil || stream.bulkerStream == nil {
-			continue
-		}
-		waitsFor := stream.bufferedEventsCount > 0 || s.replacesData(stream)
-		if waitsFor && (stream.Error != "" || !stream.IsActive() || s.leftForOwnClose(stream) || !s.commitDueAtCheckpoint(stream)) {
+		if s.holdsSharedCheckpoint(stream) && (!stream.IsActive() || s.leftForOwnClose(stream) || !s.commitDueAtCheckpoint(stream)) {
 			return false
 		}
 	}
@@ -496,12 +505,7 @@ func (s *ReadSideCar) holdSharedState(name string, data any) {
 	}
 	held := &heldCheckpoint{data: data, waitingFor: map[string]int{}}
 	for streamName, stream := range s.processedStreams {
-		// A stream waits for its commit if it has records buffered, and also if it is a replace-table stream that has not
-		// committed yet even with no rows: its table is replaced only when it commits. A checkpoint saved before that would
-		// make a retry see saved state, open the stream in batch mode and append to the old table, keeping rows that were
-		// deleted at the source. The stream itself is not committed early (see checkpointEligibleStreams). That only applies
-		// to a destination that replaces data, see destinationReplacesData.
-		if stream != nil && stream.bulkerStream != nil && (stream.bufferedEventsCount > 0 || (stream.bulkerMode == bulker.ReplaceTable && s.destinationReplacesData())) {
+		if s.holdsSharedCheckpoint(stream) {
 			held.waitingFor[streamName] = stream.commitCount
 		}
 	}
@@ -749,6 +753,9 @@ func (s *ReadSideCar) openStream(streamName string) (*ActiveStream, error) {
 		stream = NewActiveStream(streamName, str.SyncMode, mode)
 		s.processedStreams[streamName] = stream
 	}
+	// The writer created below uses `mode`. A stream that was committed once is opened again in batch mode, so what the
+	// stream records has to follow it: the rules for shared checkpoints decide from it whether a commit replaces a table.
+	stream.bulkerMode = mode
 	s.lastStream = stream
 	var namespace string
 	tableNamePrefix := strings.ReplaceAll(s.tableNamePrefix, "${SOURCE_NAMESPACE}", str.Namespace)

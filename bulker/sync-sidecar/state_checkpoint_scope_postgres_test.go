@@ -32,6 +32,20 @@ func (c *cancellingStream) Complete(ctx context.Context) (bulker.State, error) {
 	return c.countingStream.Complete(ctx)
 }
 
+// writerBulker is a destination of a given type that creates counting writers, so a test can drive the real openStream.
+type writerBulker struct {
+	typedBulker
+	created *[]*countingStream
+	modes   *[]bulker.BulkMode
+}
+
+func (b writerBulker) CreateStream(_, _ string, mode bulker.BulkMode, _ ...bulker.StreamOption) (bulker.BulkerStream, error) {
+	c := &countingStream{}
+	*b.created = append(*b.created, c)
+	*b.modes = append(*b.modes, mode)
+	return c, nil
+}
+
 // Two more properties of the shared (GLOBAL and LEGACY) checkpoint, both from the JITSU-258 review:
 //
 //  1. An empty replace-table stream must not be committed at a checkpoint. A warehouse replace-table commit that consumed
@@ -285,6 +299,91 @@ func TestSharedCheckpointScope(t *testing.T) {
 		}
 		if n := rows("batchlogerr"); n != 1 {
 			t.Errorf("%d checkpoint row(s) saved, want 1", n)
+		}
+	})
+
+	// Seventh review round, first finding: stream B failed its upload when it was committed. The failed commit clears its
+	// writer and sets its error, and the cursor will be refused because of that error, so the checkpoint cannot advance. A
+	// replace-table commit of stream A would still replace its table with a partial batch.
+	t.Run("a table is not replaced when a closed stream has failed", func(t *testing.T) {
+		a := &countingStream{}
+		failing := &countingStream{rejectingStream: rejectingStream{err: errAddressNotAllowed}}
+		sb := open("b", "incremental", bulker.ReplaceTable, failing, 3)
+		sb.Commit(false) // the upload fails: sb.Error is set and its writer is gone
+		if sb.Error == "" || sb.bulkerStream != nil {
+			t.Fatalf("setup: stream b error %q, writer set %v, want an error and no writer", sb.Error, sb.bulkerStream != nil)
+		}
+		s := newSidecar("closedfailed", open("a", "incremental", bulker.ReplaceTable, a, 5), sb)
+		s.processState(global("c1"))
+		if a.commits != 0 {
+			t.Errorf("stream a was committed %d time(s) although stream b has failed and the checkpoint will be refused, want 0: a replace-table commit would replace its table with a partial batch", a.commits)
+		}
+		if n := rows("closedfailed"); n != 0 {
+			t.Errorf("%d checkpoint row(s) saved with a failed stream, want 0", n)
+		}
+	})
+
+	// Seventh review round, audit: the answer to "can the checkpoint advance" can change during the pass. If a commit fails,
+	// the commits that replace a table and have not started must not start.
+	t.Run("a failed commit in the pass stops the table replacements after it", func(t *testing.T) {
+		a := &countingStream{rejectingStream: rejectingStream{err: errAddressNotAllowed}}
+		b := &countingStream{}
+		s := newSidecar("midpass", open("a", "incremental", bulker.ReplaceTable, a, 5), open("b", "incremental", bulker.ReplaceTable, b, 3))
+		s.processState(global("c1"))
+		if a.commits != 1 {
+			t.Errorf("stream a commits: %d, want 1 (the failing one)", a.commits)
+		}
+		if b.commits != 0 {
+			t.Errorf("stream b was committed %d time(s) after stream a's commit failed, want 0: its table would be replaced and the cursor refused", b.commits)
+		}
+	})
+
+	// Audit: the size limit is part of the rule (it bounds memory), so a stream at the limit is committed even when the
+	// checkpoint cannot be saved.
+	t.Run("a stream at the size limit is committed even when the checkpoint cannot advance", func(t *testing.T) {
+		a, b := &countingStream{}, &countingStream{}
+		s := newSidecar("limit", open("a", "incremental", bulker.ReplaceTable, a, checkpointEventsLimit), open("b", "full_refresh", bulker.ReplaceTable, b, 3))
+		s.processState(global("c1"))
+		if a.commits != 1 || b.commits != 0 {
+			t.Errorf("commits: a=%d b=%d, want 1 and 0: a at the size limit commits to bound memory, b is not due", a.commits, b.commits)
+		}
+	})
+
+	// Seventh review round, second finding: a stream that committed once is opened again in batch mode, but its recorded
+	// mode stayed replace-table. The rules for replacements then treated its append batch as a replacement.
+	t.Run("a stream opened again after a commit is in batch mode", func(t *testing.T) {
+		var created []*countingStream
+		var modes []bulker.BulkMode
+		props := jsonorder.NewOrderedMap[string, any](0)
+		s := newSidecar("reopen")
+		s.blk = writerBulker{typedBulker: typedBulker{typeID: "postgres"}, created: &created, modes: &modes}
+		s.catalog.Set("a", &Stream{StreamMeta: &StreamMeta{Name: "a", JSONSchema: StreamJsonSchema{Properties: props}}, SyncMode: "incremental"})
+		first, err := s.openStream("a")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if first.bulkerMode != bulker.ReplaceTable {
+			t.Fatalf("first writer mode %v, want replace-table (no saved state)", first.bulkerMode)
+		}
+		first.bufferedEventsCount = 5
+		first.Commit(false) // the first batch replaced the table
+		again, err := s.openStream("a")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(modes) != 2 || modes[1] != bulker.Batch {
+			t.Fatalf("writer modes %v, want the second writer in batch mode", modes)
+		}
+		if again.bulkerMode != bulker.Batch {
+			t.Errorf("recorded mode of the stream after it was opened again: %v, want batch (the mode its writer was created with)", again.bulkerMode)
+		}
+		// the append batch is committed at a checkpoint that a full-refresh stream keeps from advancing
+		again.bufferedEventsCount = 2
+		sb := open("b", "full_refresh", bulker.ReplaceTable, &countingStream{}, 3)
+		s.processedStreams["b"] = sb
+		s.processState(global("c1"))
+		if created[1].commits != 1 {
+			t.Errorf("the append batch of stream a commits: %d, want 1: it only appends and does not wait for stream b", created[1].commits)
 		}
 	})
 
