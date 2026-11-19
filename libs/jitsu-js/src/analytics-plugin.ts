@@ -489,7 +489,9 @@ function viewportSignature(browserWindow: Window): string {
 
 /** Inside an iframe the size is always read live and nothing is cached. */
 function isInFrame(browserWindow: Window): boolean {
-  return !!browserWindow.parent && browserWindow.parent !== browserWindow;
+  // window.parent is replaceable: a page script that declares `var parent` overwrites it, in either direction, so it
+  // cannot tell whether this is a frame. window.top cannot be replaced.
+  return !!browserWindow.top && browserWindow.top !== browserWindow;
 }
 
 function readViewportSize(browserWindow: Window): ViewportSize {

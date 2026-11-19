@@ -955,6 +955,53 @@ for (const [tag, method] of [
   });
 }
 
+// window.parent is replaceable: a page script that declares `var parent` overwrites it. window.top is not.
+test("an iframe whose own script replaces window.parent still reports its live size", async ({ page }) => {
+  await page.route("**/viewport-parent-null.html", route =>
+    route.fulfill({
+      contentType: "text/html",
+      body: '<!doctype html><title>Frame</title><body><script>var parent = null;</script><script src="/p.js" data-init-only="true"></script>',
+    })
+  );
+  await page.goto(`${server.baseUrl}/basic.html`);
+  const live = await page.evaluate(async () => {
+    const frame = document.createElement("iframe");
+    frame.width = "800";
+    frame.height = "600";
+    frame.src = "/viewport-parent-null.html";
+    document.body.append(frame);
+    await new Promise(resolve => (frame.onload = () => resolve(undefined)));
+    const client = frame.contentWindow!["jitsu"];
+    await client.group("parent-null-warm");
+    frame.width = "640";
+    const width = frame.contentWindow!.innerWidth;
+    await client.group("parent-null-shrunk");
+    return width;
+  });
+  expect(live).toBe(640);
+  expect(requestLog.find(entry => entry.body.groupId === "parent-null-shrunk")?.body.context.screen.innerWidth).toBe(
+    live
+  );
+});
+
+test("a top-level page whose script replaces window.parent still uses the cache", async ({ page }) => {
+  await page.setViewportSize({ width: 800, height: 600 });
+  // the same effect as `var parent = document.createElement("div")` in a page script
+  await page.addInitScript(() => {
+    window["parent"] = document.createElement("div") as any;
+  });
+  await openViewportTestPage(page);
+  await page.waitForFunction(() => window["viewportReads"].innerWidth === 1);
+  const warm = await page.evaluate(() => ({ ...window["viewportReads"] }));
+  await page.evaluate(async () => {
+    for (let i = 0; i < 3; i++) {
+      document.body.style.padding = `${i + 1}px`;
+      await window["jitsu"].group(`parent-replaced-${i}`);
+    }
+  });
+  expect(await page.evaluate(() => window["viewportReads"])).toEqual(warm);
+});
+
 test("an iframe makes no viewport reads until it sends", async ({ page }) => {
   await openViewportTestPage(page);
   await page.evaluate(async () => {

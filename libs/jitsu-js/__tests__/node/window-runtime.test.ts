@@ -260,16 +260,31 @@ describe("warmViewportCache", () => {
   });
 
   it("does nothing inside an iframe, where the viewport is always read live", () => {
-    const { timers, reads, settle } = timedWindow({ parent: {} });
+    const { timers, reads, settle } = timedWindow({ top: {} });
     warmViewportCache();
     expect(timers.size).toBe(0);
     settle();
     expect(reads).not.toHaveBeenCalled();
   });
 
-  it("still schedules a measurement when the window is its own parent", () => {
+  it("still schedules a measurement when the window is its own top", () => {
     const { win, timers } = timedWindow();
-    win.parent = win;
+    win.top = win;
+    warmViewportCache();
+    expect(timers.size).toBe(1);
+  });
+
+  it("is not fooled by a page script that replaced window.parent in a frame", () => {
+    // `var parent = null` in a frame's own script: window.top still differs from the window
+    const { timers } = timedWindow({ parent: null, top: {} });
+    warmViewportCache();
+    expect(timers.size).toBe(0);
+  });
+
+  it("is not fooled by a page script that replaced window.parent on a top-level page", () => {
+    // `var parent = element` on a top-level page: window.top is still the window itself
+    const { win, timers } = timedWindow({ parent: { not: "a window" } });
+    win.top = win;
     warmViewportCache();
     expect(timers.size).toBe(1);
   });
