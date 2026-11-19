@@ -323,4 +323,23 @@ export type {
   RuntimeFacade,
   DynamicJitsuOptions,
 };
-export * from "./analytics-plugin";
+// Listed one by one, so that a helper added to analytics-plugin.ts does not become public API by accident:
+// once the package is published, removing an export is a breaking change.
+export {
+  parseQuery,
+  windowRuntime,
+  createInMemoryStorage,
+  emptyRuntime,
+  isInBrowser,
+  ensureAnonymousId,
+  jitsuAnalyticsPlugin,
+  randomId,
+  uuid,
+} from "./analytics-plugin";
+export type {
+  StorageFactory,
+  DestinationDescriptor,
+  AnalyticsPluginDescriptor,
+  InternalPluginDescriptor,
+  DeviceOptions,
+} from "./analytics-plugin";
