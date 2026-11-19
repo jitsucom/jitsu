@@ -16,7 +16,8 @@ describe("browser screen context", () => {
       innerWidth: { get: width },
       innerHeight: { get: height },
     });
-    const addListener = vi.spyOn(browserWindow, "addEventListener");
+    // a real EventTarget is called through EventTarget.prototype, which a named element cannot shadow
+    const addListener = vi.spyOn(EventTarget.prototype, "addEventListener");
     vi.stubGlobal("window", browserWindow);
 
     const first = windowRuntime({});
@@ -32,7 +33,7 @@ describe("browser screen context", () => {
     }
     expect(width).toHaveBeenCalledTimes(1);
     expect(height).toHaveBeenCalledTimes(1);
-    expect(addListener).toHaveBeenCalledTimes(1);
+    expect(addListener.mock.contexts.filter(context => context === browserWindow)).toHaveLength(1);
 
     browserWindow.screen = { width: 2560, height: 1440 };
     browserWindow.devicePixelRatio = 2;
@@ -394,5 +395,50 @@ describe("zone.js originals", () => {
     expect(plain.setTimeout).toHaveBeenCalledTimes(2);
     expect(plain.clearTimeout).toHaveBeenCalledTimes(1);
     expect(saved.setTimeout).not.toHaveBeenCalled();
+  });
+});
+
+describe("the cache can never stop an event", () => {
+  afterEach(() => vi.restoreAllMocks());
+
+  it("falls back to a live read when registering a listener throws", () => {
+    const width = vi.fn(() => 800);
+    const browserWindow: any = Object.assign(new EventTarget(), {
+      screen: { width: 1, height: 1 },
+      devicePixelRatio: 1,
+      innerHeight: 600,
+      visualViewport: new EventTarget(),
+    });
+    Object.defineProperty(browserWindow, "innerWidth", { get: width });
+    vi.stubGlobal("window", browserWindow);
+    vi.spyOn(EventTarget.prototype, "addEventListener").mockImplementation(() => {
+      throw new Error("a page that makes registering impossible");
+    });
+    const runtime = windowRuntime({});
+    expect(runtime.screen!()).toMatchObject({ innerWidth: 800, innerHeight: 600 });
+    // nothing was cached, so every send reads the real size
+    width.mockReturnValue(640);
+    expect(runtime.screen!().innerWidth).toBe(640);
+  });
+
+  it("calls a real EventTarget through its prototype, so a shadowed method on the instance cannot break it", () => {
+    const width = vi.fn(() => 800);
+    // what a named element does to document: the instance's own method is no longer a function
+    const visualViewport: any = Object.assign(new EventTarget(), { addEventListener: "shadowed" });
+    const browserWindow: any = Object.assign(new EventTarget(), {
+      screen: { width: 1, height: 1 },
+      devicePixelRatio: 1,
+      innerHeight: 600,
+      visualViewport,
+    });
+    Object.defineProperty(browserWindow, "innerWidth", { get: width });
+    vi.stubGlobal("window", browserWindow);
+    const registered = vi.spyOn(EventTarget.prototype, "addEventListener");
+    const runtime = windowRuntime({});
+    runtime.screen!();
+    runtime.screen!();
+    expect(registered.mock.contexts).toContain(visualViewport);
+    // the cache was set up despite the shadowed method, so the second send did not read the size again
+    expect(width).toHaveBeenCalledTimes(1);
   });
 });

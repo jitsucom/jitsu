@@ -920,6 +920,41 @@ test("a send after viewport content moves between meta tags reports the new view
   await context.close();
 });
 
+// A named element can shadow methods of document (DOM clobbering). The viewport cache is an optimisation, so a page
+// like that must still get its events.
+for (const [tag, method] of [
+  ["form", "addEventListener"],
+  ["img", "addEventListener"],
+  ["form", "getElementsByTagName"],
+  ["img", "getElementsByTagName"],
+] as const) {
+  test(`events are still delivered when ${
+    tag === "img" ? "an" : "a"
+  } ${tag} named ${method} shadows a document method`, async ({ page }) => {
+    const element = tag === "img" ? `<img name="${method}">` : `<form name="${method}"></form>`;
+    await page.route("**/viewport-clobbered.html", route =>
+      route.fulfill({
+        contentType: "text/html",
+        body: `<!doctype html><title>Clobbered</title><body>${element}<script src="/p.js" data-init-only="true"></script>`,
+      })
+    );
+    await page.goto(`${server.baseUrl}/viewport-clobbered.html`);
+    await page.waitForFunction(() => !!window["jitsu"]);
+    expect(await page.evaluate(name => typeof document[name], method)).not.toBe("function");
+    const groupId = `clobbered-${tag}-${method}`;
+    const outcome = await page.evaluate(
+      id =>
+        Promise.race([
+          window["jitsu"].group(id).then(() => "settled"),
+          new Promise(resolve => setTimeout(() => resolve("did not settle in 5 s"), 5000)),
+        ]),
+      groupId
+    );
+    expect(outcome).toBe("settled");
+    expect(requestLog.find(entry => entry.body.groupId === groupId)).toBeTruthy();
+  });
+}
+
 test("an iframe makes no viewport reads until it sends", async ({ page }) => {
   await openViewportTestPage(page);
   await page.evaluate(async () => {

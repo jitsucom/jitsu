@@ -353,7 +353,10 @@ function unzoned(target: any, name: string): Function | undefined {
   return typeof saved === "function" ? saved : target?.[name];
 }
 function listen(target: any, method: "addEventListener" | "removeEventListener", type: string, listener: any) {
-  unzoned(target, method)?.call(target, type, listener, true);
+  // A named element (a form or an image) can shadow methods of document, so a real EventTarget is always called
+  // through EventTarget.prototype. Anything else, such as a test double, keeps its own methods.
+  const owner = typeof EventTarget === "function" && target instanceof EventTarget ? EventTarget.prototype : target;
+  unzoned(owner, method)?.call(target, type, listener, true);
 }
 function startTimer(browserWindow: Window, callback: () => void, ms: number): number {
   return unzoned(browserWindow, "setTimeout")!.call(browserWindow, callback, ms);
@@ -447,7 +450,10 @@ function createViewportCache(browserWindow: Window): ViewportCache {
  * whole tree on every send.
  */
 function viewportMetaContents(doc: Document | undefined): string | undefined {
-  const metas = doc?.getElementsByTagName?.("meta");
+  const metas =
+    typeof Document === "function" && doc instanceof Document
+      ? Document.prototype.getElementsByTagName.call(doc, "meta")
+      : doc?.getElementsByTagName?.("meta");
   if (!metas) {
     return undefined;
   }
@@ -490,7 +496,19 @@ function readViewportSize(browserWindow: Window): ViewportSize {
   return { innerWidth: browserWindow.innerWidth, innerHeight: browserWindow.innerHeight };
 }
 
+/**
+ * The cached size, or a live read if the cache cannot be used. The cache only saves layout work, so whatever goes wrong
+ * inside it, from an unusual page to a bug, must cost nothing more than that saving and never an event.
+ */
 function getViewportSize(browserWindow: Window): ViewportSize {
+  try {
+    return getCachedViewportSize(browserWindow);
+  } catch (e) {
+    return readViewportSize(browserWindow);
+  }
+}
+
+function getCachedViewportSize(browserWindow: Window): ViewportSize {
   const doc = browserWindow.document;
   if (
     // A host can resize its iframe and send before the browser delivers any resize event.
