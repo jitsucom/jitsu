@@ -133,7 +133,12 @@ function createUnderlyingAnalyticsInstance(
         return (analytics.page as any)(...pageArgs);
       }
       // analytics.js reads window.innerWidth/innerHeight synchronously inside page(), which forces layout
-      return withCachedViewport(() => (analytics.page as any)(...pageArgs));
+      // If the window throws when read, reject with that error, as analytics.js does when it reads the window itself.
+      // Calling it after a failed read would read the window again, which could succeed and send what the base would not.
+      return withCachedViewport(
+        () => (analytics.page as any)(...pageArgs),
+        error => Promise.reject(error)
+      );
     },
     identify: (...args) => {
       if (args[0] && typeof args[0] !== "object" && typeof args[0] !== "string") {

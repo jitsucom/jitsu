@@ -187,6 +187,25 @@ describe("withCachedViewport", () => {
     expect(Object.getOwnPropertyDescriptor(win, "innerWidth")).toEqual(original);
   });
 
+  it("hands the error to the caller's handler instead of running the callback, when one is given", () => {
+    // a second read by the callback could succeed where the first failed, and report a result the base would not have
+    const win = fakeWindow({
+      innerWidth: {
+        get() {
+          throw new Error("getter boom");
+        },
+        configurable: true,
+        enumerable: true,
+      },
+      innerHeight: { value: 600, configurable: true, enumerable: true },
+    });
+    const original = Object.getOwnPropertyDescriptor(win, "innerWidth");
+    const callback = vi.fn(() => "ran");
+    expect(withCachedViewport(callback, error => `handled: ${(error as Error).message}`)).toBe("handled: getter boom");
+    expect(callback).not.toHaveBeenCalled();
+    expect(Object.getOwnPropertyDescriptor(win, "innerWidth")).toEqual(original);
+  });
+
   it("returns the callback's value, including a promise", async () => {
     fakeWindow({
       innerWidth: { value: 800, configurable: true },

@@ -631,9 +631,11 @@ const viewportKeys = ["innerWidth", "innerHeight"] as const;
  * getter. analytics.js reads both back to back and only afterwards dispatches `pageStart` to plugins and
  * listeners, so they run against the real window. Whatever was not read is restored before `fn` returns.
  *
- * Falls back to calling `fn` untouched when there is no window or the properties can't be redefined.
+ * Falls back to calling `fn` untouched when there is no window or the properties can't be redefined. If the window
+ * throws while the size is read, `onReadError` is called with that error instead, when it is given: a second read by `fn`
+ * could succeed where the first failed.
  */
-export function withCachedViewport<T>(fn: () => T): T {
+export function withCachedViewport<T>(fn: () => T, onReadError?: (error: unknown) => T): T {
   if (!isInBrowser()) {
     return fn();
   }
@@ -642,9 +644,9 @@ export function withCachedViewport<T>(fn: () => T): T {
   try {
     size = getViewportSize(win);
   } catch (e) {
-    // The window itself threw. Leave it to analytics.js to hit the same error, so that its own error handling
-    // applies: it turns an error in page() into a rejected promise, and a caller of page().catch() relies on that.
-    return fn();
+    // The window itself threw. With a handler, the caller decides what to do with that error. Without one, fn runs
+    // untouched and meets the same error itself.
+    return onReadError ? onReadError(e) : fn();
   }
   const shadowed = new Set<(typeof viewportKeys)[number]>();
   const original = {} as Record<(typeof viewportKeys)[number], PropertyDescriptor | undefined>;

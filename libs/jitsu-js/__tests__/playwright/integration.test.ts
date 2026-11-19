@@ -1142,6 +1142,43 @@ test("a window that keeps throwing on read raises no error from the SDK's own ti
   expect(errors.filter(message => message.includes("getter boom"))).toEqual([]);
 });
 
+test("page() rejects, and sends nothing, when the viewport read fails and a later read would succeed", async ({
+  page,
+}) => {
+  await openViewportTestPage(page);
+  const outcome = await page.evaluate(async () => {
+    const real = Object.getOwnPropertyDescriptor(window, "innerWidth")!;
+    let pageStarts = 0;
+    const unsubscribe = window["jitsu"].on("pageStart", () => pageStarts++);
+    window.dispatchEvent(new Event("resize")); // empties the cache, so the next call has to read the window
+    let reads = 0;
+    Object.defineProperty(window, "innerWidth", {
+      configurable: true,
+      get() {
+        // fails on the first two reads, the SDK's cache attempt and its live fallback, then works
+        if (++reads <= 2) throw new Error(`getter boom #${reads}`);
+        return real.get!.call(window);
+      },
+    });
+    let result: string;
+    try {
+      const returned = window["jitsu"].page();
+      result = await returned.then(
+        () => "resolved",
+        (e: any) => `rejected: ${e.message}`
+      );
+    } catch (e: any) {
+      result = `threw synchronously: ${e.message}`;
+    } finally {
+      Object.defineProperty(window, "innerWidth", real); // before the SDK's re-measurement timer fires
+      unsubscribe();
+    }
+    return { result, pageStarts };
+  });
+  expect(outcome.result).toMatch(/^rejected: getter boom/);
+  expect(outcome.pageStarts).toBe(0);
+});
+
 // window.parent is replaceable: a page script that declares `var parent` overwrites it. window.top is not.
 test("an iframe whose own script replaces window.parent still reports its live size", async ({ page }) => {
   await page.route("**/viewport-parent-null.html", route =>
