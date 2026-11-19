@@ -386,11 +386,13 @@ const viewports = new WeakMap<Window, ViewportCache>();
 /**
  * zone.js, which Angular runs on, wraps addEventListener, setTimeout and requestAnimationFrame, and runs change
  * detection after every callback registered inside its zone. The viewport cache needs none of that, so it registers
- * through the unpatched originals that zone.js saves under __zone_symbol__ names, and uses the plain functions
- * everywhere else.
+ * through the unpatched originals that zone.js saves under __zone_symbol__ names (or the prefix the app set with
+ * __Zone_symbol_prefix), and uses the plain functions everywhere else.
  */
 function unzoned(target: any, name: string): Function | undefined {
-  const saved = target?.["__zone_symbol__" + name];
+  // zone.js saves the originals under a prefix that an app can change with a global, set before zone.js loads
+  const custom = typeof window !== "undefined" ? (window as any).__Zone_symbol_prefix : undefined;
+  const saved = target?.[(typeof custom === "string" && custom ? custom : "__zone_symbol__") + name];
   return typeof saved === "function" ? saved : target?.[name];
 }
 function listen(target: any, method: "addEventListener" | "removeEventListener", type: string, listener: any) {
@@ -631,7 +633,14 @@ export function withCachedViewport<T>(fn: () => T): T {
     return fn();
   }
   const win = window as any;
-  const size = getViewportSize(win);
+  let size: ViewportSize;
+  try {
+    size = getViewportSize(win);
+  } catch (e) {
+    // The window itself threw. Leave it to analytics.js to hit the same error, so that its own error handling
+    // applies: it turns an error in page() into a rejected promise, and a caller of page().catch() relies on that.
+    return fn();
+  }
   const shadowed = new Set<(typeof viewportKeys)[number]>();
   const original = {} as Record<(typeof viewportKeys)[number], PropertyDescriptor | undefined>;
   const restore = (key: (typeof viewportKeys)[number]) => {

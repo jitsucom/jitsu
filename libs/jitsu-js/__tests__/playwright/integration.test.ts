@@ -1091,6 +1091,38 @@ test("page() leaves the window as it found it when a pageStart listener throws",
   expect(result).toEqual({ failure: "plugin boom", seenByListener: [true, true], restored: true });
 });
 
+test("page() returns a rejected promise, as before, when reading the viewport throws", async ({ page }) => {
+  await openViewportTestPage(page);
+  const outcome = await page.evaluate(async () => {
+    const real = Object.getOwnPropertyDescriptor(window, "innerWidth")!;
+    window.dispatchEvent(new Event("resize")); // empties the cache, so the next call has to read the window
+    Object.defineProperty(window, "innerWidth", {
+      configurable: true,
+      get() {
+        throw new Error("getter boom");
+      },
+    });
+    let returned: Promise<unknown> | undefined;
+    let thrown: string | undefined;
+    try {
+      returned = window["jitsu"].page();
+    } catch (e: any) {
+      thrown = e.message;
+    } finally {
+      // before the SDK's re-measurement timer fires
+      Object.defineProperty(window, "innerWidth", real);
+    }
+    if (thrown) return { kind: "threw synchronously", message: thrown };
+    try {
+      await returned;
+      return { kind: "resolved" };
+    } catch (e: any) {
+      return { kind: "rejected", message: e.message };
+    }
+  });
+  expect(outcome).toEqual({ kind: "rejected", message: "getter boom" });
+});
+
 // window.parent is replaceable: a page script that declares `var parent` overwrites it. window.top is not.
 test("an iframe whose own script replaces window.parent still reports its live size", async ({ page }) => {
   await page.route("**/viewport-parent-null.html", route =>

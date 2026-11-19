@@ -170,6 +170,23 @@ describe("withCachedViewport", () => {
     expect(Object.getOwnPropertyDescriptor(win, "innerWidth")?.value).toBe(800);
   });
 
+  it("runs the callback untouched when the live read throws, so its own error handling applies", () => {
+    // analytics.js turns an error in page() into a rejected promise, which a caller of page().catch() relies on
+    const win = fakeWindow({
+      innerWidth: {
+        get() {
+          throw new Error("getter boom");
+        },
+        configurable: true,
+        enumerable: true,
+      },
+      innerHeight: { value: 600, configurable: true, enumerable: true },
+    });
+    const original = Object.getOwnPropertyDescriptor(win, "innerWidth");
+    expect(withCachedViewport(() => "ran")).toBe("ran");
+    expect(Object.getOwnPropertyDescriptor(win, "innerWidth")).toEqual(original);
+  });
+
   it("returns the callback's value, including a promise", async () => {
     fakeWindow({
       innerWidth: { value: 800, configurable: true },
@@ -423,6 +440,34 @@ describe("zone.js originals", () => {
     expect(visualViewport.__zone_symbol__addEventListener).toHaveBeenCalledWith("resize", expect.any(Function), true);
     expect(plainAdd).not.toHaveBeenCalled();
     expect(visualViewport.addEventListener).not.toHaveBeenCalled();
+  });
+
+  it("finds the saved functions under a custom prefix, which an app sets with __Zone_symbol_prefix", () => {
+    const saved = { setTimeout: vi.fn(() => 1), addEventListener: vi.fn() };
+    const plain = { setTimeout: vi.fn(() => 2), addEventListener: vi.fn() };
+    const win: any = {
+      __Zone_symbol_prefix: "__app_",
+      screen: { width: 1, height: 1 },
+      devicePixelRatio: 1,
+      innerHeight: 600,
+      requestAnimationFrame: vi.fn(),
+      __app_requestAnimationFrame: vi.fn(),
+      clearTimeout: vi.fn(),
+      __app_clearTimeout: vi.fn(),
+      setTimeout: plain.setTimeout,
+      __app_setTimeout: saved.setTimeout,
+      addEventListener: plain.addEventListener,
+      __app_addEventListener: saved.addEventListener,
+    };
+    Object.defineProperty(win, "innerWidth", { get: () => 800, configurable: true });
+    vi.stubGlobal("window", win);
+    vi.stubGlobal("document", {});
+    warmViewportCache();
+    windowRuntime({}).screen!();
+    expect(saved.setTimeout).toHaveBeenCalledTimes(1);
+    expect(saved.addEventListener).toHaveBeenCalledWith("resize", expect.any(Function), true);
+    expect(plain.setTimeout).not.toHaveBeenCalled();
+    expect(plain.addEventListener).not.toHaveBeenCalled();
   });
 
   it("uses the plain functions when zone.js is not there", () => {
