@@ -256,19 +256,31 @@ export function removeMaskedValues(obj: any, secretPaths: SecretPath[]): any {
   return result;
 }
 
-/** The value as the fallback masking returns it: same objects and lists, every other value a mask */
-export function maskedShape(value: any): any {
+/**
+ * `value` is `stored` with some of its values replaced by masks: the same lists (same length) and objects (same keys),
+ * and every value that is not a mask is equal to the stored one at that place. A mask says only "the stored value
+ * here", so it can be trusted only while nothing around it moved. Values the editor puts back by itself (a constant
+ * field) are equal to the stored ones, so a list that only had its secrets masked still passes.
+ */
+export function sameExceptMasks(value: any, stored: any): boolean {
+  if (value === MASKED_SECRET) {
+    return true;
+  }
   if (Array.isArray(value)) {
-    return value.map(maskedShape);
+    return (
+      Array.isArray(stored) &&
+      value.length === stored.length &&
+      value.every((item, i) => sameExceptMasks(item, stored[i]))
+    );
   }
   if (isPlainObject(value)) {
-    const copy = {};
-    for (const [key, item] of Object.entries(value)) {
-      defineOwn(copy, key, maskedShape(item));
-    }
-    return copy;
+    return (
+      isPlainObject(stored) &&
+      Object.keys(value).length === Object.keys(stored).length &&
+      Object.keys(value).every(key => hasOwn(stored, key) && sameExceptMasks(value[key], stored[key]))
+    );
   }
-  return MASKED_SECRET;
+  return isEqual(value, stored);
 }
 
 const LIST_CHANGED = (path: string[]) =>
@@ -288,7 +300,7 @@ const KEEP_STORED = Symbol("keep stored value");
  *
  * A key with a mask is dropped, so that a merge keeps the stored value. A list is replaced as a whole by a merge, and
  * a mask in it says nothing about which stored entry it stands for once the list was edited (a row deleted in the
- * editor shifts the rest). So a list that holds masks is the masked copy of the stored list, untouched, and the stored
+ * editor shifts the rest). So a list that holds masks is the stored list with some values masked, untouched, and the stored
  * one is kept, or it is refused. `stored` is the service before the change; a new service has none, and the masked
  * entries of its lists are left out.
  */
@@ -309,7 +321,7 @@ export function removeMaskedCredentials(obj: any, stored?: any): any {
       if (!Array.isArray(before)) {
         return node.filter(item => item !== MASKED_SECRET).map(item => without(item, undefined, path));
       }
-      if (isEqual(node, maskedShape(before))) {
+      if (sameExceptMasks(node, before)) {
         return KEEP_STORED;
       }
       throw LIST_CHANGED(path);
@@ -490,7 +502,7 @@ function findChangedTargets(node: any, original: any, path: (string | number)[],
       return [];
     }
     // a list of targets read while its values were masked, and sent back untouched, is the same list
-    return isEqual(value, before) || isEqual(value, maskedShape(before)) ? [] : [currentPath.join(".")];
+    return isEqual(value, before) || sameExceptMasks(value, before) ? [] : [currentPath.join(".")];
   });
 }
 
@@ -678,7 +690,7 @@ function replaceMaskedSecrets(obj: any, dbEntity: any, path: (string | number)[]
     if (path.length > 0 && Array.isArray(stored) && containsMaskedSecrets(obj)) {
       // The masks of a list stand for stored entries by position, which is only true while the list is untouched
       // (a row deleted in the editor shifts the rest)
-      if (!isEqual(obj, maskedShape(stored))) {
+      if (!sameExceptMasks(obj, stored)) {
         throw LIST_CHANGED(path.map(String));
       }
       obj.splice(0, obj.length, ...JSON.parse(JSON.stringify(stored)));

@@ -334,6 +334,108 @@ describe("the service config type, no spec", () => {
       ).rejects.toThrow(/credentials\.rows.*Enter the values of the whole list again/);
     });
 
+    describe("rows with a constant field, as the editor sends them once the spec is back", () => {
+      const rowsOf = () => ({
+        rows: [
+          { type: "oauth", token: "t1" },
+          { type: "oauth", token: "t2" },
+        ],
+      });
+
+      it("keeps the stored rows when only the secrets are still masked", async () => {
+        const original = { ...stored(freshPackage()), credentials: rowsOf() };
+        const merged = await type.merge(
+          original as any,
+          {
+            name: "renamed",
+            credentials: {
+              rows: [
+                { type: "oauth", token: MASKED_SECRET },
+                { type: "oauth", token: MASKED_SECRET },
+              ],
+            },
+          } as any
+        );
+        expect(merged.credentials).toEqual(rowsOf());
+        expect(merged.name).toBe("renamed");
+      });
+
+      it("refuses rows where a visible value was edited", async () => {
+        const original = { ...stored(freshPackage()), credentials: rowsOf() };
+        await expect(
+          type.merge(
+            original as any,
+            {
+              credentials: {
+                rows: [
+                  { type: "basic", token: MASKED_SECRET },
+                  { type: "oauth", token: MASKED_SECRET },
+                ],
+              },
+            } as any
+          )
+        ).rejects.toThrow(/credentials\.rows/);
+      });
+
+      it("refuses rows after one was deleted, although the rest looks unchanged", async () => {
+        const original = { ...stored(freshPackage()), credentials: rowsOf() };
+        await expect(
+          type.merge(
+            original as any,
+            {
+              credentials: { rows: [{ type: "oauth", token: MASKED_SECRET }] },
+            } as any
+          )
+        ).rejects.toThrow(/credentials\.rows/);
+      });
+
+      it("refuses rows where a deleted row was replaced by a typed one", async () => {
+        const original = { ...stored(freshPackage()), credentials: rowsOf() };
+        await expect(
+          type.merge(
+            original as any,
+            {
+              credentials: {
+                rows: [
+                  { type: "oauth", token: MASKED_SECRET },
+                  { type: "oauth", token: "typed" },
+                ],
+              },
+            } as any
+          )
+        ).rejects.toThrow(/credentials\.rows/);
+      });
+
+      it("refuses rows where a stored key was removed", async () => {
+        const original = { ...stored(freshPackage()), credentials: rowsOf() };
+        await expect(
+          type.merge(
+            original as any,
+            {
+              credentials: { rows: [{ type: "oauth" }, { type: "oauth", token: MASKED_SECRET }] },
+            } as any
+          )
+        ).rejects.toThrow(/credentials\.rows/);
+      });
+
+      it("refuses rows that have an extra key compared with the stored ones", async () => {
+        const original = { ...stored(freshPackage()), credentials: rowsOf() };
+        await expect(
+          type.merge(
+            original as any,
+            {
+              credentials: {
+                rows: [
+                  { type: "oauth", token: MASKED_SECRET, extra: "x" },
+                  { type: "oauth", token: MASKED_SECRET },
+                ],
+              },
+            } as any
+          )
+        ).rejects.toThrow(/credentials\.rows/);
+      });
+    });
+
     it("refuses a list after a row was deleted in the editor, instead of keeping the wrong stored row", async () => {
       const original = {
         ...stored(freshPackage()),
@@ -373,7 +475,7 @@ describe("the service config type, no spec", () => {
             credentials: { host: "attacker.example", hosts: [MASKED_SECRET, "b"] },
           } as any
         )
-      ).rejects.toThrow(/Cannot keep the saved values of credentials\.hosts/);
+      ).rejects.toThrow(/Cannot keep the saved secrets \(credentials\.hosts\.0\)/);
     });
 
     it("refuses a changed package when the spec marks a whole credential object secret and only a mask is sent for it", async () => {
@@ -488,6 +590,30 @@ describe("test connection and clone with a masked list (unmaskSecretsFromOrigina
       credentials: { hosts: [MASKED_SECRET, MASKED_SECRET], password: MASKED_SECRET },
     };
     expect(unmaskSecretsFromOriginal(submitted, storedService).credentials).toEqual(storedService.credentials);
+  });
+
+  it("restores rows whose constant field is back and whose secrets are still masked", () => {
+    const withRows = {
+      ...storedService,
+      credentials: {
+        rows: [
+          { type: "oauth", token: "t1" },
+          { type: "oauth", token: "t2" },
+        ],
+      },
+    };
+    const submitted = {
+      ...withRows,
+      credentials: {
+        rows: [
+          { type: "oauth", token: MASKED_SECRET },
+          { type: "oauth", token: MASKED_SECRET },
+        ],
+      },
+    };
+    expect(unmaskSecretsFromOriginal(submitted, withRows).credentials).toEqual(withRows.credentials);
+    const edited = { ...withRows, credentials: { rows: [{ type: "oauth", token: MASKED_SECRET }] } };
+    expect(() => unmaskSecretsFromOriginal(edited, withRows)).toThrow(/credentials\.rows/);
   });
 
   it("refuses a masked list that lost an entry: the mask no longer says which one is left", () => {
