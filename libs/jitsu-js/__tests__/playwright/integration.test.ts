@@ -887,6 +887,39 @@ for (const [label, name] of [
   });
 }
 
+test("a send after viewport content moves between meta tags reports the new viewport", async ({ browser }) => {
+  const context = await browser.newContext({ ...devices["Pixel 7"], ignoreHTTPSErrors: true });
+  const page = await context.newPage();
+  await page.route("**/viewport-boundary.html", route =>
+    route.fulfill({
+      contentType: "text/html",
+      body: '<!doctype html><meta name="viewport" content="width=800,initial-scale=1"><title>Boundary</title><script src="/p.js" data-init-only="true" defer></script>',
+    })
+  );
+  await page.goto(`${server.baseUrl}/viewport-boundary.html`);
+  await page.waitForFunction(() => !!window["jitsu"]);
+  await page.evaluate(() => window["jitsu"].track("warm-before-boundary"));
+  await page.waitForTimeout(300);
+  const live = await page.evaluate(async () => {
+    const before = window.innerWidth;
+    // the same words in a different arrangement: one tag becomes two. Joined with a comma they look identical
+    document.querySelector('meta[name="viewport"]')!.setAttribute("content", "width=800");
+    const second = document.createElement("meta");
+    second.name = "viewport";
+    second.content = "initial-scale=1";
+    document.head.append(second);
+    const after = window.innerWidth;
+    await window["jitsu"].group("boundary-same-task");
+    return { before, after };
+  });
+  // the browser applies the last tag, so the arrangement changes the viewport
+  expect(live.after).not.toBe(live.before);
+  expect(requestLog.find(entry => entry.body.groupId === "boundary-same-task")?.body.context.screen.innerWidth).toBe(
+    live.after
+  );
+  await context.close();
+});
+
 test("an iframe makes no viewport reads until it sends", async ({ page }) => {
   await openViewportTestPage(page);
   await page.evaluate(async () => {

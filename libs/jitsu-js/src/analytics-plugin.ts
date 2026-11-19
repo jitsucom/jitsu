@@ -457,7 +457,9 @@ function viewportMetaContents(doc: Document | undefined): string | undefined {
       contents.push(metas[i].getAttribute("content"));
     }
   }
-  return contents.join(",");
+  // encoded as a list, so where one tag ends and the next begins is part of the signature, and a tag without a content
+  // attribute differs from one with an empty one
+  return JSON.stringify(contents);
 }
 
 /**
