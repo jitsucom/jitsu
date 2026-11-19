@@ -256,14 +256,41 @@ export function removeMaskedValues(obj: any, secretPaths: SecretPath[]): any {
   return result;
 }
 
+/** The value as the fallback masking returns it: same objects and lists, every other value a mask */
+export function maskedShape(value: any): any {
+  if (Array.isArray(value)) {
+    return value.map(maskedShape);
+  }
+  if (isPlainObject(value)) {
+    const copy = {};
+    for (const [key, item] of Object.entries(value)) {
+      defineOwn(copy, key, maskedShape(item));
+    }
+    return copy;
+  }
+  return MASKED_SECRET;
+}
+
+const LIST_CHANGED = (path: string[]) =>
+  new ApiError(
+    `Cannot keep the saved values of ${path.join(
+      "."
+    )} because the list was changed. Enter the values of the whole list again to continue.`,
+    { status: 400 }
+  );
+
+const KEEP_STORED = Symbol("keep stored value");
+
 /**
  * Remove every masked value under `credentials` of a service, whatever the spec lists as secret. A client that read the
  * service while its spec was missing holds masks for ordinary fields (a host) too, and sends them back after the spec
  * has arrived, when only the listed secrets are known: a mask must never be stored over a value.
  *
- * A key with a mask is dropped, so that a merge keeps the stored value. A list is replaced as a whole by a merge, so a
- * masked entry of a list (or of an object inside a list) is given the stored value at the same place instead, or is left
- * out when there is none. `stored` is the service before the change; an incoming new service has none.
+ * A key with a mask is dropped, so that a merge keeps the stored value. A list is replaced as a whole by a merge, and
+ * a mask in it says nothing about which stored entry it stands for once the list was edited (a row deleted in the
+ * editor shifts the rest). So a list that holds masks is the masked copy of the stored list, untouched, and the stored
+ * one is kept, or it is refused. `stored` is the service before the change; a new service has none, and the masked
+ * entries of its lists are left out.
  */
 export function removeMaskedCredentials(obj: any, stored?: any): any {
   if (!obj || typeof obj !== "object" || obj.credentials === undefined) {
@@ -274,34 +301,34 @@ export function removeMaskedCredentials(obj: any, stored?: any): any {
     delete result.credentials;
     return result;
   }
-  const without = (node: any, before: any, inList: boolean): any => {
+  const without = (node: any, before: any, path: string[]): any => {
     if (Array.isArray(node)) {
-      const items: any[] = [];
-      node.forEach((item, index) => {
-        const storedItem = hasOwn(before, String(index)) ? before[index] : undefined;
-        if (item !== MASKED_SECRET) {
-          items.push(without(item, storedItem, true));
-        } else if (storedItem !== undefined) {
-          items.push(storedItem);
-        }
-      });
-      return items;
+      if (!containsMaskedSecrets(node)) {
+        return node;
+      }
+      if (!Array.isArray(before)) {
+        return node.filter(item => item !== MASKED_SECRET).map(item => without(item, undefined, path));
+      }
+      if (isEqual(node, maskedShape(before))) {
+        return KEEP_STORED;
+      }
+      throw LIST_CHANGED(path);
     }
     if (isPlainObject(node)) {
       const copy = {};
       for (const [key, value] of Object.entries(node)) {
-        const storedValue = hasOwn(before, key) ? before[key] : undefined;
         if (value !== MASKED_SECRET) {
-          defineOwn(copy, key, without(value, storedValue, inList));
-        } else if (inList && storedValue !== undefined) {
-          defineOwn(copy, key, storedValue);
+          const kept = without(value, hasOwn(before, key) ? before[key] : undefined, [...path, key]);
+          if (kept !== KEEP_STORED) {
+            defineOwn(copy, key, kept);
+          }
         }
       }
       return copy;
     }
     return node;
   };
-  result.credentials = without(result.credentials, stored?.credentials, false);
+  result.credentials = without(result.credentials, stored?.credentials, ["credentials"]);
   return result;
 }
 
@@ -462,7 +489,8 @@ function findChangedTargets(node: any, original: any, path: (string | number)[],
     if (isEmptyValue(value) && isEmptyValue(before)) {
       return [];
     }
-    return isEqual(value, before) ? [] : [currentPath.join(".")];
+    // a list of targets read while its values were masked, and sent back untouched, is the same list
+    return isEqual(value, before) || isEqual(value, maskedShape(before)) ? [] : [currentPath.join(".")];
   });
 }
 
@@ -612,6 +640,10 @@ export function assertSecretsStayWithTarget(original: any, patch: any, merged: a
     if (isEmptyValue(stored)) {
       return false;
     }
+    // A secret the merge no longer carries (an entry of a list that was entered again, shorter) is not kept
+    if (Array.isArray(path) && !isEqual(getOwn(merged, path), stored)) {
+      return false;
+    }
     // Walk the path one segment at a time. A string path would let a property literally named `credentials.password`
     // in the patch count as the nested secret (lodash prefers it), while the stored password is kept.
     const supplied = Array.isArray(path) ? getOwn(patch, path) : get(patch, keysOf(path));
@@ -642,6 +674,16 @@ function replaceMaskedSecrets(obj: any, dbEntity: any, path: (string | number)[]
   }
 
   if (Array.isArray(obj)) {
+    const stored = get(dbEntity, path);
+    if (path.length > 0 && Array.isArray(stored) && containsMaskedSecrets(obj)) {
+      // The masks of a list stand for stored entries by position, which is only true while the list is untouched
+      // (a row deleted in the editor shifts the rest)
+      if (!isEqual(obj, maskedShape(stored))) {
+        throw LIST_CHANGED(path.map(String));
+      }
+      obj.splice(0, obj.length, ...JSON.parse(JSON.stringify(stored)));
+      return;
+    }
     obj.forEach((item, index) => {
       if (item === MASKED_SECRET) {
         // Replace masked value with value from db at the same path

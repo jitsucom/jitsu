@@ -30,7 +30,7 @@ vi.mock("../../lib/server/log", async importOriginal => {
 
 import { MASKED_SECRET } from "../../lib/schema/destinations";
 import { getConfigObjectType } from "../../lib/schema/config-objects";
-import { getServiceSecretPaths } from "../../lib/schema/secrets";
+import { getServiceSecretPaths, unmaskSecretsFromOriginal } from "../../lib/schema/secrets";
 
 let counter = 0;
 /** A package name nobody used before in this file: the fallback warning is deduplicated per package@version */
@@ -322,15 +322,46 @@ describe("the service config type, no spec", () => {
       expect(merged.name).toBe("renamed");
     });
 
-    it("keeps masked entries of an edited list and takes the changed one", async () => {
+    it("refuses a list that mixes masks with new values: the masks no longer say which stored entry they stand for", async () => {
       const original = { ...stored(freshPackage()), credentials: { rows: [{ k: "v1", s: "x" }, { k: "v2" }] } };
-      const merged = await type.merge(
-        original as any,
-        {
-          credentials: { rows: [{ k: "new", s: MASKED_SECRET }, { k: MASKED_SECRET }] },
-        } as any
+      await expect(
+        type.merge(
+          original as any,
+          {
+            credentials: { rows: [{ k: "new", s: MASKED_SECRET }, { k: MASKED_SECRET }] },
+          } as any
+        )
+      ).rejects.toThrow(/credentials\.rows.*Enter the values of the whole list again/);
+    });
+
+    it("refuses a list after a row was deleted in the editor, instead of keeping the wrong stored row", async () => {
+      const original = {
+        ...stored(freshPackage()),
+        credentials: {
+          rows: [
+            { k: "first", s: "x1" },
+            { k: "second", s: "x2" },
+          ],
+        },
+      };
+      // the editor removed the first row: one masked row is left, which stood for the second
+      await expect(
+        type.merge(original as any, { credentials: { rows: [{ k: MASKED_SECRET, s: MASKED_SECRET }] } } as any)
+      ).rejects.toThrow(/credentials\.rows/);
+    });
+
+    it("takes a list that was entered again in full", async () => {
+      const original = { ...stored(freshPackage()), credentials: { hosts: ["a", "b"] } };
+      const merged = await type.merge(original as any, { credentials: { hosts: ["c"] } } as any);
+      expect(merged.credentials.hosts).toEqual(["c"]);
+    });
+
+    it("keeps a credential stored under a nested key named __proto__ out of reach of a package change", async () => {
+      const credentials = JSON.parse('{"nested": {"__proto__": {"token": "real-token"}}}');
+      const original = { ...stored(freshPackage()), credentials };
+      await expect(type.merge(original as any, { package: "attacker/x" } as any)).rejects.toThrow(
+        /Cannot keep the saved secrets/
       );
-      expect(merged.credentials.rows).toEqual([{ k: "new", s: "x" }, { k: "v2" }]);
     });
 
     it("refuses a changed host while a stored list entry would be kept", async () => {
@@ -342,7 +373,7 @@ describe("the service config type, no spec", () => {
             credentials: { host: "attacker.example", hosts: [MASKED_SECRET, "b"] },
           } as any
         )
-      ).rejects.toThrow(/Cannot keep the saved secrets \(credentials\.hosts\.0\)/);
+      ).rejects.toThrow(/Cannot keep the saved values of credentials\.hosts/);
     });
 
     it("refuses a changed package when the spec marks a whole credential object secret and only a mask is sent for it", async () => {
@@ -441,5 +472,45 @@ describe("the service config type, no spec", () => {
         where: { package_version: { package: original.package, version: "1.0.0" } },
       });
     });
+  });
+});
+
+describe("test connection and clone with a masked list (unmaskSecretsFromOriginal)", () => {
+  const storedService = {
+    package: "airbyte/source-x",
+    version: "1.0.0",
+    credentials: { hosts: ["a.example:1", "b.example:1"], password: "pw" },
+  };
+
+  it("restores a list whose every entry is still masked, and does not call it a changed target", () => {
+    const submitted = {
+      ...storedService,
+      credentials: { hosts: [MASKED_SECRET, MASKED_SECRET], password: MASKED_SECRET },
+    };
+    expect(unmaskSecretsFromOriginal(submitted, storedService).credentials).toEqual(storedService.credentials);
+  });
+
+  it("refuses a masked list that lost an entry: the mask no longer says which one is left", () => {
+    const submitted = { ...storedService, credentials: { hosts: [MASKED_SECRET], password: MASKED_SECRET } };
+    expect(() => unmaskSecretsFromOriginal(submitted, storedService)).toThrow(/hosts/);
+  });
+
+  it("refuses a masked list that is not a target as well, when an entry is missing", () => {
+    const withTokens = { ...storedService, credentials: { tokens: ["t1", "t2"], password: "pw" } };
+    const submitted = { ...withTokens, credentials: { tokens: [MASKED_SECRET], password: MASKED_SECRET } };
+    expect(() => unmaskSecretsFromOriginal(submitted, withTokens)).toThrow(/credentials\.tokens/);
+    const untouched = {
+      ...withTokens,
+      credentials: { tokens: [MASKED_SECRET, MASKED_SECRET], password: MASKED_SECRET },
+    };
+    expect(unmaskSecretsFromOriginal(untouched, withTokens).credentials).toEqual(withTokens.credentials);
+  });
+
+  it("still refuses a typed host that differs from the stored ones", () => {
+    const submitted = {
+      ...storedService,
+      credentials: { hosts: ["attacker.example:1", "b.example:1"], password: MASKED_SECRET },
+    };
+    expect(() => unmaskSecretsFromOriginal(submitted, storedService)).toThrow(/hosts changed/);
   });
 });

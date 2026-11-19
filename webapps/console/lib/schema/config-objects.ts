@@ -375,7 +375,8 @@ const configObjectTypes: Record<string, ConfigObjectType> = {
       // Remove masked values before merge
       const secretPaths = await getServiceSecretPaths(original.package, original.version, original, patch);
       const cleanedPatch = removeMaskedCredentials(patch, original);
-      const before = deepCopy(original);
+      // a JSON copy: `deepCopy` drops an own key named `__proto__`, and a credential under it would not be seen
+      const before = JSON.parse(JSON.stringify(original));
       const merged = deepMerge(original, cleanedPatch);
       assertSecretsStayWithTarget(withSchemaDefaults("service", before), patch, merged, secretPaths);
       return merged;
