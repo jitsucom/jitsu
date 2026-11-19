@@ -1065,6 +1065,32 @@ test("page() puts window.innerWidth and innerHeight back when analytics.js fails
   expect(result).toEqual({ failure: "boom", restored: true, width: "number" });
 });
 
+// analytics.js has read both sizes, and the window's own getters are back, before it runs any pageStart listener. A
+// listener that throws therefore finds nothing left to restore, so this passes without the `finally` too. It guards
+// what a plugin sees and what is left behind, for the day analytics.js changes the order of those steps.
+test("page() leaves the window as it found it when a pageStart listener throws", async ({ page }) => {
+  await openViewportTestPage(page);
+  const result = await page.evaluate(async () => {
+    const getters = () => ["innerWidth", "innerHeight"].map(key => Object.getOwnPropertyDescriptor(window, key)!.get);
+    const before = getters();
+    let seenByListener: boolean[] | undefined;
+    const unsubscribe = window["jitsu"].on("pageStart", () => {
+      seenByListener = getters().map((getter, i) => getter === before[i]);
+      throw new Error("plugin boom");
+    });
+    let failure = "none";
+    try {
+      await window["jitsu"].page();
+    } catch (e: any) {
+      failure = e.message;
+    } finally {
+      unsubscribe();
+    }
+    return { failure, seenByListener, restored: getters().every((getter, i) => getter === before[i]) };
+  });
+  expect(result).toEqual({ failure: "plugin boom", seenByListener: [true, true], restored: true });
+});
+
 // window.parent is replaceable: a page script that declares `var parent` overwrites it. window.top is not.
 test("an iframe whose own script replaces window.parent still reports its live size", async ({ page }) => {
   await page.route("**/viewport-parent-null.html", route =>
