@@ -109,16 +109,16 @@ func TestSharedCheckpointScope(t *testing.T) {
 		if a.commits != 0 {
 			t.Fatalf("stream a was committed %d time(s) at the checkpoint while it had no rows: a replace-table commit of an empty stream empties its table", a.commits)
 		}
-		if b.commits != 1 {
-			t.Fatalf("stream b commits: %d, want 1 (it has rows and is due)", b.commits)
+		if b.commits != 0 {
+			t.Fatalf("stream b was committed %d time(s) at a checkpoint that cannot advance (a's replacement is pending), want 0: it replaces b's table with a partial batch and the cursor is not saved", b.commits)
 		}
 		// A's table has not been replaced yet. The checkpoint must not be saved past it, see the next case.
 		if n := rows("empty"); n != 0 {
 			t.Fatalf("%d checkpoint row(s) saved while stream a's table replacement is still pending, want 0", n)
 		}
 		s.closeActiveStreams(true)
-		if a.commits != 1 {
-			t.Fatalf("stream a commits after the close: %d, want 1 (its own completion handles it)", a.commits)
+		if a.commits != 1 || b.commits != 1 {
+			t.Fatalf("commits after the close: a=%d b=%d, want 1 and 1 (each stream's own completion handles it)", a.commits, b.commits)
 		}
 		if n := rows("empty"); n != 1 {
 			t.Fatalf("%d checkpoint row(s) saved after stream a replaced its table, want 1", n)
@@ -231,16 +231,16 @@ func TestSharedCheckpointScope(t *testing.T) {
 		if a.commits != 0 {
 			t.Errorf("stream a was committed %d time(s) at the checkpoint although the connector logged an error for it, want 0: a replace-table commit would replace its table with a partial batch", a.commits)
 		}
-		if b.commits != 1 {
-			t.Errorf("stream b commits: %d, want 1 (it has rows and no logged error)", b.commits)
+		if b.commits != 0 {
+			t.Errorf("stream b was committed %d time(s) at a checkpoint that cannot advance (a is left for its strict close), want 0", b.commits)
 		}
 		if n := rows("logerr"); n != 0 {
 			t.Errorf("%d checkpoint row(s) saved while stream a's records are not committed, want 0", n)
 		}
 		// the end of the run closes strictly: A is aborted and carries the error, so the checkpoint is never saved
 		s.closeActiveStreams(true)
-		if a.commits != 0 || a.aborts != 1 {
-			t.Errorf("after the strict close: stream a commits=%d aborts=%d, want 0 and 1", a.commits, a.aborts)
+		if a.commits != 0 || a.aborts != 1 || b.commits != 1 {
+			t.Errorf("after the strict close: stream a commits=%d aborts=%d, stream b commits=%d, want 0, 1 and 1", a.commits, a.aborts, b.commits)
 		}
 		if sa.Error == "" {
 			t.Errorf("stream a has no error after the strict close, want the logged error")
@@ -250,25 +250,64 @@ func TestSharedCheckpointScope(t *testing.T) {
 		}
 	})
 
+	// Sixth review round, first finding: an incremental stream A with a partial batch in replace-table mode (state was reset)
+	// next to a full-refresh stream B that has not committed. B keeps the checkpoint from being saved, so replacing A's table
+	// now would leave readers with the partial batch if the run is cancelled before A finishes, with no progress saved. A
+	// replace-table stream is committed at a shared checkpoint only when the checkpoint can then be saved.
+	t.Run("a table is not replaced at a checkpoint that cannot be saved", func(t *testing.T) {
+		a, b := &countingStream{}, &countingStream{}
+		s := newSidecar("blocked", open("a", "incremental", bulker.ReplaceTable, a, 5), open("b", "full_refresh", bulker.ReplaceTable, b, 3))
+		s.processState(global("c1"))
+		if a.commits != 0 || b.commits != 0 {
+			t.Errorf("commits at a checkpoint that cannot be saved: a=%d b=%d, want 0 and 0: a replace-table commit would replace a table with a partial batch and save no progress", a.commits, b.commits)
+		}
+		if n := rows("blocked"); n != 0 {
+			t.Errorf("%d checkpoint row(s) saved while stream b is still buffering, want 0", n)
+		}
+		// cancelled before a finishes: nothing was replaced
+		s.cancelled.Store(true)
+		s.closeActiveStreams(false)
+		if a.commits != 0 || b.commits != 0 {
+			t.Errorf("commits after the cancelled run: a=%d b=%d, want 0 and 0", a.commits, b.commits)
+		}
+	})
+
+	// Sixth review round, second finding: the guard for a stream with a logged connector error is only for commits that replace
+	// existing data. A batch-mode commit appends, so it is committed at the checkpoint as before.
+	t.Run("a batch stream with a logged connector error is still committed at a checkpoint", func(t *testing.T) {
+		a, b := &countingStream{}, &countingStream{}
+		sa := open("a", "incremental", bulker.Batch, a, 5)
+		sa.errorFromLogs = "connector logged an error while only this stream was running"
+		s := newSidecar("batchlogerr", sa, open("b", "incremental", bulker.Batch, b, 3))
+		s.processState(global("c1"))
+		if a.commits != 1 || b.commits != 1 {
+			t.Errorf("commits: a=%d b=%d, want 1 and 1: a batch commit only appends rows and was committed at checkpoints before", a.commits, b.commits)
+		}
+		if n := rows("batchlogerr"); n != 1 {
+			t.Errorf("%d checkpoint row(s) saved, want 1", n)
+		}
+	})
+
 	// Third review round, second finding: the webhook writer treats replace-table like batch and completing an empty stream
 	// sends nothing, so an opened but empty stream has nothing to replace and the checkpoint must not wait for it. A
 	// destination that does replace data (a warehouse) still waits.
 	t.Run("an empty replace-table stream holds the checkpoint only for destinations that replace data", func(t *testing.T) {
 		for _, tc := range []struct {
-			destination string
-			wantRows    int
+			destination  string
+			wantRows     int
+			wantACommits int
 		}{
-			{"webhook", 1},  // nothing to replace: saved at once
-			{"mixpanel", 1}, // same
-			{"postgres", 0}, // replaces its table at the stream's completion: waits for it
+			{"webhook", 1, 1},  // nothing to replace: a commits and the checkpoint is saved at once
+			{"mixpanel", 1, 1}, // same
+			{"postgres", 0, 0}, // b's table replacement is pending, so the checkpoint cannot advance and a waits for its own close
 		} {
 			syncID := "dest-" + tc.destination
 			a, b := &countingStream{}, &countingStream{}
 			s := newSidecar(syncID, open("a", "incremental", bulker.ReplaceTable, a, 5), open("b", "incremental", bulker.ReplaceTable, b, 0))
 			s.blk = typedBulker{typeID: tc.destination}
 			s.processState(global("c1"))
-			if a.commits != 1 {
-				t.Errorf("%s: stream a commits: %d, want 1", tc.destination, a.commits)
+			if a.commits != tc.wantACommits {
+				t.Errorf("%s: stream a commits: %d, want %d", tc.destination, a.commits, tc.wantACommits)
 			}
 			if b.commits != 0 {
 				t.Errorf("%s: the empty stream b was committed %d time(s) at the checkpoint, want 0", tc.destination, b.commits)
