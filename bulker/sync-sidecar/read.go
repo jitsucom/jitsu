@@ -1053,6 +1053,8 @@ type ActiveStream struct {
 	bufferedBytes       int
 	unsavedState        any
 	closed              bool
+	// commitCount is how many times this stream has committed its buffered records successfully in this run (see commitContext).
+	commitCount int
 
 	bulkerStream          bulker.BulkerStream
 	processedObjectSample types2.Json
@@ -1104,10 +1106,11 @@ func (s *ActiveStream) Commit(strict bool) (state bulker.State) {
 			state = s.bulkerStream.Abort(context.Background())
 		} else {
 			var err error
-			state, err = s.bulkerStream.Complete(context.Background())
+			state, err = s.bulkerStream.Complete(s.commitContext())
 			if err != nil {
 				s.Error = err.Error()
 			} else {
+				s.commitCount++
 				s.EventsCount += s.bufferedEventsCount
 				s.BytesProcessed += s.bufferedBytes
 			}
@@ -1117,6 +1120,19 @@ func (s *ActiveStream) Commit(strict bool) (state bulker.State) {
 	s.bufferedBytes = 0
 	s.bulkerStream = nil
 	return
+}
+
+// commitContext is the context a commit runs with. The S3 and GCS batch writer names its object after the table and the second
+// the writer started in, and adds a batch number only if the context carries one. A stream is committed at every checkpoint and
+// then opened again on the next record, so two of its writers can start in the same second, and the later upload would replace
+// the earlier object: its records are lost while the saved cursor has moved past them. The first commit keeps its object name,
+// the later ones carry the number of batches already committed. Other destinations ignore the value.
+func (s *ActiveStream) commitContext() context.Context {
+	ctx := context.Background()
+	if s.commitCount > 0 {
+		ctx = context.WithValue(ctx, bulker.BatchNumberCtxKey, s.commitCount)
+	}
+	return ctx
 }
 
 func (s *ActiveStream) Close(complete, cancelled, strict bool) (state bulker.State) {
