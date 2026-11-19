@@ -730,6 +730,24 @@ test("a resize refills the cache after the frame, so the next send reads nothing
   });
 });
 
+test("an iframe makes no viewport reads until it sends", async ({ page }) => {
+  await openViewportTestPage(page);
+  await page.evaluate(async () => {
+    const frame = document.createElement("iframe");
+    frame.src = "/viewport-test.html";
+    document.body.append(frame);
+    await new Promise(resolve => (frame.onload = () => resolve(undefined)));
+  });
+  const frame = page.frames().find(candidate => candidate !== page.mainFrame())!;
+  await frame.waitForFunction(() => !!window["jitsu"]);
+  // longer than the quiet period plus a frame, with nothing sent
+  await page.waitForTimeout(500);
+  // a frame always reads live and keeps nothing, so a start-up measurement there would be wasted
+  expect(await frame.evaluate(() => window["viewportReads"])).toEqual({ innerWidth: 0, innerHeight: 0 });
+  await frame.evaluate(() => window["jitsu"].group("first-send-in-frame"));
+  expect(await frame.evaluate(() => window["viewportReads"])).toEqual({ innerWidth: 1, innerHeight: 1 });
+});
+
 test("a burst of resizes is measured once, after it ends", async ({ page }) => {
   await page.setViewportSize({ width: 800, height: 600 });
   await openViewportTestPage(page);

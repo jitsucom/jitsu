@@ -258,6 +258,21 @@ describe("warmViewportCache", () => {
     expect(reads).not.toHaveBeenCalled();
   });
 
+  it("does nothing inside an iframe, where the viewport is always read live", () => {
+    const { timers, reads, settle } = timedWindow({ parent: {} });
+    warmViewportCache();
+    expect(timers.size).toBe(0);
+    settle();
+    expect(reads).not.toHaveBeenCalled();
+  });
+
+  it("still schedules a measurement when the window is its own parent", () => {
+    const { win, timers } = timedWindow();
+    win.parent = win;
+    warmViewportCache();
+    expect(timers.size).toBe(1);
+  });
+
   it("does nothing outside a browser", () => {
     vi.stubGlobal("window", undefined);
     vi.stubGlobal("document", undefined);

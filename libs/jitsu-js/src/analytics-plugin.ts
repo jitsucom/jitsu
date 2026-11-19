@@ -408,6 +408,11 @@ function createViewportCache(browserWindow: Window): ViewportCache {
   return cache;
 }
 
+/** Inside an iframe the size is always read live and nothing is cached. */
+function isInFrame(browserWindow: Window): boolean {
+  return !!browserWindow.parent && browserWindow.parent !== browserWindow;
+}
+
 function readViewportSize(browserWindow: Window): ViewportSize {
   return { innerWidth: browserWindow.innerWidth, innerHeight: browserWindow.innerHeight };
 }
@@ -416,7 +421,7 @@ function getViewportSize(browserWindow: Window): ViewportSize {
   const doc = browserWindow.document;
   if (
     // A host can resize its iframe and send before the browser delivers any resize event.
-    (browserWindow.parent && browserWindow.parent !== browserWindow) ||
+    isInFrame(browserWindow) ||
     typeof browserWindow.addEventListener !== "function" ||
     (doc && (typeof Document === "undefined" || !(doc instanceof Document) || typeof MutationObserver !== "function"))
   ) {
@@ -463,7 +468,8 @@ function getViewportSize(browserWindow: Window): ViewportSize {
  * first user interaction then starts with a warm cache instead of paying for the layout in that first send.
  */
 export function warmViewportCache() {
-  if (isInBrowser()) {
+  // nothing is cached in an iframe, so a measurement there would be discarded
+  if (isInBrowser() && !isInFrame(window)) {
     remeasureWhenQuiet(window);
   }
 }
