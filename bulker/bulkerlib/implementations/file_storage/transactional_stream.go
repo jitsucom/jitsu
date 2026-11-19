@@ -23,6 +23,8 @@ func NewTransactionalStream(id string, p implementations.FileAdapter, tableName 
 		batchNum, ok := ctx.Value(bulker.BatchNumberCtxKey).(int)
 		if ok {
 			batchNumStr = fmt.Sprintf("_%d", batchNum)
+		} else if suffix, ok := ctx.Value(bulker.BatchSuffixCtxKey).(string); ok && suffix != "" {
+			batchNumStr = "_" + suffix
 		}
 		return fmt.Sprintf("%s_%s%s", tableName, streamStartDate.Format(FilenameDate), batchNumStr)
 	}

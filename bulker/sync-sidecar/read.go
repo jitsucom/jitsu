@@ -1053,8 +1053,8 @@ type ActiveStream struct {
 	bufferedBytes       int
 	unsavedState        any
 	closed              bool
-	// commitCount is how many times this stream has committed its buffered records successfully in this run (see commitContext).
-	commitCount int
+	// uploadedBatches is how many batches with records this stream has committed successfully in this run (see commitContext).
+	uploadedBatches int
 
 	bulkerStream          bulker.BulkerStream
 	processedObjectSample types2.Json
@@ -1110,7 +1110,9 @@ func (s *ActiveStream) Commit(strict bool) (state bulker.State) {
 			if err != nil {
 				s.Error = err.Error()
 			} else {
-				s.commitCount++
+				if s.bufferedEventsCount > 0 {
+					s.uploadedBatches++
+				}
 				s.EventsCount += s.bufferedEventsCount
 				s.BytesProcessed += s.bufferedBytes
 			}
@@ -1126,11 +1128,14 @@ func (s *ActiveStream) Commit(strict bool) (state bulker.State) {
 // the writer started in, and adds a batch number only if the context carries one. A stream is committed at every checkpoint and
 // then opened again on the next record, so two of its writers can start in the same second, and the later upload would replace
 // the earlier object: its records are lost while the saved cursor has moved past them. The first commit keeps its object name,
-// the later ones carry the number of batches already committed. Other destinations ignore the value.
+// the later ones carry `s<n>`, n being the number of batches already uploaded. A commit without records uploads nothing and
+// does not count, so the first object that is uploaded keeps the plain name. The suffix has its own context key: the bulker
+// app's batch consumer numbers its batches from 1 (`_<n>`), and a sync that wrote into the same prefix must not be able to
+// produce the same name. Other destinations ignore the value.
 func (s *ActiveStream) commitContext() context.Context {
 	ctx := context.Background()
-	if s.commitCount > 0 {
-		ctx = context.WithValue(ctx, bulker.BatchNumberCtxKey, s.commitCount)
+	if s.uploadedBatches > 0 {
+		ctx = context.WithValue(ctx, bulker.BatchSuffixCtxKey, fmt.Sprintf("s%d", s.uploadedBatches))
 	}
 	return ctx
 }

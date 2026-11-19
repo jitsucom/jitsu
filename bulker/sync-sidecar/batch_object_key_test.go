@@ -87,7 +87,8 @@ func freezeClock(t *testing.T) {
 	t.Cleanup(timestamp.UnfreezeTime)
 }
 
-// A stream committed again and again within one second keeps every batch. The first object keeps the name it always had.
+// A stream committed again and again within one second keeps every batch. The first object keeps the name it always had; the
+// later ones carry the sync suffix `_s<n>`, which the bulker app's batch numbers (`_<n>`) can never match.
 func TestCommitsWithinOneSecondKeepEveryBatch(t *testing.T) {
 	freezeClock(t)
 	bucket := &overwritingBucket{objects: map[string][]byte{}}
@@ -110,7 +111,7 @@ func TestCommitsWithinOneSecondKeepEveryBatch(t *testing.T) {
 			t.Fatalf("commit %d failed: %s", i, stream.Error)
 		}
 	}
-	want := []string{"orders_2026_11_19T07_30_00.ndjson", "orders_2026_11_19T07_30_00_1.ndjson", "orders_2026_11_19T07_30_00_2.ndjson"}
+	want := []string{"orders_2026_11_19T07_30_00.ndjson", "orders_2026_11_19T07_30_00_s1.ndjson", "orders_2026_11_19T07_30_00_s2.ndjson"}
 	if got := bucket.keys(); strings.Join(got, ",") != strings.Join(want, ",") {
 		t.Fatalf("%d uploads left the objects %v, want %v: a later batch replaced an earlier one", bucket.uploads, got, want)
 	}
@@ -118,6 +119,87 @@ func TestCommitsWithinOneSecondKeepEveryBatch(t *testing.T) {
 		if got := strings.TrimSpace(string(bucket.objects[key])); got != fmt.Sprintf(`{"id":"row-%d"}`, i+1) {
 			t.Errorf("%s holds %s, want row-%d", key, got, i+1)
 		}
+	}
+}
+
+// consumeOne writes one record into a writer and commits it with the given context, like a commit of the sidecar or of the
+// bulker app's batch consumer.
+func consumeOne(t *testing.T, bucket *overwritingBucket, id string, ctx context.Context, record string) {
+	t.Helper()
+	writer, err := file_storage.NewTransactionalStream(id, bucket, "orders")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := writer.ConsumeMap(ctx, map[string]any{"id": record}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := writer.Complete(ctx); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// Review of the first version: a sync and a bulker event connection that write the same table under the same prefix. The
+// event consumer numbers its batches from 1 (`_1`) through the same context, so a sync batch named `_1` would replace an event
+// batch that started in the same second.
+func TestSyncBatchKeysDoNotMatchEventBatchKeys(t *testing.T) {
+	freezeClock(t)
+	bucket := &overwritingBucket{objects: map[string][]byte{}}
+	stream := NewActiveStream("orders", "incremental", bulker.Batch)
+	commitSyncBatch := func(i int) {
+		writer, err := file_storage.NewTransactionalStream(fmt.Sprintf("sync%d", i), bucket, "orders")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := stream.Begin(writer); err != nil {
+			t.Fatal(err)
+		}
+		row := jsonorder.NewOrderedMap[string, any](0)
+		row.Set("id", fmt.Sprintf("sync-%d", i))
+		if err := stream.Consume(row, 10); err != nil {
+			t.Fatal(err)
+		}
+		stream.Commit(false)
+	}
+	commitSyncBatch(1)
+	consumeOne(t, bucket, "event-batch", context.WithValue(context.Background(), bulker.BatchNumberCtxKey, 1), "event-1")
+	commitSyncBatch(2)
+	if len(bucket.objects) != 3 {
+		t.Fatalf("%d uploads left the objects %v, want 3: a sync batch replaced an event batch (or the other way round)", bucket.uploads, bucket.keys())
+	}
+}
+
+// Review of the first version: a checkpoint can arrive before the first record of a stream. The writer commits zero rows
+// without uploading anything, and that empty commit must not use up the unsuffixed name of the first real object.
+func TestEmptyCheckpointDoesNotUseUpTheFirstObjectName(t *testing.T) {
+	freezeClock(t)
+	bucket := &overwritingBucket{objects: map[string][]byte{}}
+	stream := NewActiveStream("orders", "incremental", bulker.Batch)
+	empty, err := file_storage.NewTransactionalStream("empty", bucket, "orders")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := stream.Begin(empty); err != nil {
+		t.Fatal(err)
+	}
+	stream.Commit(false) // a STREAM checkpoint before the first record
+	if stream.Error != "" || bucket.uploads != 0 {
+		t.Fatalf("setup: error %q, %d upload(s), want no error and no upload for an empty commit", stream.Error, bucket.uploads)
+	}
+	writer, err := file_storage.NewTransactionalStream("first", bucket, "orders")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := stream.Begin(writer); err != nil {
+		t.Fatal(err)
+	}
+	row := jsonorder.NewOrderedMap[string, any](0)
+	row.Set("id", "row-1")
+	if err := stream.Consume(row, 10); err != nil {
+		t.Fatal(err)
+	}
+	stream.Commit(false)
+	if got := bucket.keys(); len(got) != 1 || got[0] != "orders_2026_11_19T07_30_00.ndjson" {
+		t.Fatalf("objects %v, want only orders_2026_11_19T07_30_00.ndjson: the first object must keep its unsuffixed name", got)
 	}
 }
 

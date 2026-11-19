@@ -49,6 +49,9 @@ const (
 	Unknown BulkMode = ""
 
 	BatchNumberCtxKey = "batch_number"
+	// BatchSuffixCtxKey carries a text suffix for the name of a batch object, for writers that are not the bulker app's batch
+	// consumer (the sync sidecar). It lives apart from BatchNumberCtxKey so the two can never produce the same object name.
+	BatchSuffixCtxKey = "batch_suffix"
 )
 
 // TODO: Recommend to use JSON Number! or let all column be float?
