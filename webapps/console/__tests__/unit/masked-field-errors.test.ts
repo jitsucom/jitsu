@@ -437,6 +437,53 @@ describe("a choice (oneOf) whose discriminator still holds the mask", () => {
     expect(kept.length).toBeGreaterThan(0);
   });
 
+  it("does not take a masked field that the condition only requires for one that could decide it", () => {
+    // a masked token is there, whatever it is: `required` is always met, so the mask cannot send the condition anywhere
+    const onlyRequired = {
+      oneOf: [
+        {
+          properties: { mode: { const: "a" }, port: { type: "integer", maximum: 10 } },
+          if: { required: ["managedToken"] },
+          then: { required: ["keyId"] },
+        },
+        { properties: { mode: { const: "b" }, port: { type: "integer", minimum: 100 } } },
+      ],
+    };
+    const validate = new Ajv({ allErrors: true, strictSchema: false, useDefaults: true }).compile(onlyRequired);
+    // the condition holds, the key is missing, and port 5 does not fit the other mode: neither mode accepts it
+    expect(
+      validateKeepingMasks(validate, { mode: MASKED_SECRET, managedToken: MASKED_SECRET, port: 5 }).length
+    ).toBeGreaterThan(0);
+    expect(
+      validateKeepingMasks(validate, { mode: MASKED_SECRET, managedToken: MASKED_SECRET, keyId: "k", port: 5 })
+    ).toEqual([]);
+  });
+
+  it("prefers the definitions a condition declares itself over the shared ones", () => {
+    const scoped = {
+      definitions: { region: { enum: ["us"] } },
+      oneOf: [
+        {
+          properties: { mode: { const: "a" }, port: { type: "integer", maximum: 10 } },
+          if: {
+            $id: "cond",
+            definitions: { region: { enum: ["eu"] } },
+            properties: { provider: { const: "managed" }, region: { $ref: "#/definitions/region" } },
+            required: ["provider", "region"],
+          },
+          then: {},
+          else: { required: ["keyId"] },
+        },
+        { properties: { mode: { const: "b" }, port: { type: "integer", minimum: 100 } } },
+      ],
+    };
+    const validate = new Ajv({ allErrors: true, strictSchema: false, useDefaults: true }).compile(scoped);
+    // the condition's own region allows "eu": the masked provider alone can decide it
+    expect(
+      validateKeepingMasks(validate, { mode: MASKED_SECRET, provider: MASKED_SECRET, region: "eu", port: 5 })
+    ).toEqual([]);
+  });
+
   it("keeps the errors when the compiled schema is not given: it cannot tell a choice from a field", () => {
     const credentials: any = { host: "db.example", tunnel_method: { tunnel_method: MASKED_SECRET } };
     const validate = validatorOf();

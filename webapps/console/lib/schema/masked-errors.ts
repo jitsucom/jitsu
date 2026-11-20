@@ -88,11 +88,8 @@ function conditionReadsMask(error: FieldError, objectValue: any, schema: any): b
     // that names it too (it may be named in `required` only, with nothing under `properties`)
     const maskedKeys = Object.keys(value).filter(key => value[key] === MASKED_SECRET);
     if (Array.isArray(node.required)) {
-      const required = node.required.filter((key: string) => !maskedKeys.includes(key));
-      if (required.length !== node.required.length) {
-        prunedAny = true;
-      }
-      copy.required = required;
+      // not a reason to think the mask could decide the condition: a field that is there always meets `required`
+      copy.required = node.required.filter((key: string) => !maskedKeys.includes(key));
     }
     if (node.properties && typeof node.properties === "object") {
       const properties: Record<string, any> = {};
@@ -124,9 +121,11 @@ function conditionReadsMask(error: FieldError, objectValue: any, schema: any): b
   }
   try {
     // the condition is checked on its own, but it may point into the shared parts of the connector schema
+    // (what the condition declares itself wins over what the connector schema shares under the same name)
     const shared: Record<string, any> = {};
-    if (schema?.definitions) shared.definitions = schema.definitions;
-    if (schema?.$defs) shared.$defs = schema.$defs;
+    if (schema?.definitions || pruned.definitions)
+      shared.definitions = { ...schema?.definitions, ...pruned.definitions };
+    if (schema?.$defs || pruned.$defs) shared.$defs = { ...schema?.$defs, ...pruned.$defs };
     return (
       new Ajv({ strictSchema: false, allowUnionTypes: true }).validate(
         { ...pruned, ...shared },
