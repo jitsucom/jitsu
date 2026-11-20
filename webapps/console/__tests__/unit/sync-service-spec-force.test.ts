@@ -80,58 +80,6 @@ describe("getConnectorSpec force", () => {
     expect(emptied()).toHaveLength(0);
   });
 
-  // One refresh at a time: the row is shared by every workspace, and an owner of a workspace of their own may force it
-  // for any package. A refresh right after another one is a normal read.
-  describe("a refresh soon after another one", () => {
-    const rowWritten = (agoMs: number, row: { specs: any; error: string | null }) =>
-      mocks.query.mockImplementation(async (sql: string) =>
-        /^\s*select/i.test(sql)
-          ? { rowCount: 1, rows: [{ ...row, timestamp: new Date(Date.now() - agoMs) }] }
-          : { rowCount: 1, rows: [] }
-      );
-    const MINUTE = 60_000;
-
-    it("is a normal read when the spec was filled a minute ago", async () => {
-      rowWritten(MINUTE, { specs: SPEC, error: null });
-      expect(await spec(true)).toEqual({ ok: true, specs: SPEC });
-      expect(mocks.rpc).not.toHaveBeenCalled();
-      expect(emptied()).toHaveLength(0);
-    });
-
-    it("is a normal read while another refresh is pending", async () => {
-      rowWritten(30_000, { specs: null, error: "pending" });
-      expect(await spec(true)).toEqual({ ok: false, pending: true });
-      expect(mocks.rpc).not.toHaveBeenCalled();
-      expect(emptied()).toHaveLength(0);
-    });
-
-    it("goes through once the spec is old enough", async () => {
-      rowWritten(6 * MINUTE, { specs: SPEC, error: null });
-      expect(await spec(true)).toEqual({ ok: false, pending: true });
-      expect(mocks.rpc).toHaveBeenCalledTimes(1);
-      expect(emptied()).toHaveLength(1);
-    });
-
-    it("goes through when a pending refresh never answered", async () => {
-      rowWritten(10 * MINUTE, { specs: null, error: "pending" });
-      expect(await spec(true)).toEqual({ ok: false, pending: true });
-      expect(mocks.rpc).toHaveBeenCalledTimes(1);
-    });
-
-    it("lets a failed refresh be tried again at once", async () => {
-      rowWritten(10_000, { specs: null, error: "image not found" });
-      expect(await spec(true)).toEqual({ ok: false, pending: true });
-      expect(mocks.rpc).toHaveBeenCalledTimes(1);
-      expect(emptied()).toHaveLength(1);
-    });
-
-    it("does not change a read without force", async () => {
-      rowWritten(MINUTE, { specs: SPEC, error: null });
-      expect(await spec()).toEqual({ ok: true, specs: SPEC });
-      expect(mocks.verifyAccessWithRole).not.toHaveBeenCalled();
-    });
-  });
-
   it("an error from the role check that is not a 403 is not hidden", async () => {
     mocks.verifyAccessWithRole.mockRejectedValue(new Error("database is down"));
     await expect(spec(true)).rejects.toThrow("database is down");

@@ -49,11 +49,6 @@ async function canForceSpecRefresh(user: SessionUser, workspaceId: string): Prom
   }
 }
 
-// JITSU-284: the owner of a workspace of their own may force a refresh for any package, and the row is shared by every
-// workspace. One refresh at a time, then: a refresh within this time of the last write to the row (the spec was filled,
-// or a refresh is still pending) is a normal read. A failed refresh can be tried again at once.
-const SPEC_REFRESH_COOLDOWN_MS = 5 * 60_000;
-
 export type SyncOpResult = { ok: boolean; error?: string; pending?: boolean; [key: string]: any };
 
 // Shape of the per-sync "latest task" returned by latestSyncTasks and exposed by
@@ -304,21 +299,13 @@ export class SyncService {
     opts: { package: string; version: string; force?: boolean }
   ): Promise<SyncOpResult> {
     await verifyAccess(user, workspaceId);
-    const mayForce = opts.force && (await canForceSpecRefresh(user, workspaceId));
+    const force = opts.force && (await canForceSpecRefresh(user, workspaceId));
     const { url, authHeaders } = this.syncctl();
     try {
       const res = await this.pgPool.query(
-        `select specs, error, timestamp from newjitsu.source_spec where package = $1 and version = $2`,
+        `select specs, error from newjitsu.source_spec where package = $1 and version = $2`,
         [opts.package, opts.version]
       );
-      const row = res.rowCount === 1 ? res.rows[0] : undefined;
-      const written = row?.timestamp ? new Date(row.timestamp).getTime() : NaN;
-      const refreshedJustNow =
-        !!row &&
-        (!!row.specs || row.error === "pending") &&
-        Date.now() - written >= 0 &&
-        Date.now() - written < SPEC_REFRESH_COOLDOWN_MS;
-      const force = mayForce && !refreshedJustNow;
       let error;
       // force=true must re-fetch from the controller even when a cached spec
       // row exists — otherwise a tag rebuilt in place keeps serving stale specs.
