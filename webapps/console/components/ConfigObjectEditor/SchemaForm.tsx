@@ -9,6 +9,7 @@ import { PlusIcon } from "lucide-react";
 import { getLog } from "juava";
 import { DateEditor, NumberEditor, PasswordEditor, SelectEditor, StringArray, TextEditor } from "./Editors";
 import { Htmlizer } from "../Htmlizer/Htmlizer";
+import { pickOneOfOption } from "../../lib/schema/one-of";
 
 const log = getLog("SchemaForm");
 const ajv = new Ajv({ allErrors: false, strictSchema: false, useDefaults: true, allowUnionTypes: true });
@@ -357,39 +358,12 @@ const OneOf: React.FC<{
   const discriminatorKey = discriminator[0];
   const discriminatorValue = value?.[discriminatorKey];
 
-  let selected: any;
-  let selectedIdx: number = 0;
-  let removeIdx = -1;
-  for (let i = 0; i < fieldSchema.oneOf.length; i++) {
-    const o = fieldSchema.oneOf[i];
-    if (
-      o.properties[discriminatorKey].const === discriminatorValue ||
-      o.properties[discriminatorKey].enum?.[0] === discriminatorValue
-    ) {
-      selected = o;
-      selectedIdx = i;
-      break;
-    }
-  }
-  //Hide CDC option for replication_method
-  if (name === "replication_method") {
-    for (let i = 0; i < fieldSchema.oneOf.length; i++) {
-      const o = fieldSchema.oneOf[i];
-      if (o.properties[discriminatorKey].const === "CDC" || o.properties[discriminatorKey].enum?.[0] === "CDC") {
-        removeIdx = i;
-        break;
-      }
-    }
-    if (selectedIdx === removeIdx) {
-      for (let i = 0; i < fieldSchema.oneOf.length; i++) {
-        if (i !== removeIdx) {
-          selected = fieldSchema.oneOf[i];
-          selectedIdx = i;
-          break;
-        }
-      }
-    }
-  }
+  const { selected, selectedIdx, removeIdx } = pickOneOfOption(
+    fieldSchema.oneOf,
+    discriminatorKey,
+    discriminatorValue,
+    name
+  );
 
   const filteredOptions = options.filter((o, i) => i !== removeIdx);
 

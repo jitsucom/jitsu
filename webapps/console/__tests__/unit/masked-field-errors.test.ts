@@ -92,3 +92,72 @@ describe("validateKeepingMasks", () => {
     expect(nested).toEqual({ mode: "manual", extra: [{ a: MASKED_SECRET }] });
   });
 });
+
+describe("a choice (oneOf) whose discriminator still holds the mask", () => {
+  // the shape of a tunnel method or a replication method in a connector spec
+  const choiceSpec = {
+    type: "object",
+    required: ["host"],
+    properties: {
+      host: { type: "string" },
+      tunnel_method: {
+        type: "object",
+        oneOf: [
+          {
+            title: "No tunnel",
+            required: ["tunnel_method"],
+            properties: { tunnel_method: { type: "string", const: "NO_TUNNEL" } },
+          },
+          {
+            title: "SSH key",
+            required: ["tunnel_method", "tunnel_host", "ssh_key"],
+            properties: {
+              tunnel_method: { type: "string", const: "SSH_KEY_AUTH" },
+              tunnel_host: { type: "string" },
+              ssh_key: { type: "string", airbyte_secret: true },
+            },
+          },
+        ],
+      },
+    },
+  };
+  const validatorOf = () => new Ajv({ allErrors: true, strictSchema: false, useDefaults: true }).compile(choiceSpec);
+
+  it("does not block a save: the group stands for the saved values", () => {
+    const credentials: any = { host: MASKED_SECRET, tunnel_method: { tunnel_method: MASKED_SECRET } };
+    const plain = validatorOf();
+    plain(JSON.parse(JSON.stringify(credentials)));
+    expect(plain.errors!.some(e => e.keyword === "oneOf")).toBe(true); // Ajv does report it
+    expect(validateKeepingMasks(validatorOf(), credentials)).toEqual([]);
+  });
+
+  it("does not block a save when the other fields of the group are masked too", () => {
+    const credentials: any = {
+      host: "db.example",
+      tunnel_method: { tunnel_method: MASKED_SECRET, tunnel_host: MASKED_SECRET, ssh_key: MASKED_SECRET },
+    };
+    expect(validateKeepingMasks(validatorOf(), credentials)).toEqual([]);
+  });
+
+  it("still reports a chosen option that is incomplete", () => {
+    const credentials: any = {
+      host: "db.example",
+      tunnel_method: { tunnel_method: "SSH_KEY_AUTH", ssh_key: MASKED_SECRET },
+    };
+    const kept = validateKeepingMasks(validatorOf(), credentials);
+    expect(kept.some(e => e.keyword === "required" && e.instancePath === "/tunnel_method")).toBe(true);
+  });
+
+  it("still reports an error elsewhere while the group is masked", () => {
+    const credentials: any = { tunnel_method: { tunnel_method: MASKED_SECRET } };
+    const kept = validateKeepingMasks(validatorOf(), credentials);
+    expect(kept.map(e => e.instancePath + " " + e.keyword)).toEqual([" required"]);
+  });
+
+  it("keeps the errors when the compiled schema is not given: it cannot tell a choice from a field", () => {
+    const credentials: any = { host: "db.example", tunnel_method: { tunnel_method: MASKED_SECRET } };
+    const validate = validatorOf();
+    validate(credentials);
+    expect(withoutMaskedFieldErrors(validate.errors, credentials).length).toBeGreaterThan(0);
+  });
+});
