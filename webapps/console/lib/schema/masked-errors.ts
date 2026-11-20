@@ -33,8 +33,9 @@ function isWithin(pointer: string, base: string): boolean {
 
 // The errors Ajv puts on the object of a choice for what a masked value stands for (the discriminator and the fields a
 // mode requires). Any other keyword there is about what the user supplied: `additionalProperties` says an option does
-// not take a field that was given
-const OWN_OBJECT_KEYWORDS = new Set(["required", "const", "enum", "oneOf", "anyOf"]);
+// not take a field that was given. `if` is the report of a `then` or `else` that did not hold: a mask can send the
+// condition to its other side
+const OWN_OBJECT_KEYWORDS = new Set(["required", "const", "enum", "oneOf", "anyOf", "if"]);
 
 /** The node of the schema an Ajv `schemaPath` (`#/properties/a/oneOf`) points at, or undefined when it cannot be followed */
 function schemaNodeAt(schema: any, schemaPath: string): unknown {
