@@ -1,4 +1,3 @@
-import Ajv from "ajv";
 import { MASKED_SECRET } from "./destinations";
 
 /** The part of an Ajv error the editor needs to tell which field, and which part of the schema, it is about */
@@ -34,9 +33,15 @@ function isWithin(pointer: string, base: string): boolean {
 
 // The errors Ajv puts on the object of a choice for what a masked value stands for (the discriminator and the fields a
 // mode requires). Any other keyword there is about what the user supplied: `additionalProperties` says an option does
-// not take a field that was given. `if` is the report of a `then` or `else` that did not hold: a mask can send the
-// condition to its other side
+// not take a field that was given.
 const OWN_OBJECT_KEYWORDS = new Set(["required", "const", "enum", "oneOf", "anyOf"]);
+
+// What a conditional (`if` / `then` / `else`) reports. Which branch applies depends on the values behind the mask, so
+// for a masked choice the editor does not weigh it: it is left to the connection test and the connector. Working out
+// whether a mask could decide a condition would mean re-implementing how a schema is evaluated (scoped references,
+// `allOf`, `not`, ...), and each case it missed blocked a valid save.
+const isConditional = (error: FieldError): boolean =>
+  error.keyword === "if" || /\/(then|else)(\/|$)/.test(error.schemaPath ?? "");
 
 /** The node of the schema an Ajv `schemaPath` (`#/properties/a/oneOf`) points at, or undefined when it cannot be followed */
 function schemaNodeAt(schema: any, schemaPath: string): unknown {
@@ -64,77 +69,6 @@ function discriminatorKeys(options: any[]): string[] {
     }
   }
   return [...counts].filter(([, count]) => count === options.length).map(([key]) => key);
-}
-
-/**
- * `if` is the report of a `then` or `else` that did not hold. A mask can send the condition to its other side, but only
- * when the fields that hold a mask could still decide it: when the values the user can see already make the condition
- * false whatever the saved ones are, the report is the user's. So the condition is checked against the visible values
- * alone, with what it says about the masked fields taken out. It must read a masked field at all.
- */
-function conditionReadsMask(error: FieldError, objectValue: any, schema: any): boolean {
-  const condition: any = schemaNodeAt(schema, error.schemaPath ?? "");
-  if (condition === null || typeof condition !== "object") {
-    return false;
-  }
-  let prunedAny = false;
-  // the condition without what it says about the fields that hold a mask, and the value without those fields
-  const prune = (node: any, value: any): any => {
-    if (node === null || typeof node !== "object" || value === null || typeof value !== "object") {
-      return node;
-    }
-    const copy = { ...node };
-    // a masked field is present, with a value we do not know: whatever the condition says about it is out, a `required`
-    // that names it too (it may be named in `required` only, with nothing under `properties`)
-    const maskedKeys = Object.keys(value).filter(key => value[key] === MASKED_SECRET);
-    if (Array.isArray(node.required)) {
-      // not a reason to think the mask could decide the condition: a field that is there always meets `required`
-      copy.required = node.required.filter((key: string) => !maskedKeys.includes(key));
-    }
-    if (node.properties && typeof node.properties === "object") {
-      const properties: Record<string, any> = {};
-      for (const [key, sub] of Object.entries<any>(node.properties)) {
-        const held = Object.prototype.hasOwnProperty.call(value, key) ? value[key] : undefined;
-        if (held === MASKED_SECRET) {
-          prunedAny = true;
-        } else {
-          properties[key] = prune(sub, held);
-        }
-      }
-      copy.properties = properties;
-    }
-    return copy;
-  };
-  const visible = (value: any): any =>
-    Array.isArray(value)
-      ? value.map(visible)
-      : value !== null && typeof value === "object"
-      ? Object.fromEntries(
-          Object.entries(value)
-            .filter(([, v]) => v !== MASKED_SECRET)
-            .map(([k, v]) => [k, visible(v)])
-        )
-      : value;
-  const pruned = prune(condition, objectValue);
-  if (!prunedAny) {
-    return false;
-  }
-  try {
-    // the condition is checked on its own, but it may point into the shared parts of the connector schema
-    // (what the condition declares itself wins over what the connector schema shares under the same name)
-    const shared: Record<string, any> = {};
-    if (schema?.definitions || pruned.definitions)
-      shared.definitions = { ...schema?.definitions, ...pruned.definitions };
-    if (schema?.$defs || pruned.$defs) shared.$defs = { ...schema?.$defs, ...pruned.$defs };
-    return (
-      new Ajv({ strictSchema: false, allowUnionTypes: true }).validate(
-        { ...pruned, ...shared },
-        visible(objectValue)
-      ) === true
-    );
-  } catch {
-    return false;
-  }
 }
 
 type ChoiceGroup = { instancePath: string; schemaPath: string; satisfied: boolean };
@@ -176,8 +110,10 @@ function maskedChoiceGroups(errors: FieldError[], credentials: any, schema: any)
           e => (e.schemaPath ?? "").startsWith(`${schemaPath}/${i}/`) && isWithin(e.instancePath ?? "", instancePath)
         )
         .every(e =>
-          (e.instancePath ?? "") === instancePath
-            ? OWN_OBJECT_KEYWORDS.has(e.keyword ?? "") || (e.keyword === "if" && conditionReadsMask(e, value, schema))
+          isConditional(e)
+            ? true
+            : (e.instancePath ?? "") === instancePath
+            ? OWN_OBJECT_KEYWORDS.has(e.keyword ?? "")
             : valueAtPointer(credentials, e.instancePath ?? "") === MASKED_SECRET
         )
     );
@@ -207,7 +143,7 @@ export function withoutMaskedFieldErrors<T extends FieldError>(
     if (group) {
       // about the choice's own object ("no option matches", "option N misses a field"): nothing to fix. About a field
       // deeper in it: the user's to fix only when no option accepts the values
-      if (pointer === group.instancePath || group.satisfied) {
+      if (pointer === group.instancePath || group.satisfied || isConditional(error)) {
         return false;
       }
     }

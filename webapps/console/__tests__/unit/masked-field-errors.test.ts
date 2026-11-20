@@ -288,200 +288,81 @@ describe("a choice (oneOf) whose discriminator still holds the mask", () => {
     expect(kept.map(e => e.instancePath)).toContain("/port");
   });
 
-  it("keeps a conditional that depends on a field the user can see, not on a mask", () => {
-    // the first mode takes ports up to 10, and a key when `useKey` is true; the other mode takes ports from 100
-    const visible = {
+  // Known limit: the editor does not weigh a conditional (`if` / `then` / `else`) against a masked choice. Which branch
+  // applies depends on values it cannot see, and working that out would mean re-implementing how a schema is evaluated.
+  // What a conditional reports for such a choice is left to the connection test and to the connector.
+  it("does not report what a conditional says about a choice whose discriminator is masked (known limit)", () => {
+    const conditional = {
       oneOf: [
         {
-          properties: {
-            mode: { const: "a" },
-            port: { type: "integer", maximum: 10 },
-            useKey: { type: "boolean" },
-          },
+          properties: { mode: { const: "a" }, port: { type: "integer", maximum: 10 }, useKey: { type: "boolean" } },
           if: { properties: { useKey: { const: true } }, required: ["useKey"] },
           then: { required: ["keyId"] },
         },
         { properties: { mode: { const: "b" }, port: { type: "integer", minimum: 100 } } },
       ],
     };
-    const validate = new Ajv({ allErrors: true, strictSchema: false, useDefaults: true }).compile(visible);
-    // useKey is true, there is no keyId, and port 5 does not fit the other mode: neither mode accepts it
-    const kept = validateKeepingMasks(validate, { mode: MASKED_SECRET, useKey: true, port: 5 });
-    expect(kept.length).toBeGreaterThan(0);
-    // with a key the first mode accepts it
-    expect(validateKeepingMasks(validate, { mode: MASKED_SECRET, useKey: true, keyId: "k", port: 5 })).toEqual([]);
-    expect(validateKeepingMasks(validate, { mode: MASKED_SECRET, useKey: false, port: 5 })).toEqual([]);
+    const validate = new Ajv({ allErrors: true, strictSchema: false, useDefaults: true }).compile(conditional);
+    // a flag the user can see asks for a key that is missing: it is not reported while the mode is hidden
+    expect(validateKeepingMasks(validate, { mode: MASKED_SECRET, useKey: true, port: 5 })).toEqual([]);
   });
 
-  it("sees a mask inside a nested field that the condition of an option reads", () => {
-    const nested = {
+  it("still reports a typed field that fits no option of a masked choice that has a conditional", () => {
+    const conditional = {
       oneOf: [
         {
-          properties: {
-            mode: { const: "a" },
-            settings: { type: "object" },
-            port: { type: "integer", maximum: 10 },
-          },
-          if: {
-            properties: { settings: { properties: { useDefaultKey: { const: true } }, required: ["useDefaultKey"] } },
-          },
+          properties: { mode: { const: "a" }, port: { type: "integer", maximum: 10 } },
+          if: { properties: { mode: { const: "a" } }, required: ["mode"] },
           then: {},
           else: { required: ["keyId"] },
         },
         { properties: { mode: { const: "b" }, port: { type: "integer", minimum: 100 } } },
       ],
     };
-    const validate = new Ajv({ allErrors: true, strictSchema: false, useDefaults: true }).compile(nested);
-    // the saved useDefaultKey is hidden: the mask sent the condition to its else, which is not the user's to fix
-    expect(
-      validateKeepingMasks(validate, { mode: MASKED_SECRET, settings: { useDefaultKey: MASKED_SECRET }, port: 5 })
-    ).toEqual([]);
-    // the same condition on a value the user can see is the user's
-    const kept = validateKeepingMasks(validate, { mode: MASKED_SECRET, settings: { useDefaultKey: false }, port: 5 });
-    expect(kept.length).toBeGreaterThan(0);
+    const validate = new Ajv({ allErrors: true, strictSchema: false, useDefaults: true }).compile(conditional);
+    expect(validateKeepingMasks(validate, { mode: MASKED_SECRET, port: 5 })).toEqual([]);
+    expect(validateKeepingMasks(validate, { mode: MASKED_SECRET, port: 150 })).toEqual([]);
+    const kept = validateKeepingMasks(validate, { mode: MASKED_SECRET, port: 50 });
+    expect(kept.map(e => e.instancePath)).toContain("/port");
+    // what is kept is about the port, not about the conditional
+    expect(kept.every(e => e.keyword !== "if" && !/\/(then|else)(\/|$)/.test(e.schemaPath ?? ""))).toBe(true);
   });
 
-  it("keeps a conditional that a visible field already decides, whatever the masked one is", () => {
-    // the condition needs the provider to be "managed" (masked) and the key flag to be true (visible, and false)
-    const decided = {
-      oneOf: [
-        {
-          properties: {
-            mode: { const: "a" },
-            settings: { type: "object" },
-            port: { type: "integer", maximum: 10 },
-          },
-          if: {
-            properties: {
-              settings: {
-                properties: { provider: { const: "managed" }, useDefaultKey: { const: true } },
-                required: ["provider", "useDefaultKey"],
-              },
-            },
-          },
-          then: {},
-          else: { required: ["keyId"] },
-        },
-        { properties: { mode: { const: "b" }, port: { type: "integer", minimum: 100 } } },
-      ],
-    };
-    const validate = new Ajv({ allErrors: true, strictSchema: false, useDefaults: true }).compile(decided);
-    // useDefaultKey is false: no provider can make the condition true, the else needs a keyId that is missing, and port 5
-    // does not fit the other mode
-    const kept = validateKeepingMasks(validate, {
-      mode: MASKED_SECRET,
-      settings: { provider: MASKED_SECRET, useDefaultKey: false },
-      port: 5,
-    });
-    expect(kept.length).toBeGreaterThan(0);
-    // useDefaultKey is true: only the masked provider can decide, so the saved values may well be valid
-    expect(
-      validateKeepingMasks(validate, {
-        mode: MASKED_SECRET,
-        settings: { provider: MASKED_SECRET, useDefaultKey: true },
-        port: 5,
-      })
-    ).toEqual([]);
-  });
-
-  it("treats a masked field that the condition only requires as present", () => {
-    const optionA = {
-      properties: { mode: { const: "a" }, port: { type: "integer", maximum: 10 } },
-      // the provider is checked, the token only has to be there
-      if: { properties: { provider: { const: "managed" } }, required: ["provider", "managedToken"] },
-      then: {},
-      else: { required: ["keyId"] },
-    };
+  it("drops a conditional's report on a deeper field even when no option fits, and keeps the typed one", () => {
     const choice = {
-      oneOf: [optionA, { properties: { mode: { const: "b" }, port: { type: "integer", minimum: 100 } } }],
+      oneOf: [
+        {
+          properties: { mode: { const: "a" }, port: { type: "integer" }, retries: { type: "integer" } },
+          if: { properties: { mode: { const: "a" } }, required: ["mode"] },
+          then: {},
+          else: { properties: { port: { minimum: 100 } } },
+        },
+        {
+          properties: { mode: { const: "b" }, port: { type: "integer", maximum: 10 }, retries: { type: "integer" } },
+        },
+      ],
     };
     const validate = new Ajv({ allErrors: true, strictSchema: false, useDefaults: true }).compile(choice);
-    // provider and token are saved and hidden: with them the condition may well hold
-    expect(
-      validateKeepingMasks(validate, {
-        mode: MASKED_SECRET,
-        provider: MASKED_SECRET,
-        managedToken: MASKED_SECRET,
-        port: 5,
-      })
-    ).toEqual([]);
+    // retries is wrong for every mode, so the choice is not satisfied; the mask sent the condition to `else`
+    const kept = validateKeepingMasks(validate, { mode: MASKED_SECRET, port: 5, retries: "x" });
+    expect(kept.map(e => e.instancePath)).toEqual(["/retries", "/retries"]);
   });
 
-  it("resolves a reference of a condition against the whole schema", () => {
-    const root = {
-      definitions: { region: { type: "string", enum: ["eu", "us"] } },
+  it("ignores what a branch of a conditional reports on a field inside a masked choice", () => {
+    const deeper = {
       oneOf: [
         {
-          properties: { mode: { const: "a" }, port: { type: "integer", maximum: 10 } },
-          if: {
-            properties: { provider: { const: "managed" }, region: { $ref: "#/definitions/region" } },
-            required: ["provider", "region"],
-          },
-          then: {},
-          else: { required: ["keyId"] },
+          properties: { mode: { const: "a" }, port: { type: "integer" } },
+          if: { properties: { mode: { const: "a" } }, required: ["mode"] },
+          then: { properties: { port: { maximum: 10 } } },
+          else: { properties: { port: { minimum: 100 } } },
         },
         { properties: { mode: { const: "b" }, port: { type: "integer", minimum: 100 } } },
       ],
     };
-    const validate = new Ajv({ allErrors: true, strictSchema: false, useDefaults: true }).compile(root);
-    expect(
-      validateKeepingMasks(validate, { mode: MASKED_SECRET, provider: MASKED_SECRET, region: "eu", port: 5 })
-    ).toEqual([]);
-    // a visible region that is not allowed makes the condition false whatever the provider is
-    const kept = validateKeepingMasks(validate, {
-      mode: MASKED_SECRET,
-      provider: MASKED_SECRET,
-      region: "asia",
-      port: 5,
-    });
-    expect(kept.length).toBeGreaterThan(0);
-  });
-
-  it("does not take a masked field that the condition only requires for one that could decide it", () => {
-    // a masked token is there, whatever it is: `required` is always met, so the mask cannot send the condition anywhere
-    const onlyRequired = {
-      oneOf: [
-        {
-          properties: { mode: { const: "a" }, port: { type: "integer", maximum: 10 } },
-          if: { required: ["managedToken"] },
-          then: { required: ["keyId"] },
-        },
-        { properties: { mode: { const: "b" }, port: { type: "integer", minimum: 100 } } },
-      ],
-    };
-    const validate = new Ajv({ allErrors: true, strictSchema: false, useDefaults: true }).compile(onlyRequired);
-    // the condition holds, the key is missing, and port 5 does not fit the other mode: neither mode accepts it
-    expect(
-      validateKeepingMasks(validate, { mode: MASKED_SECRET, managedToken: MASKED_SECRET, port: 5 }).length
-    ).toBeGreaterThan(0);
-    expect(
-      validateKeepingMasks(validate, { mode: MASKED_SECRET, managedToken: MASKED_SECRET, keyId: "k", port: 5 })
-    ).toEqual([]);
-  });
-
-  it("prefers the definitions a condition declares itself over the shared ones", () => {
-    const scoped = {
-      definitions: { region: { enum: ["us"] } },
-      oneOf: [
-        {
-          properties: { mode: { const: "a" }, port: { type: "integer", maximum: 10 } },
-          if: {
-            $id: "cond",
-            definitions: { region: { enum: ["eu"] } },
-            properties: { provider: { const: "managed" }, region: { $ref: "#/definitions/region" } },
-            required: ["provider", "region"],
-          },
-          then: {},
-          else: { required: ["keyId"] },
-        },
-        { properties: { mode: { const: "b" }, port: { type: "integer", minimum: 100 } } },
-      ],
-    };
-    const validate = new Ajv({ allErrors: true, strictSchema: false, useDefaults: true }).compile(scoped);
-    // the condition's own region allows "eu": the masked provider alone can decide it
-    expect(
-      validateKeepingMasks(validate, { mode: MASKED_SECRET, provider: MASKED_SECRET, region: "eu", port: 5 })
-    ).toEqual([]);
+    const validate = new Ajv({ allErrors: true, strictSchema: false, useDefaults: true }).compile(deeper);
+    // the masked mode sends the condition to `else`, which asks for a port from 100; the saved one may be "a" with 5
+    expect(validateKeepingMasks(validate, { mode: MASKED_SECRET, port: 5 })).toEqual([]);
   });
 
   it("keeps the errors when the compiled schema is not given: it cannot tell a choice from a field", () => {
