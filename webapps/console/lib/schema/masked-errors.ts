@@ -35,7 +35,7 @@ function isWithin(pointer: string, base: string): boolean {
 // mode requires). Any other keyword there is about what the user supplied: `additionalProperties` says an option does
 // not take a field that was given. `if` is the report of a `then` or `else` that did not hold: a mask can send the
 // condition to its other side
-const OWN_OBJECT_KEYWORDS = new Set(["required", "const", "enum", "oneOf", "anyOf", "if"]);
+const OWN_OBJECT_KEYWORDS = new Set(["required", "const", "enum", "oneOf", "anyOf"]);
 
 /** The node of the schema an Ajv `schemaPath` (`#/properties/a/oneOf`) points at, or undefined when it cannot be followed */
 function schemaNodeAt(schema: any, schemaPath: string): unknown {
@@ -63,6 +63,22 @@ function discriminatorKeys(options: any[]): string[] {
     }
   }
   return [...counts].filter(([, count]) => count === options.length).map(([key]) => key);
+}
+
+/**
+ * `if` is the report of a `then` or `else` that did not hold. A mask can send the condition to its other side, but only
+ * when the condition reads a field that holds the mask: one that depends on a field the user can see is the user's.
+ */
+function conditionReadsMask(error: FieldError, objectValue: any, schema: any): boolean {
+  const condition: any = schemaNodeAt(schema, error.schemaPath ?? "");
+  if (condition === null || typeof condition !== "object") {
+    return false;
+  }
+  const read = [
+    ...Object.keys(condition.properties ?? {}),
+    ...(Array.isArray(condition.required) ? condition.required : []),
+  ];
+  return read.some(key => Object.prototype.hasOwnProperty.call(objectValue, key) && objectValue[key] === MASKED_SECRET);
 }
 
 type ChoiceGroup = { instancePath: string; schemaPath: string; satisfied: boolean };
@@ -105,7 +121,7 @@ function maskedChoiceGroups(errors: FieldError[], credentials: any, schema: any)
         )
         .every(e =>
           (e.instancePath ?? "") === instancePath
-            ? OWN_OBJECT_KEYWORDS.has(e.keyword ?? "")
+            ? OWN_OBJECT_KEYWORDS.has(e.keyword ?? "") || (e.keyword === "if" && conditionReadsMask(e, value, schema))
             : valueAtPointer(credentials, e.instancePath ?? "") === MASKED_SECRET
         )
     );

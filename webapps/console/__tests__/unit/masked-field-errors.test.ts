@@ -288,6 +288,31 @@ describe("a choice (oneOf) whose discriminator still holds the mask", () => {
     expect(kept.map(e => e.instancePath)).toContain("/port");
   });
 
+  it("keeps a conditional that depends on a field the user can see, not on a mask", () => {
+    // the first mode takes ports up to 10, and a key when `useKey` is true; the other mode takes ports from 100
+    const visible = {
+      oneOf: [
+        {
+          properties: {
+            mode: { const: "a" },
+            port: { type: "integer", maximum: 10 },
+            useKey: { type: "boolean" },
+          },
+          if: { properties: { useKey: { const: true } }, required: ["useKey"] },
+          then: { required: ["keyId"] },
+        },
+        { properties: { mode: { const: "b" }, port: { type: "integer", minimum: 100 } } },
+      ],
+    };
+    const validate = new Ajv({ allErrors: true, strictSchema: false, useDefaults: true }).compile(visible);
+    // useKey is true, there is no keyId, and port 5 does not fit the other mode: neither mode accepts it
+    const kept = validateKeepingMasks(validate, { mode: MASKED_SECRET, useKey: true, port: 5 });
+    expect(kept.length).toBeGreaterThan(0);
+    // with a key the first mode accepts it
+    expect(validateKeepingMasks(validate, { mode: MASKED_SECRET, useKey: true, keyId: "k", port: 5 })).toEqual([]);
+    expect(validateKeepingMasks(validate, { mode: MASKED_SECRET, useKey: false, port: 5 })).toEqual([]);
+  });
+
   it("keeps the errors when the compiled schema is not given: it cannot tell a choice from a field", () => {
     const credentials: any = { host: "db.example", tunnel_method: { tunnel_method: MASKED_SECRET } };
     const validate = validatorOf();
