@@ -33,3 +33,28 @@ export function withoutMaskedFieldErrors<T extends FieldError>(errors: T[] | nul
     return pointer === "" || valueAtPointer(credentials, pointer) !== MASKED_SECRET;
   });
 }
+
+function hasMask(value: any): boolean {
+  if (value === MASKED_SECRET) {
+    return true;
+  }
+  if (Array.isArray(value)) {
+    return value.some(hasMask);
+  }
+  return value !== null && typeof value === "object" && Object.values(value).some(hasMask);
+}
+
+/**
+ * Checks credentials with a compiled Ajv validator and returns the errors that are not about a masked field.
+ * The editor's Ajv inserts schema defaults into what it checks, and that is what gets submitted. With masks in it, a
+ * conditional schema reads the mask where the stored value was (`mode` masked, so `if mode is manual` is false) and
+ * inserts the defaults of the wrong branch, which the server then keeps next to the restored value. So credentials that
+ * hold a mask are checked as a copy and the submitted object is left alone.
+ */
+export function validateKeepingMasks(
+  validate: { (data: any): boolean; errors?: (FieldError & { message?: string })[] | null },
+  credentials: any
+): (FieldError & { message?: string })[] {
+  const target = hasMask(credentials) ? JSON.parse(JSON.stringify(credentials)) : credentials;
+  return validate(target) ? [] : withoutMaskedFieldErrors(validate.errors, target);
+}
