@@ -396,13 +396,25 @@ const LIST_NOT_SAVED = (path: string[]) =>
     { status: 400 }
   );
 
-/** A value with at least one leaf, every leaf a mask */
+/**
+ * A value that holds at least one mask and no plain value: empty objects and lists in it do not count, because a missing
+ * spec masks the values and leaves those as they are
+ */
 function allLeavesMasked(value: any): boolean {
-  if (value === MASKED_SECRET) {
-    return true;
-  }
-  const leaves = Array.isArray(value) ? value : isPlainObject(value) ? Object.values(value) : undefined;
-  return !!leaves && leaves.length > 0 && leaves.every(allLeavesMasked);
+  const walk = (node: any): { masks: number; plain: number } => {
+    if (node === MASKED_SECRET) {
+      return { masks: 1, plain: 0 };
+    }
+    const children = Array.isArray(node) ? node : isPlainObject(node) ? Object.values(node) : undefined;
+    if (!children) {
+      return { masks: 0, plain: 1 };
+    }
+    return children
+      .map(walk)
+      .reduce((a, c) => ({ masks: a.masks + c.masks, plain: a.plain + c.plain }), { masks: 0, plain: 0 });
+  };
+  const { masks, plain } = walk(value);
+  return masks > 0 && plain === 0;
 }
 
 /**

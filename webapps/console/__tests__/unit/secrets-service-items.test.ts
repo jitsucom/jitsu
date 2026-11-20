@@ -353,6 +353,42 @@ describe("test connection and clone of a service whose array entries hold secret
     expect(unmaskSecretsFromOriginal(submit([]), original, original, options).credentials.tags).toEqual([]);
   });
 
+  it("restores a fallback-masked row that keeps an empty object or list next to its masks", async () => {
+    // a missing spec masks every value but leaves `{}` and `[]` as they are
+    mocks.findUnique.mockResolvedValue(
+      rowWith({
+        rows: { type: "array", airbyte_secret: true, items: { type: "object" } },
+      })
+    );
+    const original = service("airbyte/source-items-empty", {
+      rows: [
+        { key: "k1", labels: {}, tags: [] },
+        { key: "k2", labels: { a: "b" }, tags: ["x"] },
+      ],
+    });
+    const options = await serviceUnmaskOptions("service", original);
+    const fallback = [
+      { key: MASKED_SECRET, labels: {}, tags: [] },
+      { key: MASKED_SECRET, labels: { a: MASKED_SECRET }, tags: [MASKED_SECRET] },
+    ];
+    const out = unmaskSecretsFromOriginal(
+      { ...original, credentials: { rows: fallback } },
+      original,
+      original,
+      options
+    );
+    expect(out.credentials.rows).toEqual(original.credentials.rows);
+    // only empty containers, no mask at all: nothing to restore, and a plain value in it is still refused
+    expect(() =>
+      unmaskSecretsFromOriginal(
+        { ...original, credentials: { rows: [{ key: "typed", labels: {} }, MASKED_SECRET] } },
+        original,
+        original,
+        options
+      )
+    ).toThrow(/credentials\.rows/);
+  });
+
   it("does not tell the structure of a secret container: a list of masks of any length restores the whole value", async () => {
     mocks.findUnique.mockResolvedValue(
       rowWith({ name: { type: "string" }, tags: { type: "array", airbyte_secret: true, items: { type: "string" } } })
