@@ -9,6 +9,7 @@ import {
   withSchemaDefaults,
 } from "../schema/config-objects";
 import { containsMaskedSecrets, unmaskSecretsFromOriginal } from "../schema/secrets";
+import { applyServiceSpecDefaults } from "../schema/service-defaults";
 import { getCoreDestinationTypeNonStrict, MASKED_SECRET } from "../schema/destinations";
 import { isPlatformAdmin, verifyAccess, verifyAccessWithRole } from "../api";
 import { prepareZodObjectForDeserialization } from "../zod";
@@ -266,6 +267,7 @@ export class ConfigObjectsService {
             clonesOriginal.config as any,
             withSchemaDefaults(type, clonesOriginal.config)
           );
+          object = await applyServiceSpecDefaults(type, object);
         }
       }
     }

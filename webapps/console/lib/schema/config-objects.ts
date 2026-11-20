@@ -22,12 +22,14 @@ import { getWildcardDomains } from "../../pages/api/[workspaceId]/domain-check";
 import { isSlackWebhookUrl } from "../shared/slack-webhook";
 import {
   assertSecretsStayWithTarget,
+  containsMaskedSecrets,
   getDestinationSecretPaths,
   getServiceSecretPaths,
   maskSecrets,
   removeMaskedCredentials,
   removeMaskedValues,
 } from "./secrets";
+import { withServiceSpecDefaults } from "./service-defaults";
 import { db } from "../server/db";
 import { ConfigApiDeleteOptions } from "../useApi";
 import pick from "lodash/pick";
@@ -379,7 +381,9 @@ const configObjectTypes: Record<string, ConfigObjectType> = {
       const before = JSON.parse(JSON.stringify(original));
       const merged = deepMerge(original, cleanedPatch);
       assertSecretsStayWithTarget(withSchemaDefaults("service", before), patch, merged, secretPaths);
-      return merged;
+      // The editor checks credentials that hold a mask as a copy, so the spec's defaults are added here, once the
+      // stored values are back (a conditional schema then takes the branch of the real value)
+      return containsMaskedSecrets(patch) ? withServiceSpecDefaults(merged) : merged;
     },
     inputFilter: async (obj: ServiceConfig) => {
       // Remove masked values

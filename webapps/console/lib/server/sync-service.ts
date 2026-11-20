@@ -11,6 +11,7 @@ import { source_taskDbModel } from "../../prisma/schema";
 import { verifyAccess, verifyAccessWithRole } from "../api";
 import { ApiError } from "../shared/errors";
 import { containsMaskedSecrets, unmaskSecretsFromOriginal } from "../schema/secrets";
+import { applyServiceSpecDefaults } from "../schema/service-defaults";
 import { withSchemaDefaults } from "../schema/config-objects";
 import { scheduleSync, ScheduleSyncResult, syncError } from "./sync";
 import { getServerEnv } from "./serverEnv";
@@ -441,6 +442,7 @@ export class SyncService {
           existing.config as any,
           withSchemaDefaults("service", existing.config)
         );
+        source = await applyServiceSpecDefaults("service", source);
       }
     } else {
       const serviceId = requireDefined(opts.serviceId, "either `config` or `serviceId` must be provided");

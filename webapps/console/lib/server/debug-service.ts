@@ -7,6 +7,7 @@ import { verifyAccessWithRole } from "../api";
 import { ApiError } from "../shared/errors";
 import { getConfigObjectType, parseObject, withSchemaDefaults } from "../schema/config-objects";
 import { containsMaskedSecrets, unmaskSecretsFromOriginal } from "../schema/secrets";
+import { applyServiceSpecDefaults } from "../schema/service-defaults";
 import { httpAgent, httpsAgent } from "./http-agent";
 import { getServerEnv } from "./serverEnv";
 import { getServerLog } from "./log";
@@ -110,6 +111,7 @@ export class DebugService {
           existingEntity.config as any,
           withSchemaDefaults(type, existingEntity.config)
         );
+        object = await applyServiceSpecDefaults(type, object);
       }
     }
     // Must run before inputFilter: a stream filter provisions submitted
