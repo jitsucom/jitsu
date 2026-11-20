@@ -340,6 +340,9 @@ const expectedEvents = {
       retries: 0,
       counter: 3,
       fetched: "fetched-value",
+      contentType: "application/json; charset=utf-8",
+      reread: "fetched-value",
+      bytes: true,
       third: "3rd",
     },
     context,
@@ -407,6 +410,15 @@ const streamsStore: EntityStore<StreamWithDestinations> = {
   lastModified: new Date(),
 };
 
+// Every entry the chain writes to the events log, so a test can look at what a function's fetch recorded.
+const loggedEntries: Array<{ connectionId: string; level: string; msg: Record<string, any> }> = [];
+const capturingEventsStore = {
+  ...DummyEventsStore,
+  log(connectionId: string, level: any, msg: Record<string, any>) {
+    loggedEntries.push({ connectionId, level, msg });
+  },
+};
+
 function rotorContext(
   connStore: EntityStore<EnrichedConnectionConfig>,
   funcStore: EntityStore<FunctionConfig>,
@@ -416,7 +428,7 @@ function rotorContext(
     connectionStore: connStore,
     functionsStore: funcStore,
     streamsStore: streamsStore,
-    eventsLogger: DummyEventsStore,
+    eventsLogger: capturingEventsStore,
     dummyPersistentStore: createMemoryStore({}),
     geoResolver: {
       resolve: async (ip: string): Promise<Geo> => {
@@ -445,12 +457,14 @@ function ingestMessage(connectionId: string, messageId: string, event: any): Ing
 const messageId = "message1";
 
 // Test modes to run
-const testModes: Array<{ name: string; functionsClass: string }> = [
+const testModes: Array<{ name: string; functionsClass: string; isolate?: boolean }> = [
   { name: "free", functionsClass: "free" },
   { name: "dedicated", functionsClass: "dedicated" },
+  // JITSU-263: a paid class whose UDFs run in the sandboxed workers (FUNCTIONS_ISOLATE_UDFS), warehouse queries included
+  { name: "dedicated-isolated", functionsClass: "dedicated", isolate: true },
 ];
 
-describe.each(testModes)("Test Functions Chain ($name mode)", ({ name: modeName, functionsClass }) => {
+describe.each(testModes)("Test Functions Chain ($name mode)", ({ name: modeName, functionsClass, isolate }) => {
   let webhookServer: SimpleSyrup;
   let functionsServer: TestFunctionsServer | null = null;
   let lastError: any;
@@ -488,7 +502,12 @@ describe.each(testModes)("Test Functions Chain ($name mode)", ({ name: modeName,
       // Start functions server on a deterministic, per-mode port so free- and
       // dedicated-mode servers never collide (SIGTERM + immediate respawn on the
       // same port lets waitForServer latch onto the old process before it exits).
-      const fsPort = functionsClass === "free" ? 3457 : 3557;
+      const fsPort = isolate ? 3657 : functionsClass === "free" ? 3457 : 3557;
+      if (isolate) {
+        process.env.FUNCTIONS_ISOLATE_UDFS = "true";
+      } else {
+        delete process.env.FUNCTIONS_ISOLATE_UDFS;
+      }
       functionsServer = await startTestFunctionsServer(configDir, fsPort);
 
       // Configure rotor to use the test functions server
@@ -530,8 +549,12 @@ describe.each(testModes)("Test Functions Chain ($name mode)", ({ name: modeName,
 
     // Endpoint used by the functionFetch test — returns a fixed JSON payload
     const fetchSourceHandler = (req, res) => {
-      res.setHeader("Content-Type", "application/json");
-      res.send({ message: "fetched-value" });
+      // Answers after 3 s: longer than the 2 s FETCH_TIMEOUT_MS default and shorter than the 5 s request timeout the
+      // test passes, so it only succeeds when the requested timeout reaches the fetch (also through the worker proxy).
+      setTimeout(() => {
+        res.setHeader("Content-Type", "application/json");
+        res.send({ message: "fetched-value" });
+      }, 3000);
     };
 
     webhookServer = await createServer({
@@ -569,6 +592,8 @@ describe.each(testModes)("Test Functions Chain ($name mode)", ({ name: modeName,
     delete process.env.FUNCTIONS_CLASS;
     // Reset cache so original env value is restored
     resetServerEnvCache();
+
+    delete process.env.FUNCTIONS_ISOLATE_UDFS;
 
     // Stop functions server if running
     if (functionsServer) {
@@ -1001,6 +1026,7 @@ describe.each(testModes)("Test Functions Chain ($name mode)", ({ name: modeName,
   test("fetch", async () => {
     const currentTestName = testName();
     const connStore = getConnectionStoreForMode();
+    loggedEntries.length = 0;
     try {
       await rotorMessageHandler(
         ingestMessage(currentTestName, messageId, incomingEvent),
@@ -1013,6 +1039,36 @@ describe.each(testModes)("Test Functions Chain ($name mode)", ({ name: modeName,
       );
       expect(lastError).toBeUndefined();
       expect(counters[currentTestName]).toEqual(1);
+      // What the fetch recorded in the events log. A paid function logs the same details whether it runs in process or
+      // in an isolated worker: the request headers with the sensitive ones hidden, and the response body (parsed as
+      // JSON when it is). The free class has always run in a worker and keeps its shorter entry.
+      const httpLogs = loggedEntries
+        .filter(e => e.msg.type === "http-request" && String(e.msg.url).includes("/fetch-source"))
+        .map(e => e.msg);
+      expect(httpLogs).toHaveLength(1);
+      expect(httpLogs[0]).toMatchObject({ type: "http-request", method: "GET", status: 200, statusText: "OK" });
+      // The free class and the Functions Debugger always had a plain headers object (`res.headers["content-type"]`); the
+      // rebuilt Response in a worker keeps that access next to `.get()`.
+      if (functionsClass === "free" || isolate) {
+        const legacy = loggedEntries.map(e => e.msg).find(m => String(m?.message?.text).startsWith("legacy-headers="));
+        expect(legacy?.message.text).toBe("legacy-headers=application/json; charset=utf-8|true");
+      }
+      // Whatever a UDF logs or returns has to survive the worker's postMessage. Headers that are not plain data make it
+      // throw, and the worker then drops the whole result (no events, no logs), so the event below never arrives.
+      if (functionsClass === "free" || isolate) {
+        const headersLog = loggedEntries.map(e => e.msg).find(m => m?.message?.text === "headers-in-log");
+        expect(headersLog?.message.args?.[0]?.["content-type"]).toBe("application/json; charset=utf-8");
+      }
+      // `res.body` is the decoded text in every runtime (the in-process buffered response and the previous worker
+      // response), so `JSON.parse(res.body)` works in every mode.
+      const legacyBody = loggedEntries.map(e => e.msg).find(m => String(m?.message?.text).startsWith("legacy-body="));
+      expect(legacyBody?.message.text).toBe("legacy-body=fetched-value");
+      if (functionsClass !== "free") {
+        expect(httpLogs[0]).toMatchObject({
+          headers: { Authorization: "*****", "X-Trace": "trace-1" },
+          response: { message: "fetched-value" },
+        });
+      }
     } catch (e: any) {
       throw e;
     }

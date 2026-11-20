@@ -151,6 +151,42 @@ describe("admin config exports (JITSU-181)", () => {
     }
   });
 
+  it("rotor-connections: a workspace flag that changes the options changes optionsHash", async () => {
+    const { workspace } = await seedWorkspace();
+    const prisma = deps().prisma;
+    const stream = await prisma.configurationObject.create({
+      data: { workspaceId: workspace.id, type: "stream", config: { name: "site" } },
+    });
+    const dest = await prisma.configurationObject.create({
+      data: {
+        workspaceId: workspace.id,
+        type: "destination",
+        config: { name: "hook", destinationType: "webhook", url: "https://hook.test.local" },
+      },
+    });
+    const link = await prisma.configurationObjectLink.create({
+      data: { workspaceId: workspace.id, fromId: stream.id, toId: dest.id, data: {} },
+    });
+    const exportRow = async () => (await runExport("rotor-connections")).find(r => r.id === link.id && "options" in r);
+
+    const before = await exportRow();
+    expect(before.options.fetchLogLevel).toBeUndefined();
+    // an unrelated flag must not rewrite connections
+    await prisma.workspace.update({ where: { id: workspace.id }, data: { featuresEnabled: ["other"] } });
+    expect((await exportRow()).optionsHash).toBe(before.optionsHash);
+
+    await prisma.workspace.update({ where: { id: workspace.id }, data: { featuresEnabled: ["nofetchlogs"] } });
+    const withFlag = await exportRow();
+    expect(withFlag.options.fetchLogLevel).toBe("debug");
+    expect(withFlag.optionsHash).not.toBe(before.optionsHash);
+
+    await prisma.workspace.update({ where: { id: workspace.id }, data: { featuresEnabled: ["fastFunctions"] } });
+    const fast = await exportRow();
+    expect(fast.options.fastFunctions).toBe(true);
+    expect(fast.optionsHash).not.toBe(before.optionsHash);
+    expect(fast.optionsHash).not.toBe(withFlag.optionsHash);
+  });
+
   it("rotor-connections: link rows carry options+optionsHash, destination rows carry neither, all conform", async () => {
     const { workspace } = await seedWorkspace();
     const prisma = deps().prisma;

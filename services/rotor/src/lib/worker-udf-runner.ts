@@ -5,6 +5,7 @@ import { LogLevel, parseNumber } from "juava";
 import { compileUdfToIIFE } from "./udf-shared";
 import type { ExecMessage, InitMessage, ProxyResponseMessage, WorkerConnectionInit } from "./worker-protocol";
 import { warehouseQuery } from "./warehouse-store";
+import { serializeResponse } from "./worker-fetch";
 import { getServerEnv } from "../serverEnv";
 
 const env = getServerEnv();
@@ -180,20 +181,7 @@ export async function runUdfInWorker(
               // Worker sends [connectionId, url, init] — connectionId is unused here (single-connection runner)
               const [, url, init] = args;
               const res = await fetchImpl(url, init);
-              const responseHeaders: Record<string, string> = {};
-              res.headers.forEach((v: string, k: string) => {
-                responseHeaders[k] = v;
-              });
-              result = {
-                status: res.status,
-                statusText: res.statusText,
-                ok: res.ok,
-                url: res.url,
-                type: res.type,
-                redirected: res.redirected,
-                headers: responseHeaders,
-                body: await res.text(),
-              };
+              result = await serializeResponse(res);
             } else if (method === "warehouse.query") {
               const [destinationId, sql, params] = args;
               result = await warehouseQuery(request.workspaceId, conEntityStore, destinationId, sql, params);

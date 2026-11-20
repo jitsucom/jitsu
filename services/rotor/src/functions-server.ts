@@ -20,6 +20,7 @@ import {
 } from "@jitsu/core-functions-lib";
 import { getServerEnv } from "./serverEnv";
 import { createMongoStore, mongodb } from "./lib/mongodb";
+import { memoizedPerWorkspace } from "./lib/worker-store";
 import { warehouseQuery } from "./lib/warehouse-store";
 import { parse as semverParse } from "semver";
 import * as jsondiffpatch from "jsondiffpatch";
@@ -39,6 +40,7 @@ import type {
   WorkerToMainMessage,
 } from "./lib/worker-protocol";
 import { runUdfInWorker } from "./lib/worker-udf-runner";
+import { proxiedFetchTimeoutMs, serializeResponse } from "./lib/worker-fetch";
 import {
   loadProfileBuilders,
   initProfileBuilderRuntimes,
@@ -921,28 +923,14 @@ function createWorkspaceWorker(
           const op = method.split(".")[1];
           result = await (store as any)[op](...args);
         } else if (method === "fetch") {
-          const [connectionId, url, init] = args;
+          const [connectionId, url, init, requestedTimeoutMs] = args;
           const fetchImpl = makeFetch(
             connectionId,
             { log() {}, close() {}, deadLetter() {} },
             "debug",
-            parseNumber(env.FETCH_TIMEOUT_MS, 2000)
+            proxiedFetchTimeoutMs(requestedTimeoutMs, parseNumber(env.FETCH_TIMEOUT_MS, 2000))
           );
-          const res = await fetchImpl(url, init);
-          const headers: Record<string, string> = {};
-          res.headers.forEach((v: string, k: string) => {
-            headers[k] = v;
-          });
-          result = {
-            status: res.status,
-            statusText: res.statusText,
-            ok: res.ok,
-            url: res.url,
-            type: res.type,
-            redirected: res.redirected,
-            headers,
-            body: await res.text(),
-          };
+          result = await serializeResponse(await fetchImpl(url, init));
         } else if (method === "warehouse.query") {
           const [destinationId, sql, params] = args;
           const storeMetrics: StoreMetrics = {
@@ -1026,10 +1014,11 @@ async function main() {
 
   const runtimes = new Map<string, FunctionRuntime>();
   const isFreeClass = env.FUNCTIONS_CLASS === "free";
+  const isolateUdfs = isFreeClass || isTruish(env.FUNCTIONS_ISOLATE_UDFS);
   let workerPool: LazyWorkerPool | undefined;
 
-  if (isFreeClass) {
-    // Free tier: pre-compile UDFs to IIFE strings, but spawn workers lazily on first request.
+  if (isolateUdfs) {
+    // Free tier (or FUNCTIONS_ISOLATE_UDFS): pre-compile UDFs to IIFE strings, but spawn workers lazily on first request.
     // Workers are evicted after WORKER_TTL_MS of inactivity.
     const workspaceConnections = new Map<string, WorkerConnectionInit[]>();
 
@@ -1070,13 +1059,16 @@ async function main() {
         connectionId,
         connection: stripConnection(connection),
         functions: workerFuncs,
-        warehouseEnabled: false,
-        functionsClass: "free",
+        warehouseEnabled: !isFreeClass,
+        functionsClass: isFreeClass ? "free" : env.FUNCTIONS_CLASS,
         debugTill: connectionData?.debugTill,
         fetchLogLevel: connectionData?.fetchLogLevel,
         props: connectionData?.functionsEnv || {},
       });
     }
+
+    // The in-memory fallback must outlive a worker: the pool asks for a store again when it respawns an evicted worker
+    const fallbackStoreFor = memoizedPerWorkspace(() => createMemoryStore({}));
 
     // Build store factory for lazy worker creation
     const storeFactory = (wsId: string): TTLStore => {
@@ -1087,7 +1079,7 @@ async function main() {
       };
       return env.MONGODB_URL
         ? createMongoStore(wsId, mongodb, false, isTruish(env.FAST_STORE), storeMetrics)
-        : createMemoryStore({});
+        : fallbackStoreFor(wsId);
     };
 
     workerPool = new LazyWorkerPool(workspaceConnections, storeFactory, conEntityStore);
@@ -1505,7 +1497,7 @@ async function main() {
   );
 
   log.atInfo().log(`Server running at http://localhost:${port}`);
-  log.atInfo().log(`Runtimes: ${runtimes.size} (mode: ${isFreeClass ? "worker" : "in-process"})`);
+  log.atInfo().log(`Runtimes: ${runtimes.size} (mode: ${isolateUdfs ? "worker" : "in-process"})`);
 
   // Metrics HTTP server (separate port, same as rotor)
   // @ts-ignore
