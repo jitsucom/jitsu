@@ -47,6 +47,30 @@ prefixes only after all required images have been accounted for. Removing the
 allowlist recreates eligible CronJobs on reconciliation but does not restore an
 interrupted run.
 
+## Webhook destinations and local addresses
+
+A connector sync can write to a webhook destination whose URL the customer typed
+in, and the sidecar sends those requests. syncctl therefore starts the sidecar
+with `FETCH_FORBID_LOCAL=true`: it refuses to connect to private, loopback,
+link-local (cloud metadata) and carrier-grade NAT (Tailscale) addresses. The
+check runs on the address actually connected to, so it covers DNS answers that
+change and every redirect hop. Jitsu's own ingest URLs are rewritten to
+`LOCAL_INGEST_ENDPOINT` by the webhook writer and are not affected.
+
+- `SYNCCTL_SYNC_FETCH_FORBID_LOCAL`: `true` by default. Any value other than `1`,
+  `true`, `yes` or `on`, for example `false`, turns the guard off. Use that for a
+  self-hosted install that syncs to a webhook on its own network. Set `true` to
+  turn it back on.
+- `SYNCCTL_SYNC_FETCH_LOCAL_WHITELIST`: comma-separated hostnames that stay
+  reachable while the guard is on.
+
+The config loader ignores empty environment values, so an empty variable does not
+override or clear a value that is set in `syncctl.env`.
+
+A refused request fails with `connection to a non-public address is not allowed`.
+Both settings are part of the Pod template, so changing either re-patches every
+managed CronJob once when syncctl restarts.
+
 ## Rollout
 
 1. Publish the updated sidecar and syncctl. Set the new sidecar image in syncctl,
