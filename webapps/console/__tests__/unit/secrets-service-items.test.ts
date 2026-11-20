@@ -292,6 +292,48 @@ describe("test connection and clone of a service whose array entries hold secret
     }
   });
 
+  it("does not compare values inside a field the spec marks secret as a whole (an object or a list)", async () => {
+    // the secret is the whole `key_file` object: a response masks it as one value, and what is inside is as secret
+    const withObject = {
+      rows: {
+        type: "array",
+        items: {
+          type: "object",
+          properties: {
+            name: { type: "string" },
+            key_file: { type: "object", airbyte_secret: true, properties: { private_key: { type: "string" } } },
+            tags: { type: "array", airbyte_secret: true, items: { type: "string" } },
+          },
+        },
+      },
+    };
+    mocks.findUnique.mockResolvedValue(rowWith(withObject));
+    const original = service("airbyte/source-items-container", {
+      rows: [{ name: "a", key_file: { private_key: "real-key" }, tags: ["t1", "t2"] }],
+    });
+    const options = await serviceUnmaskOptions("service", original);
+    const outcome = (field: "key_file" | "tags", guess: any) => {
+      const credentials = JSON.parse(JSON.stringify(original.credentials));
+      credentials.rows[0].key_file = MASKED_SECRET;
+      credentials.rows[0].tags = MASKED_SECRET;
+      credentials.rows[0][field] = guess;
+      try {
+        return unmaskSecretsFromOriginal({ ...original, credentials }, original, original, options);
+      } catch (e: any) {
+        return e.message;
+      }
+    };
+    for (const [field, right, wrong] of [
+      ["key_file", { private_key: "real-key" }, { private_key: "nope" }],
+      ["tags", ["t1", "t2"], ["x", "y"]],
+    ] as const) {
+      const hit = outcome(field, right);
+      expect(typeof hit).toBe("string");
+      expect(hit).toMatch(/credentials\.rows/);
+      expect(hit).toEqual(outcome(field, wrong));
+    }
+  });
+
   it("does not compare it in a list of targets either", () => {
     const secretHosts = { isSecretAt: (keys: string[]) => keys[1] === "hosts" || keys[1] === "password" };
     const hosts = { ...stored(), credentials: { hosts: ["a.example:1", "b.example:1"], password: "pw" } };

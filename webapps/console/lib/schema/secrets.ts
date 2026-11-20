@@ -335,6 +335,12 @@ export function sameExceptMasks(
   if (value === MASKED_SECRET) {
     return true;
   }
+  // A plain value where the spec says there is a secret is never compared with the stored one: whether it matches
+  // would tell a caller who cannot read the secret that a guess is right. This goes before looking inside a list or
+  // an object, because a spec can mark such a field secret as a whole, and what is inside it is as secret.
+  if (isSecretAt?.(keys)) {
+    return false;
+  }
   if (Array.isArray(value)) {
     return (
       Array.isArray(stored) &&
@@ -350,11 +356,6 @@ export function sameExceptMasks(
         key => hasOwn(stored, key) && sameExceptMasks(value[key], stored[key], isSecretAt, [...keys, key])
       )
     );
-  }
-  // A plain value where the spec says there is a secret is never compared with the stored one: whether it matches
-  // would tell a caller who cannot read the secret that a guess is right
-  if (isSecretAt?.(keys)) {
-    return false;
   }
   return isEqual(value, stored);
 }
