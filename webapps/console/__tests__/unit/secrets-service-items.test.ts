@@ -345,13 +345,32 @@ describe("test connection and clone of a service whose array entries hold secret
     expect(
       unmaskSecretsFromOriginal(submit([MASKED_SECRET, MASKED_SECRET]), original, original, options).credentials.tags
     ).toEqual(["t1", "t2"]);
-    // a plain value in it is still never compared, and a list of another length is not the stored one
+    // a plain value in it is never compared
     expect(() => unmaskSecretsFromOriginal(submit([MASKED_SECRET, "t2"]), original, original, options)).toThrow(
       /credentials\.tags/
     );
-    expect(() => unmaskSecretsFromOriginal(submit([MASKED_SECRET]), original, original, options)).toThrow(
-      /credentials\.tags/
+    // an empty list has no mask to restore: it is what the user typed
+    expect(unmaskSecretsFromOriginal(submit([]), original, original, options).credentials.tags).toEqual([]);
+  });
+
+  it("does not tell the structure of a secret container: a list of masks of any length restores the whole value", async () => {
+    mocks.findUnique.mockResolvedValue(
+      rowWith({ name: { type: "string" }, tags: { type: "array", airbyte_secret: true, items: { type: "string" } } })
     );
+    const original = service("airbyte/source-items-structure", { name: "n", tags: ["t1", "t2"] });
+    const options = await serviceUnmaskOptions("service", original);
+    const outcome = (tags: any) =>
+      unmaskSecretsFromOriginal({ ...original, credentials: { name: "n", tags } }, original, original, options)
+        .credentials;
+    const same = [
+      outcome(MASKED_SECRET),
+      outcome([MASKED_SECRET]),
+      outcome([MASKED_SECRET, MASKED_SECRET]),
+      outcome(Array(5).fill(MASKED_SECRET)),
+    ];
+    for (const credentials of same) {
+      expect(credentials).toEqual({ name: "n", tags: ["t1", "t2"] });
+    }
   });
 
   it("does not compare it in a list of targets either", () => {

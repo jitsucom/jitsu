@@ -338,9 +338,11 @@ export function sameExceptMasks(
   // A plain value where the spec says there is a secret is never compared with the stored one: whether it matches
   // would tell a caller who cannot read the secret that a guess is right. This goes before looking inside a list or
   // an object, because a spec can mark such a field secret as a whole, and what is inside it is as secret. What is
-  // accepted there is a value masked all the way through, which is also the shape a missing spec gave it.
+  // accepted there is a value masked all the way through, of any shape (a missing spec masks each entry, a usable one
+  // the whole field). Its shape is not compared with the stored one either: that would tell a caller who cannot read the
+  // field how many entries it has and what they are called.
   if (isSecretAt?.(keys)) {
-    return isEqual(value, maskedShape(stored));
+    return allLeavesMasked(value);
   }
   if (Array.isArray(value)) {
     return (
@@ -393,6 +395,15 @@ const LIST_NOT_SAVED = (path: string[]) =>
     )} because there is no saved list to take them from. Enter the values of the whole list to continue.`,
     { status: 400 }
   );
+
+/** A value with at least one leaf, every leaf a mask */
+function allLeavesMasked(value: any): boolean {
+  if (value === MASKED_SECRET) {
+    return true;
+  }
+  const leaves = Array.isArray(value) ? value : isPlainObject(value) ? Object.values(value) : undefined;
+  return !!leaves && leaves.length > 0 && leaves.every(allLeavesMasked);
+}
 
 /**
  * `isSecretAt` is given when the connector spec is usable: it says which positions (keys from the service, such as
