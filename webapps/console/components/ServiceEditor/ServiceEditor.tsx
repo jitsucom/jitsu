@@ -24,6 +24,7 @@ import { SchemaForm } from "../ConfigObjectEditor/SchemaForm";
 import { TextEditor } from "../ConfigObjectEditor/Editors";
 import { useAntdModal } from "../../lib/modal";
 import { useStoreReload } from "../../lib/store";
+import { withoutMaskedFieldErrors } from "../../lib/schema/masked-errors";
 
 type ServiceEditorProps = {} & EditorComponentProps;
 
@@ -146,12 +147,14 @@ export const ServiceEditor: React.FC<ServiceEditorProps> = props => {
     }
     const validate = ajv.compile(specs.connectionSpecification);
     const valid = validate(credentials);
+    // a field that still holds the mask stands for the stored value, the server puts it back (see masked-errors.ts)
+    const schemaErrors = valid ? [] : withoutMaskedFieldErrors(validate.errors, credentials);
     if (!obj.name) {
       errors.push("[required] Object must have required property 'name'");
     }
-    if (!valid || errors.length > 0) {
+    if (schemaErrors.length > 0 || errors.length > 0) {
       errors.push(
-        ...(validate.errors ?? []).reduce((acc: string[], err) => {
+        ...schemaErrors.reduce((acc: string[], err) => {
           acc.push(`${err.instancePath || "Object"} ${err.message}`);
           return acc;
         }, [])
