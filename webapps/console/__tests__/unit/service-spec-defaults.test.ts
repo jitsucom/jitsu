@@ -112,6 +112,15 @@ describe("withServiceSpecDefaults", () => {
     }
   });
 
+  it("does not use a spec with no `properties` of its own, even if it compiles and has defaults", async () => {
+    // the same rule as for the secrets: only a spec with `connectionSpecification.properties` is a usable one
+    mocks.findUnique.mockResolvedValue(
+      rowWith({ type: "object", allOf: [{ properties: { ssl: { type: "boolean", default: false } } }] })
+    );
+    const input = service(freshPackage(), { host: "h" });
+    expect(await withServiceSpecDefaults(input)).toBe(input);
+  });
+
   it("returns the service as it is, and says why without any value, when the spec cannot be compiled", async () => {
     mocks.findUnique.mockResolvedValue(rowWith({ type: "object", properties: { a: { type: "not-a-type" } } }));
     const input = service(freshPackage(), { a: "secret-value-1" });
