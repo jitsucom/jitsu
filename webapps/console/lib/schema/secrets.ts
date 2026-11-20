@@ -45,10 +45,97 @@ export function getDestinationTargetKeys(destinationType: string): string[] {
     .map(([fieldName]) => fieldName);
 }
 
+type NoUsableSpec = "missing" | "empty" | "malformed" | "error";
+
+const NO_SPEC_WARNING_EVERY_MS = 5 * 60 * 1000;
+const NO_SPEC_WARNING_KEYS_MAX = 1000;
+const lastNoSpecWarning = new Map<string, number>();
+
 /**
- * Get all secret field paths for a service (Airbyte source)
+ * One warning per package@version every five minutes. Package and version are strings any member can send, so the
+ * list of what was warned about stays small. Only the name and the reason are logged, never a credential.
  */
-export async function getServiceSecretPaths(packageName: string, version: string): Promise<string[]> {
+function warnNoUsableSpec(packageName: string, version: string, reason: NoUsableSpec) {
+  const key = `${packageName}@${version}`;
+  const now = Date.now();
+  const last = lastNoSpecWarning.get(key);
+  if (last !== undefined && now - last < NO_SPEC_WARNING_EVERY_MS) {
+    return;
+  }
+  lastNoSpecWarning.delete(key);
+  lastNoSpecWarning.set(key, now);
+  if (lastNoSpecWarning.size > NO_SPEC_WARNING_KEYS_MAX) {
+    lastNoSpecWarning.delete(lastNoSpecWarning.keys().next().value as string);
+  }
+  log
+    .atWarn()
+    .log(
+      `No usable connector spec for ${key} (${reason}): masking every credential value of its services until the spec exists`
+    );
+}
+
+/**
+ * A path to a secret: a dotted string (`credentials.password`, from a connector spec, where keys are plain names) or a
+ * list of keys. Credentials of a service can have any key (`a.b`, `a[0]`, `__proto__`), and a string path would be
+ * read as several keys, so the paths built from the data itself are lists and are only read by the own-key helpers.
+ */
+export type SecretPath = string | string[];
+
+const hasOwn = (node: any, key: string) => node !== null && typeof node === "object" && Object.hasOwn(node, key);
+const getOwn = (node: any, keys: string[]) => {
+  for (const key of keys) {
+    if (!hasOwn(node, key)) {
+      return undefined;
+    }
+    node = node[key];
+  }
+  return node;
+};
+const defineOwn = (node: any, key: string, value: any) =>
+  Object.defineProperty(node, key, { value, enumerable: true, writable: true, configurable: true });
+const keysOf = (path: SecretPath): string[] => (Array.isArray(path) ? path : path.split("."));
+const valueAt = (obj: any, path: SecretPath) => (Array.isArray(path) ? getOwn(obj, path) : get(obj, path));
+const labelOf = (path: SecretPath) => keysOf(path).join(".");
+
+/**
+ * Paths of every value under `credentials` of the given objects (a stored service, an incoming patch). Plain objects
+ * are walked by key and arrays by index, down to the leaf, because the guard in `assertSecretsStayWithTarget` asks
+ * for each secret separately: masking a whole group would let a patch with one nested field count as supplying it all.
+ * Masking an entry keeps the shape of the value, which the editor and a clone depend on.
+ */
+function credentialLeafPaths(sources: any[]): string[][] {
+  const paths = new Map<string, string[]>();
+  const walk = (node: any, path: string[]) => {
+    if (isPlainObject(node)) {
+      Object.keys(node).forEach(key => walk(node[key], [...path, key]));
+    } else if (Array.isArray(node)) {
+      node.forEach((item, index) => walk(item, [...path, String(index)]));
+    } else {
+      paths.set(JSON.stringify(path), path);
+    }
+  };
+  for (const source of sources) {
+    if (source?.credentials !== undefined && source?.credentials !== null) {
+      walk(source.credentials, ["credentials"]);
+    }
+  }
+  return [...paths.values()];
+}
+
+/**
+ * Get all secret field paths for a service (Airbyte source).
+ *
+ * `sources` are the objects whose credentials are about to be shown or kept (the service as it is stored).
+ * When the connector spec is missing or unusable nothing says which field is a secret, so every value under
+ * `credentials` of those objects is one: it is masked on output, a mask is never stored over the real value and the
+ * target guard stays on. A usable spec that lists no secret field still gives `[]`.
+ */
+export async function getServiceSecretPaths(
+  packageName: string,
+  version: string,
+  ...sources: any[]
+): Promise<SecretPath[]> {
+  let reason: NoUsableSpec;
   try {
     const sourceSpec = await db.prisma().source_spec.findUnique({
       where: {
@@ -59,56 +146,128 @@ export async function getServiceSecretPaths(packageName: string, version: string
       },
     });
 
-    if (!sourceSpec || !sourceSpec.specs) {
-      return [];
+    if (!sourceSpec) {
+      reason = "missing";
+    } else if (!sourceSpec.specs) {
+      reason = "empty";
+    } else {
+      const specs = sourceSpec.specs as any;
+      const connectionSpec = specs.connectionSpecification;
+      if (isPlainObject(connectionSpec?.properties)) {
+        return expandEachEntry(serviceSpecSecretPaths(connectionSpec.properties), sources);
+      }
+      reason = "malformed";
+    }
+  } catch (error) {
+    log.atError().withCause(error).log(`Failed to get service secret paths for ${packageName}@${version}`);
+    reason = "error";
+  }
+  warnNoUsableSpec(packageName, version, reason);
+  return credentialLeafPaths(sources);
+}
+
+// Stands for "every entry of the array" in a path read from a spec, until the stored arrays say how many there are
+const EACH = Symbol("each entry of an array");
+type SpecPath = string | (string | typeof EACH)[];
+
+/**
+ * Paths of the fields a usable spec marks `airbyte_secret: true`, under `credentials`. A secret inside the items of an
+ * array (the API key of a stream's file format, the key of every entry of a list of applications) has a path with `EACH`
+ * where the index goes.
+ */
+function serviceSpecSecretPaths(properties: any): SpecPath[] {
+  const secretPaths: SpecPath[] = [];
+
+  const add = (segments: (string | typeof EACH)[]) => {
+    // no array on the way: the same dotted path as ever
+    secretPaths.push(segments.includes(EACH) ? ["credentials", ...segments] : `credentials.${segments.join(".")}`);
+  };
+
+  // One node of the schema, at `segments`: a field of an object, or the items of an array
+  function visit(schema: any, segments: (string | typeof EACH)[], isItems: boolean) {
+    // A field schema that is not an object says nothing about the field, and a secret could hide behind it: the spec is
+    // malformed, so the caller masks every value (the walker has always failed on a null schema, it must keep failing)
+    if (schema === null || typeof schema !== "object" || Array.isArray(schema)) {
+      throw new Error(`Malformed connector spec: the schema of ${segments.join(".")} is not an object`);
+    }
+    if (schema.airbyte_secret === true) {
+      add(segments);
     }
 
-    const specs = sourceSpec.specs as any;
-    const connectionSpec = specs.connectionSpecification;
-    if (!connectionSpec || !connectionSpec.properties) {
-      return [];
-    }
-
-    const secretPaths: string[] = [];
-
-    // Recursively find all fields with airbyte_secret: true
-    function findSecretFields(properties: any, basePath: string = "") {
-      Object.entries(properties).forEach(([key, schema]: [string, any]) => {
-        const currentPath = basePath ? `${basePath}.${key}` : key;
-
-        if (schema.airbyte_secret === true) {
-          secretPaths.push(`credentials.${currentPath}`);
-        }
-
-        // Handle oneOf/anyOf schemas
-        if (schema.oneOf || schema.anyOf) {
-          const options = schema.oneOf || schema.anyOf;
-          options.forEach((option: any) => {
-            if (option.properties) {
-              findSecretFields(option.properties, currentPath);
-            }
-          });
-        }
-
-        // Recurse into nested objects
-        if (schema.type === "object" && schema.properties) {
-          findSecretFields(schema.properties, currentPath);
+    // Handle oneOf/anyOf schemas
+    if (schema.oneOf || schema.anyOf) {
+      const options = schema.oneOf || schema.anyOf;
+      options.forEach((option: any) => {
+        if (option.properties) {
+          findSecretFields(option.properties, segments);
         }
       });
     }
 
-    findSecretFields(connectionSpec.properties);
-    return secretPaths;
-  } catch (error) {
-    log.atError().withCause(error).log(`Failed to get service secret paths for ${packageName}@${version}`);
-    return [];
+    // Recurse into nested objects (the items of an array are objects without having to say so)
+    if ((isItems || schema.type === "object") && schema.properties) {
+      findSecretFields(schema.properties, segments);
+    }
+
+    // Recurse into the items of an array: one schema for every entry (not the list form, which says one per position)
+    if (schema.items && typeof schema.items === "object" && !Array.isArray(schema.items)) {
+      visit(schema.items, [...segments, EACH], true);
+    }
   }
+
+  // Recursively find all fields with airbyte_secret: true
+  function findSecretFields(properties: any, base: (string | typeof EACH)[] = []) {
+    Object.entries(properties).forEach(([key, schema]: [string, any]) => {
+      visit(schema, [...base, key], false);
+    });
+  }
+
+  findSecretFields(properties);
+  return secretPaths;
+}
+
+/**
+ * Turns the paths that go through the items of an array into one path per entry the services hold, so every entry's
+ * secret is a path of its own, as the fallback paths are. An entry that is not there has no path: masking skips what is
+ * not set.
+ */
+function expandEachEntry(paths: SpecPath[], sources: any[]): SecretPath[] {
+  const result: SecretPath[] = [];
+  const seen = new Set<string>();
+  for (const path of paths) {
+    if (typeof path === "string") {
+      result.push(path);
+      continue;
+    }
+    for (const source of sources) {
+      const walk = (node: any, index: number, trail: string[]) => {
+        if (index === path.length) {
+          const key = JSON.stringify(trail);
+          if (!seen.has(key)) {
+            seen.add(key);
+            result.push(trail);
+          }
+          return;
+        }
+        const segment = path[index];
+        if (segment === EACH) {
+          if (Array.isArray(node)) {
+            node.forEach((entry, i) => walk(entry, index + 1, [...trail, String(i)]));
+          }
+        } else if (node !== null && typeof node === "object" && hasOwn(node, segment)) {
+          walk(node[segment], index + 1, [...trail, segment]);
+        }
+      };
+      walk(source, 0, []);
+    }
+  }
+  return result;
 }
 
 /**
  * Mask secret values in an object based on the field paths
  */
-export function maskSecrets(obj: any, secretPaths: string[]): any {
+export function maskSecrets(obj: any, secretPaths: SecretPath[]): any {
   if (!obj || typeof obj !== "object") {
     return obj;
   }
@@ -116,9 +275,17 @@ export function maskSecrets(obj: any, secretPaths: string[]): any {
   const result = JSON.parse(JSON.stringify(obj)); // Deep clone
 
   for (const path of secretPaths) {
-    const value = get(obj, path);
-    if (typeof value !== "undefined") {
-      set(result, path, MASKED_SECRET); // We don't mask non-set values
+    const value = valueAt(obj, path);
+    if (typeof value === "undefined") {
+      continue; // We don't mask non-set values
+    }
+    if (Array.isArray(path)) {
+      const parent = getOwn(result, path.slice(0, -1));
+      if (path.length > 0 && parent !== null && typeof parent === "object") {
+        defineOwn(parent, path[path.length - 1], MASKED_SECRET);
+      }
+    } else {
+      set(result, path, MASKED_SECRET);
     }
   }
 
@@ -126,9 +293,10 @@ export function maskSecrets(obj: any, secretPaths: string[]): any {
 }
 
 /**
- * Remove masked values from an object before merge
+ * Remove masked values from an object before merge. A masked entry of a list is left where it is: removing it would
+ * leave a hole (stored as null), and a list is replaced as a whole by a merge.
  */
-export function removeMaskedValues(obj: any, secretPaths: string[]): any {
+export function removeMaskedValues(obj: any, secretPaths: SecretPath[]): any {
   if (!obj || typeof obj !== "object") {
     return obj;
   }
@@ -136,12 +304,191 @@ export function removeMaskedValues(obj: any, secretPaths: string[]): any {
   const result = JSON.parse(JSON.stringify(obj)); // Deep clone
 
   for (const path of secretPaths) {
-    const value = get(obj, path);
-    if (value === MASKED_SECRET) {
+    if (valueAt(obj, path) !== MASKED_SECRET) {
+      continue;
+    }
+    if (Array.isArray(path)) {
+      const parent = getOwn(result, path.slice(0, -1));
+      if (path.length > 0 && parent !== null && typeof parent === "object" && !Array.isArray(parent)) {
+        delete parent[path[path.length - 1]];
+      }
+    } else {
       unset(result, path); // Remove the masked value
     }
   }
 
+  return result;
+}
+
+/**
+ * `value` is `stored` with some of its values replaced by masks: the same lists (same length) and objects (same keys),
+ * and every value that is not a mask is equal to the stored one at that place. A mask says only "the stored value
+ * here", so it can be trusted only while nothing around it moved. Values the editor puts back by itself (a constant
+ * field) are equal to the stored ones, so a list that only had its secrets masked still passes.
+ */
+export function sameExceptMasks(
+  value: any,
+  stored: any,
+  isSecretAt?: (keys: string[]) => boolean,
+  keys: string[] = []
+): boolean {
+  if (value === MASKED_SECRET) {
+    return true;
+  }
+  // A plain value where the spec says there is a secret is never compared with the stored one: whether it matches
+  // would tell a caller who cannot read the secret that a guess is right. This goes before looking inside a list or
+  // an object, because a spec can mark such a field secret as a whole, and what is inside it is as secret. What is
+  // accepted there is a value masked all the way through, of any shape (a missing spec masks each entry, a usable one
+  // the whole field). Its shape is not compared with the stored one either: that would tell a caller who cannot read the
+  // field how many entries it has and what they are called.
+  if (isSecretAt?.(keys)) {
+    return allLeavesMasked(value);
+  }
+  if (Array.isArray(value)) {
+    return (
+      Array.isArray(stored) &&
+      value.length === stored.length &&
+      value.every((item, i) => sameExceptMasks(item, stored[i], isSecretAt, [...keys, String(i)]))
+    );
+  }
+  if (isPlainObject(value)) {
+    return (
+      isPlainObject(stored) &&
+      Object.keys(value).length === Object.keys(stored).length &&
+      Object.keys(value).every(
+        key => hasOwn(stored, key) && sameExceptMasks(value[key], stored[key], isSecretAt, [...keys, key])
+      )
+    );
+  }
+  return isEqual(value, stored);
+}
+
+/** The value as the fallback masking returns it: same objects and lists, every other value a mask */
+function maskedShape(value: any): any {
+  if (Array.isArray(value)) {
+    return value.map(maskedShape);
+  }
+  if (isPlainObject(value)) {
+    const copy = {};
+    for (const [key, item] of Object.entries(value)) {
+      defineOwn(copy, key, maskedShape(item));
+    }
+    return copy;
+  }
+  return MASKED_SECRET;
+}
+
+const LIST_CHANGED = (path: string[]) =>
+  new ApiError(
+    `Cannot keep the saved values of ${path.join(
+      "."
+    )} because the list was changed. Enter the values of the whole list again to continue.`,
+    { status: 400 }
+  );
+
+// A mask stands for a stored value: with no saved list there is nothing to put back, and dropping the masked entries
+// would store a shorter list (or rows with no fields) and report success
+const LIST_NOT_SAVED = (path: string[]) =>
+  new ApiError(
+    `Cannot use the masked values of ${path.join(
+      "."
+    )} because there is no saved list to take them from. Enter the values of the whole list to continue.`,
+    { status: 400 }
+  );
+
+/**
+ * A value that holds at least one mask and no plain value: empty objects and lists in it do not count, because a missing
+ * spec masks the values and leaves those as they are
+ */
+function allLeavesMasked(value: any): boolean {
+  const walk = (node: any): { masks: number; plain: number } => {
+    if (node === MASKED_SECRET) {
+      return { masks: 1, plain: 0 };
+    }
+    const children = Array.isArray(node) ? node : isPlainObject(node) ? Object.values(node) : undefined;
+    if (!children) {
+      return { masks: 0, plain: 1 };
+    }
+    return children
+      .map(walk)
+      .reduce((a, c) => ({ masks: a.masks + c.masks, plain: a.plain + c.plain }), { masks: 0, plain: 0 });
+  };
+  const { masks, plain } = walk(value);
+  return masks > 0 && plain === 0;
+}
+
+/**
+ * `isSecretAt` is given when the connector spec is usable: it says which positions (keys from the service, such as
+ * `["credentials", "applications", "0", "app_api_key"]`) the spec marks secret. Every other value is one the caller can
+ * read, so a list that holds masks may be compared with the stored one there. Without it any value may be a secret (a
+ * missing spec masks all of them) and nothing is compared: only a list masked all the way through is kept.
+ */
+export type UnmaskOptions = { isSecretAt?: (keys: string[]) => boolean };
+
+/** `isSecretAt` for a list of secret paths: the dotted ones of a spec and the key lists of the stored arrays' entries */
+export function secretPositions(paths: SecretPath[]): (keys: string[]) => boolean {
+  const known = new Set(paths.map(path => JSON.stringify(typeof path === "string" ? path.split(".") : path)));
+  return keys => known.has(JSON.stringify(keys));
+}
+
+const targetsChanged = (changed: string[]) =>
+  new ApiError(
+    `Cannot reuse saved secrets because ${changed.join(", ")} changed. Enter the secret values again to continue.`,
+    {
+      status: 400,
+    }
+  );
+
+const KEEP_STORED = Symbol("keep stored value");
+
+/**
+ * Remove every masked value under `credentials` of a service, whatever the spec lists as secret. A client that read the
+ * service while its spec was missing holds masks for ordinary fields (a host) too, and sends them back after the spec
+ * has arrived, when only the listed secrets are known: a mask must never be stored over a value.
+ *
+ * A key with a mask is dropped, so that a merge keeps the stored value. A list is replaced as a whole by a merge, and
+ * a mask in it says nothing about which stored entry it stands for once the list was edited (a row deleted in the
+ * editor shifts the rest). So a list that holds masks is the stored list with some values masked, untouched, and the stored
+ * one is kept, or it is refused. `stored` is the service before the change; a new service has none, so a list that
+ * holds masks is refused there too: dropping the masked entries would store a shorter list and report success.
+ */
+export function removeMaskedCredentials(obj: any, stored?: any): any {
+  if (!obj || typeof obj !== "object" || obj.credentials === undefined) {
+    return obj;
+  }
+  const result = JSON.parse(JSON.stringify(obj)); // Deep clone
+  if (result.credentials === MASKED_SECRET) {
+    delete result.credentials;
+    return result;
+  }
+  const without = (node: any, before: any, path: string[]): any => {
+    if (Array.isArray(node)) {
+      if (!containsMaskedSecrets(node)) {
+        return node;
+      }
+      if (!Array.isArray(before)) {
+        throw LIST_NOT_SAVED(path);
+      }
+      if (sameExceptMasks(node, before)) {
+        return KEEP_STORED;
+      }
+      throw LIST_CHANGED(path);
+    }
+    if (isPlainObject(node)) {
+      const copy = {};
+      for (const [key, value] of Object.entries(node)) {
+        if (value !== MASKED_SECRET) {
+          const kept = without(value, hasOwn(before, key) ? before[key] : undefined, [...path, key]);
+          if (kept !== KEEP_STORED) {
+            defineOwn(copy, key, kept);
+          }
+        }
+      }
+      return copy;
+    }
+    return node;
+  };
+  result.credentials = without(result.credentials, stored?.credentials, ["credentials"]);
   return result;
 }
 
@@ -151,16 +498,22 @@ export function removeMaskedValues(obj: any, secretPaths: string[]): any {
  * @param object - The d object being sent
  * @param dbEntity - The original entity from database containing real secret values
  * @param comparedWith - The original entity with schema defaults applied, to tell a changed target from a default
+ * @param options - see `UnmaskOptions`
  * @returns A new object with masked secrets replaced by values from db
  */
-export function unmaskSecretsFromOriginal(object: any, dbEntity: any, comparedWith: any = dbEntity): any {
+export function unmaskSecretsFromOriginal(
+  object: any,
+  dbEntity: any,
+  comparedWith: any = dbEntity,
+  options: UnmaskOptions = {}
+): any {
   if (!object || !dbEntity) {
     return object;
   }
 
   // `object` is parsed with the schema defaults (a PostHog config without a host gets the default host), the stored
   // config is not, so callers pass the stored one with the same defaults applied to compare against.
-  const changedTargets = changedConnectionTargets(object, comparedWith);
+  const changedTargets = changedConnectionTargets(object, comparedWith, options);
   // Only signing keys masked (webhook signatureSecret): they sign requests and are never sent to the target
   const onlySigningKeysMasked = maskedPaths(object).every(path => isSigningKey(dbEntity, path[path.length - 1]));
   const breakers = connectionStringBreakers(object, comparedWith);
@@ -169,19 +522,14 @@ export function unmaskSecretsFromOriginal(object: any, dbEntity: any, comparedWi
   }
   if (changedTargets.length > 0 && !onlySigningKeysMasked) {
     // Restoring the stored password into a config that points somewhere else would send it to that host
-    throw new ApiError(
-      `Cannot reuse saved secrets because ${changedTargets.join(
-        ", "
-      )} changed. Enter the secret values again to continue.`,
-      { status: 400 }
-    );
+    throw targetsChanged(changedTargets);
   }
 
   // Deep clone object to avoid mutating the original
   const result = JSON.parse(JSON.stringify(object));
 
   // Recursively find and replace masked secrets
-  replaceMaskedSecrets(result, dbEntity, []);
+  replaceMaskedSecrets(result, dbEntity, [], options);
 
   return result;
 }
@@ -244,14 +592,30 @@ const targetMatcherFor = (updated: any, original: any): TargetMatcher => {
  * Only meaningful for an object that contains masked secrets: it tells whether the stored secrets
  * would be carried over to a different target.
  */
-export function changedConnectionTargets(object: any, original: any): string[] {
+export function changedConnectionTargets(object: any, original: any, options: UnmaskOptions = {}): string[] {
   return containsMaskedSecrets(object)
     ? [
         ...changedDestinationType(object, original),
         ...changedServiceImage(object, original),
-        ...findChangedTargets(object, original, [], targetMatcherFor(object, original)),
+        ...findChangedTargets(object, original, [], targetMatcherFor(object, original), options),
       ]
     : [];
+}
+
+/**
+ * For a config whose masks are already replaced by the stored values: throws when its connection target is not the stored
+ * one. The checks before the restore saw only what the caller sent; anything added afterwards (the defaults of the
+ * connector spec) could point a field somewhere else while the stored secrets go with it.
+ */
+export function assertTargetsUnchanged(object: any, original: any): void {
+  const changed = [
+    ...changedDestinationType(object, original),
+    ...changedServiceImage(object, original),
+    ...findChangedTargets(object, original, [], targetMatcherFor(object, original), {}),
+  ];
+  if (changed.length > 0) {
+    throw targetsChanged(changed);
+  }
 }
 
 /**
@@ -281,9 +645,15 @@ function changedServiceImage(updated: any, original: any): string[] {
     : [];
 }
 
-function findChangedTargets(node: any, original: any, path: (string | number)[], matcher: TargetMatcher): string[] {
+function findChangedTargets(
+  node: any,
+  original: any,
+  path: (string | number)[],
+  matcher: TargetMatcher,
+  options: UnmaskOptions
+): string[] {
   if (Array.isArray(node)) {
-    return node.flatMap((item, index) => findChangedTargets(item, original, [...path, index], matcher));
+    return node.flatMap((item, index) => findChangedTargets(item, original, [...path, index], matcher, options));
   }
   if (!isPlainObject(node)) {
     return [];
@@ -292,7 +662,7 @@ function findChangedTargets(node: any, original: any, path: (string | number)[],
     const currentPath = [...path, key];
     const isTarget = matcher.isTarget(key, path);
     if ((isPlainObject(value) || Array.isArray(value)) && !(isTarget && matcher.isOneValue(value))) {
-      return findChangedTargets(value, original, currentPath, matcher);
+      return findChangedTargets(value, original, currentPath, matcher, options);
     }
     if (value === MASKED_SECRET || !isTarget) {
       return [];
@@ -301,6 +671,15 @@ function findChangedTargets(node: any, original: any, path: (string | number)[],
     // an empty optional target is the same as an omitted one (S3 `endpoint: ""` is the default AWS endpoint)
     if (isEmptyValue(value) && isEmptyValue(before)) {
       return [];
+    }
+    // a list of targets read while its values were masked, and sent back untouched, is the same list. Only a list
+    // masked all the way through counts: a connection test needs just workspace membership, so comparing a plain value
+    // of a half-masked list with the stored one would tell a caller whether a guess is right
+    if (containsMaskedSecrets(value)) {
+      const unchanged = options.isSecretAt
+        ? sameExceptMasks(value, before, options.isSecretAt, currentPath.map(String))
+        : isEqual(value, maskedShape(before));
+      return unchanged ? [] : [currentPath.join(".")];
     }
     return isEqual(value, before) ? [] : [currentPath.join(".")];
   });
@@ -437,7 +816,7 @@ function targetFieldsBetween(updated: any, original: any, path: (string | number
  * @param patch the incoming patch, with masked values still in it
  * @param merged the result of merging the patch into the original
  */
-export function assertSecretsStayWithTarget(original: any, patch: any, merged: any, secretPaths: string[]): void {
+export function assertSecretsStayWithTarget(original: any, patch: any, merged: any, secretPaths: SecretPath[]): void {
   const changed = changedTargetFieldsBetween(merged, original);
   const breakers = connectionStringBreakers(merged, original);
   if (changed.length === 0 && breakers.fields.length === 0) {
@@ -445,24 +824,29 @@ export function assertSecretsStayWithTarget(original: any, patch: any, merged: a
   }
   const keptSecrets = secretPaths.filter(path => {
     // A signing key (webhook `signatureSecret`) only signs what is sent: the receiver never gets it
-    if (isSigningKey(original, String(path).split(".").pop())) {
+    if (isSigningKey(original, keysOf(path).at(-1))) {
       return false;
     }
-    const stored = get(original, path);
+    const stored = valueAt(original, path);
     if (isEmptyValue(stored)) {
+      return false;
+    }
+    // A secret the merge no longer carries (an entry of a list that was entered again, shorter) is not kept
+    if (Array.isArray(path) && !isEqual(getOwn(merged, path), stored)) {
       return false;
     }
     // Walk the path one segment at a time. A string path would let a property literally named `credentials.password`
     // in the patch count as the nested secret (lodash prefers it), while the stored password is kept.
-    const supplied = get(patch, String(path).split("."));
-    return isEmptyValue(supplied) || supplied === MASKED_SECRET;
+    const supplied = Array.isArray(path) ? getOwn(patch, path) : get(patch, keysOf(path));
+    // A mask anywhere inside a secret object keeps the stored value there (the merge drops the mask)
+    return isEmptyValue(supplied) || supplied === MASKED_SECRET || containsMaskedSecrets(supplied);
   });
   if (keptSecrets.length > 0) {
     const reason = changed.length > 0 ? `${changed.join(", ")} changed` : connectionStringReason(breakers);
     throw new ApiError(
-      `Cannot keep the saved secrets (${keptSecrets.join(
-        ", "
-      )}) because ${reason}. Enter the secret values again to continue.`,
+      `Cannot keep the saved secrets (${keptSecrets
+        .map(labelOf)
+        .join(", ")}) because ${reason}. Enter the secret values again to continue.`,
       { status: 400 }
     );
   }
@@ -475,12 +859,27 @@ export function assertSecretsStayWithTarget(original: any, patch: any, merged: a
  * @param dbEntity - Original entity from database
  * @param path - Current path in the object structure
  */
-function replaceMaskedSecrets(obj: any, dbEntity: any, path: (string | number)[]): void {
+function replaceMaskedSecrets(obj: any, dbEntity: any, path: (string | number)[], options: UnmaskOptions): void {
   if (!isPlainObject(obj) && !Array.isArray(obj)) {
     return;
   }
 
   if (Array.isArray(obj)) {
+    const stored = get(dbEntity, path);
+    if (path.length > 0 && Array.isArray(stored) && containsMaskedSecrets(obj)) {
+      // The masks of a list stand for stored entries by position, which is only true while the list is untouched
+      // (a row deleted in the editor shifts the rest). Only a list that is masked all the way through counts: a
+      // connection test needs just workspace membership, so comparing any plain value with the stored one would
+      // tell a caller whether a guessed secret is right.
+      const unchanged = options.isSecretAt
+        ? sameExceptMasks(obj, stored, options.isSecretAt, path.map(String))
+        : isEqual(obj, maskedShape(stored));
+      if (!unchanged) {
+        throw LIST_CHANGED(path.map(String));
+      }
+      obj.splice(0, obj.length, ...JSON.parse(JSON.stringify(stored)));
+      return;
+    }
     obj.forEach((item, index) => {
       if (item === MASKED_SECRET) {
         // Replace masked value with value from db at the same path
@@ -489,7 +888,7 @@ function replaceMaskedSecrets(obj: any, dbEntity: any, path: (string | number)[]
           obj[index] = dbValue;
         }
       } else if (isPlainObject(item) || Array.isArray(item)) {
-        replaceMaskedSecrets(item, dbEntity, [...path, index]);
+        replaceMaskedSecrets(item, dbEntity, [...path, index], options);
       }
     });
   } else {
@@ -504,7 +903,7 @@ function replaceMaskedSecrets(obj: any, dbEntity: any, path: (string | number)[]
           obj[key] = dbValue;
         }
       } else if (isPlainObject(value) || Array.isArray(value)) {
-        replaceMaskedSecrets(value, dbEntity, currentPath);
+        replaceMaskedSecrets(value, dbEntity, currentPath, options);
       }
     });
   }
