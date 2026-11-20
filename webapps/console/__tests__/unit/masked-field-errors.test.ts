@@ -313,6 +313,34 @@ describe("a choice (oneOf) whose discriminator still holds the mask", () => {
     expect(validateKeepingMasks(validate, { mode: MASKED_SECRET, useKey: false, port: 5 })).toEqual([]);
   });
 
+  it("sees a mask inside a nested field that the condition of an option reads", () => {
+    const nested = {
+      oneOf: [
+        {
+          properties: {
+            mode: { const: "a" },
+            settings: { type: "object" },
+            port: { type: "integer", maximum: 10 },
+          },
+          if: {
+            properties: { settings: { properties: { useDefaultKey: { const: true } }, required: ["useDefaultKey"] } },
+          },
+          then: {},
+          else: { required: ["keyId"] },
+        },
+        { properties: { mode: { const: "b" }, port: { type: "integer", minimum: 100 } } },
+      ],
+    };
+    const validate = new Ajv({ allErrors: true, strictSchema: false, useDefaults: true }).compile(nested);
+    // the saved useDefaultKey is hidden: the mask sent the condition to its else, which is not the user's to fix
+    expect(
+      validateKeepingMasks(validate, { mode: MASKED_SECRET, settings: { useDefaultKey: MASKED_SECRET }, port: 5 })
+    ).toEqual([]);
+    // the same condition on a value the user can see is the user's
+    const kept = validateKeepingMasks(validate, { mode: MASKED_SECRET, settings: { useDefaultKey: false }, port: 5 });
+    expect(kept.length).toBeGreaterThan(0);
+  });
+
   it("keeps the errors when the compiled schema is not given: it cannot tell a choice from a field", () => {
     const credentials: any = { host: "db.example", tunnel_method: { tunnel_method: MASKED_SECRET } };
     const validate = validatorOf();

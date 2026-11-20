@@ -71,14 +71,19 @@ function discriminatorKeys(options: any[]): string[] {
  */
 function conditionReadsMask(error: FieldError, objectValue: any, schema: any): boolean {
   const condition: any = schemaNodeAt(schema, error.schemaPath ?? "");
-  if (condition === null || typeof condition !== "object") {
-    return false;
-  }
-  const read = [
-    ...Object.keys(condition.properties ?? {}),
-    ...(Array.isArray(condition.required) ? condition.required : []),
-  ];
-  return read.some(key => Object.prototype.hasOwnProperty.call(objectValue, key) && objectValue[key] === MASKED_SECRET);
+  // the fields a condition reads, down into the nested ones: `settings.useDefaultKey` is read through `settings`
+  const reads = (node: any, value: any): boolean => {
+    if (node === null || typeof node !== "object" || value === null || typeof value !== "object") {
+      return false;
+    }
+    const keys = [...Object.keys(node.properties ?? {}), ...(Array.isArray(node.required) ? node.required : [])];
+    return keys.some(
+      key =>
+        Object.prototype.hasOwnProperty.call(value, key) &&
+        (value[key] === MASKED_SECRET || reads(node.properties?.[key], value[key]))
+    );
+  };
+  return reads(condition, objectValue);
 }
 
 type ChoiceGroup = { instancePath: string; schemaPath: string; satisfied: boolean };
