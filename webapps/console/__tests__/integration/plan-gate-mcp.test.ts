@@ -41,6 +41,7 @@ beforeEach(() => {
     service: new ConfigObjectsService({ prisma: deps().prisma }),
     eventsLog: noop,
     syncs: noop,
+    reverseEtl: noop,
     debug: new DebugService({ prisma: deps().prisma }),
     reports: noop,
     auditLog: noop,

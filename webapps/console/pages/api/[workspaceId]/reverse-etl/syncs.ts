@@ -1,18 +1,15 @@
 import { z } from "zod";
-import { createRoute, verifyAccessWithRole } from "../../../../lib/api";
+import { createRoute } from "../../../../lib/api";
 import { db } from "../../../../lib/server/db";
 import { ReverseSyncInput, ReverseSyncView } from "../../../../lib/reverse-etl";
-import { createReverseSync, listReverseSyncs } from "../../../../lib/server/reverse-syncs";
-import { provisionRetlBucketForSync } from "../../../../lib/server/reverse-retention";
-import { configObjectAuditLog } from "../../../../lib/server/audit-log";
+import { ReverseEtlService } from "../../../../lib/server/reverse-etl-service";
 
 const query = z.object({ workspaceId: z.string() });
 export const route = createRoute()
   .GET({ auth: true, query, result: z.array(ReverseSyncView) })
   .handler(async ({ user, query: { workspaceId }, res }) => {
-    await verifyAccessWithRole(user, workspaceId, "readEntities");
     res.setHeader("Cache-Control", "no-store");
-    return listReverseSyncs(db.prisma(), workspaceId);
+    return new ReverseEtlService(db.prisma()).list(user, workspaceId);
   })
   .POST({
     auth: true,
@@ -22,19 +19,7 @@ export const route = createRoute()
     result: z.object({ id: z.string() }),
   })
   .handler(async ({ user, query: { workspaceId }, body, req, res }) => {
-    await verifyAccessWithRole(user, workspaceId, "editEntities");
     res.setHeader("Cache-Control", "no-store");
-    const result = await createReverseSync(db.prisma(), workspaceId, body.requestId, body.sync);
-    await provisionRetlBucketForSync(db.prisma(), workspaceId, result.id);
-    await configObjectAuditLog(
-      user,
-      workspaceId,
-      result.id,
-      "link",
-      "create",
-      { newVersion: { type: "reverse-sync" } },
-      req
-    );
-    return result;
+    return new ReverseEtlService(db.prisma()).create(user, workspaceId, body.requestId, body.sync, req);
   });
 export default route.toNextApiHandler();

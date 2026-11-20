@@ -1,15 +1,8 @@
 import { z } from "zod";
-import { createRoute, verifyAccessWithRole } from "../../../../lib/api";
+import { createRoute } from "../../../../lib/api";
 import { db } from "../../../../lib/server/db";
 import { ReverseSyncSettings, ReverseSyncInput } from "../../../../lib/reverse-etl";
-import { updateReverseSync, deleteReverseSync, reverseTasks } from "../../../../lib/server/reverse-syncs";
-import { provisionRetlBucketForSync } from "../../../../lib/server/reverse-retention";
-import { readReverseSync } from "../../../../lib/server/reverse-sync-export";
-import { getServerEnv } from "../../../../lib/server/serverEnv";
-import { ApiError } from "../../../../lib/shared/errors";
-import { configObjectAuditLog } from "../../../../lib/server/audit-log";
-import { requestReverseController } from "../../../../lib/server/reverse-controller";
-import { getServerLog } from "../../../../lib/server/log";
+import { ReverseEtlService, ReverseSyncAction } from "../../../../lib/server/reverse-etl-service";
 
 const query = z.object({ workspaceId: z.string(), syncId: z.string() });
 export const route = createRoute()
@@ -21,111 +14,21 @@ export const route = createRoute()
     result: z.object({ id: z.string() }),
   })
   .handler(async ({ user, query: { workspaceId, syncId }, body, req }) => {
-    await verifyAccessWithRole(user, workspaceId, "editEntities");
-    const result = await updateReverseSync(db.prisma(), workspaceId, syncId, body);
-    await provisionRetlBucketForSync(db.prisma(), workspaceId, syncId);
-    await configObjectAuditLog(user, workspaceId, syncId, "link", "update", { newVersion: body }, req);
-    return result;
+    return new ReverseEtlService(db.prisma()).update(user, workspaceId, syncId, body, req);
   })
   .DELETE({ auth: true, mutates: true, query, result: z.object({ id: z.string() }) })
   .handler(async ({ user, query: { workspaceId, syncId }, req }) => {
-    await verifyAccessWithRole(user, workspaceId, "deleteEntities");
-    const result = await deleteReverseSync(db.prisma(), workspaceId, syncId);
-    await configObjectAuditLog(user, workspaceId, syncId, "link", "delete", {}, req);
-    return result;
+    return new ReverseEtlService(db.prisma()).delete(user, workspaceId, syncId, req);
   })
   .POST({
     auth: true,
     mutates: true,
     query,
-    body: z.discriminatedUnion("action", [
-      z.object({ action: z.literal("run") }).strict(),
-      z.object({ action: z.literal("cancel"), taskId: z.string() }).strict(),
-      z.object({ action: z.literal("refresh"), taskId: z.string() }).strict(),
-    ]),
+    body: ReverseSyncAction,
     result: z.object({ status: z.string(), taskId: z.string().optional() }),
   })
   .handler(async ({ user, query: { workspaceId, syncId }, body, req, res }) => {
-    await verifyAccessWithRole(user, workspaceId, "editEntities");
     res.setHeader("Cache-Control", "no-store");
-    const prisma = db.prisma();
-    if (body.action !== "run") {
-      const tasks = await reverseTasks(prisma, workspaceId, { syncId, taskId: body.taskId });
-      if (
-        !tasks.length ||
-        (body.action === "refresh"
-          ? !tasks[0].canRefresh
-          : !["RUNNING", "WAITING", "PENDING"].includes(tasks[0].status))
-      )
-        throw new ApiError(
-          body.action === "refresh" ? "No saved run available for a status refresh" : "No active attempt to cancel",
-          { status: 409 }
-        );
-    }
-    const config =
-      body.action !== "cancel"
-        ? await readReverseSync(
-            prisma,
-            syncId,
-            workspaceId,
-            body.action === "refresh" ? { refreshTaskId: body.taskId } : {}
-          )
-        : undefined;
-    if (body.action !== "cancel" && !config)
-      throw new ApiError(
-        body.action === "refresh"
-          ? "Saved run is unavailable or its configuration has changed"
-          : "Enable the sync before running it",
-        { status: 409 }
-      );
-    if (body.action === "run") {
-      if (!config) throw new ApiError("Enable the sync before running it", { status: 409 });
-      if (await prisma.source_task.count({ where: { sync_id: syncId, status: "RUNNING" } }))
-        throw new ApiError("This sync is still extracting or submitting uploads", { status: 409 });
-    }
-    const env = getServerEnv();
-    if (!env.SYNCCTL_URL) throw new ApiError("Sync controller is not configured", { status: 503 });
-    let result;
-    try {
-      result = await requestReverseController({
-        baseUrl: env.SYNCCTL_URL,
-        token: env.SYNCCTL_AUTH_KEY,
-        action: body.action,
-        query: {
-          kind: "reverse",
-          workspaceId,
-          syncId,
-          ...(config ? { updatedAt: config.updatedAt } : {}),
-          ...(body.action !== "run" ? { taskId: body.taskId } : {}),
-        },
-      });
-    } catch (error) {
-      if (error instanceof ApiError) {
-        getServerLog("reverse-controller").atError().log(`${body.action} failed for sync ${syncId}: ${error.message}`);
-        throw error;
-      }
-      throw new ApiError(
-        "Sync controller request could not be prepared. Ask your administrator to check SYNCCTL_URL.",
-        { status: 503 }
-      );
-    }
-    await configObjectAuditLog(
-      user,
-      workspaceId,
-      syncId,
-      "link",
-      "update",
-      { newVersion: { action: body.action, taskId: result.taskId } },
-      req
-    );
-    return {
-      status:
-        body.action === "run"
-          ? "started"
-          : body.action === "refresh"
-          ? "status refresh requested"
-          : "cancellation requested",
-      ...(result.taskId ? { taskId: result.taskId } : {}),
-    };
+    return new ReverseEtlService(db.prisma()).act(user, workspaceId, syncId, body, req);
   });
 export default route.toNextApiHandler();
