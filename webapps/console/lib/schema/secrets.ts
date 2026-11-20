@@ -283,6 +283,21 @@ export function sameExceptMasks(value: any, stored: any): boolean {
   return isEqual(value, stored);
 }
 
+/** The value as the fallback masking returns it: same objects and lists, every other value a mask */
+function maskedShape(value: any): any {
+  if (Array.isArray(value)) {
+    return value.map(maskedShape);
+  }
+  if (isPlainObject(value)) {
+    const copy = {};
+    for (const [key, item] of Object.entries(value)) {
+      defineOwn(copy, key, maskedShape(item));
+    }
+    return copy;
+  }
+  return MASKED_SECRET;
+}
+
 const LIST_CHANGED = (path: string[]) =>
   new ApiError(
     `Cannot keep the saved values of ${path.join(
@@ -689,8 +704,10 @@ function replaceMaskedSecrets(obj: any, dbEntity: any, path: (string | number)[]
     const stored = get(dbEntity, path);
     if (path.length > 0 && Array.isArray(stored) && containsMaskedSecrets(obj)) {
       // The masks of a list stand for stored entries by position, which is only true while the list is untouched
-      // (a row deleted in the editor shifts the rest)
-      if (!sameExceptMasks(obj, stored)) {
+      // (a row deleted in the editor shifts the rest). Only a list that is masked all the way through counts: a
+      // connection test needs just workspace membership, so comparing any plain value with the stored one would
+      // tell a caller whether a guessed secret is right.
+      if (!isEqual(obj, maskedShape(stored))) {
         throw LIST_CHANGED(path.map(String));
       }
       obj.splice(0, obj.length, ...JSON.parse(JSON.stringify(stored)));

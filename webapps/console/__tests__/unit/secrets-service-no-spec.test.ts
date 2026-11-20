@@ -592,7 +592,9 @@ describe("test connection and clone with a masked list (unmaskSecretsFromOrigina
     expect(unmaskSecretsFromOriginal(submitted, storedService).credentials).toEqual(storedService.credentials);
   });
 
-  it("restores rows whose constant field is back and whose secrets are still masked", () => {
+  // A connection test needs only workspace membership. Comparing the plain values of a half-masked list with the
+  // stored ones would tell the caller whether a guessed secret is right (400 on a miss, the connector on a hit).
+  it("refuses a half-masked list whatever the plain values are, so a guess cannot be confirmed", () => {
     const withRows = {
       ...storedService,
       credentials: {
@@ -602,18 +604,29 @@ describe("test connection and clone with a masked list (unmaskSecretsFromOrigina
         ],
       },
     };
-    const submitted = {
+    const submit = (first: string) => ({
       ...withRows,
       credentials: {
         rows: [
-          { type: "oauth", token: MASKED_SECRET },
+          { type: first, token: MASKED_SECRET },
           { type: "oauth", token: MASKED_SECRET },
         ],
       },
+    });
+    const outcome = (first: string) => {
+      try {
+        return unmaskSecretsFromOriginal(submit(first), withRows);
+      } catch (e: any) {
+        return e.message;
+      }
     };
-    expect(unmaskSecretsFromOriginal(submitted, withRows).credentials).toEqual(withRows.credentials);
-    const edited = { ...withRows, credentials: { rows: [{ type: "oauth", token: MASKED_SECRET }] } };
-    expect(() => unmaskSecretsFromOriginal(edited, withRows)).toThrow(/credentials\.rows/);
+    const right = outcome("oauth");
+    const wrong = outcome("not-the-stored-value");
+    expect(typeof right).toBe("string");
+    expect(right).toMatch(/credentials\.rows/);
+    expect(right).toEqual(wrong);
+    const plainSecrets = { ...storedService, credentials: { hosts: ["a.example:1", MASKED_SECRET], password: "pw" } };
+    expect(() => unmaskSecretsFromOriginal(plainSecrets, storedService)).toThrow(/credentials\.hosts/);
   });
 
   it("refuses a masked list that lost an entry: the mask no longer says which one is left", () => {
