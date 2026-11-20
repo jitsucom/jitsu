@@ -334,6 +334,26 @@ describe("test connection and clone of a service whose array entries hold secret
     }
   });
 
+  it("restores a list of masks for a field the spec marks secret as a whole, as a missing spec had masked it", async () => {
+    // read during an outage: every entry is a mask. The spec is back and marks the whole `tags` list secret.
+    mocks.findUnique.mockResolvedValue(
+      rowWith({ name: { type: "string" }, tags: { type: "array", airbyte_secret: true, items: { type: "string" } } })
+    );
+    const original = service("airbyte/source-items-whole-secret", { name: "n", tags: ["t1", "t2"] });
+    const options = await serviceUnmaskOptions("service", original);
+    const submit = (tags: any) => ({ ...original, credentials: { name: "n", tags } });
+    expect(
+      unmaskSecretsFromOriginal(submit([MASKED_SECRET, MASKED_SECRET]), original, original, options).credentials.tags
+    ).toEqual(["t1", "t2"]);
+    // a plain value in it is still never compared, and a list of another length is not the stored one
+    expect(() => unmaskSecretsFromOriginal(submit([MASKED_SECRET, "t2"]), original, original, options)).toThrow(
+      /credentials\.tags/
+    );
+    expect(() => unmaskSecretsFromOriginal(submit([MASKED_SECRET]), original, original, options)).toThrow(
+      /credentials\.tags/
+    );
+  });
+
   it("does not compare it in a list of targets either", () => {
     const secretHosts = { isSecretAt: (keys: string[]) => keys[1] === "hosts" || keys[1] === "password" };
     const hosts = { ...stored(), credentials: { hosts: ["a.example:1", "b.example:1"], password: "pw" } };
