@@ -54,35 +54,51 @@ function discriminatorKeys(options: any[]): string[] {
   return [...counts].filter(([, count]) => count === options.length).map(([key]) => key);
 }
 
+type ChoiceGroup = { instancePath: string; schemaPath: string; satisfied: boolean };
+
 /**
  * The groups (a `oneOf` or `anyOf` and the object it was checked against) whose discriminator still holds the mask. No
  * option can match it, but it says nothing about the saved option either: the group stands for the saved values.
+ * Ajv reports the errors of every option, so a value can fit the saved option and still fail another one (a port range
+ * of each mode). The group is `satisfied` when some option has no error besides the masked values and the group's own
+ * object: then none of its errors is the user's to fix. When no option fits, a typed field is wrong whatever the saved
+ * option is.
  */
-function maskedChoiceGroups(
-  errors: FieldError[],
-  credentials: any,
-  schema: any
-): { instancePath: string; schemaPath: string }[] {
+function maskedChoiceGroups(errors: FieldError[], credentials: any, schema: any): ChoiceGroup[] {
   if (schema === undefined) {
     return [];
   }
-  const groups: { instancePath: string; schemaPath: string }[] = [];
+  const groups: ChoiceGroup[] = [];
   for (const error of errors) {
     if ((error.keyword !== "oneOf" && error.keyword !== "anyOf") || error.schemaPath === undefined) {
       continue;
     }
     const options = schemaNodeAt(schema, error.schemaPath);
-    const value: any = valueAtPointer(credentials, error.instancePath ?? "");
+    const instancePath = error.instancePath ?? "";
+    const value: any = valueAtPointer(credentials, instancePath);
     if (
-      Array.isArray(options) &&
-      value !== null &&
-      typeof value === "object" &&
-      discriminatorKeys(options).some(
+      !Array.isArray(options) ||
+      value === null ||
+      typeof value !== "object" ||
+      !discriminatorKeys(options).some(
         key => Object.prototype.hasOwnProperty.call(value, key) && value[key] === MASKED_SECRET
       )
     ) {
-      groups.push({ instancePath: error.instancePath ?? "", schemaPath: error.schemaPath });
+      continue;
     }
+    const schemaPath = error.schemaPath;
+    const satisfied = options.some((_option, i) =>
+      errors
+        .filter(
+          e => (e.schemaPath ?? "").startsWith(`${schemaPath}/${i}/`) && (e.instancePath ?? "").startsWith(instancePath)
+        )
+        .every(
+          e =>
+            (e.instancePath ?? "") === instancePath ||
+            valueAtPointer(credentials, e.instancePath ?? "") === MASKED_SECRET
+        )
+    );
+    groups.push({ instancePath, schemaPath, satisfied });
   }
   return groups;
 }
@@ -100,10 +116,17 @@ export function withoutMaskedFieldErrors<T extends FieldError>(
   const groups = maskedChoiceGroups(all, credentials, schema);
   return all.filter(error => {
     const pointer = error.instancePath ?? "";
-    // only the errors about the choice's own object ("no option matches", "option N misses a field"): the errors about a
-    // field the user typed, deeper in it, are real
-    if (groups.some(g => pointer === g.instancePath && (error.schemaPath ?? "").startsWith(g.schemaPath))) {
-      return false;
+    const schemaPath = error.schemaPath ?? "";
+    const group = groups.find(
+      g =>
+        pointer.startsWith(g.instancePath) && (schemaPath === g.schemaPath || schemaPath.startsWith(`${g.schemaPath}/`))
+    );
+    if (group) {
+      // about the choice's own object ("no option matches", "option N misses a field"): nothing to fix. About a field
+      // deeper in it: the user's to fix only when no option accepts the values
+      if (pointer === group.instancePath || group.satisfied) {
+        return false;
+      }
     }
     return pointer === "" || valueAtPointer(credentials, pointer) !== MASKED_SECRET;
   });

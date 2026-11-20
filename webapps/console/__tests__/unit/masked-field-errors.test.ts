@@ -188,6 +188,43 @@ describe("a choice (oneOf) whose discriminator still holds the mask", () => {
     expect(kept.map(e => e.instancePath)).toContain("/port");
   });
 
+  it("ignores the errors of the branches the saved value does not belong to", () => {
+    // two modes that allow different ports: the saved mode is hidden, an unchanged port fits one of them
+    const rangeChoice = {
+      anyOf: [
+        { properties: { kind: { const: "a" }, port: { type: "integer", maximum: 10 } } },
+        { properties: { kind: { const: "b" }, port: { type: "integer", minimum: 100 } } },
+      ],
+    };
+    const validate = new Ajv({ allErrors: true, strictSchema: false, useDefaults: true }).compile(rangeChoice);
+    expect(validateKeepingMasks(validate, { kind: MASKED_SECRET, port: 150 })).toEqual([]);
+    expect(validateKeepingMasks(validate, { kind: MASKED_SECRET, port: 5 })).toEqual([]);
+    // fits neither mode: the typed value is wrong whatever the saved mode is
+    const kept = validateKeepingMasks(validate, { kind: MASKED_SECRET, port: 50 });
+    expect(kept.map(e => e.instancePath)).toEqual(["/port", "/port"]);
+    expect(kept.map(e => e.keyword).sort()).toEqual(["maximum", "minimum"]);
+  });
+
+  it("does the same for a choice inside an object, next to a field that is wrong whatever the mode is", () => {
+    const nested = {
+      type: "object",
+      properties: {
+        tunnel: {
+          type: "object",
+          oneOf: [
+            { properties: { mode: { const: "a" }, port: { type: "integer", maximum: 10 } } },
+            { properties: { mode: { const: "b" }, port: { type: "integer", minimum: 100 } } },
+          ],
+        },
+        timeout: { type: "integer" },
+      },
+    };
+    const validate = new Ajv({ allErrors: true, strictSchema: false, useDefaults: true }).compile(nested);
+    expect(validateKeepingMasks(validate, { tunnel: { mode: MASKED_SECRET, port: 150 }, timeout: 3 })).toEqual([]);
+    const kept = validateKeepingMasks(validate, { tunnel: { mode: MASKED_SECRET, port: 150 }, timeout: "x" });
+    expect(kept.map(e => e.instancePath)).toEqual(["/timeout"]);
+  });
+
   it("keeps the errors when the compiled schema is not given: it cannot tell a choice from a field", () => {
     const credentials: any = { host: "db.example", tunnel_method: { tunnel_method: MASKED_SECRET } };
     const validate = validatorOf();
