@@ -277,7 +277,7 @@ function trackEvent(event: AnalyticsServerEvent): Ga4Event {
   let params: Record<string, any> = {};
   let name;
   const eventName = event.event || event.name || event.type;
-  switch (event.name) {
+  switch (eventName) {
     case "Promotion Clicked":
       name = "select_promotion";
       params.creative_name = evp.creative_name;
