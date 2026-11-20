@@ -40,8 +40,23 @@ const OWN_OBJECT_KEYWORDS = new Set(["required", "const", "enum", "oneOf", "anyO
 // for a masked choice the editor does not weigh it: it is left to the connection test and the connector. Working out
 // whether a mask could decide a condition would mean re-implementing how a schema is evaluated (scoped references,
 // `allOf`, `not`, ...), and each case it missed blocked a valid save.
-const isConditional = (error: FieldError): boolean =>
-  error.keyword === "if" || /\/(then|else)(\/|$)/.test(error.schemaPath ?? "");
+// `then` and `else` count only as keywords: after the keywords below the next part of a schema path is a name chosen by
+// the connector, and a field of a choice may be called `then` or `else`.
+const NAME_FOLLOWS = new Set([
+  "properties",
+  "patternProperties",
+  "definitions",
+  "$defs",
+  "dependentSchemas",
+  "dependencies",
+]);
+const isConditional = (error: FieldError): boolean => {
+  if (error.keyword === "if") {
+    return true;
+  }
+  const parts = (error.schemaPath ?? "").split("/");
+  return parts.some((part, i) => (part === "then" || part === "else") && !NAME_FOLLOWS.has(parts[i - 1] ?? ""));
+};
 
 /** The node of the schema an Ajv `schemaPath` (`#/properties/a/oneOf`) points at, or undefined when it cannot be followed */
 function schemaNodeAt(schema: any, schemaPath: string): unknown {

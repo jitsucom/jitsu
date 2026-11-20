@@ -348,6 +348,19 @@ describe("a choice (oneOf) whose discriminator still holds the mask", () => {
     expect(kept.map(e => e.instancePath)).toEqual(["/retries", "/retries"]);
   });
 
+  it("does not take a field that is named then or else for a conditional", () => {
+    const named = {
+      oneOf: [
+        { properties: { mode: { const: "a" }, then: { type: "string", minLength: 3 }, else: { type: "integer" } } },
+        { properties: { mode: { const: "b" }, then: { type: "string", minLength: 3 }, else: { type: "integer" } } },
+      ],
+    };
+    const validate = new Ajv({ allErrors: true, strictSchema: false, useDefaults: true }).compile(named);
+    expect(validateKeepingMasks(validate, { mode: MASKED_SECRET, then: "abcd", else: 1 })).toEqual([]);
+    const kept = validateKeepingMasks(validate, { mode: MASKED_SECRET, then: "x", else: "y" });
+    expect(kept.map(e => e.instancePath).sort()).toEqual(["/else", "/else", "/then", "/then"]);
+  });
+
   it("ignores what a branch of a conditional reports on a field inside a masked choice", () => {
     const deeper = {
       oneOf: [
