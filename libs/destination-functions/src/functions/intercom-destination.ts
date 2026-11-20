@@ -207,7 +207,7 @@ async function createOrUpdateContact(event: AnalyticsServerEvent, ctx: ExtendedC
     role: "user",
     external_id: event.userId || undefined,
     email,
-    last_seen_at: toDate(event.timestamp).toISOString(),
+    last_seen_at: Math.round(toDate(event.timestamp).getTime() / 1000),
     name:
       event.traits?.name ||
       (event.traits?.firstName && event.traits?.lastName
