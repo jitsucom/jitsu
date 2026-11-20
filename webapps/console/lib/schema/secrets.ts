@@ -185,8 +185,10 @@ function serviceSpecSecretPaths(properties: any): SpecPath[] {
 
   // One node of the schema, at `segments`: a field of an object, or the items of an array
   function visit(schema: any, segments: (string | typeof EACH)[], isItems: boolean) {
-    if (schema === null || typeof schema !== "object") {
-      return;
+    // A field schema that is not an object says nothing about the field, and a secret could hide behind it: the spec is
+    // malformed, so the caller masks every value (the walker has always failed on a null schema, it must keep failing)
+    if (schema === null || typeof schema !== "object" || Array.isArray(schema)) {
+      throw new Error(`Malformed connector spec: the schema of ${segments.join(".")} is not an object`);
     }
     if (schema.airbyte_secret === true) {
       add(segments);

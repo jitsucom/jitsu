@@ -77,6 +77,20 @@ describe("getServiceSecretPaths", () => {
       "properties that is not an object",
       () => mocks.findUnique.mockResolvedValue({ specs: { connectionSpecification: { properties: "x" } } }),
     ],
+    [
+      "a field schema that is null",
+      () =>
+        mocks.findUnique.mockResolvedValue({
+          specs: { connectionSpecification: { properties: { host: null, password: { airbyte_secret: true } } } },
+        }),
+    ],
+    [
+      "a field schema that is not an object",
+      () =>
+        mocks.findUnique.mockResolvedValue({
+          specs: { connectionSpecification: { properties: { host: "string", password: { airbyte_secret: true } } } },
+        }),
+    ],
     ["a failing lookup", () => mocks.findUnique.mockRejectedValue(new Error("db down"))],
   ];
 
