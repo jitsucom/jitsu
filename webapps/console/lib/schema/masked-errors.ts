@@ -26,6 +26,16 @@ function valueAtPointer(root: any, pointer: string): unknown {
   return node;
 }
 
+/** Whether `pointer` is `base` or inside it: `/rows/10` is not inside `/rows/1` */
+function isWithin(pointer: string, base: string): boolean {
+  return base === "" || pointer === base || pointer.startsWith(base + "/");
+}
+
+// The errors Ajv puts on the object of a choice for what a masked value stands for (the discriminator and the fields a
+// mode requires). Any other keyword there is about what the user supplied: `additionalProperties` says an option does
+// not take a field that was given
+const OWN_OBJECT_KEYWORDS = new Set(["required", "const", "enum", "oneOf", "anyOf"]);
+
 /** The node of the schema an Ajv `schemaPath` (`#/properties/a/oneOf`) points at, or undefined when it cannot be followed */
 function schemaNodeAt(schema: any, schemaPath: string): unknown {
   if (!schemaPath.startsWith("#/")) {
@@ -90,12 +100,12 @@ function maskedChoiceGroups(errors: FieldError[], credentials: any, schema: any)
     const satisfied = options.some((_option, i) =>
       errors
         .filter(
-          e => (e.schemaPath ?? "").startsWith(`${schemaPath}/${i}/`) && (e.instancePath ?? "").startsWith(instancePath)
+          e => (e.schemaPath ?? "").startsWith(`${schemaPath}/${i}/`) && isWithin(e.instancePath ?? "", instancePath)
         )
-        .every(
-          e =>
-            (e.instancePath ?? "") === instancePath ||
-            valueAtPointer(credentials, e.instancePath ?? "") === MASKED_SECRET
+        .every(e =>
+          (e.instancePath ?? "") === instancePath
+            ? OWN_OBJECT_KEYWORDS.has(e.keyword ?? "")
+            : valueAtPointer(credentials, e.instancePath ?? "") === MASKED_SECRET
         )
     );
     groups.push({ instancePath, schemaPath, satisfied });
@@ -119,7 +129,7 @@ export function withoutMaskedFieldErrors<T extends FieldError>(
     const schemaPath = error.schemaPath ?? "";
     const group = groups.find(
       g =>
-        pointer.startsWith(g.instancePath) && (schemaPath === g.schemaPath || schemaPath.startsWith(`${g.schemaPath}/`))
+        isWithin(pointer, g.instancePath) && (schemaPath === g.schemaPath || schemaPath.startsWith(`${g.schemaPath}/`))
     );
     if (group) {
       // about the choice's own object ("no option matches", "option N misses a field"): nothing to fix. About a field

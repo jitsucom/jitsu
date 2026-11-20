@@ -225,6 +225,49 @@ describe("a choice (oneOf) whose discriminator still holds the mask", () => {
     expect(kept.map(e => e.instancePath)).toEqual(["/timeout"]);
   });
 
+  it("tells the choice of row 1 from the choice of row 10: a pointer prefix is not a pointer ancestor", () => {
+    const rows = {
+      type: "object",
+      properties: {
+        rows: {
+          type: "array",
+          items: {
+            oneOf: [
+              { properties: { mode: { const: "a" }, port: { type: "integer", maximum: 10 } } },
+              { properties: { mode: { const: "b" }, port: { type: "integer", minimum: 100 } } },
+            ],
+          },
+        },
+      },
+    };
+    const validate = new Ajv({ allErrors: true, strictSchema: false, useDefaults: true }).compile(rows);
+    // every row is valid for one mode, row 10 for the other one than row 1
+    const list = Array.from({ length: 12 }, (_, i) => ({ mode: MASKED_SECRET, port: i === 10 ? 5 : 150 }));
+    expect(validateKeepingMasks(validate, { rows: list })).toEqual([]);
+    // row 11 fits neither mode: it is reported, and only it
+    list[11].port = 50;
+    expect(validateKeepingMasks(validate, { rows: list }).map(e => e.instancePath)).toEqual([
+      "/rows/11/port",
+      "/rows/11/port",
+    ]);
+  });
+
+  it("does not take an option that forbids a field the user supplied for one that fits", () => {
+    const managed = {
+      oneOf: [
+        { additionalProperties: false, properties: { mode: { const: "managed" } } },
+        { properties: { mode: { const: "manual" }, port: { type: "integer", minimum: 100 } } },
+      ],
+    };
+    const validate = new Ajv({ allErrors: true, strictSchema: false, useDefaults: true }).compile(managed);
+    // port 50 is wrong for manual, and managed does not take a port at all
+    const kept = validateKeepingMasks(validate, { mode: MASKED_SECRET, port: 50 });
+    expect(kept.some(e => e.instancePath === "/port" && e.keyword === "minimum")).toBe(true);
+    // port 150 fits manual; no port fits managed
+    expect(validateKeepingMasks(validate, { mode: MASKED_SECRET, port: 150 })).toEqual([]);
+    expect(validateKeepingMasks(validate, { mode: MASKED_SECRET })).toEqual([]);
+  });
+
   it("keeps the errors when the compiled schema is not given: it cannot tell a choice from a field", () => {
     const credentials: any = { host: "db.example", tunnel_method: { tunnel_method: MASKED_SECRET } };
     const validate = validatorOf();
