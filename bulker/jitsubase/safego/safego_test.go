@@ -1,9 +1,11 @@
 package safego
 
 import (
-	"github.com/stretchr/testify/require"
+	"sync/atomic"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/require"
 )
 
 func TestHandlePanicAndRestart(t *testing.T) {
@@ -16,20 +18,22 @@ func TestHandlePanicAndRestart(t *testing.T) {
 	GlobalRecoverHandler = func(value any) {
 	}
 
-	counter := 0
+	// counter is written by the restarted goroutine and read here.
+	var counter atomic.Int32
 
-	RunWithRestart(func() {
-		counter++
-		panic("panic")
-	}).WithRestartTimeout(50 * time.Millisecond)
+	exec := &Execution{
+		f: func() {
+			counter.Add(1)
+			panic("panic")
+		},
+		recoverHandler: GlobalRecoverHandler,
+		restartTimeout: 50 * time.Millisecond,
+	}
+	exec.run()
 
 	time.Sleep(200 * time.Millisecond)
-	require.True(t, counter > 1, "counter must be > 1")
+	require.Greater(t, counter.Load(), int32(1), "counter must be > 1")
 
 	time.Sleep(100 * time.Millisecond)
-	require.True(t, counter > 2, "counter must be > 2")
-
-	if counter == 0 {
-		t.Fail()
-	}
+	require.Greater(t, counter.Load(), int32(2), "counter must be > 2")
 }
