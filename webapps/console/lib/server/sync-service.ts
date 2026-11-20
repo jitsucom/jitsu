@@ -11,7 +11,7 @@ import { source_taskDbModel } from "../../prisma/schema";
 import { verifyAccess, verifyAccessWithRole } from "../api";
 import { ApiError } from "../shared/errors";
 import { containsMaskedSecrets, unmaskSecretsFromOriginal } from "../schema/secrets";
-import { applyServiceSpecDefaults } from "../schema/service-defaults";
+import { applyServiceSpecDefaults, serviceUnmaskOptions } from "../schema/service-defaults";
 import { withSchemaDefaults } from "../schema/config-objects";
 import { scheduleSync, ScheduleSyncResult, syncError } from "./sync";
 import { getServerEnv } from "./serverEnv";
@@ -437,12 +437,14 @@ export class SyncService {
       }
       if (existing && containsMaskedSecrets(source)) {
         log.atInfo().log(`Unmasking secrets for service check: ${source.id}`);
+        const comparedWith = withSchemaDefaults("service", existing.config);
         source = unmaskSecretsFromOriginal(
           source,
           existing.config as any,
-          withSchemaDefaults("service", existing.config)
+          comparedWith,
+          await serviceUnmaskOptions("service", existing.config)
         );
-        source = await applyServiceSpecDefaults("service", source);
+        source = await applyServiceSpecDefaults("service", source, comparedWith);
       }
     } else {
       const serviceId = requireDefined(opts.serviceId, "either `config` or `serviceId` must be provided");

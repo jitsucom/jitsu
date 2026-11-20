@@ -82,3 +82,66 @@ describe("triggerSourceCheck with masked credentials", () => {
     expect(sent().credentials).toEqual({ host: "h", password: "real" });
   });
 });
+
+describe("a default must not move the connection target of a restored password", () => {
+  const targetSpec = {
+    type: "object",
+    properties: {
+      api_url: { type: "string", default: "https://api.default.example" },
+      password: { type: "string", airbyte_secret: true },
+    },
+  };
+  const storedWith = (credentials: any) => ({ ...stored, credentials });
+  const arrange = (credentials: any) => {
+    mocks.findUnique.mockResolvedValue({ specs: { connectionSpecification: targetSpec } });
+    mocks.findFirst.mockResolvedValue({ workspaceId: "ws1", config: storedWith(credentials) });
+  };
+
+  it("refuses a check that leaves out the stored api_url, so the spec default would take its place", async () => {
+    arrange({ api_url: "https://self-hosted.example", password: "real" });
+    await expect(check(storedWith({ password: MASKED_SECRET }))).rejects.toThrow(/api_url changed/);
+    expect(mocks.rpc).not.toHaveBeenCalled();
+  });
+
+  it("lets it through when the stored service leaves api_url to the spec as well", async () => {
+    arrange({ password: "real" });
+    await check(storedWith({ password: MASKED_SECRET }));
+    expect(sent().credentials).toEqual({ api_url: "https://api.default.example", password: "real" });
+  });
+
+  it("lets it through when the stored api_url is the default and the check names it", async () => {
+    arrange({ api_url: "https://api.default.example", password: "real" });
+    await check(storedWith({ api_url: "https://api.default.example", password: MASKED_SECRET }));
+    expect(sent().credentials).toEqual({ api_url: "https://api.default.example", password: "real" });
+  });
+
+  it("restores an unchanged list of entries whose plain fields are public, with a usable spec", async () => {
+    const listSpec = {
+      type: "object",
+      properties: {
+        applications: {
+          type: "array",
+          items: {
+            type: "object",
+            properties: { app_name: { type: "string" }, app_api_key: { type: "string", airbyte_secret: true } },
+          },
+        },
+      },
+    };
+    mocks.findUnique.mockResolvedValue({ specs: { connectionSpecification: listSpec } });
+    const apps = [
+      { app_name: "web", app_api_key: "key-1" },
+      { app_name: "ios", app_api_key: "key-2" },
+    ];
+    mocks.findFirst.mockResolvedValue({ workspaceId: "ws1", config: storedWith({ applications: apps }) });
+    await check(
+      storedWith({
+        applications: [
+          { app_name: "web", app_api_key: MASKED_SECRET },
+          { app_name: "ios", app_api_key: MASKED_SECRET },
+        ],
+      })
+    );
+    expect(sent().credentials).toEqual({ applications: apps });
+  });
+});

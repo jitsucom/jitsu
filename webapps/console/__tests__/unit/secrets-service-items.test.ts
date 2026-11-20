@@ -17,7 +17,8 @@ vi.mock("../../lib/server/log", async importOriginal => ({
 
 import { MASKED_SECRET } from "../../lib/schema/destinations";
 import { getConfigObjectType } from "../../lib/schema/config-objects";
-import { getServiceSecretPaths } from "../../lib/schema/secrets";
+import { changedConnectionTargets, getServiceSecretPaths, unmaskSecretsFromOriginal } from "../../lib/schema/secrets";
+import { serviceUnmaskOptions } from "../../lib/schema/service-defaults";
 
 let counter = 0;
 const freshPackage = () => `airbyte/source-items-${++counter}`;
@@ -210,5 +211,72 @@ describe("saving a service whose array entries hold secrets", () => {
     );
     expect(merged.credentials.applications).toEqual(fresh);
     expect(merged.credentials.user_auth_key).toBe("uk");
+  });
+});
+
+describe("test connection and clone of a service whose array entries hold secrets", () => {
+  const stored = () => service("airbyte/source-items-unmask", { user_auth_key: "uk", applications: apps() });
+  const shown = async () => {
+    mocks.findUnique.mockResolvedValue(rowWith(onesignal));
+    return (await type.outputFilter(stored() as any)).credentials;
+  };
+  const submit = (credentials: any) => ({ ...stored(), credentials });
+  const PUBLIC = { visibleValuesPublic: true };
+
+  it("restores an unchanged list when the spec is usable: the plain values of an entry are public", async () => {
+    const credentials = await shown();
+    const out = unmaskSecretsFromOriginal(submit(credentials), stored(), stored(), PUBLIC);
+    expect(out.credentials).toEqual(stored().credentials);
+  });
+
+  it("still refuses such a list when the plain values may be secrets (no option: no usable spec)", async () => {
+    const credentials = await shown();
+    expect(() => unmaskSecretsFromOriginal(submit(credentials), stored(), stored())).toThrow(
+      /credentials\.applications/
+    );
+  });
+
+  it("refuses an edited visible value, a deleted entry and an added one, option or not", async () => {
+    for (const edit of [
+      (c: any) => (c.applications[0].app_name = "renamed"),
+      (c: any) => c.applications.shift(),
+      (c: any) => c.applications.push({ app_name: "new", app_id: MASKED_SECRET, app_api_key: MASKED_SECRET }),
+    ]) {
+      const credentials = await shown();
+      edit(credentials);
+      expect(() => unmaskSecretsFromOriginal(submit(credentials), stored(), stored(), PUBLIC)).toThrow(
+        /credentials\.applications/
+      );
+    }
+  });
+
+  it("does not take an unchanged half-masked list of targets for a change when the spec is usable", () => {
+    const hosts = { ...stored(), credentials: { hosts: ["a.example:1", "b.example:1"], password: "pw" } };
+    const submitted = { ...hosts, credentials: { hosts: [MASKED_SECRET, "b.example:1"], password: MASKED_SECRET } };
+    expect(changedConnectionTargets(submitted, hosts, PUBLIC)).toEqual([]);
+    expect(changedConnectionTargets(submitted, hosts)).toEqual(["credentials.hosts"]);
+    const typed = { ...hosts, credentials: { hosts: [MASKED_SECRET, "c.example:1"], password: MASKED_SECRET } };
+    expect(changedConnectionTargets(typed, hosts, PUBLIC)).toEqual(["credentials.hosts"]);
+  });
+
+  describe("serviceUnmaskOptions", () => {
+    it("is on for a stored service whose spec is usable", async () => {
+      mocks.findUnique.mockResolvedValue(rowWith(onesignal));
+      expect(await serviceUnmaskOptions("service", stored())).toEqual({ visibleValuesPublic: true });
+    });
+
+    it("is off with no spec, an unusable one or a failing lookup, and for any other type", async () => {
+      for (const arrange of [
+        () => mocks.findUnique.mockResolvedValue(null),
+        () => mocks.findUnique.mockResolvedValue({ specs: { connectionSpecification: {} } }),
+        () => mocks.findUnique.mockRejectedValue(new Error("db down")),
+      ]) {
+        arrange();
+        expect((await serviceUnmaskOptions("service", stored())).visibleValuesPublic).toBeFalsy();
+      }
+      mocks.findUnique.mockResolvedValue(rowWith(onesignal));
+      expect(await serviceUnmaskOptions("destination", stored())).toEqual({});
+      expect(await serviceUnmaskOptions("service", { credentials: {} })).toEqual({});
+    });
   });
 });

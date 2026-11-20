@@ -380,6 +380,16 @@ const LIST_NOT_SAVED = (path: string[]) =>
     { status: 400 }
   );
 
+export type UnmaskOptions = { visibleValuesPublic?: boolean };
+
+const targetsChanged = (changed: string[]) =>
+  new ApiError(
+    `Cannot reuse saved secrets because ${changed.join(", ")} changed. Enter the secret values again to continue.`,
+    {
+      status: 400,
+    }
+  );
+
 const KEEP_STORED = Symbol("keep stored value");
 
 /**
@@ -439,16 +449,25 @@ export function removeMaskedCredentials(obj: any, stored?: any): any {
  * @param object - The d object being sent
  * @param dbEntity - The original entity from database containing real secret values
  * @param comparedWith - The original entity with schema defaults applied, to tell a changed target from a default
+ * @param options - `visibleValuesPublic`: the connector spec is usable, so every value that is not a mask is one the caller
+ *   could read anyway, and a list that holds masks may be compared with the stored one value by value. Without it the
+ *   values of such a list could be secrets (a missing spec masks all of them), and comparing a guess with them would tell
+ *   a caller whether it is right, so only a list masked all the way through is kept.
  * @returns A new object with masked secrets replaced by values from db
  */
-export function unmaskSecretsFromOriginal(object: any, dbEntity: any, comparedWith: any = dbEntity): any {
+export function unmaskSecretsFromOriginal(
+  object: any,
+  dbEntity: any,
+  comparedWith: any = dbEntity,
+  options: UnmaskOptions = {}
+): any {
   if (!object || !dbEntity) {
     return object;
   }
 
   // `object` is parsed with the schema defaults (a PostHog config without a host gets the default host), the stored
   // config is not, so callers pass the stored one with the same defaults applied to compare against.
-  const changedTargets = changedConnectionTargets(object, comparedWith);
+  const changedTargets = changedConnectionTargets(object, comparedWith, options);
   // Only signing keys masked (webhook signatureSecret): they sign requests and are never sent to the target
   const onlySigningKeysMasked = maskedPaths(object).every(path => isSigningKey(dbEntity, path[path.length - 1]));
   const breakers = connectionStringBreakers(object, comparedWith);
@@ -457,19 +476,14 @@ export function unmaskSecretsFromOriginal(object: any, dbEntity: any, comparedWi
   }
   if (changedTargets.length > 0 && !onlySigningKeysMasked) {
     // Restoring the stored password into a config that points somewhere else would send it to that host
-    throw new ApiError(
-      `Cannot reuse saved secrets because ${changedTargets.join(
-        ", "
-      )} changed. Enter the secret values again to continue.`,
-      { status: 400 }
-    );
+    throw targetsChanged(changedTargets);
   }
 
   // Deep clone object to avoid mutating the original
   const result = JSON.parse(JSON.stringify(object));
 
   // Recursively find and replace masked secrets
-  replaceMaskedSecrets(result, dbEntity, []);
+  replaceMaskedSecrets(result, dbEntity, [], options);
 
   return result;
 }
@@ -532,14 +546,30 @@ const targetMatcherFor = (updated: any, original: any): TargetMatcher => {
  * Only meaningful for an object that contains masked secrets: it tells whether the stored secrets
  * would be carried over to a different target.
  */
-export function changedConnectionTargets(object: any, original: any): string[] {
+export function changedConnectionTargets(object: any, original: any, options: UnmaskOptions = {}): string[] {
   return containsMaskedSecrets(object)
     ? [
         ...changedDestinationType(object, original),
         ...changedServiceImage(object, original),
-        ...findChangedTargets(object, original, [], targetMatcherFor(object, original)),
+        ...findChangedTargets(object, original, [], targetMatcherFor(object, original), options),
       ]
     : [];
+}
+
+/**
+ * For a config whose masks are already replaced by the stored values: throws when its connection target is not the stored
+ * one. The checks before the restore saw only what the caller sent; anything added afterwards (the defaults of the
+ * connector spec) could point a field somewhere else while the stored secrets go with it.
+ */
+export function assertTargetsUnchanged(object: any, original: any): void {
+  const changed = [
+    ...changedDestinationType(object, original),
+    ...changedServiceImage(object, original),
+    ...findChangedTargets(object, original, [], targetMatcherFor(object, original), {}),
+  ];
+  if (changed.length > 0) {
+    throw targetsChanged(changed);
+  }
 }
 
 /**
@@ -569,9 +599,15 @@ function changedServiceImage(updated: any, original: any): string[] {
     : [];
 }
 
-function findChangedTargets(node: any, original: any, path: (string | number)[], matcher: TargetMatcher): string[] {
+function findChangedTargets(
+  node: any,
+  original: any,
+  path: (string | number)[],
+  matcher: TargetMatcher,
+  options: UnmaskOptions
+): string[] {
   if (Array.isArray(node)) {
-    return node.flatMap((item, index) => findChangedTargets(item, original, [...path, index], matcher));
+    return node.flatMap((item, index) => findChangedTargets(item, original, [...path, index], matcher, options));
   }
   if (!isPlainObject(node)) {
     return [];
@@ -580,7 +616,7 @@ function findChangedTargets(node: any, original: any, path: (string | number)[],
     const currentPath = [...path, key];
     const isTarget = matcher.isTarget(key, path);
     if ((isPlainObject(value) || Array.isArray(value)) && !(isTarget && matcher.isOneValue(value))) {
-      return findChangedTargets(value, original, currentPath, matcher);
+      return findChangedTargets(value, original, currentPath, matcher, options);
     }
     if (value === MASKED_SECRET || !isTarget) {
       return [];
@@ -594,7 +630,10 @@ function findChangedTargets(node: any, original: any, path: (string | number)[],
     // masked all the way through counts: a connection test needs just workspace membership, so comparing a plain value
     // of a half-masked list with the stored one would tell a caller whether a guess is right
     if (containsMaskedSecrets(value)) {
-      return isEqual(value, maskedShape(before)) ? [] : [currentPath.join(".")];
+      const unchanged = options.visibleValuesPublic
+        ? sameExceptMasks(value, before)
+        : isEqual(value, maskedShape(before));
+      return unchanged ? [] : [currentPath.join(".")];
     }
     return isEqual(value, before) ? [] : [currentPath.join(".")];
   });
@@ -774,7 +813,7 @@ export function assertSecretsStayWithTarget(original: any, patch: any, merged: a
  * @param dbEntity - Original entity from database
  * @param path - Current path in the object structure
  */
-function replaceMaskedSecrets(obj: any, dbEntity: any, path: (string | number)[]): void {
+function replaceMaskedSecrets(obj: any, dbEntity: any, path: (string | number)[], options: UnmaskOptions): void {
   if (!isPlainObject(obj) && !Array.isArray(obj)) {
     return;
   }
@@ -786,7 +825,7 @@ function replaceMaskedSecrets(obj: any, dbEntity: any, path: (string | number)[]
       // (a row deleted in the editor shifts the rest). Only a list that is masked all the way through counts: a
       // connection test needs just workspace membership, so comparing any plain value with the stored one would
       // tell a caller whether a guessed secret is right.
-      if (!isEqual(obj, maskedShape(stored))) {
+      if (!(options.visibleValuesPublic ? sameExceptMasks(obj, stored) : isEqual(obj, maskedShape(stored)))) {
         throw LIST_CHANGED(path.map(String));
       }
       obj.splice(0, obj.length, ...JSON.parse(JSON.stringify(stored)));
@@ -800,7 +839,7 @@ function replaceMaskedSecrets(obj: any, dbEntity: any, path: (string | number)[]
           obj[index] = dbValue;
         }
       } else if (isPlainObject(item) || Array.isArray(item)) {
-        replaceMaskedSecrets(item, dbEntity, [...path, index]);
+        replaceMaskedSecrets(item, dbEntity, [...path, index], options);
       }
     });
   } else {
@@ -815,7 +854,7 @@ function replaceMaskedSecrets(obj: any, dbEntity: any, path: (string | number)[]
           obj[key] = dbValue;
         }
       } else if (isPlainObject(value) || Array.isArray(value)) {
-        replaceMaskedSecrets(value, dbEntity, currentPath);
+        replaceMaskedSecrets(value, dbEntity, currentPath, options);
       }
     });
   }

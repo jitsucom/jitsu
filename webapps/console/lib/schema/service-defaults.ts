@@ -2,6 +2,7 @@ import Ajv, { ValidateFunction } from "ajv";
 import isPlainObject from "lodash/isPlainObject";
 import { db } from "../server/db";
 import { getServerLog } from "../server/log";
+import { assertTargetsUnchanged, UnmaskOptions } from "./secrets";
 
 const log = getServerLog("service-defaults");
 
@@ -72,7 +73,35 @@ export async function withServiceSpecDefaults<T extends { package?: any; version
   }
 }
 
-/** Only a service has a connector spec: any other type comes back as it is */
-export async function applyServiceSpecDefaults<T>(type: string, object: T): Promise<T> {
-  return type === "service" ? withServiceSpecDefaults(object as any) : object;
+/**
+ * What the unmasking of a saved service may assume. With a usable connector spec only the fields it marks as secret are
+ * masked, so every other value in the submitted config is one the caller could read, and a list that holds masks may be
+ * compared with the stored one. A lookup that fails counts as no spec. Any other type has nothing to assume.
+ */
+export async function serviceUnmaskOptions(type: string, stored: any): Promise<UnmaskOptions> {
+  if (type !== "service" || typeof stored?.package !== "string" || typeof stored?.version !== "string") {
+    return {};
+  }
+  try {
+    return { visibleValuesPublic: !!(await usableSpec(stored.package, stored.version)) };
+  } catch {
+    return {};
+  }
+}
+
+/**
+ * Only a service has a connector spec: any other type comes back as it is. `comparedWith` is the stored service: a
+ * default must not point a connection target somewhere else than the stored one, because the stored secrets go with
+ * it. A default is compared with the stored service's own defaults, so a field the stored service leaves to the spec is
+ * the same on both sides.
+ */
+export async function applyServiceSpecDefaults<T>(type: string, object: T, comparedWith?: any): Promise<T> {
+  if (type !== "service") {
+    return object;
+  }
+  const withDefaults = await withServiceSpecDefaults(object as any);
+  if (withDefaults !== object && comparedWith) {
+    assertTargetsUnchanged(withDefaults, await withServiceSpecDefaults(comparedWith));
+  }
+  return withDefaults as T;
 }
