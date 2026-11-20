@@ -221,11 +221,14 @@ describe("test connection and clone of a service whose array entries hold secret
     return (await type.outputFilter(stored() as any)).credentials;
   };
   const submit = (credentials: any) => ({ ...stored(), credentials });
-  const PUBLIC = { visibleValuesPublic: true };
+  const usable = async () => {
+    mocks.findUnique.mockResolvedValue(rowWith(onesignal));
+    return serviceUnmaskOptions("service", stored());
+  };
 
   it("restores an unchanged list when the spec is usable: the plain values of an entry are public", async () => {
     const credentials = await shown();
-    const out = unmaskSecretsFromOriginal(submit(credentials), stored(), stored(), PUBLIC);
+    const out = unmaskSecretsFromOriginal(submit(credentials), stored(), stored(), await usable());
     expect(out.credentials).toEqual(stored().credentials);
   });
 
@@ -237,6 +240,7 @@ describe("test connection and clone of a service whose array entries hold secret
   });
 
   it("refuses an edited visible value, a deleted entry and an added one, option or not", async () => {
+    const options = await usable();
     for (const edit of [
       (c: any) => (c.applications[0].app_name = "renamed"),
       (c: any) => c.applications.shift(),
@@ -244,25 +248,73 @@ describe("test connection and clone of a service whose array entries hold secret
     ]) {
       const credentials = await shown();
       edit(credentials);
-      expect(() => unmaskSecretsFromOriginal(submit(credentials), stored(), stored(), PUBLIC)).toThrow(
+      expect(() => unmaskSecretsFromOriginal(submit(credentials), stored(), stored(), options)).toThrow(
         /credentials\.applications/
       );
     }
   });
 
   it("does not take an unchanged half-masked list of targets for a change when the spec is usable", () => {
+    // the spec marks the password a secret and nothing else: the second host is public
+    const publicHosts = { isSecretAt: (keys: string[]) => keys.join(".") === "credentials.password" };
     const hosts = { ...stored(), credentials: { hosts: ["a.example:1", "b.example:1"], password: "pw" } };
     const submitted = { ...hosts, credentials: { hosts: [MASKED_SECRET, "b.example:1"], password: MASKED_SECRET } };
-    expect(changedConnectionTargets(submitted, hosts, PUBLIC)).toEqual([]);
+    expect(changedConnectionTargets(submitted, hosts, publicHosts)).toEqual([]);
     expect(changedConnectionTargets(submitted, hosts)).toEqual(["credentials.hosts"]);
     const typed = { ...hosts, credentials: { hosts: [MASKED_SECRET, "c.example:1"], password: MASKED_SECRET } };
-    expect(changedConnectionTargets(typed, hosts, PUBLIC)).toEqual(["credentials.hosts"]);
+    expect(changedConnectionTargets(typed, hosts, publicHosts)).toEqual(["credentials.hosts"]);
+  });
+
+  it("does not compare a plain value at a position the spec marks secret, so a guess cannot be confirmed", async () => {
+    const options = await usable();
+    const outcome = (field: "app_id" | "app_api_key", guess: string) => {
+      const credentials = JSON.parse(JSON.stringify(stored().credentials));
+      for (const app of credentials.applications) {
+        app.app_id = MASKED_SECRET;
+        app.app_api_key = MASKED_SECRET;
+      }
+      credentials.user_auth_key = MASKED_SECRET;
+      credentials.applications[0][field] = guess;
+      try {
+        return unmaskSecretsFromOriginal(submit(credentials), stored(), stored(), options);
+      } catch (e: any) {
+        return e.message;
+      }
+    };
+    for (const [field, right, wrong] of [
+      ["app_id", "id-1", "nope"],
+      ["app_api_key", "key-1", "nope"],
+    ] as const) {
+      const hit = outcome(field, right);
+      expect(typeof hit).toBe("string");
+      expect(hit).toMatch(/credentials\.applications/);
+      expect(hit).toEqual(outcome(field, wrong));
+    }
+  });
+
+  it("does not compare it in a list of targets either", () => {
+    const secretHosts = { isSecretAt: (keys: string[]) => keys[1] === "hosts" || keys[1] === "password" };
+    const hosts = { ...stored(), credentials: { hosts: ["a.example:1", "b.example:1"], password: "pw" } };
+    const outcome = (second: string) =>
+      changedConnectionTargets(
+        { ...hosts, credentials: { hosts: [MASKED_SECRET, second], password: MASKED_SECRET } },
+        hosts,
+        secretHosts
+      );
+    expect(outcome("b.example:1")).toEqual(["credentials.hosts"]);
+    expect(outcome("b.example:1")).toEqual(outcome("c.example:1"));
   });
 
   describe("serviceUnmaskOptions", () => {
-    it("is on for a stored service whose spec is usable", async () => {
+    it("says which positions of a stored service its usable spec marks secret", async () => {
       mocks.findUnique.mockResolvedValue(rowWith(onesignal));
-      expect(await serviceUnmaskOptions("service", stored())).toEqual({ visibleValuesPublic: true });
+      const { isSecretAt } = await serviceUnmaskOptions("service", stored());
+      expect(isSecretAt).toBeTypeOf("function");
+      expect(isSecretAt!(["credentials", "user_auth_key"])).toBe(true);
+      expect(isSecretAt!(["credentials", "applications", "1", "app_api_key"])).toBe(true);
+      expect(isSecretAt!(["credentials", "applications", "1", "app_id"])).toBe(true);
+      expect(isSecretAt!(["credentials", "applications", "1", "app_name"])).toBe(false);
+      expect(isSecretAt!(["credentials", "applications", "5", "app_api_key"])).toBe(false);
     });
 
     it("is off with no spec, an unusable one or a failing lookup, and for any other type", async () => {
@@ -272,7 +324,7 @@ describe("test connection and clone of a service whose array entries hold secret
         () => mocks.findUnique.mockRejectedValue(new Error("db down")),
       ]) {
         arrange();
-        expect((await serviceUnmaskOptions("service", stored())).visibleValuesPublic).toBeFalsy();
+        expect((await serviceUnmaskOptions("service", stored())).isSecretAt).toBeUndefined();
       }
       mocks.findUnique.mockResolvedValue(rowWith(onesignal));
       expect(await serviceUnmaskOptions("destination", stored())).toEqual({});

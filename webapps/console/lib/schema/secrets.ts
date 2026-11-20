@@ -326,7 +326,12 @@ export function removeMaskedValues(obj: any, secretPaths: SecretPath[]): any {
  * here", so it can be trusted only while nothing around it moved. Values the editor puts back by itself (a constant
  * field) are equal to the stored ones, so a list that only had its secrets masked still passes.
  */
-export function sameExceptMasks(value: any, stored: any): boolean {
+export function sameExceptMasks(
+  value: any,
+  stored: any,
+  isSecretAt?: (keys: string[]) => boolean,
+  keys: string[] = []
+): boolean {
   if (value === MASKED_SECRET) {
     return true;
   }
@@ -334,15 +339,22 @@ export function sameExceptMasks(value: any, stored: any): boolean {
     return (
       Array.isArray(stored) &&
       value.length === stored.length &&
-      value.every((item, i) => sameExceptMasks(item, stored[i]))
+      value.every((item, i) => sameExceptMasks(item, stored[i], isSecretAt, [...keys, String(i)]))
     );
   }
   if (isPlainObject(value)) {
     return (
       isPlainObject(stored) &&
       Object.keys(value).length === Object.keys(stored).length &&
-      Object.keys(value).every(key => hasOwn(stored, key) && sameExceptMasks(value[key], stored[key]))
+      Object.keys(value).every(
+        key => hasOwn(stored, key) && sameExceptMasks(value[key], stored[key], isSecretAt, [...keys, key])
+      )
     );
+  }
+  // A plain value where the spec says there is a secret is never compared with the stored one: whether it matches
+  // would tell a caller who cannot read the secret that a guess is right
+  if (isSecretAt?.(keys)) {
+    return false;
   }
   return isEqual(value, stored);
 }
@@ -380,7 +392,19 @@ const LIST_NOT_SAVED = (path: string[]) =>
     { status: 400 }
   );
 
-export type UnmaskOptions = { visibleValuesPublic?: boolean };
+/**
+ * `isSecretAt` is given when the connector spec is usable: it says which positions (keys from the service, such as
+ * `["credentials", "applications", "0", "app_api_key"]`) the spec marks secret. Every other value is one the caller can
+ * read, so a list that holds masks may be compared with the stored one there. Without it any value may be a secret (a
+ * missing spec masks all of them) and nothing is compared: only a list masked all the way through is kept.
+ */
+export type UnmaskOptions = { isSecretAt?: (keys: string[]) => boolean };
+
+/** `isSecretAt` for a list of secret paths: the dotted ones of a spec and the key lists of the stored arrays' entries */
+export function secretPositions(paths: SecretPath[]): (keys: string[]) => boolean {
+  const known = new Set(paths.map(path => JSON.stringify(typeof path === "string" ? path.split(".") : path)));
+  return keys => known.has(JSON.stringify(keys));
+}
 
 const targetsChanged = (changed: string[]) =>
   new ApiError(
@@ -449,10 +473,7 @@ export function removeMaskedCredentials(obj: any, stored?: any): any {
  * @param object - The d object being sent
  * @param dbEntity - The original entity from database containing real secret values
  * @param comparedWith - The original entity with schema defaults applied, to tell a changed target from a default
- * @param options - `visibleValuesPublic`: the connector spec is usable, so every value that is not a mask is one the caller
- *   could read anyway, and a list that holds masks may be compared with the stored one value by value. Without it the
- *   values of such a list could be secrets (a missing spec masks all of them), and comparing a guess with them would tell
- *   a caller whether it is right, so only a list masked all the way through is kept.
+ * @param options - see `UnmaskOptions`
  * @returns A new object with masked secrets replaced by values from db
  */
 export function unmaskSecretsFromOriginal(
@@ -630,8 +651,8 @@ function findChangedTargets(
     // masked all the way through counts: a connection test needs just workspace membership, so comparing a plain value
     // of a half-masked list with the stored one would tell a caller whether a guess is right
     if (containsMaskedSecrets(value)) {
-      const unchanged = options.visibleValuesPublic
-        ? sameExceptMasks(value, before)
+      const unchanged = options.isSecretAt
+        ? sameExceptMasks(value, before, options.isSecretAt, currentPath.map(String))
         : isEqual(value, maskedShape(before));
       return unchanged ? [] : [currentPath.join(".")];
     }
@@ -825,7 +846,10 @@ function replaceMaskedSecrets(obj: any, dbEntity: any, path: (string | number)[]
       // (a row deleted in the editor shifts the rest). Only a list that is masked all the way through counts: a
       // connection test needs just workspace membership, so comparing any plain value with the stored one would
       // tell a caller whether a guessed secret is right.
-      if (!(options.visibleValuesPublic ? sameExceptMasks(obj, stored) : isEqual(obj, maskedShape(stored)))) {
+      const unchanged = options.isSecretAt
+        ? sameExceptMasks(obj, stored, options.isSecretAt, path.map(String))
+        : isEqual(obj, maskedShape(stored));
+      if (!unchanged) {
         throw LIST_CHANGED(path.map(String));
       }
       obj.splice(0, obj.length, ...JSON.parse(JSON.stringify(stored)));
