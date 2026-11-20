@@ -41,6 +41,8 @@ func testConsumerRuntimeReplayAfterRebalance(t *testing.T, strategy string) {
 	assigned, epoch, err := runtime.assignment(15 * time.Second)
 	require.NoError(t, err)
 	require.Len(t, assigned, partitionCount)
+	batchWriter := &BatchConsumerImpl{AbstractBatchConsumer: &AbstractBatchConsumer{AbstractConsumer: &AbstractConsumer{topicId: topic}, consumer: runtime}}
+	require.NoError(t, batchWriter.requireWholeTopicAssignment(assigned, epoch))
 	producer, err := kafka.NewProducer(&kafka.ConfigMap{"bootstrap.servers": cluster.BootstrapServers()})
 	require.NoError(t, err)
 	defer producer.Close()
@@ -97,6 +99,9 @@ func testConsumerRuntimeReplayAfterRebalance(t *testing.T, strategy string) {
 	require.NoError(t, err)
 	require.Len(t, assigned, 1)
 	require.Greater(t, newEpoch, epoch)
+	if partitionCount > 1 {
+		require.ErrorContains(t, batchWriter.requireWholeTopicAssignment(assigned, newEpoch), "requires one writer")
+	}
 	t.Logf("%s rebalance assigned partition %d at epoch %d -> %d", strategy, assigned[0].Partition, epoch, newEpoch)
 	produce(assigned[0].Partition, "next batch")
 	msg, err := runtime.readMessage(5*time.Second, newEpoch)

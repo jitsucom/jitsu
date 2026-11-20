@@ -73,7 +73,7 @@ func TestBatchConsumerWaitsForBackgroundReplacementAssignment(t *testing.T) {
 		mode:             "batch",
 		batchPeriodSec:   300,
 		batchSizeFunc:    func(*bulker.StreamOptions) (int, int, int) { return 1, 1, 1 },
-		batchFunc: func(*Destination, int, int, int, int, int64, int, uint64) (BatchCounters, bulker.State, bool, error) {
+		batchFunc: func(*Destination, int, int, int, int, *batchWindow, uint64) (BatchCounters, bulker.State, bool, error) {
 			batchCalls++
 			return BatchCounters{consumed: 1, processed: 1}, bulker.State{}, false, nil
 		},

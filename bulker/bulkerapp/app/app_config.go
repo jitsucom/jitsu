@@ -55,6 +55,12 @@ type Config struct {
 	// `dead` and `retries`
 	TopicManagerAllTableToken string `mapstructure:"TOPIC_MANAGER_ALL_TABLE_TOKEN" default:"_all_"`
 
+	// KafkaBatchTopicPartitions is a JSON object mapping exact batch topic names to partition counts.
+	KafkaBatchTopicPartitions string `mapstructure:"KAFKA_BATCH_TOPIC_PARTITIONS"`
+	// Expansion is irreversible. Enable only after all consumers support multiple partitions.
+	KafkaBatchTopicPartitionExpansion bool `mapstructure:"KAFKA_BATCH_TOPIC_PARTITION_EXPANSION" default:"false"`
+	batchTopicPartitions              map[string]int
+
 	// # BATCHING
 
 	BatchRunnerPeriodSec          int `mapstructure:"BATCH_RUNNER_DEFAULT_PERIOD_SEC" default:"300"`
@@ -113,5 +119,5 @@ func (ac *Config) PostInit(settings *appbase.AppSettings) error {
 		return err
 	}
 	ac.GlobalHashSecrets = strings.Split(ac.GlobalHashSecret, ",")
-	return nil
+	return ac.parseBatchTopicPartitions()
 }

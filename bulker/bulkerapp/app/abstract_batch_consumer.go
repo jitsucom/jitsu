@@ -3,8 +3,8 @@ package app
 import (
 	"errors"
 	"fmt"
-	"math"
 	"reflect"
+	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -16,6 +16,7 @@ import (
 	"github.com/jitsucom/bulker/jitsubase/safego"
 	"github.com/jitsucom/bulker/jitsubase/utils"
 	"github.com/jitsucom/bulker/kafkabase"
+	"github.com/prometheus/client_golang/prometheus"
 )
 
 // retryTimeHeader - time of scheduled retry
@@ -26,8 +27,8 @@ const originalTopicHeader = "original_topic"
 const errorHeader = "error"
 
 type BatchSizesFunction func(*bulker.StreamOptions) (batchSize int, batchSizeBytes int, retryBatchSize int)
-type BatchFunction func(destination *Destination, batchNum, batchSize, batchSizeBytes, retryBatchSize int, highOffset int64, updatedHighOffset int, consumerEpoch uint64) (counters BatchCounters, state bulker.State, nextBatch bool, err error)
-type ShouldConsumeFunction func(partitionId int32, committedOffset, highOffset int64, consumerEpoch uint64) bool
+type BatchFunction func(destination *Destination, batchNum, batchSize, batchSizeBytes, retryBatchSize int, window *batchWindow, consumerEpoch uint64) (counters BatchCounters, state bulker.State, nextBatch bool, err error)
+type ShouldConsumeFunction func(window *batchWindow, consumerEpoch uint64) (bool, error)
 
 type BatchConsumer interface {
 	Consumer
@@ -66,6 +67,7 @@ type AbstractBatchConsumer struct {
 	batchSizeFunc     BatchSizesFunction
 	batchFunc         BatchFunction
 	shouldConsumeFunc ShouldConsumeFunction
+	assignmentCheck   func([]kafka.TopicPartition, uint64) error
 }
 
 func NewAbstractBatchConsumer(repository *Repository, destinationId string, batchPeriodSec int, topicId, mode string, config *Config, kafkaConfig *kafka.ConfigMap, bulkerProducer *Producer, topicManager *TopicManager) (*AbstractBatchConsumer, error) {
@@ -225,31 +227,28 @@ func (bc *AbstractBatchConsumer) ConsumeAll() (counters BatchCounters, err error
 	}
 	startedAt := time.Now()
 	var totalState bulker.State
-	counters.firstOffset = int64(kafka.OffsetBeginning)
 	bc.Debugf("Starting consuming messages from topic")
 	bc.idle.Store(false)
-	commitedOffset := int64(kafka.OffsetBeginning)
-	var highOffset int64
-	var updatedHighOffset int64
+	var starts, ends partitionOffsets
 	defer func() {
 		sec := time.Since(startedAt).Seconds()
 		if err != nil {
 			metrics.ConsumerRuns(bc.topicId, bc.mode, bc.destinationId, bc.tableName, "fail").Inc()
-			bc.Errorf("Consume finished with error: %v stats: %s offsets: %d-%d time: %.2f s.", err, counters.String(), commitedOffset, highOffset, sec)
+			bc.Errorf("Consume finished with error: %v stats: %s offsets: %v -> %v time: %.2f s.", err, counters.String(), starts.slice(), ends.slice(), sec)
 		} else {
 			metrics.ConsumerRuns(bc.topicId, bc.mode, bc.destinationId, bc.tableName, "success").Inc()
 			if counters.processed > 0 {
-				bc.Infof("Successfully %s offsets: %d-%d time: %.2f s. AvgSpd: %.2f e/s. States: %s", counters.String(), commitedOffset, highOffset, sec, float64(counters.processed)/sec, totalState.PrintWarehouseState())
+				bc.Infof("Successfully %s offsets: %v -> %v time: %.2f s. AvgSpd: %.2f e/s. States: %s", counters.String(), starts.slice(), ends.slice(), sec, float64(counters.processed)/sec, totalState.PrintWarehouseState())
 			} else {
 				countersString := counters.String()
 				if countersString != "" {
 					if bc.mode == "retry" {
-						bc.Infof("Retry consumer finished: %s offsets: %d-%d time: %.2f s.", countersString, commitedOffset, highOffset, sec)
+						bc.Infof("Retry consumer finished: %s offsets: %v -> %v time: %.2f s.", countersString, starts.slice(), ends.slice(), sec)
 					} else {
-						bc.Infof("No messages were processed: %s offsets: %d-%d time: %.2f s.", countersString, commitedOffset, highOffset, sec)
+						bc.Infof("No messages were processed: %s offsets: %v -> %v time: %.2f s.", countersString, starts.slice(), ends.slice(), sec)
 					}
 				} else {
-					bc.Debugf("No messages were processed. offsets: %d-%d time: %.2f s.", commitedOffset, highOffset, sec)
+					bc.Debugf("No messages were processed. offsets: %v -> %v time: %.2f s.", starts.slice(), ends.slice(), sec)
 				}
 			}
 		}
@@ -286,37 +285,39 @@ func (bc *AbstractBatchConsumer) ConsumeAll() (counters BatchCounters, err error
 		//An empty assignment is valid in a shared consumer group. The runtime
 		//continues polling and will receive work after a later rebalance.
 		bc.Debugf("No partitions assigned to this healthy group member")
+		bc.setQueueMetrics(nil, nil)
 		return BatchCounters{}, nil
 	}
-	if len(assignments) != 1 {
-		bc.errorMetric("assignment_error")
-		return BatchCounters{}, bc.NewError("Expected one assigned partition, got %d", len(assignments))
+	if bc.assignmentCheck != nil {
+		if err = bc.assignmentCheck(assignments, consumerEpoch); err != nil {
+			bc.errorMetric("exclusive_assignment_required")
+			return counters, err
+		}
 	}
-	partition := assignments[0].Partition
-	bc.Debugf("Using assigned partition %d at epoch %d", partition, consumerEpoch)
-	_, highOffset, err = bc.consumer.queryWatermarkOffsets(bc.topicId, partition, 10_000, consumerEpoch)
-	updatedHighOffset = highOffset
-	offsets, erro := bc.consumer.committed([]kafka.TopicPartition{{Topic: &bc.topicId, Partition: partition}}, 10_000, consumerEpoch)
-	if erro != nil {
-		bc.errorMetric("query_committed_failed")
-		bc.Errorf("Failed to query committed offsets: %v", erro)
-	} else if len(offsets) > 0 && offsets[0].Offset != kafka.OffsetInvalid {
-		commitedOffset = int64(offsets[0].Offset)
-	} else {
-		//Not an error by itself: a brand-new topic has no committed offset until
-		//its first batch.
-		bc.Infof("No committed offset for the consumer group yet. High watermark: %d", highOffset)
-	}
+	starts, ends, err = bc.snapshotOffsets(assignments, consumerEpoch)
 	if err != nil {
-		bc.errorMetric("query_watermark_failed")
-		return BatchCounters{}, bc.NewError("Failed to query watermark offsets: %v", err)
+		return counters, err
 	}
-	if !bc.shouldConsume(partition, commitedOffset, highOffset, consumerEpoch) {
-		bc.Debugf("Consumer should not consume. offsets: %d-%d", commitedOffset, highOffset)
-		return BatchCounters{}, nil
+	window := newBatchWindow(starts, ends)
+	bc.setQueueMetrics(starts, ends)
+	if window.remaining() == 0 {
+		return counters, nil
 	}
+	// Re-read from broker checkpoints on every run, including after a failed
+	// seek or partial offset commit. Prefetched records are not checkpoints.
+	if _, err = bc.consumer.seekPartitions(starts.slice(), consumerEpoch); err != nil {
+		return counters, err
+	}
+	if bc.shouldConsumeFunc != nil {
+		var consume bool
+		consume, err = bc.shouldConsumeFunc(window, consumerEpoch)
+		if err != nil || !consume {
+			return counters, err
+		}
+	}
+	bc.Debugf("Starting consuming partitions %v, queue size ~%d", starts.slice(), window.remaining())
 	lastOffsetQueryTime := time.Now()
-	bc.Debugf("Starting consuming messages from topic. Messages in topic: ~%d. ", highOffset-commitedOffset)
+	latestEnds := ends
 	batchNumber := 1
 	for {
 		if bc.retired.Load() {
@@ -329,7 +330,7 @@ func (bc *AbstractBatchConsumer) ConsumeAll() (counters BatchCounters, err error
 				return
 			}
 		}
-		batchCounters, batchState, nextBatch, err2 := bc.processBatch(destination, batchNumber, maxBatchSize, maxBatchSizeBytes, retryBatchSize, highOffset, int(updatedHighOffset), consumerEpoch)
+		batchCounters, batchState, nextBatch, err2 := bc.processBatch(destination, batchNumber, maxBatchSize, maxBatchSizeBytes, retryBatchSize, window, consumerEpoch)
 		if err2 != nil {
 			if nextBatch {
 				bc.Errorf("Batch finished with error: %v stats: %s nextBatch: %t", err2, batchCounters, nextBatch)
@@ -339,23 +340,36 @@ func (bc *AbstractBatchConsumer) ConsumeAll() (counters BatchCounters, err error
 		totalState.Merge(batchState)
 		counters.accumulate(batchCounters)
 		if batchCounters.consumed > 0 {
-			if time.Since(lastOffsetQueryTime) > 1*time.Minute || !nextBatch {
-				var err1 error
-				_, updatedHighOffset, err1 = bc.consumer.queryWatermarkOffsets(bc.topicId, partition, 10_000, consumerEpoch)
-				if err1 != nil {
-					bc.Errorf("Failed to query watermark offsets: %v", err1)
-					bc.errorMetric("query_watermark_failed")
+			positions := window.next
+			if time.Since(lastOffsetQueryTime) > time.Minute || !nextBatch {
+				committed, refreshed, queryErr := bc.snapshotOffsets(assignments, consumerEpoch)
+				if queryErr == nil {
+					latestEnds = refreshed
+					if err2 != nil {
+						positions = committed
+					}
+				} else {
+					bc.Errorf("Failed to refresh queue size: %v", queryErr)
 				}
 				lastOffsetQueryTime = time.Now()
 			}
-			queueSize := math.Max(float64(updatedHighOffset-batchCounters.firstOffset-int64(batchCounters.consumed)), 0)
-			metrics.ConsumerQueueSize(bc.topicId, bc.mode, bc.destinationId, bc.tableName).Set(queueSize)
+			bc.setQueueMetrics(positions, latestEnds)
 		}
 		if !nextBatch {
 			err = err2
 			return
 		}
 		batchNumber++
+	}
+}
+
+func (bc *AbstractBatchConsumer) setQueueMetrics(positions, ends partitionOffsets) {
+	metrics.ConsumerQueueSize(bc.topicId, bc.mode, bc.destinationId, bc.tableName).Set(float64(newBatchWindow(positions, ends).remaining()))
+	// Remove partitions no longer owned after a rebalance. RunJob serializes snapshots.
+	metrics.ConsumerPartitionQueueSize.DeletePartialMatch(prometheus.Labels{"topicId": bc.topicId, "mode": bc.mode})
+	for key, end := range ends {
+		lag := max(int64(end.Offset-positions[key].Offset), 0)
+		metrics.ConsumerPartitionQueueSize.WithLabelValues(bc.topicId, bc.mode, bc.destinationId, bc.tableName, strconv.Itoa(int(key.partition))).Set(float64(lag))
 	}
 }
 
@@ -368,20 +382,39 @@ func (bc *AbstractBatchConsumer) close() error {
 	return err
 }
 
-func (bc *AbstractBatchConsumer) processBatch(destination *Destination, batchNum, batchSize, batchSizeBytes, retryBatchSize int, highOffset int64, updatedHighOffset int, consumerEpoch uint64) (counters BatchCounters, state bulker.State, nextBath bool, err error) {
-	bc.resume()
-	return bc.batchFunc(destination, batchNum, batchSize, batchSizeBytes, retryBatchSize, highOffset, updatedHighOffset, consumerEpoch)
+func (bc *AbstractBatchConsumer) processBatch(destination *Destination, batchNum, batchSize, batchSizeBytes, retryBatchSize int, window *batchWindow, consumerEpoch uint64) (counters BatchCounters, state bulker.State, nextBath bool, err error) {
+	if err = window.resume(bc.consumer, consumerEpoch); err != nil {
+		return
+	}
+	return bc.batchFunc(destination, batchNum, batchSize, batchSizeBytes, retryBatchSize, window, consumerEpoch)
 }
 
-func (bc *AbstractBatchConsumer) shouldConsume(partitionId int32, committedOffset, highOffset int64, consumerEpoch uint64) bool {
-	if highOffset == 0 || committedOffset == highOffset {
-		return false
+// Snapshot offsets only for partitions owned by this assignment epoch.
+func (bc *AbstractBatchConsumer) snapshotOffsets(assignments []kafka.TopicPartition, epoch uint64) (starts, ends partitionOffsets, err error) {
+	committed, err := bc.consumer.committed(assignments, 10_000, epoch)
+	if err != nil {
+		return nil, nil, fmt.Errorf("query committed offsets: %w", err)
 	}
-	if bc.shouldConsumeFunc != nil {
-		bc.resume()
-		return bc.shouldConsumeFunc(partitionId, committedOffset, highOffset, consumerEpoch)
+	starts, ends = offsetsFrom(committed), make(partitionOffsets, len(assignments))
+	for _, p := range assignments {
+		low, high, queryErr := bc.consumer.queryWatermarkOffsets(*p.Topic, p.Partition, 10_000, epoch)
+		if queryErr != nil {
+			return nil, nil, queryErr
+		}
+		key := partitionKey(p)
+		start := starts[key]
+		// Match auto.offset.reset=earliest for a new partition, retention, or
+		// a truncated/recreated log. Clamping an offset above high to high
+		// would skip every retained record after truncation.
+		if int64(start.Offset) < low || int64(start.Offset) > high {
+			start.Offset = kafka.Offset(low)
+		}
+		starts[key] = start
+		p.Offset = kafka.Offset(high)
+		p.Error = nil
+		ends[key] = p
 	}
-	return true
+	return
 }
 
 func (bc *AbstractBatchConsumer) pauseOrSuspend(startedAt time.Time) {
@@ -480,9 +513,6 @@ func (bc *AbstractBatchConsumer) countersMetric(counters BatchCounters) {
 	countersType := countersValue.Type()
 	for i := 0; i < countersValue.NumField(); i++ {
 		metricName := countersType.Field(i).Name
-		if metricName == "firstOffset" {
-			continue
-		}
 		value := countersValue.Field(i).Int()
 		if value > 0 {
 			metrics.ConsumerMessages(bc.topicId, bc.mode, bc.destinationId, bc.tableName, metricName).Add(float64(value))
@@ -527,7 +557,6 @@ type BatchCounters struct {
 	retried         int
 	deadLettered    int
 	failed          int
-	firstOffset     int64
 }
 
 // accumulate stats from batch
@@ -540,9 +569,6 @@ func (bs *BatchCounters) accumulate(batchStats BatchCounters) {
 	bs.retryScheduled += batchStats.retryScheduled
 	bs.deadLettered += batchStats.deadLettered
 	bs.retried += batchStats.retried
-	if bs.firstOffset < 0 && batchStats.firstOffset >= 0 {
-		bs.firstOffset = batchStats.firstOffset
-	}
 }
 
 // to string

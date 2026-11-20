@@ -36,9 +36,11 @@ type groupConsumer interface {
 	Pause([]kafka.TopicPartition) error
 	Resume([]kafka.TopicPartition) error
 	QueryWatermarkOffsets(string, int32, int) (int64, int64, error)
+	GetMetadata(*string, bool, int) (*kafka.Metadata, error)
 	Committed([]kafka.TopicPartition, int) ([]kafka.TopicPartition, error)
 	SeekPartitions([]kafka.TopicPartition) ([]kafka.TopicPartition, error)
 	CommitMessage(*kafka.Message) ([]kafka.TopicPartition, error)
+	CommitOffsets([]kafka.TopicPartition) ([]kafka.TopicPartition, error)
 	GetConsumerGroupMetadata() (*kafka.ConsumerGroupMetadata, error)
 	Unsubscribe() error
 	Close() error
@@ -279,6 +281,9 @@ func (runtime *consumerRuntime) committed(partitions []kafka.TopicPartition, tim
 			return
 		}
 		offsets, err = session.consumer.Committed(partitions, timeoutMs)
+		if err == nil {
+			err = partitionResults(partitions, offsets)
+		}
 		err = session.checkFencing(err)
 	})
 	if executeErr != nil {
@@ -293,10 +298,111 @@ func (runtime *consumerRuntime) seekPartitions(partitions []kafka.TopicPartition
 			return
 		}
 		result, err = session.consumer.SeekPartitions(partitions)
+		if err == nil {
+			err = partitionResults(partitions, result)
+		}
 		err = session.checkFencing(err)
 		if err == nil {
 			session.discardPending(result)
 		}
+	})
+	if executeErr != nil {
+		err = executeErr
+	}
+	return
+}
+
+// Fetch current broker metadata under the same assignment epoch as the batch.
+func (runtime *consumerRuntime) topicPartitions(topic string, epoch uint64) (partitions []kafka.TopicPartition, err error) {
+	executeErr := runtime.execute(func(session *consumerSession) {
+		if err = session.validateEpoch(epoch); err != nil {
+			return
+		}
+		metadata, metadataErr := session.consumer.GetMetadata(&topic, false, 10000)
+		err = session.checkFencing(metadataErr)
+		if err != nil {
+			return
+		}
+		tm, ok := metadata.Topics[topic]
+		if !ok || len(tm.Partitions) == 0 {
+			err = fmt.Errorf("missing partition metadata for %s", topic)
+			return
+		}
+		if tm.Error.Code() != kafka.ErrNoError {
+			err = tm.Error
+			return
+		}
+		for _, p := range tm.Partitions {
+			if p.Error.Code() != kafka.ErrNoError {
+				err = p.Error
+				return
+			}
+			partitions = append(partitions, kafka.TopicPartition{Topic: &topic, Partition: p.ID})
+		}
+	})
+	if executeErr != nil {
+		err = executeErr
+	}
+	return
+}
+
+// Commit exactly the completed offsets, never the consumer's prefetched position.
+func (runtime *consumerRuntime) commitOffsets(offsets []kafka.TopicPartition, expectedEpoch uint64) (result []kafka.TopicPartition, err error) {
+	executeErr := runtime.execute(func(session *consumerSession) {
+		if err = session.validateEpoch(expectedEpoch); err != nil {
+			return
+		}
+		result, err = session.consumer.CommitOffsets(offsets)
+		if err == nil {
+			err = partitionResults(offsets, result)
+		}
+		err = session.checkFencing(err)
+	})
+	if executeErr != nil {
+		err = executeErr
+	}
+	return
+}
+
+// Restrict reads without giving up group membership. Every new batch/window
+// reapplies its selection, including after a cooperative rebalance.
+func (runtime *consumerRuntime) selectPartitions(active []kafka.TopicPartition, epoch uint64) (err error) {
+	executeErr := runtime.execute(func(session *consumerSession) {
+		if err = session.validateEpoch(epoch); err != nil {
+			return
+		}
+		var assigned []kafka.TopicPartition
+		assigned, err = session.consumer.Assignment()
+		if err != nil {
+			return
+		}
+		if err = partitionResults(active, assigned); err != nil {
+			return
+		}
+		if len(assigned) > 0 {
+			err = session.consumer.Pause(assigned)
+		}
+		if err == nil && len(active) > 0 {
+			err = session.consumer.Resume(active)
+		}
+		if err == nil {
+			session.pauseRequested = false
+			session.pauseApplied = false
+		}
+		err = session.checkFencing(err)
+	})
+	if executeErr != nil {
+		err = executeErr
+	}
+	return
+}
+
+func (runtime *consumerRuntime) pausePartitions(partitions []kafka.TopicPartition, epoch uint64) (err error) {
+	executeErr := runtime.execute(func(session *consumerSession) {
+		if err = session.validateEpoch(epoch); err != nil {
+			return
+		}
+		err = session.checkFencing(session.consumer.Pause(partitions))
 	})
 	if executeErr != nil {
 		err = executeErr

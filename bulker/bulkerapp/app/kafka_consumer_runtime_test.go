@@ -149,12 +149,20 @@ func (consumer *fakeGroupConsumer) QueryWatermarkOffsets(string, int32, int) (in
 	return 0, 0, nil
 }
 
+func (consumer *fakeGroupConsumer) GetMetadata(topic *string, _ bool, _ int) (*kafka.Metadata, error) {
+	return &kafka.Metadata{Topics: map[string]kafka.TopicMetadata{*topic: {Topic: *topic, Partitions: []kafka.PartitionMetadata{{ID: 0}}}}}, nil
+}
+
 func (consumer *fakeGroupConsumer) Committed(partitions []kafka.TopicPartition, _ int) ([]kafka.TopicPartition, error) {
 	return partitions, nil
 }
 
 func (consumer *fakeGroupConsumer) SeekPartitions(partitions []kafka.TopicPartition) ([]kafka.TopicPartition, error) {
 	return partitions, nil
+}
+
+func (consumer *fakeGroupConsumer) CommitOffsets(partitions []kafka.TopicPartition) ([]kafka.TopicPartition, error) {
+	return partitions, consumer.commitErr
 }
 
 func (consumer *fakeGroupConsumer) CommitMessage(message *kafka.Message) ([]kafka.TopicPartition, error) {
