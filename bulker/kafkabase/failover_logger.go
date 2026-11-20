@@ -175,11 +175,19 @@ type FailoverLoggerConfig struct {
 	CompressionCodec string
 }
 
+type failoverLogFile interface {
+	io.WriteCloser
+	io.Seeker
+	Name() string
+	Truncate(int64) error
+}
+
 // FailoverLogger handles failed Kafka messages
 type FailoverLogger struct {
 	appbase.Service
 	config       *FailoverLoggerConfig
-	currentFile  *os.File
+	currentFile  failoverLogFile
+	writeError   error // A failed rollback makes further acknowledgments unsafe.
 	currentSize  int64
 	lastRotation time.Time
 	mu           sync.Mutex
@@ -277,19 +285,40 @@ func (f *FailoverLogger) ShouldLog(err error) bool {
 }
 
 func (f *FailoverLogger) LogPayload(payload []byte) error {
-	if f == nil || f.closed {
-		return nil
+	if f == nil {
+		return fmt.Errorf("failover logger is unavailable")
 	}
 
 	f.mu.Lock()
 	defer f.mu.Unlock()
+	if f.closed {
+		return fmt.Errorf("failover logger is closed")
+	}
+	if f.writeError != nil {
+		return f.writeError
+	}
+
+	// A failed append must not leave an unterminated record that corrupts the
+	// next accepted event. Use the actual file end: an existing append-mode
+	// file may contain data that is not included in currentSize.
+	offset, err := f.currentFile.Seek(0, io.SeekEnd)
+	if err != nil {
+		return fmt.Errorf("failed to locate failover log end: %w", err)
+	}
+	rollback := func(writeErr error) error {
+		if err := f.currentFile.Truncate(offset); err != nil {
+			f.writeError = fmt.Errorf("%w; failed to roll back failover record: %w", writeErr, err)
+			return f.writeError
+		}
+		return writeErr
+	}
 
 	// Write raw payload to file
 	if _, err := f.currentFile.Write(payload); err != nil {
-		return fmt.Errorf("failed to write to failover log: %w", err)
+		return rollback(fmt.Errorf("failed to write to failover log: %w", err))
 	}
 	if _, err := f.currentFile.Write([]byte("\n")); err != nil {
-		return fmt.Errorf("failed to write newline: %w", err)
+		return rollback(fmt.Errorf("failed to write newline: %w", err))
 	}
 
 	f.currentSize += int64(len(payload) + 1)
