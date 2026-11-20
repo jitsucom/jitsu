@@ -384,6 +384,59 @@ describe("a choice (oneOf) whose discriminator still holds the mask", () => {
     ).toEqual([]);
   });
 
+  it("treats a masked field that the condition only requires as present", () => {
+    const optionA = {
+      properties: { mode: { const: "a" }, port: { type: "integer", maximum: 10 } },
+      // the provider is checked, the token only has to be there
+      if: { properties: { provider: { const: "managed" } }, required: ["provider", "managedToken"] },
+      then: {},
+      else: { required: ["keyId"] },
+    };
+    const choice = {
+      oneOf: [optionA, { properties: { mode: { const: "b" }, port: { type: "integer", minimum: 100 } } }],
+    };
+    const validate = new Ajv({ allErrors: true, strictSchema: false, useDefaults: true }).compile(choice);
+    // provider and token are saved and hidden: with them the condition may well hold
+    expect(
+      validateKeepingMasks(validate, {
+        mode: MASKED_SECRET,
+        provider: MASKED_SECRET,
+        managedToken: MASKED_SECRET,
+        port: 5,
+      })
+    ).toEqual([]);
+  });
+
+  it("resolves a reference of a condition against the whole schema", () => {
+    const root = {
+      definitions: { region: { type: "string", enum: ["eu", "us"] } },
+      oneOf: [
+        {
+          properties: { mode: { const: "a" }, port: { type: "integer", maximum: 10 } },
+          if: {
+            properties: { provider: { const: "managed" }, region: { $ref: "#/definitions/region" } },
+            required: ["provider", "region"],
+          },
+          then: {},
+          else: { required: ["keyId"] },
+        },
+        { properties: { mode: { const: "b" }, port: { type: "integer", minimum: 100 } } },
+      ],
+    };
+    const validate = new Ajv({ allErrors: true, strictSchema: false, useDefaults: true }).compile(root);
+    expect(
+      validateKeepingMasks(validate, { mode: MASKED_SECRET, provider: MASKED_SECRET, region: "eu", port: 5 })
+    ).toEqual([]);
+    // a visible region that is not allowed makes the condition false whatever the provider is
+    const kept = validateKeepingMasks(validate, {
+      mode: MASKED_SECRET,
+      provider: MASKED_SECRET,
+      region: "asia",
+      port: 5,
+    });
+    expect(kept.length).toBeGreaterThan(0);
+  });
+
   it("keeps the errors when the compiled schema is not given: it cannot tell a choice from a field", () => {
     const credentials: any = { host: "db.example", tunnel_method: { tunnel_method: MASKED_SECRET } };
     const validate = validatorOf();

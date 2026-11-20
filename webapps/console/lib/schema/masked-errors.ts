@@ -84,20 +84,27 @@ function conditionReadsMask(error: FieldError, objectValue: any, schema: any): b
       return node;
     }
     const copy = { ...node };
+    // a masked field is present, with a value we do not know: whatever the condition says about it is out, a `required`
+    // that names it too (it may be named in `required` only, with nothing under `properties`)
+    const maskedKeys = Object.keys(value).filter(key => value[key] === MASKED_SECRET);
+    if (Array.isArray(node.required)) {
+      const required = node.required.filter((key: string) => !maskedKeys.includes(key));
+      if (required.length !== node.required.length) {
+        prunedAny = true;
+      }
+      copy.required = required;
+    }
     if (node.properties && typeof node.properties === "object") {
       const properties: Record<string, any> = {};
-      const required = new Set<string>(Array.isArray(node.required) ? node.required : []);
       for (const [key, sub] of Object.entries<any>(node.properties)) {
         const held = Object.prototype.hasOwnProperty.call(value, key) ? value[key] : undefined;
         if (held === MASKED_SECRET) {
           prunedAny = true;
-          required.delete(key);
         } else {
           properties[key] = prune(sub, held);
         }
       }
       copy.properties = properties;
-      copy.required = [...required];
     }
     return copy;
   };
@@ -116,7 +123,16 @@ function conditionReadsMask(error: FieldError, objectValue: any, schema: any): b
     return false;
   }
   try {
-    return new Ajv({ strictSchema: false, allowUnionTypes: true }).validate(pruned, visible(objectValue)) === true;
+    // the condition is checked on its own, but it may point into the shared parts of the connector schema
+    const shared: Record<string, any> = {};
+    if (schema?.definitions) shared.definitions = schema.definitions;
+    if (schema?.$defs) shared.$defs = schema.$defs;
+    return (
+      new Ajv({ strictSchema: false, allowUnionTypes: true }).validate(
+        { ...pruned, ...shared },
+        visible(objectValue)
+      ) === true
+    );
   } catch {
     return false;
   }
