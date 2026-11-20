@@ -516,8 +516,13 @@ function findChangedTargets(node: any, original: any, path: (string | number)[],
     if (isEmptyValue(value) && isEmptyValue(before)) {
       return [];
     }
-    // a list of targets read while its values were masked, and sent back untouched, is the same list
-    return isEqual(value, before) || sameExceptMasks(value, before) ? [] : [currentPath.join(".")];
+    // a list of targets read while its values were masked, and sent back untouched, is the same list. Only a list
+    // masked all the way through counts: a connection test needs just workspace membership, so comparing a plain value
+    // of a half-masked list with the stored one would tell a caller whether a guess is right
+    if (containsMaskedSecrets(value)) {
+      return isEqual(value, maskedShape(before)) ? [] : [currentPath.join(".")];
+    }
+    return isEqual(value, before) ? [] : [currentPath.join(".")];
   });
 }
 

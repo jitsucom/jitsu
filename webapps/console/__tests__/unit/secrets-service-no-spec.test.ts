@@ -629,6 +629,22 @@ describe("test connection and clone with a masked list (unmaskSecretsFromOrigina
     expect(() => unmaskSecretsFromOriginal(plainSecrets, storedService)).toThrow(/credentials\.hosts/);
   });
 
+  it("does not tell a right host from a wrong one in a half-masked target list", () => {
+    const outcome = (second: string) => {
+      const submitted = { ...storedService, credentials: { hosts: [MASKED_SECRET, second], password: MASKED_SECRET } };
+      try {
+        return unmaskSecretsFromOriginal(submitted, storedService);
+      } catch (e: any) {
+        return e.message;
+      }
+    };
+    const right = outcome("b.example:1");
+    const wrong = outcome("c.example:1");
+    expect(typeof right).toBe("string");
+    expect(right).toMatch(/credentials\.hosts/);
+    expect(right).toEqual(wrong);
+  });
+
   it("refuses a masked list that lost an entry: the mask no longer says which one is left", () => {
     const submitted = { ...storedService, credentials: { hosts: [MASKED_SECRET], password: MASKED_SECRET } };
     expect(() => unmaskSecretsFromOriginal(submitted, storedService)).toThrow(/hosts/);
