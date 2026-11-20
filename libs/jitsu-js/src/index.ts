@@ -7,6 +7,8 @@ import {
   uuid,
   createInMemoryStorage,
   ensureAnonymousId,
+  withCachedViewport,
+  warmViewportCache,
 } from "./analytics-plugin";
 import {
   Callback,
@@ -120,14 +122,23 @@ function createUnderlyingAnalyticsInstance(
   const a = {
     ...analytics,
     page: (...args) => {
-      if (args.length === 2 && typeof args[0] === "string" && typeof args[1] === "object") {
-        return analytics.page({
-          name: args[0],
-          ...args[1],
-        });
-      } else {
-        return (analytics.page as any)(...args);
+      // Build the argument list before the viewport is replaced: spreading the caller's properties can run their
+      // getters, and one that reads window.innerWidth would use up the cached value meant for analytics.js
+      const pageArgs =
+        args.length === 2 && typeof args[0] === "string" && typeof args[1] === "object"
+          ? [{ name: args[0], ...args[1] }]
+          : args;
+      // A custom runtime supplies context.screen itself, so the window cache must not supply the page properties.
+      if (opts.disableViewportCache || opts.runtime) {
+        return (analytics.page as any)(...pageArgs);
       }
+      // analytics.js reads window.innerWidth/innerHeight synchronously inside page(), which forces layout
+      // If the window throws when read, reject with that error, as analytics.js does when it reads the window itself.
+      // Calling it after a failed read would read the window again, which could succeed and send what the base would not.
+      return withCachedViewport(
+        () => (analytics.page as any)(...pageArgs),
+        error => Promise.reject(error)
+      );
     },
     identify: (...args) => {
       if (args[0] && typeof args[0] !== "object" && typeof args[0] !== "string") {
@@ -280,6 +291,13 @@ export function jitsuAnalytics(_opts: JitsuOptions): AnalyticsInterface {
   }
   const inBrowser = isInBrowser();
   const rt = opts.runtime || (inBrowser ? windowRuntime(opts) : emptyRuntime(opts));
+  if (inBrowser && !opts.runtime && !opts.disableViewportCache) {
+    try {
+      warmViewportCache();
+    } catch (e) {
+      // the cache only saves layout work, so a failure to warm it must never stop the SDK from starting
+    }
+  }
   return createUnderlyingAnalyticsInstance(opts, rt);
 
   // if (inBrowser) {
@@ -318,4 +336,23 @@ export type {
   RuntimeFacade,
   DynamicJitsuOptions,
 };
-export * from "./analytics-plugin";
+// Listed one by one, so that a helper added to analytics-plugin.ts does not become public API by accident:
+// once the package is published, removing an export is a breaking change.
+export {
+  parseQuery,
+  windowRuntime,
+  createInMemoryStorage,
+  emptyRuntime,
+  isInBrowser,
+  ensureAnonymousId,
+  jitsuAnalyticsPlugin,
+  randomId,
+  uuid,
+} from "./analytics-plugin";
+export type {
+  StorageFactory,
+  DestinationDescriptor,
+  AnalyticsPluginDescriptor,
+  InternalPluginDescriptor,
+  DeviceOptions,
+} from "./analytics-plugin";
