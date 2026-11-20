@@ -1,9 +1,9 @@
 module github.com/jitsucom/bulker/bulkerapp
 
-go 1.26.0
+go 1.26.10
 
 require (
-	github.com/confluentinc/confluent-kafka-go/v2 v2.16.0
+	github.com/confluentinc/confluent-kafka-go/v2 v2.16.1
 	github.com/gin-gonic/gin v1.12.0
 	github.com/go-co-op/gocron/v2 v2.20.0
 	github.com/gomodule/redigo v1.9.3
