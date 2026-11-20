@@ -375,7 +375,7 @@ const configObjectTypes: Record<string, ConfigObjectType> = {
     },
     merge: async (original: ServiceConfig, patch: Partial<ServiceConfig>): Promise<any> => {
       // Remove masked values before merge
-      const secretPaths = await getServiceSecretPaths(original.package, original.version, original, patch);
+      const secretPaths = await getServiceSecretPaths(original.package, original.version, original);
       const cleanedPatch = removeMaskedCredentials(patch, original);
       // a JSON copy: `deepCopy` drops an own key named `__proto__`, and a credential under it would not be seen
       const before = JSON.parse(JSON.stringify(original));

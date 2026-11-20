@@ -125,7 +125,7 @@ function credentialLeafPaths(sources: any[]): string[][] {
 /**
  * Get all secret field paths for a service (Airbyte source).
  *
- * `sources` are the objects whose credentials are about to be shown, stored or kept (the stored service, the patch).
+ * `sources` are the objects whose credentials are about to be shown or kept (the service as it is stored).
  * When the connector spec is missing or unusable nothing says which field is a secret, so every value under
  * `credentials` of those objects is one: it is masked on output, a mask is never stored over the real value and the
  * target guard stays on. A usable spec that lists no secret field still gives `[]`.
@@ -306,6 +306,16 @@ const LIST_CHANGED = (path: string[]) =>
     { status: 400 }
   );
 
+// A mask stands for a stored value: with no saved list there is nothing to put back, and dropping the masked entries
+// would store a shorter list (or rows with no fields) and report success
+const LIST_NOT_SAVED = (path: string[]) =>
+  new ApiError(
+    `Cannot use the masked values of ${path.join(
+      "."
+    )} because there is no saved list to take them from. Enter the values of the whole list to continue.`,
+    { status: 400 }
+  );
+
 const KEEP_STORED = Symbol("keep stored value");
 
 /**
@@ -316,8 +326,8 @@ const KEEP_STORED = Symbol("keep stored value");
  * A key with a mask is dropped, so that a merge keeps the stored value. A list is replaced as a whole by a merge, and
  * a mask in it says nothing about which stored entry it stands for once the list was edited (a row deleted in the
  * editor shifts the rest). So a list that holds masks is the stored list with some values masked, untouched, and the stored
- * one is kept, or it is refused. `stored` is the service before the change; a new service has none, and the masked
- * entries of its lists are left out.
+ * one is kept, or it is refused. `stored` is the service before the change; a new service has none, so a list that
+ * holds masks is refused there too: dropping the masked entries would store a shorter list and report success.
  */
 export function removeMaskedCredentials(obj: any, stored?: any): any {
   if (!obj || typeof obj !== "object" || obj.credentials === undefined) {
@@ -334,7 +344,7 @@ export function removeMaskedCredentials(obj: any, stored?: any): any {
         return node;
       }
       if (!Array.isArray(before)) {
-        return node.filter(item => item !== MASKED_SECRET).map(item => without(item, undefined, path));
+        throw LIST_NOT_SAVED(path);
       }
       if (sameExceptMasks(node, before)) {
         return KEEP_STORED;

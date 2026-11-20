@@ -267,17 +267,44 @@ describe("the service config type, no spec", () => {
       expect(out.credentials).toEqual({ host: "db2.customer.com" });
     });
 
-    it("drops masked list entries instead of storing null for them", async () => {
+    it("refuses a list that holds masks when there is no saved list to take the values from", async () => {
+      // A new service has no stored list: shortening the list or emptying its rows would succeed and mean something else
+      for (const credentials of [
+        { hosts: [MASKED_SECRET, "typed"] },
+        { rows: [{ k: MASKED_SECRET }] },
+        { hosts: [MASKED_SECRET, MASKED_SECRET] },
+      ]) {
+        const input = { ...stored(freshPackage()), credentials };
+        await expect(type.inputFilter(input as any, {} as any, {} as any)).rejects.toThrow(/whole list/);
+      }
+    });
+
+    it("still takes a list with no mask as it is, and does not mind masks outside lists", async () => {
       const input = {
         ...stored(freshPackage()),
-        credentials: { hosts: [MASKED_SECRET, "typed"], rows: [{ k: MASKED_SECRET }] },
+        credentials: { hosts: ["a", "b"], rows: [{ k: "v" }], password: MASKED_SECRET },
       };
       const out = await type.inputFilter(input as any, {} as any, {} as any);
-      expect(out.credentials).toEqual({ hosts: ["typed"], rows: [{}] });
+      expect(out.credentials).toEqual({ hosts: ["a", "b"], rows: [{ k: "v" }] });
+    });
+
+    it("tells the user which list when a saved value at that key is not a list", async () => {
+      const original = { ...stored(freshPackage()), credentials: { hosts: "a.example:1" } };
+      await expect(type.merge(original as any, { credentials: { hosts: [MASKED_SECRET] } } as any)).rejects.toThrow(
+        /credentials\.hosts/
+      );
     });
   });
 
   describe("merge", () => {
+    it("keeps the stored credentials when the whole value comes back as a mask", async () => {
+      const original = stored(freshPackage());
+      // the merge changes the object it is given, so the expectation is a copy taken before it
+      const before = JSON.parse(JSON.stringify(original.credentials));
+      const merged = await type.merge(original as any, { credentials: MASKED_SECRET } as any);
+      expect(merged.credentials).toEqual(before);
+    });
+
     it("refuses a changed host while the stored password would be kept", async () => {
       const original = stored(freshPackage());
       await expect(
@@ -317,8 +344,10 @@ describe("the service config type, no spec", () => {
         credentials: { hosts: ["a", "b"], rows: [{ k: "v1", n: 1 }, { k: "v2" }], token: "t" },
       };
       const shown = await type.outputFilter(original as any);
+      // the merge changes the object it is given, so the expectation is a copy taken before it
+      const before = JSON.parse(JSON.stringify(original.credentials));
       const merged = await type.merge(original as any, { credentials: shown.credentials, name: "renamed" } as any);
-      expect(merged.credentials).toEqual(original.credentials);
+      expect(merged.credentials).toEqual(before);
       expect(merged.name).toBe("renamed");
     });
 
@@ -497,6 +526,8 @@ describe("the service config type, no spec", () => {
     it("does not store a mask that was read while the spec was missing, once the spec is back", async () => {
       const original = stored(freshPackage());
       mocks.findUnique.mockResolvedValue(USABLE_WITH_SECRET);
+      // the merge changes the object it is given, so the expectation is a copy taken before it
+      const before = JSON.parse(JSON.stringify(original.credentials));
       const merged = await type.merge(
         original as any,
         {
@@ -508,7 +539,7 @@ describe("the service config type, no spec", () => {
           },
         } as any
       );
-      expect(merged.credentials).toEqual({ ...original.credentials, start_date: "2026" });
+      expect(merged.credentials).toEqual({ ...before, start_date: "2026" });
       const created = await type.inputFilter(
         { ...original, credentials: { host: MASKED_SECRET, password: "typed" } } as any,
         {} as any,
