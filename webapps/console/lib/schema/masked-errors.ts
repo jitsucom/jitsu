@@ -1,3 +1,4 @@
+import Ajv from "ajv";
 import { MASKED_SECRET } from "./destinations";
 
 /** The part of an Ajv error the editor needs to tell which field, and which part of the schema, it is about */
@@ -67,23 +68,58 @@ function discriminatorKeys(options: any[]): string[] {
 
 /**
  * `if` is the report of a `then` or `else` that did not hold. A mask can send the condition to its other side, but only
- * when the condition reads a field that holds the mask: one that depends on a field the user can see is the user's.
+ * when the fields that hold a mask could still decide it: when the values the user can see already make the condition
+ * false whatever the saved ones are, the report is the user's. So the condition is checked against the visible values
+ * alone, with what it says about the masked fields taken out. It must read a masked field at all.
  */
 function conditionReadsMask(error: FieldError, objectValue: any, schema: any): boolean {
   const condition: any = schemaNodeAt(schema, error.schemaPath ?? "");
-  // the fields a condition reads, down into the nested ones: `settings.useDefaultKey` is read through `settings`
-  const reads = (node: any, value: any): boolean => {
+  if (condition === null || typeof condition !== "object") {
+    return false;
+  }
+  let prunedAny = false;
+  // the condition without what it says about the fields that hold a mask, and the value without those fields
+  const prune = (node: any, value: any): any => {
     if (node === null || typeof node !== "object" || value === null || typeof value !== "object") {
-      return false;
+      return node;
     }
-    const keys = [...Object.keys(node.properties ?? {}), ...(Array.isArray(node.required) ? node.required : [])];
-    return keys.some(
-      key =>
-        Object.prototype.hasOwnProperty.call(value, key) &&
-        (value[key] === MASKED_SECRET || reads(node.properties?.[key], value[key]))
-    );
+    const copy = { ...node };
+    if (node.properties && typeof node.properties === "object") {
+      const properties: Record<string, any> = {};
+      const required = new Set<string>(Array.isArray(node.required) ? node.required : []);
+      for (const [key, sub] of Object.entries<any>(node.properties)) {
+        const held = Object.prototype.hasOwnProperty.call(value, key) ? value[key] : undefined;
+        if (held === MASKED_SECRET) {
+          prunedAny = true;
+          required.delete(key);
+        } else {
+          properties[key] = prune(sub, held);
+        }
+      }
+      copy.properties = properties;
+      copy.required = [...required];
+    }
+    return copy;
   };
-  return reads(condition, objectValue);
+  const visible = (value: any): any =>
+    Array.isArray(value)
+      ? value.map(visible)
+      : value !== null && typeof value === "object"
+      ? Object.fromEntries(
+          Object.entries(value)
+            .filter(([, v]) => v !== MASKED_SECRET)
+            .map(([k, v]) => [k, visible(v)])
+        )
+      : value;
+  const pruned = prune(condition, objectValue);
+  if (!prunedAny) {
+    return false;
+  }
+  try {
+    return new Ajv({ strictSchema: false, allowUnionTypes: true }).validate(pruned, visible(objectValue)) === true;
+  } catch {
+    return false;
+  }
 }
 
 type ChoiceGroup = { instancePath: string; schemaPath: string; satisfied: boolean };

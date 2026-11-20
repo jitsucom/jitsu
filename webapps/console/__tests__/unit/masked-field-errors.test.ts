@@ -341,6 +341,49 @@ describe("a choice (oneOf) whose discriminator still holds the mask", () => {
     expect(kept.length).toBeGreaterThan(0);
   });
 
+  it("keeps a conditional that a visible field already decides, whatever the masked one is", () => {
+    // the condition needs the provider to be "managed" (masked) and the key flag to be true (visible, and false)
+    const decided = {
+      oneOf: [
+        {
+          properties: {
+            mode: { const: "a" },
+            settings: { type: "object" },
+            port: { type: "integer", maximum: 10 },
+          },
+          if: {
+            properties: {
+              settings: {
+                properties: { provider: { const: "managed" }, useDefaultKey: { const: true } },
+                required: ["provider", "useDefaultKey"],
+              },
+            },
+          },
+          then: {},
+          else: { required: ["keyId"] },
+        },
+        { properties: { mode: { const: "b" }, port: { type: "integer", minimum: 100 } } },
+      ],
+    };
+    const validate = new Ajv({ allErrors: true, strictSchema: false, useDefaults: true }).compile(decided);
+    // useDefaultKey is false: no provider can make the condition true, the else needs a keyId that is missing, and port 5
+    // does not fit the other mode
+    const kept = validateKeepingMasks(validate, {
+      mode: MASKED_SECRET,
+      settings: { provider: MASKED_SECRET, useDefaultKey: false },
+      port: 5,
+    });
+    expect(kept.length).toBeGreaterThan(0);
+    // useDefaultKey is true: only the masked provider can decide, so the saved values may well be valid
+    expect(
+      validateKeepingMasks(validate, {
+        mode: MASKED_SECRET,
+        settings: { provider: MASKED_SECRET, useDefaultKey: true },
+        port: 5,
+      })
+    ).toEqual([]);
+  });
+
   it("keeps the errors when the compiled schema is not given: it cannot tell a choice from a field", () => {
     const credentials: any = { host: "db.example", tunnel_method: { tunnel_method: MASKED_SECRET } };
     const validate = validatorOf();
