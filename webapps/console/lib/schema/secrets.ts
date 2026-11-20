@@ -154,7 +154,7 @@ export async function getServiceSecretPaths(
       const specs = sourceSpec.specs as any;
       const connectionSpec = specs.connectionSpecification;
       if (isPlainObject(connectionSpec?.properties)) {
-        return serviceSpecSecretPaths(connectionSpec.properties);
+        return expandEachEntry(serviceSpecSecretPaths(connectionSpec.properties), sources);
       }
       reason = "malformed";
     }
@@ -166,38 +166,100 @@ export async function getServiceSecretPaths(
   return credentialLeafPaths(sources);
 }
 
-/** Paths of the fields a usable spec marks `airbyte_secret: true`, under `credentials` */
-function serviceSpecSecretPaths(properties: any): string[] {
-  const secretPaths: string[] = [];
+// Stands for "every entry of the array" in a path read from a spec, until the stored arrays say how many there are
+const EACH = Symbol("each entry of an array");
+type SpecPath = string | (string | typeof EACH)[];
+
+/**
+ * Paths of the fields a usable spec marks `airbyte_secret: true`, under `credentials`. A secret inside the items of an
+ * array (the API key of a stream's file format, the key of every entry of a list of applications) has a path with `EACH`
+ * where the index goes.
+ */
+function serviceSpecSecretPaths(properties: any): SpecPath[] {
+  const secretPaths: SpecPath[] = [];
+
+  const add = (segments: (string | typeof EACH)[]) => {
+    // no array on the way: the same dotted path as ever
+    secretPaths.push(segments.includes(EACH) ? ["credentials", ...segments] : `credentials.${segments.join(".")}`);
+  };
+
+  // One node of the schema, at `segments`: a field of an object, or the items of an array
+  function visit(schema: any, segments: (string | typeof EACH)[], isItems: boolean) {
+    if (schema === null || typeof schema !== "object") {
+      return;
+    }
+    if (schema.airbyte_secret === true) {
+      add(segments);
+    }
+
+    // Handle oneOf/anyOf schemas
+    if (schema.oneOf || schema.anyOf) {
+      const options = schema.oneOf || schema.anyOf;
+      options.forEach((option: any) => {
+        if (option.properties) {
+          findSecretFields(option.properties, segments);
+        }
+      });
+    }
+
+    // Recurse into nested objects (the items of an array are objects without having to say so)
+    if ((isItems || schema.type === "object") && schema.properties) {
+      findSecretFields(schema.properties, segments);
+    }
+
+    // Recurse into the items of an array: one schema for every entry (not the list form, which says one per position)
+    if (schema.items && typeof schema.items === "object" && !Array.isArray(schema.items)) {
+      visit(schema.items, [...segments, EACH], true);
+    }
+  }
 
   // Recursively find all fields with airbyte_secret: true
-  function findSecretFields(properties: any, basePath: string = "") {
+  function findSecretFields(properties: any, base: (string | typeof EACH)[] = []) {
     Object.entries(properties).forEach(([key, schema]: [string, any]) => {
-      const currentPath = basePath ? `${basePath}.${key}` : key;
-
-      if (schema.airbyte_secret === true) {
-        secretPaths.push(`credentials.${currentPath}`);
-      }
-
-      // Handle oneOf/anyOf schemas
-      if (schema.oneOf || schema.anyOf) {
-        const options = schema.oneOf || schema.anyOf;
-        options.forEach((option: any) => {
-          if (option.properties) {
-            findSecretFields(option.properties, currentPath);
-          }
-        });
-      }
-
-      // Recurse into nested objects
-      if (schema.type === "object" && schema.properties) {
-        findSecretFields(schema.properties, currentPath);
-      }
+      visit(schema, [...base, key], false);
     });
   }
 
   findSecretFields(properties);
   return secretPaths;
+}
+
+/**
+ * Turns the paths that go through the items of an array into one path per entry the services hold, so every entry's
+ * secret is a path of its own, as the fallback paths are. An entry that is not there has no path: masking skips what is
+ * not set.
+ */
+function expandEachEntry(paths: SpecPath[], sources: any[]): SecretPath[] {
+  const result: SecretPath[] = [];
+  const seen = new Set<string>();
+  for (const path of paths) {
+    if (typeof path === "string") {
+      result.push(path);
+      continue;
+    }
+    for (const source of sources) {
+      const walk = (node: any, index: number, trail: string[]) => {
+        if (index === path.length) {
+          const key = JSON.stringify(trail);
+          if (!seen.has(key)) {
+            seen.add(key);
+            result.push(trail);
+          }
+          return;
+        }
+        const segment = path[index];
+        if (segment === EACH) {
+          if (Array.isArray(node)) {
+            node.forEach((entry, i) => walk(entry, index + 1, [...trail, String(i)]));
+          }
+        } else if (node !== null && typeof node === "object" && hasOwn(node, segment)) {
+          walk(node[segment], index + 1, [...trail, segment]);
+        }
+      };
+      walk(source, 0, []);
+    }
+  }
+  return result;
 }
 
 /**
