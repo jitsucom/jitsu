@@ -154,6 +154,40 @@ describe("a choice (oneOf) whose discriminator still holds the mask", () => {
     expect(kept.map(e => e.instancePath + " " + e.keyword)).toEqual([" required"]);
   });
 
+  it("still reports a typed field inside a masked choice that does not fit", () => {
+    const withPort = {
+      ...choiceSpec,
+      properties: {
+        ...choiceSpec.properties,
+        tunnel_method: {
+          ...choiceSpec.properties.tunnel_method,
+          oneOf: choiceSpec.properties.tunnel_method.oneOf.map((o: any) => ({
+            ...o,
+            properties: { ...o.properties, tunnel_port: { type: "integer" } },
+          })),
+        },
+      },
+    };
+    const validate = new Ajv({ allErrors: true, strictSchema: false, useDefaults: true }).compile(withPort);
+    const credentials: any = { host: "h", tunnel_method: { tunnel_method: MASKED_SECRET, tunnel_port: "abc" } };
+    const kept = validateKeepingMasks(validate, credentials);
+    expect(kept.map(e => e.instancePath).sort()).toContain("/tunnel_method/tunnel_port");
+    expect(kept.some(e => e.keyword === "oneOf" && e.instancePath === "/tunnel_method")).toBe(false);
+  });
+
+  it("still reports a typed field next to a masked discriminator when the choice is the whole object", () => {
+    const rootChoice = {
+      anyOf: [
+        { properties: { kind: { const: "a" }, port: { type: "integer" } } },
+        { properties: { kind: { const: "b" }, port: { type: "integer" } } },
+      ],
+    };
+    const validate = new Ajv({ allErrors: true, strictSchema: false, useDefaults: true }).compile(rootChoice);
+    expect(validateKeepingMasks(validate, { kind: MASKED_SECRET, port: 5 })).toEqual([]);
+    const kept = validateKeepingMasks(validate, { kind: MASKED_SECRET, port: "abc" });
+    expect(kept.map(e => e.instancePath)).toContain("/port");
+  });
+
   it("keeps the errors when the compiled schema is not given: it cannot tell a choice from a field", () => {
     const credentials: any = { host: "db.example", tunnel_method: { tunnel_method: MASKED_SECRET } };
     const validate = validatorOf();

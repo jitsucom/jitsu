@@ -100,7 +100,9 @@ export function withoutMaskedFieldErrors<T extends FieldError>(
   const groups = maskedChoiceGroups(all, credentials, schema);
   return all.filter(error => {
     const pointer = error.instancePath ?? "";
-    if (groups.some(g => pointer.startsWith(g.instancePath) && (error.schemaPath ?? "").startsWith(g.schemaPath))) {
+    // only the errors about the choice's own object ("no option matches", "option N misses a field"): the errors about a
+    // field the user typed, deeper in it, are real
+    if (groups.some(g => pointer === g.instancePath && (error.schemaPath ?? "").startsWith(g.schemaPath))) {
       return false;
     }
     return pointer === "" || valueAtPointer(credentials, pointer) !== MASKED_SECRET;
