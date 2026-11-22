@@ -99,13 +99,19 @@ export async function handleLinkedConnections(
   }
 }
 
+/**
+ * Parses a config object. A config that does not validate is a 400 that carries the validation issues and nothing else:
+ * the object is never echoed, because on an update it is the stored config merged with the patch, so it holds the stored
+ * secrets, and the API handler sends the response object to the caller and writes it to the logs (JITSU-280).
+ */
 export function parseObject(type: string, obj: any): any {
   const configType = getConfigObjectType(type);
   assertDefined(configType, `Unknown config object type ${type}`);
   const parseResult = safeParseWithDate(configType.schema, obj);
   if (!parseResult.success) {
     throw new ApiError(`Failed to validate schema of ${type}`, {
-      responseObject: { object: obj, error: parseResult.error },
+      status: 400,
+      responseObject: { error: parseResult.error },
     });
   }
   const topLevelObject = parseResult.data;
@@ -113,7 +119,8 @@ export function parseObject(type: string, obj: any): any {
   const narrowParseResult = configType.narrowSchema(topLevelObject, configType.schema).safeParse(obj);
   if (!narrowParseResult.success) {
     throw new ApiError(`Failed to validate schema of ${type}`, {
-      responseObject: { object: obj, error: narrowParseResult.error },
+      status: 400,
+      responseObject: { error: narrowParseResult.error },
     });
   }
   return narrowParseResult.data;
