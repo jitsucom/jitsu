@@ -83,16 +83,33 @@ const mergeConfig = (current: JitsuOptions, newConfig: JitsuOptions): void => {
   }
 };
 
+function decodeQueryPart(value: string): string {
+  const normalized = value.replace(/\+/g, " ");
+  try {
+    return decodeURIComponent(normalized);
+  } catch {
+    return normalized;
+  }
+}
+
 export const parseQuery = (qs?: string): Record<string, string> => {
   if (!qs) {
     return {};
   }
-  let queryString = qs.length > 0 && qs.charAt(0) === "?" ? qs.substring(1) : qs;
-  let query: Record<string, string> = {};
-  let pairs = (queryString[0] === "?" ? queryString.substr(1) : queryString).split("&");
+  const queryString = qs.length > 0 && qs.charAt(0) === "?" ? qs.substring(1) : qs;
+  const trimmed = queryString[0] === "?" ? queryString.substring(1) : queryString;
+  if (!trimmed) {
+    return {};
+  }
+  const query: Record<string, string> = {};
+  const pairs = trimmed.split("&");
   for (let i = 0; i < pairs.length; i++) {
-    let pair = pairs[i].split("=");
-    query[decodeURIComponent(pair[0])] = decodeURIComponent(pair[1] || "");
+    const pair = pairs[i];
+    if (!pair) continue;
+    const eqIdx = pair.indexOf("=");
+    const rawKey = eqIdx === -1 ? pair : pair.slice(0, eqIdx);
+    const rawVal = eqIdx === -1 ? "" : pair.slice(eqIdx + 1);
+    query[decodeQueryPart(rawKey)] = decodeQueryPart(rawVal);
   }
   return query;
 };
