@@ -361,6 +361,80 @@ describe("a choice (oneOf) whose discriminator still holds the mask", () => {
     expect(kept.map(e => e.instancePath).sort()).toEqual(["/else", "/else", "/then", "/then"]);
   });
 
+  it("reads a schema path as keywords and names, so a field called properties or if is only a name", () => {
+    // the field `properties` holds a conditional of its own: the second "properties" in the path is its name
+    const nested = {
+      oneOf: [
+        {
+          properties: {
+            mode: { const: "a" },
+            properties: {
+              type: "object",
+              if: { properties: { flag: { const: true } }, required: ["flag"] },
+              then: { properties: { port: { maximum: 10 } } },
+              else: { properties: { port: { minimum: 100 } } },
+            },
+          },
+        },
+        // the other mode takes no port below 100, so the choice is satisfied only through the first option
+        {
+          properties: {
+            mode: { const: "b" },
+            properties: { type: "object", properties: { port: { type: "integer", minimum: 100 } } },
+          },
+        },
+      ],
+    };
+    const validate = new Ajv({ allErrors: true, strictSchema: false, useDefaults: true }).compile(nested);
+    // the masked flag sends the condition to `else`; the saved one may have chosen `then`, where port 5 is fine
+    expect(
+      validateKeepingMasks(validate, { mode: MASKED_SECRET, properties: { flag: MASKED_SECRET, port: 5 } })
+    ).toEqual([]);
+
+    // a field called `if` or `else`, with a rule of its own, is a field
+    const named = {
+      oneOf: [
+        { properties: { mode: { const: "a" }, if: { type: "string", minLength: 3 } } },
+        { properties: { mode: { const: "b" }, if: { type: "string", minLength: 3 } } },
+      ],
+    };
+    const validateNamed = new Ajv({ allErrors: true, strictSchema: false, useDefaults: true }).compile(named);
+    expect(validateKeepingMasks(validateNamed, { mode: MASKED_SECRET, if: "x" }).map(e => e.instancePath)).toEqual([
+      "/if",
+      "/if",
+    ]);
+  });
+
+  it("reads a conditional of the entries of a list inside a masked choice as a conditional", () => {
+    const rows = {
+      oneOf: [
+        {
+          properties: {
+            mode: { const: "a" },
+            rows: {
+              type: "array",
+              items: {
+                if: { properties: { flag: { const: true } }, required: ["flag"] },
+                then: { properties: { port: { maximum: 10 } } },
+                else: { properties: { port: { minimum: 100 } } },
+              },
+            },
+          },
+        },
+        {
+          properties: {
+            mode: { const: "b" },
+            rows: { type: "array", items: { properties: { port: { type: "integer", minimum: 100 } } } },
+          },
+        },
+      ],
+    };
+    const validate = new Ajv({ allErrors: true, strictSchema: false, useDefaults: true }).compile(rows);
+    expect(validateKeepingMasks(validate, { mode: MASKED_SECRET, rows: [{ flag: MASKED_SECRET, port: 5 }] })).toEqual(
+      []
+    );
+  });
+
   it("ignores what a branch of a conditional reports on a field inside a masked choice", () => {
     const deeper = {
       oneOf: [

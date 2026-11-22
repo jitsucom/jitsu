@@ -40,9 +40,11 @@ const OWN_OBJECT_KEYWORDS = new Set(["required", "const", "enum", "oneOf", "anyO
 // for a masked choice the editor does not weigh it: it is left to the connection test and the connector. Working out
 // whether a mask could decide a condition would mean re-implementing how a schema is evaluated (scoped references,
 // `allOf`, `not`, ...), and each case it missed blocked a valid save.
-// `then` and `else` count only as keywords: after the keywords below the next part of a schema path is a name chosen by
-// the connector, and a field of a choice may be called `then` or `else`.
-const NAME_FOLLOWS = new Set([
+// A schema path alternates keywords and names, and which is which depends on the keyword before: after a keyword that
+// holds a map of schemas the next part is a name chosen by the connector (a field may be called `then`, `if` or even
+// `properties`), after one that holds a list it is an index, after one that holds a single schema it is the next keyword.
+// So the path is read from the start, and `if`, `then` and `else` count only where a keyword is expected.
+const SCHEMA_MAPS = new Set([
   "properties",
   "patternProperties",
   "definitions",
@@ -50,12 +52,36 @@ const NAME_FOLLOWS = new Set([
   "dependentSchemas",
   "dependencies",
 ]);
+const SCHEMA_LISTS = new Set(["oneOf", "anyOf", "allOf", "prefixItems"]);
+const SCHEMA_SINGLE = new Set([
+  "items",
+  "additionalProperties",
+  "additionalItems",
+  "unevaluatedProperties",
+  "unevaluatedItems",
+  "contains",
+  "propertyNames",
+  "not",
+]);
 const isConditional = (error: FieldError): boolean => {
   if (error.keyword === "if") {
     return true;
   }
   const parts = (error.schemaPath ?? "").split("/");
-  return parts.some((part, i) => (part === "then" || part === "else") && !NAME_FOLLOWS.has(parts[i - 1] ?? ""));
+  for (let i = 1; i < parts.length; ) {
+    const keyword = parts[i];
+    if (keyword === "if" || keyword === "then" || keyword === "else") {
+      return true;
+    }
+    if (SCHEMA_MAPS.has(keyword) || SCHEMA_LISTS.has(keyword)) {
+      i += 2; // the keyword and the name or index that follows it
+    } else if (SCHEMA_SINGLE.has(keyword)) {
+      i += 1;
+    } else {
+      return false; // a keyword that holds no schema (`minimum`, `required`, ...): nothing below it
+    }
+  }
+  return false;
 };
 
 /** The node of the schema an Ajv `schemaPath` (`#/properties/a/oneOf`) points at, or undefined when it cannot be followed */
