@@ -57,7 +57,8 @@ const (
 	FunctionsClassPremium   = "premium"   // Premium tier with dedicated resources
 
 	// HPA suffix
-	hpaSuffix = "-fs-hpa"
+	hpaSuffix                = "-fs-hpa"
+	annotationHPAMaxOverride = "jitsu.com/hpa-max-replicas-override"
 	// PDB suffix
 	pdbSuffix = "-fs-pdb"
 )
@@ -65,7 +66,7 @@ const (
 type Operator struct {
 	appbase.Service
 	config    *Config
-	clientset *kubernetes.Clientset
+	clientset kubernetes.Interface
 
 	connectionsRepo appbase.Repository[ConnectionsData]
 	functionsRepo   appbase.Repository[FunctionsData]
@@ -315,6 +316,12 @@ func (o *Operator) reconcile() {
 					continue
 				}
 			}
+		}
+	}
+
+	if o.config.HPAEnabled {
+		if err := o.reconcileHPAMaxOverrides(ctx, desiredDeployments); err != nil {
+			logging.Errorf("Failed to reconcile HPA maximum overrides: %v", err)
 		}
 	}
 
@@ -1816,6 +1823,61 @@ func (o *Operator) buildDeploymentFromData(data *DeploymentData) *appsv1.Deploym
 	}
 }
 
+// HPA-only changes must take effect even when the pod template hash is unchanged.
+// The annotation lets a later operator restore the global maximum after removal.
+func (o *Operator) reconcileHPAMaxOverrides(ctx context.Context, desired map[string]*DeploymentData) error {
+	hpas, err := o.clientset.AutoscalingV2().HorizontalPodAutoscalers(o.config.KubernetesNamespace).List(ctx, metav1.ListOptions{
+		LabelSelector: labelApp + "=" + appName,
+	})
+	if err != nil {
+		return err
+	}
+	for i := range hpas.Items {
+		hpa := &hpas.Items[i]
+		id, ok := strings.CutSuffix(hpa.Name, hpaSuffix)
+		if !ok || desired[id] == nil {
+			continue
+		}
+		overridden := hpa.Annotations[annotationHPAMaxOverride] != ""
+		_, configured := o.config.maxReplicasByDeployment[id]
+		if !overridden && !configured {
+			continue
+		}
+		previous := hpa.Spec.MaxReplicas
+		if err := o.config.setHPAMaxReplicas(id, hpa); err != nil {
+			o.Errorf("Invalid HPA maximum for %s: %v", id, err)
+			continue
+		}
+		if hpa.Spec.MaxReplicas == previous && overridden == configured {
+			continue
+		}
+		if _, err := o.clientset.AutoscalingV2().HorizontalPodAutoscalers(o.config.KubernetesNamespace).Update(ctx, hpa, metav1.UpdateOptions{}); err != nil {
+			o.Errorf("Failed to update HPA maximum for %s: %v", id, err)
+		}
+	}
+	return nil
+}
+
+func (c *Config) setHPAMaxReplicas(id string, hpa *autoscalingv2.HorizontalPodAutoscaler) error {
+	limit, ok := c.maxReplicasByDeployment[id]
+	if !ok {
+		limit = c.HPAMaxReplicas
+	}
+	if hpa.Spec.MinReplicas != nil && limit < *hpa.Spec.MinReplicas {
+		return fmt.Errorf("maximum %d for %s is below its minimum %d", limit, id, *hpa.Spec.MinReplicas)
+	}
+	hpa.Spec.MaxReplicas = limit
+	if ok {
+		if hpa.Annotations == nil {
+			hpa.Annotations = make(map[string]string)
+		}
+		hpa.Annotations[annotationHPAMaxOverride] = "true"
+	} else {
+		delete(hpa.Annotations, annotationHPAMaxOverride)
+	}
+	return nil
+}
+
 // createOrUpdateHPA creates or updates a HorizontalPodAutoscaler for a deployment
 func (o *Operator) createOrUpdateHPA(ctx context.Context, data *DeploymentData) error {
 	if !o.config.HPAEnabled {
@@ -1869,7 +1931,6 @@ func (o *Operator) createOrUpdateHPA(ctx context.Context, data *DeploymentData) 
 				Name:       deploymentName,
 			},
 			MinReplicas: &minReplicas,
-			MaxReplicas: o.config.HPAMaxReplicas,
 			Behavior: &autoscalingv2.HorizontalPodAutoscalerBehavior{
 				ScaleDown: &autoscalingv2.HPAScalingRules{
 					StabilizationWindowSeconds: &scaleDownStabilization,
@@ -1908,6 +1969,9 @@ func (o *Operator) createOrUpdateHPA(ctx context.Context, data *DeploymentData) 
 		},
 	}
 
+	if err := o.config.setHPAMaxReplicas(data.DeploymentID, hpa); err != nil {
+		return err
+	}
 	existing, err := o.clientset.AutoscalingV2().HorizontalPodAutoscalers(o.config.KubernetesNamespace).Get(ctx, hpaName, metav1.GetOptions{})
 	if err != nil {
 		if errors.IsNotFound(err) {
