@@ -23,6 +23,7 @@ import {
   isFetchCallLogged,
   isFetchLogEnabled,
   parseLoggedResponse,
+  rebuildProxyError,
   responseBodyText,
   transferableFetchInit,
   trimLoggedResponse,
@@ -45,11 +46,11 @@ function nextCallId(): string {
   return String(++callIdCounter);
 }
 
-function callMain(method: ProxyMethod, args: any[]): Promise<any> {
+function callMain(method: ProxyMethod, args: any[], connectionId?: string): Promise<any> {
   return new Promise((resolve, reject) => {
     const callId = nextCallId();
     pending.set(callId, { resolve, reject });
-    self.postMessage({ type: "proxyRequest", callId, method, args });
+    self.postMessage({ type: "proxyRequest", callId, method, args, connectionId });
   });
 }
 
@@ -101,12 +102,13 @@ function buildContext(
 
   // Proxied store
   const store = {
-    get: (key: string) => callMain("store.get", [key]),
-    set: (key: string, obj: any, opts?: any) => callMain("store.set", [key, obj, opts]),
-    del: (key: string) => callMain("store.del", [key]),
-    ttl: (key: string) => callMain("store.ttl", [key]),
-    getOrSet: (key: string, value: any, opts?: any) => callMain("store.getOrSet", [key, value, opts]),
-    getWithTTL: (key: string) => callMain("store.getWithTTL", [key]),
+    get: (key: string) => callMain("store.get", [key], chain.connection.id),
+    set: (key: string, obj: any, opts?: any) => callMain("store.set", [key, obj, opts], chain.connection.id),
+    del: (key: string) => callMain("store.del", [key], chain.connection.id),
+    ttl: (key: string) => callMain("store.ttl", [key], chain.connection.id),
+    getOrSet: (key: string, value: any, opts?: any) =>
+      callMain("store.getOrSet", [key, value, opts], chain.connection.id),
+    getWithTTL: (key: string) => callMain("store.getWithTTL", [key], chain.connection.id),
   };
 
   // Collecting logger (fire-and-forget via postMessage)
@@ -259,7 +261,7 @@ self.onmessage = async (e: MessageEvent<MainToWorkerMessage>) => {
     if (p) {
       pending.delete(msg.callId);
       if (msg.error) {
-        p.reject(new Error(msg.error));
+        p.reject(rebuildProxyError(msg.error, msg.errorCodes));
       } else {
         p.resolve(msg.result);
       }

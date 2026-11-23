@@ -62,6 +62,8 @@ export type ProxyResponseMessage = {
   callId: string;
   result?: any;
   error?: string;
+  /** the `code` and `cause.code` of the error (EBLOCKED for a refused address...), so the worker can rebuild it */
+  errorCodes?: { code?: string; causeCode?: string };
 };
 
 export type MainToWorkerMessage = InitMessage | ExecMessage | CancelMessage | MemoryQueryMessage | ProxyResponseMessage;
@@ -94,6 +96,8 @@ export type ProxyRequestMessage = {
   callId: string;
   method: ProxyMethod;
   args: any[];
+  /** the connection the call is made for; names the in-memory store of a paid connection */
+  connectionId?: string;
 };
 
 export type ProxyMethod =

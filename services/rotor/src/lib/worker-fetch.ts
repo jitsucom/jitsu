@@ -193,3 +193,31 @@ export function parseLoggedResponse(text: string): any {
 export function responseBodyText(s: SerializedResponse): string {
   return typeof s.body === "string" ? s.body : new TextDecoder().decode(s.body);
 }
+
+/**
+ * The timeout for a fetch a worker asks for. A worker is sandboxed tenant code and can post any message, so the number in
+ * its request is only a request: it cannot raise the timeout above the largest one the main process gave to an execution
+ * running in that worker (the x-request-timeout-ms of the call), or above the server default when none is running.
+ */
+export function boundedFetchTimeoutMs(requested: unknown, granted: Iterable<number>, defaultMs: number): number {
+  const wanted = proxiedFetchTimeoutMs(requested, defaultMs);
+  const grants = [...granted].filter(g => Number.isFinite(g) && g > 0);
+  return Math.min(wanted, grants.length > 0 ? Math.max(...grants) : defaultMs);
+}
+
+/** The error codes a UDF can see on a failed fetch: `err.code` (EBLOCKED from the host check) and `err.cause.code` (undici's). */
+export type ProxyErrorCodes = { code?: string; causeCode?: string };
+
+export function errorCodesOf(err: any): ProxyErrorCodes {
+  const code = typeof err?.code === "string" ? err.code : undefined;
+  const causeCode = typeof err?.cause?.code === "string" ? err.cause.code : undefined;
+  return { ...(code ? { code } : {}), ...(causeCode ? { causeCode } : {}) };
+}
+
+/** The error a worker rejects with for a failed proxy call: the message and the same code fields the in-process fetch has. */
+export function rebuildProxyError(message: string, codes: ProxyErrorCodes = {}): Error {
+  const err: any = new Error(message);
+  if (codes.code) err.code = codes.code;
+  if (codes.causeCode) err.cause = { code: codes.causeCode };
+  return err;
+}

@@ -6,6 +6,9 @@ import {
   isFetchLogEnabled,
   parseLoggedResponse,
   proxiedFetchTimeoutMs,
+  boundedFetchTimeoutMs,
+  errorCodesOf,
+  rebuildProxyError,
   transferableFetchInit,
   responseBodyText,
   serializeResponse,
@@ -447,5 +450,58 @@ describe("the init of a proxied fetch crosses the worker boundary", () => {
   it("is what the request log shows too: the sensitive header is hidden in the pair form", () => {
     const sent = transferableFetchInit({ headers: new Headers({ Authorization: "Bearer secret", "X-Trace": "t1" }) });
     expect(hideSensitiveHeaders(sent.headers)).toEqual({ authorization: "*****", "x-trace": "t1" });
+  });
+});
+
+describe("the timeout a worker may ask for", () => {
+  // The worker is sandboxed tenant code and can post any message, so the number in its fetch request is a request only:
+  // it cannot raise the timeout above what the main process gave the executions that are running in that worker.
+  it("uses the granted timeout of the running execution", () => {
+    expect(boundedFetchTimeoutMs(5000, [5000], 2000)).toBe(5000);
+  });
+
+  it("does not let the worker ask for more than any running execution was given", () => {
+    expect(boundedFetchTimeoutMs(600000, [5000], 2000)).toBe(5000);
+    expect(boundedFetchTimeoutMs(600000, [3000, 8000], 2000)).toBe(8000);
+  });
+
+  it("falls back to the server default when nothing runs, or the number is not usable", () => {
+    expect(boundedFetchTimeoutMs(600000, [], 2000)).toBe(2000);
+    expect(boundedFetchTimeoutMs(undefined, [], 2000)).toBe(2000);
+    expect(boundedFetchTimeoutMs("x", [9000], 2000)).toBe(2000);
+    expect(boundedFetchTimeoutMs(-5, [9000], 2000)).toBe(2000);
+  });
+
+  it("never gives more than the default plus what was granted, for a request below the grant", () => {
+    expect(boundedFetchTimeoutMs(1000, [5000], 2000)).toBe(1000);
+  });
+});
+
+describe("a fetch error crossing the worker proxy", () => {
+  // In process a UDF sees `err.code` (EBLOCKED from the host check) or `err.cause.code` (the guarded agent's), as thrown
+  it("reads the code and the cause's code, when they are strings", () => {
+    expect(errorCodesOf(Object.assign(new Error("fetch failed"), { code: "EBLOCKED" }))).toEqual({ code: "EBLOCKED" });
+    expect(errorCodesOf(new Error("fetch failed", { cause: { code: "EBLOCKED" } }))).toEqual({ causeCode: "EBLOCKED" });
+    expect(errorCodesOf(Object.assign(new Error("x", { cause: { code: "ECONNRESET" } }), { code: "E1" }))).toEqual({
+      code: "E1",
+      causeCode: "ECONNRESET",
+    });
+    expect(errorCodesOf(new Error("plain"))).toEqual({});
+    expect(errorCodesOf(Object.assign(new Error("x"), { code: 42 }))).toEqual({});
+    expect(errorCodesOf(undefined)).toEqual({});
+  });
+
+  it("is rebuilt with the same fields, so a UDF checks the code the way it does in process", () => {
+    const own: any = rebuildProxyError("fetch failed", { code: "EBLOCKED" });
+    expect(own).toBeInstanceOf(Error);
+    expect(own.message).toBe("fetch failed");
+    expect(own.code).toBe("EBLOCKED");
+    expect(own.cause).toBeUndefined();
+    const wrapped: any = rebuildProxyError("fetch failed", { causeCode: "EBLOCKED" });
+    expect(wrapped.code).toBeUndefined();
+    expect(wrapped.cause?.code).toBe("EBLOCKED");
+    const plain: any = rebuildProxyError("plain");
+    expect(plain.code).toBeUndefined();
+    expect(plain.cause).toBeUndefined();
   });
 });

@@ -333,6 +333,30 @@ const expectedEvents = {
     },
     context,
   },
+  // another connection does not see what the store connection wrote, except in the free class, which has one store per
+  // workspace
+  store_other_0: {
+    type: "track",
+    properties: {
+      first: "1st",
+      retries: 0,
+      counter: 3,
+      otherSees: "nothing",
+      third: "3rd",
+    },
+    context,
+  },
+  store_other_free_0: {
+    type: "track",
+    properties: {
+      first: "1st",
+      retries: 0,
+      counter: 3,
+      otherSees: "stored-value",
+      third: "3rd",
+    },
+    context,
+  },
   fetch_0: {
     type: "track",
     properties: {
@@ -498,6 +522,10 @@ describe.each(testModes)("Test Functions Chain ($name mode)", ({ name: modeName,
       await writeTestConfigs(configDir, connectionsForServer, functions as unknown as Record<string, FunctionConfig>);
 
       process.env.FUNCTIONS_CLASS = functionsClass;
+      // the functions server runs with the SSRF guard on (the test's own webhook server is on the whitelist), so a UDF's
+      // fetch of a private address is refused with the EBLOCKED code
+      process.env.FETCH_FORBID_LOCAL = "true";
+      process.env.FETCH_LOCAL_WHITELIST = "localhost,127.0.0.1";
 
       // Start functions server on a deterministic, per-mode port so free- and
       // dedicated-mode servers never collide (SIGTERM + immediate respawn on the
@@ -580,6 +608,7 @@ describe.each(testModes)("Test Functions Chain ($name mode)", ({ name: modeName,
         "/multi_retry": handlerF("multi_retry"),
         "/ua_geo": handlerF("ua_geo"),
         "/store": handlerF("store"),
+        "/store_other": handlerF("store_other"),
         "/fetch": handlerF("fetch"),
         "/warehouse_real": handlerF("warehouse_real"),
         "/fetch-source": fetchSourceHandler,
@@ -600,6 +629,8 @@ describe.each(testModes)("Test Functions Chain ($name mode)", ({ name: modeName,
     resetServerEnvCache();
 
     delete process.env.FUNCTIONS_ISOLATE_UDFS;
+    delete process.env.FETCH_FORBID_LOCAL;
+    delete process.env.FETCH_LOCAL_WHITELIST;
 
     // Stop functions server if running
     if (functionsServer) {
@@ -1029,6 +1060,24 @@ describe.each(testModes)("Test Functions Chain ($name mode)", ({ name: modeName,
     }
   });
 
+  // Runs after "store", which wrote a key in its own connection. Without MongoDB a paid connection has its own in-memory
+  // store, in process and in an isolated worker alike, so this one finds nothing; the free class has one per workspace.
+  test("store_other", async () => {
+    const currentTestName = testName();
+    const connStore = getConnectionStoreForMode();
+    await rotorMessageHandler(
+      ingestMessage(currentTestName, messageId, incomingEvent),
+      rotorContext(connStore, funcStore, streamsStore),
+      "all",
+      { [CONNECTION_IDS_HEADER]: currentTestName },
+      true,
+      0,
+      5000
+    );
+    expect(lastError).toBeUndefined();
+    expect(counters[currentTestName]).toEqual(1);
+  });
+
   test("fetch", async () => {
     const currentTestName = testName();
     const connStore = getConnectionStoreForMode();
@@ -1064,6 +1113,11 @@ describe.each(testModes)("Test Functions Chain ($name mode)", ({ name: modeName,
         .map(e => e.msg)
         .find(m => String(m?.message?.text).startsWith("headers-object-auth="));
       expect(sentAuth?.message.text).toBe("headers-object-auth=Bearer headers-object");
+      // A fetch the guard refuses exposes the same code (`err.code`) in process and through a worker
+      const errorCodes = loggedEntries
+        .map(e => e.msg)
+        .find(m => String(m?.message?.text).startsWith("fetch-error-codes="));
+      expect(errorCodes?.message.text).toBe("fetch-error-codes=EBLOCKED|undefined");
       // The free class and the Functions Debugger always had a plain headers object (`res.headers["content-type"]`); the
       // rebuilt Response in a worker keeps that access next to `.get()`.
       if (functionsClass === "free" || isolate) {

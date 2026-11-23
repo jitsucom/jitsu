@@ -155,6 +155,19 @@ export default async function(event, { log, fetch, store, retries, props: config
   return event
 }`,
   },
+  // reads the key the functionStore function of another connection wrote
+  functionStoreOther: {
+    id: "functionStoreOther",
+    workspaceId: "workspace1",
+    name: "Function Store Other",
+    codeHash: "functionStoreOther-hash",
+    code: `export default async function(event, { store }) {
+  const val = await store.get("store-test-key")
+  event.properties.otherSees = val ? val.marker : "nothing"
+  event.properties.counter = (event.properties.counter || 0) + 1
+  return event
+}`,
+  },
   functionFetch: {
     id: "functionFetch",
     workspaceId: "workspace1",
@@ -166,6 +179,12 @@ export default async function(event, { log, fetch, store, retries, props: config
   // request headers given as a Headers instance have to reach the server in every runtime, also through a worker
   const echo = await fetch(config.FETCH_URL + "?echo=1", { headers: new Headers({ Authorization: "Bearer headers-object" }) })
   log.info("headers-object-auth=" + (await echo.json()).receivedAuthorization)
+  // an address the guard refuses (FETCH_FORBID_LOCAL) has the same code in every runtime: EBLOCKED tells a refusal from a failure
+  try {
+    await fetch("http://10.255.255.1/refused")
+  } catch (e) {
+    log.info("fetch-error-codes=" + e.code + "|" + (e.cause && e.cause.code))
+  }
   log.info("legacy-headers=" + res.headers["content-type"] + "|" + Object.keys(res.headers).includes("content-type"))
   log.info("legacy-body=" + JSON.parse(res.body).message)
   log.info("headers-in-log", res.headers)
@@ -541,6 +560,33 @@ export const connections = {
     },
     credentials: {
       url: "http://localhost:3089/store",
+      method: "POST",
+      headers: [],
+    },
+  },
+  store_other: {
+    id: "store_other",
+    workspaceId: "workspace1",
+    updatedAt: new Date(),
+    destinationId: "destination1",
+    streamId: "stream1",
+    usesBulker: false,
+    type: "webhook",
+    options: {
+      functions: [
+        {
+          functionId: "udf.function1",
+        },
+        {
+          functionId: "udf.functionStoreOther",
+        },
+        {
+          functionId: "udf.function3",
+        },
+      ],
+    },
+    credentials: {
+      url: "http://localhost:3089/store_other",
       method: "POST",
       headers: [],
     },

@@ -5,7 +5,7 @@ import { LogLevel, parseNumber } from "juava";
 import { compileUdfToIIFE } from "./udf-shared";
 import type { ExecMessage, InitMessage, ProxyResponseMessage, WorkerConnectionInit } from "./worker-protocol";
 import { warehouseQuery } from "./warehouse-store";
-import { serializeResponse } from "./worker-fetch";
+import { errorCodesOf, serializeResponse } from "./worker-fetch";
 import { getServerEnv } from "../serverEnv";
 
 const env = getServerEnv();
@@ -188,7 +188,12 @@ export async function runUdfInWorker(
             }
             worker.postMessage({ type: "proxyResponse", callId, result } as ProxyResponseMessage);
           } catch (err: any) {
-            worker.postMessage({ type: "proxyResponse", callId, error: err.message } as ProxyResponseMessage);
+            worker.postMessage({
+              type: "proxyResponse",
+              callId,
+              error: err.message,
+              errorCodes: errorCodesOf(err),
+            } as ProxyResponseMessage);
           }
           return;
         }

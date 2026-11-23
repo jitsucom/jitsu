@@ -20,7 +20,12 @@ import {
 } from "@jitsu/core-functions-lib";
 import { getServerEnv } from "./serverEnv";
 import { createMongoStore, mongodb } from "./lib/mongodb";
-import { memoizedPerWorkspace } from "./lib/worker-store";
+import {
+  createSweptMemoryStore,
+  memoizedPerConnection,
+  memoizedPerWorkspace,
+  storeForProxyCall,
+} from "./lib/worker-store";
 import { warehouseQuery } from "./lib/warehouse-store";
 import { parse as semverParse } from "semver";
 import * as jsondiffpatch from "jsondiffpatch";
@@ -40,7 +45,7 @@ import type {
   WorkerToMainMessage,
 } from "./lib/worker-protocol";
 import { runUdfInWorker } from "./lib/worker-udf-runner";
-import { proxiedFetchTimeoutMs, serializeResponse } from "./lib/worker-fetch";
+import { boundedFetchTimeoutMs, errorCodesOf, serializeResponse } from "./lib/worker-fetch";
 import {
   loadProfileBuilders,
   initProfileBuilderRuntimes,
@@ -858,12 +863,17 @@ type WorkspaceWorker = {
   workspaceId: string;
   worker: Worker;
   pending: Map<string, { resolve: (v: any) => void; reject: (e: Error) => void }>;
+  /** requestId -> the fetch timeout given to that running execution */
+  execTimeouts: Map<string, number>;
   ready: Promise<void>;
 };
 
 function getWorkerUrl(): string {
   return new URL("./workspace-worker.mjs", import.meta.url).href;
 }
+
+// Without MongoDB a paid connection run in a worker keeps its own in-memory store, as it does in process (see storeForProxyCall)
+const connectionFallbackStoreFor = memoizedPerConnection(() => createSweptMemoryStore(createMemoryStore));
 
 function createWorkspaceWorker(
   workspaceId: string,
@@ -878,6 +888,8 @@ function createWorkspaceWorker(
   });
 
   const pendingExec = new Map<string, { resolve: (v: any) => void; reject: (e: Error) => void }>();
+  // the fetch timeout given to each execution that is running in this worker (see boundedFetchTimeoutMs)
+  const execTimeouts = new Map<string, number>();
   let readyResolve: () => void;
   const readyPromise = new Promise<void>(resolve => {
     readyResolve = resolve;
@@ -921,14 +933,22 @@ function createWorkspaceWorker(
         let result: any;
         if (method.startsWith("store.")) {
           const op = method.split(".")[1];
-          result = await (store as any)[op](...args);
+          const target = storeForProxyCall({
+            mongo: !!env.MONGODB_URL,
+            freeClass: env.FUNCTIONS_CLASS === "free",
+            workspaceStore: store,
+            connectionStore: connectionFallbackStoreFor,
+            workspaceId,
+            connectionId: msg.connectionId,
+          });
+          result = await (target as any)[op](...args);
         } else if (method === "fetch") {
           const [connectionId, url, init, requestedTimeoutMs] = args;
           const fetchImpl = makeFetch(
             connectionId,
             { log() {}, close() {}, deadLetter() {} },
             "debug",
-            proxiedFetchTimeoutMs(requestedTimeoutMs, parseNumber(env.FETCH_TIMEOUT_MS, 2000))
+            boundedFetchTimeoutMs(requestedTimeoutMs, execTimeouts.values(), parseNumber(env.FETCH_TIMEOUT_MS, 2000))
           );
           result = await serializeResponse(await fetchImpl(url, init));
         } else if (method === "warehouse.query") {
@@ -943,7 +963,12 @@ function createWorkspaceWorker(
         const response: ProxyResponseMessage = { type: "proxyResponse", callId, result };
         worker.postMessage(response);
       } catch (err: any) {
-        const response: ProxyResponseMessage = { type: "proxyResponse", callId, error: err.message };
+        const response: ProxyResponseMessage = {
+          type: "proxyResponse",
+          callId,
+          error: err.message,
+          errorCodes: errorCodesOf(err),
+        };
         worker.postMessage(response);
       }
     }
@@ -957,7 +982,7 @@ function createWorkspaceWorker(
   const initMsg: InitMessage = { type: "init", connections };
   worker.postMessage(initMsg);
 
-  return { workspaceId, worker, pending: pendingExec, ready: readyPromise };
+  return { workspaceId, worker, pending: pendingExec, execTimeouts, ready: readyPromise };
 }
 
 async function execInWorker(
@@ -969,7 +994,8 @@ async function execInWorker(
 ): Promise<ResultMessage> {
   await ws.ready;
   const requestId = crypto.randomUUID();
-  return new Promise((resolve, reject) => {
+  ws.execTimeouts.set(requestId, fetchTimeoutMs);
+  return new Promise<ResultMessage>((resolve, reject) => {
     ws.pending.set(requestId, { resolve, reject });
     const execMsg: ExecMessage = {
       type: "exec",
@@ -980,7 +1006,7 @@ async function execInWorker(
       fetchTimeoutMs,
     };
     ws.worker.postMessage(execMsg);
-  });
+  }).finally(() => ws.execTimeouts.delete(requestId));
 }
 
 async function main() {
@@ -1068,7 +1094,7 @@ async function main() {
     }
 
     // The in-memory fallback must outlive a worker: the pool asks for a store again when it respawns an evicted worker
-    const fallbackStoreFor = memoizedPerWorkspace(() => createMemoryStore({}));
+    const fallbackStoreFor = memoizedPerWorkspace(() => createSweptMemoryStore(createMemoryStore));
 
     // Build store factory for lazy worker creation
     const storeFactory = (wsId: string): TTLStore => {

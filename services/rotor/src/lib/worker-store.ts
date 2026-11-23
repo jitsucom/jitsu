@@ -18,3 +18,64 @@ export function memoizedPerWorkspace(create: (workspaceId: string) => TTLStore):
     return store;
   };
 }
+
+/**
+ * The in-memory store of a paid connection, one per workspace and connection, as a function run in process has one when
+ * there is no MongoDB. (With MongoDB both paths share the store of the workspace.)
+ */
+export function memoizedPerConnection(
+  create: (workspaceId: string, connectionId: string) => TTLStore
+): (workspaceId: string, connectionId: string) => TTLStore {
+  const stores = new Map<string, TTLStore>();
+  return (workspaceId, connectionId) => {
+    const key = `${workspaceId}\u0000${connectionId}`;
+    let store = stores.get(key);
+    if (!store) {
+      store = create(workspaceId, connectionId);
+      stores.set(key, store);
+    }
+    return store;
+  };
+}
+
+/**
+ * The store a worker's `store.*` call goes to. With MongoDB, and for the free class (which has always had one store per
+ * workspace), that is the workspace store. Otherwise a paid connection gets its own in-memory store, named by the
+ * connection id the worker sent (a worker can name any connection of its own workspace, which is its own data anyway).
+ */
+export function storeForProxyCall(o: {
+  mongo: boolean;
+  freeClass: boolean;
+  workspaceStore: TTLStore;
+  connectionStore: (workspaceId: string, connectionId: string) => TTLStore;
+  workspaceId: string;
+  connectionId: unknown;
+}): TTLStore {
+  if (o.mongo || o.freeClass || typeof o.connectionId !== "string" || o.connectionId === "") {
+    return o.workspaceStore;
+  }
+  return o.connectionStore(o.workspaceId, o.connectionId);
+}
+
+/**
+ * An in-memory store that also removes expired entries by itself. `createMemoryStore` removes one only when its key is read
+ * again, and a store that is kept for as long as the server runs would hold every key that was written once (a
+ * deduplication key per event id).
+ */
+export function createSweptMemoryStore(create: (backing: any) => TTLStore, intervalMs: number = 60_000): TTLStore {
+  const backing: Record<string, any> = {};
+  const store = create(backing);
+  const timer: any = setInterval(() => {
+    const now = Date.now();
+    for (const key of Object.keys(backing)) {
+      const expireAt = backing[key]?.expireAt;
+      if (typeof expireAt === "number" && expireAt < now) {
+        delete backing[key];
+      }
+    }
+  }, intervalMs);
+  // do not keep a process alive for the sweep (Node), nor a Deno server's shutdown
+  timer?.unref?.();
+  (globalThis as any).Deno?.unrefTimer?.(timer);
+  return store;
+}
