@@ -411,12 +411,17 @@ export class SyncService {
       const existingId = source.cloneId || source.id;
       // The id goes on to syncctl (credential lookup by id), so it must not belong to another workspace, whatever the
       // type or deleted state of that object: this check is independent of the lookup used to restore secrets below.
-      const named = existingId ? await this.prisma.configurationObject.findFirst({ where: { id: existingId } }) : null;
-      if (named && named.workspaceId !== workspaceId) {
+      // Both ids are checked: `source.id` is what syncctl reads, `cloneId` is what the secrets are restored from.
+      const ids = [...new Set([source.cloneId, source.id].filter(id => typeof id === "string" && id))];
+      const found = ids.length
+        ? await this.prisma.configurationObject.findMany({ where: { id: { in: ids as string[] } } })
+        : [];
+      if (found.some(o => o.workspaceId !== workspaceId)) {
         return { ok: false, error: "invalid service id" };
       }
-      // JITSU-281: only a live service can give its secrets back, not an object of another type
-      const existing = named && named.type === "service" && !named.deleted ? named : null;
+      const named = found.find(o => o.id === existingId);
+      // JITSU-281: only a live service (`deleted` is nullable: a null is not live) can give its secrets back
+      const existing = named && named.type === "service" && named.deleted === false ? named : null;
       if (!existing && source.cloneId && containsMaskedSecrets(source)) {
         return { ok: false, error: "invalid service id" };
       }

@@ -27,7 +27,7 @@ const destinationConfig = {
 
 const configs = () => new ConfigObjectsService({ prisma: deps().prisma });
 
-async function seedObject(workspaceId: string, type: string, config: any, deleted = false) {
+async function seedObject(workspaceId: string, type: string, config: any, deleted: boolean | null = false) {
   return deps().prisma.configurationObject.create({ data: { workspaceId, type, config, deleted } });
 }
 
@@ -268,6 +268,36 @@ describe("checking a service source with an id or a cloneId", () => {
       }
     }
     expect(posted).toHaveLength(0);
+  });
+
+  it("refuses a foreign `id` even when `cloneId` names a service of this workspace", async () => {
+    const { user, workspace } = await seedWorkspace({ role: "editor" });
+    const other = await seedWorkspace({ role: "editor" });
+    const mine = await seedObject(workspace.id, "service", { name: "mine", ...PKG, credentials: { token: SECRET } });
+    const foreign = await seedObject(other.workspace.id, "service", { name: "theirs", ...PKG, credentials: {} });
+    const posted = captureCheck();
+    const res = await sync().triggerSourceCheck(user, workspace.id, {
+      config: { id: foreign.id, cloneId: mine.id, ...PKG, credentials: { token: MASKED_SECRET } },
+      storageKey: `${workspace.id}_x_hash_q1`,
+    });
+    expect(res).toMatchObject({ ok: false, error: expect.stringMatching(/invalid service id/) });
+    expect(posted).toHaveLength(0);
+  });
+
+  it("does not restore secrets from a service whose deleted flag is null", async () => {
+    const { user, workspace } = await seedWorkspace({ role: "editor" });
+    const unknown = await seedObject(
+      workspace.id,
+      "service",
+      { name: "null-flag", ...PKG, credentials: { token: SECRET } },
+      null
+    );
+    const posted = captureCheck();
+    await sync().triggerSourceCheck(user, workspace.id, {
+      config: { cloneId: unknown.id, ...PKG, credentials: { token: MASKED_SECRET } },
+      storageKey: `${workspace.id}_x_hash_q1`,
+    });
+    expect(JSON.stringify(posted)).not.toContain(SECRET);
   });
 
   it("still restores the secrets of a live service", async () => {
