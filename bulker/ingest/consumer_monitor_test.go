@@ -15,6 +15,7 @@ func TestPartitionLagsOnlyIncludeValidPipelineOffsets(t *testing.T) {
 	commits := kafka.ListConsumerGroupOffsetsResult{ConsumerGroupsTopicPartitions: []kafka.ConsumerGroupTopicPartitions{{Partitions: []kafka.TopicPartition{
 		{Topic: &topic, Partition: 0, Offset: 5},
 		{Topic: &topic, Partition: 64, Offset: kafka.OffsetInvalid},
+		{Topic: &topic, Partition: 65, Offset: kafka.OffsetInvalid},
 		{Topic: &other, Partition: 0, Offset: 25},
 		{Topic: &other, Partition: 19, Offset: 1},
 		{Topic: &topic, Partition: 1, Error: kafka.NewError(kafka.ErrUnknownPartition, "", false)},
@@ -23,12 +24,19 @@ func TestPartitionLagsOnlyIncludeValidPipelineOffsets(t *testing.T) {
 	ends := kafka.ListOffsetsResult{ResultInfos: map[kafka.TopicPartition]kafka.ListOffsetsResultInfo{
 		{Topic: &topic, Partition: 0}:  {Offset: 30},
 		{Topic: &topic, Partition: 64}: {Offset: 0},
+		{Topic: &topic, Partition: 65}: {Offset: 1000005},
 		{Topic: &other, Partition: 0}:  {Offset: 500},
 		{Topic: &other, Partition: 19}: {Offset: 75},
 		{Topic: &topic, Partition: 1}:  {Offset: 9},
 		{Topic: &topic, Partition: 2}:  {Offset: kafka.OffsetInvalid, Error: kafka.NewError(kafka.ErrUnknownPartition, "", false)},
 	}}
-	require.Equal(t, map[int32]int64{0: 25, 64: 0}, partitionLags(topic, commits, ends))
+	starts, missing := committedStarts(topic, commits)
+	require.Equal(t, map[kafka.TopicPartition]kafka.OffsetSpec{
+		{Topic: &topic, Partition: 64}: kafka.EarliestOffsetSpec,
+		{Topic: &topic, Partition: 65}: kafka.EarliestOffsetSpec,
+	}, missing)
+	starts[64], starts[65] = 0, 1000000
+	require.Equal(t, map[int32]int64{0: 25, 64: 0, 65: 5}, partitionLags(starts, validOffsets(topic, ends)))
 }
 
 func TestStalePipelinePartitionHintRetriesBeforeFailover(t *testing.T) {

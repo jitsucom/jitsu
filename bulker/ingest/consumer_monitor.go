@@ -66,14 +66,16 @@ func NewConsumerMonitor(appContext *Context, topic, consumerGroupName string) (*
 }
 
 func (tm *ConsumerMonitor) partitionWeights(ctx context.Context) (*weightedrand.Chooser[int32, int64], error) {
-	metadata, err := tm.adminClient.GetMetadata(&tm.topic, false, 1000)
+	// A producer metadata request may auto-create a missing topic with broker
+	// defaults. Topic provisioning and retention belong to the topic manager.
+	metadata, err := tm.adminClient.DescribeTopics(ctx, kafka.NewTopicCollectionOfTopicNames([]string{tm.topic}))
 	if err != nil {
 		return nil, err
 	}
-	topic, ok := metadata.Topics[tm.topic]
-	if !ok {
+	if len(metadata.TopicDescriptions) != 1 || metadata.TopicDescriptions[0].Name != tm.topic {
 		return nil, fmt.Errorf("missing metadata for %s", tm.topic)
 	}
+	topic := metadata.TopicDescriptions[0]
 	if topic.Error.Code() != kafka.ErrNoError {
 		return nil, topic.Error
 	}
@@ -81,10 +83,10 @@ func (tm *ConsumerMonitor) partitionWeights(ctx context.Context) (*weightedrand.
 	var partitions []kafka.TopicPartition
 	latest := make(map[kafka.TopicPartition]kafka.OffsetSpec)
 	for _, p := range topic.Partitions {
-		if p.Error.Code() != kafka.ErrNoError || p.Leader < 0 {
+		if p.Leader == nil || p.Leader.ID < 0 {
 			continue
 		}
-		tp := kafka.TopicPartition{Topic: &tm.topic, Partition: p.ID}
+		tp := kafka.TopicPartition{Topic: &tm.topic, Partition: int32(p.Partition)}
 		partitions = append(partitions, tp)
 		latest[tp] = kafka.LatestOffsetSpec
 	}
@@ -101,7 +103,19 @@ func (tm *ConsumerMonitor) partitionWeights(ctx context.Context) (*weightedrand.
 		return nil, err
 	}
 
-	lags := partitionLags(tm.topic, commits, ends)
+	starts, uncommitted := committedStarts(tm.topic, commits)
+	if len(uncommitted) > 0 {
+		// Rotor starts at the earliest retained offset when there is no commit.
+		// It can be nonzero if a group's offsets expired after log retention.
+		earliest, err := tm.adminClient.ListOffsets(ctx, uncommitted)
+		if err != nil {
+			return nil, err
+		}
+		for id, offset := range validOffsets(tm.topic, earliest) {
+			starts[id] = offset
+		}
+	}
+	lags := partitionLags(starts, validOffsets(tm.topic, ends))
 	var maxLag int64
 	for _, lag := range lags {
 		maxLag = max(maxLag, lag)
@@ -116,7 +130,8 @@ func (tm *ConsumerMonitor) partitionWeights(ctx context.Context) (*weightedrand.
 	return weightedrand.NewChooser(choices...)
 }
 
-func partitionLags(topic string, commits kafka.ListConsumerGroupOffsetsResult, ends kafka.ListOffsetsResult) map[int32]int64 {
+func committedStarts(topic string, commits kafka.ListConsumerGroupOffsetsResult) (map[int32]int64, map[kafka.TopicPartition]kafka.OffsetSpec) {
+	missing := make(map[kafka.TopicPartition]kafka.OffsetSpec)
 	offsets := make(map[int32]int64)
 	for _, group := range commits.ConsumerGroupsTopicPartitions {
 		for _, p := range group.Partitions {
@@ -127,16 +142,28 @@ func partitionLags(topic string, commits kafka.ListConsumerGroupOffsetsResult, e
 			case p.Offset >= 0:
 				offsets[p.Partition] = int64(p.Offset)
 			case p.Offset == kafka.OffsetInvalid:
-				// A newly created partition has no committed offset.
-				offsets[p.Partition] = 0
+				missing[kafka.TopicPartition{Topic: p.Topic, Partition: p.Partition}] = kafka.EarliestOffsetSpec
 			}
 		}
 	}
+	return offsets, missing
+}
+
+func validOffsets(topic string, result kafka.ListOffsetsResult) map[int32]int64 {
+	offsets := make(map[int32]int64)
+	for p, info := range result.ResultInfos {
+		if p.Topic != nil && *p.Topic == topic && info.Error.Code() == kafka.ErrNoError && info.Offset >= 0 {
+			offsets[p.Partition] = int64(info.Offset)
+		}
+	}
+	return offsets
+}
+
+func partitionLags(starts, ends map[int32]int64) map[int32]int64 {
 	lags := make(map[int32]int64)
-	for p, end := range ends.ResultInfos {
-		start, ok := offsets[p.Partition]
-		if ok && p.Topic != nil && *p.Topic == topic && end.Error.Code() == kafka.ErrNoError && end.Offset >= 0 {
-			lags[p.Partition] = max(0, int64(end.Offset)-start)
+	for id, end := range ends {
+		if start, ok := starts[id]; ok {
+			lags[id] = max(0, end-start)
 		}
 	}
 	return lags
