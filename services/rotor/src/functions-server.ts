@@ -34,7 +34,7 @@ import { IngestMessage } from "@jitsu/protocols/async-request";
 import type { MongoClient } from "mongodb";
 import { compileUdfFunction, compileUdfToIIFE } from "./lib/udf-shared";
 import { compileFailureIife } from "./lib/udf-placeholder";
-import { endpointCallerBudgetMs, executionDeadline, isWorkerEvictable } from "./lib/worker-pool-utils";
+import { effectiveWorkerTtlMs, isWorkerEvictable } from "./lib/worker-pool-utils";
 import { runFunctionChain, type ChainFunction } from "./lib/udf-chain";
 import type {
   ExecMessage,
@@ -566,9 +566,7 @@ interface FunctionRuntime {
     connectionId: string,
     event: AnyEvent,
     eventContext: EventContext,
-    fetchTimeoutMs: number,
-    /** how long the caller waits for the whole chain (the in-process runtime does not need it) */
-    callerBudgetMs?: number
+    fetchTimeoutMs: number
   ): Promise<Required<FuncChainResultWithLogs>>;
   /** Returns the stripped connection config (used for actorId/streamId lookup) */
   getConnection(): StrippedConnectionConfig;
@@ -671,11 +669,10 @@ class WorkerRuntime implements FunctionRuntime {
     connectionId: string,
     event: AnyEvent,
     eventContext: EventContext,
-    fetchTimeoutMs: number,
-    callerBudgetMs?: number
+    fetchTimeoutMs: number
   ): Promise<Required<FuncChainResultWithLogs>> {
     const ws = await this.workerPool.getOrCreate(this.workspaceId);
-    const resultMsg = await execInWorker(ws, connectionId, event, eventContext, fetchTimeoutMs, callerBudgetMs);
+    const resultMsg = await execInWorker(ws, connectionId, event, eventContext, fetchTimeoutMs);
     return {
       connectionId: resultMsg.connectionId,
       events: resultMsg.events,
@@ -691,10 +688,19 @@ class WorkerRuntime implements FunctionRuntime {
 
 // ── Lazy worker pool with TTL-based eviction ──────────────────────────
 
-const WORKER_TTL_MS = parseNumber(env.WORKER_TTL_MS, 600_000);
+// An idle worker is terminated after this long. Not shorter than the longest a caller waits for a chain, whatever
+// WORKER_TTL_MS says (see effectiveWorkerTtlMs).
+const MIN_WORKER_TTL_MS = 600_000;
+const configuredWorkerTtlMs = parseNumber(env.WORKER_TTL_MS, 600_000);
+const WORKER_TTL_MS = effectiveWorkerTtlMs(configuredWorkerTtlMs, MIN_WORKER_TTL_MS);
+if (WORKER_TTL_MS !== configuredWorkerTtlMs) {
+  log
+    .atWarn()
+    .log(
+      `WORKER_TTL_MS=${env.WORKER_TTL_MS} is shorter than ${MIN_WORKER_TTL_MS}ms: idle workers are kept for that long`
+    );
+}
 const WORKER_TTL_CHECK_MS = 60000;
-// how long past its time budget an execution still counts as running, for the idle eviction of its worker
-const EXEC_ABANDONED_AFTER_GRACE_MS = 30_000;
 
 type LazyWorkerEntry = {
   ws: WorkspaceWorker;
@@ -762,7 +768,6 @@ class LazyWorkerPool {
           now,
           lastUsedAt: entry.lastUsedAt,
           ttlMs: WORKER_TTL_MS,
-          executionDeadlines: entry.ws.execDeadlines.values(),
         })
       ) {
         log
@@ -883,8 +888,6 @@ type WorkspaceWorker = {
   pending: Map<string, { resolve: (v: any) => void; reject: (e: Error) => void }>;
   /** requestId -> the fetch timeout given to that running execution */
   execTimeouts: Map<string, number>;
-  /** requestId -> when the caller's time budget for that running execution (plus a grace period) runs out */
-  execDeadlines: Map<string, number>;
   ready: Promise<void>;
 };
 
@@ -910,7 +913,6 @@ function createWorkspaceWorker(
   const pendingExec = new Map<string, { resolve: (v: any) => void; reject: (e: Error) => void }>();
   // the fetch timeout given to each execution that is running in this worker (see boundedFetchTimeoutMs)
   const execTimeouts = new Map<string, number>();
-  const execDeadlines = new Map<string, number>();
   const connectionIds = new Set(connections.map(c => c.connectionId));
   let readyResolve: () => void;
   const readyPromise = new Promise<void>(resolve => {
@@ -1005,7 +1007,7 @@ function createWorkspaceWorker(
   const initMsg: InitMessage = { type: "init", connections };
   worker.postMessage(initMsg);
 
-  return { workspaceId, worker, pending: pendingExec, execTimeouts, execDeadlines, ready: readyPromise };
+  return { workspaceId, worker, pending: pendingExec, execTimeouts, ready: readyPromise };
 }
 
 async function execInWorker(
@@ -1013,22 +1015,11 @@ async function execInWorker(
   connectionId: string,
   event: AnyEvent,
   eventContext: EventContext,
-  fetchTimeoutMs: number,
-  callerBudgetMs?: number
+  fetchTimeoutMs: number
 ): Promise<ResultMessage> {
   await ws.ready;
   const requestId = crypto.randomUUID();
   ws.execTimeouts.set(requestId, fetchTimeoutMs);
-  // the caller waits for the whole chain for its budget: past that (and a grace period) the execution no longer keeps the worker alive
-  ws.execDeadlines.set(
-    requestId,
-    executionDeadline({
-      now: Date.now(),
-      budgetMs: callerBudgetMs ?? 0,
-      fetchTimeoutMs,
-      graceMs: EXEC_ABANDONED_AFTER_GRACE_MS,
-    })
-  );
   return new Promise<ResultMessage>((resolve, reject) => {
     ws.pending.set(requestId, { resolve, reject });
     const execMsg: ExecMessage = {
@@ -1042,7 +1033,6 @@ async function execInWorker(
     ws.worker.postMessage(execMsg);
   }).finally(() => {
     ws.execTimeouts.delete(requestId);
-    ws.execDeadlines.delete(requestId);
     ws.pending.delete(requestId);
   });
 }
@@ -1272,12 +1262,6 @@ async function main() {
     const functionsFetchTimeout = timeoutHeader
       ? parseNumber(timeoutHeader, 2000)
       : parseNumber(env.FETCH_TIMEOUT_MS, 2000);
-    // how long the caller waits for the whole chain (rotor sends its FUNCTIONS_SERVER_TIMEOUT_MS)
-    const budget = endpointCallerBudgetMs(
-      "multi",
-      req.headers.get("x-request-budget-ms"),
-      parseNumber(env.FUNCTIONS_SERVER_TIMEOUT_MS, 30000)
-    );
 
     // Process all connections in parallel
     const promises = connectionIds.map(async (connectionId): Promise<StrictFuncChainResult> => {
@@ -1299,7 +1283,7 @@ async function main() {
           } as StrictFuncChainResult;
         }
         const eventContext = createEventContextFromMessage(message, runtime.getConnection());
-        return await runtime.runChain(connectionId, event, eventContext, functionsFetchTimeout, budget);
+        return await runtime.runChain(connectionId, event, eventContext, functionsFetchTimeout);
       } catch (e: any) {
         const errorMessage = `${e.name}: ${e.message}`;
         log.atError().log(`[multi] Error processing connection ${connectionId}: ${errorMessage}`);
@@ -1364,18 +1348,12 @@ async function main() {
     const functionsFetchTimeout = timeoutHeader
       ? parseNumber(timeoutHeader, 2000)
       : parseNumber(env.FETCH_TIMEOUT_MS, 2000);
-    // how long the caller waits for the whole chain (rotor sends its FUNCTIONS_SERVER_TIMEOUT_MS)
-    const budget = endpointCallerBudgetMs(
-      "connection",
-      req.headers.get("x-request-budget-ms"),
-      parseNumber(env.FUNCTIONS_SERVER_TIMEOUT_MS, 30000)
-    );
 
     const runtime = runtimes.get(connectionId);
     if (!runtime) {
       return { response: errorResponse(404, `Connection '${connectionId}' not found`), actorId: connectionId };
     }
-    const result = await runtime.runChain(connectionId, event, eventContext, functionsFetchTimeout, budget);
+    const result = await runtime.runChain(connectionId, event, eventContext, functionsFetchTimeout);
     recordChainResultMetrics(result);
     return { response: jsonResponse(200, result), actorId: connectionId };
   }
