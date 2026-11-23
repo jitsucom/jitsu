@@ -8,7 +8,7 @@ import { hash as juavaHash, requireDefined, rpc } from "juava";
 import stableHash from "stable-hash";
 import { SessionUser } from "../schema";
 import { source_taskDbModel } from "../../prisma/schema";
-import { verifyAccess } from "../api";
+import { verifyAccess, verifyAccessWithRole } from "../api";
 import { ApiError } from "../shared/errors";
 import { containsMaskedSecrets, unmaskSecretsFromOriginal } from "../schema/secrets";
 import { withSchemaDefaults } from "../schema/config-objects";
@@ -132,7 +132,7 @@ export class SyncService {
     workspaceId: string,
     opts: { syncId: string; taskId: string }
   ): Promise<SyncOpResult> {
-    await verifyAccess(user, workspaceId);
+    await verifyAccessWithRole(user, workspaceId, "editEntities");
     const sync = await this.prisma.configurationObjectLink.findFirst({
       where: { workspaceId, id: opts.syncId, deleted: false },
       include: { from: true },
@@ -328,7 +328,7 @@ export class SyncService {
     workspaceId: string,
     opts: { serviceId: string; refresh?: boolean; force?: boolean }
   ): Promise<SyncOpResult> {
-    await verifyAccess(user, workspaceId);
+    await verifyAccessWithRole(user, workspaceId, "editEntities");
     const { url, authHeaders } = this.syncctl();
     try {
       const { service, storageKey } = await this.getServiceWithStorageKey(workspaceId, opts.serviceId);
@@ -397,7 +397,7 @@ export class SyncService {
     workspaceId: string,
     opts: { serviceId?: string; config?: any; storageKey?: string }
   ): Promise<SyncOpResult> {
-    await verifyAccess(user, workspaceId);
+    await verifyAccessWithRole(user, workspaceId, "editEntities");
     const { url, authHeaders } = this.syncctl();
     let source: any;
     let storageKey: string;
@@ -487,7 +487,7 @@ export class SyncService {
     workspaceId: string,
     opts: { syncId: string; stream?: string }
   ): Promise<SyncOpResult> {
-    await verifyAccess(user, workspaceId);
+    await verifyAccessWithRole(user, workspaceId, "editEntities");
     const sync = await this.getSync(workspaceId, opts.syncId);
     if (!sync) {
       return { ok: false, error: "sync not found" };
@@ -520,7 +520,7 @@ export class SyncService {
     workspaceId: string,
     opts: { syncId: string; stream: string; state: any }
   ): Promise<SyncOpResult> {
-    await verifyAccess(user, workspaceId);
+    await verifyAccessWithRole(user, workspaceId, "editEntities");
     const sync = await this.getSync(workspaceId, opts.syncId);
     if (!sync) {
       return { ok: false, error: "sync not found" };

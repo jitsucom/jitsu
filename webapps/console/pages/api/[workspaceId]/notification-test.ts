@@ -1,4 +1,4 @@
-import { createRoute, verifyAccess } from "../../../lib/api";
+import { createRoute, verifyAccessWithRole } from "../../../lib/api";
 import { getServerLog } from "../../../lib/server/log";
 import { z } from "zod";
 import dayjs from "dayjs";
@@ -29,7 +29,7 @@ export default createRoute()
     }),
   })
   .handler(async ({ req, body, user, query: { workspaceId } }) => {
-    await verifyAccess(user, workspaceId);
+    await verifyAccessWithRole(user, workspaceId, "editEntities");
     const publicEndpoints = getAppEndpoint(req);
     const { slackWebhookUrl, recurringAlertsPeriodHours } = body;
 
