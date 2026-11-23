@@ -715,7 +715,9 @@ export async function verifyAccess(user: SessionUser, workspaceId: string) {
 export async function verifyAccessWithRole(
   user: SessionUser,
   workspaceId: string,
-  requiredPermission: WorkspacePermissionsType
+  requiredPermission: WorkspacePermissionsType,
+  /** `ignoreBillingLock`: keep the role and key checks but not the billing `readonly` lock (for stopping work in flight) */
+  opts: { ignoreBillingLock?: boolean } = {}
 ): Promise<WorkspaceRoleWithPermissions> {
   if (isAdminServiceAccount(user)) {
     return {
@@ -767,7 +769,7 @@ export async function verifyAccessWithRole(
   // Reads stay open, and `manageUsers` deliberately stays role-gated only —
   // inviting the teammate who holds the credit card must remain possible.
   // Jitsu admins and service accounts bypass via the short-circuits above.
-  if (requiredPermission === "editEntities" || requiredPermission === "deleteEntities") {
+  if (!opts.ignoreBillingLock && (requiredPermission === "editEntities" || requiredPermission === "deleteEntities")) {
     const workspace = await db.prisma().workspace.findFirst({
       where: { id: workspaceId },
       select: { featuresEnabled: true },

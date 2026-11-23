@@ -107,7 +107,12 @@ export class SyncService {
     opts: { syncId: string; fullSync?: boolean; ignoreRunning?: boolean; taskId?: string },
     req: NextApiRequest
   ): Promise<ScheduleSyncResult> {
-    await verifyAccess(user, workspaceId);
+    // running a sync is allowed for analysts by design, but a full sync drops every saved cursor first
+    if (opts.fullSync) {
+      await verifyAccessWithRole(user, workspaceId, "editEntities");
+    } else {
+      await verifyAccess(user, workspaceId);
+    }
     return scheduleSync({
       req,
       user,
@@ -132,7 +137,8 @@ export class SyncService {
     workspaceId: string,
     opts: { syncId: string; taskId: string }
   ): Promise<SyncOpResult> {
-    await verifyAccessWithRole(user, workspaceId, "editEntities");
+    // stopping a job must keep working in a billing-locked workspace, so only the role and key checks apply
+    await verifyAccessWithRole(user, workspaceId, "editEntities", { ignoreBillingLock: true });
     const sync = await this.prisma.configurationObjectLink.findFirst({
       where: { workspaceId, id: opts.syncId, deleted: false },
       include: { from: true },
@@ -328,7 +334,8 @@ export class SyncService {
     workspaceId: string,
     opts: { serviceId: string; refresh?: boolean; force?: boolean }
   ): Promise<SyncOpResult> {
-    await verifyAccessWithRole(user, workspaceId, "editEntities");
+    // reading the cached catalog is a read (the Saved State page of an analyst needs it); starting a discover job is not
+    await verifyAccess(user, workspaceId);
     const { url, authHeaders } = this.syncctl();
     try {
       const { service, storageKey } = await this.getServiceWithStorageKey(workspaceId, opts.serviceId);
@@ -338,6 +345,7 @@ export class SyncService {
           return cached;
         }
       }
+      await verifyAccessWithRole(user, workspaceId, "editEntities");
       const discoverQueryRes = await rpc(url + "/discover", {
         method: "POST",
         // Pass the source-config wrapper through unchanged. syncctl's
