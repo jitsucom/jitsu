@@ -214,8 +214,9 @@ describe.each(analyst)("$name", actor => {
   it("can read a cached catalog, but not start a discover job", async () => {
     const a = await actor.make();
     const { service } = await seedSync(a.workspaceId);
-    const hits = fakeSyncctl();
+    // seeding registers its own syncctl stand-in, and the newest handler wins, so the recorder is registered after it
     await seedCatalog(a.workspaceId, service.id);
+    const hits = fakeSyncctl();
     expect(await sync().discoverStreams(a.user, a.workspaceId, { serviceId: service.id })).toMatchObject({
       ok: true,
       catalog: { streams: [] },
@@ -227,6 +228,10 @@ describe.each(analyst)("$name", actor => {
       403
     );
     expect(hits).not.toContain("discover");
+    // control: the recorder does see a discover job when someone allowed to start one asks for it
+    const editorUser = (await seedWorkspaceEditor(a.workspaceId)).user;
+    await sync().discoverStreams(editorUser, a.workspaceId, { serviceId: service.id, refresh: true });
+    expect(hits).toContain("discover");
   });
 
   it("is refused by the Slack notification test, and no request leaves for the URL", async () => {
