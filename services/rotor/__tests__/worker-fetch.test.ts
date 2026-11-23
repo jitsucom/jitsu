@@ -6,6 +6,7 @@ import {
   isFetchLogEnabled,
   parseLoggedResponse,
   proxiedFetchTimeoutMs,
+  transferableFetchInit,
   responseBodyText,
   serializeResponse,
   trimLoggedResponse,
@@ -394,5 +395,57 @@ describe("the rebuilt Response lists its data like the previous worker response"
     const res = response();
     expect(await res.json()).toEqual({ a: 1 });
     expect(JSON.parse(JSON.stringify(res.clone()))).toEqual(previousShape);
+  });
+});
+
+describe("the init of a proxied fetch crosses the worker boundary", () => {
+  // A worker hands the call to the main process with postMessage, which structured-clones its arguments. A Headers
+  // in `init.headers` is not plain data: Node refuses to clone it, and Deno clones it to an empty object, so the
+  // request leaves without its Authorization header.
+  it("sends a Headers instance as name/value pairs that survive a structured clone", () => {
+    const init = {
+      method: "POST",
+      headers: new Headers({ Authorization: "Bearer secret", "X-Trace": "t1" }),
+      body: "{}",
+    };
+    const sent = structuredClone(transferableFetchInit(init));
+    expect(sent).toEqual({
+      method: "POST",
+      headers: [
+        ["authorization", "Bearer secret"],
+        ["x-trace", "t1"],
+      ],
+      body: "{}",
+    });
+    // and the pairs are what fetch understands
+    expect([...new Headers(sent.headers).entries()]).toEqual([...init.headers.entries()]);
+  });
+
+  it("leaves a Map as it is: it clones, and fetch reads it", () => {
+    const map = new Map([["Authorization", "Bearer m"]]);
+    const sent = structuredClone(transferableFetchInit({ headers: map }));
+    expect(sent.headers).toEqual(map);
+  });
+
+  it("leaves object and tuple headers, and calls without headers, as they are", () => {
+    const object = { headers: { Authorization: "Bearer o" } };
+    const tuples = { headers: [["Authorization", "Bearer t"]] };
+    expect(transferableFetchInit(object)).toBe(object);
+    expect(transferableFetchInit(tuples)).toBe(tuples);
+    expect(transferableFetchInit({ method: "GET" })).toEqual({ method: "GET" });
+    expect(transferableFetchInit(undefined)).toBeUndefined();
+    expect(transferableFetchInit(null)).toBeNull();
+  });
+
+  it("does not change the init the UDF passed", () => {
+    const headers = new Headers({ Authorization: "Bearer secret" });
+    const init = { headers };
+    transferableFetchInit(init);
+    expect(init.headers).toBe(headers);
+  });
+
+  it("is what the request log shows too: the sensitive header is hidden in the pair form", () => {
+    const sent = transferableFetchInit({ headers: new Headers({ Authorization: "Bearer secret", "X-Trace": "t1" }) });
+    expect(hideSensitiveHeaders(sent.headers)).toEqual({ authorization: "*****", "x-trace": "t1" });
   });
 });

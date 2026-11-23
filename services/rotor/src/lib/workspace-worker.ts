@@ -24,6 +24,7 @@ import {
   isFetchLogEnabled,
   parseLoggedResponse,
   responseBodyText,
+  transferableFetchInit,
   trimLoggedResponse,
   type SerializedResponse,
 } from "./worker-fetch";
@@ -154,7 +155,12 @@ function buildContext(
     };
 
     try {
-      const serialized: SerializedResponse = await callMain("fetch", [chain.connection.id, url, init, fetchTimeoutMs]);
+      const serialized: SerializedResponse = await callMain("fetch", [
+        chain.connection.id,
+        url,
+        transferableFetchInit(init),
+        fetchTimeoutMs,
+      ]);
       const elapsedMs = Date.now() - startTime;
 
       if (logThisCall) {

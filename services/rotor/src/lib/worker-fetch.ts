@@ -150,6 +150,20 @@ function headerPairs(headers: any): Array<[string, any]> {
 }
 
 /**
+ * The init of a fetch call, as a worker message can carry it. A UDF may pass `headers: new Headers(...)`; the call goes to
+ * the main process with postMessage, which structured-clones the init. Node refuses to clone a Headers, and Deno clones it
+ * to an empty object, so the request would leave without its headers (an Authorization header, typically). The headers
+ * go as [name, value] pairs, which fetch accepts; object and pair headers already clone and are left as they are, and the
+ * init the UDF passed is not changed.
+ */
+export function transferableFetchInit(init: any): any {
+  if (init && typeof init === "object" && typeof Headers !== "undefined" && init.headers instanceof Headers) {
+    return { ...init, headers: headerPairs(init.headers).map(([name, value]) => [name, String(value)]) };
+  }
+  return init;
+}
+
+/**
  * Same rule as makeFetch: a header whose name contains "authorization" or "token" is hidden. The headers may be an object,
  * a Headers or Map, or an array of [name, value] pairs: Object.entries of an array would give the keys "0", "1" and miss
  * the name.

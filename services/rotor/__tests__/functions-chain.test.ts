@@ -549,6 +549,12 @@ describe.each(testModes)("Test Functions Chain ($name mode)", ({ name: modeName,
 
     // Endpoint used by the functionFetch test — returns a fixed JSON payload
     const fetchSourceHandler = (req, res) => {
+      // the call that checks which request headers arrive answers at once, with the Authorization header it received
+      if (String(req.url).includes("echo=1")) {
+        res.setHeader("Content-Type", "application/json");
+        res.send({ receivedAuthorization: req.headers.authorization ?? null });
+        return;
+      }
       // Answers after 3 s: longer than the 2 s FETCH_TIMEOUT_MS default and shorter than the 5 s request timeout the
       // test passes, so it only succeeds when the requested timeout reaches the fetch (also through the worker proxy).
       setTimeout(() => {
@@ -1043,10 +1049,21 @@ describe.each(testModes)("Test Functions Chain ($name mode)", ({ name: modeName,
       // in an isolated worker: the request headers with the sensitive ones hidden, and the response body (parsed as
       // JSON when it is). The free class has always run in a worker and keeps its shorter entry.
       const httpLogs = loggedEntries
-        .filter(e => e.msg.type === "http-request" && String(e.msg.url).includes("/fetch-source"))
+        .filter(
+          e =>
+            e.msg.type === "http-request" &&
+            String(e.msg.url).includes("/fetch-source") &&
+            !String(e.msg.url).includes("echo=1")
+        )
         .map(e => e.msg);
       expect(httpLogs).toHaveLength(1);
       expect(httpLogs[0]).toMatchObject({ type: "http-request", method: "GET", status: 200, statusText: "OK" });
+      // A Headers instance in the request init reaches the server in every runtime. In a worker it has to cross
+      // postMessage, which clones a Headers to an empty object in Deno and refuses it in Node.
+      const sentAuth = loggedEntries
+        .map(e => e.msg)
+        .find(m => String(m?.message?.text).startsWith("headers-object-auth="));
+      expect(sentAuth?.message.text).toBe("headers-object-auth=Bearer headers-object");
       // The free class and the Functions Debugger always had a plain headers object (`res.headers["content-type"]`); the
       // rebuilt Response in a worker keeps that access next to `.get()`.
       if (functionsClass === "free" || isolate) {

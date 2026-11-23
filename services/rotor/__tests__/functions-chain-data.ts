@@ -163,6 +163,9 @@ export default async function(event, { log, fetch, store, retries, props: config
     code: `export default async function(event, { fetch, log, props: config }) {
   const res = await fetch(config.FETCH_URL, { headers: { Authorization: "Bearer secret-value", "X-Trace": "trace-1" } })
   event.properties.contentType = res.headers.get("content-type")
+  // request headers given as a Headers instance have to reach the server in every runtime, also through a worker
+  const echo = await fetch(config.FETCH_URL + "?echo=1", { headers: new Headers({ Authorization: "Bearer headers-object" }) })
+  log.info("headers-object-auth=" + (await echo.json()).receivedAuthorization)
   log.info("legacy-headers=" + res.headers["content-type"] + "|" + Object.keys(res.headers).includes("content-type"))
   log.info("legacy-body=" + JSON.parse(res.body).message)
   log.info("headers-in-log", res.headers)
