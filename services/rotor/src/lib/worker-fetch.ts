@@ -127,6 +127,19 @@ export function isFetchCallLogged(connectionEnabled: boolean, perCall?: { log?: 
   return connectionEnabled && (typeof perCall?.log === "boolean" ? perCall.log : true);
 }
 
+/**
+ * Whether a fetch call is logged, decided when the call starts. The debug window (`debugTill`) can pass while a UDF is
+ * running, so the rule is applied to each call and not once when the UDF's context is built; as in the in-process fetch.
+ */
+export function shouldLogFetchCall(
+  fetchLogLevel: string | undefined,
+  debugTill: Date | undefined,
+  perCall?: { log?: boolean },
+  now = Date.now()
+): boolean {
+  return isFetchCallLogged(isFetchLogEnabled(fetchLogLevel, debugTill, now), perCall);
+}
+
 /** The timeout the caller asked for (x-request-timeout-ms), else the server default. */
 export function proxiedFetchTimeoutMs(requested: unknown, defaultMs: number): number {
   return typeof requested === "number" && Number.isFinite(requested) && requested > 0 ? requested : defaultMs;

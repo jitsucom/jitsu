@@ -1132,6 +1132,9 @@ describe.each(testModes)("Test Functions Chain ($name mode)", ({ name: modeName,
         .map(e => e.msg)
         .find(m => String(m?.message?.text).startsWith("headers-object-auth="));
       expect(sentAuth?.message.text).toBe("headers-object-auth=Bearer headers-object");
+      // A static import of a Node built-in (crypto) works in a worker as it does in process
+      const hashLog = loggedEntries.map(e => e.msg).find(m => String(m?.message?.text).startsWith("crypto-hash="));
+      expect(hashLog?.message.text).toBe("crypto-hash=ba7816bf");
       // A fetch the guard refuses exposes the same code (`err.code`) in process and through a worker
       const errorCodes = loggedEntries
         .map(e => e.msg)

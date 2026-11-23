@@ -173,7 +173,10 @@ export default async function(event, { log, fetch, store, retries, props: config
     workspaceId: "workspace1",
     name: "Function Fetch",
     codeHash: "functionFetch-hash",
-    code: `export default async function(event, { fetch, log, props: config }) {
+    code: `import { createHash } from "crypto"
+export default async function(event, { fetch, log, props: config }) {
+  // a static import of a Node built-in works in every runtime, also in a worker
+  log.info("crypto-hash=" + createHash("sha256").update("abc").digest("hex").slice(0, 8))
   const res = await fetch(config.FETCH_URL, { headers: { Authorization: "Bearer secret-value", "X-Trace": "trace-1" } })
   event.properties.contentType = res.headers.get("content-type")
   // request headers given as a Headers instance have to reach the server in every runtime, also through a worker

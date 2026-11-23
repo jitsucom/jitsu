@@ -6,6 +6,7 @@ import {
   isFetchLogEnabled,
   parseLoggedResponse,
   proxiedFetchTimeoutMs,
+  shouldLogFetchCall,
   boundedFetchTimeoutMs,
   errorCodesOf,
   rebuildProxyError,
@@ -503,5 +504,26 @@ describe("a fetch error crossing the worker proxy", () => {
     const plain: any = rebuildProxyError("plain");
     expect(plain.code).toBeUndefined();
     expect(plain.cause).toBeUndefined();
+  });
+});
+
+describe("whether a fetch call is logged is decided when the call starts", () => {
+  // connection with fetchLogLevel "debug" (nofetchlogs): logged only while the debug window is open
+  const debugTill = new Date(10_000);
+
+  it("logs a call that starts inside the debug window, and not one that starts after it", () => {
+    expect(shouldLogFetchCall("debug", debugTill, undefined, 9_000)).toBe(true);
+    expect(shouldLogFetchCall("debug", debugTill, undefined, 11_000)).toBe(false);
+  });
+
+  it("does not log without a debug window, and always logs at the info level", () => {
+    expect(shouldLogFetchCall("debug", undefined, undefined, 1)).toBe(false);
+    expect(shouldLogFetchCall("info", undefined, undefined, 1)).toBe(true);
+    expect(shouldLogFetchCall(undefined, undefined, undefined, 1)).toBe(true);
+  });
+
+  it("still lets a call opt out, and cannot override the connection rule", () => {
+    expect(shouldLogFetchCall("info", undefined, { log: false })).toBe(false);
+    expect(shouldLogFetchCall("debug", debugTill, { log: true }, 11_000)).toBe(false);
   });
 });

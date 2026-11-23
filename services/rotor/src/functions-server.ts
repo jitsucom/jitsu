@@ -33,6 +33,8 @@ import isEqual from "lodash/isEqual";
 import { IngestMessage } from "@jitsu/protocols/async-request";
 import type { MongoClient } from "mongodb";
 import { compileUdfFunction, compileUdfToIIFE } from "./lib/udf-shared";
+import { compileFailureIife } from "./lib/udf-placeholder";
+import { isWorkerEvictable } from "./lib/worker-pool-utils";
 import { runFunctionChain, type ChainFunction } from "./lib/udf-chain";
 import type {
   ExecMessage,
@@ -750,7 +752,14 @@ class LazyWorkerPool {
   private evict() {
     const now = Date.now();
     for (const [wsId, entry] of this.workers) {
-      if (now - entry.lastUsedAt > WORKER_TTL_MS) {
+      if (
+        isWorkerEvictable({
+          now,
+          lastUsedAt: entry.lastUsedAt,
+          ttlMs: WORKER_TTL_MS,
+          pendingExecutions: entry.ws.pending.size,
+        })
+      ) {
         log
           .atInfo()
           .log(`Evicting idle worker for workspace ${wsId} (idle ${Math.round((now - entry.lastUsedAt) / 1000)}s)`);
@@ -1070,10 +1079,8 @@ async function main() {
             log.atDebug().log(`  ✓ Compiled UDF to IIFE: ${functionId}`);
           } catch (e: any) {
             log.atError().log(`  ✗ Failed to compile UDF ${functionId}: ${e.message}`);
-            const errorIife = `var __udf = { default: async function() { throw new Error(${JSON.stringify(
-              e.message
-            )}); } };`;
-            workerFuncs.push({ id: f.functionId, iifeCode: errorIife });
+            // a RetryError, as the in-process placeholder throws
+            workerFuncs.push({ id: f.functionId, iifeCode: compileFailureIife(e.message) });
           }
         } else {
           const msg = `Function ${functionId} not found or has no code`;

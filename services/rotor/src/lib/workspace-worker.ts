@@ -17,11 +17,12 @@ import type {
 import type { AnyEvent, EventContext, FullContext } from "@jitsu/protocols/functions";
 import type { FunctionExecLog } from "@jitsu/core-functions-lib";
 import { runFunctionChain, type ChainFunction } from "./udf-chain";
+import { retryErrorOf } from "./udf-placeholder";
+import { evaluateUdfIife, makeUdfRequire } from "./udf-require";
 import {
   deserializeResponse,
   hideSensitiveHeaders,
-  isFetchCallLogged,
-  isFetchLogEnabled,
+  shouldLogFetchCall,
   parseLoggedResponse,
   rebuildProxyError,
   responseBodyText,
@@ -72,11 +73,13 @@ const chains = new Map<string, ConnectionChain>();
 
 // ── UDF instantiation from IIFE code ────────────────────────────────
 
+// the `require` handed to every UDF of this worker, set when the worker is initialised
+let udfRequire: (name: string) => any = makeUdfRequire({});
+
 function instantiateUdf(funcInit: WorkerFunctionInit): LoadedFunc {
   // The IIFE code defines `var __udf = (()=>{ ... })();`
   // We wrap it in a Function that returns __udf.
-  const factory = new Function(funcInit.iifeCode + "\nreturn __udf;");
-  const mod = factory();
+  const mod = evaluateUdfIife(funcInit.iifeCode, udfRequire);
   const func = mod.default;
   if (typeof func !== "function") {
     throw new Error(`UDF ${funcInit.id}: default export is not a function (got ${typeof func})`);
@@ -135,7 +138,6 @@ function buildContext(
     error: (message: string, ...args: any[]) => addLogEntry("error", message, args),
   };
 
-  const fetchLogEnabled = isFetchLogEnabled(chain.fetchLogLevel, debugTill);
   // A paid class that runs in a worker (FUNCTIONS_ISOLATE_UDFS) logs the same details as the in-process fetch. The free
   // class, which has always run in a worker, keeps its shorter entries.
   const detailedFetchLogs = chain.functionsClass !== "free";
@@ -143,7 +145,8 @@ function buildContext(
   // Proxied fetch – delegates to main process, logs request/response like makeFetch
   const proxiedFetch = async (url: string, init?: any, extra?: { log?: boolean }) => {
     const startTime = Date.now();
-    const logThisCall = isFetchCallLogged(fetchLogEnabled, extra);
+    // decided now: debugTill can pass while the UDF is running
+    const logThisCall = shouldLogFetchCall(chain.fetchLogLevel, debugTill, extra);
 
     const baseInfo = {
       functionId,
@@ -288,8 +291,9 @@ self.onmessage = async (e: MessageEvent<MainToWorkerMessage>) => {
 
   // Handle init
   if (msg.type === "init") {
-    // Pre-import Node built-ins so UDF require() calls work
-    // await preloadNodeBuiltins();
+    // Pre-import the Node built-ins a UDF may import (NODE_BUILTINS), so that its static `import` of one works: esbuild
+    // turns it into a `require`, which a worker does not have (see udf-require.ts)
+    udfRequire = makeUdfRequire({ crypto: await import("node:crypto") });
 
     for (const conn of msg.connections) {
       const funcs: LoadedFunc[] = [];
@@ -302,7 +306,7 @@ self.onmessage = async (e: MessageEvent<MainToWorkerMessage>) => {
           funcs.push({
             id: funcInit.id,
             exec: async () => {
-              throw new Error(errorMessage);
+              throw retryErrorOf(errorMessage);
             },
           });
         }
