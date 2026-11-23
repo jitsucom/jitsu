@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"hash/crc32"
+	"io"
 	"log"
 	"os"
 	"path/filepath"
@@ -82,8 +83,46 @@ func newGCSUploader(client *storage.Client, prefix string) (uploadObject, error)
 		if a.Metadata["ndjson-sha256"] != digest {
 			return fmt.Errorf("existing object %s has different content", name)
 		}
-		return nil
+		if a.CRC32C == checksum && a.Size == int64(len(compressed)) {
+			return nil
+		}
+		// A different encoder can produce different bytes for the same NDJSON.
+		// Read the live object only if its generation still matches the metadata.
+		stored, err := obj.If(storage.Conditions{GenerationMatch: a.Generation}).ReadCompressed(true).NewReader(ctx)
+		if err != nil {
+			return err
+		}
+		defer stored.Close()
+		return verifyArchive(stored, contentType, len(data), digest)
 	}, nil
+}
+
+func verifyArchive(stored io.Reader, contentType string, size int, digest string) error {
+	var decoded io.Reader
+	if contentType == "application/zstd" {
+		zr, err := zstd.NewReader(stored, zstd.WithDecoderConcurrency(1), zstd.WithDecoderMaxMemory(2*segmentSize))
+		if err != nil {
+			return err
+		}
+		defer zr.Close()
+		decoded = zr
+	} else {
+		gz, err := gzip.NewReader(stored)
+		if err != nil {
+			return err
+		}
+		defer gz.Close()
+		decoded = gz
+	}
+	hash := sha256.New()
+	n, err := io.Copy(hash, io.LimitReader(decoded, int64(size)+1))
+	if err != nil {
+		return err
+	}
+	if n != int64(size) || fmt.Sprintf("%x", hash.Sum(nil)) != digest {
+		return errors.New("existing archive has different uncompressed content")
+	}
+	return nil
 }
 
 func drain(ctx context.Context, s *spool, upload uploadObject) error {
