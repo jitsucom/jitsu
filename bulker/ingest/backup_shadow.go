@@ -9,7 +9,6 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/jitsucom/bulker/jitsubase/uuid"
@@ -25,7 +24,6 @@ type backupShadow struct {
 	workspace, endpoint, token string
 	client                     *http.Client
 	slots                      chan struct{}
-	wg                         sync.WaitGroup
 }
 
 func newBackupShadow(config *Config) (*backupShadow, error) {
@@ -42,7 +40,7 @@ func newBackupShadow(config *Config) (*backupShadow, error) {
 }
 
 // Shadow traffic has a fixed concurrency budget and cannot delay Kafka admission.
-// ShutdownSignal drains HTTP handlers before Cleanup waits for these copies.
+// In-flight comparison requests may be abandoned when ingest exits.
 func (s *backupShadow) copy(workspace string, data []byte) {
 	if s == nil || s.workspace != workspace {
 		return
@@ -53,9 +51,7 @@ func (s *backupShadow) copy(workspace string, data []byte) {
 		backupShadowEvents.WithLabelValues("busy").Inc()
 		return
 	}
-	s.wg.Add(1)
 	go func() {
-		defer s.wg.Done()
 		defer func() { <-s.slots }()
 		key := uuid.New()
 		for attempt := 0; attempt < 2; attempt++ {

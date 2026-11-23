@@ -65,19 +65,19 @@ func gcsUploader(client *storage.Client, prefix string) uploadObject {
 	}
 }
 
-func flush(ctx context.Context, db *sql.DB, workspace string, upload uploadObject) (int, error) {
+func flush(ctx context.Context, db *sql.DB, workspace string, upload uploadObject) (bool, error) {
 	name, data, err := seal(ctx, db, workspace)
 	if errors.Is(err, sql.ErrNoRows) {
-		return 0, nil
+		return false, nil
 	}
 	if err != nil {
-		return 0, err
+		return false, err
 	}
 	if err = upload(ctx, workspace, name, data); err != nil {
-		return 0, err
+		return false, err
 	}
-	_, err = db.ExecContext(ctx, `UPDATE spool SET uploaded=?,payload=NULL WHERE workspace=? AND object=? AND payload IS NOT NULL`, time.Now().Unix(), workspace, name)
-	return len(data), err
+	n, err := complete(ctx, db, workspace, name)
+	return n >= maxObjectRequests || len(data) >= targetObjectSize, err
 }
 
 func drain(ctx context.Context, db *sql.DB, upload uploadObject) error {
@@ -106,19 +106,19 @@ func drain(ctx context.Context, db *sql.DB, upload uploadObject) error {
 		next := workspaces[:0]
 		for _, ws := range workspaces {
 			uploadCtx, cancel := context.WithTimeout(ctx, time.Minute)
-			n, err := flush(uploadCtx, db, ws, upload)
+			full, err := flush(uploadCtx, db, ws, upload)
 			cancel()
 			if err != nil {
 				log.Printf("archive upload for %s: %v", ws, err)
 				continue
 			}
-			if n >= 8<<20 {
+			if full {
 				next = append(next, ws)
 			}
 		}
 		workspaces = next
 	}
 	// Pending requests stay deduplicated throughout any GCS outage.
-	_, err = db.ExecContext(ctx, `DELETE FROM spool WHERE uploaded < ?`, time.Now().Add(-24*time.Hour).Unix())
+	_, err = db.ExecContext(ctx, `DELETE FROM spool WHERE expires < ?`, time.Now().Unix())
 	return err
 }

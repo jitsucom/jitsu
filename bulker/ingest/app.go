@@ -38,7 +38,7 @@ func (a *Context) InitContext(settings *appbase.AppSettings) error {
 	}
 	a.backupShadow, err = newBackupShadow(a.config)
 	if err != nil {
-		return err
+		logging.Errorf("Backup shadow comparison disabled: %v", err)
 	}
 	a.repository = NewStreamsRepository(a.config.RepositoryURL, a.config.RepositoryAuthToken, a.config.RepositoryRefreshPeriodSec, a.config.CacheDir)
 	a.scriptRepository = NewScriptRepository(a.config.ScriptOrigin, a.config.CacheDir)
@@ -101,9 +101,6 @@ func (a *Context) InitContext(settings *appbase.AppSettings) error {
 }
 
 func (a *Context) Cleanup() error {
-	if a.backupShadow != nil {
-		a.backupShadow.wg.Wait()
-	}
 	a.closeProducers()
 	if a.consumerMonitor != nil {
 		_ = a.consumerMonitor.Close()

@@ -11,6 +11,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"syscall"
 	"testing"
@@ -40,7 +41,7 @@ func post(h http.Handler, key, data, token string) int {
 func TestAcknowledgedBatchSurvivesKill(t *testing.T) {
 	if path := os.Getenv("TEST_ARCHIVE_KILL_DB"); path != "" {
 		db := database(t, path)
-		if code := post(handler(db, "test"), "one", first+"\n"+second, "test"); code != 204 {
+		if code := post(handler(db, "test", path), "one", first+"\n"+second, "test"); code != 204 {
 			t.Fatalf("admission: %d", code)
 		}
 		// Kill without running shutdown, SQLite Close, or upload.
@@ -58,7 +59,7 @@ func TestAcknowledgedBatchSurvivesKill(t *testing.T) {
 		t.Fatalf("child: %v %s", err, out)
 	}
 	db := database(t, path)
-	h := handler(db, "test")
+	h := handler(db, "test", path)
 	batch := first + "\n" + second + "\n"
 	if code := post(h, "one", batch, "test"); code != 204 {
 		t.Fatalf("retry: %d", code)
@@ -76,7 +77,7 @@ func TestAcknowledgedBatchSurvivesKill(t *testing.T) {
 		t.Fatal(err)
 	}
 	db = database(t, path)
-	h = handler(db, "test")
+	h = handler(db, "test", path)
 	if code := post(h, "two", second, "test"); code != 204 {
 		t.Fatalf("new request: %d", code)
 	}
@@ -108,8 +109,9 @@ func TestAcknowledgedBatchSurvivesKill(t *testing.T) {
 }
 
 func TestRejectBeforeAck(t *testing.T) {
-	db := database(t, filepath.Join(t.TempDir(), "spool.db"))
-	h := handler(db, "test")
+	path := filepath.Join(t.TempDir(), "spool.db")
+	db := database(t, path)
+	h := handler(db, "test", path)
 	for _, data := range []string{"", first + "\n{", first + "\n" + strings.Replace(second, "example", "other", 1)} {
 		if code := post(h, "key", data, "test"); code != 400 {
 			t.Fatalf("invalid batch status %d", code)
@@ -135,5 +137,36 @@ func TestRejectBeforeAck(t *testing.T) {
 	}
 	if _, _, err := seal(t.Context(), db, "example"); !errors.Is(err, sql.ErrNoRows) {
 		t.Fatalf("disk full committed data: %v", err)
+	}
+}
+
+func TestDrainAfterAdmissionCapacityExceeded(t *testing.T) {
+	db := database(t, filepath.Join(t.TempDir(), "spool.db"))
+	if _, err := db.Exec("PRAGMA max_page_count=40"); err != nil {
+		t.Fatal(err)
+	}
+	count := 0
+	for ; count < 10000; count++ {
+		if err := admit(t.Context(), db, "example", strconv.Itoa(count), []byte(first+"\n"), nil); err != nil {
+			if !strings.Contains(err.Error(), "full") {
+				t.Fatal(err)
+			}
+			break
+		}
+	}
+	if count == 0 || count == 10000 {
+		t.Fatalf("unexpected spool capacity: %d", count)
+	}
+	if err := admit(t.Context(), db, "example", "0", []byte(first+"\n"), errors.New("below reserve")); err != nil {
+		t.Fatal("retry of durable admission", err)
+	}
+	_, err := flush(t.Context(), db, "example", func(_ context.Context, _, _ string, data []byte) error {
+		if bytes.Count(data, []byte{'\n'}) != count {
+			t.Fatal("incomplete sealed batch")
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatal("could not drain accepted records", err)
 	}
 }

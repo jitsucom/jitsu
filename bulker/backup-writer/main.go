@@ -63,7 +63,7 @@ func run(ctx context.Context) error {
 	if addr == "" {
 		addr = ":8080"
 	}
-	server := http.Server{Addr: addr, Handler: handler(db, token), ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 30 * time.Second, WriteTimeout: 35 * time.Second, IdleTimeout: time.Minute}
+	server := http.Server{Addr: addr, Handler: handler(db, token, path), ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 30 * time.Second, WriteTimeout: 35 * time.Second, IdleTimeout: time.Minute}
 	result := make(chan error, 1)
 	go func() { result <- server.ListenAndServe() }()
 	select {

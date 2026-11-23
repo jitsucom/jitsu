@@ -4,22 +4,29 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
-	"slices"
+	"sync/atomic"
 	"testing"
+	"time"
 )
 
 func TestBackupShadowRetry(t *testing.T) {
-	var keys []string
+	keys := make(chan string, 4)
+	var attempts atomic.Int32
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		keys = append(keys, r.Header.Get("Idempotency-Key"))
+		key := r.Header.Get("Idempotency-Key")
 		b, _ := io.ReadAll(r.Body)
 		if r.URL.Path != "/v1/archive/example" || r.Header.Get("Authorization") != "Bearer test" || string(b) != "body" {
 			t.Error("unexpected shadow request")
 		}
-		if len(keys) == 1 {
+		if r.Header.Get("Idempotency-Key") == "" {
+			t.Error("missing request id")
+		}
+		if attempts.Add(1) == 1 {
+			keys <- key
 			w.WriteHeader(503)
 			return
 		}
+		keys <- key
 		w.WriteHeader(204)
 	}))
 	defer server.Close()
@@ -29,8 +36,16 @@ func TestBackupShadowRetry(t *testing.T) {
 	}
 	s.copy("other", []byte("body"))
 	s.copy("example", []byte("body"))
-	s.wg.Wait()
-	if len(keys) != 2 || keys[0] == "" || !slices.Equal(keys[:1], keys[1:]) {
-		t.Fatalf("unstable request ids: %v", keys)
+	var first string
+	for range 2 {
+		select {
+		case key := <-keys:
+			if first != "" && first != key {
+				t.Fatal("retry changed request ID")
+			}
+			first = key
+		case <-time.After(5 * time.Second):
+			t.Fatal("shadow retry did not arrive")
+		}
 	}
 }

@@ -15,7 +15,7 @@ import (
 var workspaceID = regexp.MustCompile(`^[a-z0-9][a-z0-9-]{0,48}$`)
 var requestID = regexp.MustCompile(`^[a-zA-Z0-9_-]{1,128}$`)
 
-func handler(db *sql.DB, token string) http.Handler {
+func handler(db *sql.DB, token, path string) http.Handler {
 	mux := http.NewServeMux()
 	admissions := make(chan struct{}, 16)
 	mux.HandleFunc("POST /v1/archive/{workspace}", func(w http.ResponseWriter, r *http.Request) {
@@ -59,7 +59,7 @@ func handler(db *sql.DB, token string) http.Handler {
 				return
 			}
 		}
-		if err = admit(r.Context(), db, workspace, key, append(data, '\n')); err != nil {
+		if err = admit(r.Context(), db, workspace, key, append(data, '\n'), checkSpace(path)); err != nil {
 			if errors.Is(err, errKeyConflict) {
 				http.Error(w, err.Error(), 409)
 				return
