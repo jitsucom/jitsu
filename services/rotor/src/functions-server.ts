@@ -34,7 +34,7 @@ import { IngestMessage } from "@jitsu/protocols/async-request";
 import type { MongoClient } from "mongodb";
 import { compileUdfFunction, compileUdfToIIFE } from "./lib/udf-shared";
 import { compileFailureIife } from "./lib/udf-placeholder";
-import { callerBudgetMs, executionDeadline, isWorkerEvictable } from "./lib/worker-pool-utils";
+import { endpointCallerBudgetMs, executionDeadline, isWorkerEvictable } from "./lib/worker-pool-utils";
 import { runFunctionChain, type ChainFunction } from "./lib/udf-chain";
 import type {
   ExecMessage,
@@ -1273,7 +1273,8 @@ async function main() {
       ? parseNumber(timeoutHeader, 2000)
       : parseNumber(env.FETCH_TIMEOUT_MS, 2000);
     // how long the caller waits for the whole chain (rotor sends its FUNCTIONS_SERVER_TIMEOUT_MS)
-    const budget = callerBudgetMs(
+    const budget = endpointCallerBudgetMs(
+      "multi",
       req.headers.get("x-request-budget-ms"),
       parseNumber(env.FUNCTIONS_SERVER_TIMEOUT_MS, 30000)
     );
@@ -1364,7 +1365,8 @@ async function main() {
       ? parseNumber(timeoutHeader, 2000)
       : parseNumber(env.FETCH_TIMEOUT_MS, 2000);
     // how long the caller waits for the whole chain (rotor sends its FUNCTIONS_SERVER_TIMEOUT_MS)
-    const budget = callerBudgetMs(
+    const budget = endpointCallerBudgetMs(
+      "connection",
       req.headers.get("x-request-budget-ms"),
       parseNumber(env.FUNCTIONS_SERVER_TIMEOUT_MS, 30000)
     );

@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { callerBudgetMs, executionDeadline, isWorkerEvictable } from "../src/lib/worker-pool-utils";
+import {
+  callerBudgetMs,
+  endpointCallerBudgetMs,
+  executionDeadline,
+  isWorkerEvictable,
+} from "../src/lib/worker-pool-utils";
 
 describe("evicting a worker of the pool", () => {
   const base = { now: 10_000, lastUsedAt: 0, ttlMs: 1000 };
@@ -65,5 +70,28 @@ describe("how long an execution keeps its worker from being evicted", () => {
     expect(
       isWorkerEvictable({ now: start + 91_000, lastUsedAt: start, ttlMs: 1000, executionDeadlines: [deadline] })
     ).toBe(true);
+  });
+});
+
+// /connection/<id> is called by rotor, which sends its budget (and an older one is covered by the server's default); /multi is
+// called by the Go ingest, which waits about 200 ms, sends only a 180 ms fetch timeout and no budget
+describe("the budget assumed for a caller that sends none", () => {
+  const SERVER_DEFAULT = 30_000;
+
+  it("is the server's FUNCTIONS_SERVER_TIMEOUT_MS for rotor's endpoint", () => {
+    expect(endpointCallerBudgetMs("connection", null, SERVER_DEFAULT)).toBe(30_000);
+    expect(endpointCallerBudgetMs("connection", "60000", SERVER_DEFAULT)).toBe(60_000);
+  });
+
+  it("is none for the Go ingest's /multi, so its executions are held for the fetch timeout and the grace period only", () => {
+    const budget = endpointCallerBudgetMs("multi", null, SERVER_DEFAULT);
+    expect(budget).toBe(0);
+    // the eviction deadline of a hung execution stays at 180 ms + the 30 s grace period, not 60 s
+    expect(executionDeadline({ now: 0, budgetMs: budget, fetchTimeoutMs: 180, graceMs: 30_000 })).toBe(30_180);
+  });
+
+  it("still believes a budget that /multi sends, up to the same limit", () => {
+    expect(endpointCallerBudgetMs("multi", "5000", SERVER_DEFAULT)).toBe(5000);
+    expect(endpointCallerBudgetMs("multi", "999999999999", SERVER_DEFAULT)).toBe(600_000);
   });
 });

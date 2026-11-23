@@ -44,3 +44,18 @@ export function executionDeadline(o: {
 }): number {
   return o.now + Math.max(o.budgetMs, o.fetchTimeoutMs) + o.graceMs;
 }
+
+/**
+ * The caller's budget for one of the two endpoints that run a chain. /connection/<id> is called by rotor, which sends its
+ * budget, and the server's own FUNCTIONS_SERVER_TIMEOUT_MS stands in for an older rotor that does not. /multi is called by the
+ * Go ingest, which waits for a fraction of a second and sends only a short fetch timeout: assuming rotor's 30 s for it would
+ * keep a hung worker for much longer than the ingest waits, so with no header it is assumed to wait for no more than the
+ * fetch timeout.
+ */
+export function endpointCallerBudgetMs(
+  endpoint: "connection" | "multi",
+  header: string | null | undefined,
+  serverDefaultMs: number
+): number {
+  return callerBudgetMs(header, endpoint === "multi" ? 0 : serverDefaultMs);
+}
