@@ -17,7 +17,7 @@ func TestHPAMaxByDeployment(t *testing.T) {
 	t.Setenv("OPERATOR_HPA_MAX_REPLICAS", "80")
 	t.Setenv("OPERATOR_KUBERNETES_NAMESPACE", "test")
 	t.Setenv("OPERATOR_INSTANCE_ID", "test")
-	t.Setenv("OPERATOR_HPA_MAX_REPLICAS_BY_DEPLOYMENT", `{"heavy":96}`)
+	t.Setenv("OPERATOR_HPA_MAX_REPLICAS_BY_DEPLOYMENT", `{"heavy":96,"other":1}`)
 	c := &Config{}
 	if err := appbase.InitAppConfig(c, &appbase.AppSettings{ConfigPath: t.TempDir(), ConfigName: "operator", ConfigType: "yaml", EnvPrefix: "OPERATOR"}); err != nil {
 		t.Fatal(err)
@@ -74,6 +74,9 @@ func TestHPAMaxByDeployment(t *testing.T) {
 	c.maxReplicasByDeployment["other"] = 96
 	reconcile(1)
 	check("other", 96, true)
+	c.maxReplicasByDeployment["other"] = 1
+	reconcile(1)
+	check("other", 80, false)
 	reconcile(0)
 }
 

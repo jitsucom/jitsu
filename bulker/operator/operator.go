@@ -1844,11 +1844,8 @@ func (o *Operator) reconcileHPAMaxOverrides(ctx context.Context, desired map[str
 			continue
 		}
 		previous := hpa.Spec.MaxReplicas
-		if err := o.config.setHPAMaxReplicas(id, hpa); err != nil {
-			o.Errorf("Invalid HPA maximum for %s: %v", id, err)
-			continue
-		}
-		if hpa.Spec.MaxReplicas == previous && overridden == configured {
+		o.config.setHPAMaxReplicas(id, hpa)
+		if hpa.Spec.MaxReplicas == previous && overridden == (hpa.Annotations[annotationHPAMaxOverride] != "") {
 			continue
 		}
 		if _, err := o.clientset.AutoscalingV2().HorizontalPodAutoscalers(o.config.KubernetesNamespace).Update(ctx, hpa, metav1.UpdateOptions{}); err != nil {
@@ -1858,13 +1855,15 @@ func (o *Operator) reconcileHPAMaxOverrides(ctx context.Context, desired map[str
 	return nil
 }
 
-func (c *Config) setHPAMaxReplicas(id string, hpa *autoscalingv2.HorizontalPodAutoscaler) error {
+func (c *Config) setHPAMaxReplicas(id string, hpa *autoscalingv2.HorizontalPodAutoscaler) {
 	limit, ok := c.maxReplicasByDeployment[id]
+	if ok && hpa.Spec.MinReplicas != nil && limit < *hpa.Spec.MinReplicas {
+		// A class can change after startup. Preserve the class's usual HPA policy
+		// when an override no longer satisfies its minimum.
+		ok = false
+	}
 	if !ok {
 		limit = c.HPAMaxReplicas
-	}
-	if hpa.Spec.MinReplicas != nil && limit < *hpa.Spec.MinReplicas {
-		return fmt.Errorf("maximum %d for %s is below its minimum %d", limit, id, *hpa.Spec.MinReplicas)
 	}
 	hpa.Spec.MaxReplicas = limit
 	if ok {
@@ -1875,7 +1874,6 @@ func (c *Config) setHPAMaxReplicas(id string, hpa *autoscalingv2.HorizontalPodAu
 	} else {
 		delete(hpa.Annotations, annotationHPAMaxOverride)
 	}
-	return nil
 }
 
 // createOrUpdateHPA creates or updates a HorizontalPodAutoscaler for a deployment
@@ -1969,9 +1967,7 @@ func (o *Operator) createOrUpdateHPA(ctx context.Context, data *DeploymentData) 
 		},
 	}
 
-	if err := o.config.setHPAMaxReplicas(data.DeploymentID, hpa); err != nil {
-		return err
-	}
+	o.config.setHPAMaxReplicas(data.DeploymentID, hpa)
 	existing, err := o.clientset.AutoscalingV2().HorizontalPodAutoscalers(o.config.KubernetesNamespace).Get(ctx, hpaName, metav1.GetOptions{})
 	if err != nil {
 		if errors.IsNotFound(err) {

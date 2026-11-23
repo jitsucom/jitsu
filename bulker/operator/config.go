@@ -79,7 +79,7 @@ type Config struct {
 	HPAEnabled bool `mapstructure:"HPA_ENABLED" default:"false"`
 	// Maximum number of replicas
 	HPAMaxReplicas int32 `mapstructure:"HPA_MAX_REPLICAS" default:"16"`
-	// JSON object keyed by functions deployment ID (workspace ID for dedicated deployments).
+	// JSON object keyed by deployment ID. Overrides below the deployment class minimum use the global maximum.
 	HPAMaxReplicasByDeployment string `mapstructure:"HPA_MAX_REPLICAS_BY_DEPLOYMENT"`
 	maxReplicasByDeployment    map[string]int32
 	// Target CPU utilization percentage
