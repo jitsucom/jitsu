@@ -330,6 +330,361 @@ const cookieStorage: StorageFactory = (cookieDomain, key2cookie) => {
   };
 };
 
+/*
+ * Viewport cache: design notes
+ *
+ * Reading window.innerWidth/innerHeight forces a layout when the DOM changed since the last one, and an event sent
+ * right after a tap used to pay for it. The size is now read once, kept, and re-measured when it can have changed.
+ * Each mechanism below exists because a cache fed by window `resize` alone was wrong, or slow, in the case named.
+ * `disableViewportCache` bypasses all of it: nothing is read ahead, cached or registered.
+ *
+ * What empties the cache
+ *  - window `resize` (onResize): the ordinary change. A resize aimed at another target, or a browser-made one that was
+ *    already measured, is ignored.
+ *  - visualViewport `resize`: pinch zoom in iOS Safari changes the size with no window `resize`, so events kept the
+ *    size from before the zoom.
+ *  - document `visibilitychange`: a page can be restored from the back-forward cache at another size.
+ *  - MutationObserver on the document's children: a rewritten document or replaced root element drops the window
+ *    listeners. takeRecords() makes a send before the observer's callback notice it as well.
+ *  - The signature, compared on every send (viewportSignature): window size, pixel ratio, orientation and viewport meta
+ *    tags. It catches a change no listener has heard of yet: a handler that runs before ours and sends, a meta tag
+ *    edited without a resize, rotation, page zoom.
+ *
+ * When the size is read live anyway
+ *  - During a resize dispatch that has not been measured: a handler that runs before ours would otherwise send the old
+ *    size. A browser-made event is remembered once measured, so sends in the same dispatch share one read. A
+ *    script-made event is always read live, because it can be dispatched again.
+ *  - In a hidden document, and in an iframe (isInFrame), whose host can resize it before the frame hears of it.
+ *  - On a page without the DOM APIs, and whenever the cache throws (getViewportSize): the cache only saves layout work,
+ *    so a failure in it must cost that saving and never an event.
+ *
+ * How it is refilled
+ *  - remeasureWhenQuiet: 100 ms after the last invalidation, once a frame has rendered and layout is clean, so a drag
+ *    that resizes on every frame costs one read at the end.
+ *  - warmViewportCache: once after start-up, so the first send of a page that was idle does not pay for layout.
+ *  - page(): analytics.js reads both sizes itself before any plugin runs, so withCachedViewport serves each from the
+ *    cache once and puts the window's own getter back.
+ *
+ * Page code that gets in the way
+ *  - zone.js (Angular) runs change detection after every listener or timer registered in its zone: they are registered
+ *    through the originals zone.js saves (unzoned).
+ *  - A form or image named like a document method shadows it: real EventTargets are called through
+ *    EventTarget.prototype and the meta tags through Document.prototype.
+ */
+type ViewportSize = { innerWidth: number; innerHeight: number };
+type ViewportCache = {
+  document: Document;
+  visualViewport: VisualViewport | null;
+  size?: ViewportSize;
+  signature?: string;
+  measuredResize?: Event;
+  observer?: MutationObserver;
+  onVisibilityChange: () => void;
+  onResize: (event: Event) => void;
+};
+const viewports = new WeakMap<Window, ViewportCache>();
+/**
+ * zone.js, which Angular runs on, wraps addEventListener, setTimeout and requestAnimationFrame, and runs change
+ * detection after every callback registered inside its zone. The viewport cache needs none of that, so it registers
+ * through the unpatched originals that zone.js saves under __zone_symbol__ names (or the prefix the app set with
+ * __Zone_symbol_prefix), and uses the plain functions everywhere else.
+ */
+function unzoned(target: any, name: string): Function | undefined {
+  // zone.js saves the originals under a prefix that an app can change with a global, set before zone.js loads
+  const custom = typeof window !== "undefined" ? (window as any).__Zone_symbol_prefix : undefined;
+  const saved = target?.[(typeof custom === "string" && custom ? custom : "__zone_symbol__") + name];
+  return typeof saved === "function" ? saved : target?.[name];
+}
+function listen(target: any, method: "addEventListener" | "removeEventListener", type: string, listener: any) {
+  // A named element (a form or an image) can shadow methods of document, so a real EventTarget is always called
+  // through EventTarget.prototype. Anything else, such as a test double, keeps its own methods.
+  const owner = typeof EventTarget === "function" && target instanceof EventTarget ? EventTarget.prototype : target;
+  unzoned(owner, method)?.call(target, type, listener, true);
+}
+function startTimer(browserWindow: Window, callback: () => void, ms: number): number {
+  return unzoned(browserWindow, "setTimeout")!.call(browserWindow, callback, ms);
+}
+function stopTimer(browserWindow: Window, timer: number) {
+  unzoned(browserWindow, "clearTimeout")?.call(browserWindow, timer);
+}
+function nextFrame(browserWindow: Window, callback: () => void) {
+  unzoned(browserWindow, "requestAnimationFrame")!.call(browserWindow, callback);
+}
+
+/** How long the viewport has to stay unchanged before the cache is refilled. */
+const REMEASURE_QUIET_MS = 100;
+const remeasures = new WeakMap<Window, { generation: number; timer?: number }>();
+
+/**
+ * Refills the cache once the viewport has been quiet for a moment and the browser has rendered a frame. Layout is
+ * clean by then, so the read costs nothing and the next send finds a warm cache instead of paying for the layout
+ * itself. Every invalidation restarts the wait, so a drag or a scroll that resizes on every frame costs one read
+ * at the end, not one per frame. Does nothing without the timing APIs, and skips hidden documents.
+ */
+function remeasureWhenQuiet(browserWindow: Window) {
+  if (
+    typeof browserWindow.requestAnimationFrame !== "function" ||
+    typeof browserWindow.setTimeout !== "function" ||
+    typeof browserWindow.clearTimeout !== "function"
+  ) {
+    return;
+  }
+  let state = remeasures.get(browserWindow);
+  if (!state) {
+    state = { generation: 0 };
+    remeasures.set(browserWindow, state);
+  }
+  const current = state;
+  const generation = ++current.generation;
+  if (current.timer !== undefined) {
+    stopTimer(browserWindow, current.timer);
+  }
+  current.timer = startTimer(
+    browserWindow,
+    () => {
+      current.timer = undefined;
+      nextFrame(browserWindow, () =>
+        startTimer(
+          browserWindow,
+          () => {
+            // a newer invalidation owns the next measurement
+            if (current.generation === generation && !browserWindow.document?.hidden) {
+              try {
+                getViewportSize(browserWindow);
+              } catch (e) {
+                // The window itself threw. A send hits the same error in the caller's own code; this timer must not
+                // add an uncaught error of its own.
+              }
+            }
+          },
+          0
+        )
+      );
+    },
+    REMEASURE_QUIET_MS
+  );
+}
+
+function createViewportCache(browserWindow: Window): ViewportCache {
+  const cache: ViewportCache = {
+    document: browserWindow.document,
+    visualViewport: browserWindow.visualViewport,
+    onVisibilityChange: () => {
+      cache.size = undefined;
+      remeasureWhenQuiet(browserWindow);
+    },
+    onResize: event => {
+      if (event.target === event.currentTarget && (!event.isTrusted || event !== cache.measuredResize)) {
+        cache.size = undefined;
+        remeasureWhenQuiet(browserWindow);
+      }
+    },
+  };
+  if (cache.document) {
+    cache.observer = new MutationObserver(() => {
+      cache.size = undefined;
+      remeasureWhenQuiet(browserWindow);
+    });
+    cache.observer.observe(cache.document, { childList: true });
+  }
+  viewports.set(browserWindow, cache);
+  return cache;
+}
+
+/**
+ * The content of every viewport meta tag, in document order. The browser applies the one processed last, wherever it
+ * sits in the document and however its name is capitalised, so a tag added to the body or after the first one changes
+ * the viewport. The live meta collection is cached by the browser, which keeps this cheap. A selector would search the
+ * whole tree on every send.
+ */
+function viewportMetaContents(doc: Document | undefined): string | undefined {
+  const metas =
+    typeof Document === "function" && doc instanceof Document
+      ? Document.prototype.getElementsByTagName.call(doc, "meta")
+      : doc?.getElementsByTagName?.("meta");
+  if (!metas) {
+    return undefined;
+  }
+  const contents: (string | null)[] = [];
+  for (let i = 0; i < metas.length; i++) {
+    if (metas[i].getAttribute("name")?.toLowerCase() === "viewport") {
+      contents.push(metas[i].getAttribute("content"));
+    }
+  }
+  // encoded as a list, so where one tag ends and the next begins is part of the signature, and a tag without a content
+  // attribute differs from one with an empty one
+  return JSON.stringify(contents);
+}
+
+/**
+ * Readings that cost nothing, because none of them needs layout, and that move together with the viewport: the
+ * window size, the pixel ratio (page zoom), the screen orientation and the viewport meta tag. Unlike a listener,
+ * comparing them works whichever handler runs first, so a send from an application handler that runs ahead of
+ * the SDK's own listeners still notices a change. visualViewport.scale is left out on purpose: reading it forces
+ * layout in WebKit.
+ */
+function viewportSignature(browserWindow: Window): string {
+  const orientation = browserWindow.screen?.orientation;
+  return [
+    browserWindow.outerWidth,
+    browserWindow.outerHeight,
+    browserWindow.devicePixelRatio,
+    orientation?.type,
+    orientation?.angle,
+    viewportMetaContents(browserWindow.document),
+  ].join("|");
+}
+
+/** Inside an iframe the size is always read live and nothing is cached. */
+function isInFrame(browserWindow: Window): boolean {
+  // window.parent is replaceable: a page script that declares `var parent` overwrites it, in either direction, so it
+  // cannot tell whether this is a frame. window.top cannot be replaced.
+  return !!browserWindow.top && browserWindow.top !== browserWindow;
+}
+
+function readViewportSize(browserWindow: Window): ViewportSize {
+  return { innerWidth: browserWindow.innerWidth, innerHeight: browserWindow.innerHeight };
+}
+
+/**
+ * The cached size, or a live read if the cache cannot be used. The cache only saves layout work, so whatever goes wrong
+ * inside it, from an unusual page to a bug, must cost nothing more than that saving and never an event.
+ */
+function getViewportSize(browserWindow: Window): ViewportSize {
+  try {
+    return getCachedViewportSize(browserWindow);
+  } catch (e) {
+    return readViewportSize(browserWindow);
+  }
+}
+
+function getCachedViewportSize(browserWindow: Window): ViewportSize {
+  const doc = browserWindow.document;
+  if (
+    // A host can resize its iframe and send before the browser delivers any resize event.
+    isInFrame(browserWindow) ||
+    typeof browserWindow.addEventListener !== "function" ||
+    (doc && (typeof Document === "undefined" || !(doc instanceof Document) || typeof MutationObserver !== "function"))
+  ) {
+    return readViewportSize(browserWindow);
+  }
+  let cache = viewports.get(browserWindow);
+  if (!cache || cache.document !== doc) {
+    if (cache) {
+      cache.observer?.disconnect();
+      listen(cache.document, "removeEventListener", "visibilitychange", cache.onVisibilityChange);
+      listen(browserWindow, "removeEventListener", "resize", cache.onResize);
+      listen(cache.visualViewport, "removeEventListener", "resize", cache.onResize);
+    }
+    cache = createViewportCache(browserWindow);
+  }
+  // A document rewrite clears window listeners, even if it restores the same root.
+  // takeRecords also catches a synchronous send before observer delivery.
+  if (cache.observer?.takeRecords().length) cache.size = undefined;
+  if (!cache.size) {
+    listen(doc, "addEventListener", "visibilitychange", cache.onVisibilityChange);
+    listen(browserWindow, "addEventListener", "resize", cache.onResize);
+    // Safari can change innerWidth/innerHeight during pinch zoom with only a visual viewport resize.
+    listen(cache.visualViewport, "addEventListener", "resize", cache.onResize);
+  }
+  // Hidden documents can enter the back-forward cache. Keep the next visible send fresh,
+  // even when the first SDK call was made by a pagehide or visibilitychange handler.
+  if (doc?.hidden) return readViewportSize(browserWindow);
+  // The viewport can change before any listener has heard of it, for example when an application handler that
+  // runs ahead of ours sends an event. The signature moves with the viewport and costs nothing to read.
+  if (cache.size && cache.signature !== viewportSignature(browserWindow)) cache.size = undefined;
+  const event = browserWindow.event;
+  // An earlier handler can send before invalidation. A browser-generated Event is
+  // unique to its dispatch, whereas scripts can immediately reuse the same Event.
+  const resize =
+    event?.type === "resize" && (event.target === browserWindow || event.target === cache.visualViewport)
+      ? event
+      : undefined;
+  if (!cache.size || (resize && (!resize.isTrusted || resize !== cache.measuredResize))) {
+    cache.size = readViewportSize(browserWindow);
+    cache.signature = viewportSignature(browserWindow);
+    cache.measuredResize = resize?.isTrusted ? resize : undefined;
+  }
+  return cache.size;
+}
+
+/**
+ * Fills the viewport cache shortly after start-up, once a frame has rendered. A page that sends nothing until its
+ * first user interaction then starts with a warm cache instead of paying for the layout in that first send.
+ */
+export function warmViewportCache() {
+  // nothing is cached in an iframe, so a measurement there would be discarded
+  if (isInBrowser() && !isInFrame(window)) {
+    remeasureWhenQuiet(window);
+  }
+}
+
+const viewportKeys = ["innerWidth", "innerHeight"] as const;
+
+/**
+ * analytics.js builds the default `width`/`height` page properties by reading `window.innerWidth` and
+ * `window.innerHeight` inside its own code, before any SDK code can intervene. After a DOM change those reads
+ * force a synchronous layout. That read happens synchronously inside `analytics.page()`, so for the duration
+ * of `fn` the two properties return the SDK's cached viewport instead.
+ *
+ * Each property is served from the cache exactly once and its original descriptor is put back by its own
+ * getter. analytics.js reads both back to back and only afterwards dispatches `pageStart` to plugins and
+ * listeners, so they run against the real window. Whatever was not read is restored before `fn` returns.
+ *
+ * Falls back to calling `fn` untouched when there is no window or the properties can't be redefined. If the window
+ * throws while the size is read, `onReadError` is called with that error instead, when it is given: a second read by `fn`
+ * could succeed where the first failed.
+ */
+export function withCachedViewport<T>(fn: () => T, onReadError?: (error: unknown) => T): T {
+  if (!isInBrowser()) {
+    return fn();
+  }
+  const win = window as any;
+  let size: ViewportSize;
+  try {
+    size = getViewportSize(win);
+  } catch (e) {
+    // The window itself threw. With a handler, the caller decides what to do with that error. Without one, fn runs
+    // untouched and meets the same error itself.
+    return onReadError ? onReadError(e) : fn();
+  }
+  const shadowed = new Set<(typeof viewportKeys)[number]>();
+  const original = {} as Record<(typeof viewportKeys)[number], PropertyDescriptor | undefined>;
+  const restore = (key: (typeof viewportKeys)[number]) => {
+    if (!shadowed.delete(key)) {
+      return;
+    }
+    if (original[key]) {
+      Object.defineProperty(win, key, original[key]!);
+    } else {
+      delete win[key];
+    }
+  };
+  const restoreAll = () => viewportKeys.forEach(restore);
+  try {
+    for (const key of viewportKeys) {
+      original[key] = Object.getOwnPropertyDescriptor(win, key);
+      Object.defineProperty(win, key, {
+        configurable: true,
+        enumerable: true,
+        get: () => {
+          restore(key);
+          return size[key];
+        },
+      });
+      shadowed.add(key);
+    }
+  } catch (e) {
+    restoreAll();
+    return fn();
+  }
+  try {
+    return fn();
+  } finally {
+    restoreAll();
+  }
+}
+
 export function windowRuntime(opts: JitsuOptions): RuntimeFacade {
   const key2Cookie = (key: string) => {
     switch (key) {
@@ -385,11 +740,12 @@ export function windowRuntime(opts: JitsuOptions): RuntimeFacade {
       return window.document.referrer;
     },
     screen(): { width: number; height: number; innerWidth: number; innerHeight: number; density: number } {
+      const viewport = opts.disableViewportCache ? readViewportSize(window) : getViewportSize(window);
       return {
         width: window.screen.width,
         height: window.screen.height,
-        innerWidth: window.innerWidth,
-        innerHeight: window.innerHeight,
+        innerWidth: viewport.innerWidth,
+        innerHeight: viewport.innerHeight,
         density: Math.floor(window.devicePixelRatio),
       };
     },

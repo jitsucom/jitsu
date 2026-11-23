@@ -459,6 +459,14 @@ export type JitsuOptions = {
    */
   errorPolicy?: ErrorHandler | "rethrow" | "log";
 
+  /**
+   * In the browser, the SDK remembers the size of the viewport and re-measures it only after it changes, because
+   * reading it right after a DOM change forces the browser to lay the page out again. Set this to true to read the size
+   * from the window on every event instead, as earlier versions did. Nothing is cached then, and the SDK registers no
+   * resize listeners or mutation observers for it. Can only be set when the SDK starts. Default value: false
+   */
+  disableViewportCache?: boolean;
+
   privacy?: {
     dontSend?: boolean;
     disableUserIds?: boolean;

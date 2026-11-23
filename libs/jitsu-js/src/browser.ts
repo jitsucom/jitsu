@@ -50,6 +50,7 @@ const parsers: Partial<Record<string, Parser>> = {
   "privacy-dont-send": booleanParser(["privacy"]),
   "privacy-ip-policy": defaultParser(["privacy"]),
   "echo-events": booleanParser(),
+  "disable-viewport-cache": booleanParser(),
   "init-only": booleanParser(),
   "cookie-names": jsonParser(),
   "cookie-capture": jsonParser(),

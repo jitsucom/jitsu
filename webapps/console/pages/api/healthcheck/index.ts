@@ -16,6 +16,10 @@ const healthChecks: Record<string, () => Promise<any>> = {
 const log = getServerLog("healthcheck");
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+  if (req.query.probe === "live") {
+    res.status(200).json({ status: "ok" });
+    return;
+  }
   const result: Record<string, any> = {};
   let hasErrors: boolean = false;
   for (const [service, check] of Object.entries(healthChecks)) {
