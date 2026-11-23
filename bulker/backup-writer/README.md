@@ -1,14 +1,14 @@
 # Workspace archive writer
 
-This pilot copies events for one configured workspace alongside the existing Kafka backup. Ingest successes continue to use the existing ingest contract. A 204 from the internal writer means that its SQLite WAL on disk contains the entire request, or the writer previously committed those same bytes for that workspace and key.
+This pilot copies events for one configured workspace alongside the existing Kafka backup. Ingest successes continue to use the existing ingest contract. A 204 from the internal writer means that the entire request has been appended to a workspace segment and synced to disk. Repeating a submission writes another copy.
 
 ## Run the comparison
 
-Build from `bulker/` with `docker build -f backup-writer.Dockerfile -t backup-writer .`. Run one writer behind an internal Service. Mount a retained, writable regional persistent disk at the database path. A replacement writer needs the same disk. Configure the writer as follows.
+Build from `bulker/` with `docker build -f backup-writer.Dockerfile -t backup-writer .`. Run one writer behind an internal Service. Mount a retained, writable regional persistent disk at the spool path. A replacement writer needs the same disk. Configure the writer as follows.
 
 | Variable | Value |
 | --- | --- |
-| `BACKUP_WRITER_DB` | Absolute database file on the mounted volume, such as `/data/archive.db` |
+| `BACKUP_WRITER_SPOOL_DIR` | Existing dedicated directory on the mounted volume, such as `/data/archive`. Start with an empty directory writable by UID 65532 |
 | `BACKUP_WRITER_BUCKET_PREFIX` | Dedicated shadow bucket prefix. The complete bucket name is this prefix followed by the workspace ID. |
 | `BACKUP_WRITER_TOKEN` | Secret shared with ingest for bearer authentication |
 | `BACKUP_WRITER_ADDR` | Listen address, defaults to `:8080` |
@@ -19,8 +19,8 @@ Set `INGEST_BACKUP_SHADOW_WORKSPACE` to the selected GCS workspace ID, `INGEST_B
 
 ## Admission and recovery
 
-`POST /v1/archive/{workspace}` accepts up to 8 MiB of newline-delimited ingest envelopes from one workspace. Send a bearer token and an `Idempotency-Key` unique to the submission. Retry an ambiguous response with the same key and bytes. Reusing a key for different bytes returns 409. The writer keeps admission receipts while pending and for at least 24 hours after upload. Client resubmissions with new keys have at-least-once semantics.
+`POST /v1/archive/{workspace}` accepts up to 8 MiB of newline-delimited ingest envelopes from one workspace. Send a bearer token. The writer validates the entire request, appends a length and checksum followed by the original NDJSON, then syncs the file. It also syncs the directory when creating a segment. A timeout after persistence can produce duplicate events on retry.
 
-Every 30 seconds the writer groups pending records into per-workspace gzip NDJSON objects. It persists the immutable object name and membership before sending bytes to GCS. A retry uses create-only generation preconditions and checks object size, CRC32C and the uncompressed SHA-256 before accepting an existing object. A failed upload stays pending. The writer stops admitting new requests below 256 MiB of filesystem headroom and can still acknowledge matching retries. After a drain the writer returns unused database and WAL space to the filesystem so admission can resume. If another process exhausts the volume, restore free space or grow the volume so SQLite can checkpoint.
+The writer rotates segments at 8 MiB or on its 30-second upload cycle. Every restart opens fresh files for new requests. Recovery reads completed frames from the old files, drops a torn final request, and retains segments with checksum errors for investigation. Each filename fixes its GCS object key. The writer removes the local segment after creating the object or verifying that an earlier upload already stored matching content. Admission reserves 256 MiB of disk headroom. Uploads and cleanup continue when new writes are refused.
 
 Before authoritative cutover, measure admission latency, exercise regional disk reattachment and verify a real archive through the reprocessing worker. The pilot's bounded shadow copies can be dropped. Authoritative integration must wait for durable admission on every applicable ingest route and define retry behavior for partially processed client batches.

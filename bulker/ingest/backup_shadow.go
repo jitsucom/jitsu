@@ -11,7 +11,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/jitsucom/bulker/jitsubase/uuid"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 )
@@ -53,9 +52,8 @@ func (s *backupShadow) copy(workspace string, data []byte) {
 	}
 	go func() {
 		defer func() { <-s.slots }()
-		key := uuid.New()
 		for attempt := 0; attempt < 2; attempt++ {
-			retry, err := s.send(context.Background(), key, data)
+			retry, err := s.send(context.Background(), data)
 			if err == nil {
 				backupShadowEvents.WithLabelValues("accepted").Inc()
 				return
@@ -67,13 +65,12 @@ func (s *backupShadow) copy(workspace string, data []byte) {
 		backupShadowEvents.WithLabelValues("failed").Inc()
 	}()
 }
-func (s *backupShadow) send(ctx context.Context, key string, data []byte) (bool, error) {
+func (s *backupShadow) send(ctx context.Context, data []byte) (bool, error) {
 	req, err := http.NewRequestWithContext(ctx, "POST", s.endpoint, bytes.NewReader(data))
 	if err != nil {
 		return false, err
 	}
 	req.Header.Set("Authorization", "Bearer "+s.token)
-	req.Header.Set("Idempotency-Key", key)
 	req.Header.Set("Content-Type", "application/x-ndjson")
 	res, err := s.client.Do(req)
 	if err != nil {

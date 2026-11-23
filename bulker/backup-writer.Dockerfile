@@ -3,7 +3,7 @@ WORKDIR /src
 COPY backup-writer/go.mod backup-writer/go.sum ./
 RUN go mod download
 COPY backup-writer/*.go ./
-RUN CGO_ENABLED=1 go build -mod=readonly -o /backup-writer .
+RUN CGO_ENABLED=0 go build -mod=readonly -o /backup-writer .
 
 FROM debian:bookworm-slim
 RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates && rm -rf /var/lib/apt/lists/*

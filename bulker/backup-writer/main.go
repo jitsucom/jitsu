@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"errors"
-	"fmt"
 	"log"
 	"net/http"
 	"os"
@@ -15,26 +14,15 @@ import (
 )
 
 func run(ctx context.Context) error {
-	path, prefix, token := os.Getenv("BACKUP_WRITER_DB"), os.Getenv("BACKUP_WRITER_BUCKET_PREFIX"), os.Getenv("BACKUP_WRITER_TOKEN")
+	path, prefix, token := os.Getenv("BACKUP_WRITER_SPOOL_DIR"), os.Getenv("BACKUP_WRITER_BUCKET_PREFIX"), os.Getenv("BACKUP_WRITER_TOKEN")
 	if path == "" || prefix == "" || token == "" {
-		return errors.New("set BACKUP_WRITER_DB, BACKUP_WRITER_BUCKET_PREFIX and BACKUP_WRITER_TOKEN")
+		return errors.New("set BACKUP_WRITER_SPOOL_DIR, BACKUP_WRITER_BUCKET_PREFIX and BACKUP_WRITER_TOKEN")
 	}
-	db, err := openSpool(path)
+	store, err := openSpool(path, prefix)
 	if err != nil {
 		return err
 	}
-	defer db.Close()
-	if _, err = db.Exec(`CREATE TABLE IF NOT EXISTS destination (id INTEGER PRIMARY KEY CHECK(id=1),prefix TEXT NOT NULL);
-        INSERT INTO destination(id,prefix) VALUES(1,?) ON CONFLICT DO NOTHING`, prefix); err != nil {
-		return err
-	}
-	var saved string
-	if err = db.QueryRow("SELECT prefix FROM destination WHERE id=1").Scan(&saved); err != nil {
-		return err
-	}
-	if saved != prefix {
-		return fmt.Errorf("spool belongs to bucket prefix %q", saved)
-	}
+	defer store.close()
 	client, err := storage.NewClient(ctx)
 	if err != nil {
 		return err
@@ -48,7 +36,7 @@ func run(ctx context.Context) error {
 		defer ticker.Stop()
 		upload := gcsUploader(client, prefix)
 		for ctx.Err() == nil {
-			if err := drain(ctx, db, upload); err != nil && ctx.Err() == nil {
+			if err := drain(ctx, store, upload); err != nil && ctx.Err() == nil {
 				log.Printf("archive drain: %v", err)
 			}
 			select {
@@ -63,7 +51,7 @@ func run(ctx context.Context) error {
 	if addr == "" {
 		addr = ":8080"
 	}
-	server := http.Server{Addr: addr, Handler: handler(db, token, path), ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 30 * time.Second, WriteTimeout: 35 * time.Second, IdleTimeout: time.Minute}
+	server := http.Server{Addr: addr, Handler: handler(store, token), ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 30 * time.Second, WriteTimeout: 35 * time.Second, IdleTimeout: time.Minute}
 	result := make(chan error, 1)
 	go func() { result <- server.ListenAndServe() }()
 	select {

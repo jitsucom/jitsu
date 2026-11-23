@@ -3,7 +3,6 @@ package main
 import (
 	"bytes"
 	"crypto/subtle"
-	"database/sql"
 	"encoding/json"
 	"errors"
 	"io"
@@ -13,9 +12,8 @@ import (
 )
 
 var workspaceID = regexp.MustCompile(`^[a-z0-9][a-z0-9-]{0,48}$`)
-var requestID = regexp.MustCompile(`^[a-zA-Z0-9_-]{1,128}$`)
 
-func handler(db *sql.DB, token, path string) http.Handler {
+func handler(store *spool, token string) http.Handler {
 	mux := http.NewServeMux()
 	admissions := make(chan struct{}, 16)
 	mux.HandleFunc("POST /v1/archive/{workspace}", func(w http.ResponseWriter, r *http.Request) {
@@ -23,9 +21,9 @@ func handler(db *sql.DB, token, path string) http.Handler {
 			http.Error(w, "unauthorized", http.StatusUnauthorized)
 			return
 		}
-		workspace, key := r.PathValue("workspace"), r.Header.Get("Idempotency-Key")
-		if !workspaceID.MatchString(workspace) || !requestID.MatchString(key) {
-			http.Error(w, "invalid workspace or idempotency key", 400)
+		workspace := r.PathValue("workspace")
+		if !workspaceID.MatchString(workspace) {
+			http.Error(w, "invalid workspace", 400)
 			return
 		}
 		select {
@@ -36,7 +34,7 @@ func handler(db *sql.DB, token, path string) http.Handler {
 			return
 		}
 		// Accept one JSON envelope or multiple newline-delimited envelopes.
-		body, err := io.ReadAll(http.MaxBytesReader(w, r.Body, 8<<20))
+		body, err := io.ReadAll(http.MaxBytesReader(w, r.Body, maxRequestSize))
 		if err != nil {
 			var limit *http.MaxBytesError
 			if errors.As(err, &limit) {
@@ -59,11 +57,7 @@ func handler(db *sql.DB, token, path string) http.Handler {
 				return
 			}
 		}
-		if err = admit(r.Context(), db, workspace, key, append(data, '\n'), checkSpace(path)); err != nil {
-			if errors.Is(err, errKeyConflict) {
-				http.Error(w, err.Error(), 409)
-				return
-			}
+		if err = store.append(workspace, append(data, '\n')); err != nil {
 			log.Printf("archive admission failed: %v", err)
 			http.Error(w, "archive temporarily unavailable", 503)
 			return

@@ -1,178 +1,213 @@
-// The spool lives on a single writer's retained persistent volume. SQLite's
-// FULL synchronous WAL commit is the admission acknowledgement boundary.
 package main
 
 import (
+	"bufio"
 	"bytes"
-	"context"
-	"crypto/sha256"
-	"database/sql"
+	"encoding/base64"
+	"encoding/binary"
 	"errors"
 	"fmt"
-	"math"
-	"net/url"
+	"hash/crc32"
+	"io"
 	"os"
 	"path/filepath"
+	"strings"
+	"sync"
 	"syscall"
 	"time"
 
 	"github.com/google/uuid"
-	_ "github.com/mattn/go-sqlite3"
 )
 
-var errKeyConflict = errors.New("idempotency key was already used for different data")
-
-func openSpool(path string) (*sql.DB, error) {
-	absolute, err := filepath.Abs(path)
-	if err != nil {
-		return nil, err
-	}
-	// SQLite derives WAL file permissions from the database file.
-	f, err := os.OpenFile(absolute, os.O_CREATE|os.O_RDWR, 0600)
-	if err != nil {
-		return nil, err
-	}
-	if err = f.Close(); err != nil {
-		return nil, err
-	}
-	uri := url.URL{Scheme: "file", Path: absolute, RawQuery: "_auto_vacuum=FULL&_journal_mode=WAL&_synchronous=FULL&_txlock=immediate&_busy_timeout=5000"}
-	db, err := sql.Open("sqlite3", uri.String())
-	if err != nil {
-		return nil, err
-	}
-	db.SetMaxOpenConns(1)
-	_, err = db.Exec(`CREATE TABLE IF NOT EXISTS spool (
-        seq INTEGER PRIMARY KEY, workspace TEXT NOT NULL, request_id TEXT NOT NULL,
-        digest BLOB NOT NULL, admitted INTEGER NOT NULL, payload BLOB,
-        expires INTEGER NOT NULL DEFAULT 9223372036854775807, UNIQUE(workspace,request_id)
-    );
-    CREATE TABLE IF NOT EXISTS sealed(workspace TEXT PRIMARY KEY, name TEXT NOT NULL, last_seq INTEGER NOT NULL);
-    CREATE INDEX IF NOT EXISTS pending ON spool(workspace,seq) WHERE payload IS NOT NULL;
-    CREATE INDEX IF NOT EXISTS receipts ON spool(expires);`)
-	if err != nil {
-		db.Close()
-		return nil, err
-	}
-	return db, nil
-}
-
-// Keep space for WAL/checkpoint writes during recovery. The limit includes
-// headroom for the bounded set of admissions already in flight.
+const maxRequestSize = 8 << 20
+const segmentSize = 8 << 20
 const spoolHeadroom = 256 << 20
+const frameHeaderSize = 8
+const segmentTime = "2006_01_02T15_04_05"
 
-func checkSpace(path string) error {
-	var fs syscall.Statfs_t
-	if err := syscall.Statfs(path, &fs); err != nil {
-		return err
-	}
-	if uint64(fs.Bavail)*uint64(fs.Bsize) < spoolHeadroom {
-		return errors.New("archive spool below free-space reserve")
-	}
-	return nil
+var crcTable = crc32.MakeTable(crc32.Castagnoli)
+
+type segment struct {
+	name string
+	size int
 }
 
-func admit(ctx context.Context, db *sql.DB, workspace, key string, payload []byte, spaceErr error) error {
-	sum := sha256.Sum256(payload)
-	if spaceErr == nil {
-		result, err := db.ExecContext(ctx, `INSERT INTO spool(workspace,request_id,digest,admitted,payload)
-        VALUES(?,?,?,?,?) ON CONFLICT(workspace,request_id) DO NOTHING`, workspace, key, sum[:], time.Now().Unix(), payload)
+type spool struct {
+	dir    *os.File
+	mu     sync.Mutex
+	active map[string]segment // only files in this map can still be appended to
+}
+
+// Use an existing dedicated directory on the persistent volume. Flocking the
+// directory prevents a second writer from uploading a file still being appended.
+func openSpool(path, prefix string) (*spool, error) {
+	dir, err := os.Open(path)
+	if err != nil {
+		return nil, err
+	}
+	if err = initializeDir(dir, prefix); err != nil {
+		dir.Close()
+		return nil, err
+	}
+	return &spool{dir: dir, active: make(map[string]segment)}, nil
+}
+
+func initializeDir(dir *os.File, prefix string) error {
+	if err := syscall.Flock(int(dir.Fd()), syscall.LOCK_EX|syscall.LOCK_NB); err != nil {
+		return fmt.Errorf("lock spool: %w", err)
+	}
+	// The marker's name binds pending segments to their configured destination.
+	// Creating a single directory entry avoids partially written marker data.
+	marker := ".destination-" + base64.RawURLEncoding.EncodeToString([]byte(prefix))
+	path := filepath.Join(dir.Name(), marker)
+	if _, err := os.Stat(path); errors.Is(err, os.ErrNotExist) {
+		entries, err := dir.ReadDir(1)
+		if err != nil && !errors.Is(err, io.EOF) {
+			return err
+		}
+		if len(entries) > 0 {
+			return errors.New("spool is not empty and has no matching bucket prefix marker")
+		}
+		f, err := os.OpenFile(path, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0600)
 		if err != nil {
 			return err
 		}
-		count, err := result.RowsAffected()
-		if err != nil || count == 1 {
+		if err = f.Close(); err != nil {
 			return err
 		}
-	}
-	var previous []byte
-	if err := db.QueryRowContext(ctx, `SELECT digest FROM spool WHERE workspace=? AND request_id=?`, workspace, key).Scan(&previous); err != nil {
-		if errors.Is(err, sql.ErrNoRows) && spaceErr != nil {
-			return spaceErr
-		}
+	} else if err != nil {
 		return err
 	}
-	if !bytes.Equal(previous, sum[:]) {
-		return errKeyConflict
+	return dir.Sync()
+}
+
+func (s *spool) close() error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.active = nil
+	return s.dir.Close()
+}
+
+func (s *spool) append(workspace string, data []byte) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.active == nil {
+		return os.ErrClosed
 	}
+	var fs syscall.Statfs_t
+	if err := syscall.Fstatfs(int(s.dir.Fd()), &fs); err != nil {
+		return err
+	}
+	if uint64(fs.Bavail)*uint64(fs.Bsize) < spoolHeadroom+uint64(len(data)) {
+		return errors.New("archive spool below free-space reserve")
+	}
+
+	seg := s.active[workspace]
+	fresh := seg.name == "" || seg.size+frameHeaderSize+len(data) > segmentSize
+	flags := os.O_APPEND | os.O_WRONLY
+	if fresh {
+		seg = segment{name: workspace + "." + time.Now().UTC().Format(segmentTime) + "_" + uuid.NewString() + ".seg"}
+		flags |= os.O_CREATE | os.O_EXCL
+	}
+	f, err := os.OpenFile(filepath.Join(s.dir.Name(), seg.name), flags, 0600)
+	if err != nil {
+		return err
+	}
+	// On a write or sync error retire this segment. A later submission must
+	// never append behind a torn frame, including after a writer restart.
+	delete(s.active, workspace)
+	var header [frameHeaderSize]byte
+	binary.BigEndian.PutUint32(header[:4], uint32(len(data)))
+	binary.BigEndian.PutUint32(header[4:], crc32.Checksum(data, crcTable))
+	if _, err = f.Write(header[:]); err == nil {
+		_, err = f.Write(data)
+	}
+	if err == nil {
+		err = f.Sync()
+	}
+	err = errors.Join(err, f.Close())
+	if err == nil && fresh {
+		err = s.dir.Sync()
+	}
+	if err != nil {
+		return err
+	}
+	seg.size += frameHeaderSize + len(data)
+	s.active[workspace] = seg
 	return nil
 }
 
-// seal fixes the name and exact record range in a transaction before any
-// network I/O. New admissions cannot change an object being retried.
-func seal(ctx context.Context, db *sql.DB, workspace string) (string, []byte, error) {
-	tx, err := db.BeginTx(ctx, nil)
+// A crash can leave an incomplete final request. Every acknowledged frame has
+// a complete header and payload. Preserve the file for inspection on corruption.
+func readSegment(path string) ([]byte, error) {
+	f, err := os.Open(path)
 	if err != nil {
-		return "", nil, err
+		return nil, err
 	}
-	defer tx.Rollback()
-	var name string
-	var end int64
-	err = tx.QueryRowContext(ctx, "SELECT name,last_seq FROM sealed WHERE workspace=?", workspace).Scan(&name, &end)
-	if errors.Is(err, sql.ErrNoRows) {
-		end = math.MaxInt64
-	} else if err != nil {
-		return "", nil, err
+	defer f.Close()
+	// A retired segment can also contain a complete but unacknowledged write.
+	// Persist those bytes before publishing under the permanent object name.
+	if err = f.Sync(); err != nil {
+		return nil, err
 	}
-	rows, err := tx.QueryContext(ctx, `SELECT seq,admitted,payload FROM spool WHERE workspace=? AND payload IS NOT NULL AND seq<=? ORDER BY seq`, workspace, end)
-	if err != nil {
-		return "", nil, err
-	}
-	defer rows.Close()
-	var data bytes.Buffer
-	var firstTime time.Time
-	var last int64
-	for count := 1; rows.Next(); count++ {
-		var admitted int64
-		var payload []byte
-		if err = rows.Scan(&last, &admitted, &payload); err != nil {
-			return "", nil, err
-		}
-		if count == 1 {
-			firstTime = time.Unix(admitted, 0).UTC()
-		}
-		data.Write(payload)
-		if name == "" && (count == maxObjectRequests || data.Len() >= targetObjectSize) {
+	reader := bufio.NewReaderSize(f, 64<<10)
+	var out bytes.Buffer
+	var header [frameHeaderSize]byte
+	for {
+		if _, err = io.ReadFull(reader, header[:]); errors.Is(err, io.EOF) || errors.Is(err, io.ErrUnexpectedEOF) {
 			break
+		} else if err != nil {
+			return nil, err
 		}
-	}
-	if err = rows.Err(); err != nil {
-		return "", nil, err
-	}
-	if err = rows.Close(); err != nil {
-		return "", nil, err
-	}
-	if data.Len() == 0 {
-		return "", nil, sql.ErrNoRows
-	}
-	if name == "" {
-		name = fmt.Sprintf("%s/backup_%s_%s.ndjson.gz", firstTime.Format("2006-01-02"), firstTime.Format("2006_01_02T15_04_05"), uuid.NewString())
-		if _, err = tx.ExecContext(ctx, "INSERT INTO sealed VALUES(?,?,?)", workspace, name, last); err != nil {
-			return "", nil, err
+		size := int(binary.BigEndian.Uint32(header[:4]))
+		if size == 0 || size > maxRequestSize+1 || out.Len()+size > segmentSize+1 {
+			return nil, errors.New("invalid archive frame length")
 		}
+		frame := make([]byte, size)
+		if _, err = io.ReadFull(reader, frame); errors.Is(err, io.EOF) || errors.Is(err, io.ErrUnexpectedEOF) {
+			break
+		} else if err != nil {
+			return nil, err
+		}
+		if crc32.Checksum(frame, crcTable) != binary.BigEndian.Uint32(header[4:]) {
+			return nil, errors.New("archive frame checksum mismatch")
+		}
+		out.Write(frame)
 	}
-	return name, data.Bytes(), tx.Commit()
+	return out.Bytes(), nil
 }
 
-const maxObjectRequests = 2048
-const targetObjectSize = 8 << 20
+func segmentObject(filename string) (workspace, name string, err error) {
+	workspace, stem, ok := strings.Cut(filename, ".")
+	stem, ext := strings.CutSuffix(stem, ".seg")
+	if !ok || !ext || !workspaceID.MatchString(workspace) || len(stem) != len(segmentTime)+1+36 {
+		return "", "", fmt.Errorf("unexpected segment %q", filename)
+	}
+	stamp := stem[:len(segmentTime)]
+	t, err := time.Parse(segmentTime, stamp)
+	if err != nil {
+		return "", "", err
+	}
+	if stem[len(stamp)] != '_' {
+		return "", "", fmt.Errorf("invalid segment %q", filename)
+	}
+	if _, err = uuid.Parse(stem[len(stamp)+1:]); err != nil {
+		return "", "", err
+	}
+	return workspace, t.Format("2006-01-02") + "/backup_" + stem + ".ndjson.gz", nil
+}
 
-func complete(ctx context.Context, db *sql.DB, workspace, name string) (int64, error) {
-	tx, err := db.BeginTx(ctx, nil)
-	if err != nil {
-		return 0, err
+// Snapshot and detach all existing segments under the same lock as append.
+// Their names and contents then remain immutable through uploads and restarts.
+func (s *spool) rotate() ([]os.DirEntry, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.active == nil {
+		return nil, os.ErrClosed
 	}
-	defer tx.Rollback()
-	res, err := tx.ExecContext(ctx, `UPDATE spool SET expires=?,payload=NULL WHERE workspace=? AND payload IS NOT NULL
-        AND seq<=(SELECT last_seq FROM sealed WHERE workspace=? AND name=?)`, time.Now().Add(24*time.Hour).Unix(), workspace, workspace, name)
-	if err != nil {
-		return 0, err
+	entries, err := os.ReadDir(s.dir.Name())
+	if err == nil {
+		clear(s.active)
 	}
-	n, err := res.RowsAffected()
-	if err != nil {
-		return 0, err
-	}
-	if _, err = tx.ExecContext(ctx, "DELETE FROM sealed WHERE workspace=? AND name=?", workspace, name); err != nil {
-		return 0, err
-	}
-	return n, tx.Commit()
+	return entries, err
 }

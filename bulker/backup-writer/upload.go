@@ -5,11 +5,13 @@ import (
 	"compress/gzip"
 	"context"
 	"crypto/sha256"
-	"database/sql"
 	"errors"
 	"fmt"
 	"hash/crc32"
 	"log"
+	"os"
+	"path/filepath"
+	"strings"
 	"time"
 
 	"cloud.google.com/go/storage"
@@ -65,66 +67,47 @@ func gcsUploader(client *storage.Client, prefix string) uploadObject {
 	}
 }
 
-func flush(ctx context.Context, db *sql.DB, workspace string, upload uploadObject) (bool, error) {
-	name, data, err := seal(ctx, db, workspace)
-	if errors.Is(err, sql.ErrNoRows) {
-		return false, nil
-	}
-	if err != nil {
-		return false, err
-	}
-	if err = upload(ctx, workspace, name, data); err != nil {
-		return false, err
-	}
-	n, err := complete(ctx, db, workspace, name)
-	return n >= maxObjectRequests || len(data) >= targetObjectSize, err
-}
-
-func drain(ctx context.Context, db *sql.DB, upload uploadObject) error {
-	rows, err := db.QueryContext(ctx, `SELECT DISTINCT workspace FROM spool WHERE payload IS NOT NULL ORDER BY workspace`)
+func drain(ctx context.Context, s *spool, upload uploadObject) error {
+	entries, err := s.rotate()
 	if err != nil {
 		return err
 	}
-	var workspaces []string
-	for rows.Next() {
-		var ws string
-		if err = rows.Scan(&ws); err != nil {
-			rows.Close()
+	for _, entry := range entries {
+		if err = ctx.Err(); err != nil {
 			return err
 		}
-		workspaces = append(workspaces, ws)
-	}
-	if err = rows.Err(); err != nil {
-		rows.Close()
-		return err
-	}
-	if err = rows.Close(); err != nil {
-		return err
-	}
-	// Give every workspace a turn before draining another full object.
-	for len(workspaces) > 0 && ctx.Err() == nil {
-		next := workspaces[:0]
-		for _, ws := range workspaces {
-			uploadCtx, cancel := context.WithTimeout(ctx, time.Minute)
-			full, err := flush(uploadCtx, db, ws, upload)
-			cancel()
-			if err != nil {
-				log.Printf("archive upload for %s: %v", ws, err)
-				continue
-			}
-			if full {
-				next = append(next, ws)
-			}
+		if strings.HasPrefix(entry.Name(), ".destination-") {
+			continue
 		}
-		workspaces = next
+		if err := uploadSegment(ctx, s, entry, upload); err != nil {
+			log.Printf("archive segment %q: %v", entry.Name(), err)
+		}
 	}
-	// Pending requests stay deduplicated throughout any GCS outage.
-	_, err = db.ExecContext(ctx, `DELETE FROM spool WHERE expires < ?`, time.Now().Unix())
+	return nil
+}
+
+func uploadSegment(ctx context.Context, s *spool, entry os.DirEntry, upload uploadObject) error {
+	if !entry.Type().IsRegular() {
+		return errors.New("unexpected non-regular spool entry")
+	}
+	workspace, name, err := segmentObject(entry.Name())
 	if err != nil {
 		return err
 	}
-	// FULL auto-vacuum releases database pages. Truncate the WAL as well so
-	// admission can observe the reclaimed filesystem headroom after an outage.
-	_, err = db.ExecContext(ctx, "PRAGMA wal_checkpoint(TRUNCATE)")
-	return err
+	path := filepath.Join(s.dir.Name(), entry.Name())
+	data, err := readSegment(path)
+	if err != nil {
+		return err
+	}
+	if len(data) > 0 {
+		uploadCtx, cancel := context.WithTimeout(ctx, time.Minute)
+		defer cancel()
+		if err = upload(uploadCtx, workspace, name, data); err != nil {
+			return err
+		}
+	}
+	if err = os.Remove(path); err != nil {
+		return err
+	}
+	return s.dir.Sync()
 }

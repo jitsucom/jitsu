@@ -3,16 +3,15 @@ package main
 import (
 	"bytes"
 	"context"
-	"database/sql"
 	"errors"
-	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"os/exec"
+	"os/signal"
 	"path/filepath"
-	"strconv"
 	"strings"
+	"sync"
 	"syscall"
 	"testing"
 )
@@ -20,195 +19,236 @@ import (
 const first = `{"messageId":"first","origin":{"workspaceId":"example"},"httpPayload":{"event":"signup"}}`
 const second = `{"messageId":"second","origin":{"workspaceId":"example"}}`
 
-func database(t *testing.T, path string) *sql.DB {
+func newSpool(t *testing.T, dir string) *spool {
 	t.Helper()
-	db, err := openSpool(path)
+	s, err := openSpool(dir, "shadow-")
 	if err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(func() { db.Close() })
-	return db
+	t.Cleanup(func() {
+		if s.active != nil {
+			s.close()
+		}
+	})
+	return s
 }
-func post(h http.Handler, key, data, token string) int {
+
+func post(h http.Handler, data, token string) int {
 	r := httptest.NewRequest("POST", "/v1/archive/example", strings.NewReader(data))
 	r.Header.Set("Authorization", "Bearer "+token)
-	r.Header.Set("Idempotency-Key", key)
 	w := httptest.NewRecorder()
 	h.ServeHTTP(w, r)
 	return w.Code
 }
 
 func TestAcknowledgedBatchSurvivesKill(t *testing.T) {
-	if path := os.Getenv("TEST_ARCHIVE_KILL_DB"); path != "" {
-		db := database(t, path)
-		if code := post(handler(db, "test", path), "one", first+"\n"+second, "test"); code != 204 {
+	batch := first + "\n" + second
+	if dir := os.Getenv("TEST_ARCHIVE_KILL_DIR"); dir != "" {
+		s := newSpool(t, dir)
+		if code := post(handler(s, "test"), batch, "test"); code != 204 {
 			t.Fatalf("admission: %d", code)
 		}
-		// Kill without running shutdown, SQLite Close, or upload.
 		if err := syscall.Kill(os.Getpid(), syscall.SIGKILL); err != nil {
 			t.Fatal(err)
 		}
 		return
 	}
-	path := filepath.Join(t.TempDir(), "spool.db")
+	dir := t.TempDir()
 	child := exec.Command(os.Args[0], "-test.run=^TestAcknowledgedBatchSurvivesKill$")
-	child.Env = append(os.Environ(), "TEST_ARCHIVE_KILL_DB="+path)
+	child.Env = append(os.Environ(), "TEST_ARCHIVE_KILL_DIR="+dir)
 	out, err := child.CombinedOutput()
 	var exit *exec.ExitError
 	if !errors.As(err, &exit) || exit.Sys().(syscall.WaitStatus).Signal() != syscall.SIGKILL {
 		t.Fatalf("child: %v %s", err, out)
 	}
-	db := database(t, path)
-	h := handler(db, "test", path)
-	batch := first + "\n" + second + "\n"
-	if code := post(h, "one", batch, "test"); code != 204 {
-		t.Fatalf("retry: %d", code)
+	s := newSpool(t, dir)
+	var original string
+	if err = drain(t.Context(), s, func(_ context.Context, ws, key string, b []byte) error {
+		if ws != "example" || string(b) != batch+"\n" {
+			t.Fatalf("invalid archive %q", b)
+		}
+		original = key
+		return errors.New("upload acknowledgement lost")
+	}); err != nil || original == "" {
+		t.Fatalf("missing upload: %v", err)
 	}
-	if code := post(h, "one", first, "test"); code != 409 {
-		t.Fatalf("key conflict: %d", code)
+	s.close()
+	s = newSpool(t, dir)
+	for range 2 {
+		if code := post(handler(s, "test"), second, "test"); code != 204 {
+			t.Fatalf("repeated admission: %d", code)
+		}
 	}
-	name, data, err := seal(t.Context(), db, "example")
-	if err != nil || string(data) != batch {
-		t.Fatalf("recovery: %s %v", data, err)
-	}
-	// The object committed remotely, but the local completion transaction did
-	// not run. A restart and an intervening new admission must not change it.
-	if err = db.Close(); err != nil {
+	uploads := map[string]string{}
+	if err := drain(t.Context(), s, func(_ context.Context, ws, key string, b []byte) error { uploads[key] = string(b); return nil }); err != nil {
 		t.Fatal(err)
 	}
-	db = database(t, path)
-	h = handler(db, "test", path)
-	if code := post(h, "two", second, "test"); code != 204 {
-		t.Fatalf("new request: %d", code)
+	if uploads[original] != batch+"\n" {
+		t.Fatalf("restart changed sealed object: %v", uploads)
 	}
-	_, err = flush(t.Context(), db, "example", func(_ context.Context, ws, key string, b []byte) error {
-		if ws != "example" || key != name || !bytes.Equal(b, data) {
-			t.Fatalf("retry changed sealed object: %s %s", ws, key)
+	delete(uploads, original)
+	if len(uploads) != 1 {
+		t.Fatal("expected one more object")
+	}
+	for _, body := range uploads {
+		if body != second+"\n"+second+"\n" {
+			t.Fatal("repeated submissions must both survive")
 		}
-		return errors.New("GCS unavailable")
-	})
-	if err == nil {
-		t.Fatal("failed upload reported success")
 	}
-	_, err = flush(t.Context(), db, "example", func(_ context.Context, ws, key string, b []byte) error {
-		if key != name || !bytes.Equal(b, data) {
-			t.Fatal("upload retry changed content")
-		}
-		return nil
-	})
-	if err != nil {
-		t.Fatal(err)
+	files, _ := filepath.Glob(filepath.Join(dir, "*.seg"))
+	if len(files) != 0 {
+		t.Fatalf("uploaded segments remain: %v", files)
 	}
-	if code := post(h, "one", batch, "test"); code != 204 {
-		t.Fatalf("late retry: %d", code)
-	}
-	next, pending, err := seal(t.Context(), db, "example")
-	if err != nil || next == name || string(pending) != second+"\n" {
-		t.Fatalf("next object: %s %v", pending, err)
+}
+
+func TestTornTailAndCorruption(t *testing.T) {
+	for _, test := range []struct {
+		name    string
+		tail    []byte
+		corrupt bool
+	}{
+		{"short header", []byte{0, 0}, false},
+		{"short payload", []byte{0, 0, 0, 9, 0, 0, 0, 0, 'x'}, false},
+		{"invalid checksum", []byte{0, 0, 0, 1, 0, 0, 0, 0, 'x'}, true},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			dir := t.TempDir()
+			s := newSpool(t, dir)
+			if err := s.append("example", []byte(first+"\n")); err != nil {
+				t.Fatal(err)
+			}
+			path := filepath.Join(dir, s.active["example"].name)
+			s.close()
+			f, err := os.OpenFile(path, os.O_APPEND|os.O_WRONLY, 0)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err = f.Write(test.tail); err != nil {
+				t.Fatal(err)
+			}
+			if err = f.Close(); err != nil {
+				t.Fatal(err)
+			}
+			s = newSpool(t, dir)
+			var body []byte
+			if err = drain(t.Context(), s, func(_ context.Context, _, _ string, b []byte) error { body = b; return nil }); err != nil {
+				t.Fatal(err)
+			}
+			_, err = os.Stat(path)
+			if test.corrupt {
+				if err != nil || body != nil {
+					t.Fatal("corrupt segment must be retained")
+				}
+			} else if !errors.Is(err, os.ErrNotExist) || string(body) != first+"\n" {
+				t.Fatalf("failed torn-tail recovery: %s %v", body, err)
+			}
+		})
 	}
 }
 
 func TestRejectBeforeAck(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "spool.db")
-	db := database(t, path)
-	h := handler(db, "test", path)
+	dir := t.TempDir()
+	s := newSpool(t, dir)
+	h := handler(s, "test")
+	if other, err := openSpool(dir, "shadow-"); err == nil {
+		other.close()
+		t.Fatal("second writer acquired spool")
+	}
 	for _, data := range []string{"", first + "\n{", first + "\n" + strings.Replace(second, "example", "other", 1)} {
-		if code := post(h, "key", data, "test"); code != 400 {
+		if code := post(h, data, "test"); code != 400 {
 			t.Fatalf("invalid batch status %d", code)
 		}
 	}
-	if code := post(h, "key", first, "bad"); code != 401 {
+	if code := post(h, first, "bad"); code != 401 {
 		t.Fatalf("unauthorized status %d", code)
 	}
-	if _, _, err := seal(t.Context(), db, "example"); !errors.Is(err, sql.ErrNoRows) {
-		t.Fatalf("partial admission: %v", err)
+	if files, _ := filepath.Glob(filepath.Join(dir, "*.seg")); len(files) != 0 {
+		t.Fatal("invalid request wrote segment")
 	}
-	// Exhaust SQLite's page budget to exercise a real SQLITE_FULL on commit.
-	var pages int
-	if err := db.QueryRow("PRAGMA page_count").Scan(&pages); err != nil {
-		t.Fatal(err)
+	s.close()
+	if code := post(h, first, "test"); code != 503 {
+		t.Fatalf("unavailable spool returned %d", code)
 	}
-	if _, err := db.Exec(fmt.Sprintf("PRAGMA max_page_count=%d", pages)); err != nil {
-		t.Fatal(err)
-	}
-	oversized := strings.Replace(first, "signup", strings.Repeat("a", 65536), 1)
-	if code := post(h, "full", oversized, "test"); code != 503 {
-		t.Fatalf("disk full status %d", code)
-	}
-	if _, _, err := seal(t.Context(), db, "example"); !errors.Is(err, sql.ErrNoRows) {
-		t.Fatalf("disk full committed data: %v", err)
+	if other, err := openSpool(dir, "wrong-"); err == nil {
+		other.close()
+		t.Fatal("changed bucket mapping")
 	}
 }
 
-func TestDrainAfterAdmissionCapacityExceeded(t *testing.T) {
-	db := database(t, filepath.Join(t.TempDir(), "spool.db"))
-	if _, err := db.Exec("PRAGMA max_page_count=40"); err != nil {
-		t.Fatal(err)
-	}
-	count := 0
-	for ; count < 10000; count++ {
-		if err := admit(t.Context(), db, "example", strconv.Itoa(count), []byte(first+"\n"), nil); err != nil {
-			if !strings.Contains(err.Error(), "full") {
-				t.Fatal(err)
-			}
-			break
-		}
-	}
-	if count == 0 || count == 10000 {
-		t.Fatalf("unexpected spool capacity: %d", count)
-	}
-	if err := admit(t.Context(), db, "example", "0", []byte(first+"\n"), errors.New("below reserve")); err != nil {
-		t.Fatal("retry of durable admission", err)
-	}
-	_, err := flush(t.Context(), db, "example", func(_ context.Context, _, _ string, data []byte) error {
-		if bytes.Count(data, []byte{'\n'}) != count {
-			t.Fatal("incomplete sealed batch")
-		}
-		return nil
-	})
-	if err != nil {
-		t.Fatal("could not drain accepted records", err)
-	}
-}
-
-func TestDrainRestoresFilesystemHeadroom(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "spool.db")
-	db := database(t, path)
-	allocated := func() int64 {
-		t.Helper()
-		var size int64
-		for _, suffix := range []string{"", "-wal", "-shm"} {
-			st, err := os.Stat(path + suffix)
-			if err == nil {
-				size += st.Size()
-			} else if !os.IsNotExist(err) {
-				t.Fatal(err)
-			}
-		}
-		return size
-	}
-	// Model a volume with 3 MiB above the admission watermark. Measure the
-	// real SQLite files so retaining freed pages or the WAL breaks this test.
-	budget := allocated() + 3<<20
-	space := func() error {
-		if allocated() >= budget {
-			return errors.New("below reserve")
-		}
+func TestConcurrentRotation(t *testing.T) {
+	s := newSpool(t, t.TempDir())
+	var group sync.WaitGroup
+	records := 0
+	upload := func(_ context.Context, _, _ string, data []byte) error {
+		records += bytes.Count(data, []byte{'\n'})
 		return nil
 	}
-	for i := 0; i < 10 && space() == nil; i++ {
-		if err := admit(t.Context(), db, "example", strconv.Itoa(i), bytes.Repeat([]byte("x"), 1<<20), space()); err != nil {
+	for range 8 {
+		group.Go(func() {
+			for range 8 {
+				if err := s.append("example", []byte(first+"\n")); err != nil {
+					t.Error(err)
+					return
+				}
+			}
+		})
+	}
+	for range 5 {
+		if err := drain(t.Context(), s, upload); err != nil {
 			t.Fatal(err)
 		}
 	}
-	if err := admit(t.Context(), db, "example", "new", []byte(first), space()); err == nil {
-		t.Fatal("expected low-space rejection")
-	}
-	err := drain(t.Context(), db, func(context.Context, string, string, []byte) error { return nil })
-	if err != nil {
+	group.Wait()
+	if err := drain(t.Context(), s, upload); err != nil {
 		t.Fatal(err)
 	}
-	if err = admit(t.Context(), db, "example", "new", []byte(first), space()); err != nil {
-		t.Fatalf("disk headroom did not recover: %v", err)
+	if records != 64 {
+		t.Fatalf("uploaded %d records", records)
+	}
+}
+
+func TestFailedAppendRetiresSegment(t *testing.T) {
+	if dir := os.Getenv("TEST_ARCHIVE_LIMIT_DIR"); dir != "" {
+		s := newSpool(t, dir)
+		h := handler(s, "test")
+		if code := post(h, first, "test"); code != 204 {
+			t.Fatal(code)
+		}
+		// Let the next header and a prefix of its payload reach disk. A failed
+		// write must return 503 and must never be followed by another frame.
+		signal.Ignore(syscall.SIGXFSZ)
+		var saved syscall.Rlimit
+		if err := syscall.Getrlimit(syscall.RLIMIT_FSIZE, &saved); err != nil {
+			t.Fatal(err)
+		}
+		limit := saved
+		limit.Cur = uint64(frameHeaderSize*2 + len(first) + 4)
+		if err := syscall.Setrlimit(syscall.RLIMIT_FSIZE, &limit); err != nil {
+			t.Fatal(err)
+		}
+		if code := post(h, second, "test"); code != 503 {
+			t.Fatalf("partial write returned %d", code)
+		}
+		if err := syscall.Setrlimit(syscall.RLIMIT_FSIZE, &saved); err != nil {
+			t.Fatal(err)
+		}
+		if code := post(h, second, "test"); code != 204 {
+			t.Fatalf("restored spool: %d", code)
+		}
+		return
+	}
+	dir := t.TempDir()
+	child := exec.Command(os.Args[0], "-test.run=^TestFailedAppendRetiresSegment$")
+	child.Env = append(os.Environ(), "TEST_ARCHIVE_LIMIT_DIR="+dir)
+	if out, err := child.CombinedOutput(); err != nil {
+		t.Fatalf("%v: %s", err, out)
+	}
+	s := newSpool(t, dir)
+	got := map[string]int{}
+	if err := drain(t.Context(), s, func(_ context.Context, _, _ string, data []byte) error { got[string(data)]++; return nil }); err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 2 || got[first+"\n"] != 1 || got[second+"\n"] != 1 {
+		t.Fatalf("recovery: %v", got)
 	}
 }
