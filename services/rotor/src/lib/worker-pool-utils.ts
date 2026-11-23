@@ -21,3 +21,26 @@ export function isWorkerEvictable(o: {
   }
   return true;
 }
+
+// the header is not part of the request signature, so a value longer than this is not believed
+const MAX_CALLER_BUDGET_MS = 600_000;
+
+/**
+ * The time rotor waits for the whole UDF chain (its FUNCTIONS_SERVER_TIMEOUT_MS), as it sends it in the
+ * `x-request-budget-ms` header; the default when it sends none (an older rotor). The `x-request-timeout-ms` header is
+ * another number: it limits each outbound fetch.
+ */
+export function callerBudgetMs(header: string | null | undefined, defaultMs: number): number {
+  const n = header ? Number(header) : NaN;
+  return Number.isFinite(n) && n > 0 ? Math.min(n, MAX_CALLER_BUDGET_MS) : defaultMs;
+}
+
+/** When an execution stops keeping its worker from being evicted: the caller's budget (or the fetch timeout, if larger) plus a grace period. */
+export function executionDeadline(o: {
+  now: number;
+  budgetMs: number;
+  fetchTimeoutMs: number;
+  graceMs: number;
+}): number {
+  return o.now + Math.max(o.budgetMs, o.fetchTimeoutMs) + o.graceMs;
+}

@@ -89,6 +89,8 @@ export async function callFunctionsServer(
         "Content-Type": "application/json",
         ...signFunctionsRequest(getServerEnv().FUNCTIONS_SERVER_PRIVATE_KEY, deploymentId, url, body),
         ...(fetchTimeoutMs ? { "x-request-timeout-ms": String(fetchTimeoutMs) } : {}),
+        // how long this client waits for the whole chain; the server keeps a worker alive for that long
+        "x-request-budget-ms": String(fsTimeoutMs),
       },
       body,
       bodyTimeout: fsTimeoutMs,

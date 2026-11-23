@@ -34,7 +34,7 @@ import { IngestMessage } from "@jitsu/protocols/async-request";
 import type { MongoClient } from "mongodb";
 import { compileUdfFunction, compileUdfToIIFE } from "./lib/udf-shared";
 import { compileFailureIife } from "./lib/udf-placeholder";
-import { isWorkerEvictable } from "./lib/worker-pool-utils";
+import { callerBudgetMs, executionDeadline, isWorkerEvictable } from "./lib/worker-pool-utils";
 import { runFunctionChain, type ChainFunction } from "./lib/udf-chain";
 import type {
   ExecMessage,
@@ -566,7 +566,9 @@ interface FunctionRuntime {
     connectionId: string,
     event: AnyEvent,
     eventContext: EventContext,
-    fetchTimeoutMs: number
+    fetchTimeoutMs: number,
+    /** how long the caller waits for the whole chain (the in-process runtime does not need it) */
+    callerBudgetMs?: number
   ): Promise<Required<FuncChainResultWithLogs>>;
   /** Returns the stripped connection config (used for actorId/streamId lookup) */
   getConnection(): StrippedConnectionConfig;
@@ -669,10 +671,11 @@ class WorkerRuntime implements FunctionRuntime {
     connectionId: string,
     event: AnyEvent,
     eventContext: EventContext,
-    fetchTimeoutMs: number
+    fetchTimeoutMs: number,
+    callerBudgetMs?: number
   ): Promise<Required<FuncChainResultWithLogs>> {
     const ws = await this.workerPool.getOrCreate(this.workspaceId);
-    const resultMsg = await execInWorker(ws, connectionId, event, eventContext, fetchTimeoutMs);
+    const resultMsg = await execInWorker(ws, connectionId, event, eventContext, fetchTimeoutMs, callerBudgetMs);
     return {
       connectionId: resultMsg.connectionId,
       events: resultMsg.events,
@@ -1010,13 +1013,22 @@ async function execInWorker(
   connectionId: string,
   event: AnyEvent,
   eventContext: EventContext,
-  fetchTimeoutMs: number
+  fetchTimeoutMs: number,
+  callerBudgetMs?: number
 ): Promise<ResultMessage> {
   await ws.ready;
   const requestId = crypto.randomUUID();
   ws.execTimeouts.set(requestId, fetchTimeoutMs);
-  // the caller gives up after its time budget: past it (and a grace period) the execution no longer keeps the worker alive
-  ws.execDeadlines.set(requestId, Date.now() + fetchTimeoutMs + EXEC_ABANDONED_AFTER_GRACE_MS);
+  // the caller waits for the whole chain for its budget: past that (and a grace period) the execution no longer keeps the worker alive
+  ws.execDeadlines.set(
+    requestId,
+    executionDeadline({
+      now: Date.now(),
+      budgetMs: callerBudgetMs ?? 0,
+      fetchTimeoutMs,
+      graceMs: EXEC_ABANDONED_AFTER_GRACE_MS,
+    })
+  );
   return new Promise<ResultMessage>((resolve, reject) => {
     ws.pending.set(requestId, { resolve, reject });
     const execMsg: ExecMessage = {
@@ -1260,6 +1272,11 @@ async function main() {
     const functionsFetchTimeout = timeoutHeader
       ? parseNumber(timeoutHeader, 2000)
       : parseNumber(env.FETCH_TIMEOUT_MS, 2000);
+    // how long the caller waits for the whole chain (rotor sends its FUNCTIONS_SERVER_TIMEOUT_MS)
+    const budget = callerBudgetMs(
+      req.headers.get("x-request-budget-ms"),
+      parseNumber(env.FUNCTIONS_SERVER_TIMEOUT_MS, 30000)
+    );
 
     // Process all connections in parallel
     const promises = connectionIds.map(async (connectionId): Promise<StrictFuncChainResult> => {
@@ -1281,7 +1298,7 @@ async function main() {
           } as StrictFuncChainResult;
         }
         const eventContext = createEventContextFromMessage(message, runtime.getConnection());
-        return await runtime.runChain(connectionId, event, eventContext, functionsFetchTimeout);
+        return await runtime.runChain(connectionId, event, eventContext, functionsFetchTimeout, budget);
       } catch (e: any) {
         const errorMessage = `${e.name}: ${e.message}`;
         log.atError().log(`[multi] Error processing connection ${connectionId}: ${errorMessage}`);
@@ -1346,12 +1363,17 @@ async function main() {
     const functionsFetchTimeout = timeoutHeader
       ? parseNumber(timeoutHeader, 2000)
       : parseNumber(env.FETCH_TIMEOUT_MS, 2000);
+    // how long the caller waits for the whole chain (rotor sends its FUNCTIONS_SERVER_TIMEOUT_MS)
+    const budget = callerBudgetMs(
+      req.headers.get("x-request-budget-ms"),
+      parseNumber(env.FUNCTIONS_SERVER_TIMEOUT_MS, 30000)
+    );
 
     const runtime = runtimes.get(connectionId);
     if (!runtime) {
       return { response: errorResponse(404, `Connection '${connectionId}' not found`), actorId: connectionId };
     }
-    const result = await runtime.runChain(connectionId, event, eventContext, functionsFetchTimeout);
+    const result = await runtime.runChain(connectionId, event, eventContext, functionsFetchTimeout, budget);
     recordChainResultMetrics(result);
     return { response: jsonResponse(200, result), actorId: connectionId };
   }
