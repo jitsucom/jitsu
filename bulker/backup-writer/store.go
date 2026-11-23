@@ -35,7 +35,7 @@ func openSpool(path string) (*sql.DB, error) {
 	if err = f.Close(); err != nil {
 		return nil, err
 	}
-	uri := url.URL{Scheme: "file", Path: absolute, RawQuery: "_journal_mode=WAL&_synchronous=FULL&_txlock=immediate&_busy_timeout=5000"}
+	uri := url.URL{Scheme: "file", Path: absolute, RawQuery: "_auto_vacuum=FULL&_journal_mode=WAL&_synchronous=FULL&_txlock=immediate&_busy_timeout=5000"}
 	db, err := sql.Open("sqlite3", uri.String())
 	if err != nil {
 		return nil, err

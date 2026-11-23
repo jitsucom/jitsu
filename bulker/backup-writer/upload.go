@@ -120,5 +120,11 @@ func drain(ctx context.Context, db *sql.DB, upload uploadObject) error {
 	}
 	// Pending requests stay deduplicated throughout any GCS outage.
 	_, err = db.ExecContext(ctx, `DELETE FROM spool WHERE expires < ?`, time.Now().Unix())
+	if err != nil {
+		return err
+	}
+	// FULL auto-vacuum releases database pages. Truncate the WAL as well so
+	// admission can observe the reclaimed filesystem headroom after an outage.
+	_, err = db.ExecContext(ctx, "PRAGMA wal_checkpoint(TRUNCATE)")
 	return err
 }

@@ -170,3 +170,45 @@ func TestDrainAfterAdmissionCapacityExceeded(t *testing.T) {
 		t.Fatal("could not drain accepted records", err)
 	}
 }
+
+func TestDrainRestoresFilesystemHeadroom(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "spool.db")
+	db := database(t, path)
+	allocated := func() int64 {
+		t.Helper()
+		var size int64
+		for _, suffix := range []string{"", "-wal", "-shm"} {
+			st, err := os.Stat(path + suffix)
+			if err == nil {
+				size += st.Size()
+			} else if !os.IsNotExist(err) {
+				t.Fatal(err)
+			}
+		}
+		return size
+	}
+	// Model a volume with 3 MiB above the admission watermark. Measure the
+	// real SQLite files so retaining freed pages or the WAL breaks this test.
+	budget := allocated() + 3<<20
+	space := func() error {
+		if allocated() >= budget {
+			return errors.New("below reserve")
+		}
+		return nil
+	}
+	for i := 0; i < 10 && space() == nil; i++ {
+		if err := admit(t.Context(), db, "example", strconv.Itoa(i), bytes.Repeat([]byte("x"), 1<<20), space()); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := admit(t.Context(), db, "example", "new", []byte(first), space()); err == nil {
+		t.Fatal("expected low-space rejection")
+	}
+	err := drain(t.Context(), db, func(context.Context, string, string, []byte) error { return nil })
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = admit(t.Context(), db, "example", "new", []byte(first), space()); err != nil {
+		t.Fatalf("disk headroom did not recover: %v", err)
+	}
+}
