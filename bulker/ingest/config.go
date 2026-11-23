@@ -46,6 +46,10 @@ type Config struct {
 	TelemetryProducerQueueSize   int `mapstructure:"TELEMETRY_PRODUCER_QUEUE_SIZE" default:"10000"`
 	TelemetryProducerQueueSizeKB int `mapstructure:"TELEMETRY_PRODUCER_QUEUE_SIZE_KB" default:"32768"`
 
+	BackupShadowWorkspace string `mapstructure:"BACKUP_SHADOW_WORKSPACE"`
+	BackupShadowURL       string `mapstructure:"BACKUP_SHADOW_URL"`
+	BackupShadowToken     string `mapstructure:"BACKUP_SHADOW_TOKEN"`
+
 	BackupLogDir         string `mapstructure:"BACKUP_LOG_DIR"`
 	BackupLogTTL         int    `mapstructure:"BACKUP_LOG_TTL_DAYS" default:"7"`
 	BackupLogRotateHours int    `mapstructure:"BACKUP_LOG_ROTATE_HOURS" default:"24"`

@@ -57,6 +57,7 @@ type Router struct {
 	backupProducer    *kafkabase.Producer
 	telemetryProducer *kafkabase.Producer
 	eventsLogService  eventslog.EventsLogService
+	backupShadow      *backupShadow
 	backupsLogger     *BackupLogger
 	httpClient        *http.Client
 	dataHosts         []string
@@ -153,6 +154,7 @@ func NewRouter(appContext *Context, partitionSelector kafkabase.PartitionSelecto
 		backupProducer:    appContext.backupProducer,
 		telemetryProducer: appContext.telemetryProducer,
 		eventsLogService:  appContext.eventsLogService,
+		backupShadow:      appContext.backupShadow,
 		backupsLogger:     appContext.backupsLogger,
 		repository:        appContext.repository,
 		scriptRepository:  appContext.scriptRepository,
@@ -319,6 +321,7 @@ func (r *Router) sendToDeadLetter(messageId string, payload []byte, rError *appb
 func (r *Router) sendToRotor(c *gin.Context, messageId string, ingestMessageBytes []byte, stream *StreamWithDestinations, sendResponse bool) (asyncDestinations []string, tagsDestinations []string, rError *appbase.RouterError) {
 	var err error
 	if stream.BackupEnabled {
+		r.backupShadow.copy(stream.Stream.WorkspaceId, ingestMessageBytes)
 		backupTopic := fmt.Sprintf("%sin.id.%s_backup.m.batch.t.backup", r.config.KafkaTopicPrefix, stream.Stream.WorkspaceId)
 		err2 := r.backupProducer.ProduceAsync(backupTopic, uuid.New(), ingestMessageBytes, nil, kafka.PartitionAny, messageId, false, 0)
 		if err2 != nil {

@@ -24,6 +24,7 @@ type Context struct {
 	eventsLogService  eventslog.EventsLogService
 	server            *http.Server
 	metricsServer     *MetricsServer
+	backupShadow      *backupShadow
 	backupsLogger     *BackupLogger
 	consumerMonitor   *ConsumerMonitor
 }
@@ -32,6 +33,10 @@ func (a *Context) InitContext(settings *appbase.AppSettings) error {
 	var err error
 	a.config = &Config{}
 	err = appbase.InitAppConfig(a.config, settings)
+	if err != nil {
+		return err
+	}
+	a.backupShadow, err = newBackupShadow(a.config)
 	if err != nil {
 		return err
 	}
@@ -96,6 +101,9 @@ func (a *Context) InitContext(settings *appbase.AppSettings) error {
 }
 
 func (a *Context) Cleanup() error {
+	if a.backupShadow != nil {
+		a.backupShadow.wg.Wait()
+	}
 	a.closeProducers()
 	if a.consumerMonitor != nil {
 		_ = a.consumerMonitor.Close()

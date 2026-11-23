@@ -33,6 +33,7 @@ COPY operator/go.* ./operator/
 COPY ingress-manager/go.* ./ingress-manager/
 COPY config-keeper/go.* ./config-keeper/
 COPY admin/go.* ./admin/
+COPY backup-writer/go.* ./backup-writer/
 COPY reprocessing-worker/go.* ./reprocessing-worker/
 COPY connectors/airbytecdk/go.* ./connectors/airbytecdk/
 COPY connectors/firebase/go.* ./connectors/firebase/
