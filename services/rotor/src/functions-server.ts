@@ -34,7 +34,6 @@ import { IngestMessage } from "@jitsu/protocols/async-request";
 import type { MongoClient } from "mongodb";
 import { compileUdfFunction, compileUdfToIIFE } from "./lib/udf-shared";
 import { compileFailureIife } from "./lib/udf-placeholder";
-import { effectiveWorkerTtlMs, isWorkerEvictable } from "./lib/worker-pool-utils";
 import { runFunctionChain, type ChainFunction } from "./lib/udf-chain";
 import type {
   ExecMessage,
@@ -688,18 +687,7 @@ class WorkerRuntime implements FunctionRuntime {
 
 // ── Lazy worker pool with TTL-based eviction ──────────────────────────
 
-// An idle worker is terminated after this long. Not shorter than the longest a caller waits for a chain, whatever
-// WORKER_TTL_MS says (see effectiveWorkerTtlMs).
-const MIN_WORKER_TTL_MS = 600_000;
-const configuredWorkerTtlMs = parseNumber(env.WORKER_TTL_MS, 600_000);
-const WORKER_TTL_MS = effectiveWorkerTtlMs(configuredWorkerTtlMs, MIN_WORKER_TTL_MS);
-if (WORKER_TTL_MS !== configuredWorkerTtlMs) {
-  log
-    .atWarn()
-    .log(
-      `WORKER_TTL_MS=${env.WORKER_TTL_MS} is shorter than ${MIN_WORKER_TTL_MS}ms: idle workers are kept for that long`
-    );
-}
+const WORKER_TTL_MS = parseNumber(env.WORKER_TTL_MS, 600_000);
 const WORKER_TTL_CHECK_MS = 60000;
 
 type LazyWorkerEntry = {
@@ -763,13 +751,7 @@ class LazyWorkerPool {
   private evict() {
     const now = Date.now();
     for (const [wsId, entry] of this.workers) {
-      if (
-        isWorkerEvictable({
-          now,
-          lastUsedAt: entry.lastUsedAt,
-          ttlMs: WORKER_TTL_MS,
-        })
-      ) {
+      if (now - entry.lastUsedAt > WORKER_TTL_MS) {
         log
           .atInfo()
           .log(`Evicting idle worker for workspace ${wsId} (idle ${Math.round((now - entry.lastUsedAt) / 1000)}s)`);
@@ -779,7 +761,8 @@ class LazyWorkerPool {
         try {
           entry.ws.worker.terminate();
         } catch (_) {}
-        // a terminated worker answers nothing: settle what was waiting for it, so the callers do not wait for ever
+        // a terminated worker answers nothing: settle what was waiting for it, so a caller does not wait for a result
+        // that cannot come (it gets an error at once instead of at its own timeout)
         for (const p of [...entry.ws.pending.values()]) {
           p.reject(new Error(`Worker of workspace ${wsId} was evicted before the execution finished`));
         }
