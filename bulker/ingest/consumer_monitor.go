@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"maps"
 	"sync"
 	"time"
 
@@ -15,12 +16,13 @@ import (
 type ConsumerMonitor struct {
 	sync.RWMutex
 	appbase.Service
-	adminClient              *kafka.AdminClient
-	topic, consumerGroupName string
-	threshold                int64
-	weightedRandom           *weightedrand.Chooser[int32, int64]
-	cancel                   context.CancelFunc
-	done                     chan struct{}
+	adminClient    *kafka.AdminClient
+	offsets        *kafka.Consumer
+	topic          string
+	threshold      int64
+	weightedRandom *weightedrand.Chooser[int32, int64]
+	cancel         context.CancelFunc
+	done           chan struct{}
 }
 
 func NewConsumerMonitor(appContext *Context, topic, consumerGroupName string) (*ConsumerMonitor, error) {
@@ -28,15 +30,26 @@ func NewConsumerMonitor(appContext *Context, topic, consumerGroupName string) (*
 	if err != nil {
 		return nil, err
 	}
+	// Use a consumer handle for OffsetFetch: librdkafka's producer-side admin
+	// request can stall when Kafka first initializes its group coordinator.
+	// This client never subscribes or commits, so Rotor's assignments stay intact.
+	cfg := maps.Clone(*appContext.kafkaConfig)
+	cfg["group.id"] = consumerGroupName
+	cfg["enable.auto.commit"] = false
+	offsets, err := kafka.NewConsumer(&cfg)
+	if err != nil {
+		adminClient.Close()
+		return nil, err
+	}
 	ctx, cancel := context.WithCancel(context.Background())
 	tm := &ConsumerMonitor{
-		Service:           appbase.NewServiceBase("topic-monitor"),
-		adminClient:       adminClient,
-		topic:             topic,
-		consumerGroupName: consumerGroupName,
-		threshold:         appContext.config.WeightedPartitionSelectorLagThreshold,
-		cancel:            cancel,
-		done:              make(chan struct{}),
+		Service:     appbase.NewServiceBase("topic-monitor"),
+		adminClient: adminClient,
+		topic:       topic,
+		offsets:     offsets,
+		threshold:   appContext.config.WeightedPartitionSelectorLagThreshold,
+		cancel:      cancel,
+		done:        make(chan struct{}),
 	}
 	safego.RunWithRestart(func() {
 		ticker := time.NewTicker(time.Second)
@@ -47,9 +60,7 @@ func NewConsumerMonitor(appContext *Context, topic, consumerGroupName string) (*
 				close(tm.done)
 				return
 			case <-ticker.C:
-				poll, cancelPoll := context.WithTimeout(ctx, 5*time.Second)
-				chooser, err := tm.partitionWeights(poll)
-				cancelPoll()
+				chooser, err := tm.partitionWeights(ctx)
 				if err != nil && ctx.Err() == nil {
 					tm.Errorf("Error refreshing partition weights for %s: %v", tm.topic, err)
 				}
@@ -68,9 +79,10 @@ func NewConsumerMonitor(appContext *Context, topic, consumerGroupName string) (*
 func (tm *ConsumerMonitor) partitionWeights(ctx context.Context) (*weightedrand.Chooser[int32, int64], error) {
 	// A producer metadata request may auto-create a missing topic with broker
 	// defaults. Topic provisioning and retention belong to the topic manager.
-	metadata, err := tm.adminClient.DescribeTopics(ctx, kafka.NewTopicCollectionOfTopicNames([]string{tm.topic}))
+	timeout := kafka.SetAdminRequestTimeout(10 * time.Second)
+	metadata, err := tm.adminClient.DescribeTopics(ctx, kafka.NewTopicCollectionOfTopicNames([]string{tm.topic}), timeout)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("describe topic: %w", err)
 	}
 	if len(metadata.TopicDescriptions) != 1 || metadata.TopicDescriptions[0].Name != tm.topic {
 		return nil, fmt.Errorf("missing metadata for %s", tm.topic)
@@ -94,22 +106,22 @@ func (tm *ConsumerMonitor) partitionWeights(ctx context.Context) (*weightedrand.
 		return nil, nil
 	}
 
-	commits, err := tm.adminClient.ListConsumerGroupOffsets(ctx, []kafka.ConsumerGroupTopicPartitions{{Group: tm.consumerGroupName, Partitions: partitions}})
+	commits, err := tm.offsets.Committed(partitions, 5000)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("read consumer group offsets: %w", err)
 	}
-	ends, err := tm.adminClient.ListOffsets(ctx, latest)
+	ends, err := tm.adminClient.ListOffsets(ctx, latest, timeout)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("read latest offsets: %w", err)
 	}
 
 	starts, uncommitted := committedStarts(tm.topic, commits)
 	if len(uncommitted) > 0 {
 		// Rotor starts at the earliest retained offset when there is no commit.
 		// It can be nonzero if a group's offsets expired after log retention.
-		earliest, err := tm.adminClient.ListOffsets(ctx, uncommitted)
+		earliest, err := tm.adminClient.ListOffsets(ctx, uncommitted, timeout)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("read earliest offsets: %w", err)
 		}
 		for id, offset := range validOffsets(tm.topic, earliest) {
 			starts[id] = offset
@@ -130,20 +142,18 @@ func (tm *ConsumerMonitor) partitionWeights(ctx context.Context) (*weightedrand.
 	return weightedrand.NewChooser(choices...)
 }
 
-func committedStarts(topic string, commits kafka.ListConsumerGroupOffsetsResult) (map[int32]int64, map[kafka.TopicPartition]kafka.OffsetSpec) {
+func committedStarts(topic string, commits []kafka.TopicPartition) (map[int32]int64, map[kafka.TopicPartition]kafka.OffsetSpec) {
 	missing := make(map[kafka.TopicPartition]kafka.OffsetSpec)
 	offsets := make(map[int32]int64)
-	for _, group := range commits.ConsumerGroupsTopicPartitions {
-		for _, p := range group.Partitions {
-			if p.Topic == nil || *p.Topic != topic || p.Error != nil {
-				continue
-			}
-			switch {
-			case p.Offset >= 0:
-				offsets[p.Partition] = int64(p.Offset)
-			case p.Offset == kafka.OffsetInvalid:
-				missing[kafka.TopicPartition{Topic: p.Topic, Partition: p.Partition}] = kafka.EarliestOffsetSpec
-			}
+	for _, p := range commits {
+		if p.Topic == nil || *p.Topic != topic || p.Error != nil {
+			continue
+		}
+		switch {
+		case p.Offset >= 0:
+			offsets[p.Partition] = int64(p.Offset)
+		case p.Offset == kafka.OffsetInvalid:
+			missing[kafka.TopicPartition{Topic: p.Topic, Partition: p.Partition}] = kafka.EarliestOffsetSpec
 		}
 	}
 	return offsets, missing
@@ -182,4 +192,5 @@ func (tm *ConsumerMonitor) Close() {
 	tm.cancel()
 	<-tm.done
 	tm.adminClient.Close()
+	_ = tm.offsets.Close()
 }
