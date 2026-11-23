@@ -100,9 +100,16 @@ export class DebugService {
     const configObjectType = getConfigObjectType(type);
     let object = parseObject(type, body);
     if (containsMaskedSecrets(object)) {
-      const existingEntity = body.cloneId
-        ? await this.prisma.configurationObject.findFirst({ where: { id: body.cloneId, workspaceId } })
-        : testedExisting;
+      let existingEntity: { config: any } | null = testedExisting;
+      if (body.cloneId) {
+        // JITSU-281: a live object of the same type, as for a clone on create
+        existingEntity = await this.prisma.configurationObject.findFirst({
+          where: { id: body.cloneId, workspaceId, type, deleted: false },
+        });
+        if (!existingEntity) {
+          throw new ApiError(`${type} with id ${body.cloneId} does not exist`, { status: 404 });
+        }
+      }
       if (existingEntity?.config) {
         log.atInfo().log(`Unmasking secrets for ${type} test: ${body.id}`);
         object = unmaskSecretsFromOriginal(
