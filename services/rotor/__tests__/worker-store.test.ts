@@ -52,6 +52,7 @@ describe("the in-memory store of a paid connection", () => {
         connectionStore,
         workspaceId: "ws1",
         connectionId: "con1",
+        connectionIds: new Set(["con1", "con2"]),
         ...over,
       });
     return { workspaceStore, connectionStore, pick };
@@ -80,6 +81,31 @@ describe("the in-memory store of a paid connection", () => {
   it("stays the workspace store for the free class, which always had one", () => {
     const { workspaceStore, pick } = mk();
     expect(pick({ freeClass: true })).toBe(workspaceStore);
+  });
+
+  // The id comes from the worker, which is tenant code in a sandbox and can send any string
+  it("allocates nothing for an id that is not one of the worker's connections", () => {
+    const workspaceStore = createMemoryStore({});
+    const created: string[] = [];
+    const connectionStore = memoizedPerConnection((ws, con) => {
+      created.push(`${ws}/${con}`);
+      return createMemoryStore({});
+    });
+    const pick = (connectionId: unknown) =>
+      storeForProxyCall({
+        mongo: false,
+        freeClass: false,
+        workspaceStore,
+        connectionStore,
+        workspaceId: "ws1",
+        connectionId,
+        connectionIds: new Set(["con1"]),
+      });
+    expect(pick("con1")).not.toBe(workspaceStore);
+    expect(pick("made-up-1")).toBe(workspaceStore);
+    expect(pick("made-up-2")).toBe(workspaceStore);
+    expect(pick("__proto__")).toBe(workspaceStore);
+    expect(created).toEqual(["ws1/con1"]);
   });
 
   it("stays the workspace store when the worker names no connection", () => {

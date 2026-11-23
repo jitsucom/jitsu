@@ -564,6 +564,34 @@ export const connections = {
       headers: [],
     },
   },
+  // writes the key that store_other reads, so that test does not depend on any other one having run
+  store_seed: {
+    id: "store_seed",
+    workspaceId: "workspace1",
+    updatedAt: new Date(),
+    destinationId: "destination1",
+    streamId: "stream1",
+    usesBulker: false,
+    type: "webhook",
+    options: {
+      functions: [
+        {
+          functionId: "udf.function1",
+        },
+        {
+          functionId: "udf.functionStore",
+        },
+        {
+          functionId: "udf.function3",
+        },
+      ],
+    },
+    credentials: {
+      url: "http://localhost:3089/store_seed",
+      method: "POST",
+      headers: [],
+    },
+  },
   store_other: {
     id: "store_other",
     workspaceId: "workspace1",

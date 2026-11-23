@@ -890,6 +890,7 @@ function createWorkspaceWorker(
   const pendingExec = new Map<string, { resolve: (v: any) => void; reject: (e: Error) => void }>();
   // the fetch timeout given to each execution that is running in this worker (see boundedFetchTimeoutMs)
   const execTimeouts = new Map<string, number>();
+  const connectionIds = new Set(connections.map(c => c.connectionId));
   let readyResolve: () => void;
   const readyPromise = new Promise<void>(resolve => {
     readyResolve = resolve;
@@ -940,6 +941,7 @@ function createWorkspaceWorker(
             connectionStore: connectionFallbackStoreFor,
             workspaceId,
             connectionId: msg.connectionId,
+            connectionIds,
           });
           result = await (target as any)[op](...args);
         } else if (method === "fetch") {

@@ -335,6 +335,18 @@ const expectedEvents = {
   },
   // another connection does not see what the store connection wrote, except in the free class, which has one store per
   // workspace
+  store_seed_0: {
+    type: "track",
+    properties: {
+      first: "1st",
+      retries: 0,
+      counter: 3,
+      storeMarker: "stored-value",
+      storeN: 42,
+      third: "3rd",
+    },
+    context,
+  },
   store_other_0: {
     type: "track",
     properties: {
@@ -608,6 +620,7 @@ describe.each(testModes)("Test Functions Chain ($name mode)", ({ name: modeName,
         "/multi_retry": handlerF("multi_retry"),
         "/ua_geo": handlerF("ua_geo"),
         "/store": handlerF("store"),
+        "/store_seed": handlerF("store_seed"),
         "/store_other": handlerF("store_other"),
         "/fetch": handlerF("fetch"),
         "/warehouse_real": handlerF("warehouse_real"),
@@ -1060,20 +1073,26 @@ describe.each(testModes)("Test Functions Chain ($name mode)", ({ name: modeName,
     }
   });
 
-  // Runs after "store", which wrote a key in its own connection. Without MongoDB a paid connection has its own in-memory
-  // store, in process and in an isolated worker alike, so this one finds nothing; the free class has one per workspace.
+  // Writes a key through one connection and reads it through another, on its own (it needs no other test to have run).
+  // Without MongoDB a paid connection has its own in-memory store, in process and in an isolated worker alike, so the
+  // second one finds nothing; the free class has one store per workspace.
   test("store_other", async () => {
     const currentTestName = testName();
     const connStore = getConnectionStoreForMode();
-    await rotorMessageHandler(
-      ingestMessage(currentTestName, messageId, incomingEvent),
-      rotorContext(connStore, funcStore, streamsStore),
-      "all",
-      { [CONNECTION_IDS_HEADER]: currentTestName },
-      true,
-      0,
-      5000
-    );
+    const send = (connectionId: string) =>
+      rotorMessageHandler(
+        ingestMessage(connectionId, messageId, incomingEvent),
+        rotorContext(connStore, funcStore, streamsStore),
+        "all",
+        { [CONNECTION_IDS_HEADER]: connectionId },
+        true,
+        0,
+        5000
+      );
+    await send("store_seed");
+    expect(lastError).toBeUndefined();
+    expect(counters["store_seed"]).toEqual(1);
+    await send(currentTestName);
     expect(lastError).toBeUndefined();
     expect(counters[currentTestName]).toEqual(1);
   });

@@ -41,7 +41,7 @@ export function memoizedPerConnection(
 /**
  * The store a worker's `store.*` call goes to. With MongoDB, and for the free class (which has always had one store per
  * workspace), that is the workspace store. Otherwise a paid connection gets its own in-memory store, named by the
- * connection id the worker sent (a worker can name any connection of its own workspace, which is its own data anyway).
+ * connection id the worker sent, when that is one of the connections it was started with.
  */
 export function storeForProxyCall(o: {
   mongo: boolean;
@@ -50,8 +50,12 @@ export function storeForProxyCall(o: {
   connectionStore: (workspaceId: string, connectionId: string) => TTLStore;
   workspaceId: string;
   connectionId: unknown;
+  /** the connections this worker was started with */
+  connectionIds: ReadonlySet<string>;
 }): TTLStore {
-  if (o.mongo || o.freeClass || typeof o.connectionId !== "string" || o.connectionId === "") {
+  // the id comes from sandboxed tenant code: only a connection the worker was started with gets a store of its own,
+  // so a made-up id cannot allocate stores (and their sweep timers) without limit
+  if (o.mongo || o.freeClass || typeof o.connectionId !== "string" || !o.connectionIds.has(o.connectionId)) {
     return o.workspaceStore;
   }
   return o.connectionStore(o.workspaceId, o.connectionId);
