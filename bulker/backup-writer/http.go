@@ -9,9 +9,56 @@ import (
 	"log"
 	"net/http"
 	"regexp"
+	"strings"
 )
 
-var workspaceID = regexp.MustCompile(`^[a-z0-9][a-z0-9-]{0,48}$`)
+var workspaceID = regexp.MustCompile(`^[a-z0-9]([a-z0-9-]{0,47}[a-z0-9])?$`)
+
+// Read the routing fields by exact name. Reject duplicates and case aliases
+// even if a JSON reader would silently choose one of their values.
+func archiveFields(data []byte, names ...string) (map[string]json.RawMessage, bool) {
+	dec := json.NewDecoder(bytes.NewReader(data))
+	first, err := dec.Token()
+	if err != nil || first != json.Delim('{') {
+		return nil, false
+	}
+	fields := make(map[string]json.RawMessage, len(names))
+	for dec.More() {
+		key, err := dec.Token()
+		if err != nil {
+			return nil, false
+		}
+		var value json.RawMessage
+		if dec.Decode(&value) != nil {
+			return nil, false
+		}
+		for _, name := range names {
+			if strings.EqualFold(key.(string), name) {
+				if key != name || fields[name] != nil {
+					return nil, false
+				}
+				fields[name] = value
+			}
+		}
+	}
+	end, err := dec.Token()
+	if err != nil || end != json.Delim('}') {
+		return nil, false
+	}
+	_, err = dec.Token()
+	return fields, err == io.EOF && len(fields) == len(names)
+}
+
+func validEnvelope(data []byte, workspace string) bool {
+	envelope, ok := archiveFields(data, "messageId", "origin")
+	if !ok {
+		return false
+	}
+	origin, ok := archiveFields(envelope["origin"], "workspaceId")
+	var messageID, workspaceID string
+	return ok && json.Unmarshal(envelope["messageId"], &messageID) == nil && messageID != "" &&
+		json.Unmarshal(origin["workspaceId"], &workspaceID) == nil && workspaceID == workspace
+}
 
 func handler(store *spool, token string) http.Handler {
 	mux := http.NewServeMux()
@@ -22,7 +69,7 @@ func handler(store *spool, token string) http.Handler {
 			return
 		}
 		workspace := r.PathValue("workspace")
-		if !workspaceID.MatchString(workspace) {
+		if !workspaceID.MatchString(workspace) || !validBucketName(store.prefix+workspace) {
 			http.Error(w, "invalid workspace", 400)
 			return
 		}
@@ -46,13 +93,7 @@ func handler(store *spool, token string) http.Handler {
 		}
 		data := bytes.TrimSpace(body)
 		for line := range bytes.SplitSeq(data, []byte{'\n'}) {
-			var event struct {
-				MessageID string `json:"messageId"`
-				Origin    struct {
-					Workspace string `json:"workspaceId"`
-				} `json:"origin"`
-			}
-			if json.Unmarshal(line, &event) != nil || event.Origin.Workspace != workspace || event.MessageID == "" {
+			if !validEnvelope(line, workspace) {
 				http.Error(w, "invalid archive envelope", 400)
 				return
 			}

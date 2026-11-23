@@ -9,8 +9,11 @@ import (
 	"fmt"
 	"hash/crc32"
 	"io"
+	"net"
 	"os"
 	"path/filepath"
+	"regexp"
+	"slices"
 	"strings"
 	"sync"
 	"syscall"
@@ -35,14 +38,35 @@ type segment struct {
 }
 
 type spool struct {
+	prefix string
 	dir    *os.File
 	mu     sync.Mutex
 	active map[string]segment // only files in this map can still be appended to
 }
 
+var bucketCharacters = regexp.MustCompile(`^[a-z0-9][a-z0-9._-]*[a-z0-9]$`)
+var reservedBucketName = regexp.MustCompile(`^goog|g[o0][o0]gle`)
+
+func validBucketName(name string) bool {
+	if len(name) < 3 || len(name) > 222 || !bucketCharacters.MatchString(name) ||
+		reservedBucketName.MatchString(name) || net.ParseIP(name) != nil {
+		return false
+	}
+	for part := range strings.SplitSeq(name, ".") {
+		if len(part) == 0 || len(part) > 63 {
+			return false
+		}
+	}
+	return true
+}
+
 // Use an existing dedicated directory on the persistent volume. Flocking the
 // directory prevents a second writer from uploading a file still being appended.
 func openSpool(path, prefix string) (*spool, error) {
+	// Test a shortest legal completion before permanently binding the spool.
+	if prefix == "" || !validBucketName(prefix+strings.Repeat("x", max(1, 3-len(prefix)))) {
+		return nil, errors.New("invalid backup bucket prefix")
+	}
 	dir, err := os.Open(path)
 	if err != nil {
 		return nil, err
@@ -51,7 +75,7 @@ func openSpool(path, prefix string) (*spool, error) {
 		dir.Close()
 		return nil, err
 	}
-	return &spool{dir: dir, active: make(map[string]segment)}, nil
+	return &spool{prefix: prefix, dir: dir, active: make(map[string]segment)}, nil
 }
 
 func initializeDir(dir *os.File, prefix string) error {
@@ -207,17 +231,27 @@ func segmentObject(filename string) (workspace, name string, err error) {
 	return workspace, t.Format("2006-01-02") + "/backup_" + stem + suffix, nil
 }
 
-// Snapshot and detach all existing segments under the same lock as append.
-// Their names and contents then remain immutable through uploads and restarts.
-func (s *spool) rotate() ([]os.DirEntry, error) {
+// Detach active segments even when the uploader is blocked in GCS.
+func (s *spool) rotate() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	clear(s.active)
+}
+
+// Take the directory snapshot under the append lock so a newly created segment
+// cannot appear in it before its active entry is installed.
+func (s *spool) pending() ([]os.DirEntry, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.active == nil {
 		return nil, os.ErrClosed
 	}
 	entries, err := os.ReadDir(s.dir.Name())
-	if err == nil {
-		clear(s.active)
+	if err != nil {
+		return nil, err
 	}
-	return entries, err
+	return slices.DeleteFunc(entries, func(entry os.DirEntry) bool {
+		workspace, _, _ := strings.Cut(entry.Name(), ".")
+		return s.active[workspace].name == entry.Name()
+	}), nil
 }

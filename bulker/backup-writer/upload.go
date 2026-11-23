@@ -73,12 +73,13 @@ func newGCSUploader(client *storage.Client, prefix string) (uploadObject, error)
 			return err
 		}
 		// The previous attempt may have committed remotely before we could
-		// checkpoint. Verify the actual object before reclaiming local data.
+		// checkpoint. The writer records this plaintext digest on its checksum-validated
+		// upload. Another encoder version may compress the same bytes differently.
 		a, err := obj.Attrs(ctx)
 		if err != nil {
 			return err
 		}
-		if a.Metadata["ndjson-sha256"] != digest || a.CRC32C != checksum || a.Size != int64(len(compressed)) {
+		if a.Metadata["ndjson-sha256"] != digest {
 			return fmt.Errorf("existing object %s has different content", name)
 		}
 		return nil
@@ -86,7 +87,7 @@ func newGCSUploader(client *storage.Client, prefix string) (uploadObject, error)
 }
 
 func drain(ctx context.Context, s *spool, upload uploadObject) error {
-	entries, err := s.rotate()
+	entries, err := s.pending()
 	if err != nil {
 		return err
 	}

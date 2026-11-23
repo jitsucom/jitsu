@@ -123,6 +123,13 @@ func testCreateOnlyUpload(t *testing.T, codec string) {
 		t.Fatal(err)
 	}
 	for i := 0; i < 2; i++ {
+		if i == 1 {
+			// An earlier encoder produced a different wire representation.
+			mu.Lock()
+			attrs["size"] = "12345"
+			attrs["crc32c"] = "EjRWeA=="
+			mu.Unlock()
+		}
 		if err := upload(t.Context(), "example", "archive.ndjson."+codec, data); err != nil {
 			t.Fatalf("attempt %d: %v", i, err)
 		}

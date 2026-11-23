@@ -14,6 +14,7 @@ import (
 	"sync"
 	"syscall"
 	"testing"
+	"time"
 )
 
 const first = `{"messageId":"first","origin":{"workspaceId":"example"},"httpPayload":{"event":"signup"}}`
@@ -31,6 +32,11 @@ func newSpool(t *testing.T, dir string) *spool {
 		}
 	})
 	return s
+}
+
+func rotateAndDrain(ctx context.Context, s *spool, upload uploadObject) error {
+	s.rotate()
+	return drain(ctx, s, upload)
 }
 
 func post(h http.Handler, data, token string) int {
@@ -63,7 +69,7 @@ func TestAcknowledgedBatchSurvivesKill(t *testing.T) {
 	}
 	s := newSpool(t, dir)
 	var original string
-	if err = drain(t.Context(), s, func(_ context.Context, ws, key string, b []byte) error {
+	if err = rotateAndDrain(t.Context(), s, func(_ context.Context, ws, key string, b []byte) error {
 		if ws != "example" || string(b) != batch+"\n" {
 			t.Fatalf("invalid archive %q", b)
 		}
@@ -80,7 +86,7 @@ func TestAcknowledgedBatchSurvivesKill(t *testing.T) {
 		}
 	}
 	uploads := map[string]string{}
-	if err := drain(t.Context(), s, func(_ context.Context, ws, key string, b []byte) error { uploads[key] = string(b); return nil }); err != nil {
+	if err := rotateAndDrain(t.Context(), s, func(_ context.Context, ws, key string, b []byte) error { uploads[key] = string(b); return nil }); err != nil {
 		t.Fatal(err)
 	}
 	if uploads[original] != batch+"\n" {
@@ -132,7 +138,7 @@ func TestTornTailAndCorruption(t *testing.T) {
 			}
 			s = newSpool(t, dir)
 			var body []byte
-			if err = drain(t.Context(), s, func(_ context.Context, _, key string, b []byte) error {
+			if err = rotateAndDrain(t.Context(), s, func(_ context.Context, _, key string, b []byte) error {
 				if !strings.HasSuffix(key, ".ndjson.zst") || strings.Contains(key, "_prefix_") != test.corrupt {
 					t.Errorf("unexpected recovery object %q", key)
 				}
@@ -201,12 +207,12 @@ func TestConcurrentRotation(t *testing.T) {
 		})
 	}
 	for range 5 {
-		if err := drain(t.Context(), s, upload); err != nil {
+		if err := rotateAndDrain(t.Context(), s, upload); err != nil {
 			t.Fatal(err)
 		}
 	}
 	group.Wait()
-	if err := drain(t.Context(), s, upload); err != nil {
+	if err := rotateAndDrain(t.Context(), s, upload); err != nil {
 		t.Fatal(err)
 	}
 	if records != 64 {
@@ -252,7 +258,7 @@ func TestFailedAppendRetiresSegment(t *testing.T) {
 	}
 	s := newSpool(t, dir)
 	got := map[string]int{}
-	if err := drain(t.Context(), s, func(_ context.Context, _, _ string, data []byte) error { got[string(data)]++; return nil }); err != nil {
+	if err := rotateAndDrain(t.Context(), s, func(_ context.Context, _, _ string, data []byte) error { got[string(data)]++; return nil }); err != nil {
 		t.Fatal(err)
 	}
 	if len(got) != 2 || got[first+"\n"] != 1 || got[second+"\n"] != 1 {
@@ -267,5 +273,119 @@ func TestSegmentArchiveCodec(t *testing.T) {
 		if err != nil || ws != "example" || key != "2026-11-23/backup_"+stem+".ndjson"+suffix {
 			t.Fatalf("%s: %s %s %v", file, ws, key, err)
 		}
+	}
+}
+
+func TestAmbiguousEnvelopeRejected(t *testing.T) {
+	s := newSpool(t, t.TempDir())
+	h := handler(s, "test")
+	for _, data := range []string{
+		`{"messageId":"m","origin":{"workspaceId":"other","WorkspaceId":"example"}}`,
+		`{"messageId":"m","ORIGIN":{"workspaceId":"other"},"origin":{"workspaceId":"example"}}`,
+		`{"messageId":"m","origin":{"workspaceId":"other","workspaceId":"example"}}`,
+		`{"messageId":"m","origin":{"workspaceId":"other"},"origin":{"workspaceId":"example"}}`,
+		`{"messageId":"m","MessageId":"n","origin":{"workspaceId":"example"}}`,
+		first + "{}",
+	} {
+		if code := post(h, first+"\n"+data, "test"); code != 400 {
+			t.Fatalf("ambiguous batch returned %d", code)
+		}
+	}
+	files, err := filepath.Glob(filepath.Join(s.dir.Name(), "*.seg"))
+	if err != nil || len(files) != 0 {
+		t.Fatalf("unexpected segments %v: %v", files, err)
+	}
+}
+
+func TestBucketValidation(t *testing.T) {
+	dir := t.TempDir()
+	for _, prefix := range []string{"UPPER-", "-bad", "goog-", "bad/prefix", strings.Repeat("a", 63)} {
+		if s, err := openSpool(dir, prefix); err == nil {
+			s.close()
+			t.Fatalf("accepted prefix %q", prefix)
+		}
+	}
+	prefix := strings.Repeat("a", 40)
+	s, err := openSpool(dir, prefix)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.close()
+	h := handler(s, "test")
+	for _, tc := range []struct {
+		id     string
+		status int
+	}{{"ab-", 400}, {strings.Repeat("a", 24), 400}, {"google", 400}, {strings.Repeat("a", 23), 204}} {
+		r := httptest.NewRequest("POST", "/v1/archive/"+tc.id, strings.NewReader(strings.ReplaceAll(first, "example", tc.id)))
+		r.Header.Set("Authorization", "Bearer test")
+		w := httptest.NewRecorder()
+		h.ServeHTTP(w, r)
+		if w.Code != tc.status {
+			t.Errorf("%s: got %d want %d", tc.id, w.Code, tc.status)
+		}
+	}
+}
+
+func TestRotationDuringBlockedUpload(t *testing.T) {
+	s := newSpool(t, t.TempDir())
+	appendRecord := func(record string) {
+		t.Helper()
+		if err := s.append("example", []byte(record+"\n")); err != nil {
+			t.Fatal(err)
+		}
+	}
+	appendRecord("first")
+	s.rotate()
+	ctx, cancel := context.WithCancel(t.Context())
+	done := make(chan struct{})
+	ticks := make(chan time.Time)
+	uploaded := make(chan string, 3)
+	release := make(chan struct{})
+	go func() {
+		defer close(done)
+		runUploader(ctx, s, func(ctx context.Context, _, _ string, b []byte) error {
+			uploaded <- string(b)
+			if string(b) == "first\n" {
+				select {
+				case <-ctx.Done():
+					return ctx.Err()
+				case <-release:
+				}
+			}
+			return nil
+		}, ticks)
+	}()
+	defer func() { cancel(); <-done }()
+	wait := func() string {
+		t.Helper()
+		select {
+		case data := <-uploaded:
+			return data
+		case <-time.After(5 * time.Second):
+			t.Fatal("upload timed out")
+			return ""
+		}
+	}
+	tick := func() {
+		t.Helper()
+		select {
+		case ticks <- time.Now():
+		case <-time.After(5 * time.Second):
+			t.Fatal("rotation blocked")
+		}
+	}
+	if wait() != "first\n" {
+		t.Fatal("missing first upload")
+	}
+	appendRecord("second")
+	tick()
+	tick() // receipt confirms the previous rotation completed
+	appendRecord("third")
+	tick()
+	tick()
+	close(release)
+	got := map[string]bool{wait(): true, wait(): true}
+	if !got["second\n"] || !got["third\n"] {
+		t.Fatalf("expected separate segments, got %v", got)
 	}
 }

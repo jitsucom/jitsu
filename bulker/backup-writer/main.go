@@ -38,16 +38,7 @@ func run(ctx context.Context) error {
 		defer close(done)
 		ticker := time.NewTicker(30 * time.Second)
 		defer ticker.Stop()
-		for ctx.Err() == nil {
-			if err := drain(ctx, store, upload); err != nil && ctx.Err() == nil {
-				log.Printf("archive drain: %v", err)
-			}
-			select {
-			case <-ctx.Done():
-				return
-			case <-ticker.C:
-			}
-		}
+		runUploader(ctx, store, upload, ticker.C)
 	}()
 	defer func() { cancel(); <-done }()
 	addr := os.Getenv("BACKUP_WRITER_ADDR")
@@ -66,6 +57,38 @@ func run(ctx context.Context) error {
 		return server.Shutdown(shutdown)
 	}
 }
+func runUploader(ctx context.Context, store *spool, upload uploadObject, ticks <-chan time.Time) {
+	wake := make(chan struct{}, 1)
+	wake <- struct{}{} // recover sealed segments immediately after restart
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-wake:
+				if err := drain(ctx, store, upload); err != nil && ctx.Err() == nil {
+					log.Printf("archive drain: %v", err)
+				}
+			}
+		}
+	}()
+	defer func() { <-done }()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticks:
+			store.rotate()
+			select {
+			case wake <- struct{}{}:
+			default: // a rescan is already pending
+			}
+		}
+	}
+}
+
 func main() {
 	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer cancel()
