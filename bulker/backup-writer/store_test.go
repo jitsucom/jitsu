@@ -107,9 +107,10 @@ func TestTornTailAndCorruption(t *testing.T) {
 		tail    []byte
 		corrupt bool
 	}{
+		{"damaged length", []byte{0, 0, 0, 65, 255, 255, 255, 254, 0, 0, 0, 0, 'x'}, true},
 		{"short header", []byte{0, 0}, false},
-		{"short payload", []byte{0, 0, 0, 9, 0, 0, 0, 0, 'x'}, false},
-		{"invalid checksum", []byte{0, 0, 0, 1, 0, 0, 0, 0, 'x'}, true},
+		{"short payload", []byte{0, 0, 0, 9, 255, 255, 255, 246, 0, 0, 0, 0, 'x'}, false},
+		{"invalid checksum", []byte{0, 0, 0, 1, 255, 255, 255, 254, 0, 0, 0, 0, 'x'}, true},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			dir := t.TempDir()
@@ -136,8 +137,8 @@ func TestTornTailAndCorruption(t *testing.T) {
 			}
 			_, err = os.Stat(path)
 			if test.corrupt {
-				if err != nil || body != nil {
-					t.Fatal("corrupt segment must be retained")
+				if _, err := os.Stat(path + ".damaged"); err != nil || string(body) != first+"\n" {
+					t.Fatal("corrupt segment must retain source and upload verified prefix")
 				}
 			} else if !errors.Is(err, os.ErrNotExist) || string(body) != first+"\n" {
 				t.Fatalf("failed torn-tail recovery: %s %v", body, err)

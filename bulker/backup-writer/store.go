@@ -22,8 +22,10 @@ import (
 const maxRequestSize = 8 << 20
 const segmentSize = 8 << 20
 const spoolHeadroom = 256 << 20
-const frameHeaderSize = 8
+const frameHeaderSize = 12
 const segmentTime = "2006_01_02T15_04_05"
+
+var errDamagedFrame = errors.New("damaged archive frame")
 
 var crcTable = crc32.MakeTable(crc32.Castagnoli)
 
@@ -118,7 +120,8 @@ func (s *spool) append(workspace string, data []byte) error {
 	delete(s.active, workspace)
 	var header [frameHeaderSize]byte
 	binary.BigEndian.PutUint32(header[:4], uint32(len(data)))
-	binary.BigEndian.PutUint32(header[4:], crc32.Checksum(data, crcTable))
+	binary.BigEndian.PutUint32(header[4:8], ^uint32(len(data)))
+	binary.BigEndian.PutUint32(header[8:], crc32.Checksum(data, crcTable))
 	if _, err = f.Write(header[:]); err == nil {
 		_, err = f.Write(data)
 	}
@@ -160,8 +163,8 @@ func readSegment(path string) ([]byte, error) {
 			return nil, err
 		}
 		size := int(binary.BigEndian.Uint32(header[:4]))
-		if size == 0 || size > maxRequestSize+1 || out.Len()+size > segmentSize+1 {
-			return nil, errors.New("invalid archive frame length")
+		if binary.BigEndian.Uint32(header[4:8]) != ^uint32(size) || size == 0 || size > maxRequestSize+1 || out.Len()+size > segmentSize+1 {
+			return out.Bytes(), fmt.Errorf("%w: invalid length", errDamagedFrame)
 		}
 		frame := make([]byte, size)
 		if _, err = io.ReadFull(reader, frame); errors.Is(err, io.EOF) || errors.Is(err, io.ErrUnexpectedEOF) {
@@ -169,8 +172,8 @@ func readSegment(path string) ([]byte, error) {
 		} else if err != nil {
 			return nil, err
 		}
-		if crc32.Checksum(frame, crcTable) != binary.BigEndian.Uint32(header[4:]) {
-			return nil, errors.New("archive frame checksum mismatch")
+		if crc32.Checksum(frame, crcTable) != binary.BigEndian.Uint32(header[8:]) {
+			return out.Bytes(), fmt.Errorf("%w: checksum mismatch", errDamagedFrame)
 		}
 		out.Write(frame)
 	}
