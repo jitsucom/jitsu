@@ -85,7 +85,7 @@
     "mjml": "^5.0.0-beta.2",
     "mjml-react": "^2.0.8",
     "monaco-editor": "^0.52.0",
-    "next": "^16.4.1",
+    "next": "^16.4.5",
     "next-auth": "^4.24.15",
     "node-cache": "^5.1.2",
     "node-sql-parser": "^5.3.13",
