@@ -9,7 +9,7 @@ Build from `bulker/` with `docker build -f backup-writer.Dockerfile -t backup-wr
 | Variable | Value |
 | --- | --- |
 | `BACKUP_WRITER_SPOOL_DIR` | Existing dedicated directory on the mounted volume, such as `/data/archive`. Start with an empty directory writable by UID 65532 |
-| `BACKUP_WRITER_BUCKET_PREFIX` | Dedicated shadow bucket prefix. The complete bucket name is this prefix followed by the workspace ID. |
+| `BACKUP_WRITER_BUCKET_PREFIX` | Prefix for flat workspace bucket names. The prefix followed by the workspace ID must form a valid 3–63 character GCS bucket name without dots. |
 | `BACKUP_WRITER_TOKEN` | Secret shared with ingest for bearer authentication |
 | `BACKUP_WRITER_ADDR` | Listen address, defaults to `:8080` |
 

@@ -9,7 +9,6 @@ import (
 	"fmt"
 	"hash/crc32"
 	"io"
-	"net"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -44,20 +43,14 @@ type spool struct {
 	active map[string]segment // only files in this map can still be appended to
 }
 
-var bucketCharacters = regexp.MustCompile(`^[a-z0-9][a-z0-9._-]*[a-z0-9]$`)
+var bucketCharacters = regexp.MustCompile(`^[a-z0-9][a-z0-9_-]*[a-z0-9]$`)
 var reservedBucketName = regexp.MustCompile(`^goog|g[o0][o0]gle`)
 
 func validBucketName(name string) bool {
-	if len(name) < 3 || len(name) > 222 || !bucketCharacters.MatchString(name) ||
-		reservedBucketName.MatchString(name) || net.ParseIP(name) != nil {
-		return false
-	}
-	for part := range strings.SplitSeq(name, ".") {
-		if len(part) == 0 || len(part) > 63 {
-			return false
-		}
-	}
-	return true
+	// Workspace buckets use flat names. Domain-verified dotted bucket names
+	// are a separate GCS naming scheme.
+	return len(name) >= 3 && len(name) <= 63 &&
+		bucketCharacters.MatchString(name) && !reservedBucketName.MatchString(name)
 }
 
 // Use an existing dedicated directory on the persistent volume. Flocking the

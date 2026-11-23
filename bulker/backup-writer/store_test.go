@@ -299,7 +299,7 @@ func TestAmbiguousEnvelopeRejected(t *testing.T) {
 
 func TestBucketValidation(t *testing.T) {
 	dir := t.TempDir()
-	for _, prefix := range []string{"UPPER-", "-bad", "goog-", "bad/prefix", strings.Repeat("a", 63)} {
+	for _, prefix := range []string{"UPPER-", "-bad", "goog-", "bad/prefix", "bad-.", "dotted.prefix-", strings.Repeat("a", 63)} {
 		if s, err := openSpool(dir, prefix); err == nil {
 			s.close()
 			t.Fatalf("accepted prefix %q", prefix)
