@@ -28,13 +28,16 @@ func run(ctx context.Context) error {
 		return err
 	}
 	defer client.Close()
+	upload, err := newGCSUploader(client, prefix)
+	if err != nil {
+		return err
+	}
 	ctx, cancel := context.WithCancel(ctx)
 	done := make(chan struct{})
 	go func() {
 		defer close(done)
 		ticker := time.NewTicker(30 * time.Second)
 		defer ticker.Stop()
-		upload := gcsUploader(client, prefix)
 		for ctx.Err() == nil {
 			if err := drain(ctx, store, upload); err != nil && ctx.Err() == nil {
 				log.Printf("archive drain: %v", err)

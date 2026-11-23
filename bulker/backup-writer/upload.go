@@ -15,32 +15,50 @@ import (
 	"time"
 
 	"cloud.google.com/go/storage"
+	"github.com/klauspost/compress/zstd"
 	"google.golang.org/api/googleapi"
 )
 
 type uploadObject func(ctx context.Context, workspace, name string, data []byte) error
 
-func gcsUploader(client *storage.Client, prefix string) uploadObject {
+func newGCSUploader(client *storage.Client, prefix string) (uploadObject, error) {
+	// Match the S3/GCS archive preset in bulkerlib/types/compression.go.
+	encoder, err := zstd.NewWriter(nil, zstd.WithEncoderLevel(zstd.SpeedBetterCompression), zstd.WithEncoderConcurrency(1))
+	if err != nil {
+		return nil, err
+	}
 	return func(ctx context.Context, workspace, name string, data []byte) error {
-		var compressed bytes.Buffer
-		gz := gzip.NewWriter(&compressed)
-		if _, err := gz.Write(data); err != nil {
-			return err
+		var compressed []byte
+		var contentType string
+		switch {
+		case strings.HasSuffix(name, ".ndjson.zst"):
+			compressed = encoder.EncodeAll(data, nil)
+			contentType = "application/zstd"
+		case strings.HasSuffix(name, ".ndjson.gz"):
+			var buf bytes.Buffer
+			gz := gzip.NewWriter(&buf)
+			if _, err := gz.Write(data); err != nil {
+				return err
+			}
+			if err := gz.Close(); err != nil {
+				return err
+			}
+			compressed = buf.Bytes()
+			contentType = "application/gzip"
+		default:
+			return fmt.Errorf("unsupported archive suffix: %q", name)
 		}
-		if err := gz.Close(); err != nil {
-			return err
-		}
-		checksum := crc32.Checksum(compressed.Bytes(), crc32.MakeTable(crc32.Castagnoli))
+		checksum := crc32.Checksum(compressed, crcTable)
 		digest := fmt.Sprintf("%x", sha256.Sum256(data))
 		obj := client.Bucket(prefix + workspace).Object(name)
 		writeCtx, cancel := context.WithCancel(ctx)
 		defer cancel()
 		w := obj.If(storage.Conditions{DoesNotExist: true}).NewWriter(writeCtx)
-		w.ContentType = "application/gzip"
+		w.ContentType = contentType
 		w.Metadata = map[string]string{"ndjson-sha256": digest}
 		w.CRC32C = checksum
 		w.SendCRC32C = true
-		_, err := w.Write(compressed.Bytes())
+		_, err := w.Write(compressed)
 		if err != nil {
 			cancel()
 			_ = w.Close()
@@ -60,11 +78,11 @@ func gcsUploader(client *storage.Client, prefix string) uploadObject {
 		if err != nil {
 			return err
 		}
-		if a.Metadata["ndjson-sha256"] != digest || a.CRC32C != checksum || a.Size != int64(compressed.Len()) {
+		if a.Metadata["ndjson-sha256"] != digest || a.CRC32C != checksum || a.Size != int64(len(compressed)) {
 			return fmt.Errorf("existing object %s has different content", name)
 		}
 		return nil
-	}
+	}, nil
 }
 
 func drain(ctx context.Context, s *spool, upload uploadObject) error {
@@ -104,7 +122,8 @@ func uploadSegment(ctx context.Context, s *spool, entry os.DirEntry, upload uplo
 		// Preserve acknowledged frames preceding a damaged append. A separate
 		// deterministic key cannot conflict with an earlier full-object upload.
 		log.Printf("damaged segment %q, verified prefix %d bytes: %v", entry.Name(), len(data), err)
-		name = strings.TrimSuffix(name, ".ndjson.gz") + fmt.Sprintf("_prefix_%x.ndjson.gz", sha256.Sum256(data))
+		stem, suffix, _ := strings.Cut(name, ".ndjson.")
+		name = fmt.Sprintf("%s_prefix_%x.ndjson.%s", stem, sha256.Sum256(data), suffix)
 	}
 	if len(data) > 0 {
 		uploadCtx, cancel := context.WithTimeout(ctx, time.Minute)

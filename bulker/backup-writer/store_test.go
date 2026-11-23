@@ -132,7 +132,13 @@ func TestTornTailAndCorruption(t *testing.T) {
 			}
 			s = newSpool(t, dir)
 			var body []byte
-			if err = drain(t.Context(), s, func(_ context.Context, _, _ string, b []byte) error { body = b; return nil }); err != nil {
+			if err = drain(t.Context(), s, func(_ context.Context, _, key string, b []byte) error {
+				if !strings.HasSuffix(key, ".ndjson.zst") || strings.Contains(key, "_prefix_") != test.corrupt {
+					t.Errorf("unexpected recovery object %q", key)
+				}
+				body = b
+				return nil
+			}); err != nil {
 				t.Fatal(err)
 			}
 			_, err = os.Stat(path)
@@ -251,5 +257,15 @@ func TestFailedAppendRetiresSegment(t *testing.T) {
 	}
 	if len(got) != 2 || got[first+"\n"] != 1 || got[second+"\n"] != 1 {
 		t.Fatalf("recovery: %v", got)
+	}
+}
+
+func TestSegmentArchiveCodec(t *testing.T) {
+	const stem = "2026_11_23T12_00_00_56a493e4-4222-4094-be25-bfeb43f9a93b"
+	for file, suffix := range map[string]string{".seg": ".gz", ".zst.seg": ".zst"} {
+		ws, key, err := segmentObject("example." + stem + file)
+		if err != nil || ws != "example" || key != "2026-11-23/backup_"+stem+".ndjson"+suffix {
+			t.Fatalf("%s: %s %s %v", file, ws, key, err)
+		}
 	}
 }

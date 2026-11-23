@@ -14,12 +14,19 @@ import (
 	"testing"
 
 	"cloud.google.com/go/storage"
+	"github.com/klauspost/compress/zstd"
 	"google.golang.org/api/option"
 )
 
 // Exercise the storage SDK's upload, precondition-failure and metadata-read
 // paths, including a collision whose key exists but has different contents.
 func TestCreateOnlyGCSUpload(t *testing.T) {
+	for _, codec := range []string{"zst", "gz"} {
+		t.Run(codec, func(t *testing.T) { testCreateOnlyUpload(t, codec) })
+	}
+}
+
+func testCreateOnlyUpload(t *testing.T, codec string) {
 	data := []byte(first + "\n")
 	var mu sync.Mutex
 	var attrs map[string]any
@@ -72,13 +79,32 @@ func TestCreateOnlyGCSUpload(t *testing.T) {
 			w.WriteHeader(400)
 			return
 		}
-		gz, err := gzip.NewReader(bytes.NewReader(raw))
-		if err != nil {
-			t.Error(err)
-			w.WriteHeader(400)
-			return
+		var unpacked []byte
+		if codec == "zst" {
+			if object["contentType"] != "application/zstd" {
+				t.Error("wrong zstd content type")
+			}
+			decoder, openErr := zstd.NewReader(nil)
+			if openErr != nil {
+				t.Error(openErr)
+				w.WriteHeader(400)
+				return
+			}
+			defer decoder.Close()
+			unpacked, err = decoder.DecodeAll(raw, nil)
+		} else {
+			if object["contentType"] != "application/gzip" {
+				t.Error("wrong gzip content type")
+			}
+			gz, openErr := gzip.NewReader(bytes.NewReader(raw))
+			if openErr != nil {
+				t.Error(openErr)
+				w.WriteHeader(400)
+				return
+			}
+			defer gz.Close()
+			unpacked, err = io.ReadAll(gz)
 		}
-		unpacked, err := io.ReadAll(gz)
 		if err != nil || !bytes.Equal(unpacked, data) {
 			t.Errorf("invalid archive: %v", err)
 		}
@@ -92,13 +118,16 @@ func TestCreateOnlyGCSUpload(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer client.Close()
-	upload := gcsUploader(client, "archive-test-")
+	upload, err := newGCSUploader(client, "archive-test-")
+	if err != nil {
+		t.Fatal(err)
+	}
 	for i := 0; i < 2; i++ {
-		if err := upload(t.Context(), "example", "archive.ndjson.gz", data); err != nil {
+		if err := upload(t.Context(), "example", "archive.ndjson."+codec, data); err != nil {
 			t.Fatalf("attempt %d: %v", i, err)
 		}
 	}
-	if err := upload(t.Context(), "example", "archive.ndjson.gz", []byte(second+"\n")); err == nil {
+	if err := upload(t.Context(), "example", "archive.ndjson."+codec, []byte(second+"\n")); err == nil {
 		t.Fatal("acknowledged a conflicting object")
 	}
 }

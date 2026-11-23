@@ -108,7 +108,7 @@ func (s *spool) append(workspace string, data []byte) error {
 	fresh := seg.name == "" || seg.size+frameHeaderSize+len(data) > segmentSize
 	flags := os.O_APPEND | os.O_WRONLY
 	if fresh {
-		seg = segment{name: workspace + "." + time.Now().UTC().Format(segmentTime) + "_" + uuid.NewString() + ".seg"}
+		seg = segment{name: workspace + "." + time.Now().UTC().Format(segmentTime) + "_" + uuid.NewString() + ".zst.seg"}
 		flags |= os.O_CREATE | os.O_EXCL
 	}
 	f, err := os.OpenFile(filepath.Join(s.dir.Name(), seg.name), flags, 0600)
@@ -183,6 +183,13 @@ func readSegment(path string) ([]byte, error) {
 func segmentObject(filename string) (workspace, name string, err error) {
 	workspace, stem, ok := strings.Cut(filename, ".")
 	stem, ext := strings.CutSuffix(stem, ".seg")
+	// The codec is part of the segment identity. Older .seg files must retry
+	// their original gzip key if a crash interrupted local cleanup.
+	stem, isZstd := strings.CutSuffix(stem, ".zst")
+	suffix := ".ndjson.gz"
+	if isZstd {
+		suffix = ".ndjson.zst"
+	}
 	if !ok || !ext || !workspaceID.MatchString(workspace) || len(stem) != len(segmentTime)+1+36 {
 		return "", "", fmt.Errorf("unexpected segment %q", filename)
 	}
@@ -197,7 +204,7 @@ func segmentObject(filename string) (workspace, name string, err error) {
 	if _, err = uuid.Parse(stem[len(stamp)+1:]); err != nil {
 		return "", "", err
 	}
-	return workspace, t.Format("2006-01-02") + "/backup_" + stem + ".ndjson.gz", nil
+	return workspace, t.Format("2006-01-02") + "/backup_" + stem + suffix, nil
 }
 
 // Snapshot and detach all existing segments under the same lock as append.

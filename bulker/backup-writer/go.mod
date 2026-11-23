@@ -5,6 +5,7 @@ go 1.26.0
 require (
 	cloud.google.com/go/storage v1.62.1
 	github.com/google/uuid v1.6.0
+	github.com/klauspost/compress v1.19.1
 	google.golang.org/api v0.275.0
 )
 
