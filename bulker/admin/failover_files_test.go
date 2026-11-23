@@ -86,7 +86,7 @@ func TestFilterLocalFilesByDateRange(t *testing.T) {
 
 	files := []FileItem{
 		mk("failover-2026_07_28T09_00_00.ndjson", day(28, 10)), // fully before the range
-		mk("failover-2026_07_29T09_00_00.ndjson", day(30, 10)), // starts before, written into the range
+		mk("kafka_failover_2026_07_29T09_00_00_ABCDEFG234567.ndjson.gz", day(30, 10)), // starts before, written into the range
 		mk("failover-2026_07_30T09_00_00.ndjson", day(30, 12)), // inside
 		mk("failover-2026_08_02T09_00_00.ndjson", day(2, 10)),  // starts well after the range
 		mk("no-timestamp-in-the-name.ndjson", day(30, 12)),     // unparseable, skipped
@@ -98,7 +98,7 @@ func TestFilterLocalFilesByDateRange(t *testing.T) {
 		t.Fatalf("filterFilesByDateRange: %v", err)
 	}
 	want := []string{
-		"failover-2026_07_29T09_00_00.ndjson",
+		"kafka_failover_2026_07_29T09_00_00_ABCDEFG234567.ndjson.gz",
 		"failover-2026_07_30T09_00_00.ndjson",
 	}
 	if !sameIds(fileNames(filtered), want) {
