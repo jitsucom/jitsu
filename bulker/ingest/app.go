@@ -55,16 +55,17 @@ func (a *Context) InitContext(settings *appbase.AppSettings) error {
 		}
 	}
 	a.kafkaConfig = a.config.GetKafkaConfig()
+	if err = a.initProducers(); err != nil {
+		return err
+	}
 	var partitionSelector kafkabase.PartitionSelector = &kafkabase.DummyPartitionSelector{}
 	if a.config.WeightedPartitionSelectorLagThreshold > 0 {
 		a.consumerMonitor, err = NewConsumerMonitor(a, a.config.KafkaDestinationsTopicName, "rotor")
 		if err != nil {
+			a.closeProducers()
 			return err
 		}
 		partitionSelector = a.consumerMonitor
-	}
-	if err = a.initProducers(); err != nil {
-		return err
 	}
 
 	// Live Events observability export (JITSU-138): fan exportable records out
@@ -101,10 +102,10 @@ func (a *Context) InitContext(settings *appbase.AppSettings) error {
 }
 
 func (a *Context) Cleanup() error {
-	a.closeProducers()
 	if a.consumerMonitor != nil {
-		_ = a.consumerMonitor.Close()
+		a.consumerMonitor.Close()
 	}
+	a.closeProducers()
 	_ = a.backupsLogger.Close()
 	if a.config.ShutdownExtraDelay > 0 {
 		logging.Infof("Waiting %d seconds before http server shutdown...", a.config.ShutdownExtraDelay)

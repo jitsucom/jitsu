@@ -369,7 +369,7 @@ func (r *Router) sendToRotor(c *gin.Context, messageId string, ingestMessageByte
 			partition = r.partitionSelector.SelectPartition()
 		}
 		messageKey := uuid.New()
-		err = r.producer.ProduceAsync(topic, messageKey, ingestMessageBytes, map[string]string{ConnectionIdsHeader: strings.Join(asyncDestinations, ",")}, partition, messageId, true, 0)
+		err = r.producer.ProduceWithPartitionHint(topic, messageKey, ingestMessageBytes, map[string]string{ConnectionIdsHeader: strings.Join(asyncDestinations, ",")}, partition, messageId, true)
 		if err != nil {
 			for _, id := range asyncDestinations {
 				IngestedMessages(id, "error", ErrProducerType).Inc()
