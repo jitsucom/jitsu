@@ -247,6 +247,29 @@ describe("checking a service source with an id or a cloneId", () => {
     expect(JSON.stringify(posted)).not.toContain(SECRET);
   });
 
+  it("refuses an id of another workspace, even when that object is deleted or not a service", async () => {
+    const { user, workspace } = await seedWorkspace({ role: "editor" });
+    const other = await seedWorkspace({ role: "editor" });
+    const foreign = [
+      await seedObject(other.workspace.id, "service", { name: "gone", ...PKG, credentials: { token: SECRET } }, true),
+      await seedObject(other.workspace.id, "misc", { name: "x", credentials: { token: SECRET } }),
+      await seedObject(other.workspace.id, "service", { name: "live", ...PKG, credentials: { token: SECRET } }),
+    ];
+    const posted = captureCheck();
+    for (const obj of foreign) {
+      for (const named of [{ id: obj.id }, { cloneId: obj.id }]) {
+        for (const credentials of [{ token: MASKED_SECRET }, { token: "typed" }]) {
+          const res = await sync().triggerSourceCheck(user, workspace.id, {
+            config: { ...named, ...PKG, credentials },
+            storageKey: `${workspace.id}_x_hash_q1`,
+          });
+          expect(res).toMatchObject({ ok: false, error: expect.stringMatching(/invalid service id/) });
+        }
+      }
+    }
+    expect(posted).toHaveLength(0);
+  });
+
   it("still restores the secrets of a live service", async () => {
     const { user, workspace } = await seedWorkspace({ role: "editor" });
     const live = await seedObject(workspace.id, "service", { name: "live", ...PKG, credentials: { token: SECRET } });
