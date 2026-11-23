@@ -690,6 +690,8 @@ class WorkerRuntime implements FunctionRuntime {
 
 const WORKER_TTL_MS = parseNumber(env.WORKER_TTL_MS, 600_000);
 const WORKER_TTL_CHECK_MS = 60000;
+// how long past its time budget an execution still counts as running, for the idle eviction of its worker
+const EXEC_ABANDONED_AFTER_GRACE_MS = 30_000;
 
 type LazyWorkerEntry = {
   ws: WorkspaceWorker;
@@ -757,7 +759,7 @@ class LazyWorkerPool {
           now,
           lastUsedAt: entry.lastUsedAt,
           ttlMs: WORKER_TTL_MS,
-          pendingExecutions: entry.ws.pending.size,
+          executionDeadlines: entry.ws.execDeadlines.values(),
         })
       ) {
         log
@@ -769,6 +771,10 @@ class LazyWorkerPool {
         try {
           entry.ws.worker.terminate();
         } catch (_) {}
+        // a terminated worker answers nothing: settle what was waiting for it, so the callers do not wait for ever
+        for (const p of [...entry.ws.pending.values()]) {
+          p.reject(new Error(`Worker of workspace ${wsId} was evicted before the execution finished`));
+        }
       }
     }
     promActiveWorkers.labels(deploymentId).set(this.workers.size);
@@ -874,6 +880,8 @@ type WorkspaceWorker = {
   pending: Map<string, { resolve: (v: any) => void; reject: (e: Error) => void }>;
   /** requestId -> the fetch timeout given to that running execution */
   execTimeouts: Map<string, number>;
+  /** requestId -> when the caller's time budget for that running execution (plus a grace period) runs out */
+  execDeadlines: Map<string, number>;
   ready: Promise<void>;
 };
 
@@ -899,6 +907,7 @@ function createWorkspaceWorker(
   const pendingExec = new Map<string, { resolve: (v: any) => void; reject: (e: Error) => void }>();
   // the fetch timeout given to each execution that is running in this worker (see boundedFetchTimeoutMs)
   const execTimeouts = new Map<string, number>();
+  const execDeadlines = new Map<string, number>();
   const connectionIds = new Set(connections.map(c => c.connectionId));
   let readyResolve: () => void;
   const readyPromise = new Promise<void>(resolve => {
@@ -993,7 +1002,7 @@ function createWorkspaceWorker(
   const initMsg: InitMessage = { type: "init", connections };
   worker.postMessage(initMsg);
 
-  return { workspaceId, worker, pending: pendingExec, execTimeouts, ready: readyPromise };
+  return { workspaceId, worker, pending: pendingExec, execTimeouts, execDeadlines, ready: readyPromise };
 }
 
 async function execInWorker(
@@ -1006,6 +1015,8 @@ async function execInWorker(
   await ws.ready;
   const requestId = crypto.randomUUID();
   ws.execTimeouts.set(requestId, fetchTimeoutMs);
+  // the caller gives up after its time budget: past it (and a grace period) the execution no longer keeps the worker alive
+  ws.execDeadlines.set(requestId, Date.now() + fetchTimeoutMs + EXEC_ABANDONED_AFTER_GRACE_MS);
   return new Promise<ResultMessage>((resolve, reject) => {
     ws.pending.set(requestId, { resolve, reject });
     const execMsg: ExecMessage = {
@@ -1017,7 +1028,11 @@ async function execInWorker(
       fetchTimeoutMs,
     };
     ws.worker.postMessage(execMsg);
-  }).finally(() => ws.execTimeouts.delete(requestId));
+  }).finally(() => {
+    ws.execTimeouts.delete(requestId);
+    ws.execDeadlines.delete(requestId);
+    ws.pending.delete(requestId);
+  });
 }
 
 async function main() {
