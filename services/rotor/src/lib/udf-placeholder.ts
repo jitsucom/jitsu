@@ -26,8 +26,13 @@ export function invalidFunctionsReason(options: any): string | undefined {
   return undefined;
 }
 
-/** The message of whatever a UDF threw: `throw null` or `throw undefined` have none to read. */
+/** The message of whatever a UDF threw: `throw null` has none to read, and an object without a prototype cannot be printed. */
 export function errorMessageOf(err: unknown): string {
-  const message = (err as any)?.message;
-  return typeof message === "string" ? message : String(err);
+  try {
+    const message = (err as any)?.message;
+    return typeof message === "string" ? message : String(err);
+  } catch {
+    // an object without a prototype, or a getter that throws: nothing to print
+    return "Unprintable value thrown";
+  }
 }

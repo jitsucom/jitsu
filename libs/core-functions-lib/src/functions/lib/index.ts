@@ -727,20 +727,26 @@ function headerPairs(headers: any): Array<[string, any]> {
   // An array, a Set, a Map, a Headers or a generator all iterate as [name, value] pairs. forEach does not: a Set calls back
   // with (value, value), which made the whole pair the name.
   if (headers && typeof headers !== "string" && typeof headers[Symbol.iterator] === "function") {
-    return [...headers].filter(p => Array.isArray(p) && p.length >= 2).map(p => [String(p[0]), p[1]]);
+    // each pair is itself an iterable of at least two items: an array, or for fetch also a Set or a generator
+    return [...headers].flatMap((p): Array<[string, any]> => {
+      const pair = p && typeof p === "object" && typeof p[Symbol.iterator] === "function" ? [...p] : undefined;
+      return pair && pair.length >= 2 ? [[String(pair[0]), pair[1]]] : [];
+    });
   }
   return Object.entries(headers ?? {});
 }
 
+const SENSITIVE_HEADER = /authorization|token|cookie/i;
+
 /**
- * A header whose name contains "authorization" or "token" is hidden in the logged request. The headers may be an object, a
+ * A header whose name contains "authorization", "token" or "cookie" is hidden in the logged request. The headers may be an object, a
  * Headers or Map, or an array of [name, value] pairs: Object.entries of an array would give the keys "0", "1" and miss the
  * name. The same rule is in services/rotor/src/lib/worker-fetch.ts, which cannot import this library into the workers.
  */
 export function hideSensitiveHeaders(headers: any): Record<string, string> {
   const result: Record<string, string> = {};
   for (const [k, v] of headerPairs(headers)) {
-    result[k] = k.toLowerCase().includes("authorization") || k.toLowerCase().includes("token") ? "*****" : v;
+    result[k] = SENSITIVE_HEADER.test(k) ? "*****" : v;
   }
   return result;
 }

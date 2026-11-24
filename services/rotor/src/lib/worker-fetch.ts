@@ -154,7 +154,11 @@ function headerPairs(headers: any): Array<[string, any]> {
   // An array, a Set, a Map, a Headers or a generator all iterate as [name, value] pairs. forEach does not: a Set calls back
   // with (value, value), which made the whole pair the name.
   if (headers && typeof headers !== "string" && typeof headers[Symbol.iterator] === "function") {
-    return [...headers].filter(p => Array.isArray(p) && p.length >= 2).map(p => [String(p[0]), p[1]]);
+    // each pair is itself an iterable of at least two items: an array, or for fetch also a Set or a generator
+    return [...headers].flatMap((p): Array<[string, any]> => {
+      const pair = p && typeof p === "object" && typeof p[Symbol.iterator] === "function" ? [...p] : undefined;
+      return pair && pair.length >= 2 ? [[String(pair[0]), pair[1]]] : [];
+    });
   }
   return Object.entries(headers ?? {});
 }
@@ -184,15 +188,17 @@ export function transferableFetchInit(init: any): any {
   return init;
 }
 
+const SENSITIVE_HEADER = /authorization|token|cookie/i;
+
 /**
- * Same rule as makeFetch: a header whose name contains "authorization" or "token" is hidden. The headers may be an object,
+ * Same rule as makeFetch: a header whose name contains "authorization", "token" or "cookie" is hidden. The headers may be an object,
  * a Headers or Map, or an array of [name, value] pairs: Object.entries of an array would give the keys "0", "1" and miss
  * the name.
  */
 export function hideSensitiveHeaders(headers: any): Record<string, string> {
   const result: Record<string, string> = {};
   for (const [k, v] of headerPairs(headers)) {
-    result[k] = k.toLowerCase().includes("authorization") || k.toLowerCase().includes("token") ? "*****" : v;
+    result[k] = SENSITIVE_HEADER.test(k) ? "*****" : v;
   }
   return result;
 }
@@ -246,9 +252,18 @@ export function errorCodesOf(err: any): ProxyErrorCodes {
 
 /** The error a worker rejects with for a failed proxy call: the message, the type and the same code fields the in-process fetch has. */
 export function rebuildProxyError(message: string, codes: ProxyErrorCodes = {}): Error {
-  const err: any = codes.name === "TypeError" ? new TypeError(message) : new Error(message);
-  if (codes.name && PROXY_ERROR_NAMES.includes(codes.name)) err.name = codes.name;
-  if (codes.code) err.code = codes.code;
+  // A timeout or an abort is a DOMException in process, with the legacy numeric code (TimeoutError 23, AbortError 20) that
+  // a UDF may test; one built with the name has the same code.
+  const err: any =
+    (codes.name === "TimeoutError" || codes.name === "AbortError") && typeof DOMException !== "undefined"
+      ? new DOMException(message, codes.name)
+      : codes.name === "TypeError"
+      ? new TypeError(message)
+      : new Error(message);
+  // a DOMException has its name and its numeric code from the constructor, and no setter for either
+  const isDomException = typeof DOMException !== "undefined" && err instanceof DOMException;
+  if (!isDomException && codes.name && PROXY_ERROR_NAMES.includes(codes.name)) err.name = codes.name;
+  if (!isDomException && codes.code) err.code = codes.code;
   if (codes.causeCode) err.cause = { code: codes.causeCode };
   return err;
 }

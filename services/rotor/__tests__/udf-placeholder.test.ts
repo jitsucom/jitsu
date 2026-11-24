@@ -66,5 +66,15 @@ describe("the message of what a UDF threw", () => {
     expect(errorMessageOf(undefined)).toBe("undefined");
     expect(errorMessageOf(42)).toBe("42");
     expect(errorMessageOf({ code: 1 })).toBe("[object Object]");
+    // an object without a prototype cannot be turned into a string: the message must still come out
+    expect(() => errorMessageOf(Object.create(null))).not.toThrow();
+    expect(errorMessageOf(Object.create(null))).toEqual(expect.any(String));
+    expect(
+      errorMessageOf({
+        get message() {
+          throw new Error("getter");
+        },
+      })
+    ).toEqual(expect.any(String));
   });
 });

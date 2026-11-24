@@ -1155,6 +1155,10 @@ describe.each(testModes)("Test Functions Chain ($name mode)", ({ name: modeName,
         .map(e => e.msg)
         .find(m => String(m?.message?.text).startsWith("generator-auth="));
       expect(generatorAuth?.message.text).toBe("generator-auth=Bearer from-generator");
+      const setPairAuth = loggedEntries
+        .map(e => e.msg)
+        .find(m => String(m?.message?.text).startsWith("set-pair-auth="));
+      expect(setPairAuth?.message.text).toBe("set-pair-auth=Bearer from-set-pair");
       const errorType = loggedEntries
         .map(e => e.msg)
         .find(m => String(m?.message?.text).startsWith("fetch-error-type="));

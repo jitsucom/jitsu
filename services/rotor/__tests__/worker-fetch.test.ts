@@ -210,6 +210,27 @@ describe("fetch log details", () => {
     expect(transferableFetchInit(plain)).toBe(plain);
   });
 
+  it("hides cookies, in a Headers as in an object", () => {
+    expect(hideSensitiveHeaders(new Headers({ Cookie: "sid=secret", "X-Trace": "t1" }))).toEqual({
+      cookie: "*****",
+      "x-trace": "t1",
+    });
+    expect(hideSensitiveHeaders({ Cookie: "sid=secret", "Set-Cookie": "a=b", "X-Trace": "t1" })).toEqual({
+      Cookie: "*****",
+      "Set-Cookie": "*****",
+      "X-Trace": "t1",
+    });
+  });
+
+  it("reads pairs that are not arrays, and sends them on as arrays", () => {
+    const pairs = [new Set(["Authorization", "Bearer secret"]), new Set(["X-Trace", "t1"])];
+    expect(hideSensitiveHeaders(pairs)).toEqual({ Authorization: "*****", "X-Trace": "t1" });
+    const gen = (function* () {
+      yield new Set(["Authorization", "Bearer secret"]);
+    })();
+    expect(transferableFetchInit({ headers: gen }).headers).toEqual([["Authorization", "Bearer secret"]]);
+  });
+
   it("hides the sensitive headers of a Set of pairs, and any other iterable of pairs", () => {
     const pairs = [
       ["Authorization", "Bearer secret"],
@@ -521,6 +542,22 @@ describe("a fetch error crossing the worker proxy", () => {
       causeCode: "ECONNRESET",
     });
     expect(errorCodesOf(new Error("plain"))).toEqual({});
+  });
+
+  // A body that stalls after the headers rejects with a DOMException (TimeoutError, legacy code 23); an abort is code 20. A
+  // UDF that picks its fallback by `err.code === 23` or `instanceof DOMException` has to see the same in a worker.
+  it("rebuilds a timeout or an abort as the DOMException it was, with its numeric code", () => {
+    const timeout: any = rebuildProxyError("The operation was aborted due to timeout", { name: "TimeoutError" });
+    expect(timeout).toBeInstanceOf(DOMException);
+    expect(timeout).toBeInstanceOf(Error);
+    expect(timeout.name).toBe("TimeoutError");
+    expect(timeout.code).toBe(23);
+    expect(timeout.message).toBe("The operation was aborted due to timeout");
+    const aborted: any = rebuildProxyError("aborted", { name: "AbortError" });
+    expect(aborted).toBeInstanceOf(DOMException);
+    expect(aborted.code).toBe(20);
+    // a TypeError stays a TypeError
+    expect(rebuildProxyError("fetch failed", { name: "TypeError" })).not.toBeInstanceOf(DOMException);
     expect(errorCodesOf(Object.assign(new Error("x"), { code: 42 }))).toEqual({});
     expect(errorCodesOf(undefined)).toEqual({});
   });

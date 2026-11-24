@@ -33,6 +33,27 @@ describe("hideSensitiveHeaders", () => {
     expect(JSON.stringify(hideSensitiveHeaders(new Set(pairs)))).not.toContain("secret");
   });
 
+  // Headers used to log nothing (Object.entries of a Headers is empty); iterating it exposes a Cookie, which the mask missed.
+  it("hides cookies, in a Headers as in an object", async () => {
+    const { hideSensitiveHeaders } = await import("../src/functions/lib/index");
+    expect(hideSensitiveHeaders(new Headers({ Cookie: "sid=secret", "X-Trace": "t1" }))).toEqual({
+      cookie: "*****",
+      "x-trace": "t1",
+    });
+    expect(hideSensitiveHeaders({ Cookie: "sid=secret", "Set-Cookie": "a=b", "X-Trace": "t1" })).toEqual({
+      Cookie: "*****",
+      "Set-Cookie": "*****",
+      "X-Trace": "t1",
+    });
+  });
+
+  // fetch accepts any iterable of two-item iterables, a Set of two items included
+  it("reads pairs that are not arrays", async () => {
+    const { hideSensitiveHeaders } = await import("../src/functions/lib/index");
+    const pairs = [new Set(["Authorization", "Bearer secret"]), new Set(["X-Trace", "t1"])];
+    expect(hideSensitiveHeaders(pairs)).toEqual({ Authorization: "*****", "X-Trace": "t1" });
+  });
+
   it("tolerates missing and malformed headers", async () => {
     const { hideSensitiveHeaders } = await import("../src/functions/lib/index");
     expect(hideSensitiveHeaders(undefined)).toEqual({});
