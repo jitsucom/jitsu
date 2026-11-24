@@ -560,7 +560,7 @@ expose() {
 # stored here — the chart computes them for the in-cluster dependencies, and
 # explicit `env` entries take precedence over this secret's envFrom values.
 ensure_secrets() {
-    local auth_token="" rotor_tokens="" secret_existed=0 rotor_tokens_seeded=0
+    local auth_token="" rotor_tokens="" rotor_key="" secret_existed=0 restart_pending=0
     if kubectl get secret jitsu-secrets -n "$NAMESPACE" &>/dev/null; then
         secret_existed=1
         auth_token=$(kubectl get secret jitsu-secrets -n "$NAMESPACE" \
@@ -568,6 +568,13 @@ ensure_secrets() {
         # Rotor's own tokens: keep a value somebody provisioned, seed the key only when it is missing or empty.
         rotor_tokens=$(kubectl get secret jitsu-secrets -n "$NAMESPACE" \
             -o jsonpath='{.data.ROTOR_RAW_AUTH_TOKENS}' 2>/dev/null | base64 --decode || true)
+        rotor_key=$(kubectl get secret jitsu-secrets -n "$NAMESPACE" \
+            -o jsonpath='{.data.ROTOR_AUTH_KEY}' 2>/dev/null | base64 --decode || true)
+        # A restart of rotor and profiles that started on an earlier run and did not finish.
+        if [ -n "$(kubectl get secret jitsu-secrets -n "$NAMESPACE" \
+            -o jsonpath='{.metadata.annotations.rotor-restart-pending}' 2>/dev/null || true)" ]; then
+            restart_pending=1
+        fi
     fi
 
     if [ -z "$auth_token" ]; then
@@ -579,8 +586,12 @@ ensure_secrets() {
 
     if [ -z "$rotor_tokens" ]; then
         rotor_tokens="$auth_token"
+        # The client key must match the token seeded here, whatever it was before.
+        rotor_key="$auth_token"
         # Rotor refuses to start without tokens. Pods of an existing install read the secret once, at start.
-        [ "$secret_existed" = 1 ] && rotor_tokens_seeded=1
+        [ "$secret_existed" = 1 ] && restart_pending=1
+    elif [ -z "$rotor_key" ]; then
+        rotor_key="$auth_token"
     fi
 
     # Build the payload with --from-literal so arbitrary token characters are
@@ -588,7 +599,7 @@ ensure_secrets() {
     local literals=(
         --from-literal="RAW_AUTH_TOKENS=$auth_token"
         --from-literal="BULKER_AUTH_KEY=$auth_token"
-        --from-literal="ROTOR_AUTH_KEY=$auth_token"
+        --from-literal="ROTOR_AUTH_KEY=$rotor_key"
         --from-literal="ROTOR_RAW_AUTH_TOKENS=$rotor_tokens"
         --from-literal="SYNCCTL_AUTH_KEY=$auth_token"
         --from-literal="CONSOLE_RAW_AUTH_TOKENS=$auth_token"
@@ -596,6 +607,11 @@ ensure_secrets() {
         --from-literal="CONSOLE_TOKEN=service-admin-account:$auth_token"
         --from-literal="CONFIG_SOURCE_HTTP_AUTH_TOKEN=service-admin-account:$auth_token"
     )
+
+    if [ "$restart_pending" = 1 ]; then
+        # Written before the patch and cleared after the restarts, so a restart that fails can be retried by a rerun.
+        kubectl annotate secret jitsu-secrets -n "$NAMESPACE" rotor-restart-pending=true --overwrite > /dev/null
+    fi
 
     if kubectl get secret jitsu-secrets -n "$NAMESPACE" &>/dev/null; then
         # merge-patch so any extra keys a user added to the secret
@@ -609,7 +625,7 @@ ensure_secrets() {
 
     log_success "Secret 'jitsu-secrets' is configured"
 
-    if [ "$rotor_tokens_seeded" = 1 ]; then
+    if [ "$restart_pending" = 1 ]; then
         log_warn "ROTOR_RAW_AUTH_TOKENS was added to the existing secret: restarting rotor and profiles to pick it up"
         local svc
         for svc in rotor profiles; do
@@ -617,6 +633,7 @@ ensure_secrets() {
                 kubectl rollout restart deployment/"$svc" -n "$NAMESPACE" > /dev/null
             fi
         done
+        kubectl annotate secret jitsu-secrets -n "$NAMESPACE" rotor-restart-pending- > /dev/null
     fi
 }
 

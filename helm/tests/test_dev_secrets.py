@@ -21,6 +21,7 @@ root = Path(os.environ["SECRETS_TEST_ROOT"])
 name = Path(sys.argv[0]).name
 args = sys.argv[1:]
 secret = root / "secret"
+notes = root / "annotations"
 
 def record():
     with (root / "calls").open("a") as out:
@@ -40,11 +41,29 @@ if args[:3] == ["get", "secret", "jitsu-secrets"]:
         sys.exit(1)
     for i, a in enumerate(args):
         if a == "-o" and args[i + 1].startswith("jsonpath="):
-            key = args[i + 1].split("{.data.")[1].rstrip("}")
-            file = secret / key
-            if file.exists():
-                print(base64.b64encode(file.read_bytes()).decode(), end="")
+            path = args[i + 1][len("jsonpath="):].strip("'")
+            if path.startswith("{.metadata.annotations."):
+                file = notes / path[len("{.metadata.annotations."):].rstrip("}")
+                if file.exists():
+                    print(file.read_text(), end="")
+            else:
+                file = secret / path.split("{.data.")[1].rstrip("}")
+                if file.exists():
+                    print(base64.b64encode(file.read_bytes()).decode(), end="")
     sys.exit(0)
+if args[:3] == ["annotate", "secret", "jitsu-secrets"]:
+    notes.mkdir(exist_ok=True)
+    for a in args[3:]:
+        if a.startswith("-"):
+            continue
+        if a.endswith("-") and "=" not in a:
+            (notes / a[:-1]).unlink(missing_ok=True)
+        elif "=" in a:
+            k, v = a.split("=", 1)
+            (notes / k).write_text(v)
+    sys.exit(0)
+if args[:2] == ["rollout", "restart"] and args[2].split("/")[1] in os.environ.get("FAIL_RESTART", "").split(","):
+    sys.exit(1)
 if args[:3] == ["create", "secret", "generic"]:
     literals = {}
     for a in args:
@@ -90,12 +109,15 @@ class EnsureSecretsTest(unittest.TestCase):
             (directory / key).write_text(value)
         return directory / key
 
-    def run_secrets(self, deployments=("rotor", "profiles")):
+    def run_secrets(self, deployments=("rotor", "profiles"), fail_restart="", expect_failure=False):
         (self.root / "deployments").write_text("\n".join(deployments))
         (self.root / "calls").write_text("")
-        env = dict(os.environ, PATH=f"{self.bin}:{os.environ['PATH']}", SECRETS_TEST_ROOT=str(self.root), NAMESPACE="test")
+        env = dict(os.environ, PATH=f"{self.bin}:{os.environ['PATH']}", SECRETS_TEST_ROOT=str(self.root), NAMESPACE="test", FAIL_RESTART=fail_restart)
         result = subprocess.run(["bash", str(SCRIPT), "secrets"], env=env, capture_output=True, text=True, timeout=60)
-        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        if expect_failure:
+            self.assertNotEqual(result.returncode, 0, result.stdout + result.stderr)
+        else:
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         calls = [json.loads(line) for line in (self.root / "calls").read_text().splitlines()]
         return [c[3].split("/")[1] for c in calls if c[1:3] == ["rollout", "restart"]]
 
@@ -135,6 +157,29 @@ class EnsureSecretsTest(unittest.TestCase):
 
     def test_second_run_does_not_restart_again(self):
         self.secret_file("RAW_AUTH_TOKENS", "existing-token")
+        self.assertEqual(sorted(self.run_secrets()), ["profiles", "rotor"])
+        self.assertEqual(self.run_secrets(), [])
+
+    def test_provisioned_client_key_stays_with_the_provisioned_rotor_token(self):
+        self.secret_file("RAW_AUTH_TOKENS", "existing-token")
+        self.secret_file("ROTOR_RAW_AUTH_TOKENS", "own-rotor-token")
+        self.secret_file("ROTOR_AUTH_KEY", "own-rotor-token")
+        self.run_secrets()
+        self.assertEqual(self.value("ROTOR_RAW_AUTH_TOKENS"), "own-rotor-token")
+        self.assertEqual(self.value("ROTOR_AUTH_KEY"), "own-rotor-token")
+
+    def test_client_key_follows_the_seeded_token_when_the_rotor_token_was_missing(self):
+        self.secret_file("RAW_AUTH_TOKENS", "existing-token")
+        self.secret_file("ROTOR_AUTH_KEY", "stale-key")
+        self.run_secrets()
+        self.assertEqual(self.value("ROTOR_RAW_AUTH_TOKENS"), "existing-token")
+        self.assertEqual(self.value("ROTOR_AUTH_KEY"), "existing-token")
+
+    def test_failed_restart_is_retried_on_the_next_run(self):
+        self.secret_file("RAW_AUTH_TOKENS", "existing-token")
+        first = self.run_secrets(fail_restart="profiles", expect_failure=True)
+        self.assertEqual(first, ["rotor", "profiles"])
+        self.assertEqual(self.value("ROTOR_RAW_AUTH_TOKENS"), "existing-token")
         self.assertEqual(sorted(self.run_secrets()), ["profiles", "rotor"])
         self.assertEqual(self.run_secrets(), [])
 
