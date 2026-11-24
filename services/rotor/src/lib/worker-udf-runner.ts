@@ -150,7 +150,17 @@ export async function runUdfInWorker(
           clearTimeout(timer);
           worker.terminate();
           const hasError = msg.execLog?.some((e: any) => e.error);
-          if (hasError) {
+          if (msg.serializationError) {
+            resolve({
+              error: {
+                message: `The result cannot be serialized: ${msg.serializationError.message}`,
+                name: msg.serializationError.name,
+              },
+              result: {},
+              store: dumpStore(),
+              logs: msg.logs,
+            });
+          } else if (hasError) {
             const err = msg.execLog.find((e: any) => e.error)?.error;
             resolve({
               error: { message: err.message, stack: err.stack, name: err.name, retryPolicy: err.retryPolicy },

@@ -88,6 +88,9 @@ export type ResultMessage = {
   events: AnyEvent[];
   execLog: FunctionExecLog;
   logs: SerializedLogEntry[];
+  // The events could not be turned into JSON (a BigInt, a cycle, a toJSON that throws): `events` is empty, and the call has to
+  // fail as the in-process response does when it is written
+  serializationError?: { message: string; name: string };
 };
 
 /** Proxy request for I/O that the sandboxed worker cannot perform */

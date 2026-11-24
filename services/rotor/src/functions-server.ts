@@ -672,6 +672,12 @@ class WorkerRuntime implements FunctionRuntime {
   ): Promise<Required<FuncChainResultWithLogs>> {
     const ws = await this.workerPool.getOrCreate(this.workspaceId);
     const resultMsg = await execInWorker(ws, connectionId, event, eventContext, fetchTimeoutMs);
+    if (resultMsg.serializationError) {
+      // the in-process response fails when it writes such events, and the whole call answers HTTP 500, which rotor retries
+      throw workerFailedError(
+        `The events of connection '${connectionId}' cannot be serialized: ${resultMsg.serializationError.message}`
+      );
+    }
     return {
       connectionId: resultMsg.connectionId,
       events: resultMsg.events,

@@ -673,6 +673,7 @@ describe.each(testModes)("Test Functions Chain ($name mode)", ({ name: modeName,
         "/fetch": handlerF("fetch"),
         "/url_field": handlerF("url_field"),
         "/unserializable_event": handlerF("unserializable_event"),
+        "/throwing_tojson": handlerF("throwing_tojson"),
         "/worker_crash": handlerF("worker_crash"),
         "/worker_after_crash": handlerF("worker_after_crash"),
         "/warehouse_real": handlerF("warehouse_real"),
@@ -816,22 +817,29 @@ describe.each(testModes)("Test Functions Chain ($name mode)", ({ name: modeName,
     expect(counters[currentTestName]).toEqual(1);
   });
 
-  // An event JSON cannot hold (a BigInt) fails the whole call with HTTP 500 when the response is written: rotor sees a service
-  // failure and retries. A worker must fail it the same way, and not answer HTTP 200 with an error entry, which the ingest
-  // drops without a retry.
+  // An event JSON cannot hold (a BigInt, an object whose toJSON throws) fails the whole call with HTTP 500 when the response is
+  // written: rotor sees a service failure and retries. A worker must fail it the same way: not answer HTTP 200 with an error
+  // entry, which the ingest drops without a retry, and not deliver the fields a clone leaves of an object whose class is gone.
+  // Failing the whole /multi call, with the other connections of it, is what the in-process response does as well.
   test("unserializable_event", async () => {
-    const url = `${functionsServer!.baseUrl}/multi?ids=unserializable_event&fullEvents=true`;
-    const body = JSON.stringify(ingestMessage("unserializable_event", messageId, incomingEvent));
-    const res = await fetch(url, {
-      method: "POST",
-      body,
-      headers: {
-        "content-type": "application/json",
-        ...signFunctionsRequest(process.env.FUNCTIONS_SERVER_PRIVATE_KEY!, functionsClass, url, body),
-      },
-    });
-    expect(res.status).toBe(500);
+    const callMulti = async (ids: string) => {
+      const url = `${functionsServer!.baseUrl}/multi?ids=${ids}&fullEvents=true`;
+      const body = JSON.stringify(ingestMessage(ids.split(",")[0], messageId, incomingEvent));
+      return fetch(url, {
+        method: "POST",
+        body,
+        headers: {
+          "content-type": "application/json",
+          ...signFunctionsRequest(process.env.FUNCTIONS_SERVER_PRIVATE_KEY!, functionsClass, url, body),
+        },
+      });
+    };
+    for (const ids of ["unserializable_event", "throwing_tojson", "unserializable_event,simple"]) {
+      const res = await callMulti(ids);
+      expect(res.status, ids).toBe(500);
+    }
     expect(counters["unserializable_event"]).toBeUndefined();
+    expect(counters["throwing_tojson"]).toBeUndefined();
   }, 60000);
 
   test("noreturn", async () => {

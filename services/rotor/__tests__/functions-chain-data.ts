@@ -112,6 +112,18 @@ export default async function(event, { log, fetch, store, retries, props: config
   return event
 }`,
   },
+  functionThrowingToJson: {
+    id: "functionThrowingToJson",
+    workspaceId: "workspace1",
+    name: "Function Throwing ToJson",
+    codeHash: "functionThrowingToJson-hash",
+    code: `class Throwing { constructor() { this.value = 1 } toJSON() { throw new Error("toJSON failed") } }
+export default async function(event, { log, fetch, store, props: config }) {
+  // writing the response calls toJSON, which throws: a clone would strip the class and deliver {value: 1}
+  event.properties.field = new Throwing()
+  return event
+}`,
+  },
   function3: {
     id: "function3",
     workspaceId: "workspace1",
@@ -823,6 +835,30 @@ export const connections = {
     },
     credentials: {
       url: "http://localhost:3089/unserializable_event",
+      method: "POST",
+      headers: [],
+    },
+  },
+  throwing_tojson: {
+    id: "throwing_tojson",
+    workspaceId: "workspace1",
+    updatedAt: new Date(),
+    destinationId: "destination1",
+    streamId: "stream1",
+    usesBulker: false,
+    type: "webhook",
+    options: {
+      functions: [
+        {
+          functionId: "udf.function1",
+        },
+        {
+          functionId: "udf.functionThrowingToJson",
+        },
+      ],
+    },
+    credentials: {
+      url: "http://localhost:3089/throwing_tojson",
       method: "POST",
       headers: [],
     },
