@@ -85,6 +85,13 @@ if args[:2] == ["patch", "secret"]:
     sys.exit(0)
 if args[:2] == ["get", "deployment"]:
     existing = (root / "deployments").read_text().split() if (root / "deployments").exists() else []
+    if args[2] in os.environ.get("FAIL_LOOKUP", "").split(","):
+        print("Unable to connect to the server", file=sys.stderr)
+        sys.exit(1)
+    if "--ignore-not-found" in args:
+        if args[2] in existing:
+            print("deployment.apps/" + args[2])
+        sys.exit(0)
     sys.exit(0 if args[2] in existing else 1)
 sys.exit(0)
 '''
@@ -109,10 +116,10 @@ class EnsureSecretsTest(unittest.TestCase):
             (directory / key).write_text(value)
         return directory / key
 
-    def run_secrets(self, deployments=("rotor", "profiles"), fail_restart="", expect_failure=False):
+    def run_secrets(self, deployments=("rotor", "profiles"), fail_restart="", fail_lookup="", expect_failure=False):
         (self.root / "deployments").write_text("\n".join(deployments))
         (self.root / "calls").write_text("")
-        env = dict(os.environ, PATH=f"{self.bin}:{os.environ['PATH']}", SECRETS_TEST_ROOT=str(self.root), NAMESPACE="test", FAIL_RESTART=fail_restart)
+        env = dict(os.environ, PATH=f"{self.bin}:{os.environ['PATH']}", SECRETS_TEST_ROOT=str(self.root), NAMESPACE="test", FAIL_RESTART=fail_restart, FAIL_LOOKUP=fail_lookup)
         result = subprocess.run(["bash", str(SCRIPT), "secrets"], env=env, capture_output=True, text=True, timeout=60)
         if expect_failure:
             self.assertNotEqual(result.returncode, 0, result.stdout + result.stderr)
@@ -180,6 +187,13 @@ class EnsureSecretsTest(unittest.TestCase):
         first = self.run_secrets(fail_restart="profiles", expect_failure=True)
         self.assertEqual(first, ["rotor", "profiles"])
         self.assertEqual(self.value("ROTOR_RAW_AUTH_TOKENS"), "existing-token")
+        self.assertEqual(sorted(self.run_secrets()), ["profiles", "rotor"])
+        self.assertEqual(self.run_secrets(), [])
+
+    def test_failed_deployment_lookup_is_not_taken_for_a_missing_deployment(self):
+        self.secret_file("RAW_AUTH_TOKENS", "existing-token")
+        self.run_secrets(fail_lookup="profiles", expect_failure=True)
+        self.assertTrue((self.root / "annotations" / "rotor-restart-pending").exists())
         self.assertEqual(sorted(self.run_secrets()), ["profiles", "rotor"])
         self.assertEqual(self.run_secrets(), [])
 

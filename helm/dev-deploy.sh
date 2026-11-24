@@ -627,9 +627,11 @@ ensure_secrets() {
 
     if [ "$restart_pending" = 1 ]; then
         log_warn "ROTOR_RAW_AUTH_TOKENS was added to the existing secret: restarting rotor and profiles to pick it up"
-        local svc
+        local svc found
         for svc in rotor profiles; do
-            if kubectl get deployment "$svc" -n "$NAMESPACE" &>/dev/null; then
+            # Only "not found" counts as absent: any other error aborts here (set -e) with the marker still in place.
+            found=$(kubectl get deployment "$svc" -n "$NAMESPACE" --ignore-not-found -o name)
+            if [ -n "$found" ]; then
                 kubectl rollout restart deployment/"$svc" -n "$NAMESPACE" > /dev/null
             fi
         done
