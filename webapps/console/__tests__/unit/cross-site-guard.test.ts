@@ -29,7 +29,7 @@ vi.mock("../../lib/server/custom-domains", async importOriginal => ({
 }));
 
 import { createRoute } from "../../lib/api";
-import { isCrossSiteRequest, shouldRefuseCrossSite } from "../../lib/server/cross-site";
+import { hasBearerAuthorizationHeader, isCrossSiteRequest, shouldRefuseCrossSite } from "../../lib/server/cross-site";
 import revokeSession from "../../pages/api/fb-auth/revoke-session";
 import domainCheck from "../../pages/api/[workspaceId]/domain-check";
 
@@ -96,7 +96,15 @@ describe("shouldRefuseCrossSite", () => {
     expect(shouldRefuseCrossSite({ method: "GET", headers }, { rejectCrossSite: true }, false)).toBe(true);
   });
 
-  it("lets a request with its own bearer credential through", () => {
+  it("reads a bearer header, in any case, and nothing else", () => {
+    expect(hasBearerAuthorizationHeader({ authorization: "Bearer key:secret" })).toBe(true);
+    expect(hasBearerAuthorizationHeader({ authorization: "bearer key:secret" })).toBe(true);
+    expect(hasBearerAuthorizationHeader({ authorization: "Basic abc" })).toBe(false);
+    expect(hasBearerAuthorizationHeader({ authorization: "Bearer" })).toBe(false);
+    expect(hasBearerAuthorizationHeader({})).toBe(false);
+  });
+
+  it("lets a request with a bearer header through", () => {
     expect(shouldRefuseCrossSite({ method: "GET", headers: { "sec-fetch-site": "cross-site" } }, route, true)).toBe(
       false
     );
@@ -133,11 +141,27 @@ describe("the API wrapper", () => {
     expect(run).toHaveBeenCalledTimes(1);
   });
 
-  it("runs it for a cross-site caller that brings its own bearer credential, in a header or in the query", async () => {
+  it("runs it for a cross-site caller that brings its own bearer header", async () => {
     const { handler, run } = route({ mutates: true });
-    await call(handler, { site: "cross-site", headers: { authorization: "Bearer key:secret" } });
-    await call(handler, { site: "cross-site", query: { __unsafe_token: "key:secret" } });
-    expect(run).toHaveBeenCalledTimes(2);
+    const res = await call(handler, { site: "cross-site", headers: { authorization: "Bearer key:secret" } });
+    expect(res.statusCode).toBe(200);
+    expect(run).toHaveBeenCalledTimes(1);
+  });
+
+  // A link on another site can put anything into the query, so a token in the query is no proof of a credential
+  it("does not take a token in the query for a bearer credential", async () => {
+    const { handler, run } = route({ mutates: true });
+    for (const token of ["key:secret", ":x", "x", "key:"]) {
+      const res = await call(handler, { site: "cross-site", query: { __unsafe_token: token } });
+      expect(res.statusCode, token).toBe(403);
+    }
+    expect(run).not.toHaveBeenCalled();
+  });
+
+  it("still runs a request with a token in the query when the browser does not say it is cross-site", async () => {
+    const { handler, run } = route({ mutates: true });
+    expect((await call(handler, { query: { __unsafe_token: "key:secret" } })).statusCode).toBe(200);
+    expect(run).toHaveBeenCalledTimes(1);
   });
 
   it("leaves a GET that does not change state alone", async () => {
@@ -183,6 +207,24 @@ describe("the routes that act on a GET", () => {
     expect(mocks.signOut).not.toHaveBeenCalled();
     await call(revokeSession, { site: "same-origin", headers });
     expect(mocks.signOut).toHaveBeenCalledWith("ext1");
+  });
+
+  it("revoke-session: a cross-site link with an empty key id in the query does not borrow the signed-in session", async () => {
+    mocks.getServerSession.mockResolvedValue({
+      user: { email: "u@example.com", name: "U" },
+      internalId: "u1",
+      externalId: "ext1",
+      externalUsername: "u@example.com",
+      loginProvider: "firebase",
+    });
+    const res = await call(revokeSession, {
+      site: "cross-site",
+      headers: { host: "console.example.com" },
+      query: { __unsafe_token: ":x" },
+    });
+    expect(res.statusCode).toBe(403);
+    expect(mocks.signOut).not.toHaveBeenCalled();
+    expect(mocks.getServerSession).not.toHaveBeenCalled();
   });
 
   it("both routes still reach the session check for a same-origin request", async () => {

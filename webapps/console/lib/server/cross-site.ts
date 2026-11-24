@@ -10,17 +10,24 @@ export function isCrossSiteRequest(headers: NextApiRequest["headers"]): boolean 
   return (Array.isArray(value) ? value[0] : value)?.trim().toLowerCase() === "cross-site";
 }
 
+/** True when the request has an `Authorization: Bearer` header. */
+export function hasBearerAuthorizationHeader(headers: NextApiRequest["headers"]): boolean {
+  return (headers.authorization ?? "").toLowerCase().startsWith("bearer ");
+}
+
 /**
  * A GET that changes state must not run because another site sent the user's browser to it: the session cookies
  * are `SameSite=Lax`, which the browser still attaches to a top-level cross-site navigation.
  *
- * Refuses a cross-site GET or HEAD of a route that changes state, unless it carries its own bearer credential,
- * which a page of another site cannot set.
+ * Refuses a cross-site GET or HEAD of a route that changes state, unless it carries an `Authorization: Bearer`
+ * header. A link or a redirect of another site cannot set a request header, and a script of another site would need
+ * the CORS permission this API does not give. A token in the query string is no such proof: a link can put anything
+ * there, and a token that does not match falls back to the session cookie.
  */
 export function shouldRefuseCrossSite(
   req: Pick<NextApiRequest, "method" | "headers">,
   route: { mutates?: boolean; rejectCrossSite?: boolean },
-  hasBearerCredential: boolean
+  hasBearerHeader: boolean
 ): boolean {
   if (!route.mutates && !route.rejectCrossSite) {
     return false;
@@ -28,5 +35,5 @@ export function shouldRefuseCrossSite(
   if (req.method !== "GET" && req.method !== "HEAD") {
     return false;
   }
-  return isCrossSiteRequest(req.headers) && !hasBearerCredential;
+  return isCrossSiteRequest(req.headers) && !hasBearerHeader;
 }

@@ -27,7 +27,7 @@ import {
 } from "./server/oidc-token-service";
 import { OidcSessionData } from "./server/oidc-types";
 import { isSecure } from "./server/origin";
-import { shouldRefuseCrossSite } from "./server/cross-site";
+import { hasBearerAuthorizationHeader, shouldRefuseCrossSite } from "./server/cross-site";
 import {
   WorkspaceRoleType,
   hasPermission,
@@ -361,8 +361,9 @@ export function nextJsApiHandler(api: Api): NextApiHandler {
       return;
     }
     // A GET that changes state is refused when another site sent the browser to it (the session cookies are
-    // SameSite=Lax, which still travel on a cross-site navigation). Bearer clients and schedulers are not affected.
-    if (shouldRefuseCrossSite(req, handler, !!getAuthBearerToken(req))) {
+    // SameSite=Lax, which still travel on a cross-site navigation). Clients with a bearer header and schedulers are
+    // not affected; a token in the query is not enough (a link can set it, see `shouldRefuseCrossSite`).
+    if (shouldRefuseCrossSite(req, handler, hasBearerAuthorizationHeader(req.headers))) {
       log.atWarn().log(`Refused a cross-site ${method} of ${(req.url ?? "").split(/[?#]/)[0]}`);
       res.status(403).json({ error: "Cross-site request refused" });
       return;
