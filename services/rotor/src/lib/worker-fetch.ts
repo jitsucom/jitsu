@@ -1,6 +1,8 @@
 // Helpers for fetch calls that a sandboxed UDF worker proxies through the main process (see workspace-worker.ts).
 // No worker or postMessage globals in here, so they can be unit tested.
 
+import { DropRetryErrorName, RetryError, RetryErrorName } from "@jitsu/functions-lib";
+
 export type SerializedResponse = {
   status: number;
   statusText: string;
@@ -176,13 +178,33 @@ export function transferableFetchInit(init: any): any {
   if (typeof URLSearchParams !== "undefined" && body instanceof URLSearchParams) {
     // postMessage turns it into a plain object, and fetch would send "[object Object]": it goes as the text fetch makes of it,
     // with the content type fetch gives it unless the caller set one
-    const headers = headerPairs(prepared.headers).map(([name, value]) => [name, String(value)]);
+    const headers = wirePairs(prepared.headers);
     if (!headers.some(([name]) => name.toLowerCase() === "content-type")) {
       headers.push(["content-type", "application/x-www-form-urlencoded;charset=UTF-8"]);
     }
     return { ...prepared, body: body.toString(), headers };
   }
   return prepared;
+}
+
+/**
+ * The [name, value] pairs of the headers as they go on the wire. Unlike headerPairs, which is tolerant because it only feeds
+ * the log, this refuses what fetch refuses: a pair that does not have exactly two items. A header must not vanish (or be
+ * cut) on its way to the main process.
+ */
+function wirePairs(headers: any): Array<[string, string]> {
+  if (headers && typeof headers === "object" && typeof headers[Symbol.iterator] === "function") {
+    return [...headers].map(p => {
+      const pair = p && typeof p === "object" && typeof p[Symbol.iterator] === "function" ? [...p] : undefined;
+      if (!pair || pair.length !== 2) {
+        throw new TypeError(
+          `Headers: expected name/value pair to be length 2, found ${pair ? pair.length : "a non-pair"}.`
+        );
+      }
+      return [String(pair[0]), String(pair[1])];
+    });
+  }
+  return Object.entries(headers ?? {}).map(([name, value]) => [name, String(value)]);
 }
 
 function transferableHeaders(init: any): any {
@@ -193,7 +215,7 @@ function transferableHeaders(init: any): any {
     // else (a Headers, a generator) is read here, once, and the same array serves the log entry and the request
     const cloneable = Array.isArray(h) || h instanceof Map || h instanceof Set;
     if (!cloneable || (!(h instanceof Map) && [...h].some(p => isIterable(p) && !Array.isArray(p)))) {
-      return { ...init, headers: headerPairs(h).map(([name, value]) => [name, String(value)]) };
+      return { ...init, headers: wirePairs(h) };
     }
   }
   return init;
@@ -252,7 +274,9 @@ export type ProxyErrorCodes = { code?: string; causeCode?: string; name?: string
 // undici rejects a failed fetch with a TypeError and an aborted one with an AbortError or TimeoutError. A UDF that checks
 // `err instanceof TypeError` or `err.name` must get the same answer in a worker. Only these names are taken from a worker
 // message; anything else becomes a plain Error.
-const PROXY_ERROR_NAMES = ["TypeError", "RangeError", "AbortError", "TimeoutError"];
+// A RetryError (a failed store call: storeErr wraps the transient failures of the MongoDB store in one) goes back as a real
+// RetryError, dropping or not, so the event is retried as in process.
+const PROXY_ERROR_NAMES = ["TypeError", "RangeError", "AbortError", "TimeoutError", RetryErrorName, DropRetryErrorName];
 
 export function errorCodesOf(err: any): ProxyErrorCodes {
   const code = typeof err?.code === "string" ? err.code : undefined;
@@ -265,6 +289,9 @@ export function errorCodesOf(err: any): ProxyErrorCodes {
 export function rebuildProxyError(message: string, codes: ProxyErrorCodes = {}): Error {
   // A timeout or an abort is a DOMException in process, with the legacy numeric code (TimeoutError 23, AbortError 20) that
   // a UDF may test; one built with the name has the same code.
+  if (codes.name === RetryErrorName || codes.name === DropRetryErrorName) {
+    return new RetryError(message, { drop: codes.name === DropRetryErrorName });
+  }
   const err: any =
     (codes.name === "TimeoutError" || codes.name === "AbortError") && typeof DOMException !== "undefined"
       ? new DOMException(message, codes.name)

@@ -1,3 +1,4 @@
+import { RetryError } from "@jitsu/functions-lib";
 import { describe, expect, it } from "vitest";
 import {
   deserializeResponse,
@@ -617,6 +618,20 @@ describe("a fetch error crossing the worker proxy", () => {
     expect(plain.cause).toBeUndefined();
   });
 
+  // The MongoDB store wraps its transient failures in a RetryError (storeErr); the proxy carries them back, so the event is
+  // retried as it is in process, and not delivered without the enrichment that failed.
+  it("rebuilds a RetryError of a store call as a real RetryError, dropping or not", () => {
+    const retry: any = rebuildProxyError("Error getting key k from mongo store ns: Timed out.", { name: "RetryError" });
+    expect(retry).toBeInstanceOf(RetryError);
+    expect(retry.name).toBe("RetryError");
+    expect(retry.message).toBe("Error getting key k from mongo store ns: Timed out.");
+    const drop: any = rebuildProxyError("x", { name: "Drop & RetryError" });
+    expect(drop).toBeInstanceOf(RetryError);
+    expect(drop.name).toBe("Drop & RetryError");
+    expect(errorCodesOf(new RetryError("store down"))).toEqual({ name: "RetryError" });
+    expect(errorCodesOf(new RetryError("store down", { drop: true }))).toEqual({ name: "Drop & RetryError" });
+  });
+
   // undici rejects a failed fetch with a TypeError; a UDF that checks `err instanceof TypeError` or `err.name` must see the
   // same in a worker.
   it("keeps the standard error type, so instanceof and name checks give the same answer as in process", () => {
@@ -628,7 +643,7 @@ describe("a fetch error crossing the worker proxy", () => {
     expect(aborted).toBeInstanceOf(Error);
     expect(aborted.name).toBe("AbortError");
     // a name the worker was not meant to take (the message is tenant-visible, the name must be one of the known ones)
-    expect(rebuildProxyError("x", { name: "RetryError" }).name).toBe("Error");
+    expect(rebuildProxyError("x", { name: "SomethingElseError" }).name).toBe("Error");
     expect(errorCodesOf(Object.assign(new TypeError("fetch failed"), { cause: { code: "ECONNREFUSED" } }))).toEqual({
       name: "TypeError",
       causeCode: "ECONNREFUSED",
@@ -692,5 +707,41 @@ describe("a URLSearchParams body", () => {
     for (const init of [undefined, {}, { method: "POST", body: "text" }, { body: new Uint8Array([1, 2]) }]) {
       expect(transferableFetchInit(init)).toBe(init);
     }
+  });
+});
+
+// fetch rejects a header pair whose length is not two. The tolerant formatter of the log (it skips short pairs and cuts long
+// ones) must not decide what goes on the wire: a header must not vanish, the call has to fail as it does in process.
+describe("header pairs on the wire", () => {
+  it("rejects a pair that does not have exactly two items, as fetch does", () => {
+    const one = (function* () {
+      yield ["Authorization"];
+    })();
+    expect(() => transferableFetchInit({ headers: one })).toThrow(TypeError);
+    expect(() => transferableFetchInit({ headers: [new Set(["a"])] })).toThrow(TypeError);
+    expect(() => transferableFetchInit({ headers: [new Set(["a", "b", "c"])] })).toThrow(TypeError);
+    // a URLSearchParams body rewrites the headers too
+    expect(() => transferableFetchInit({ body: new URLSearchParams({ a: "1" }), headers: [["only-a-name"]] })).toThrow(
+      TypeError
+    );
+    expect(() => transferableFetchInit({ body: new URLSearchParams({ a: "1" }), headers: [["a", "b", "c"]] })).toThrow(
+      TypeError
+    );
+  });
+
+  it("still accepts the valid forms", () => {
+    expect(transferableFetchInit({ headers: new Set([new Set(["a", "b"])]) }).headers).toEqual([["a", "b"]]);
+    expect(
+      transferableFetchInit({ body: new URLSearchParams({ a: "1" }), headers: { "X-Trace": "t1" } }).headers
+    ).toEqual([
+      ["X-Trace", "t1"],
+      ["content-type", "application/x-www-form-urlencoded;charset=UTF-8"],
+    ]);
+    expect(
+      transferableFetchInit({ body: new URLSearchParams({ a: "1" }), headers: new Map([["a", "b"]]) }).headers
+    ).toEqual([
+      ["a", "b"],
+      ["content-type", "application/x-www-form-urlencoded;charset=UTF-8"],
+    ]);
   });
 });
