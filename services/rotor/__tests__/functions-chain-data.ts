@@ -88,6 +88,19 @@ export default async function(event, { log, fetch, store, retries, props: config
      throw new NoRetryError("Invalid data format - permanent failure")
 }`,
   },
+  functionUrlField: {
+    id: "functionUrlField",
+    workspaceId: "workspace1",
+    name: "Function Url Field",
+    codeHash: "functionUrlField-hash",
+    code: `export default async function(event, { log, fetch, store, props: config }) {
+  // the last function of the chain assigns a value with its own JSON form (a URL): the in-process response sends it as
+  // a string, and a worker must send the same
+  event.properties.link = new URL("https://example.com/a?b=1")
+  event.properties.counter = (event.properties.counter || 0) + 1
+  return event
+}`,
+  },
   function3: {
     id: "function3",
     workspaceId: "workspace1",
@@ -748,6 +761,33 @@ export const connections = {
     },
     credentials: {
       url: "http://localhost:3089/warehouse_real",
+      method: "POST",
+      headers: [],
+    },
+  },
+  url_field: {
+    id: "url_field",
+    workspaceId: "workspace1",
+    updatedAt: new Date(),
+    destinationId: "destination1",
+    streamId: "stream1",
+    usesBulker: false,
+    type: "webhook",
+    options: {
+      functions: [
+        {
+          functionId: "udf.function1",
+        },
+        {
+          functionId: "udf.function3",
+        },
+        {
+          functionId: "udf.functionUrlField",
+        },
+      ],
+    },
+    credentials: {
+      url: "http://localhost:3089/url_field",
       method: "POST",
       headers: [],
     },

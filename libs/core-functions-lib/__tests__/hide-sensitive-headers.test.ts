@@ -12,6 +12,21 @@ describe("hideSensitiveHeaders", () => {
   ];
   const expected = { Authorization: "*****", "X-Api-Token": "*****", "X-Trace": "t1" };
 
+  it("hides a header that carries registry or other auth material, in every form", async () => {
+    const { hideSensitiveHeaders } = await import("../src/functions/lib/index");
+    const authPairs: [string, string][] = [
+      ["X-Registry-Auth", "eyJ1c2VyIjoic2VjcmV0In0="],
+      ["X-Auth", "secret"],
+      ["X-Amz-Credential", "secret/20260101"],
+      ["X-Trace", "t1"],
+    ];
+    const hidden = { "X-Registry-Auth": "*****", "X-Auth": "*****", "X-Amz-Credential": "*****", "X-Trace": "t1" };
+    expect(hideSensitiveHeaders(Object.fromEntries(authPairs))).toEqual(hidden);
+    expect(hideSensitiveHeaders(authPairs)).toEqual(hidden);
+    expect(hideSensitiveHeaders(new Map(authPairs))).toEqual(hidden);
+    expect(JSON.stringify(hideSensitiveHeaders(new Headers(authPairs)))).not.toContain("eyJ1c2Vy");
+  });
+
   it("hides the sensitive headers whatever form they were passed in", async () => {
     const { hideSensitiveHeaders } = await import("../src/functions/lib/index");
     expect(hideSensitiveHeaders(Object.fromEntries(pairs))).toEqual(expected);

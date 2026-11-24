@@ -19,6 +19,7 @@ import type { FunctionExecLog } from "@jitsu/core-functions-lib";
 import { runFunctionChain, type ChainFunction } from "./udf-chain";
 import { retryErrorOf, errorMessageOf } from "./udf-placeholder";
 import { evaluateUdfIife, makeUdfRequire } from "./udf-require";
+import { toJsonEvents } from "./worker-result";
 import {
   deserializeResponse,
   hideSensitiveHeaders,
@@ -365,7 +366,8 @@ self.onmessage = async (e: MessageEvent<MainToWorkerMessage>) => {
         type: "result",
         requestId: msg.requestId,
         connectionId: msg.connectionId,
-        events,
+        // as the in-process response sends them: a URL or an object with toJSON would otherwise be cloned into `{}`
+        events: toJsonEvents(events),
         execLog,
         logs,
       };

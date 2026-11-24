@@ -140,6 +140,18 @@ const expectedEvents = {
     },
     context,
   },
+  // the URL a function put into the event reaches the destination as the string the in-process response makes of it
+  url_field_0: {
+    type: "track",
+    properties: {
+      first: "1st",
+      retries: 0,
+      counter: 3,
+      link: "https://example.com/a?b=1",
+      third: "3rd",
+    },
+    context,
+  },
   worker_after_crash_0: {
     type: "track",
     properties: {
@@ -659,6 +671,7 @@ describe.each(testModes)("Test Functions Chain ($name mode)", ({ name: modeName,
         "/store_seed": handlerF("store_seed"),
         "/store_other": handlerF("store_other"),
         "/fetch": handlerF("fetch"),
+        "/url_field": handlerF("url_field"),
         "/worker_crash": handlerF("worker_crash"),
         "/worker_after_crash": handlerF("worker_after_crash"),
         "/warehouse_real": handlerF("warehouse_real"),
@@ -784,6 +797,22 @@ describe.each(testModes)("Test Functions Chain ($name mode)", ({ name: modeName,
     } catch (e: any) {
       throw e;
     }
+  });
+
+  test("url_field", async () => {
+    const currentTestName = testName();
+    const connStore = getConnectionStoreForMode();
+    await rotorMessageHandler(
+      ingestMessage(currentTestName, messageId, incomingEvent),
+      rotorContext(connStore, funcStore, streamsStore),
+      "all",
+      { [CONNECTION_IDS_HEADER]: currentTestName },
+      true,
+      0,
+      5000
+    );
+    expect(lastError).toBeUndefined();
+    expect(counters[currentTestName]).toEqual(1);
   });
 
   test("noreturn", async () => {

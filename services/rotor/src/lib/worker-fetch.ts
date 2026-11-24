@@ -44,6 +44,8 @@ const nullBodyStatuses = new Set([101, 204, 205, 304]);
  * Proxy of one makes it throw, and the worker then drops the whole result. A header named like one of these methods
  * (`get`, `keys`...) is reached through the method.
  */
+const rebuiltResponseHeaders = new WeakSet<object>();
+
 function withPlainObjectHeaderAccess(headers: Headers): Headers {
   const plain: Record<string | symbol, any> = {};
   headers.forEach((value, name) => {
@@ -63,6 +65,7 @@ function withPlainObjectHeaderAccess(headers: Headers): Headers {
   for (const key of Reflect.ownKeys(methods)) {
     Object.defineProperty(plain, key, { value: methods[key], enumerable: false, configurable: true, writable: true });
   }
+  rebuiltResponseHeaders.add(plain);
   return plain as unknown as Headers;
 }
 
@@ -152,20 +155,25 @@ export function proxiedFetchTimeoutMs(requested: unknown, defaultMs: number): nu
 // response body, cut to a length the log can hold.
 
 /** The [name, value] pairs of request headers in any form fetch accepts: an object, a Headers or Map, or an array, Set or other iterable of pairs. */
-// A plain object (the headers of a rebuilt response, an object literal) is read by its own entries. The headers object of a
-// rebuilt response also has Headers methods as hidden properties, among them an iterator over the response's original
-// headers: following it would send the original headers and not the UDF's edits.
 function isPlainObject(x: any): boolean {
   if (!x || typeof x !== "object") return false;
   const proto = Object.getPrototypeOf(x);
   return proto === Object.prototype || proto === null;
 }
 
+// Headers that are read by their own entries: a plain object (an object literal, the headers of a rebuilt response). fetch
+// follows the iterator of an object that has one, as for an array of pairs, so such an object is not a record. The one
+// exception is the headers object of a rebuilt response, which has Headers methods as hidden properties, among them an
+// iterator over the response's original headers: following it would send the original headers and not the UDF's edits.
+function isHeaderRecord(x: any): boolean {
+  return isPlainObject(x) && (rebuiltResponseHeaders.has(x) || typeof x[Symbol.iterator] !== "function");
+}
+
 function headerPairs(headers: any): Array<[string, any]> {
   // An array, a Set, a Map, a Headers or a generator all iterate as [name, value] pairs. forEach does not: a Set calls back
   // with (value, value), which made the whole pair the name.
   if (
-    !isPlainObject(headers) &&
+    !isHeaderRecord(headers) &&
     headers &&
     typeof headers !== "string" &&
     typeof headers[Symbol.iterator] === "function"
@@ -208,7 +216,7 @@ export function transferableFetchInit(init: any): any {
  */
 function wirePairs(headers: any): Array<[string, string]> {
   if (
-    !isPlainObject(headers) &&
+    !isHeaderRecord(headers) &&
     headers &&
     typeof headers === "object" &&
     typeof headers[Symbol.iterator] === "function"
@@ -229,7 +237,7 @@ function wirePairs(headers: any): Array<[string, string]> {
 function transferableHeaders(init: any): any {
   const h = init && typeof init === "object" ? init.headers : undefined;
   const isIterable = (x: any) => x && typeof x === "object" && typeof x[Symbol.iterator] === "function";
-  if (!isPlainObject(h) && isIterable(h)) {
+  if (!isHeaderRecord(h) && isIterable(h)) {
     // an array, a Map or a Set clones as it is and can be read again, unless a pair in it is a one-shot iterator; anything
     // else (a Headers, a generator) is read here, once, and the same array serves the log entry and the request
     const cloneable = Array.isArray(h) || h instanceof Map || h instanceof Set;
@@ -240,10 +248,10 @@ function transferableHeaders(init: any): any {
   return init;
 }
 
-const SENSITIVE_HEADER = /authorization|token|cookie|secret|password|key(?![a-z])/i;
+const SENSITIVE_HEADER = /auth|token|cookie|secret|password|credential|key(?![a-z])/i;
 
 /**
- * Same rule as makeFetch: a header whose name contains "authorization", "token", "cookie", "secret" or "password", or has "key" as a word (api-key, subscription-key...) is hidden. The headers may be an object,
+ * Same rule as makeFetch: a header whose name contains "auth" (authorization, x-registry-auth...), "token", "cookie", "secret", "password" or "credential", or has "key" as a word (api-key, subscription-key...) is hidden. The headers may be an object,
  * a Headers or Map, or an array of [name, value] pairs: Object.entries of an array would give the keys "0", "1" and miss
  * the name.
  */

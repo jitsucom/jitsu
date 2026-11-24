@@ -253,6 +253,21 @@ describe("fetch log details", () => {
     expect(transferableFetchInit(map)).toBe(map);
   });
 
+  it("hides a header that carries registry or other auth material, in every form", () => {
+    const pairs: [string, string][] = [
+      ["X-Registry-Auth", "eyJ1c2VyIjoic2VjcmV0In0="],
+      ["X-Auth", "secret"],
+      ["X-Amz-Credential", "secret/20260101"],
+      ["X-Trace", "t1"],
+    ];
+    const expected = { "X-Registry-Auth": "*****", "X-Auth": "*****", "X-Amz-Credential": "*****", "X-Trace": "t1" };
+    expect(hideSensitiveHeaders(Object.fromEntries(pairs))).toEqual(expected);
+    expect(hideSensitiveHeaders(pairs)).toEqual(expected);
+    expect(hideSensitiveHeaders(new Map(pairs))).toEqual(expected);
+    expect(JSON.stringify(hideSensitiveHeaders(new Headers(pairs)))).not.toContain("secret");
+    expect(JSON.stringify(hideSensitiveHeaders(new Headers(pairs)))).not.toContain("eyJ1c2Vy");
+  });
+
   it("hides cookies, in a Headers as in an object", () => {
     expect(hideSensitiveHeaders(new Headers({ Cookie: "sid=secret", "X-Trace": "t1" }))).toEqual({
       cookie: "*****",
@@ -536,6 +551,40 @@ describe("the init of a proxied fetch crosses the worker boundary", () => {
     expect(transferableFetchInit({ method: "GET" })).toEqual({ method: "GET" });
     expect(transferableFetchInit(undefined)).toBeUndefined();
     expect(transferableFetchInit(null)).toBeNull();
+  });
+
+  // fetch follows the iterator of an object that has one, as it does for an array of pairs; structured clone drops a symbol
+  // property, so such an object has to become pairs before it is sent
+  it("turns an object with its own iterator of [name, value] pairs into pairs", () => {
+    const headers = {
+      *[Symbol.iterator]() {
+        yield ["Authorization", "Bearer secret"];
+        yield ["X-Trace", "t1"];
+      },
+    };
+    const sent = transferableFetchInit({ headers });
+    expect(sent.headers).toEqual([
+      ["Authorization", "Bearer secret"],
+      ["X-Trace", "t1"],
+    ]);
+    expect(hideSensitiveHeaders(sent.headers)).toEqual({ Authorization: "*****", "X-Trace": "t1" });
+    // and it survives the clone a worker message makes
+    expect(structuredClone(sent).headers).toEqual(sent.headers);
+  });
+
+  it("keeps reading the headers of a rebuilt response by their own entries, edits included", () => {
+    const res = deserializeResponse({
+      status: 200,
+      statusText: "OK",
+      headers: [["x-one", "1"]],
+      body: "",
+    } as any);
+    const headers: any = res.headers;
+    headers["x-one"] = "edited";
+    headers["x-added"] = "2";
+    const init = { headers };
+    expect(transferableFetchInit(init)).toBe(init);
+    expect(hideSensitiveHeaders(headers)).toEqual({ "x-one": "edited", "x-added": "2" });
   });
 
   it("does not change the init the UDF passed", () => {
