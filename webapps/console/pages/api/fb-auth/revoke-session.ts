@@ -14,7 +14,12 @@ import { trackAuthEvent } from "../../../lib/server/telemetry";
 const log = getServerLog("firebase");
 
 export default createRoute()
-  .GET({ auth: true })
+  .GET({
+    auth: true,
+    // Signs the user out everywhere, so a link on another site must not be able to trigger it. Not `mutates`: logging
+    // out has to keep working during maintenance.
+    rejectCrossSite: true,
+  })
   .handler(async ({ req, body, res, user }) => {
     // revokes every session of the account, so a key limited to a workspace or role may not call it
     assertNotLimitedKey(user);
