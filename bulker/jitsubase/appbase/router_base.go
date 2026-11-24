@@ -1,7 +1,9 @@
 package appbase
 
 import (
+	"crypto/sha256"
 	"crypto/sha512"
+	"crypto/subtle"
 	"encoding/base64"
 	"errors"
 	"fmt"
@@ -121,17 +123,17 @@ func (r *Router) authMiddleware(c *gin.Context) {
 		hex := IsHexRegex.MatchString(hash)
 		for _, secret := range r.tokenSecrets {
 			if hex {
-				if HashTokenHex(token, salt, utils.Nvl(secret, DefaultSeed)) == hash {
+				if SecureEqual(HashTokenHex(token, salt, utils.Nvl(secret, DefaultSeed)), hash) {
 					return
 				}
-			} else if HashTokenBase64(token, salt, secret) == hash {
+			} else if SecureEqual(HashTokenBase64(token, salt, secret), hash) {
 				//logging.Debugf("Token %s is valid", token)
 				return
 			}
 		}
 	}
 	for _, rawAuthToken := range r.rawAuthTokens {
-		if token == rawAuthToken {
+		if SecureEqual(token, rawAuthToken) {
 			return
 		}
 	}
@@ -227,4 +229,18 @@ type RouterError struct {
 	Error       error
 	PublicError error
 	ErrorType   string
+}
+
+// constantTimeEquals compares two byte slices of the same length in constant time. A variable so that a test can see that the
+// token checks go through it.
+var constantTimeEquals = subtle.ConstantTimeCompare
+
+// SecureEqual reports whether two strings are equal, in a time that does not depend on how much of them matches. A compare
+// with == stops at the first different byte, and the time it takes tells a caller how many leading bytes of a token were
+// right. Both strings are hashed first: the digests have the same length whatever the strings are, so the length of a token
+// does not show either.
+func SecureEqual(a, b string) bool {
+	da := sha256.Sum256([]byte(a))
+	db := sha256.Sum256([]byte(b))
+	return constantTimeEquals(da[:], db[:]) == 1
 }
