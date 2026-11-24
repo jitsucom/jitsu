@@ -203,6 +203,8 @@ export default async function(event, { fetch, log, props: config }) {
   log.info("legacy-headers=" + res.headers["content-type"] + "|" + Object.keys(res.headers).includes("content-type"))
   log.info("legacy-body=" + JSON.parse(res.body).message)
   log.info("headers-in-log", res.headers)
+  // a whole response in a log call: a worker clones its result with postMessage, which a Response does not survive
+  log.info("response-in-log", res)
   const text = await res.text()
   const body = await res.json()
   event.properties.reread = JSON.parse(text).message
@@ -220,6 +222,18 @@ export default async function(event, { fetch, log, props: config }) {
     codeHash: "functionThrowsNull-hash",
     code: `throw null
 export default async function(event) {
+  return event
+}`,
+  },
+  // an uncaught exception in a timer callback ends the worker that runs it
+  functionTimerThrow: {
+    id: "functionTimerThrow",
+    workspaceId: "workspace1",
+    name: "Function Timer Throw",
+    codeHash: "functionTimerThrow-hash",
+    code: `export default async function(event) {
+  setTimeout(() => { throw new Error("timer boom") }, 10)
+  await new Promise(resolve => setTimeout(resolve, 1500))
   return event
 }`,
   },
@@ -242,6 +256,33 @@ export default async function(event) {
 };
 
 export const connections = {
+  worker_crash: {
+    id: "worker_crash",
+    workspaceId: "workspace1",
+    updatedAt: new Date(),
+    destinationId: "destination1",
+    streamId: "stream1",
+    usesBulker: false,
+    type: "webhook",
+    options: {
+      functions: [{ functionId: "udf.functionTimerThrow" }],
+    },
+    credentials: { url: "http://localhost:3089/worker_crash", method: "POST", headers: [] },
+  },
+  // same chain as "simple", in the same workspace as worker_crash: it is served by the same worker
+  worker_after_crash: {
+    id: "worker_after_crash",
+    workspaceId: "workspace1",
+    updatedAt: new Date(),
+    destinationId: "destination1",
+    streamId: "stream1",
+    usesBulker: false,
+    type: "webhook",
+    options: {
+      functions: [{ functionId: "udf.function1" }, { functionId: "udf.function2" }, { functionId: "udf.function3" }],
+    },
+    credentials: { url: "http://localhost:3089/worker_after_crash", method: "POST", headers: [] },
+  },
   simple: {
     id: "simple",
     workspaceId: "workspace1",

@@ -172,26 +172,22 @@ function headerPairs(headers: any): Array<[string, any]> {
  */
 export function transferableFetchInit(init: any): any {
   const h = init && typeof init === "object" ? init.headers : undefined;
-  // a Headers, or a one-shot iterable such as a generator of pairs (an array, a Map or a Set clones as it is and can be read
-  // again). A generator can be read once, so the pairs are read here, once, and the same array serves the log entry and the
-  // request.
-  if (
-    h &&
-    typeof h === "object" &&
-    !Array.isArray(h) &&
-    !(h instanceof Map) &&
-    !(h instanceof Set) &&
-    typeof h[Symbol.iterator] === "function"
-  ) {
-    return { ...init, headers: headerPairs(h).map(([name, value]) => [name, String(value)]) };
+  const isIterable = (x: any) => x && typeof x === "object" && typeof x[Symbol.iterator] === "function";
+  if (isIterable(h)) {
+    // an array, a Map or a Set clones as it is and can be read again, unless a pair in it is a one-shot iterator; anything
+    // else (a Headers, a generator) is read here, once, and the same array serves the log entry and the request
+    const cloneable = Array.isArray(h) || h instanceof Map || h instanceof Set;
+    if (!cloneable || (!(h instanceof Map) && [...h].some(p => isIterable(p) && !Array.isArray(p)))) {
+      return { ...init, headers: headerPairs(h).map(([name, value]) => [name, String(value)]) };
+    }
   }
   return init;
 }
 
-const SENSITIVE_HEADER = /authorization|token|cookie/i;
+const SENSITIVE_HEADER = /authorization|token|cookie|api[-_]?key|secret|password/i;
 
 /**
- * Same rule as makeFetch: a header whose name contains "authorization", "token" or "cookie" is hidden. The headers may be an object,
+ * Same rule as makeFetch: a header whose name contains "authorization", "token", "cookie", "api-key", "secret" or "password" is hidden. The headers may be an object,
  * a Headers or Map, or an array of [name, value] pairs: Object.entries of an array would give the keys "0", "1" and miss
  * the name.
  */

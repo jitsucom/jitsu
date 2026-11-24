@@ -34,6 +34,21 @@ describe("hideSensitiveHeaders", () => {
   });
 
   // Headers used to log nothing (Object.entries of a Headers is empty); iterating it exposes a Cookie, which the mask missed.
+  it("hides API keys, secrets and passwords by name", async () => {
+    const { hideSensitiveHeaders } = await import("../src/functions/lib/index");
+    expect(
+      hideSensitiveHeaders(
+        new Headers({ "X-API-Key": "k", apikey: "k3", "X-Client-Secret": "s", Password: "p", "X-Trace": "t1" })
+      )
+    ).toEqual({
+      "x-api-key": "*****",
+      apikey: "*****",
+      "x-client-secret": "*****",
+      password: "*****",
+      "x-trace": "t1",
+    });
+  });
+
   it("hides cookies, in a Headers as in an object", async () => {
     const { hideSensitiveHeaders } = await import("../src/functions/lib/index");
     expect(hideSensitiveHeaders(new Headers({ Cookie: "sid=secret", "X-Trace": "t1" }))).toEqual({
@@ -78,6 +93,17 @@ describe("reusableHeadersInit", () => {
       ["X-Trace", "t1"],
     ]);
     expect(init!.method).toBe("POST");
+    // pairs that are one-shot iterators, inside an array or a Set: reading them for the log must leave them for the request
+    const pair = () =>
+      (function* () {
+        yield "Authorization";
+        yield "Bearer secret";
+      })();
+    for (const nested of [[pair()], new Set([pair()])]) {
+      const init2 = reusableHeadersInit({ headers: nested });
+      expect(hideSensitiveHeaders(init2!.headers)).toEqual({ Authorization: "*****" });
+      expect(init2!.headers).toEqual([["Authorization", "Bearer secret"]]);
+    }
     const headers = new Headers({ a: "b" });
     const withHeaders = { headers };
     expect(reusableHeadersInit(withHeaders)!.headers).toBe(headers);

@@ -139,6 +139,17 @@ const expectedEvents = {
     },
     context,
   },
+  worker_after_crash_0: {
+    type: "track",
+    properties: {
+      retries: 0,
+      first: "1st",
+      counter: 3,
+      second: "2nd",
+      third: "3rd",
+    },
+    context,
+  },
   env_0: {
     type: "track",
     properties: {
@@ -634,6 +645,8 @@ describe.each(testModes)("Test Functions Chain ($name mode)", ({ name: modeName,
         "/store_seed": handlerF("store_seed"),
         "/store_other": handlerF("store_other"),
         "/fetch": handlerF("fetch"),
+        "/worker_crash": handlerF("worker_crash"),
+        "/worker_after_crash": handlerF("worker_after_crash"),
         "/warehouse_real": handlerF("warehouse_real"),
         "/fetch-source": fetchSourceHandler,
       },
@@ -842,6 +855,49 @@ describe.each(testModes)("Test Functions Chain ($name mode)", ({ name: modeName,
       throw e;
     }
   });
+
+  // An uncaught exception in a timer callback ends the worker. The pool has to drop it, so that the next request of the
+  // workspace gets a new worker, and what was running in it has to fail at once: a dead worker answers nothing. Only a
+  // worker mode has workers.
+  test("worker_crash", async () => {
+    if (functionsClass !== "free" && !isolate) {
+      return;
+    }
+    const connStore = getConnectionStoreForMode();
+    const crashStarted = Date.now();
+    let crashError: any;
+    try {
+      await rotorMessageHandler(
+        ingestMessage("worker_crash", messageId, incomingEvent),
+        rotorContext(connStore, funcStore, streamsStore),
+        "all",
+        { [CONNECTION_IDS_HEADER]: "worker_crash" },
+        true,
+        0,
+        5000
+      );
+    } catch (e: any) {
+      crashError = e;
+    }
+    // the execution of the crashed worker fails when the worker dies (well before its 1.5 s of waiting is over or its
+    // timeout), and the webhook is never reached
+    expect(crashError).toBeDefined();
+    expect(Date.now() - crashStarted).toBeLessThan(1200);
+    expect(counters["worker_crash"]).toBeUndefined();
+    // another connection of the same workspace runs in a new worker
+    lastError = undefined;
+    await rotorMessageHandler(
+      ingestMessage("worker_after_crash", messageId, incomingEvent),
+      rotorContext(connStore, funcStore, streamsStore),
+      "all",
+      { [CONNECTION_IDS_HEADER]: "worker_after_crash" },
+      true,
+      0,
+      5000
+    );
+    expect(lastError).toBeUndefined();
+    expect(counters["worker_after_crash"]).toEqual(1);
+  }, 60000);
 
   test("drop_retry", async () => {
     const currentTestName = testName();
@@ -1151,6 +1207,11 @@ describe.each(testModes)("Test Functions Chain ($name mode)", ({ name: modeName,
         .map(e => e.msg)
         .find(m => String(m?.message?.text).startsWith("fetch-error-codes="));
       expect(errorCodes?.message.text).toBe("fetch-error-codes=EBLOCKED|undefined");
+      // the event arrives (the checks above), and the response is logged as its data in every runtime that is a worker
+      if (functionsClass === "free" || isolate) {
+        const responseLog = loggedEntries.map(e => e.msg).find(m => m?.message?.text === "response-in-log");
+        expect(responseLog?.message.args?.[0]?.status).toBe(200);
+      }
       const generatorAuth = loggedEntries
         .map(e => e.msg)
         .find(m => String(m?.message?.text).startsWith("generator-auth="));

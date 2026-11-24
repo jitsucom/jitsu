@@ -739,13 +739,26 @@ class LazyWorkerPool {
 
     log.atInfo().log(`Spawning worker for workspace ${workspaceId} (${conns.length} connections)`);
     const store = this.storeFactory(workspaceId);
-    const ws = createWorkspaceWorker(workspaceId, conns, store, this.conEntityStore);
+    const ws = createWorkspaceWorker(workspaceId, conns, store, this.conEntityStore, failed =>
+      this.drop(workspaceId, failed)
+    );
     await ws.ready;
 
     this.workers.set(workspaceId, { ws, lastUsedAt: Date.now() });
     promActiveWorkers.labels(deploymentId).set(this.workers.size);
     log.atInfo().log(`Worker ready for workspace ${workspaceId} (${this.workers.size} active)`);
     return ws;
+  }
+
+  /** Forgets a worker that has died, unless the workspace already has a newer one. */
+  private drop(workspaceId: string, ws: WorkspaceWorker) {
+    const entry = this.workers.get(workspaceId);
+    if (!entry || entry.ws !== ws) return;
+    this.workers.delete(workspaceId);
+    promWorkerHeapUsed.remove(deploymentId, workspaceId);
+    promWorkerHeapTotal.remove(deploymentId, workspaceId);
+    promActiveWorkers.labels(deploymentId).set(this.workers.size);
+    log.atWarn().log(`Dropped the failed worker of workspace ${workspaceId} (${this.workers.size} active)`);
   }
 
   private evict() {
@@ -885,7 +898,9 @@ function createWorkspaceWorker(
   workspaceId: string,
   connections: WorkerConnectionInit[],
   store: TTLStore,
-  conEntityStore: EntityStore<EnrichedConnectionConfig>
+  conEntityStore: EntityStore<EnrichedConnectionConfig>,
+  // called once when the worker has died, so the pool can stop handing it out
+  onFailed?: (ws: WorkspaceWorker) => void
 ): WorkspaceWorker {
   const worker = new Worker(getWorkerUrl(), {
     type: "module",
@@ -898,9 +913,12 @@ function createWorkspaceWorker(
   const execTimeouts = new Map<string, number>();
   const connectionIds = new Set(connections.map(c => c.connectionId));
   let readyResolve: () => void;
-  const readyPromise = new Promise<void>(resolve => {
+  let readyReject: (e: Error) => void;
+  const readyPromise = new Promise<void>((resolve, reject) => {
     readyResolve = resolve;
+    readyReject = reject;
   });
+  const ws: WorkspaceWorker = { workspaceId, worker, pending: pendingExec, execTimeouts, ready: readyPromise };
 
   worker.onmessage = async (e: MessageEvent<WorkerToMainMessage>) => {
     const msg = e.data;
@@ -982,18 +1000,32 @@ function createWorkspaceWorker(
     }
   };
 
+  let failed = false;
   worker.onerror = e => {
     // Deno passes an error the worker did not handle on to the main thread, where it ends the whole server and every other
     // workspace with it. The error is logged here and stays with the worker.
     e.preventDefault?.();
     log.atError().log(`Worker error for workspace ${workspaceId}: ${e.message}`);
+    // An uncaught exception (in a timer callback, say) ends the worker, and a dead worker answers nothing: what was
+    // waiting for it fails now, and the pool stops handing it out, so the next request spawns a new one.
+    if (failed) return;
+    failed = true;
+    try {
+      worker.terminate();
+    } catch (_) {}
+    const reason = new Error(`Worker of workspace ${workspaceId} failed: ${e.message}`);
+    for (const p of [...pendingExec.values()]) {
+      p.reject(reason);
+    }
+    readyReject!(reason);
+    onFailed?.(ws);
   };
 
   // Send init message
   const initMsg: InitMessage = { type: "init", connections };
   worker.postMessage(initMsg);
 
-  return { workspaceId, worker, pending: pendingExec, execTimeouts, ready: readyPromise };
+  return ws;
 }
 
 async function execInWorker(

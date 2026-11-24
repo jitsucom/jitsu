@@ -702,8 +702,8 @@ export const makeFetch = (
 };
 
 /**
- * The init to log and to send. Headers given as a generator (or any one-shot iterable) of [name, value] pairs can be read
- * once: logging them with their sensitive values hidden used them up, and the request left without headers. They become an
+ * The init to log and to send. Headers given as a generator (or any one-shot iterable) of [name, value] pairs, or pairs that are
+ * themselves generators, can be read once: logging them with their sensitive values hidden used them up, and the request left without headers. They become an
  * array of pairs here, which can be read any number of times. A Headers, an object or an array is left as it is.
  */
 export function reusableHeadersInit<T extends { headers?: any } | undefined>(init: T): T {
@@ -711,13 +711,14 @@ export function reusableHeadersInit<T extends { headers?: any } | undefined>(ini
   if (
     h &&
     typeof h === "object" &&
-    !Array.isArray(h) &&
     !(typeof Headers !== "undefined" && h instanceof Headers) &&
-    !(h instanceof Map) &&
-    !(h instanceof Set) &&
     typeof h[Symbol.iterator] === "function"
   ) {
-    return { ...init, headers: [...h] } as T;
+    // the outer iterable and each pair are read here, once: either may be a generator
+    const pairs = [...h].map((p: any) =>
+      p && typeof p === "object" && !Array.isArray(p) && typeof p[Symbol.iterator] === "function" ? [...p] : p
+    );
+    return { ...init, headers: pairs } as T;
   }
   return init;
 }
@@ -736,10 +737,10 @@ function headerPairs(headers: any): Array<[string, any]> {
   return Object.entries(headers ?? {});
 }
 
-const SENSITIVE_HEADER = /authorization|token|cookie/i;
+const SENSITIVE_HEADER = /authorization|token|cookie|api[-_]?key|secret|password/i;
 
 /**
- * A header whose name contains "authorization", "token" or "cookie" is hidden in the logged request. The headers may be an object, a
+ * A header whose name contains "authorization", "token", "cookie", "api-key", "secret" or "password" is hidden in the logged request. The headers may be an object, a
  * Headers or Map, or an array of [name, value] pairs: Object.entries of an array would give the keys "0", "1" and miss the
  * name. The same rule is in services/rotor/src/lib/worker-fetch.ts, which cannot import this library into the workers.
  */

@@ -210,6 +210,47 @@ describe("fetch log details", () => {
     expect(transferableFetchInit(plain)).toBe(plain);
   });
 
+  it("hides API keys, secrets and passwords by name", () => {
+    expect(
+      hideSensitiveHeaders(
+        new Headers({
+          "X-API-Key": "k",
+          "X-Api_Key": "k2",
+          apikey: "k3",
+          "X-Client-Secret": "s",
+          Password: "p",
+          "X-Trace": "t1",
+        })
+      )
+    ).toEqual({
+      "x-api-key": "*****",
+      "x-api_key": "*****",
+      apikey: "*****",
+      "x-client-secret": "*****",
+      password: "*****",
+      "x-trace": "t1",
+    });
+  });
+
+  // an array of pairs that are generators: reading the pairs for the log used them up before the request was sent
+  it("sends on header pairs that are one-shot iterators, in an array, a Set or a Map entry list", () => {
+    const pair = () =>
+      (function* () {
+        yield "Authorization";
+        yield "Bearer secret";
+      })();
+    for (const headers of [[pair()], new Set([pair()])]) {
+      const init = transferableFetchInit({ headers });
+      expect(init.headers).toEqual([["Authorization", "Bearer secret"]]);
+      expect(hideSensitiveHeaders(init.headers)).toEqual({ Authorization: "*****" });
+    }
+    // arrays of arrays and Maps already clone and read again: left as they are
+    const plain = { headers: [["a", "b"]] };
+    expect(transferableFetchInit(plain)).toBe(plain);
+    const map = { headers: new Map([["a", "b"]]) };
+    expect(transferableFetchInit(map)).toBe(map);
+  });
+
   it("hides cookies, in a Headers as in an object", () => {
     expect(hideSensitiveHeaders(new Headers({ Cookie: "sid=secret", "X-Trace": "t1" }))).toEqual({
       cookie: "*****",
