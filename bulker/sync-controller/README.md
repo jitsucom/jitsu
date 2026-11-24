@@ -22,7 +22,7 @@ All request should have `Authorization` header with value `Bearer ${token}`.
 Token should be one of the tokens defined in `SYNCCTL_AUTH_TOKENS` env variable,
 [see configuration section](#configuration).
 
-If `SYNCCTL_AUTH_TOKENS` is not configured, then no authorization is required.
+If neither `SYNCCTL_AUTH_TOKENS` nor `SYNCCTL_RAW_AUTH_TOKENS` is configured, the service refuses to start. Set `SYNCCTL_AUTH_DISABLED=true` to run without authorization (local development only). It has no effect when tokens are configured.
 
 ## Endpoints
 

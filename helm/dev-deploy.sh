@@ -579,6 +579,7 @@ ensure_secrets() {
         --from-literal="RAW_AUTH_TOKENS=$auth_token"
         --from-literal="BULKER_AUTH_KEY=$auth_token"
         --from-literal="ROTOR_AUTH_KEY=$auth_token"
+        --from-literal="ROTOR_RAW_AUTH_TOKENS=$auth_token"
         --from-literal="SYNCCTL_AUTH_KEY=$auth_token"
         --from-literal="CONSOLE_RAW_AUTH_TOKENS=$auth_token"
         --from-literal="REPOSITORY_AUTH_TOKEN=service-admin-account:$auth_token"
