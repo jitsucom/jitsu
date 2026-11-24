@@ -1,3 +1,4 @@
+import { signFunctionsRequest } from "juava/src/functions-auth";
 import { getLog } from "juava";
 import { createServer, SimpleSyrup } from "./simple-syrup";
 import { functionFilter, rotorMessageHandler } from "../src/lib/message-handler";
@@ -617,6 +618,19 @@ describe.each(testModes)("Test Functions Chain ($name mode)", ({ name: modeName,
         res.send({ receivedAuthorization: req.headers.authorization ?? null });
         return;
       }
+      // echoes the raw body and content type of a form request
+      if (String(req.url).includes("echo=2")) {
+        const chunks: Buffer[] = [];
+        req.on("data", (c: Buffer) => chunks.push(c));
+        req.on("end", () => {
+          res.setHeader("Content-Type", "application/json");
+          res.send({
+            received: Buffer.concat(chunks).toString("utf8"),
+            contentType: req.headers["content-type"] ?? null,
+          });
+        });
+        return;
+      }
       // Answers after 3 s: longer than the 2 s FETCH_TIMEOUT_MS default and shorter than the 5 s request timeout the
       // test passes, so it only succeeds when the requested timeout reaches the fetch (also through the worker proxy).
       setTimeout(() => {
@@ -897,6 +911,28 @@ describe.each(testModes)("Test Functions Chain ($name mode)", ({ name: modeName,
     );
     expect(lastError).toBeUndefined();
     expect(counters["worker_after_crash"]).toEqual(1);
+  }, 60000);
+
+  // The functions server answers a /multi call with HTTP 200 and an error entry per connection when a chain throws, and the
+  // ingest drops the events of those connections. A worker that died is not a failure of the chain: the call has to fail as
+  // a whole (the ingest then sees a service failure, as it did when the dead worker made the call time out).
+  test("worker_crash_multi", async () => {
+    if (functionsClass !== "free" && !isolate) {
+      return;
+    }
+    const url = `${functionsServer!.baseUrl}/multi?ids=worker_crash,worker_after_crash&fullEvents=true`;
+    const body = JSON.stringify(ingestMessage("worker_crash", messageId, incomingEvent));
+    const started = Date.now();
+    const res = await fetch(url, {
+      method: "POST",
+      body,
+      headers: {
+        "content-type": "application/json",
+        ...signFunctionsRequest(process.env.FUNCTIONS_SERVER_PRIVATE_KEY!, functionsClass, url, body),
+      },
+    });
+    expect(Date.now() - started).toBeLessThan(5000);
+    expect(res.status).toBe(500);
   }, 60000);
 
   test("drop_retry", async () => {
@@ -1188,7 +1224,7 @@ describe.each(testModes)("Test Functions Chain ($name mode)", ({ name: modeName,
           e =>
             e.msg.type === "http-request" &&
             String(e.msg.url).includes("/fetch-source") &&
-            !String(e.msg.url).includes("echo=1")
+            !String(e.msg.url).includes("echo=")
         )
         .map(e => e.msg);
       expect(httpLogs).toHaveLength(1);
@@ -1212,6 +1248,11 @@ describe.each(testModes)("Test Functions Chain ($name mode)", ({ name: modeName,
         const responseLog = loggedEntries.map(e => e.msg).find(m => m?.message?.text === "response-in-log");
         expect(responseLog?.message.args?.[0]?.status).toBe(200);
       }
+      // a URLSearchParams body reaches the server as the form it is (a worker sends it through postMessage)
+      const formBody = loggedEntries.map(e => e.msg).find(m => String(m?.message?.text).startsWith("form-body="));
+      expect(formBody?.message.text).toBe(
+        "form-body=grant_type=client_credentials&note=a+b|application/x-www-form-urlencoded;charset=UTF-8"
+      );
       const generatorAuth = loggedEntries
         .map(e => e.msg)
         .find(m => String(m?.message?.text).startsWith("generator-auth="));

@@ -185,6 +185,10 @@ export default async function(event, { fetch, log, props: config }) {
   // headers given as a generator of pairs can be read once: logging them must not use them up before the request is sent
   const gen = await fetch(config.FETCH_URL + "?echo=1", { headers: (function* () { yield ["Authorization", "Bearer from-generator"] })() })
   log.info("generator-auth=" + (await gen.json()).receivedAuthorization)
+  // a URLSearchParams body (an OAuth token request) has to arrive as the form it is, also from a worker (postMessage)
+  const form = await fetch(config.FETCH_URL + "?echo=2", { method: "POST", body: new URLSearchParams({ grant_type: "client_credentials", note: "a b" }) })
+  const formJson = await form.json()
+  log.info("form-body=" + formJson.received + "|" + formJson.contentType)
   // a pair that is a Set (any iterable of two items) is a valid pair for fetch
   const setPair = await fetch(config.FETCH_URL + "?echo=1", { headers: (function* () { yield new Set(["Authorization", "Bearer from-set-pair"]) })() })
   log.info("set-pair-auth=" + (await setPair.json()).receivedAuthorization)

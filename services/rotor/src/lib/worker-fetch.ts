@@ -171,6 +171,21 @@ function headerPairs(headers: any): Array<[string, any]> {
  * init the UDF passed is not changed.
  */
 export function transferableFetchInit(init: any): any {
+  const prepared = transferableHeaders(init);
+  const body = prepared?.body;
+  if (typeof URLSearchParams !== "undefined" && body instanceof URLSearchParams) {
+    // postMessage turns it into a plain object, and fetch would send "[object Object]": it goes as the text fetch makes of it,
+    // with the content type fetch gives it unless the caller set one
+    const headers = headerPairs(prepared.headers).map(([name, value]) => [name, String(value)]);
+    if (!headers.some(([name]) => name.toLowerCase() === "content-type")) {
+      headers.push(["content-type", "application/x-www-form-urlencoded;charset=UTF-8"]);
+    }
+    return { ...prepared, body: body.toString(), headers };
+  }
+  return prepared;
+}
+
+function transferableHeaders(init: any): any {
   const h = init && typeof init === "object" ? init.headers : undefined;
   const isIterable = (x: any) => x && typeof x === "object" && typeof x[Symbol.iterator] === "function";
   if (isIterable(h)) {

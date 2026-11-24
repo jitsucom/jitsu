@@ -690,6 +690,14 @@ class WorkerRuntime implements FunctionRuntime {
 const WORKER_TTL_MS = parseNumber(env.WORKER_TTL_MS, 600_000);
 const WORKER_TTL_CHECK_MS = 60000;
 
+// What a caller waiting for a worker is told when the worker itself is gone (it died, or it was evicted under the call). It
+// is not an error of the UDF chain: /multi lets it fail the whole call instead of recording it as the chain's result.
+const WORKER_FAILED_ERROR = "WorkerFailedError";
+
+function workerFailedError(message: string): Error {
+  return Object.assign(new Error(message), { name: WORKER_FAILED_ERROR });
+}
+
 type LazyWorkerEntry = {
   ws: WorkspaceWorker;
   lastUsedAt: number;
@@ -777,7 +785,7 @@ class LazyWorkerPool {
         // a terminated worker answers nothing: settle what was waiting for it, so a caller does not wait for a result
         // that cannot come (it gets an error at once instead of at its own timeout)
         for (const p of [...entry.ws.pending.values()]) {
-          p.reject(new Error(`Worker of workspace ${wsId} was evicted before the execution finished`));
+          p.reject(workerFailedError(`Worker of workspace ${wsId} was evicted before the execution finished`));
         }
       }
     }
@@ -1013,7 +1021,7 @@ function createWorkspaceWorker(
     try {
       worker.terminate();
     } catch (_) {}
-    const reason = new Error(`Worker of workspace ${workspaceId} failed: ${e.message}`);
+    const reason = workerFailedError(`Worker of workspace ${workspaceId} failed: ${e.message}`);
     for (const p of [...pendingExec.values()]) {
       p.reject(reason);
     }
@@ -1310,6 +1318,9 @@ async function main() {
         const eventContext = createEventContextFromMessage(message, runtime.getConnection());
         return await runtime.runChain(connectionId, event, eventContext, functionsFetchTimeout);
       } catch (e: any) {
+        // a worker that is gone fails the call: the ingest then sees a service failure (as when the call timed out), and does
+        // not take the empty result of the chain for a processed event
+        if (e?.name === WORKER_FAILED_ERROR) throw e;
         const errorMessage = `${e.name}: ${e.message}`;
         log.atError().log(`[multi] Error processing connection ${connectionId}: ${errorMessage}`);
         return {

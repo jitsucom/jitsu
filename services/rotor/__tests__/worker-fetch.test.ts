@@ -657,3 +657,40 @@ describe("whether a fetch call is logged is decided when the call starts", () =>
     expect(shouldLogFetchCall("debug", debugTill, { log: true }, 11_000)).toBe(false);
   });
 });
+
+// A body goes to the main process with postMessage. In Deno a URLSearchParams arrives as a plain object, and fetch sends
+// "[object Object]" as text/plain (an OAuth token request is the usual case). It is encoded in the worker, with the content
+// type it would have sent. (A FormData is not handled: in the functions server it is not sent as a form in process either.)
+describe("a URLSearchParams body", () => {
+  const typeOf = (init: any) =>
+    Object.fromEntries((init.headers as [string, string][]).map(([k, v]) => [k.toLowerCase(), v]))["content-type"];
+
+  it("is encoded as the form text, with the form content type", () => {
+    const original = { method: "POST", body: new URLSearchParams({ a: "1 2", b: "x" }) };
+    const init = transferableFetchInit(original);
+    expect(init.method).toBe("POST");
+    expect(init.body).toBe("a=1+2&b=x");
+    expect(typeOf(init)).toBe("application/x-www-form-urlencoded;charset=UTF-8");
+    // the init the UDF passed is not changed
+    expect(original.body).toBeInstanceOf(URLSearchParams);
+  });
+
+  it("keeps the content type the caller set, and the other headers", () => {
+    const init = transferableFetchInit({
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded; charset=utf-8", "X-Trace": "t1" },
+      body: new URLSearchParams({ a: "1" }),
+    });
+    expect(init.headers).toEqual([
+      ["Content-Type", "application/x-www-form-urlencoded; charset=utf-8"],
+      ["X-Trace", "t1"],
+    ]);
+    expect(init.body).toBe("a=1");
+  });
+
+  it("leaves every other init alone", () => {
+    for (const init of [undefined, {}, { method: "POST", body: "text" }, { body: new Uint8Array([1, 2]) }]) {
+      expect(transferableFetchInit(init)).toBe(init);
+    }
+  });
+});
