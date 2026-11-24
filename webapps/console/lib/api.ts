@@ -27,6 +27,7 @@ import {
 } from "./server/oidc-token-service";
 import { OidcSessionData } from "./server/oidc-types";
 import { isSecure } from "./server/origin";
+import { loggableUrl } from "./server/loggable-url";
 import {
   WorkspaceRoleType,
   hasPermission,
@@ -410,9 +411,9 @@ export function nextJsApiHandler(api: Api): NextApiHandler {
             log
               .atWarn()
               .log(
-                `rate limit exceeded: ${req.method} ${req.url} bucket=${rl.bucket} limit=${rl.limit} retryAfterSec=${
-                  rl.retryAfterSec
-                } user=${currentUser?.internalId ?? "anon"}`
+                `rate limit exceeded: ${req.method} ${loggableUrl(req.url)} bucket=${rl.bucket} limit=${
+                  rl.limit
+                } retryAfterSec=${rl.retryAfterSec} user=${currentUser?.internalId ?? "anon"}`
               );
             res.setHeader("Retry-After", String(rl.retryAfterSec));
             res.status(429).json({
@@ -429,7 +430,10 @@ export function nextJsApiHandler(api: Api): NextApiHandler {
           // Fail closed: the limiter store is unavailable, so we reject rather than
           // silently letting everyone through. A future per-route failOpen flag can
           // carve exceptions when we need them.
-          log.atWarn().withCause(e).log(`rate limiter unavailable for ${req.method} ${req.url}`);
+          log
+            .atWarn()
+            .withCause(e)
+            .log(`rate limiter unavailable for ${req.method} ${loggableUrl(req.url)}`);
           res.setHeader("Retry-After", "5");
           res.status(503).json({
             error: "rate_limit_unavailable",
@@ -445,7 +449,7 @@ export function nextJsApiHandler(api: Api): NextApiHandler {
         );
 
         if (!parseResult.success) {
-          throw new ApiError(`Can't parse request body for ${req.method} ${req.url}`, {
+          throw new ApiError(`Can't parse request body for ${req.method} ${loggableUrl(req.url)}`, {
             responseObject: {
               zodError: parseResult.error,
               body: tryJson(req.body),
@@ -457,7 +461,7 @@ export function nextJsApiHandler(api: Api): NextApiHandler {
         try {
           body = parseIfNeeded(req.body);
         } catch (e) {
-          throw new ApiError(`Body ${req.method} ${req.url} is not a JSON object: ${getErrorMessage(e)}`, {
+          throw new ApiError(`Body ${req.method} ${loggableUrl(req.url)} is not a JSON object: ${getErrorMessage(e)}`, {
             responseObject: {
               body: req.body,
             },
@@ -468,7 +472,7 @@ export function nextJsApiHandler(api: Api): NextApiHandler {
       if (handler.types?.query) {
         const parseResult = safeParseWithDate(handler.types?.query, req.query);
         if (!parseResult.success) {
-          throw new ApiError(`Can't parse request query for ${req.method} ${req.url}`, {
+          throw new ApiError(`Can't parse request query for ${req.method} ${loggableUrl(req.url)}`, {
             responseObject: {
               zodError: parseResult.error,
             },
@@ -490,13 +494,13 @@ export function nextJsApiHandler(api: Api): NextApiHandler {
           log
             .atDebug()
             .log(
-              `Api method zod mismatch at ${req.method} ${req.url}. Obj: ${JSON.stringify(
+              `Api method zod mismatch at ${req.method} ${loggableUrl(req.url)}. Obj: ${JSON.stringify(
                 result,
                 null,
                 2
               )}. Zod error: ${JSON.stringify(parseResult.error)}`
             );
-          throw new ApiError(`Response for ${req.method} ${req.url} doesn't match required schema`, {
+          throw new ApiError(`Response for ${req.method} ${loggableUrl(req.url)} doesn't match required schema`, {
             responseObject: {
               zodError: parseResult.error,
             },
@@ -520,17 +524,22 @@ export function nextJsApiHandler(api: Api): NextApiHandler {
           log
             .atError()
             .withCause(e)
-            .log(`Request for ${req.method} ${req.url} failed - ${JSON.stringify(e.responseObject)}`);
+            .log(`Request for ${req.method} ${loggableUrl(req.url)} failed - ${JSON.stringify(e.responseObject)}`);
         } else {
           log
             .atError()
             .log(
-              `Request for ${req.method} ${req.url} failed - ${JSON.stringify(e.responseObject)}: ${errorBody.message}`
+              `Request for ${req.method} ${loggableUrl(req.url)} failed - ${JSON.stringify(e.responseObject)}: ${
+                errorBody.message
+              }`
             );
         }
         res.status(status).send(errorBody);
       } else {
-        log.atError().withCause(e).log(`Request for ${req.method} ${req.url} failed`);
+        log
+          .atError()
+          .withCause(e)
+          .log(`Request for ${req.method} ${loggableUrl(req.url)} failed`);
         res
           .status(500)
           .send({ error: tryJson(getErrorMessage(e)), details: e?.stack, stackArray: stackToArray(e?.stack) });
