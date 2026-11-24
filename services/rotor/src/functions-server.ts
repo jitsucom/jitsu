@@ -33,7 +33,7 @@ import isEqual from "lodash/isEqual";
 import { IngestMessage } from "@jitsu/protocols/async-request";
 import type { MongoClient } from "mongodb";
 import { compileUdfFunction, compileUdfToIIFE } from "./lib/udf-shared";
-import { compileFailureIife } from "./lib/udf-placeholder";
+import { compileFailureIife, invalidFunctionsReason } from "./lib/udf-placeholder";
 import { runFunctionChain, type ChainFunction } from "./lib/udf-chain";
 import type {
   ExecMessage,
@@ -1060,6 +1060,13 @@ async function main() {
     const workspaceConnections = new Map<string, WorkerConnectionInit[]>();
 
     for (const [connectionId, connection] of connections) {
+      // as in process, where the chain of a connection is built inside its own try/catch: a malformed option fails that
+      // connection alone and does not stop the server before it listens
+      const invalidReason = invalidFunctionsReason(connection.options);
+      if (invalidReason) {
+        log.atError().log(`✗ Skipping connection ${connectionId}: ${invalidReason}`);
+        continue;
+      }
       const wsId = connection.workspaceId;
       if (!workspaceConnections.has(wsId)) {
         workspaceConnections.set(wsId, []);

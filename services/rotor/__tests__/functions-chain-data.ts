@@ -188,6 +188,12 @@ export default async function(event, { fetch, log, props: config }) {
   } catch (e) {
     log.info("fetch-error-codes=" + e.code + "|" + (e.cause && e.cause.code))
   }
+  // a failed request (nothing listens on the port) is a TypeError in every runtime, so an instanceof check in a UDF agrees
+  try {
+    await fetch("http://127.0.0.1:1/closed")
+  } catch (e) {
+    log.info("fetch-error-type=" + (e instanceof TypeError) + "|" + e.name)
+  }
   log.info("legacy-headers=" + res.headers["content-type"] + "|" + Object.keys(res.headers).includes("content-type"))
   log.info("legacy-body=" + JSON.parse(res.body).message)
   log.info("headers-in-log", res.headers)

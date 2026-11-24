@@ -25,6 +25,14 @@ describe("hideSensitiveHeaders", () => {
     expect(JSON.stringify(hideSensitiveHeaders(pairs))).not.toContain("secret");
   });
 
+  // Set.prototype.forEach calls back with (value, value): a Set of pairs gave the whole pair as the name.
+  it("hides the sensitive headers of a Set of pairs, and any other iterable of pairs", async () => {
+    const { hideSensitiveHeaders } = await import("../src/functions/lib/index");
+    expect(hideSensitiveHeaders(new Set(pairs))).toEqual(expected);
+    expect(hideSensitiveHeaders(pairs.values())).toEqual(expected);
+    expect(JSON.stringify(hideSensitiveHeaders(new Set(pairs)))).not.toContain("secret");
+  });
+
   it("tolerates missing and malformed headers", async () => {
     const { hideSensitiveHeaders } = await import("../src/functions/lib/index");
     expect(hideSensitiveHeaders(undefined)).toEqual({});

@@ -149,15 +149,12 @@ export function proxiedFetchTimeoutMs(requested: unknown, defaultMs: number): nu
 // shows the same details in the console's HTTP log: the request headers with the sensitive ones hidden, and the
 // response body, cut to a length the log can hold.
 
-/** The [name, value] pairs of request headers in any form fetch accepts: an object, a Headers or Map, or an array of pairs. */
+/** The [name, value] pairs of request headers in any form fetch accepts: an object, a Headers or Map, or an array, Set or other iterable of pairs. */
 function headerPairs(headers: any): Array<[string, any]> {
-  if (Array.isArray(headers)) {
-    return headers.filter(p => Array.isArray(p) && p.length >= 2).map(p => [String(p[0]), p[1]]);
-  }
-  if (headers && typeof headers.forEach === "function") {
-    const pairs: Array<[string, any]> = [];
-    headers.forEach((v: any, k: any) => pairs.push([String(k), v]));
-    return pairs;
+  // An array, a Set, a Map, a Headers or a generator all iterate as [name, value] pairs. forEach does not: a Set calls back
+  // with (value, value), which made the whole pair the name.
+  if (headers && typeof headers !== "string" && typeof headers[Symbol.iterator] === "function") {
+    return [...headers].filter(p => Array.isArray(p) && p.length >= 2).map(p => [String(p[0]), p[1]]);
   }
   return Object.entries(headers ?? {});
 }
@@ -218,18 +215,28 @@ export function boundedFetchTimeoutMs(requested: unknown, granted: Iterable<numb
   return Math.min(wanted, grants.length > 0 ? Math.max(...grants) : defaultMs);
 }
 
-/** The error codes a UDF can see on a failed fetch: `err.code` (EBLOCKED from the host check) and `err.cause.code` (undici's). */
-export type ProxyErrorCodes = { code?: string; causeCode?: string };
+/**
+ * What a UDF can see on a failed fetch: `err.code` (EBLOCKED from the host check), `err.cause.code` (undici's) and, for the
+ * standard types below, `err.name`.
+ */
+export type ProxyErrorCodes = { code?: string; causeCode?: string; name?: string };
+
+// undici rejects a failed fetch with a TypeError and an aborted one with an AbortError or TimeoutError. A UDF that checks
+// `err instanceof TypeError` or `err.name` must get the same answer in a worker. Only these names are taken from a worker
+// message; anything else becomes a plain Error.
+const PROXY_ERROR_NAMES = ["TypeError", "RangeError", "AbortError", "TimeoutError"];
 
 export function errorCodesOf(err: any): ProxyErrorCodes {
   const code = typeof err?.code === "string" ? err.code : undefined;
   const causeCode = typeof err?.cause?.code === "string" ? err.cause.code : undefined;
-  return { ...(code ? { code } : {}), ...(causeCode ? { causeCode } : {}) };
+  const name = typeof err?.name === "string" && PROXY_ERROR_NAMES.includes(err.name) ? err.name : undefined;
+  return { ...(code ? { code } : {}), ...(causeCode ? { causeCode } : {}), ...(name ? { name } : {}) };
 }
 
-/** The error a worker rejects with for a failed proxy call: the message and the same code fields the in-process fetch has. */
+/** The error a worker rejects with for a failed proxy call: the message, the type and the same code fields the in-process fetch has. */
 export function rebuildProxyError(message: string, codes: ProxyErrorCodes = {}): Error {
-  const err: any = new Error(message);
+  const err: any = codes.name === "TypeError" ? new TypeError(message) : new Error(message);
+  if (codes.name && PROXY_ERROR_NAMES.includes(codes.name)) err.name = codes.name;
   if (codes.code) err.code = codes.code;
   if (codes.causeCode) err.cause = { code: codes.causeCode };
   return err;

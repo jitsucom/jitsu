@@ -700,15 +700,12 @@ export const makeFetch = (
   };
 };
 
-/** The [name, value] pairs of request headers in any form fetch accepts: an object, a Headers or Map, or an array of pairs. */
+/** The [name, value] pairs of request headers in any form fetch accepts: an object, a Headers or Map, or an array, Set or other iterable of pairs. */
 function headerPairs(headers: any): Array<[string, any]> {
-  if (Array.isArray(headers)) {
-    return headers.filter(p => Array.isArray(p) && p.length >= 2).map(p => [String(p[0]), p[1]]);
-  }
-  if (headers && typeof headers.forEach === "function") {
-    const pairs: Array<[string, any]> = [];
-    headers.forEach((v: any, k: any) => pairs.push([String(k), v]));
-    return pairs;
+  // An array, a Set, a Map, a Headers or a generator all iterate as [name, value] pairs. forEach does not: a Set calls back
+  // with (value, value), which made the whole pair the name.
+  if (headers && typeof headers !== "string" && typeof headers[Symbol.iterator] === "function") {
+    return [...headers].filter(p => Array.isArray(p) && p.length >= 2).map(p => [String(p[0]), p[1]]);
   }
   return Object.entries(headers ?? {});
 }

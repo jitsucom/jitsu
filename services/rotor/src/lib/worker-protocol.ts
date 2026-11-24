@@ -63,7 +63,7 @@ export type ProxyResponseMessage = {
   result?: any;
   error?: string;
   /** the `code` and `cause.code` of the error (EBLOCKED for a refused address...), so the worker can rebuild it */
-  errorCodes?: { code?: string; causeCode?: string };
+  errorCodes?: { code?: string; causeCode?: string; name?: string };
 };
 
 export type MainToWorkerMessage = InitMessage | ExecMessage | CancelMessage | MemoryQueryMessage | ProxyResponseMessage;

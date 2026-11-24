@@ -528,6 +528,12 @@ describe.each(testModes)("Test Functions Chain ($name mode)", ({ name: modeName,
       const connectionsForServer = {
         ...(connections as unknown as Record<string, EnrichedConnectionConfig>),
         clickhouseWarehouse: clickhouseWarehouseConnection(),
+        // a connection whose functions option is malformed fails alone; the server still starts and serves the others
+        malformedOptions: {
+          ...(connections.simple as unknown as EnrichedConnectionConfig),
+          id: "malformedOptions",
+          options: { functions: "udf.functionFetch" },
+        } as unknown as EnrichedConnectionConfig,
       };
 
       // Write test configs
@@ -1140,6 +1146,10 @@ describe.each(testModes)("Test Functions Chain ($name mode)", ({ name: modeName,
         .map(e => e.msg)
         .find(m => String(m?.message?.text).startsWith("fetch-error-codes="));
       expect(errorCodes?.message.text).toBe("fetch-error-codes=EBLOCKED|undefined");
+      const errorType = loggedEntries
+        .map(e => e.msg)
+        .find(m => String(m?.message?.text).startsWith("fetch-error-type="));
+      expect(errorType?.message.text).toBe("fetch-error-type=true|TypeError");
       // The free class and the Functions Debugger always had a plain headers object (`res.headers["content-type"]`); the
       // rebuilt Response in a worker keeps that access next to `.get()`.
       if (functionsClass === "free" || isolate) {

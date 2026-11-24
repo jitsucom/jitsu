@@ -15,3 +15,13 @@ export function compileFailureIife(message: string): string {
     message
   )}), { name: ${JSON.stringify(RetryErrorName)} }); } };`;
 }
+
+/** Why the `functions` option of a connection cannot be read, or undefined when it can (absent counts as none). */
+export function invalidFunctionsReason(options: any): string | undefined {
+  const functions = options?.functions;
+  if (functions === undefined || functions === null) return undefined;
+  if (!Array.isArray(functions)) return "the functions option is not a list";
+  if (functions.some(f => typeof f?.functionId !== "string"))
+    return "an entry of the functions option has no functionId";
+  return undefined;
+}

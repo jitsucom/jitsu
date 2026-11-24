@@ -188,6 +188,19 @@ describe("fetch log details", () => {
     expect(JSON.stringify(hideSensitiveHeaders(pairs))).not.toContain("secret");
   });
 
+  // Set.prototype.forEach calls back with (value, value): a Set of pairs gave the whole pair as the name, so the logged key
+  // held the token.
+  it("hides the sensitive headers of a Set of pairs, and any other iterable of pairs", () => {
+    const pairs = [
+      ["Authorization", "Bearer secret"],
+      ["X-Trace", "t1"],
+    ];
+    const expected = { Authorization: "*****", "X-Trace": "t1" };
+    expect(hideSensitiveHeaders(new Set(pairs))).toEqual(expected);
+    expect(hideSensitiveHeaders(pairs.values())).toEqual(expected);
+    expect(JSON.stringify(hideSensitiveHeaders(new Set(pairs)))).not.toContain("secret");
+  });
+
   it("tolerates missing and malformed headers", () => {
     expect(hideSensitiveHeaders(undefined)).toEqual({});
     expect(hideSensitiveHeaders(null)).toEqual({});
@@ -504,6 +517,25 @@ describe("a fetch error crossing the worker proxy", () => {
     const plain: any = rebuildProxyError("plain");
     expect(plain.code).toBeUndefined();
     expect(plain.cause).toBeUndefined();
+  });
+
+  // undici rejects a failed fetch with a TypeError; a UDF that checks `err instanceof TypeError` or `err.name` must see the
+  // same in a worker.
+  it("keeps the standard error type, so instanceof and name checks give the same answer as in process", () => {
+    const typeError: any = rebuildProxyError("fetch failed", { name: "TypeError", causeCode: "ECONNREFUSED" });
+    expect(typeError).toBeInstanceOf(TypeError);
+    expect(typeError.name).toBe("TypeError");
+    expect(typeError.cause?.code).toBe("ECONNREFUSED");
+    const aborted: any = rebuildProxyError("The operation was aborted", { name: "AbortError" });
+    expect(aborted).toBeInstanceOf(Error);
+    expect(aborted.name).toBe("AbortError");
+    // a name the worker was not meant to take (the message is tenant-visible, the name must be one of the known ones)
+    expect(rebuildProxyError("x", { name: "RetryError" }).name).toBe("Error");
+    expect(errorCodesOf(Object.assign(new TypeError("fetch failed"), { cause: { code: "ECONNREFUSED" } }))).toEqual({
+      name: "TypeError",
+      causeCode: "ECONNREFUSED",
+    });
+    expect(errorCodesOf(new Error("plain"))).toEqual({});
   });
 });
 
