@@ -17,7 +17,7 @@ import type {
 import type { AnyEvent, EventContext, FullContext } from "@jitsu/protocols/functions";
 import type { FunctionExecLog } from "@jitsu/core-functions-lib";
 import { runFunctionChain, type ChainFunction } from "./udf-chain";
-import { retryErrorOf } from "./udf-placeholder";
+import { retryErrorOf, errorMessageOf } from "./udf-placeholder";
 import { evaluateUdfIife, makeUdfRequire } from "./udf-require";
 import {
   deserializeResponse,
@@ -148,6 +148,8 @@ function buildContext(
     // decided now: debugTill can pass while the UDF is running
     const logThisCall = shouldLogFetchCall(chain.fetchLogLevel, debugTill, extra);
 
+    // the init as the main process gets it: headers given as a generator are read here, once, for the log and the request
+    const sendInit = transferableFetchInit(init);
     const baseInfo = {
       functionId,
       functionType,
@@ -155,7 +157,7 @@ function buildContext(
       url,
       method: init?.method || "GET",
       body: init?.body,
-      ...(detailedFetchLogs && init?.headers ? { headers: hideSensitiveHeaders(init.headers) } : {}),
+      ...(detailedFetchLogs && sendInit?.headers ? { headers: hideSensitiveHeaders(sendInit.headers) } : {}),
       event: {},
     };
 
@@ -163,7 +165,7 @@ function buildContext(
       const serialized: SerializedResponse = await callMain("fetch", [
         chain.connection.id,
         url,
-        transferableFetchInit(init),
+        sendInit,
         fetchTimeoutMs,
       ]);
       const elapsedMs = Date.now() - startTime;
@@ -302,7 +304,7 @@ self.onmessage = async (e: MessageEvent<MainToWorkerMessage>) => {
           funcs.push(instantiateUdf(funcInit));
         } catch (err: any) {
           // Create error-throwing placeholder
-          const errorMessage = err.message;
+          const errorMessage = errorMessageOf(err);
           funcs.push({
             id: funcInit.id,
             exec: async () => {

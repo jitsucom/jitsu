@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { RetryError, RetryErrorName } from "@jitsu/functions-lib";
-import { compileFailureIife, invalidFunctionsReason, retryErrorOf } from "../src/lib/udf-placeholder";
+import { compileFailureIife, errorMessageOf, invalidFunctionsReason, retryErrorOf } from "../src/lib/udf-placeholder";
 import { evaluateUdfIife, makeUdfRequire } from "../src/lib/udf-require";
 
 // JITSU-263: in process a UDF that fails to compile is replaced by a function that throws a RetryError; the isolated worker
@@ -52,5 +52,19 @@ describe("the functions option of a connection", () => {
     expect(invalidFunctionsReason({ functions: [{ functionId: "udf.a" }, {}] })).toMatch(/functionId/);
     expect(invalidFunctionsReason({ functions: [null] })).toMatch(/functionId/);
     expect(invalidFunctionsReason({ functions: [{ functionId: 5 }] })).toMatch(/functionId/);
+  });
+});
+
+// A UDF may throw anything while its module initializes. Reading `.message` of null or undefined threw inside the worker's
+// catch, before the worker could answer "ready".
+describe("the message of what a UDF threw", () => {
+  it("is the message of an error, the text of a string, and a description of anything else", () => {
+    expect(errorMessageOf(new Error("boom"))).toBe("boom");
+    expect(errorMessageOf(new TypeError("bad"))).toBe("bad");
+    expect(errorMessageOf("plain text")).toBe("plain text");
+    expect(errorMessageOf(null)).toBe("null");
+    expect(errorMessageOf(undefined)).toBe("undefined");
+    expect(errorMessageOf(42)).toBe("42");
+    expect(errorMessageOf({ code: 1 })).toBe("[object Object]");
   });
 });

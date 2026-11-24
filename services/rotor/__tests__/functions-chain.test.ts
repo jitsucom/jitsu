@@ -529,6 +529,11 @@ describe.each(testModes)("Test Functions Chain ($name mode)", ({ name: modeName,
         ...(connections as unknown as Record<string, EnrichedConnectionConfig>),
         clickhouseWarehouse: clickhouseWarehouseConnection(),
         // a connection whose functions option is malformed fails alone; the server still starts and serves the others
+        throwsNull: {
+          ...(connections.simple as unknown as EnrichedConnectionConfig),
+          id: "throwsNull",
+          options: { functions: [{ functionId: "udf.functionThrowsNull" }] },
+        } as unknown as EnrichedConnectionConfig,
         malformedOptions: {
           ...(connections.simple as unknown as EnrichedConnectionConfig),
           id: "malformedOptions",
@@ -1146,6 +1151,10 @@ describe.each(testModes)("Test Functions Chain ($name mode)", ({ name: modeName,
         .map(e => e.msg)
         .find(m => String(m?.message?.text).startsWith("fetch-error-codes="));
       expect(errorCodes?.message.text).toBe("fetch-error-codes=EBLOCKED|undefined");
+      const generatorAuth = loggedEntries
+        .map(e => e.msg)
+        .find(m => String(m?.message?.text).startsWith("generator-auth="));
+      expect(generatorAuth?.message.text).toBe("generator-auth=Bearer from-generator");
       const errorType = loggedEntries
         .map(e => e.msg)
         .find(m => String(m?.message?.text).startsWith("fetch-error-type="));

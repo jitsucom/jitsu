@@ -581,9 +581,10 @@ export const makeFetch = (
 
   return async (
     url: string,
-    init?: FetchOpts,
+    initArg?: FetchOpts,
     extra?: { log?: boolean; ctx?: FunctionContext; event?: AnyEvent }
   ): Promise<Response> => {
+    const init = reusableHeadersInit(initArg);
     //capture execution time
     const sw = stopwatch();
     const ctx = extra?.ctx?.function;
@@ -699,6 +700,27 @@ export const makeFetch = (
     return buffered;
   };
 };
+
+/**
+ * The init to log and to send. Headers given as a generator (or any one-shot iterable) of [name, value] pairs can be read
+ * once: logging them with their sensitive values hidden used them up, and the request left without headers. They become an
+ * array of pairs here, which can be read any number of times. A Headers, an object or an array is left as it is.
+ */
+export function reusableHeadersInit<T extends { headers?: any } | undefined>(init: T): T {
+  const h: any = init?.headers;
+  if (
+    h &&
+    typeof h === "object" &&
+    !Array.isArray(h) &&
+    !(typeof Headers !== "undefined" && h instanceof Headers) &&
+    !(h instanceof Map) &&
+    !(h instanceof Set) &&
+    typeof h[Symbol.iterator] === "function"
+  ) {
+    return { ...init, headers: [...h] } as T;
+  }
+  return init;
+}
 
 /** The [name, value] pairs of request headers in any form fetch accepts: an object, a Headers or Map, or an array, Set or other iterable of pairs. */
 function headerPairs(headers: any): Array<[string, any]> {

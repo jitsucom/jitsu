@@ -190,6 +190,26 @@ describe("fetch log details", () => {
 
   // Set.prototype.forEach calls back with (value, value): a Set of pairs gave the whole pair as the name, so the logged key
   // held the token.
+  // a generator of header pairs can be read once: the log entry must not use it up before the request is sent
+  it("hands the main process the header pairs of a one-shot iterable, so they can be logged and sent", () => {
+    const gen = (function* () {
+      yield ["Authorization", "Bearer secret"];
+      yield ["X-Trace", "t1"];
+    })();
+    const init = transferableFetchInit({ method: "POST", headers: gen });
+    expect(init.method).toBe("POST");
+    expect(init.headers).toEqual([
+      ["Authorization", "Bearer secret"],
+      ["X-Trace", "t1"],
+    ]);
+    // the pairs are an array: reading them for the log leaves them whole for the request
+    expect(hideSensitiveHeaders(init.headers)).toEqual({ Authorization: "*****", "X-Trace": "t1" });
+    expect(init.headers).toHaveLength(2);
+    // objects and arrays are left as they are
+    const plain = { headers: { a: "b" } };
+    expect(transferableFetchInit(plain)).toBe(plain);
+  });
+
   it("hides the sensitive headers of a Set of pairs, and any other iterable of pairs", () => {
     const pairs = [
       ["Authorization", "Bearer secret"],

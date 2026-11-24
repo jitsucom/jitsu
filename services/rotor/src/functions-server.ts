@@ -983,6 +983,9 @@ function createWorkspaceWorker(
   };
 
   worker.onerror = e => {
+    // Deno passes an error the worker did not handle on to the main thread, where it ends the whole server and every other
+    // workspace with it. The error is logged here and stays with the worker.
+    e.preventDefault?.();
     log.atError().log(`Worker error for workspace ${workspaceId}: ${e.message}`);
   };
 

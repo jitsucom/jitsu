@@ -182,6 +182,9 @@ export default async function(event, { fetch, log, props: config }) {
   // request headers given as a Headers instance have to reach the server in every runtime, also through a worker
   const echo = await fetch(config.FETCH_URL + "?echo=1", { headers: new Headers({ Authorization: "Bearer headers-object" }) })
   log.info("headers-object-auth=" + (await echo.json()).receivedAuthorization)
+  // headers given as a generator of pairs can be read once: logging them must not use them up before the request is sent
+  const gen = await fetch(config.FETCH_URL + "?echo=1", { headers: (function* () { yield ["Authorization", "Bearer from-generator"] })() })
+  log.info("generator-auth=" + (await gen.json()).receivedAuthorization)
   // an address the guard refuses (FETCH_FORBID_LOCAL) has the same code in every runtime: EBLOCKED tells a refusal from a failure
   try {
     await fetch("http://10.255.255.1/refused")
@@ -203,6 +206,17 @@ export default async function(event, { fetch, log, props: config }) {
   event.properties.bytes = (await res.arrayBuffer()).byteLength > 0
   event.properties.fetched = body.message
   event.properties.counter = (event.properties.counter || 0) + 1
+  return event
+}`,
+  },
+  // an initializer that throws something without a message: it must not stop the other connections of the workspace
+  functionThrowsNull: {
+    id: "functionThrowsNull",
+    workspaceId: "workspace1",
+    name: "Function Throws Null",
+    codeHash: "functionThrowsNull-hash",
+    code: `throw null
+export default async function(event) {
   return event
 }`,
   },

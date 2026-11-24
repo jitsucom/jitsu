@@ -40,3 +40,28 @@ describe("hideSensitiveHeaders", () => {
     expect(hideSensitiveHeaders([["only-a-name"], "junk", null])).toEqual({});
   });
 });
+
+// makeFetch logs the redacted headers and then sends the original init. A generator of pairs can be read once, so the log
+// used it up and the request left without its headers.
+describe("reusableHeadersInit", () => {
+  it("turns a one-shot iterable of header pairs into an array, and leaves other inits alone", async () => {
+    const { reusableHeadersInit, hideSensitiveHeaders } = await import("../src/functions/lib/index");
+    const gen = (function* () {
+      yield ["Authorization", "Bearer secret"];
+      yield ["X-Trace", "t1"];
+    })();
+    const init = reusableHeadersInit({ method: "POST", headers: gen });
+    expect(hideSensitiveHeaders(init!.headers)).toEqual({ Authorization: "*****", "X-Trace": "t1" });
+    expect(init!.headers).toEqual([
+      ["Authorization", "Bearer secret"],
+      ["X-Trace", "t1"],
+    ]);
+    expect(init!.method).toBe("POST");
+    const headers = new Headers({ a: "b" });
+    const withHeaders = { headers };
+    expect(reusableHeadersInit(withHeaders)!.headers).toBe(headers);
+    const plain = { headers: { a: "b" } };
+    expect(reusableHeadersInit(plain)).toBe(plain);
+    expect(reusableHeadersInit(undefined)).toBeUndefined();
+  });
+});

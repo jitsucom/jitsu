@@ -160,15 +160,26 @@ function headerPairs(headers: any): Array<[string, any]> {
 }
 
 /**
- * The init of a fetch call, as a worker message can carry it. A UDF may pass `headers: new Headers(...)`; the call goes to
+ * The init of a fetch call, as a worker message can carry it. A UDF may pass `headers: new Headers(...)` or an iterable of pairs; the call goes to
  * the main process with postMessage, which structured-clones the init. Node refuses to clone a Headers, and Deno clones it
  * to an empty object, so the request would leave without its headers (an Authorization header, typically). The headers
  * go as [name, value] pairs, which fetch accepts; object and pair headers already clone and are left as they are, and the
  * init the UDF passed is not changed.
  */
 export function transferableFetchInit(init: any): any {
-  if (init && typeof init === "object" && typeof Headers !== "undefined" && init.headers instanceof Headers) {
-    return { ...init, headers: headerPairs(init.headers).map(([name, value]) => [name, String(value)]) };
+  const h = init && typeof init === "object" ? init.headers : undefined;
+  // a Headers, or a one-shot iterable such as a generator of pairs (an array, a Map or a Set clones as it is and can be read
+  // again). A generator can be read once, so the pairs are read here, once, and the same array serves the log entry and the
+  // request.
+  if (
+    h &&
+    typeof h === "object" &&
+    !Array.isArray(h) &&
+    !(h instanceof Map) &&
+    !(h instanceof Set) &&
+    typeof h[Symbol.iterator] === "function"
+  ) {
+    return { ...init, headers: headerPairs(h).map(([name, value]) => [name, String(value)]) };
   }
   return init;
 }

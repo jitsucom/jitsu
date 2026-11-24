@@ -25,3 +25,9 @@ export function invalidFunctionsReason(options: any): string | undefined {
     return "an entry of the functions option has no functionId";
   return undefined;
 }
+
+/** The message of whatever a UDF threw: `throw null` or `throw undefined` have none to read. */
+export function errorMessageOf(err: unknown): string {
+  const message = (err as any)?.message;
+  return typeof message === "string" ? message : String(err);
+}
