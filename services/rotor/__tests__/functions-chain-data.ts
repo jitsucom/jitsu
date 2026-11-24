@@ -101,6 +101,17 @@ export default async function(event, { log, fetch, store, retries, props: config
   return event
 }`,
   },
+  functionBigInt: {
+    id: "functionBigInt",
+    workspaceId: "workspace1",
+    name: "Function BigInt",
+    codeHash: "functionBigInt-hash",
+    code: `export default async function(event, { log, fetch, store, props: config }) {
+  // JSON cannot hold a BigInt: writing the response fails
+  event.properties.big = BigInt(10)
+  return event
+}`,
+  },
   function3: {
     id: "function3",
     workspaceId: "workspace1",
@@ -788,6 +799,30 @@ export const connections = {
     },
     credentials: {
       url: "http://localhost:3089/url_field",
+      method: "POST",
+      headers: [],
+    },
+  },
+  unserializable_event: {
+    id: "unserializable_event",
+    workspaceId: "workspace1",
+    updatedAt: new Date(),
+    destinationId: "destination1",
+    streamId: "stream1",
+    usesBulker: false,
+    type: "webhook",
+    options: {
+      functions: [
+        {
+          functionId: "udf.function1",
+        },
+        {
+          functionId: "udf.functionBigInt",
+        },
+      ],
+    },
+    credentials: {
+      url: "http://localhost:3089/unserializable_event",
       method: "POST",
       headers: [],
     },

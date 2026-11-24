@@ -33,12 +33,20 @@ describe("toJsonEvents", () => {
     expect(structuredClone(events)).toEqual(events);
   });
 
-  it("leaves nothing to normalize alone, and fails where the JSON response fails", () => {
+  it("leaves nothing to normalize alone", () => {
     expect(toJsonEvents([])).toEqual([]);
     expect(toJsonEvents(undefined)).toBeUndefined();
-    expect(() => toJsonEvents([{ big: 1n }])).toThrow();
+  });
+
+  // The in-process response fails when it is written, and the call answers HTTP 500, which rotor retries. A worker that threw
+  // here would turn it into an error entry of an HTTP 200 answer, which is dropped without a retry.
+  it("returns events JSON cannot hold as they are, so that writing the response fails as it does in process", () => {
+    const withBigInt = [{ properties: { big: 1n } }];
+    expect(toJsonEvents(withBigInt)).toBe(withBigInt);
     const cyclic: any = {};
     cyclic.self = cyclic;
-    expect(() => toJsonEvents([cyclic])).toThrow();
+    const withCycle = [cyclic];
+    expect(toJsonEvents(withCycle)).toBe(withCycle);
+    expect(() => JSON.stringify(toJsonEvents(withBigInt))).toThrow();
   });
 });

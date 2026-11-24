@@ -672,6 +672,7 @@ describe.each(testModes)("Test Functions Chain ($name mode)", ({ name: modeName,
         "/store_other": handlerF("store_other"),
         "/fetch": handlerF("fetch"),
         "/url_field": handlerF("url_field"),
+        "/unserializable_event": handlerF("unserializable_event"),
         "/worker_crash": handlerF("worker_crash"),
         "/worker_after_crash": handlerF("worker_after_crash"),
         "/warehouse_real": handlerF("warehouse_real"),
@@ -814,6 +815,24 @@ describe.each(testModes)("Test Functions Chain ($name mode)", ({ name: modeName,
     expect(lastError).toBeUndefined();
     expect(counters[currentTestName]).toEqual(1);
   });
+
+  // An event JSON cannot hold (a BigInt) fails the whole call with HTTP 500 when the response is written: rotor sees a service
+  // failure and retries. A worker must fail it the same way, and not answer HTTP 200 with an error entry, which the ingest
+  // drops without a retry.
+  test("unserializable_event", async () => {
+    const url = `${functionsServer!.baseUrl}/multi?ids=unserializable_event&fullEvents=true`;
+    const body = JSON.stringify(ingestMessage("unserializable_event", messageId, incomingEvent));
+    const res = await fetch(url, {
+      method: "POST",
+      body,
+      headers: {
+        "content-type": "application/json",
+        ...signFunctionsRequest(process.env.FUNCTIONS_SERVER_PRIVATE_KEY!, functionsClass, url, body),
+      },
+    });
+    expect(res.status).toBe(500);
+    expect(counters["unserializable_event"]).toBeUndefined();
+  }, 60000);
 
   test("noreturn", async () => {
     const currentTestName = testName();
