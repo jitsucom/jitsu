@@ -1,8 +1,10 @@
 package appbase
 
 import (
+	"crypto/sha256"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/gin-gonic/gin"
@@ -106,4 +108,26 @@ func TestSecureEqual(t *testing.T) {
 	calls := countCompares(t)
 	SecureEqual("a", "b")
 	require.Equal(t, 1, *calls)
+}
+
+func TestRawTokensHashedOncePerRequest(t *testing.T) {
+	tokens := []string{"raw-token-one-0123", "raw-token-two-0123456789", "raw-token-three"}
+	r := testRouter(t, Config{RawAuthTokens: strings.Join(tokens, ",")})
+
+	hashed := 0
+	original := digestOf
+	digestOf = func(s string) [sha256.Size]byte {
+		hashed++
+		return original(s)
+	}
+	t.Cleanup(func() { digestOf = original })
+
+	for _, token := range tokens {
+		hashed = 0
+		require.Equal(t, http.StatusOK, statusOf(r, "/x", "Bearer "+token))
+		require.Equal(t, 1, hashed, "a request hashes the presented token once and none of the configured ones")
+	}
+	hashed = 0
+	require.Equal(t, http.StatusUnauthorized, statusOf(r, "/x", "Bearer wrong"))
+	require.Equal(t, 1, hashed, "a rejected request hashes the presented token once")
 }

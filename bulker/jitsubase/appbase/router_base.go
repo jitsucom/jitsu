@@ -55,8 +55,10 @@ type Router struct {
 	engine        *gin.Engine
 	authTokens    []string
 	rawAuthTokens []string
-	tokenSecrets  []string
-	noAuthPaths   types.Set[string]
+	// rawAuthTokenDigests are the digests of rawAuthTokens, computed once so that a request does not hash the configured tokens
+	rawAuthTokenDigests [][sha256.Size]byte
+	tokenSecrets        []string
+	noAuthPaths         types.Set[string]
 }
 
 // beforeAuth middleware also runs when authentication rejects a request.
@@ -86,6 +88,9 @@ func NewRouterBase(config Config, noAuthPaths []string, beforeAuth ...gin.Handle
 		rawAuthTokens: rawAuthTokens,
 		tokenSecrets:  tokenSecrets,
 		noAuthPaths:   types.NewSet(noAuthPaths...),
+	}
+	for _, rawAuthToken := range rawAuthTokens {
+		router.rawAuthTokenDigests = append(router.rawAuthTokenDigests, digestOf(rawAuthToken))
 	}
 	gin.SetMode(gin.ReleaseMode)
 	engine := gin.New()
@@ -132,9 +137,13 @@ func (r *Router) authMiddleware(c *gin.Context) {
 			}
 		}
 	}
-	for _, rawAuthToken := range r.rawAuthTokens {
-		if SecureEqual(token, rawAuthToken) {
-			return
+	if len(r.rawAuthTokenDigests) > 0 {
+		// the presented token is hashed once, the configured ones were hashed at start
+		tokenDigest := digestOf(token)
+		for i := range r.rawAuthTokenDigests {
+			if constantTimeEquals(tokenDigest[:], r.rawAuthTokenDigests[i][:]) == 1 {
+				return
+			}
 		}
 	}
 	c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Invalid token"})
@@ -231,6 +240,9 @@ type RouterError struct {
 	ErrorType   string
 }
 
+// digestOf is the SHA-256 digest of a string. A variable so that a test can count how often a request hashes.
+var digestOf = func(s string) [sha256.Size]byte { return sha256.Sum256([]byte(s)) }
+
 // constantTimeEquals compares two byte slices of the same length in constant time. A variable so that a test can see that the
 // token checks go through it.
 var constantTimeEquals = subtle.ConstantTimeCompare
@@ -240,7 +252,7 @@ var constantTimeEquals = subtle.ConstantTimeCompare
 // right. Both strings are hashed first: the digests have the same length whatever the strings are, so the length of a token
 // does not show either.
 func SecureEqual(a, b string) bool {
-	da := sha256.Sum256([]byte(a))
-	db := sha256.Sum256([]byte(b))
+	da := digestOf(a)
+	db := digestOf(b)
 	return constantTimeEquals(da[:], db[:]) == 1
 }
