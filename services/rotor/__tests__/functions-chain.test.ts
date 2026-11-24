@@ -674,6 +674,7 @@ describe.each(testModes)("Test Functions Chain ($name mode)", ({ name: modeName,
         "/url_field": handlerF("url_field"),
         "/unserializable_event": handlerF("unserializable_event"),
         "/throwing_tojson": handlerF("throwing_tojson"),
+        "/throwing_unformattable": handlerF("throwing_unformattable"),
         "/worker_crash": handlerF("worker_crash"),
         "/worker_after_crash": handlerF("worker_after_crash"),
         "/warehouse_real": handlerF("warehouse_real"),
@@ -834,12 +835,18 @@ describe.each(testModes)("Test Functions Chain ($name mode)", ({ name: modeName,
         },
       });
     };
-    for (const ids of ["unserializable_event", "throwing_tojson", "unserializable_event,simple"]) {
+    for (const ids of [
+      "unserializable_event",
+      "throwing_tojson",
+      "throwing_unformattable",
+      "unserializable_event,simple",
+    ]) {
       const res = await callMulti(ids);
       expect(res.status, ids).toBe(500);
     }
     expect(counters["unserializable_event"]).toBeUndefined();
     expect(counters["throwing_tojson"]).toBeUndefined();
+    expect(counters["throwing_unformattable"]).toBeUndefined();
   }, 60000);
 
   test("noreturn", async () => {

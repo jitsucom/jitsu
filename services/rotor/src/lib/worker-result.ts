@@ -15,6 +15,24 @@ export function jsonEventsOf<T>(events: T): JsonEvents<T> {
     const json = JSON.stringify(events);
     return { events: json === undefined ? events : (JSON.parse(json) as T) };
   } catch (e: any) {
-    return { error: { message: String(e?.message ?? e), name: String(e?.name ?? "Error") } };
+    return {
+      error: {
+        message: textOf(() => e?.message ?? e, "The events cannot be converted to JSON"),
+        name: textOf(() => e?.name ?? "Error", "Error"),
+      },
+    };
+  }
+}
+
+/**
+ * What a `toJSON` throws can be anything: an object without a prototype, a getter that throws, a Proxy. Reading or formatting
+ * it must not fail itself, or the failure leaves this function as an ordinary error of the worker and loses its retry.
+ */
+function textOf(read: () => unknown, fallback: string): string {
+  try {
+    const text = String(read());
+    return text.length > 0 ? text : fallback;
+  } catch {
+    return fallback;
   }
 }

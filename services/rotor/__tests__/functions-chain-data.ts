@@ -124,6 +124,18 @@ export default async function(event, { log, fetch, store, props: config }) {
   return event
 }`,
   },
+  functionThrowsUnformattable: {
+    id: "functionThrowsUnformattable",
+    workspaceId: "workspace1",
+    name: "Function Throws Unformattable",
+    codeHash: "functionThrowsUnformattable-hash",
+    code: `export default async function(event, { log, fetch, store, props: config }) {
+  // a toJSON that throws an object String() cannot format, next to a BigInt: building the error must not fail itself
+  event.properties.field = { toJSON() { throw Object.create(null) } }
+  event.properties.big = BigInt(10)
+  return event
+}`,
+  },
   function3: {
     id: "function3",
     workspaceId: "workspace1",
@@ -859,6 +871,30 @@ export const connections = {
     },
     credentials: {
       url: "http://localhost:3089/throwing_tojson",
+      method: "POST",
+      headers: [],
+    },
+  },
+  throwing_unformattable: {
+    id: "throwing_unformattable",
+    workspaceId: "workspace1",
+    updatedAt: new Date(),
+    destinationId: "destination1",
+    streamId: "stream1",
+    usesBulker: false,
+    type: "webhook",
+    options: {
+      functions: [
+        {
+          functionId: "udf.function1",
+        },
+        {
+          functionId: "udf.functionThrowsUnformattable",
+        },
+      ],
+    },
+    credentials: {
+      url: "http://localhost:3089/throwing_unformattable",
       method: "POST",
       headers: [],
     },

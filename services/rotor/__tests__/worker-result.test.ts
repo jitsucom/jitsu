@@ -61,4 +61,58 @@ describe("jsonEventsOf", () => {
     });
     expect((jsonEventsOf([{ big: 1n }]) as any).error.name).toBe("TypeError");
   });
+
+  // What a toJSON throws can be anything, and reading or formatting it can fail itself. That must not escape: the worker's
+  // outer catch would answer HTTP 200 with a plain error, which the ingest drops without a retry.
+  it("reports the failure whatever was thrown, also a value that cannot be formatted", () => {
+    const thrown: Array<() => unknown> = [
+      () => Object.create(null),
+      () => ({
+        get message(): string {
+          throw new Error("message getter");
+        },
+        name: "X",
+      }),
+      () => ({
+        message: "m",
+        get name(): string {
+          throw new Error("name getter");
+        },
+      }),
+      () => Symbol("sym"),
+      () => ({ message: Object.create(null), name: Object.create(null) }),
+      () =>
+        new Proxy(
+          {},
+          {
+            get() {
+              throw new Error("proxy trap");
+            },
+          }
+        ),
+      () => null,
+      () => undefined,
+      () => 42,
+    ];
+    for (const [i, make] of thrown.entries()) {
+      const events = [
+        {
+          field: {
+            toJSON: () => {
+              throw make();
+            },
+          },
+          big: 1n,
+        },
+      ];
+      let json: ReturnType<typeof jsonEventsOf>;
+      expect(() => (json = jsonEventsOf(events)), `case ${i}`).not.toThrow();
+      expect("error" in json!, `case ${i}`).toBe(true);
+      const error = (json! as any).error;
+      expect(typeof error.message, `case ${i}`).toBe("string");
+      expect(typeof error.name, `case ${i}`).toBe("string");
+      expect(error.message.length, `case ${i}`).toBeGreaterThan(0);
+      expect(error.name.length, `case ${i}`).toBeGreaterThan(0);
+    }
+  });
 });
