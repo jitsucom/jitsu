@@ -1,3 +1,5 @@
+import fs from "node:fs";
+import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { createHash } from "juava";
 import { authConfigError, createTokenChecker } from "../src/lib/http-auth";
@@ -43,6 +45,36 @@ describe("rotor auth config", () => {
       expect(check("token-a")).toBe(true);
       expect(check("token-b")).toBe(false);
       expect(check("")).toBe(false);
+    }
+  });
+
+  it("ignores empty entries of a token list, so a request without credentials never matches one", () => {
+    for (const list of ["secret-token,", ",secret-token", "secret-token,,other-token"]) {
+      const check = createTokenChecker({ ROTOR_RAW_AUTH_TOKENS: list });
+      expect(check("")).toBe(false);
+      expect(check("secret-token")).toBe(true);
+    }
+    const hashed = createTokenChecker({ ROTOR_AUTH_TOKENS: createHash("secret-token") + "," });
+    expect(hashed("")).toBe(false);
+    expect(hashed("secret-token")).toBe(true);
+  });
+
+  it("treats a list of only empty entries as no tokens", () => {
+    for (const list of [",", ",,"]) {
+      expect(authConfigError({ ROTOR_RAW_AUTH_TOKENS: list })).toContain("ROTOR_AUTH_DISABLED");
+      expect(authConfigError({ ROTOR_AUTH_TOKENS: list })).toContain("ROTOR_AUTH_DISABLED");
+      const check = createTokenChecker({ ROTOR_RAW_AUTH_TOKENS: list });
+      expect(check("")).toBe(false);
+      expect(check("anything")).toBe(false);
+    }
+  });
+
+  it("checks the auth config in main before rotor connects to anything", () => {
+    const source = fs.readFileSync(path.join(__dirname, "../src/index.ts"), "utf8");
+    const check = source.indexOf("authConfigError(serverEnv)");
+    expect(check).toBeGreaterThan(0);
+    for (const first of ["mongodb.waitInit()", "kafkaRotor(", "createRedis()", "initHTTP({"]) {
+      expect(source.indexOf(first), first).toBeGreaterThan(check);
     }
   });
 });

@@ -1,5 +1,5 @@
 import { disableService, getLog, setServerJsonFormat, isTruish } from "juava";
-import { authConfigError, createTokenChecker } from "./lib/http-auth";
+import { authConfigError, createTokenChecker, tokenList } from "./lib/http-auth";
 import { destinationMessagesTopic, getCredentialsFromEnv, rotorConsumerGroupId } from "./lib/kafka-config";
 import { kafkaRotor } from "./lib/rotor";
 import { DummyEventsStore, EventsStore, MultiEventsStore } from "@jitsu/destination-functions";
@@ -61,6 +61,14 @@ async function main() {
   process.on("exit", code => {
     log.atInfo().log(`Process exited with code ${code}`);
   });
+
+  // Before anything connects to Kafka, MongoDB or Redis: a replica without auth must not join the consumer group
+  // just to exit afterwards.
+  const authError = authConfigError(serverEnv);
+  if (authError) {
+    log.atError().log(authError);
+    process.exit(1);
+  }
 
   let httpServer: Server;
   let metricsServer: Server | undefined;
@@ -209,12 +217,7 @@ async function main() {
 }
 
 function initHTTP(rotorContext: Omit<MessageHandlerContext, "connectionStore" | "functionsStore" | "streamsStore">) {
-  const authError = authConfigError(serverEnv);
-  if (authError) {
-    log.atError().log(authError);
-    process.exit(1);
-  }
-  if (!serverEnv.ROTOR_AUTH_TOKENS && !serverEnv.ROTOR_RAW_AUTH_TOKENS) {
+  if (tokenList(serverEnv.ROTOR_AUTH_TOKENS).length === 0 && tokenList(serverEnv.ROTOR_RAW_AUTH_TOKENS).length === 0) {
     log.atWarn().log("ROTOR_AUTH_DISABLED is set and no auth tokens are provided. Rotor is open for everyone.");
   }
   http.use((req, res, next) => {
