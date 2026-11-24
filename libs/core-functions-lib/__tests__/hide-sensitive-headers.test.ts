@@ -49,6 +49,27 @@ describe("hideSensitiveHeaders", () => {
     });
   });
 
+  it("hides any header name with key as a word (Azure, API keys), and leaves the others", async () => {
+    const { hideSensitiveHeaders } = await import("../src/functions/lib/index");
+    expect(
+      hideSensitiveHeaders(
+        new Headers({
+          "Ocp-Apim-Subscription-Key": "k1",
+          "X-Functions-Key": "k2",
+          "Idempotency-Key": "k5",
+          "X-Trace": "t1",
+          "Keep-Alive": "timeout=5",
+        })
+      )
+    ).toEqual({
+      "ocp-apim-subscription-key": "*****",
+      "x-functions-key": "*****",
+      "idempotency-key": "*****",
+      "x-trace": "t1",
+      "keep-alive": "timeout=5",
+    });
+  });
+
   it("hides cookies, in a Headers as in an object", async () => {
     const { hideSensitiveHeaders } = await import("../src/functions/lib/index");
     expect(hideSensitiveHeaders(new Headers({ Cookie: "sid=secret", "X-Trace": "t1" }))).toEqual({

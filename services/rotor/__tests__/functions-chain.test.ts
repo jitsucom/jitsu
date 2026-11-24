@@ -1253,6 +1253,10 @@ describe.each(testModes)("Test Functions Chain ($name mode)", ({ name: modeName,
       expect(formBody?.message.text).toBe(
         "form-body=grant_type=client_credentials&note=a+b|application/x-www-form-urlencoded;charset=UTF-8"
       );
+      const urlObjectAuth = loggedEntries
+        .map(e => e.msg)
+        .find(m => String(m?.message?.text).startsWith("url-object-auth="));
+      expect(urlObjectAuth?.message.text).toBe("url-object-auth=Bearer via-url");
       const generatorAuth = loggedEntries
         .map(e => e.msg)
         .find(m => String(m?.message?.text).startsWith("generator-auth="));

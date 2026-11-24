@@ -189,6 +189,11 @@ export default async function(event, { fetch, log, props: config }) {
   const form = await fetch(config.FETCH_URL + "?echo=2", { method: "POST", body: new URLSearchParams({ grant_type: "client_credentials", note: "a b" }) })
   const formJson = await form.json()
   log.info("form-body=" + formJson.received + "|" + formJson.contentType)
+  // a URL object as the address: it does not survive postMessage, so a worker has to send its text
+  const urlObject = new URL(config.FETCH_URL)
+  urlObject.searchParams.set("echo", "1")
+  const viaUrl = await fetch(urlObject, { headers: { Authorization: "Bearer via-url" } })
+  log.info("url-object-auth=" + (await viaUrl.json()).receivedAuthorization)
   // a pair that is a Set (any iterable of two items) is a valid pair for fetch
   const setPair = await fetch(config.FETCH_URL + "?echo=1", { headers: (function* () { yield new Set(["Authorization", "Bearer from-set-pair"]) })() })
   log.info("set-pair-auth=" + (await setPair.json()).receivedAuthorization)

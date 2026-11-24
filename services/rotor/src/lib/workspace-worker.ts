@@ -27,6 +27,7 @@ import {
   rebuildProxyError,
   responseBodyText,
   transferableFetchInit,
+  fetchUrlString,
   trimLoggedResponse,
   type SerializedResponse,
 } from "./worker-fetch";
@@ -154,7 +155,7 @@ function buildContext(
       functionId,
       functionType,
       type: "http-request" as const,
-      url,
+      url: fetchUrlString(url),
       method: init?.method || "GET",
       body: init?.body,
       ...(detailedFetchLogs && sendInit?.headers ? { headers: hideSensitiveHeaders(sendInit.headers) } : {}),
@@ -164,7 +165,7 @@ function buildContext(
     try {
       const serialized: SerializedResponse = await callMain("fetch", [
         chain.connection.id,
-        url,
+        fetchUrlString(url),
         sendInit,
         fetchTimeoutMs,
       ]);

@@ -737,10 +737,10 @@ function headerPairs(headers: any): Array<[string, any]> {
   return Object.entries(headers ?? {});
 }
 
-const SENSITIVE_HEADER = /authorization|token|cookie|api[-_]?key|secret|password/i;
+const SENSITIVE_HEADER = /authorization|token|cookie|secret|password|key(?![a-z])/i;
 
 /**
- * A header whose name contains "authorization", "token", "cookie", "api-key", "secret" or "password" is hidden in the logged request. The headers may be an object, a
+ * A header whose name contains "authorization", "token", "cookie", "secret" or "password", or has "key" as a word (api-key, subscription-key...) is hidden in the logged request. The headers may be an object, a
  * Headers or Map, or an array of [name, value] pairs: Object.entries of an array would give the keys "0", "1" and miss the
  * name. The same rule is in services/rotor/src/lib/worker-fetch.ts, which cannot import this library into the workers.
  */

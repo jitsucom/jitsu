@@ -152,10 +152,24 @@ export function proxiedFetchTimeoutMs(requested: unknown, defaultMs: number): nu
 // response body, cut to a length the log can hold.
 
 /** The [name, value] pairs of request headers in any form fetch accepts: an object, a Headers or Map, or an array, Set or other iterable of pairs. */
+// A plain object (the headers of a rebuilt response, an object literal) is read by its own entries. The headers object of a
+// rebuilt response also has Headers methods as hidden properties, among them an iterator over the response's original
+// headers: following it would send the original headers and not the UDF's edits.
+function isPlainObject(x: any): boolean {
+  if (!x || typeof x !== "object") return false;
+  const proto = Object.getPrototypeOf(x);
+  return proto === Object.prototype || proto === null;
+}
+
 function headerPairs(headers: any): Array<[string, any]> {
   // An array, a Set, a Map, a Headers or a generator all iterate as [name, value] pairs. forEach does not: a Set calls back
   // with (value, value), which made the whole pair the name.
-  if (headers && typeof headers !== "string" && typeof headers[Symbol.iterator] === "function") {
+  if (
+    !isPlainObject(headers) &&
+    headers &&
+    typeof headers !== "string" &&
+    typeof headers[Symbol.iterator] === "function"
+  ) {
     // each pair is itself an iterable of at least two items: an array, or for fetch also a Set or a generator
     return [...headers].flatMap((p): Array<[string, any]> => {
       const pair = p && typeof p === "object" && typeof p[Symbol.iterator] === "function" ? [...p] : undefined;
@@ -193,7 +207,12 @@ export function transferableFetchInit(init: any): any {
  * cut) on its way to the main process.
  */
 function wirePairs(headers: any): Array<[string, string]> {
-  if (headers && typeof headers === "object" && typeof headers[Symbol.iterator] === "function") {
+  if (
+    !isPlainObject(headers) &&
+    headers &&
+    typeof headers === "object" &&
+    typeof headers[Symbol.iterator] === "function"
+  ) {
     return [...headers].map(p => {
       const pair = p && typeof p === "object" && typeof p[Symbol.iterator] === "function" ? [...p] : undefined;
       if (!pair || pair.length !== 2) {
@@ -210,7 +229,7 @@ function wirePairs(headers: any): Array<[string, string]> {
 function transferableHeaders(init: any): any {
   const h = init && typeof init === "object" ? init.headers : undefined;
   const isIterable = (x: any) => x && typeof x === "object" && typeof x[Symbol.iterator] === "function";
-  if (isIterable(h)) {
+  if (!isPlainObject(h) && isIterable(h)) {
     // an array, a Map or a Set clones as it is and can be read again, unless a pair in it is a one-shot iterator; anything
     // else (a Headers, a generator) is read here, once, and the same array serves the log entry and the request
     const cloneable = Array.isArray(h) || h instanceof Map || h instanceof Set;
@@ -221,10 +240,10 @@ function transferableHeaders(init: any): any {
   return init;
 }
 
-const SENSITIVE_HEADER = /authorization|token|cookie|api[-_]?key|secret|password/i;
+const SENSITIVE_HEADER = /authorization|token|cookie|secret|password|key(?![a-z])/i;
 
 /**
- * Same rule as makeFetch: a header whose name contains "authorization", "token", "cookie", "api-key", "secret" or "password" is hidden. The headers may be an object,
+ * Same rule as makeFetch: a header whose name contains "authorization", "token", "cookie", "secret" or "password", or has "key" as a word (api-key, subscription-key...) is hidden. The headers may be an object,
  * a Headers or Map, or an array of [name, value] pairs: Object.entries of an array would give the keys "0", "1" and miss
  * the name.
  */
@@ -304,4 +323,9 @@ export function rebuildProxyError(message: string, codes: ProxyErrorCodes = {}):
   if (!isDomException && codes.code) err.code = codes.code;
   if (codes.causeCode) err.cause = { code: codes.causeCode };
   return err;
+}
+
+/** The URL of a fetch call as a string: a URL object does not survive postMessage (in Deno it arrives as {}). */
+export function fetchUrlString(url: any): any {
+  return typeof URL !== "undefined" && url instanceof URL ? url.href : url;
 }

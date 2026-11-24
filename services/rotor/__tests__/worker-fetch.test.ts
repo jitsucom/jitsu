@@ -12,6 +12,7 @@ import {
   errorCodesOf,
   rebuildProxyError,
   transferableFetchInit,
+  fetchUrlString,
   responseBodyText,
   serializeResponse,
   trimLoggedResponse,
@@ -743,5 +744,85 @@ describe("header pairs on the wire", () => {
       ["a", "b"],
       ["content-type", "application/x-www-form-urlencoded;charset=UTF-8"],
     ]);
+  });
+});
+
+// Azure API Management and Azure Functions name their credentials Ocp-Apim-Subscription-Key and X-Functions-Key. Names
+// listed one by one are never complete: every header name that has "key" as a word is hidden.
+describe("headers that hold a key", () => {
+  it("hides any header name with key as a word, and leaves the others", () => {
+    const logged = hideSensitiveHeaders(
+      new Headers({
+        "Ocp-Apim-Subscription-Key": "k1",
+        "X-Functions-Key": "k2",
+        "X-API-Key": "k3",
+        apikey: "k4",
+        "Idempotency-Key": "k5",
+        "X-Trace": "t1",
+        "Content-Type": "application/json",
+        "Keep-Alive": "timeout=5",
+        Accept: "*/*",
+      })
+    );
+    expect(logged).toEqual({
+      "ocp-apim-subscription-key": "*****",
+      "x-functions-key": "*****",
+      "x-api-key": "*****",
+      apikey: "*****",
+      "idempotency-key": "*****",
+      "x-trace": "t1",
+      "content-type": "application/json",
+      "keep-alive": "timeout=5",
+      accept: "*/*",
+    });
+  });
+});
+
+// The response a UDF got is rebuilt with a plain headers object, so that the UDF can read and edit it as before. The object
+// has the Headers methods (get, iteration...) as hidden properties. When the UDF uses it as the headers of a request, its
+// own entries, with the edits, are the headers: the iterator reads the backing snapshot and would send the original ones.
+describe("headers of a rebuilt response, used in a request", () => {
+  const response = () =>
+    deserializeResponse({
+      status: 200,
+      statusText: "OK",
+      ok: true,
+      url: "http://x/",
+      type: "basic",
+      redirected: false,
+      headers: [
+        ["content-type", "application/json"],
+        ["content-length", "17"],
+        ["x-next-page", "2"],
+      ],
+      body: '{"a":"b"}',
+    } as any);
+
+  it("are sent as the UDF edited them", () => {
+    const res: any = response();
+    delete res.headers["content-length"];
+    res.headers["content-type"] = "text/plain";
+    res.headers["x-added"] = "1";
+    // the headers go as the object (its own entries) or as pairs; either way they are the edited ones
+    const out = transferableFetchInit({ method: "POST", headers: res.headers, body: "x" }).headers;
+    const sent = Object.fromEntries(Array.isArray(out) ? out : Object.entries(out));
+    expect(sent).toEqual({ "content-type": "text/plain", "x-next-page": "2", "x-added": "1" });
+  });
+
+  it("are logged as the UDF edited them", () => {
+    const res: any = response();
+    delete res.headers["content-length"];
+    expect(hideSensitiveHeaders(res.headers)).toEqual({ "content-type": "application/json", "x-next-page": "2" });
+  });
+});
+
+// A URL object does not survive postMessage (in Deno it arrives as {}), and the main process rejects it as an invalid URL.
+describe("the URL of a fetch call", () => {
+  it("is a string whatever the UDF passed", () => {
+    const u = new URL("https://example.com/path?a=1");
+    u.searchParams.set("b", "2");
+    expect(fetchUrlString(u)).toBe("https://example.com/path?a=1&b=2");
+    expect(fetchUrlString("https://example.com/x")).toBe("https://example.com/x");
+    expect(fetchUrlString(undefined)).toBeUndefined();
   });
 });
