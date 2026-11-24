@@ -1,10 +1,23 @@
 import { describe, expect, it, vi } from "vitest";
 
-// A test value for this file only: the route reads it when the module is loaded
+// Test values for this file only: the route reads the key when the module is loaded
 const SYNCCTL_KEY = vi.hoisted(() => {
-  process.env.SYNCCTL_AUTH_KEY = "test-syncctl-key-0123456789";
-  return process.env.SYNCCTL_AUTH_KEY;
+  const key = "test-syncctl-key-0123456789";
+  vi.stubEnv("SYNCCTL_AUTH_KEY", key);
+  return key;
 });
+
+// The route answers differently in maintenance, in read-only mode and with EE configured; those come from the
+// environment of whoever runs the test, so the gates are fixed here
+vi.mock("../../lib/server/maintenance", async importOriginal => ({
+  ...(await importOriginal<typeof import("../../lib/server/maintenance")>()),
+  isReadOnly: () => false,
+  isMaintenanceActive: () => false,
+}));
+vi.mock("../../lib/server/ee", async importOriginal => ({
+  ...(await importOriginal<typeof import("../../lib/server/ee")>()),
+  isEEAvailable: () => false,
+}));
 
 import handler from "../../pages/api/admin/sync-quota-check";
 

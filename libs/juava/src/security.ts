@@ -47,7 +47,9 @@ export function createHash(secret: string): string {
  * show either.
  */
 export function safeEqual(a: string, b: string): boolean {
-  const digest = (value: string) => crypto.createHash("sha256").update(value).digest();
+  // utf16le keeps every code unit: the default UTF-8 turns a lone surrogate into U+FFFD, and two different strings would
+  // get the same digest
+  const digest = (value: string) => crypto.createHash("sha256").update(value, "utf16le").digest();
   return crypto.timingSafeEqual(digest(a), digest(b));
 }
 

@@ -55,6 +55,16 @@ describe("constant time compares", () => {
     expect(spy).toHaveBeenCalled();
   });
 
+  // Node turns a lone UTF-16 surrogate into U+FFFD when it encodes a string as UTF-8, so two different strings would have
+  // the same digest. The compare has to be exact for every string a caller can send.
+  test("two strings that differ only by a lone surrogate are different", () => {
+    expect(safeEqual("tok\uD800", "tok\uFFFD")).toBe(false);
+    expect(safeEqual("tok\uDC00", "tok\uD800")).toBe(false);
+    expect(safeEqual("tok\uD800", "tok\uD800")).toBe(true);
+    expect(safeEqual("a\u{1F600}", "a\u{1F600}")).toBe(true);
+    expect(checkRawToken("tok\uFFFD", "tok\uD800")).toBe(false);
+  });
+
   test("an empty secret matches nothing but an empty token", () => {
     expect(checkRawToken("plain-token-1", "")).toBe(false);
     expect(checkHash(createHash("a-secret"), "")).toBe(false);
