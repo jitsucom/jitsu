@@ -24,6 +24,7 @@ type Context struct {
 	eventsLogService  eventslog.EventsLogService
 	server            *http.Server
 	metricsServer     *MetricsServer
+	backupShadow      *backupShadow
 	backupsLogger     *BackupLogger
 	consumerMonitor   *ConsumerMonitor
 }
@@ -34,6 +35,10 @@ func (a *Context) InitContext(settings *appbase.AppSettings) error {
 	err = appbase.InitAppConfig(a.config, settings)
 	if err != nil {
 		return err
+	}
+	a.backupShadow, err = newBackupShadow(a.config)
+	if err != nil {
+		logging.Errorf("Backup shadow comparison disabled: %v", err)
 	}
 	a.repository = NewStreamsRepository(a.config.RepositoryURL, a.config.RepositoryAuthToken, a.config.RepositoryRefreshPeriodSec, a.config.CacheDir)
 	a.scriptRepository = NewScriptRepository(a.config.ScriptOrigin, a.config.CacheDir)
