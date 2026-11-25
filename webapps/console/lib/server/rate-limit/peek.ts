@@ -19,10 +19,10 @@ export function peekResult(
 ): RateLimitResult {
   const W = opts.windowMs;
   const base = Math.floor(now / W) * W;
-  const fits = (at: number): boolean => {
+  const fits = (at: number, inFlight = pending): boolean => {
     const start = Math.floor(at / W) * W;
     const windowsAhead = (start - base) / W;
-    const c = windowsAhead === 0 ? current + pending : 0;
+    const c = windowsAhead === 0 ? current + inFlight : 0;
     const p = windowsAhead === 0 ? previous : windowsAhead === 1 ? current : 0;
     return p * (W - (at - start)) + (c + 1) * W <= opts.limit * W;
   };
@@ -38,8 +38,14 @@ export function peekResult(
       retryAfterSec: 0,
     };
   }
+  // Refused only because of the checks in flight: they are over in moments, so wait for them, not for the window to end
   let waitSec = 1;
+  if (pending > 0 && fits(now, 0)) return refused(opts, now, waitSec);
   while (waitSec < (2 * W) / 1000 && !fits(now + waitSec * 1000)) waitSec++;
+  return refused(opts, now, waitSec);
+}
+
+function refused(opts: RateLimitOpts, now: number, waitSec: number): RateLimitResult {
   return {
     allowed: false,
     bucket: opts.bucket,

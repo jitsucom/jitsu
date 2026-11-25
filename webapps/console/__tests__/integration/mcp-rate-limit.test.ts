@@ -84,6 +84,8 @@ beforeEach(() => {
   windowStart = Math.floor(Date.now() / 60_000) * 60_000;
   vi.useFakeTimers({ toFake: ["Date"] });
   vi.setSystemTime(windowStart + 30_000);
+  // the tests tell clients apart by X-Real-IP; a developer's own setting of it must not decide whether they pass
+  vi.stubEnv("AUTH_TRUST_X_REAL_IP", "true");
 });
 
 afterEach(() => {
