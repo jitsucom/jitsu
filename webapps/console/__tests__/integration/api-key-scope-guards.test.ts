@@ -16,14 +16,44 @@ import adminUsersRoute from "../../pages/api/admin/users";
 // reverted each guard one at a time and every test still passed. Each test below fails when its guard is reverted; the
 // guard is named in the test. The routes are called through their real handlers, with real keys and a real database.
 
-// the email templates are not what is tested and need the mjml renderer
-vi.mock("../../lib/server/templates", () => ({}));
+// The email templates are not what is tested: one template reduced to what mjml needs, so that the unrestricted admin
+// request of the email-template route is a real success and not a failure that happens to carry another message.
+vi.mock("../../lib/server/templates", async () => {
+  const { createElement: h } = await import("react");
+  return {
+    GuardTemplate: () =>
+      h(
+        "mjml",
+        null,
+        h("mj-body", null, h("mj-section", null, h("mj-column", null, h("mj-text", null, "guard-test-template"))))
+      ),
+  };
+});
 // A browser session is a principal that is not a key: getUser takes it from here when there is no Authorization header.
 const session = vi.hoisted(() => ({ user: undefined as any }));
+// Firebase is stubbed completely: admin/users lists the users of the real project through the Admin SDK, and a developer's
+// shared Firebase settings would otherwise send the unrestricted request to it.
+const firebaseUsers = vi.hoisted(() => [
+  {
+    uid: "fb-1",
+    email: "one@example.com",
+    displayName: "One",
+    metadata: { creationTime: "2026-01-02T03:04:05.000Z" },
+    customClaims: { internalId: "internal-1" },
+  },
+  {
+    uid: "fb-2",
+    email: "two@example.com",
+    displayName: "Two",
+    metadata: { creationTime: "2026-02-03T04:05:06.000Z" },
+    customClaims: { internalId: "internal-2" },
+  },
+]);
 vi.mock("../../lib/server/firebase-server", async importOriginal => ({
   ...(await importOriginal<typeof import("../../lib/server/firebase-server")>()),
   isFirebaseEnabled: () => true,
   getFirebaseUser: async () => session.user,
+  firebase: () => ({ auth: () => ({ listUsers: async () => ({ users: firebaseUsers, pageToken: undefined }) }) }),
 }));
 
 beforeEach(() => {
@@ -58,6 +88,7 @@ async function call(handler: any, method: string, key: string | undefined, body?
   const res: any = {
     statusCode: 200,
     body: undefined as any,
+    written: "",
     headers: {} as Record<string, any>,
     status(code: number) {
       this.statusCode = code;
@@ -80,7 +111,9 @@ async function call(handler: any, method: string, key: string | undefined, body?
     writeHead(code: number) {
       this.statusCode = code;
     },
-    write() {},
+    write(chunk: string) {
+      this.written += chunk;
+    },
     end() {},
   };
   const headers: Record<string, string> = { host: "localhost", ...(key ? { authorization: `Bearer ${key}` } : {}) };
@@ -182,14 +215,55 @@ describe("a key created through the API keeps its workspace and role (keys.ts st
 });
 
 describe("a limited key of a platform admin is refused by the admin routes that moved to verifyAdmin", () => {
-  const routes: [string, any, string, any][] = [
-    ["healthcheck/db", healthcheckDbRoute, "GET", {}],
-    ["admin/domains-report", domainsReportRoute, "GET", {}],
-    ["admin/email-templates/[template]", emailTemplateRoute, "POST", { template: "any" }],
-    ["admin/users", adminUsersRoute, "GET", {}],
+  // Each route with what its success looks like: the unrestricted admin key must get a real answer, so that a route that
+  // fails after the guard (a broken success path) cannot pass for "the guard let it through".
+  const routes: [string, any, string, any, (res: any) => void][] = [
+    [
+      "healthcheck/db",
+      healthcheckDbRoute,
+      "GET",
+      {},
+      res => {
+        expect(res.statusCode).toBe(200);
+        expect(res.body).toHaveProperty("pgBouncer");
+      },
+    ],
+    [
+      "admin/domains-report",
+      domainsReportRoute,
+      "GET",
+      {},
+      res => {
+        expect(res.statusCode).toBe(200);
+        expect(Array.isArray(JSON.parse(res.written))).toBe(true);
+      },
+    ],
+    [
+      "admin/email-templates/[template]",
+      emailTemplateRoute,
+      "POST",
+      { template: "GuardTemplate" },
+      res => {
+        expect(res.statusCode).toBe(200);
+        expect(res.body.html).toContain("guard-test-template");
+      },
+    ],
+    [
+      "admin/users",
+      adminUsersRoute,
+      "GET",
+      {},
+      res => {
+        expect(res.statusCode).toBe(200);
+        expect(res.body.users.map((u: any) => [u.externalId, u.internalId, u.email])).toEqual([
+          ["fb-1", "internal-1", "one@example.com"],
+          ["fb-2", "internal-2", "two@example.com"],
+        ]);
+      },
+    ],
   ];
 
-  it.each(routes)("%s", async (_name, handler, method, query) => {
+  it.each(routes)("%s", async (_name, handler, method, query, expectOk) => {
     const admin = await seedWorkspace({ admin: true });
     const id = admin.user.internalId;
     const body = method === "POST" ? { props: {} } : undefined;
@@ -199,10 +273,8 @@ describe("a limited key of a platform admin is refused by the admin routes that 
       // the reason is the limited key, not a failure somewhere after the guard
       expect(text(res)).toMatch(NOT_FOR_ADMIN);
     }
-    // the same admin with an unrestricted key gets past the guard (other failures, such as a missing renderer, may follow)
-    const open = await call(handler, method, await keyString(id), body, query);
-    expect(text(open)).not.toMatch(NOT_FOR_ADMIN);
-    expect(text(open)).not.toMatch(/is not an admin/);
+    // the same admin with an unrestricted key gets a real answer
+    expectOk(await call(handler, method, await keyString(id), body, query));
   });
 
   it("healthcheck/db answers an unrestricted admin key and refuses an unrestricted key of a non-admin", async () => {
