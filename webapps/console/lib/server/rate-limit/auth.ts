@@ -166,8 +166,10 @@ export async function beginAuthAttempt(req: NextApiRequest, res: NextApiResponse
     let result = await getRateLimiter().peek(opts, counted);
     // The in-flight count was taken before the read. A check that ended since has recorded its failure before it let go of its
     // place, so the read may already contain it and the count would then hold it twice, and refuse a request that fits. Read
-    // again with the current count, which drops only the checks that are over: it never counts less than what is there.
-    for (let again = 0; !result.allowed && again < 2; again++) {
+    // again with the current count, which drops only the checks that are over: it never counts less than what is there. Not
+    // when the recorded failures use the budget up by themselves: the checks that end cannot change that, and a burst against
+    // a blocked address would read the counter twice for each request.
+    for (let again = 0; !result.allowed && !result.blockedByRecorded && again < 2; again++) {
       const others = (checksInFlight.get(opts.principal) ?? 1) - 1;
       if (others >= counted) break;
       counted = others;

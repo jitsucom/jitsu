@@ -68,6 +68,16 @@ const badToken = (ip: string) =>
 const badBearer = (ip: string, authorization = "Bearer nosuchtoken:wrongsecret") =>
   request(ip, { headers: { "x-real-ip": ip, authorization } });
 
+// the counter the failed attempts of an address are recorded in
+const failedOpts = (ip: string) => ({
+  authClass: "ip" as const,
+  principal: nodeHash("sha256").update(ip).digest("hex"),
+  method: "POST" as const,
+  bucket: "auth-failed-mcp",
+  limit: 3,
+  windowMs: 60_000,
+});
+
 async function seedApiKey(secret: string) {
   const { user } = await seedWorkspace();
   const token = await deps().prisma.userApiToken.create({
@@ -290,6 +300,32 @@ describe("the MCP endpoint", () => {
     const refused = makeRes();
     expect(await beginAuthAttempt(badBearer(ip), refused)).toBeUndefined();
     expect(refused.statusCode).toBe(429);
+  });
+
+  it("does not read the counter again when the recorded failures already use the budget up", async () => {
+    vi.stubEnv("MINUTE_RATE_LIMIT_ENABLED", "true");
+    vi.stubEnv("AUTH_ATTEMPT_RATE_LIMIT", "3");
+    const ip = "198.51.100.31";
+    const limiter = getRateLimiter();
+    const first = (await beginAuthAttempt(badBearer(ip), makeRes()))!;
+    const second = (await beginAuthAttempt(badBearer(ip), makeRes()))!;
+    // the budget is used up by recorded failures, while the two checks above are still in flight
+    for (let i = 0; i < 3; i++) await limiter.check(failedOpts(ip));
+    const original = limiter.peek.bind(limiter);
+    let reads = 0;
+    vi.spyOn(limiter, "peek").mockImplementation(async (opts, pending) => {
+      reads++;
+      // the two checks end while the counter is read; releasing them cannot make room, the failures are recorded
+      if (reads === 1) {
+        first.release();
+        second.release();
+      }
+      return original(opts, pending);
+    });
+    const res = makeRes();
+    expect(await beginAuthAttempt(badBearer(ip), res)).toBeUndefined();
+    expect(res.statusCode).toBe(429);
+    expect(reads, "counter reads for one refused request").toBe(1);
   });
 
   it("does nothing when the limiter is switched off", async () => {

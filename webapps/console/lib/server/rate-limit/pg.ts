@@ -2,7 +2,7 @@ import { Prisma, PrismaClient } from "@prisma/client";
 import { getServerLog } from "../log";
 import { SlidingWindowRateLimiter, type CounterWindow } from "juava/src/rate-limit";
 import { peekResult } from "./peek";
-import type { RateLimitOpts, RateLimitResult, RateLimiter } from "./types";
+import type { PeekResult, RateLimitOpts, RateLimitResult, RateLimiter } from "./types";
 
 const log = getServerLog("rate-limit");
 
@@ -31,7 +31,7 @@ export class PgRateLimiter implements RateLimiter {
     return this.limiter.check({ ...opts, key: `${opts.authClass}:${opts.principal}:${opts.bucket}` });
   }
 
-  async peek(opts: RateLimitOpts, pending = 0): Promise<RateLimitResult> {
+  async peek(opts: RateLimitOpts, pending = 0): Promise<PeekResult> {
     const key = `${opts.authClass}:${opts.principal}:${opts.bucket}`;
     const now = Date.now();
     const start = Math.floor(now / opts.windowMs) * opts.windowMs;

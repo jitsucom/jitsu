@@ -30,6 +30,17 @@ describe("peekResult", () => {
     expect(peekResult(opts(3), 3, 0, 0, start).allowed).toBe(false);
   });
 
+  it("says whether the recorded failures alone leave no room", () => {
+    // 3 recorded in a budget of 3: they block the address by themselves, whatever is in flight
+    expect(peekResult(opts(3), 3, 0, 0, start).blockedByRecorded).toBe(true);
+    expect(peekResult(opts(3), 3, 0, 2, start).blockedByRecorded).toBe(true);
+    // nothing recorded, 3 in flight: only the checks in flight refuse, and they are over in moments
+    const inFlight = peekResult(opts(3), 0, 0, 3, start);
+    expect(inFlight.allowed).toBe(false);
+    expect(inFlight.blockedByRecorded).toBe(false);
+    expect(peekResult(opts(3), 0, 0, 0, start).blockedByRecorded).toBe(false);
+  });
+
   it("counts the checks in flight", () => {
     expect(peekResult(opts(3), 1, 0, 1, start).allowed).toBe(true);
     expect(peekResult(opts(3), 1, 0, 2, start).allowed).toBe(false);

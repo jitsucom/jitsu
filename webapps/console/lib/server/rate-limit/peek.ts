@@ -1,5 +1,5 @@
 import type { RateLimitResult } from "juava/src/rate-limit";
-import type { RateLimitOpts } from "./types";
+import type { PeekResult, RateLimitOpts } from "./types";
 
 // The decision of a budget of failures, read without counting the request: is there room for one more failure?
 //
@@ -16,7 +16,7 @@ export function peekResult(
   previous: number,
   pending: number,
   now: number
-): RateLimitResult {
+): PeekResult {
   const W = opts.windowMs;
   const base = Math.floor(now / W) * W;
   const fits = (at: number, inFlight = pending): boolean => {
@@ -36,6 +36,7 @@ export function peekResult(
       remaining: Math.max(0, Math.floor((opts.limit * W - used) / W)),
       resetAt: new Date(base + W),
       retryAfterSec: 0,
+      blockedByRecorded: false,
     };
   }
   // The wait is forecast from the recorded failures alone. The checks in flight are over in moments and mostly record no
@@ -43,10 +44,10 @@ export function peekResult(
   // address it is when those failures stop blocking it.
   let waitSec = 1;
   while (waitSec < (2 * W) / 1000 && !fits(now + waitSec * 1000, 0)) waitSec++;
-  return refused(opts, now, waitSec);
+  return refused(opts, now, waitSec, !fits(now, 0));
 }
 
-function refused(opts: RateLimitOpts, now: number, waitSec: number): RateLimitResult {
+function refused(opts: RateLimitOpts, now: number, waitSec: number, blockedByRecorded: boolean): PeekResult {
   return {
     allowed: false,
     bucket: opts.bucket,
@@ -54,5 +55,6 @@ function refused(opts: RateLimitOpts, now: number, waitSec: number): RateLimitRe
     remaining: 0,
     resetAt: new Date(now + waitSec * 1000),
     retryAfterSec: waitSec,
+    blockedByRecorded,
   };
 }
