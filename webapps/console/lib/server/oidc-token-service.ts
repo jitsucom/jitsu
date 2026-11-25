@@ -252,8 +252,10 @@ export function isJwtToken(token: string): boolean {
     const json = Buffer.from(header, "base64url").toString("utf8");
     const jwtHeader = JSON.parse(json);
     return jwtHeader && jwtHeader.alg;
-  } catch (e: any) {
-    log.atWarn().withCause(e).log("Failed to decode JWT token", { token });
+  } catch {
+    // An opaque access token is not a JWT: expected, not a warning. Neither the token nor the parse error may be logged: the
+    // error quotes the start of the decoded input.
+    log.atDebug().log("Access token is not a JWT");
   }
   return false;
 }

@@ -108,7 +108,12 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
     }
 
     const tokens: OidcTokenResponse = await tokenResponse.json();
-    log.atInfo().log("Exchanging code for tokens", tokens);
+    // Never log the token response: it holds the access and ID tokens (and possibly a refresh token). What was returned is enough.
+    log.atInfo().log("Exchanged the code for tokens", {
+      idToken: !!tokens.id_token,
+      refreshToken: !!tokens.refresh_token,
+      expiresIn: tokens.expires_in,
+    });
     // Get user info
     let userInfo: OidcUserInfo;
 
@@ -188,7 +193,8 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
         returnUrl: stateData.returnUrl,
       });
     }
-    log.atInfo().log("User info", JSON.stringify(userInfo));
+    // the claims are personal data (email, name, groups): log which ones came, not their values
+    log.atDebug().log("User info received", { claims: Object.keys(userInfo).sort().join(",") });
 
     // Extract user details based on claim mappings
     const email = userInfo[oidcProvider.emailClaim] || userInfo.email;

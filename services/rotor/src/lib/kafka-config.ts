@@ -63,7 +63,8 @@ export function connectToKafka(opts: { defaultAppId: string } & KafkaCredentials
         sasl: opts.sasl as any,
       }
     : {};
-  log.atDebug().log("SASL config", JSON.stringify(opts.sasl));
+  // never the password: the user and the mechanism are enough to see what is configured
+  log.atDebug().log("SASL config", { mechanism: opts.sasl?.mechanism, username: (opts.sasl as any)?.username });
   return new KafkaJS.Kafka({
     kafkaJS: {
       logLevel: KafkaJS.logLevel.ERROR,
