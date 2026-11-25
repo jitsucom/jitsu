@@ -563,6 +563,14 @@ export function isLimitedKey(user: SessionUser): boolean {
 }
 
 /**
+ * The workspace a key is limited to, if any. Lists of workspaces show only that one: the key cannot open the others, so it
+ * has no business seeing their names, slugs or feature flags.
+ */
+export function keyWorkspaceScope(user: SessionUser): string | undefined {
+  return isKeyAuth(user) ? user.tokenWorkspaceId || undefined : undefined;
+}
+
+/**
  * Account-level endpoints (invitations, keys, password) act across every workspace of the user, so a key limited to a
  * workspace or a role may not use them: it would otherwise read or accept an invitation to a workspace it is kept
  * out of, or delete the user's other keys. Sessions and unrestricted keys are unaffected.

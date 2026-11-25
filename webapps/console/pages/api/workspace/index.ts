@@ -1,4 +1,10 @@
-import { assertNotLimitedKey, createRoute, isPlatformAdmin, verifyAccessWithRole } from "../../../lib/api";
+import {
+  assertNotLimitedKey,
+  createRoute,
+  isPlatformAdmin,
+  keyWorkspaceScope,
+  verifyAccessWithRole,
+} from "../../../lib/api";
 import { z } from "zod";
 import { Prisma } from "@prisma/client";
 import { db } from "../../../lib/server/db";
@@ -53,6 +59,9 @@ export const route = createRoute()
 
     // a key limited to one workspace or a role is not a platform admin here, so it does not list every workspace
     const isAdmin = await isPlatformAdmin(user);
+    // a key limited to one workspace lists that one only
+    const scope = keyWorkspaceScope(user);
+    const scopeClause = scope ? Prisma.sql`AND w.id = ${scope}` : Prisma.empty;
 
     // Search matches workspace id / name / slug, case-insensitively. Kept as a raw fragment so it
     // can be composed into the ordering query below (see comment there for why raw SQL).
@@ -68,6 +77,7 @@ export const route = createRoute()
           where: {
             userId: user.internalId,
             workspace: { deleted: false },
+            ...(scope ? { workspaceId: scope } : {}),
           },
         });
 
@@ -95,7 +105,7 @@ export const route = createRoute()
             ON wa."workspaceId" = w.id AND wa."userId" = ${user.internalId}
           LEFT JOIN newjitsu."WorkspaceUserProperties" wup
             ON wup."workspaceId" = w.id AND wup."userId" = ${user.internalId}
-          WHERE w.deleted = false ${searchClause}
+          WHERE w.deleted = false ${searchClause} ${scopeClause}
           ${order}`;
 
     const workspaces = rows.map(row =>

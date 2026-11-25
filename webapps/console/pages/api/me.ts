@@ -1,5 +1,5 @@
 import { NextApiRequest, NextApiResponse } from "next";
-import { getUser, isPlatformAdmin } from "../../lib/api";
+import { getUser, isPlatformAdmin, keyWorkspaceScope } from "../../lib/api";
 import { getRequestHost, getTopLevelDomain } from "../../lib/server/origin";
 import { db } from "../../lib/server/db";
 import { getServerLog } from "../../lib/server/log";
@@ -62,8 +62,13 @@ async function getWorkspaces(user: SessionUser) {
   if (await isPlatformAdmin(user)) {
     return await db.prisma().workspace.findMany({ where: { deleted: false } });
   }
+  // a key limited to one workspace lists that one only
+  const scope = keyWorkspaceScope(user);
   return (
-    await db.prisma().workspaceAccess.findMany({ where: { userId: internalUserId }, include: { workspace: true } })
+    await db.prisma().workspaceAccess.findMany({
+      where: { userId: internalUserId, ...(scope ? { workspaceId: scope } : {}) },
+      include: { workspace: true },
+    })
   )
     .map(res => res.workspace)
     .filter(w => !w.deleted);
