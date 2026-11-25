@@ -30,7 +30,7 @@ export const api: Api = {
     },
     handle: async ({ body, req }) => {
       try {
-        const decoded = await firebase().auth().verifyIdToken(body.idToken);
+        const decoded = await firebase().auth().verifyIdToken(body.idToken, true);
         const email = decoded.email || "";
         let internalId = (decoded as any).internalId as string | undefined;
         if (!internalId && email) {

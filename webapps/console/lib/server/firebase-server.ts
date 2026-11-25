@@ -217,7 +217,30 @@ export function isUnverifiedPasswordAccount(decoded: admin.auth.DecodedIdToken):
   return decoded.firebase?.sign_in_provider === "password" && decoded.email_verified !== true;
 }
 
-export async function getFirebaseUser(req: NextApiRequest, checkRevoked?: boolean): Promise<SessionUser | undefined> {
+/**
+ * JITSU-297: why a verified Firebase session must still be refused, from the user record. Signing out calls
+ * revokeRefreshTokens, which sets tokensValidAfterTime; a session cookie or ID token is valid only if its auth_time is not
+ * older than that, and only while the account is enabled. The Admin SDK's own `checkRevoked` makes exactly this comparison,
+ * but fetches the user record a second time; getFirebaseUser fetches it anyway, so the rule is applied to that record.
+ * Fails closed when a revocation exists and the token has no auth_time.
+ */
+export function sessionRejection(
+  decoded: Pick<admin.auth.DecodedIdToken, "auth_time">,
+  user: Pick<admin.auth.UserRecord, "disabled" | "tokensValidAfterTime">
+): "disabled" | "revoked" | undefined {
+  if (user.disabled) {
+    return "disabled";
+  }
+  if (user.tokensValidAfterTime) {
+    const validSince = new Date(user.tokensValidAfterTime).getTime();
+    if (typeof decoded.auth_time !== "number" || decoded.auth_time * 1000 < validSince) {
+      return "revoked";
+    }
+  }
+  return undefined;
+}
+
+export async function getFirebaseUser(req: NextApiRequest): Promise<SessionUser | undefined> {
   const authToken = getFirebaseToken(req);
   if (!authToken) {
     // No bearer token and no auth cookie. This is routine for any anonymous hit
@@ -236,7 +259,7 @@ export async function getFirebaseUser(req: NextApiRequest, checkRevoked?: boolea
       ? await firebase().auth().verifyIdToken(authToken.idToken)
       : await firebase()
           .auth()
-          .verifySessionCookie(authToken.cookieToken as string, checkRevoked);
+          .verifySessionCookie(authToken.cookieToken as string);
   } catch (e) {
     // Context lets a single line explain the 401 (which route, host) and flags
     // the duplicate-cookie case (jitsuAuthCookies>1) that makes a stale copy win.
@@ -255,6 +278,13 @@ export async function getFirebaseUser(req: NextApiRequest, checkRevoked?: boolea
   }
 
   const user = await firebase().auth().getUser(decodedIdToken.uid);
+
+  // JITSU-297: signing out or disabling the account ends the session on every route, not only where the SDK flag was passed
+  const rejection = sessionRejection(decodedIdToken, user);
+  if (rejection) {
+    log.atWarn().log(`Rejecting ${rejection} Firebase session of ${decodedIdToken.uid} (${authLogContext(req)})`);
+    return undefined;
+  }
 
   const email = requireDefined(
     decodedIdToken.email,

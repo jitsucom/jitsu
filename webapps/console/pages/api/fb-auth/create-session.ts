@@ -43,7 +43,8 @@ export const api: Api = {
       }
       // JITSU-018: never mint a session cookie for an unverified email+password
       // account, even if the client-side gate was bypassed.
-      const decodedIdToken = await firebase().auth().verifyIdToken(idToken);
+      // a token that was revoked at sign-out must not mint a new 5-day session
+      const decodedIdToken = await firebase().auth().verifyIdToken(idToken, true);
       if (isUnverifiedPasswordAccount(decodedIdToken)) {
         throw new ApiError("Email address is not verified", { status: 403 });
       }
