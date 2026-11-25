@@ -208,14 +208,15 @@ func NewEnvConfigurationSource(envPrefix, prefix string) *EnvConfigurationSource
 		cfg := &DestinationConfig{}
 		err := hjson.Unmarshal([]byte(value), &cfg)
 		if err != nil {
-			base.Errorf("Failed to parse destination config %s: %v:\n%s", id, err, value)
+			// the config text holds the destination's credentials: its size is enough to tell it was not empty
+			base.Errorf("Failed to parse destination config %s: %v (%d bytes, not logged)", id, err, len(value))
 			continue
 		}
 		if len(cfg.Config.Id) > 0 {
 			id = cfg.Config.Id
 		}
 		cfg.Config.Id = id
-		base.Debugf("parsed config for destination %s: %+v", id, cfg)
+		base.Debugf("parsed config for destination %s (type %s, uses bulker: %v)", id, cfg.Config.BulkerType, cfg.UsesBulker)
 		results[id] = cfg
 	}
 	// look for all viper keys starting with prefix
@@ -229,13 +230,13 @@ func NewEnvConfigurationSource(envPrefix, prefix string) *EnvConfigurationSource
 		cfg := &DestinationConfig{}
 		err := hjson.Unmarshal([]byte(value), &cfg)
 		if err != nil {
-			base.Errorf("Failed to parse destination config %s: %v:\n%s", id, err, value)
+			base.Errorf("Failed to parse destination config %s: %v (%d bytes, not logged)", id, err, len(value))
 			continue
 		}
 		if len(cfg.Config.Id) > 0 {
 			id = cfg.Config.Id
 		}
-		base.Debugf("parsed config for destination %s: %+v", id, cfg)
+		base.Debugf("parsed config for destination %s (type %s, uses bulker: %v)", id, cfg.Config.BulkerType, cfg.UsesBulker)
 		results[id] = cfg
 	}
 	y := &EnvConfigurationSource{

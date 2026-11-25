@@ -18,6 +18,17 @@ import (
 	"github.com/jitsucom/bulker/jitsubase/uuid"
 )
 
+// checkAuthTokenFormat refuses a configured token that lacks its salt. A token like that is usually a raw secret put in the
+// variable meant for hashes, so the error must not repeat it: it is logged before the process exits.
+func checkAuthTokenFormat(authTokens []string) error {
+	for i, authToken := range authTokens {
+		if !strings.Contains(authToken, ".") {
+			return fmt.Errorf("invalid auth token #%d (value not logged): it should be in the format ${salt}.${hash}, or the RAW_AUTH_TOKENS config variable must be used instead", i+1)
+		}
+	}
+	return nil
+}
+
 const ContextLoggerName = "contextLogger"
 const ContextDomain = "contextDomain"
 const ContextMessageId = "contextMessageId"
@@ -72,10 +83,8 @@ func NewRouterBase(config Config, noAuthPaths []string, beforeAuth ...gin.Handle
 	if authTokens == nil && rawAuthTokens == nil {
 		base.Warnf("⚠️ No auth tokens provided. All requests will be allowed")
 	}
-	for _, authToken := range authTokens {
-		if !strings.Contains(authToken, ".") {
-			base.Fatalf("Invalid auth token: %s Should be in format ${salt}.${hash} or RAW_AUTH_TOKENS config variable must be used instead", authToken)
-		}
+	if err := checkAuthTokenFormat(authTokens); err != nil {
+		base.Fatalf("%v", err)
 	}
 
 	router := &Router{
