@@ -1,9 +1,11 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { createHash as nodeHash } from "node:crypto";
 import { createHash } from "juava";
 import { deps, seedWorkspace } from "./support/harness";
 import tokenRoute from "../../pages/api/mcp/oauth/token";
 import mcpRoute from "../../pages/api/mcp/[transport]";
 import { getRateLimiter } from "../../lib/server/rate-limit";
+import { withAuthRateLimit } from "../../lib/server/rate-limit/auth";
 
 // Failed attempts at the OAuth token endpoint and at the MCP endpoint were not counted anywhere: the limiter ran only after
 // authentication, or not at all. These tests call the real route handlers over a real database.
@@ -74,7 +76,17 @@ async function seedApiKey(secret: string) {
   return `${token.id}:${secret}`;
 }
 
-afterEach(() => vi.unstubAllEnvs());
+// The counters are per minute: the clock stands still in the middle of a window, so that no test depends on where in the
+// minute it happens to run
+beforeEach(() => {
+  vi.useFakeTimers({ toFake: ["Date"] });
+  vi.setSystemTime(1_800_000_030_000);
+});
+
+afterEach(() => {
+  vi.useRealTimers();
+  vi.unstubAllEnvs();
+});
 
 describe("POST /api/mcp/oauth/token", () => {
   it("counts every attempt per IP and answers 429 with Retry-After past the budget", async () => {
@@ -98,16 +110,25 @@ describe("POST /api/mcp/oauth/token", () => {
     vi.stubEnv("MINUTE_RATE_LIMIT_ENABLED", "true");
     vi.stubEnv("AUTH_ATTEMPT_RATE_LIMIT", "2");
     const ip = "198.51.100.12";
+    // the counter sign-in attempts of this address use: withAuthRateLimit keys it by a plain SHA-256 of the address (juava's
+    // createHash is salted with a new random value on every call, so it would seed a counter nobody reads)
+    const principal = nodeHash("sha256").update(ip).digest("hex");
     for (let i = 0; i < 4; i++) {
       await getRateLimiter().check({
         authClass: "ip",
-        principal: createHash(ip),
+        principal,
         method: "POST",
         bucket: "auth-login",
         limit: 2,
         windowMs: 60_000,
       });
     }
+    // the sign-in budget of this address is used up: a request to the login bucket is refused
+    const signIn = withAuthRateLimit((_req, res) => res.status(401).json({ error: "invalid credentials" }), {
+      bucket: "login",
+    });
+    expect((await call(signIn, badToken(ip))).statusCode).toBe(429);
+    // and the token endpoint does not share it
     expect((await call(tokenRoute, badToken(ip))).statusCode).toBe(401);
   });
 
