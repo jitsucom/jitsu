@@ -186,3 +186,27 @@ describe("the query that fetches the scoped workspace enforces membership by its
     }
   });
 });
+
+describe("the query that fetches the scoped workspace also carries the deletion check", () => {
+  // Prisma loads an `include` with a second statement, so a workspace soft-deleted between the membership read and the row
+  // read could come back with `deleted: true` (and be counted). The race is hard to stage, so the property is pinned: even
+  // when a stale membership read says the workspace is alive, a deleted workspace is neither listed nor counted.
+  it("a soft-deleted workspace is not listed or counted by /api/me or the MCP list, even after a stale membership read", async () => {
+    const { user, a } = await seedTwoWorkspaces();
+    const key = await keyString(user.internalId, a.id);
+    const stale = await deps().prisma.workspaceAccess.findFirst({
+      where: { userId: user.internalId, workspaceId: a.id },
+      include: { workspace: true },
+    });
+    await deps().prisma.workspace.update({ where: { id: a.id }, data: { deleted: true } });
+    const find = vi.spyOn(deps().prisma.workspaceAccess, "findFirst").mockResolvedValue(stale as any);
+    try {
+      expect((await call(meRoute, "GET", key, undefined, { workspaces: "true" })).body.workspaces).toEqual([]);
+      const list = await new ConfigObjectsService({ prisma: deps().prisma }).listWorkspaces(await bearerUser(key), {});
+      expect(list.workspaces).toEqual([]);
+      expect(list.total).toBe(0);
+    } finally {
+      find.mockRestore();
+    }
+  });
+});

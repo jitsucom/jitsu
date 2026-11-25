@@ -62,12 +62,12 @@ async function getWorkspaces(user: SessionUser) {
   // it, so a member removed meanwhile gets nothing; a platform admin who has not joined it gets it by the admin flag.
   const scope = keyWorkspaceScope(user);
   if (scope) {
-    const member = await db.prisma().workspaceAccess.findFirst({
-      where: { userId: internalUserId, workspaceId: scope, workspace: { deleted: false } },
-      include: { workspace: true },
+    // one statement on Workspace carries both predicates; an `include` through the membership would load the row in a second one
+    const member = await db.prisma().workspace.findFirst({
+      where: { id: scope, deleted: false, workspaceAccess: { some: { userId: internalUserId } } },
     });
     if (member) {
-      return [member.workspace];
+      return [member];
     }
     const workspace = (await hasAdminProfile(user))
       ? await db.prisma().workspace.findFirst({ where: { id: scope, deleted: false } })

@@ -162,12 +162,13 @@ export class ConfigObjectsService {
     const scope = keyWorkspaceScope(user);
     if (scope) {
       const select = { id: true, name: true, slug: true };
-      const member = await this.prisma.workspaceAccess.findFirst({
-        where: { userId: user.internalId, workspaceId: scope, workspace: { deleted: false } },
-        include: { workspace: { select } },
+      // one statement on Workspace carries both predicates; an `include` through the membership would load the row in a second one
+      const member = await this.prisma.workspace.findFirst({
+        where: { id: scope, deleted: false, workspaceAccess: { some: { userId: user.internalId } } },
+        select,
       });
       const workspace =
-        member?.workspace ??
+        member ??
         ((await hasAdminProfile(user))
           ? await this.prisma.workspace.findFirst({ where: { id: scope, deleted: false }, select })
           : null);
