@@ -78,8 +78,23 @@ describe("resolveUser when create-session says the session was revoked", () => {
     const resolved = await result.current.resolveUser().user;
     expect(resolved).toBeNull();
     expect(fb.signOut).toHaveBeenCalledTimes(1);
-    // the server-side sign-out is attempted too (best effort: it needs a session, which may be gone)
-    expect(fb.rpc.mock.calls.map(call => call[0])).toContain("/api/fb-auth/revoke-session");
+    // Changed from "the server-side sign-out is attempted too": the server has already revoked this session (that is why it
+    // answered with the code), and /api/fb-auth/revoke-session revokes EVERY session of the account. A request still in
+    // flight with an old token can fail after another tab has signed in fresh; calling it then would revoke that new sign-in.
+    expect(fb.rpc.mock.calls.map(call => call[0])).not.toContain("/api/fb-auth/revoke-session");
+  });
+
+  it("makes no server call but create-session when the session is revoked", async () => {
+    // The two-tab case (a fresh sign-in elsewhere, then the old token's request fails) cannot be staged with a faked SDK; what
+    // can be pinned is that nothing else reaches the server, so no call can revoke the sessions of the account
+    fb.rpc.mockImplementation(async (url: string) => {
+      if (url === "/api/fb-auth/create-session") throw revoked();
+      return {};
+    });
+    const { result } = mount();
+    await result.current.resolveUser().user;
+    const calls = fb.rpc.mock.calls.map(call => call[0]);
+    expect(calls).toEqual(["/api/fb-auth/create-session"]);
   });
 
   it("still rejects for any other failure, so a real error is not mistaken for a sign-out", async () => {
