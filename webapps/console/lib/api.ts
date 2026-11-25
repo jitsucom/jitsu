@@ -558,7 +558,7 @@ function stackToArray(stack?: string) {
   return lines.length > 0 ? lines.map(s => s.trim()) : undefined;
 }
 /** A key limited to one workspace or to a role has no business with anything that spans every workspace. */
-function isLimitedKey(user: SessionUser): boolean {
+export function isLimitedKey(user: SessionUser): boolean {
   return isKeyAuth(user) && !!(user.tokenWorkspaceId || user.tokenRole);
 }
 
@@ -775,8 +775,8 @@ export async function verifyAccessWithRole(
     if (workspace?.featuresEnabled?.includes("readonly")) {
       // Jitsu admins bypass readonly even when they hold an explicit
       // workspaceAccess row (the earlier short-circuit only covers admins
-      // without one).
-      const isAdmin = (await db.prisma().userProfile.findFirst({ where: { id: user.internalId } }))?.admin;
+      // without one). A limited key of an admin does not: it is not a platform admin here.
+      const isAdmin = await isPlatformAdmin(user);
       if (!isAdmin) {
         throw new ApiError(
           `Workspace is in read-only mode due to billing issues. Please resolve them on the billing page to restore access.`,

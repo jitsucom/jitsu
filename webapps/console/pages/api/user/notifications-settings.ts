@@ -1,4 +1,4 @@
-import { createRoute } from "../../../lib/api";
+import { assertNotLimitedKey, createRoute } from "../../../lib/api";
 import { db } from "../../../lib/server/db";
 import { getUserPreferenceService, UserNotificationsPreferences } from "../../../lib/server/user-preferences";
 import { z } from "zod";
@@ -11,6 +11,8 @@ export default createRoute()
     query: z.object({ workspaceId: z.string().optional(), mergeWithGlobal: z.string().optional() }),
   })
   .handler(async ({ user, query }) => {
+    // the user's own notification settings, global or of any workspace: account-level, not for a limited key
+    assertNotLimitedKey(user);
     const pref = await getUserPreferenceService(db.prisma()).getPreferences({
       userId: user.internalId,
       workspaceId: query.workspaceId,
@@ -25,6 +27,7 @@ export default createRoute()
   })
   .POST({ auth: true, body: UserNotificationsPreferences, query: z.object({ workspaceId: z.string().optional() }) })
   .handler(async ({ user, body, query }) => {
+    assertNotLimitedKey(user);
     const pref = await getUserPreferenceService(db.prisma()).getPreferences({
       userId: user.internalId,
       workspaceId: query.workspaceId,
