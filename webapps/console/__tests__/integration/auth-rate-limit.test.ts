@@ -114,6 +114,15 @@ describe("anonymous authentication rate limits", () => {
     }
   });
 
+  it("drops the zone of an IPv6 address instead of failing on it", () => {
+    // Node accepts a zone identifier (isIP says 6) and a link-local connection address can carry one, but new URL() does not
+    expect(authClientIp(request("fe80::1%eth0"))).toBe("fe80::1");
+    const direct = { headers: {}, socket: { remoteAddress: "fe80::1%en0" } } as unknown as NextApiRequest;
+    expect(authClientIp(direct)).toBe("fe80::1");
+    // the same address, with and without the zone, is one client
+    expect(authClientIp(request("fe80::1"))).toBe(authClientIp(request("fe80::1%wlan0")));
+  });
+
   it("canonicalizes IP aliases and ignores untrusted forwarded chains", () => {
     expect(authClientIp(request("2001:0db8:0:0:0:0:0:1"))).toBe("2001:db8::1");
     expect(authClientIp(request("::ffff:192.0.2.1"))).toBe("192.0.2.1");

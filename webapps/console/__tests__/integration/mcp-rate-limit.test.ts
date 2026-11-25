@@ -89,6 +89,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  vi.restoreAllMocks();
   vi.useRealTimers();
   vi.unstubAllEnvs();
 });
@@ -176,6 +177,13 @@ describe("the MCP endpoint", () => {
     expect((await call(mcpRoute, badBearer("198.51.100.21"))).statusCode).toBe(401);
   });
 
+  it("answers a request from an IPv6 address with a zone like any other, not with a server error", async () => {
+    vi.stubEnv("MINUTE_RATE_LIMIT_ENABLED", "true");
+    vi.stubEnv("AUTH_ATTEMPT_RATE_LIMIT", "3");
+    expect((await call(mcpRoute, badBearer("fe80::1%eth0"))).statusCode).toBe(401);
+    expect((await call(tokenRoute, badToken("fe80::1%eth0"))).statusCode).toBe(401);
+  });
+
   it("counts a request without a token, and a malformed one, as failed attempts too", async () => {
     vi.stubEnv("MINUTE_RATE_LIMIT_ENABLED", "true");
     vi.stubEnv("AUTH_ATTEMPT_RATE_LIMIT", "2");
@@ -246,6 +254,42 @@ describe("the MCP endpoint", () => {
     expect(peek).toHaveBeenCalledTimes(4);
     next!.release();
     held.slice(1).forEach(attempt => attempt!.release());
+  });
+
+  it("does not refuse a request for checks that ended while its counter was being read", async () => {
+    vi.stubEnv("MINUTE_RATE_LIMIT_ENABLED", "true");
+    vi.stubEnv("AUTH_ATTEMPT_RATE_LIMIT", "3");
+    const ip = "198.51.100.29";
+    const limiter = getRateLimiter();
+    const first = (await beginAuthAttempt(badBearer(ip), makeRes()))!;
+    const second = (await beginAuthAttempt(badBearer(ip), makeRes()))!;
+    const original = limiter.peek.bind(limiter);
+    let reads = 0;
+    vi.spyOn(limiter, "peek").mockImplementation(async (opts, pending) => {
+      reads++;
+      // both earlier checks end, and record their failure, after the request counted them as in flight and before the read
+      if (reads === 1) {
+        await first.recordFailure();
+        first.release();
+        await second.recordFailure();
+        second.release();
+      }
+      return original(opts, pending);
+    });
+    // two failures are recorded and nothing is in flight: one more fits in a budget of 3
+    const res = makeRes();
+    const attempt = await beginAuthAttempt(badBearer(ip), res);
+    expect(res.statusCode, "refused for checks that had already ended").toBe(200);
+    expect(attempt).toBeDefined();
+    expect(reads).toBe(2);
+    attempt!.release();
+    // and when the recorded failures use the budget up, it is still refused after the second read
+    const full = (await beginAuthAttempt(badBearer(ip), makeRes()))!;
+    await full.recordFailure();
+    full.release();
+    const refused = makeRes();
+    expect(await beginAuthAttempt(badBearer(ip), refused)).toBeUndefined();
+    expect(refused.statusCode).toBe(429);
   });
 
   it("does nothing when the limiter is switched off", async () => {

@@ -18,9 +18,17 @@ const WINDOW = 60_000;
 // X-Forwarded-For chain.
 export function authClientIp(req: NextApiRequest): string {
   const header = getServerEnv().AUTH_TRUST_X_REAL_IP ? req.headers["x-real-ip"] : undefined;
-  const ip = typeof header === "string" && isIP(header) ? header : req.socket.remoteAddress ?? "unknown";
+  const candidate = typeof header === "string" && isIP(header) ? header : req.socket.remoteAddress ?? "unknown";
+  // Node accepts an IPv6 zone identifier ("fe80::1%eth0", as a link-local connection address can carry); URL parsing does
+  // not, and the zone names a local interface, not a client
+  const ip = candidate.split("%")[0];
   if (isIP(ip) !== 6) return ip;
-  const normalized = new URL(`http://[${ip}]`).hostname.slice(1, -1);
+  let normalized: string;
+  try {
+    normalized = new URL(`http://[${ip}]`).hostname.slice(1, -1);
+  } catch {
+    return ip;
+  }
   if (normalized.startsWith("::ffff:")) {
     const parts = normalized.slice(7).split(":");
     if (parts.length === 2) {
@@ -154,7 +162,17 @@ export async function beginAuthAttempt(req: NextApiRequest, res: NextApiResponse
     else checksInFlight.delete(opts.principal);
   };
   try {
-    const result = await getRateLimiter().peek(opts, pending);
+    let counted = pending;
+    let result = await getRateLimiter().peek(opts, counted);
+    // The in-flight count was taken before the read. A check that ended since has recorded its failure before it let go of its
+    // place, so the read may already contain it and the count would then hold it twice, and refuse a request that fits. Read
+    // again with the current count, which drops only the checks that are over: it never counts less than what is there.
+    for (let again = 0; !result.allowed && again < 2; again++) {
+      const others = (checksInFlight.get(opts.principal) ?? 1) - 1;
+      if (others >= counted) break;
+      counted = others;
+      result = await getRateLimiter().peek(opts, counted);
+    }
     if (result.allowed) {
       return {
         recordFailure: async () => {
