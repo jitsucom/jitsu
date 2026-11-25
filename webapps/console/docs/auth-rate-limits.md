@@ -22,6 +22,12 @@ NextAuth session polling, CSRF/provider discovery, logout, and authenticated OID
 session renewal keep their existing behavior. Firebase's client-side password
 login goes directly to Firebase and remains subject to Firebase's own controls.
 
+The MCP routes (JITSU-295) use the same budget, per address: `/api/mcp/oauth/token` counts
+every attempt in its own `token` bucket, and `/api/mcp/[transport]` counts only failed
+authentications (`auth-failed-mcp`), so valid tool calls are never counted. A deployment
+pinned read-only (`JITSU_CONSOLE_READ_ONLY=true`, or an active maintenance window) skips
+both: a canary that shares the production database neither limits nor writes counters.
+
 Configure `AUTH_ATTEMPT_RATE_LIMIT` (lookup/login) and `AUTH_SESSION_RATE_LIMIT`
 as positive integers. The existing `MINUTE_RATE_LIMIT_ENABLED=false` switch also
 disables these guards. Corporate NATs share an IP budget: monitor 429s and tune

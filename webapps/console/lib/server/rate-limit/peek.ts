@@ -38,10 +38,11 @@ export function peekResult(
       retryAfterSec: 0,
     };
   }
-  // Refused only because of the checks in flight: they are over in moments, so wait for them, not for the window to end
+  // The wait is forecast from the recorded failures alone. The checks in flight are over in moments and mostly record no
+  // failure, so they must not stretch it: when they alone cause the refusal this is 1 second, and when failures block the
+  // address it is when those failures stop blocking it.
   let waitSec = 1;
-  if (pending > 0 && fits(now, 0)) return refused(opts, now, waitSec);
-  while (waitSec < (2 * W) / 1000 && !fits(now + waitSec * 1000)) waitSec++;
+  while (waitSec < (2 * W) / 1000 && !fits(now + waitSec * 1000, 0)) waitSec++;
   return refused(opts, now, waitSec);
 }
 

@@ -77,6 +77,9 @@ for (const v of [
 ]) {
   delete process.env[v];
 }
+// The per-address limits trust X-Real-IP unless this is false (a directly reachable console, as in the Compose file). The tests
+// tell clients apart by that header, so a developer's own value must not decide whether they pass.
+process.env.AUTH_TRUST_X_REAL_IP = "true";
 process.env.JWT_SECRET = "test-jwt-secret";
 process.env.NEXTAUTH_SECRET = "test-nextauth-secret";
 // audit-log.ts snapshots this at import time

@@ -5,7 +5,7 @@ import { deps, seedWorkspace } from "./support/harness";
 import tokenRoute from "../../pages/api/mcp/oauth/token";
 import mcpRoute from "../../pages/api/mcp/[transport]";
 import { getRateLimiter } from "../../lib/server/rate-limit";
-import { withAuthRateLimit } from "../../lib/server/rate-limit/auth";
+import { beginAuthAttempt, withAuthRateLimit } from "../../lib/server/rate-limit/auth";
 
 // Failed attempts at the OAuth token endpoint and at the MCP endpoint were not counted anywhere: the limiter ran only after
 // authentication, or not at all. These tests call the real route handlers over a real database.
@@ -224,6 +224,30 @@ describe("the MCP endpoint", () => {
     expect((await call(mcpRoute, badBearer("198.51.100.27"))).statusCode).toBe(401);
   });
 
+  it("refuses a request at once, without reading the counter, when the checks in flight fill the budget", async () => {
+    vi.stubEnv("MINUTE_RATE_LIMIT_ENABLED", "true");
+    vi.stubEnv("AUTH_ATTEMPT_RATE_LIMIT", "3");
+    const ip = "198.51.100.28";
+    const peek = vi.spyOn(getRateLimiter(), "peek");
+    const held: Awaited<ReturnType<typeof beginAuthAttempt>>[] = [];
+    for (let i = 0; i < 3; i++) held.push(await beginAuthAttempt(badBearer(ip), makeRes()));
+    expect(held.every(Boolean)).toBe(true);
+    expect(peek).toHaveBeenCalledTimes(3);
+    // the fourth cannot fit even with nothing recorded: no query for it
+    const refused = makeRes();
+    expect(await beginAuthAttempt(badBearer(ip), refused)).toBeUndefined();
+    expect(refused.statusCode).toBe(429);
+    expect(Number(refused.headers["Retry-After"])).toBe(1);
+    expect(peek).toHaveBeenCalledTimes(3);
+    // a refused request holds no place: once one check is over the next one is admitted
+    held[0]!.release();
+    const next = await beginAuthAttempt(badBearer(ip), makeRes());
+    expect(next).toBeDefined();
+    expect(peek).toHaveBeenCalledTimes(4);
+    next!.release();
+    held.slice(1).forEach(attempt => attempt!.release());
+  });
+
   it("does nothing when the limiter is switched off", async () => {
     vi.stubEnv("MINUTE_RATE_LIMIT_ENABLED", "false");
     vi.stubEnv("AUTH_ATTEMPT_RATE_LIMIT", "1");
@@ -244,6 +268,22 @@ describe("the MCP endpoint", () => {
         'ALTER TABLE newjitsu."RateLimitCounterHidden" RENAME TO "RateLimitCounter"'
       );
     }
+  });
+});
+
+describe("a read-only deployment", () => {
+  // a canary pinned read-only can share the production database: it must neither read nor write the counters of production
+  it("neither limits nor writes counters at the token endpoint and the MCP endpoint", async () => {
+    vi.stubEnv("MINUTE_RATE_LIMIT_ENABLED", "true");
+    vi.stubEnv("AUTH_ATTEMPT_RATE_LIMIT", "2");
+    vi.stubEnv("JITSU_CONSOLE_READ_ONLY", "true");
+    const ip = "198.51.100.30";
+    const before = await deps().prisma.rateLimitCounter.count();
+    for (let i = 0; i < 5; i++) {
+      expect((await call(mcpRoute, badBearer(ip))).statusCode, `mcp ${i}`).toBe(401);
+      expect((await call(tokenRoute, badToken(ip))).statusCode, `token ${i}`).not.toBe(429);
+    }
+    expect(await deps().prisma.rateLimitCounter.count()).toBe(before);
   });
 });
 

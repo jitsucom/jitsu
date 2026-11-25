@@ -47,6 +47,9 @@ type AuthLimit = {
   dbIndependent?: boolean;
   matches?: (req: NextApiRequest) => boolean;
   nextAuth?: boolean;
+  // A deployment pinned read-only can share its database with production, so it must not count anything in it: no limit and
+  // no counter row, which would otherwise spend the budget of the same address in production.
+  skipInReadOnly?: boolean;
 };
 
 function rejectAuthRequest(
@@ -101,7 +104,7 @@ function localCheck(opts: RateLimitOpts) {
 // client address, and an address that has used up its budget is refused before anything is checked.
 function failedAttemptOpts(req: NextApiRequest): RateLimitOpts | undefined {
   const env = getServerEnv();
-  if (!env.MINUTE_RATE_LIMIT_ENABLED) return undefined;
+  if (!env.MINUTE_RATE_LIMIT_ENABLED || isReadOnly()) return undefined;
   return {
     authClass: "ip",
     principal: createHash("sha256").update(authClientIp(req)).digest("hex"),
@@ -133,6 +136,14 @@ export async function beginAuthAttempt(req: NextApiRequest, res: NextApiResponse
   const opts = failedAttemptOpts(req);
   if (!opts) return { recordFailure: async () => {}, release: () => {} };
   const pending = checksInFlight.get(opts.principal) ?? 0;
+  res.setHeader("Cache-Control", "no-store");
+  if (pending >= opts.limit) {
+    // The checks in flight fill the budget by themselves: whatever is recorded, this one cannot fit. Refuse it without
+    // reserving a place or reading the counter, so a burst of requests without credentials does not queue on the database.
+    res.setHeader("Retry-After", "1");
+    rejectAuthRequest(req, res, { bucket: "login" }, 429, "rate_limit_exceeded");
+    return undefined;
+  }
   checksInFlight.set(opts.principal, pending + 1);
   let released = false;
   const release = () => {
@@ -142,7 +153,6 @@ export async function beginAuthAttempt(req: NextApiRequest, res: NextApiResponse
     if (left > 0) checksInFlight.set(opts.principal, left);
     else checksInFlight.delete(opts.principal);
   };
-  res.setHeader("Cache-Control", "no-store");
   try {
     const result = await getRateLimiter().peek(opts, pending);
     if (result.allowed) {
@@ -176,6 +186,7 @@ export function withAuthRateLimit(handler: NextApiHandler, spec: AuthLimit): Nex
     if (spec.matches && !spec.matches(req)) return handler(req, res);
     const env = getServerEnv();
     if (!env.MINUTE_RATE_LIMIT_ENABLED) return handler(req, res);
+    if (spec.skipInReadOnly && isReadOnly()) return handler(req, res);
     const opts: RateLimitOpts = {
       authClass: "ip",
       principal: createHash("sha256").update(authClientIp(req)).digest("hex"),

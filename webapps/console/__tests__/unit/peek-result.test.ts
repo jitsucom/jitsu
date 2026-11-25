@@ -47,6 +47,16 @@ describe("peekResult", () => {
     expect(peekResult(opts(60), 60, 0, 5, start + 5_000).retryAfterSec).toBeGreaterThan(1);
   });
 
+  it("forecasts the recovery of the recorded failures without the checks in flight", () => {
+    // 58 failures now, 2 in the previous minute, 25 s in, one check in flight that records no failure: the recorded failures
+    // alone allow the next one after 5 s (2 * 35/60 + 59 <= 60 from 30 s on), not at the end of the minute
+    const result = peekResult(opts(60), 58, 2, 1, start + 25_000);
+    expect(result.allowed).toBe(false);
+    expect(result.retryAfterSec).toBe(5);
+    expect(fitsAt(60, 58, 2, 0, start + 25_000, start + 30_000)).toBe(true);
+    expect(fitsAt(60, 58, 2, 0, start + 25_000, start + 29_000)).toBe(false);
+  });
+
   it("gives the Retry-After of the reviewed case: 59 failures, 2 in the previous minute, 10 s in", () => {
     const result = peekResult(opts(60), 59, 2, 0, start + 10_000);
     expect(result.allowed).toBe(false);
@@ -56,6 +66,7 @@ describe("peekResult", () => {
     expect(fitsAt(60, 59, 2, 0, start + 10_000, start + 10_000 + 50_000)).toBe(true);
   });
 
+  // the Retry-After follows the recorded failures alone: the checks in flight end in moments and are not part of the forecast
   it("admits again exactly at its Retry-After, over a grid of counts and moments", () => {
     let refused = 0;
     for (const limit of [1, 2, 3, 10, 60]) {
@@ -74,18 +85,13 @@ describe("peekResult", () => {
               refused++;
               const wait = result.retryAfterSec;
               expect(wait).toBeGreaterThan(0);
-              // refused only because of the checks in flight: they end in moments
-              if (pending > 0 && fitsAt(limit, current, previous, 0, now, now)) {
-                expect(wait).toBe(1);
-                continue;
-              }
               expect(
-                fitsAt(limit, current, previous, pending, now, now + wait * 1000),
+                fitsAt(limit, current, previous, 0, now, now + wait * 1000),
                 `limit ${limit} c${current} p${previous} f${pending} e${elapsed}: at ${wait}s`
               ).toBe(true);
               if (wait > 1) {
                 expect(
-                  fitsAt(limit, current, previous, pending, now, now + (wait - 1) * 1000),
+                  fitsAt(limit, current, previous, 0, now, now + (wait - 1) * 1000),
                   `limit ${limit} c${current} p${previous} f${pending} e${elapsed}: at ${wait - 1}s`
                 ).toBe(false);
               }
