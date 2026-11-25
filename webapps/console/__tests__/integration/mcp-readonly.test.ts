@@ -15,14 +15,20 @@ vi.mock("../../lib/api", async importOriginal => {
   return { ...actual, getUser: async (res: any, req: any) => session.user ?? actual.getUser(res, req) };
 });
 
-// The log of the tools is captured, to check that a refused call leaves a line an operator can see.
-const logged = vi.hoisted(() => ({ lines: [] as { level: string; message: string }[] }));
+// The log of the tools is captured, to check that a refused call leaves a line an operator can see. Everything the logger
+// receives is kept: the message, the extra arguments of log() (the real logger serializes them into the same line) and the
+// arguments of every other call on the chain (withCause and the like).
+const logged = vi.hoisted(() => ({
+  lines: [] as { level: string; message: string; args: any[]; chainArgs: any[][] }[],
+}));
 vi.mock("../../lib/server/log", async importOriginal => {
   const actual = await importOriginal<typeof import("../../lib/server/log")>();
-  const chain = (level: string): any =>
+  const chain = (level: string, chainArgs: any[][] = []): any =>
     new Proxy(() => {}, {
       get: (_t, prop) =>
-        prop === "log" ? (message: string) => logged.lines.push({ level, message }) : () => chain(level),
+        prop === "log"
+          ? (message: string, ...args: any[]) => logged.lines.push({ level, message, args, chainArgs })
+          : (...a: any[]) => chain(level, [...chainArgs, a]),
     });
   return {
     ...actual,
@@ -256,7 +262,10 @@ describe("a refused call is logged and says whose role refused it", () => {
     const refusals = logged.lines.filter(l => /run_sync/.test(l.message) && /refus/i.test(l.message));
     expect(refusals).toHaveLength(1);
     expect(refusals[0].message).toContain("analyst");
-    expect(refusals[0].message).not.toContain("secret-sync-id");
+    // nothing else reaches the log: no extra argument to log(), no cause or other call on the chain, the payload nowhere
+    expect(refusals[0].args).toEqual([]);
+    expect(refusals[0].chainArgs).toEqual([]);
+    expect(JSON.stringify(refusals[0])).not.toContain("secret-sync-id");
   });
 
   it("logs nothing for an allowed call", async () => {
