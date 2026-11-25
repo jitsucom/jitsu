@@ -29,6 +29,7 @@ export interface RateLimiter {
   // Counts this request, then decides.
   check(opts: RateLimitOpts): Promise<RateLimitResult>;
   // Decides on what has been counted, without counting this request: for a budget of failures, which are recorded with
-  // `check` only once they have happened.
-  peek(opts: RateLimitOpts): Promise<RateLimitResult>;
+  // `check` only once they have happened. Allowed means one more failure still fits in the budget; `pending` is the number of
+  // checks already admitted and not yet counted, which use up the budget too.
+  peek(opts: RateLimitOpts, pending?: number): Promise<RateLimitResult>;
 }

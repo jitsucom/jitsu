@@ -13,10 +13,11 @@ import type { RateLimitOpts } from "./types";
 const log = getServerLog("auth-rate-limit");
 const WINDOW = 60_000;
 
-// Production ingress overwrites X-Real-IP. Direct deployments must do the
-// same, or strip it. Never accept a caller-controlled X-Forwarded-For chain.
+// Production ingress overwrites X-Real-IP, so it is trusted by default. A console that callers reach directly sets
+// AUTH_TRUST_X_REAL_IP=false and is charged by the address of the connection instead. Never accept a caller-controlled
+// X-Forwarded-For chain.
 export function authClientIp(req: NextApiRequest): string {
-  const header = req.headers["x-real-ip"];
+  const header = getServerEnv().AUTH_TRUST_X_REAL_IP ? req.headers["x-real-ip"] : undefined;
   const ip = typeof header === "string" && isIP(header) ? header : req.socket.remoteAddress ?? "unknown";
   if (isIP(ip) !== 6) return ip;
   const normalized = new URL(`http://[${ip}]`).hostname.slice(1, -1);
@@ -111,34 +112,62 @@ function failedAttemptOpts(req: NextApiRequest): RateLimitOpts | undefined {
   };
 }
 
-/** True when the request was refused (429, or 503 when the counters cannot be read): the response is sent already. */
-export async function refuseWhenTooManyAuthFailures(req: NextApiRequest, res: NextApiResponse): Promise<boolean> {
+// Checks of an address that are admitted and not yet counted. A burst of parallel requests would otherwise all read the same
+// count before the first failure is recorded, and every one of them would reach the credential check. Each admitted check
+// uses one unit of the budget until it has finished, so a burst can never get more checks through than the budget has room
+// for. The map is per process: with several replicas each admits up to the budget on its own, which is still bounded.
+const checksInFlight = new Map<string, number>();
+
+export type AuthAttempt = {
+  /** The credentials were wrong: counts one failure for this address. A store error is logged, the 401 is sent already. */
+  recordFailure(): Promise<void>;
+  /** The check is over, whatever its result. Call it exactly once, in a `finally`. */
+  release(): void;
+};
+
+/**
+ * Admits an authentication check of this request, or refuses it (429, or 503 when the counters cannot be read) and returns
+ * undefined with the response sent already. An admitted check holds a place in the budget until `release()`.
+ */
+export async function beginAuthAttempt(req: NextApiRequest, res: NextApiResponse): Promise<AuthAttempt | undefined> {
   const opts = failedAttemptOpts(req);
-  if (!opts) return false;
+  if (!opts) return { recordFailure: async () => {}, release: () => {} };
+  const pending = checksInFlight.get(opts.principal) ?? 0;
+  checksInFlight.set(opts.principal, pending + 1);
+  let released = false;
+  const release = () => {
+    if (released) return;
+    released = true;
+    const left = (checksInFlight.get(opts.principal) ?? 1) - 1;
+    if (left > 0) checksInFlight.set(opts.principal, left);
+    else checksInFlight.delete(opts.principal);
+  };
   res.setHeader("Cache-Control", "no-store");
   try {
-    const result = await getRateLimiter().peek(opts);
-    if (result.allowed) return false;
+    const result = await getRateLimiter().peek(opts, pending);
+    if (result.allowed) {
+      return {
+        recordFailure: async () => {
+          try {
+            await getRateLimiter().check(opts);
+          } catch (error) {
+            log.atWarn().withCause(error).log("Could not record a failed authentication attempt");
+          }
+        },
+        release,
+      };
+    }
+    release();
     setRateLimitHeaders(res, result);
     res.setHeader("Retry-After", String(result.retryAfterSec));
     rejectAuthRequest(req, res, { bucket: "login" }, 429, "rate_limit_exceeded");
-    return true;
+    return undefined;
   } catch (error) {
+    release();
     log.atWarn().withCause(error).log("Authentication rate limiter unavailable");
     res.setHeader("Retry-After", "5");
     rejectAuthRequest(req, res, { bucket: "login" }, 503, "rate_limiter_unavailable");
-    return true;
-  }
-}
-
-/** Counts one failed authentication of this address. The 401 is sent already, so a store error is logged and nothing else. */
-export async function recordAuthFailure(req: NextApiRequest): Promise<void> {
-  const opts = failedAttemptOpts(req);
-  if (!opts) return;
-  try {
-    await getRateLimiter().check(opts);
-  } catch (error) {
-    log.atWarn().withCause(error).log("Could not record a failed authentication attempt");
+    return undefined;
   }
 }
 

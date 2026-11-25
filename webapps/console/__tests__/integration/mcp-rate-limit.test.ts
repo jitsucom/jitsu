@@ -76,11 +76,14 @@ async function seedApiKey(secret: string) {
   return `${token.id}:${secret}`;
 }
 
-// The counters are per minute: the clock stands still in the middle of a window, so that no test depends on where in the
-// minute it happens to run
+// The counters are per minute: the clock stands still in the middle of the current minute, so that no test depends on where
+// in the minute it happens to run. It is taken from the real clock, not a fixed date: the database removes counters whose
+// expiry has passed by ITS clock, so a frozen date in the past would let a cleanup delete the rows of a running test.
+let windowStart = 0;
 beforeEach(() => {
+  windowStart = Math.floor(Date.now() / 60_000) * 60_000;
   vi.useFakeTimers({ toFake: ["Date"] });
-  vi.setSystemTime(1_800_000_030_000);
+  vi.setSystemTime(windowStart + 30_000);
 });
 
 afterEach(() => {
@@ -104,6 +107,19 @@ describe("POST /api/mcp/oauth/token", () => {
     expect(blocked.body.error).toBe("rate_limit_exceeded");
     // another address has its own budget
     expect((await call(tokenRoute, badToken("198.51.100.11"))).statusCode).toBe(401);
+  });
+
+  it("charges the address the request comes from when X-Real-IP is not trusted", async () => {
+    vi.stubEnv("MINUTE_RATE_LIMIT_ENABLED", "true");
+    vi.stubEnv("AUTH_ATTEMPT_RATE_LIMIT", "2");
+    // a caller that reaches the console directly picks the address it is charged to, one new value per request
+    const rotating = (i: number) => badToken(`198.51.100.${100 + i}`);
+    vi.stubEnv("AUTH_TRUST_X_REAL_IP", "true");
+    for (let i = 0; i < 4; i++) expect((await call(tokenRoute, rotating(i))).statusCode).toBe(401);
+    vi.stubEnv("AUTH_TRUST_X_REAL_IP", "false");
+    const statuses: number[] = [];
+    for (let i = 10; i < 14; i++) statuses.push((await call(tokenRoute, rotating(i))).statusCode);
+    expect(statuses).toEqual([401, 401, 429, 429]);
   });
 
   it("does not share the budget with sign-in attempts", async () => {
@@ -152,7 +168,7 @@ describe("the MCP endpoint", () => {
       statuses.push(res.statusCode);
       if (res.statusCode === 429) blocked = res;
     }
-    expect(statuses).toEqual([401, 401, 401, 401, 429, 429]);
+    expect(statuses).toEqual([401, 401, 401, 429, 429, 429]);
     expect(Number(blocked.headers["Retry-After"])).toBeGreaterThan(0);
     expect(blocked.body.error).toBe("rate_limit_exceeded");
     expect((await call(mcpRoute, badBearer("198.51.100.21"))).statusCode).toBe(401);
@@ -163,11 +179,11 @@ describe("the MCP endpoint", () => {
     vi.stubEnv("AUTH_ATTEMPT_RATE_LIMIT", "2");
     const ip = "198.51.100.22";
     const statuses: number[] = [];
-    for (const authorization of [undefined, "Bearer malformed", undefined, undefined, undefined]) {
+    for (const authorization of [undefined, "Bearer malformed", undefined, undefined]) {
       const req = request(ip, { headers: { "x-real-ip": ip, ...(authorization ? { authorization } : {}) } });
       statuses.push((await call(mcpRoute, req)).statusCode);
     }
-    expect(statuses).toEqual([401, 401, 401, 429, 429]);
+    expect(statuses).toEqual([401, 401, 429, 429]);
   });
 
   it("does not count requests that authenticate, however many there are", async () => {
@@ -182,6 +198,28 @@ describe("the MCP endpoint", () => {
     }
     // nothing was counted against the address: a failure is still answered, not refused
     expect((await call(mcpRoute, badBearer(ip))).statusCode).toBe(401);
+  });
+
+  it("does not let a burst of parallel failures past the budget before the first one is counted", async () => {
+    vi.stubEnv("MINUTE_RATE_LIMIT_ENABLED", "true");
+    vi.stubEnv("AUTH_ATTEMPT_RATE_LIMIT", "3");
+    const ip = "198.51.100.26";
+    const results = await Promise.all(Array.from({ length: 30 }, () => call(mcpRoute, badBearer(ip))));
+    const statuses = results.map(r => r.statusCode);
+    // the budget is 3 failures: no more than 3 of the 30 reach the token check, and the rest are refused at once. Requests
+    // that are refused still hold a place while they are decided, so a burst may admit fewer than 3, never more
+    const admitted = statuses.filter(s => s === 401).length;
+    expect(admitted).toBeGreaterThanOrEqual(1);
+    expect(admitted).toBeLessThanOrEqual(3);
+    expect(statuses.filter(s => s === 429).length).toBe(30 - admitted);
+    expect(Number(results.find(r => r.statusCode === 429).headers["Retry-After"])).toBeGreaterThan(0);
+    // exactly the admitted failures are counted
+    const counter = await deps().prisma.rateLimitCounter.findFirst({
+      where: { bucketKey: `ip:${nodeHash("sha256").update(ip).digest("hex")}:auth-failed-mcp` },
+    });
+    expect(counter?.count).toBe(admitted);
+    // another address is not affected
+    expect((await call(mcpRoute, badBearer("198.51.100.27"))).statusCode).toBe(401);
   });
 
   it("does nothing when the limiter is switched off", async () => {
@@ -208,22 +246,23 @@ describe("the MCP endpoint", () => {
 });
 
 describe("the limiter's peek", () => {
-  it("reads a counter without changing it", async () => {
-    const opts = {
-      authClass: "ip" as const,
-      principal: "peek-test",
-      method: "POST" as const,
-      bucket: "peek-bucket",
-      limit: 2,
-      windowMs: 60_000,
-    };
+  const opts = {
+    authClass: "ip" as const,
+    principal: "peek-test",
+    method: "POST" as const,
+    bucket: "peek-bucket",
+    limit: 2,
+    windowMs: 60_000,
+  };
+
+  it("reads a counter without changing it, and refuses once one more failure would not fit", async () => {
     const limiter = getRateLimiter() as any;
     expect((await limiter.peek(opts)).allowed).toBe(true);
     expect((await limiter.peek(opts)).remaining).toBe(2);
     await limiter.check(opts);
-    await limiter.check(opts);
     expect((await limiter.peek(opts)).allowed).toBe(true);
     await limiter.check(opts);
+    // two failures are counted and the budget is two: the next one is refused
     const over = await limiter.peek(opts);
     expect(over.allowed).toBe(false);
     expect(over.retryAfterSec).toBeGreaterThan(0);
@@ -231,6 +270,38 @@ describe("the limiter's peek", () => {
     expect((await limiter.peek(opts)).allowed).toBe(false);
     expect(
       await deps().prisma.rateLimitCounter.findFirst({ where: { bucketKey: "ip:peek-test:peek-bucket" } })
-    ).toMatchObject({ count: 3 });
+    ).toMatchObject({ count: 2 });
+  });
+
+  it("counts the checks in flight against the budget", async () => {
+    const limiter = getRateLimiter() as any;
+    const own = { ...opts, principal: "peek-pending" };
+    await limiter.check(own);
+    expect((await limiter.peek(own, 0)).allowed).toBe(true);
+    expect((await limiter.peek(own, 1)).allowed).toBe(false);
+  });
+
+  it("gives a Retry-After at which the address is admitted again, and not a second sooner", async () => {
+    const limiter = getRateLimiter() as any;
+    // 59 failures in this minute and 2 in the previous one, 10 s into the minute (the case a reviewer worked out)
+    const big = { ...opts, principal: "peek-retry", bucket: "peek-retry-bucket", limit: 60 };
+    const key = "ip:peek-retry:peek-retry-bucket";
+    const expiresAt = new Date(windowStart + 600_000);
+    await deps().prisma.rateLimitCounter.create({
+      data: { bucketKey: key, windowStart: new Date(windowStart), count: 59, expiresAt },
+    });
+    await deps().prisma.rateLimitCounter.create({
+      data: { bucketKey: key, windowStart: new Date(windowStart - 60_000), count: 2, expiresAt },
+    });
+    const at = (offsetMs: number) => vi.setSystemTime(windowStart + 10_000 + offsetMs);
+    at(0);
+    const refused = await limiter.peek(big);
+    expect(refused.allowed).toBe(false);
+    const wait = refused.retryAfterSec;
+    expect(wait).toBeGreaterThan(0);
+    at((wait - 1) * 1000);
+    expect((await limiter.peek(big)).allowed, "one second before Retry-After").toBe(false);
+    at(wait * 1000);
+    expect((await limiter.peek(big)).allowed, "at Retry-After").toBe(true);
   });
 });

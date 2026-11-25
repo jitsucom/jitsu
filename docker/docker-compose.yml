@@ -50,6 +50,9 @@ x-console-env: &console-env
   ROTOR_AUTH_KEY: ${ROTOR_TOKEN:-dev-auth-key}
   DISABLE_SIGNUP: false
   ENABLE_CREDENTIALS_LOGIN: true
+  # The console port is published without a proxy in front of it, so a caller could pick the address its sign-in and token
+  # attempts are charged to with an X-Real-IP header. Charge the address of the connection instead.
+  AUTH_TRUST_X_REAL_IP: "false"
   SEED_USER_EMAIL: admin@jitsu.com
   SEED_USER_PASSWORD: ${SEED_USER_PASSWORD:-admin123}
   SEED_DEMO_CONFIGURATION: ${SEED_DEMO_CONFIGURATION:-}

@@ -4,7 +4,8 @@ The guard runs before validation and authentication, so failed and malformed
 attempts count. Counters use the existing PostgreSQL rate limiter and are shared
 across console replicas. No migration is required. IP addresses are hashed in
 counter keys. The gateway must overwrite `X-Real-IP`; direct deployments must
-strip it or set it from a trusted proxy. Client-supplied X-Forwarded-For is ignored.
+set `AUTH_TRUST_X_REAL_IP=false` (the stock Docker Compose file does), which charges
+the address of the connection instead. Client-supplied X-Forwarded-For is ignored.
 
 | Bucket | Default per IP/minute | Routes |
 | --- | --- | --- |
