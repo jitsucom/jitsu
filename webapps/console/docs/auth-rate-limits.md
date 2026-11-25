@@ -5,7 +5,10 @@ attempts count. Counters use the existing PostgreSQL rate limiter and are shared
 across console replicas. No migration is required. IP addresses are hashed in
 counter keys. The gateway must overwrite `X-Real-IP`; direct deployments must
 set `AUTH_TRUST_X_REAL_IP=false` (the stock Docker Compose file does), which charges
-the address of the connection instead. Client-supplied X-Forwarded-For is ignored.
+the address of the connection instead. Set it to `true` only when every request reaches the
+console through a proxy that sets `X-Real-IP`, and the console port cannot be reached any
+other way: the Compose file publishes it on every interface, so bind it to `127.0.0.1`
+first. Client-supplied X-Forwarded-For is ignored.
 
 | Bucket | Default per IP/minute | Routes |
 | --- | --- | --- |
