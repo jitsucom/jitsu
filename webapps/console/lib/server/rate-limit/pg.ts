@@ -1,6 +1,6 @@
 import { Prisma, PrismaClient } from "@prisma/client";
 import { getServerLog } from "../log";
-import { SlidingWindowRateLimiter, type CounterWindow } from "juava/src/rate-limit";
+import { computeResult, SlidingWindowRateLimiter, type CounterWindow } from "juava/src/rate-limit";
 import type { RateLimitOpts, RateLimitResult, RateLimiter } from "./types";
 
 const log = getServerLog("rate-limit");
@@ -28,6 +28,23 @@ export class PgRateLimiter implements RateLimiter {
 
   async check(opts: RateLimitOpts): Promise<RateLimitResult> {
     return this.limiter.check({ ...opts, key: `${opts.authClass}:${opts.principal}:${opts.bucket}` });
+  }
+
+  async peek(opts: RateLimitOpts): Promise<RateLimitResult> {
+    const key = `${opts.authClass}:${opts.principal}:${opts.bucket}`;
+    const now = Date.now();
+    const start = Math.floor(now / opts.windowMs) * opts.windowMs;
+    const rows = await this.prisma.$queryRaw<Row[]>(Prisma.sql`
+      SELECT
+        COALESCE((SELECT "count" FROM newjitsu."RateLimitCounter"
+                    WHERE "bucketKey" = ${key} AND "windowStart" = ${new Date(start)}), 0)::int AS current_count,
+        COALESCE((SELECT "count" FROM newjitsu."RateLimitCounter"
+                    WHERE "bucketKey" = ${key} AND "windowStart" = ${new Date(
+      start - opts.windowMs
+    )}), 0)::int AS prev_count
+    `);
+    if (!rows[0]) throw new Error("Rate-limit counter read returned no row");
+    return computeResult(opts, rows[0].current_count, rows[0].prev_count, now);
   }
 
   private async increment({ key, windowStart, previousWindowStart, expiresAt }: CounterWindow) {

@@ -38,7 +38,9 @@ export function isNextAuthAttempt(req: NextApiRequest): boolean {
 }
 
 type AuthLimit = {
-  bucket: "lookup" | "login" | "session";
+  // "token" is the OAuth token endpoint: its own budget, so that sign-in attempts and token requests of one address do not
+  // use each other up
+  bucket: "lookup" | "login" | "session" | "token";
   // Only routes that already promise to work without the console DB may use
   // the bounded per-process fallback during maintenance or a store outage.
   dbIndependent?: boolean;
@@ -91,6 +93,53 @@ function localCheck(opts: RateLimitOpts) {
   }
   row.current++;
   return computeResult(opts, row.current, row.previous, now);
+}
+
+// Failed authentications of a route that serves many valid requests (the MCP endpoint): counting every request would throttle
+// legitimate clients and write a counter row for each of their calls. Failures are counted once they have happened, per
+// client address, and an address that has used up its budget is refused before anything is checked.
+function failedAttemptOpts(req: NextApiRequest): RateLimitOpts | undefined {
+  const env = getServerEnv();
+  if (!env.MINUTE_RATE_LIMIT_ENABLED) return undefined;
+  return {
+    authClass: "ip",
+    principal: createHash("sha256").update(authClientIp(req)).digest("hex"),
+    method: "POST",
+    bucket: "auth-failed-mcp",
+    limit: env.AUTH_ATTEMPT_RATE_LIMIT,
+    windowMs: WINDOW,
+  };
+}
+
+/** True when the request was refused (429, or 503 when the counters cannot be read): the response is sent already. */
+export async function refuseWhenTooManyAuthFailures(req: NextApiRequest, res: NextApiResponse): Promise<boolean> {
+  const opts = failedAttemptOpts(req);
+  if (!opts) return false;
+  res.setHeader("Cache-Control", "no-store");
+  try {
+    const result = await getRateLimiter().peek(opts);
+    if (result.allowed) return false;
+    setRateLimitHeaders(res, result);
+    res.setHeader("Retry-After", String(result.retryAfterSec));
+    rejectAuthRequest(req, res, { bucket: "login" }, 429, "rate_limit_exceeded");
+    return true;
+  } catch (error) {
+    log.atWarn().withCause(error).log("Authentication rate limiter unavailable");
+    res.setHeader("Retry-After", "5");
+    rejectAuthRequest(req, res, { bucket: "login" }, 503, "rate_limiter_unavailable");
+    return true;
+  }
+}
+
+/** Counts one failed authentication of this address. The 401 is sent already, so a store error is logged and nothing else. */
+export async function recordAuthFailure(req: NextApiRequest): Promise<void> {
+  const opts = failedAttemptOpts(req);
+  if (!opts) return;
+  try {
+    await getRateLimiter().check(opts);
+  } catch (error) {
+    log.atWarn().withCause(error).log("Could not record a failed authentication attempt");
+  }
 }
 
 export function withAuthRateLimit(handler: NextApiHandler, spec: AuthLimit): NextApiHandler {

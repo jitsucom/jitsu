@@ -1,4 +1,9 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { mcpServer } from "../../../../lib/server/mcp-server";
+import { withAuthRateLimit } from "../../../../lib/server/rate-limit/auth";
 
-export default (req: NextApiRequest, res: NextApiResponse) => mcpServer.handleToken(req, res);
+// Every attempt counts per client address, before the client secret, the code or the refresh token is checked: this endpoint
+// is where they can be guessed.
+export default withAuthRateLimit((req: NextApiRequest, res: NextApiResponse) => mcpServer.handleToken(req, res), {
+  bucket: "token",
+});

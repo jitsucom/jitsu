@@ -17,6 +17,7 @@ import { SyncService } from "../sync-service";
 import { DebugService } from "../debug-service";
 import { ReportsService } from "../reports-service";
 import { AuditLogService } from "../audit-log-service";
+import { recordAuthFailure, refuseWhenTooManyAuthFailures } from "../rate-limit/auth";
 
 const log = getServerLog("mcp-server");
 
@@ -88,8 +89,14 @@ export class McpServer {
   // SSE reconnect / persistent sessions require an external event bus and
   // can be added in a follow-up when real tools need it.
   handleMcpRequest = async (req: NextApiRequest, res: NextApiResponse) => {
+    // an address that keeps failing to authenticate is refused before its token is looked up, and every failure counts
+    if (await refuseWhenTooManyAuthFailures(req, res)) return;
     const authInfo = await this.auth.requireAccessToken(req, res);
-    if (!authInfo) return; // 401 already sent
+    if (!authInfo) {
+      // 401 already sent
+      await recordAuthFailure(req);
+      return;
+    }
 
     const sdkServer = new SdkMcpServer({ name: "jitsu", version: "0.1.0" });
     registerTools(sdkServer, {
