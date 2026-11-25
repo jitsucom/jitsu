@@ -7,6 +7,7 @@ import notificationsRoute from "../../pages/api/user/notifications-settings";
 import keysRoute from "../../pages/api/user/keys";
 import propertiesRoute from "../../pages/api/user/properties";
 import workspaceRoute from "../../pages/api/workspace/[workspaceIdOrSlug]/index";
+import meRoute from "../../pages/api/me";
 
 // JITSU-289: small gaps of workspace-scoped and role-limited API keys (JITSU-264). Each test fails when its fix is reverted.
 // The routes are called through their real handlers, with real keys and a real database.
@@ -168,6 +169,51 @@ describe("a limited key of a platform admin does not bypass the billing read-onl
     }
     const unrestricted = await bearerUser(await keyString(id));
     await expect(verifyAccessWithRole(unrestricted, admin.workspace.id, "editEntities")).resolves.toBeDefined();
+  });
+});
+
+describe("the billing lock also applies on the admin fallback, where the admin has no membership", () => {
+  it("refuses an edit to a limited key of an admin who is not a member; an unrestricted admin key still bypasses", async () => {
+    // member: false, the admin has no membership row in the workspace: the answer comes from the admin fallback
+    const admin = await seedWorkspace({ admin: true, member: false });
+    const id = admin.user.internalId;
+    const ws = admin.workspace.id;
+    await deps().prisma.workspace.update({ where: { id: ws }, data: { featuresEnabled: ["readonly"] } });
+    const editor = await bearerUser(await keyString(id, undefined, "editor"));
+    const scoped = await bearerUser(await keyString(id, ws));
+    for (const key of [editor, scoped]) {
+      for (const permission of ["editEntities", "deleteEntities"] as const) {
+        await expect(verifyAccessWithRole(key, ws, permission)).rejects.toMatchObject({
+          status: 403,
+          responseObject: expect.objectContaining({ readonly: true }),
+        });
+      }
+      await expect(verifyAccessWithRole(key, ws, "readEntities")).resolves.toBeDefined();
+    }
+    const unrestricted = await bearerUser(await keyString(id));
+    await expect(verifyAccessWithRole(unrestricted, ws, "editEntities")).resolves.toBeDefined();
+  });
+});
+
+describe("GET /api/me?lastWorkspace=true stays within the key's scope", () => {
+  it("does not show a scoped key a workspace it is kept out of; other keys see the last-used workspace", async () => {
+    const { user, a, b } = await seedTwoWorkspaces();
+    const preferences = getUserPreferenceService(deps().prisma);
+    const lastUsed = async (key: string) =>
+      (await call(meRoute, "GET", key, undefined, { lastWorkspace: "true" })).body?.lastUsedWorkspace;
+    const scoped = await keyString(user.internalId, a.id);
+    const roleOnly = await keyString(user.internalId, undefined, "analyst");
+    const unrestricted = await keyString(user.internalId);
+
+    // the user last opened workspace B; the key is scoped to A
+    await preferences.savePreference({ userId: user.internalId }, { lastUsedWorkspaceId: b.id });
+    expect(await lastUsed(scoped)).toBeUndefined();
+    expect(await lastUsed(roleOnly)).toMatchObject({ id: b.id });
+    expect(await lastUsed(unrestricted)).toMatchObject({ id: b.id });
+
+    // the last-used workspace is the key's own: it is shown
+    await preferences.savePreference({ userId: user.internalId }, { lastUsedWorkspaceId: a.id });
+    expect(await lastUsed(scoped)).toMatchObject({ id: a.id });
   });
 });
 

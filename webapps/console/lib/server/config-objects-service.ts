@@ -10,7 +10,7 @@ import {
 } from "../schema/config-objects";
 import { containsMaskedSecrets, unmaskSecretsFromOriginal } from "../schema/secrets";
 import { getCoreDestinationTypeNonStrict, MASKED_SECRET } from "../schema/destinations";
-import { isPlatformAdmin, keyWorkspaceScope, verifyAccess, verifyAccessWithRole } from "../api";
+import { hasWorkspaceAccess, isPlatformAdmin, keyWorkspaceScope, verifyAccess, verifyAccessWithRole } from "../api";
 import { prepareZodObjectForDeserialization } from "../zod";
 import { ApiError } from "../shared/errors";
 import { assertCustomDomainsAllowed, assertIdentityStitchingAllowed } from "./plan-gate";
@@ -157,9 +157,19 @@ export class ConfigObjectsService {
   }> {
     const limit = Math.min(Math.max(opts.limit ?? WORKSPACES_PAGE_MAX, 1), WORKSPACES_PAGE_MAX);
     const offset = Math.max(opts.offset ?? 0, 0);
-    // a key limited to one workspace lists that one only
+    // A key limited to one workspace lists that one only, whenever it can open it: a member, or a platform admin who has not
+    // joined it.
     const scope = keyWorkspaceScope(user);
-    const access = { userId: user.internalId, workspace: { deleted: false }, ...(scope ? { workspaceId: scope } : {}) };
+    if (scope) {
+      const workspace = (await hasWorkspaceAccess(user, scope))
+        ? await this.prisma.workspace.findFirst({
+            where: { id: scope, deleted: false },
+            select: { id: true, name: true, slug: true },
+          })
+        : null;
+      const workspaces = workspace && offset === 0 ? [workspace] : [];
+      return { workspaces, total: workspace ? 1 : 0, limit, offset, hasMore: false };
+    }
     const [total, workspaces] = (await isPlatformAdmin(user))
       ? await Promise.all([
           this.prisma.workspace.count({ where: { deleted: false } }),
@@ -172,10 +182,10 @@ export class ConfigObjectsService {
           }),
         ])
       : await Promise.all([
-          this.prisma.workspaceAccess.count({ where: access }),
+          this.prisma.workspaceAccess.count({ where: { userId: user.internalId, workspace: { deleted: false } } }),
           this.prisma.workspaceAccess
             .findMany({
-              where: access,
+              where: { userId: user.internalId, workspace: { deleted: false } },
               include: { workspace: { select: { id: true, name: true, slug: true } } },
               orderBy: { createdAt: "asc" },
               skip: offset,

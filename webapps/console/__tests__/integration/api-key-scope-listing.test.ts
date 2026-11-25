@@ -120,3 +120,47 @@ describe("a workspace-scoped key lists only its own workspace", () => {
     expect(res.body.workspaces.map((w: any) => w.id)).toEqual([admin.workspace.id]);
   });
 });
+
+describe("a scoped key lists its workspace whenever it can open it (the same rule as verifyAccess)", () => {
+  // A platform admin may scope a key to a workspace without joining it: verifyAccess lets an admin in. The key must then list
+  // that workspace, or a CLI that resolves its target through the list fails with the right workspace id.
+  async function adminKeyForForeignWorkspace() {
+    const admin = await seedWorkspace({ admin: true, member: false });
+    return { admin, key: await keyString(admin.user.internalId, admin.workspace.id) };
+  }
+
+  it("GET /api/workspace, with the total", async () => {
+    const { admin, key } = await adminKeyForForeignWorkspace();
+    const res = await call(workspaceListRoute, "GET", key, undefined, { page: "0" });
+    expect(res.statusCode).toBe(200);
+    expect(res.body.workspaces.map((w: any) => w.id)).toEqual([admin.workspace.id]);
+    expect(res.body.pagination.totalCount).toBe(1);
+  });
+
+  it("GET /api/me?workspaces=true", async () => {
+    const { admin, key } = await adminKeyForForeignWorkspace();
+    const res = await call(meRoute, "GET", key, undefined, { workspaces: "true" });
+    expect(res.body.workspaces.map((w: any) => w.id)).toEqual([admin.workspace.id]);
+  });
+
+  it("the workspace list of the MCP tool, with the total", async () => {
+    const { admin, key } = await adminKeyForForeignWorkspace();
+    const list = await new ConfigObjectsService({ prisma: deps().prisma }).listWorkspaces(await bearerUser(key), {});
+    expect(list.workspaces.map(w => w.id)).toEqual([admin.workspace.id]);
+    expect(list.total).toBe(1);
+  });
+
+  it("lists nothing when the key's workspace is one its user cannot open", async () => {
+    // a key row can outlive a membership: the user left the workspace and is not an admin
+    const { user, a } = await seedTwoWorkspaces();
+    const key = await keyString(user.internalId, a.id);
+    await deps().prisma.workspaceAccess.deleteMany({ where: { userId: user.internalId, workspaceId: a.id } });
+    const res = await call(workspaceListRoute, "GET", key, undefined, { page: "0" });
+    expect(res.body.workspaces).toEqual([]);
+    expect(res.body.pagination.totalCount).toBe(0);
+    expect((await call(meRoute, "GET", key, undefined, { workspaces: "true" })).body.workspaces).toEqual([]);
+    const list = await new ConfigObjectsService({ prisma: deps().prisma }).listWorkspaces(await bearerUser(key), {});
+    expect(list.workspaces).toEqual([]);
+    expect(list.total).toBe(0);
+  });
+});

@@ -1,5 +1,5 @@
 import { NextApiRequest, NextApiResponse } from "next";
-import { getUser, isPlatformAdmin, keyWorkspaceScope } from "../../lib/api";
+import { getUser, hasWorkspaceAccess, isPlatformAdmin, keyWorkspaceScope } from "../../lib/api";
 import { getRequestHost, getTopLevelDomain } from "../../lib/server/origin";
 import { db } from "../../lib/server/db";
 import { getServerLog } from "../../lib/server/log";
@@ -58,17 +58,21 @@ function handleCors(requestDomain: string, origin: string | undefined, res: Next
 
 async function getWorkspaces(user: SessionUser) {
   const internalUserId = user.internalId;
-  // a key limited to one workspace or a role is not a platform admin here
+  // A key limited to one workspace lists that one only, whenever it can open it: a member, or a platform admin who has not
+  // joined it.
+  const scope = keyWorkspaceScope(user);
+  if (scope) {
+    const workspace = (await hasWorkspaceAccess(user, scope))
+      ? await db.prisma().workspace.findFirst({ where: { id: scope, deleted: false } })
+      : null;
+    return workspace ? [workspace] : [];
+  }
+  // a key limited to a role is not a platform admin here
   if (await isPlatformAdmin(user)) {
     return await db.prisma().workspace.findMany({ where: { deleted: false } });
   }
-  // a key limited to one workspace lists that one only
-  const scope = keyWorkspaceScope(user);
   return (
-    await db.prisma().workspaceAccess.findMany({
-      where: { userId: internalUserId, ...(scope ? { workspaceId: scope } : {}) },
-      include: { workspace: true },
-    })
+    await db.prisma().workspaceAccess.findMany({ where: { userId: internalUserId }, include: { workspace: true } })
   )
     .map(res => res.workspace)
     .filter(w => !w.deleted);
@@ -76,7 +80,9 @@ async function getWorkspaces(user: SessionUser) {
 
 async function getLastWorkspace(user: SessionUser) {
   const pref = await getUserPreferenceService(db.prisma()).getPreferences({ userId: user.internalId });
-  if (pref?.lastUsedWorkspaceId) {
+  // a key limited to one workspace is not shown another one, such as the one the user last opened in the browser
+  const scope = keyWorkspaceScope(user);
+  if (pref?.lastUsedWorkspaceId && (!scope || pref.lastUsedWorkspaceId === scope)) {
     return {
       id: pref.lastUsedWorkspaceId,
       slug:

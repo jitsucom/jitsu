@@ -720,6 +720,51 @@ export async function verifyAccess(user: SessionUser, workspaceId: string) {
   }
 }
 
+/**
+ * Whether the user may open the workspace, by the rule of verifyAccess: a member, or a platform admin; for a key, also only
+ * inside its scope. Lists use it so that a scoped key shows its workspace exactly when it could open it.
+ */
+export async function hasWorkspaceAccess(user: SessionUser, workspaceId: string): Promise<boolean> {
+  try {
+    await verifyAccess(user, workspaceId);
+    return true;
+  } catch (e) {
+    if (e instanceof ApiError && e.status === 403) {
+      return false;
+    }
+    throw e;
+  }
+}
+
+/**
+ * A workspace carrying the `readonly` feature flag (set for billing enforcement, e.g. unpaid invoices, JITSU-123) rejects
+ * entity mutations at the API level; the UI lock alone is trivially bypassed with an API token. Reads stay open, and
+ * `manageUsers` deliberately stays role-gated only: inviting the teammate who holds the credit card must remain possible.
+ * Platform admins and service accounts bypass it; a limited key of an admin is not a platform admin here, whether the admin
+ * is a member of the workspace or reaches it through the admin fallback.
+ */
+async function assertNotBillingLocked(
+  user: SessionUser,
+  workspaceId: string,
+  userId: string,
+  role: WorkspaceRoleType,
+  requiredPermission: WorkspacePermissionsType
+): Promise<void> {
+  if (requiredPermission !== "editEntities" && requiredPermission !== "deleteEntities") {
+    return;
+  }
+  const workspace = await db.prisma().workspace.findFirst({
+    where: { id: workspaceId },
+    select: { featuresEnabled: true },
+  });
+  if (workspace?.featuresEnabled?.includes("readonly") && !(await isPlatformAdmin(user))) {
+    throw new ApiError(
+      `Workspace is in read-only mode due to billing issues. Please resolve them on the billing page to restore access.`,
+      { status: 403, responseObject: { workspaceId, userId, role, requiredPermission, readonly: true } }
+    );
+  }
+}
+
 export async function verifyAccessWithRole(
   user: SessionUser,
   workspaceId: string,
@@ -749,6 +794,8 @@ export async function verifyAccessWithRole(
   if (!access) {
     // Check if user is admin
     if ((await db.prisma().userProfile.findFirst({ where: { id: user.internalId } }))?.admin) {
+      // an unrestricted admin bypasses the billing lock; a limited key of an admin does not
+      await assertNotBillingLocked(user, workspaceId, userId, "owner", requiredPermission);
       return limitToTokenRole(user, {
         role: "owner",
         ...WorkspaceRolePermissions["owner"],
@@ -769,30 +816,7 @@ export async function verifyAccessWithRole(
     );
   }
 
-  // A workspace carrying the `readonly` feature flag (set for billing
-  // enforcement, e.g. unpaid invoices — JITSU-123) rejects entity mutations at
-  // the API level; the UI lock alone is trivially bypassed with an API token.
-  // Reads stay open, and `manageUsers` deliberately stays role-gated only —
-  // inviting the teammate who holds the credit card must remain possible.
-  // Jitsu admins and service accounts bypass via the short-circuits above.
-  if (requiredPermission === "editEntities" || requiredPermission === "deleteEntities") {
-    const workspace = await db.prisma().workspace.findFirst({
-      where: { id: workspaceId },
-      select: { featuresEnabled: true },
-    });
-    if (workspace?.featuresEnabled?.includes("readonly")) {
-      // Jitsu admins bypass readonly even when they hold an explicit
-      // workspaceAccess row (the earlier short-circuit only covers admins
-      // without one). A limited key of an admin does not: it is not a platform admin here.
-      const isAdmin = await isPlatformAdmin(user);
-      if (!isAdmin) {
-        throw new ApiError(
-          `Workspace is in read-only mode due to billing issues. Please resolve them on the billing page to restore access.`,
-          { status: 403, responseObject: { workspaceId, userId, role, requiredPermission, readonly: true } }
-        );
-      }
-    }
-  }
+  await assertNotBillingLocked(user, workspaceId, userId, role, requiredPermission);
 
   return limitToTokenRole(user, {
     role,
