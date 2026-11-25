@@ -1,7 +1,7 @@
 import { Prisma, PrismaClient } from "@prisma/client";
 import { getServerLog } from "../log";
 import { SlidingWindowRateLimiter, type CounterWindow } from "juava/src/rate-limit";
-import { peekResult } from "./peek";
+import { peekResultAfterRead } from "./peek";
 import type { PeekResult, RateLimitOpts, RateLimitResult, RateLimiter } from "./types";
 
 const log = getServerLog("rate-limit");
@@ -45,7 +45,7 @@ export class PgRateLimiter implements RateLimiter {
     )}), 0)::int AS prev_count
     `);
     if (!rows[0]) throw new Error("Rate-limit counter read returned no row");
-    return peekResult(opts, rows[0].current_count, rows[0].prev_count, pending, now);
+    return peekResultAfterRead(opts, rows[0].current_count, rows[0].prev_count, pending, now, Date.now());
   }
 
   private async increment({ key, windowStart, previousWindowStart, expiresAt }: CounterWindow) {

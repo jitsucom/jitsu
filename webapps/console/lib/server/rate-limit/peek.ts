@@ -1,4 +1,3 @@
-import type { RateLimitResult } from "juava/src/rate-limit";
 import type { PeekResult, RateLimitOpts } from "./types";
 
 // The decision of a budget of failures, read without counting the request: is there room for one more failure?
@@ -45,6 +44,24 @@ export function peekResult(
   let waitSec = 1;
   while (waitSec < (2 * W) / 1000 && !fits(now + waitSec * 1000, 0)) waitSec++;
   return refused(opts, now, waitSec, !fits(now, 0));
+}
+
+// The same decision for counters that were read at `readAt` and are answered at `now`, when the read has taken some time: the
+// answer is given for the moment it returns, so a failure budget that recovers during the read is not reported as still blocked.
+// When the minute moves on during the read, the counts of the minute it was read in belong to the minute before, or are gone.
+export function peekResultAfterRead(
+  opts: RateLimitOpts,
+  current: number,
+  previous: number,
+  pending: number,
+  readAt: number,
+  now: number
+): PeekResult {
+  const answeredAt = Math.max(now, readAt);
+  const W = opts.windowMs;
+  const moved = Math.floor(answeredAt / W) - Math.floor(readAt / W);
+  if (moved <= 0) return peekResult(opts, current, previous, pending, answeredAt);
+  return peekResult(opts, 0, moved === 1 ? current : 0, pending, answeredAt);
 }
 
 function refused(opts: RateLimitOpts, now: number, waitSec: number, blockedByRecorded: boolean): PeekResult {

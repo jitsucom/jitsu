@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { peekResult } from "../../lib/server/rate-limit/peek";
+import { peekResult, peekResultAfterRead } from "../../lib/server/rate-limit/peek";
 
 const W = 60_000;
 const opts = (limit: number) => ({
@@ -39,6 +39,39 @@ describe("peekResult", () => {
     expect(inFlight.allowed).toBe(false);
     expect(inFlight.blockedByRecorded).toBe(false);
     expect(peekResult(opts(3), 0, 0, 0, start).blockedByRecorded).toBe(false);
+  });
+
+  describe("when the counter was read some time before the answer is given", () => {
+    it("decides at the time the read returned, not at the time it started", () => {
+      // limit 3, 1 failure now and 2 in the previous minute: one more fits from 30 s on. The read starts at 29.990 s and returns at
+      // 30.010 s, with one check in flight
+      const readAt = start + 29_990;
+      const doneAt = start + 30_010;
+      // decided at the start, the recorded failures block the address
+      expect(peekResult(opts(3), 1, 2, 0, readAt).allowed).toBe(false);
+      // decided when the read returned, they no longer do: only the check in flight refuses, and a read again admits
+      const result = peekResultAfterRead(opts(3), 1, 2, 1, readAt, doneAt);
+      expect(result.allowed).toBe(false);
+      expect(result.blockedByRecorded).toBe(false);
+      expect(peekResultAfterRead(opts(3), 1, 2, 0, readAt, doneAt).allowed).toBe(true);
+    });
+
+    it("moves the counts of the minute that ended during the read to the minute before", () => {
+      // 5 failures in the minute the read happened in, a budget of 5, the answer comes 10 ms into the next minute
+      const readAt = start + 59_995;
+      const doneAt = start + 60_010;
+      const result = peekResultAfterRead(opts(5), 5, 0, 0, readAt, doneAt);
+      expect(result.allowed).toBe(false);
+      expect(result.blockedByRecorded).toBe(true);
+      // two minutes later they are gone
+      expect(peekResultAfterRead(opts(5), 5, 0, 0, readAt, start + 120_010).allowed).toBe(true);
+    });
+
+    it("is the same as peekResult when the read and the answer are in the same moment", () => {
+      expect(peekResultAfterRead(opts(3), 2, 1, 1, start + 10_000, start + 10_000)).toEqual(
+        peekResult(opts(3), 2, 1, 1, start + 10_000)
+      );
+    });
   });
 
   it("counts the checks in flight", () => {

@@ -395,6 +395,29 @@ describe("the limiter's peek", () => {
     ).toMatchObject({ count: 2 });
   });
 
+  it("decides at the time the read returns, when the minute moves on during it", async () => {
+    const limiter = getRateLimiter() as any;
+    const own = { ...opts, principal: "peek-late", bucket: "peek-late-bucket", limit: 3 };
+    // 2 failures in the previous minute and 1 in this one: one more fits from 30 s into the minute on
+    vi.setSystemTime(windowStart - 30_000);
+    await limiter.check(own);
+    await limiter.check(own);
+    vi.setSystemTime(windowStart + 29_990);
+    await limiter.check(own);
+    // the read starts at 29.990 s and returns at 30.010 s
+    const query = vi.spyOn(deps().prisma, "$queryRaw");
+    query.mockImplementationOnce((async (...args: any[]) => {
+      const rows = await (deps().prisma as any).constructor.prototype.$queryRaw.apply(deps().prisma, args);
+      vi.setSystemTime(windowStart + 30_010);
+      return rows;
+    }) as any);
+    const result = await limiter.peek(own, 1);
+    query.mockRestore();
+    // one check in flight refuses; the recorded failures alone no longer do
+    expect(result.allowed).toBe(false);
+    expect(result.blockedByRecorded).toBe(false);
+  });
+
   it("counts the checks in flight against the budget", async () => {
     const limiter = getRateLimiter() as any;
     const own = { ...opts, principal: "peek-pending" };
