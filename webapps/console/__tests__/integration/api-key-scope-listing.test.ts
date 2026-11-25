@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { createHash, randomId } from "juava";
 import { deps, seedWorkspace } from "./support/harness";
 import { getUser } from "../../lib/api";
@@ -162,5 +162,27 @@ describe("a scoped key lists its workspace whenever it can open it (the same rul
     const list = await new ConfigObjectsService({ prisma: deps().prisma }).listWorkspaces(await bearerUser(key), {});
     expect(list.workspaces).toEqual([]);
     expect(list.total).toBe(0);
+  });
+});
+
+describe("the query that fetches the scoped workspace enforces membership by itself", () => {
+  // The access decision and the fetch used to be two queries: an owner who removed a member between them still let the
+  // removed member's key read the workspace's name, slug and feature flags. The race is hard to stage, so the property is
+  // pinned instead: even when the earlier decision said yes (the membership count still reports 1), a user who is not a
+  // member gets nothing from the fetch.
+  it("a stale access check does not leak the workspace through any of the three lists", async () => {
+    const { user, a } = await seedTwoWorkspaces();
+    const key = await keyString(user.internalId, a.id);
+    await deps().prisma.workspaceAccess.deleteMany({ where: { userId: user.internalId, workspaceId: a.id } });
+    const count = vi.spyOn(deps().prisma.workspaceAccess, "count").mockResolvedValue(1 as any);
+    try {
+      const rest = await call(workspaceListRoute, "GET", key, undefined, { page: "0" });
+      expect(rest.body.workspaces).toEqual([]);
+      expect((await call(meRoute, "GET", key, undefined, { workspaces: "true" })).body.workspaces).toEqual([]);
+      const list = await new ConfigObjectsService({ prisma: deps().prisma }).listWorkspaces(await bearerUser(key), {});
+      expect(list.workspaces).toEqual([]);
+    } finally {
+      count.mockRestore();
+    }
   });
 });

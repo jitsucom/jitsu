@@ -10,7 +10,7 @@ import {
 } from "../schema/config-objects";
 import { containsMaskedSecrets, unmaskSecretsFromOriginal } from "../schema/secrets";
 import { getCoreDestinationTypeNonStrict, MASKED_SECRET } from "../schema/destinations";
-import { hasWorkspaceAccess, isPlatformAdmin, keyWorkspaceScope, verifyAccess, verifyAccessWithRole } from "../api";
+import { hasAdminProfile, isPlatformAdmin, keyWorkspaceScope, verifyAccess, verifyAccessWithRole } from "../api";
 import { prepareZodObjectForDeserialization } from "../zod";
 import { ApiError } from "../shared/errors";
 import { assertCustomDomainsAllowed, assertIdentityStitchingAllowed } from "./plan-gate";
@@ -157,16 +157,20 @@ export class ConfigObjectsService {
   }> {
     const limit = Math.min(Math.max(opts.limit ?? WORKSPACES_PAGE_MAX, 1), WORKSPACES_PAGE_MAX);
     const offset = Math.max(opts.offset ?? 0, 0);
-    // A key limited to one workspace lists that one only, whenever it can open it: a member, or a platform admin who has not
-    // joined it.
+    // A key limited to one workspace lists that one only. A member gets it through the membership, in the query that fetches
+    // it, so a member removed meanwhile gets nothing; a platform admin who has not joined it gets it by the admin flag.
     const scope = keyWorkspaceScope(user);
     if (scope) {
-      const workspace = (await hasWorkspaceAccess(user, scope))
-        ? await this.prisma.workspace.findFirst({
-            where: { id: scope, deleted: false },
-            select: { id: true, name: true, slug: true },
-          })
-        : null;
+      const select = { id: true, name: true, slug: true };
+      const member = await this.prisma.workspaceAccess.findFirst({
+        where: { userId: user.internalId, workspaceId: scope, workspace: { deleted: false } },
+        include: { workspace: { select } },
+      });
+      const workspace =
+        member?.workspace ??
+        ((await hasAdminProfile(user))
+          ? await this.prisma.workspace.findFirst({ where: { id: scope, deleted: false }, select })
+          : null);
       const workspaces = workspace && offset === 0 ? [workspace] : [];
       return { workspaces, total: workspace ? 1 : 0, limit, offset, hasMore: false };
     }

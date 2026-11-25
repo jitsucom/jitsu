@@ -2,7 +2,7 @@ import {
   assertNotLimitedKey,
   createRoute,
   isPlatformAdmin,
-  hasWorkspaceAccess,
+  hasAdminProfile,
   keyWorkspaceScope,
   verifyAccessWithRole,
 } from "../../../lib/api";
@@ -60,12 +60,11 @@ export const route = createRoute()
 
     // a key limited to one workspace or a role is not a platform admin here, so it does not list every workspace
     const isAdmin = await isPlatformAdmin(user);
-    // A key limited to one workspace lists that one only, whenever it can open it: a member, or a platform admin who has not
-    // joined it (verifyAccess lets an admin in, and key creation allows scoping to it).
+    // A key limited to one workspace lists that one only. A member gets it through the membership join of the same query that
+    // fetches it, so a member removed meanwhile gets nothing. A platform admin who has not joined it gets it by the admin
+    // flag: verifyAccess lets an admin in, and key creation allows scoping to it.
     const scope = keyWorkspaceScope(user);
-    const scopedAccess = scope ? await hasWorkspaceAccess(user, scope) : false;
-    const noWorkspace = !!scope && !scopedAccess;
-    const listAll = isAdmin || scopedAccess;
+    const listAll = isAdmin || (!!scope && (await hasAdminProfile(user)));
     const scopeClause = scope ? Prisma.sql`AND w.id = ${scope}` : Prisma.empty;
 
     // Search matches workspace id / name / slug, case-insensitively. Kept as a raw fragment so it
@@ -74,9 +73,7 @@ export const route = createRoute()
       ? Prisma.sql`AND (w.id ILIKE ${`%${search}%`} OR w.name ILIKE ${`%${search}%`} OR w.slug ILIKE ${`%${search}%`})`
       : Prisma.empty;
 
-    const totalCount = noWorkspace
-      ? 0
-      : listAll
+    const totalCount = listAll
       ? await db.prisma().workspace.count({
           where: { deleted: false, ...(scope ? { id: scope } : {}) },
         })
@@ -84,6 +81,7 @@ export const route = createRoute()
           where: {
             userId: user.internalId,
             workspace: { deleted: false },
+            ...(scope ? { workspaceId: scope } : {}),
           },
         });
 
@@ -94,9 +92,7 @@ export const route = createRoute()
     // workspaces (they sort last via NULLS LAST). Non-admins are scoped by WorkspaceAccess; admins
     // see every workspace plus its configuration-object count.
     const order = Prisma.sql`ORDER BY wup."lastUsed" DESC NULLS LAST, w."createdAt" ASC LIMIT ${limit} OFFSET ${offset}`;
-    const rows: any[] = noWorkspace
-      ? []
-      : listAll
+    const rows: any[] = listAll
       ? await db.prisma().$queryRaw`
           SELECT w.*, wup."lastUsed",
             (SELECT count(*) FROM newjitsu."ConfigurationObject" co
@@ -113,7 +109,7 @@ export const route = createRoute()
             ON wa."workspaceId" = w.id AND wa."userId" = ${user.internalId}
           LEFT JOIN newjitsu."WorkspaceUserProperties" wup
             ON wup."workspaceId" = w.id AND wup."userId" = ${user.internalId}
-          WHERE w.deleted = false ${searchClause}
+          WHERE w.deleted = false ${searchClause} ${scopeClause}
           ${order}`;
 
     const workspaces = rows.map(row =>

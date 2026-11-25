@@ -721,19 +721,13 @@ export async function verifyAccess(user: SessionUser, workspaceId: string) {
 }
 
 /**
- * Whether the user may open the workspace, by the rule of verifyAccess: a member, or a platform admin; for a key, also only
- * inside its scope. Lists use it so that a scoped key shows its workspace exactly when it could open it.
+ * Whether the profile carries the admin flag: the fallback of verifyAccess for a workspace the admin has not joined. A list
+ * for a key scoped to such a workspace uses it, since the key can open it. It is not a platform-admin check: a limited key is
+ * not a platform admin, see isPlatformAdmin.
  */
-export async function hasWorkspaceAccess(user: SessionUser, workspaceId: string): Promise<boolean> {
-  try {
-    await verifyAccess(user, workspaceId);
-    return true;
-  } catch (e) {
-    if (e instanceof ApiError && e.status === 403) {
-      return false;
-    }
-    throw e;
-  }
+export async function hasAdminProfile(user: SessionUser): Promise<boolean> {
+  const userId = requireDefined(user.internalId, `internalId is not defined`);
+  return !!(await db.prisma().userProfile.findFirst({ where: { id: userId } }))?.admin;
 }
 
 /**

@@ -1,5 +1,5 @@
 import { NextApiRequest, NextApiResponse } from "next";
-import { getUser, hasWorkspaceAccess, isPlatformAdmin, keyWorkspaceScope } from "../../lib/api";
+import { getUser, hasAdminProfile, isPlatformAdmin, keyWorkspaceScope } from "../../lib/api";
 import { getRequestHost, getTopLevelDomain } from "../../lib/server/origin";
 import { db } from "../../lib/server/db";
 import { getServerLog } from "../../lib/server/log";
@@ -58,11 +58,18 @@ function handleCors(requestDomain: string, origin: string | undefined, res: Next
 
 async function getWorkspaces(user: SessionUser) {
   const internalUserId = user.internalId;
-  // A key limited to one workspace lists that one only, whenever it can open it: a member, or a platform admin who has not
-  // joined it.
+  // A key limited to one workspace lists that one only. A member gets it through the membership, in the query that fetches
+  // it, so a member removed meanwhile gets nothing; a platform admin who has not joined it gets it by the admin flag.
   const scope = keyWorkspaceScope(user);
   if (scope) {
-    const workspace = (await hasWorkspaceAccess(user, scope))
+    const member = await db.prisma().workspaceAccess.findFirst({
+      where: { userId: internalUserId, workspaceId: scope, workspace: { deleted: false } },
+      include: { workspace: true },
+    });
+    if (member) {
+      return [member.workspace];
+    }
+    const workspace = (await hasAdminProfile(user))
       ? await db.prisma().workspace.findFirst({ where: { id: scope, deleted: false } })
       : null;
     return workspace ? [workspace] : [];
