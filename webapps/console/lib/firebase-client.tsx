@@ -3,6 +3,7 @@ import { getApps, initializeApp } from "firebase/app";
 import * as auth from "firebase/auth";
 import { AppConfig, ContextApiResponse, CreateUserResult } from "./schema";
 import { getLog, randomId, requireDefined, rpc } from "juava";
+import { isSessionRevokedError } from "./shared/errors";
 import { useJitsu } from "@jitsu/jitsu-react";
 import { impersonationState } from "./shared/impersonation";
 
@@ -407,7 +408,19 @@ export function useFirebaseSession(): FirebaseSession {
                 resolve(null);
                 return;
               }
-              const result = user ? await getUserFromFirebase(user) : null;
+              let result: PassiveFirebaseAuthResult | null;
+              try {
+                result = user ? await getUserFromFirebase(user) : null;
+              } catch (e) {
+                // JITSU-297: the session was revoked elsewhere (sign-out on another device, a disabled account). Sign out
+                // here too and land on the sign-in page, not on an error screen whose Logout button has no session to end.
+                if (isSessionRevokedError(e)) {
+                  await firebaseSignOut();
+                  resolve(null);
+                  return;
+                }
+                throw e;
+              }
               // Record the login only for an explicit sign-in (recordLogin) and only after
               // getUserFromFirebase has minted/linked internalId — otherwise a first-time
               // verified password user's login hits /api/fb-auth/audit-login before the

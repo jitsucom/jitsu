@@ -15,3 +15,14 @@ export class ApiError extends Error {
     this.responseObject = opts.responseObject ?? {};
   }
 }
+
+/**
+ * Code of the 401 that tells the browser its Firebase session was revoked (a sign-out on another device, a disabled account):
+ * it should sign out locally and show the sign-in page, not an error screen.
+ */
+export const SESSION_REVOKED = "session_revoked";
+
+/** True for the error `rpc` throws when the server answered with the SESSION_REVOKED code. */
+export function isSessionRevokedError(e: unknown): boolean {
+  return (e as { response?: { code?: unknown } } | undefined)?.response?.code === SESSION_REVOKED;
+}

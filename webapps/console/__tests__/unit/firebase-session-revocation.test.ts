@@ -22,11 +22,12 @@ vi.mock("firebase-admin", () => ({
 import { getFirebaseUser, sessionRejection } from "../../lib/server/firebase-server";
 
 const NOW_S = Math.floor(Date.now() / 1000);
-const decoded = (authTime: number | undefined = NOW_S - 3600) => ({
+// null leaves auth_time out of the claims (undefined would fall back to the default, and the test would not test the case)
+const decoded = (authTime: number | null = NOW_S - 3600) => ({
   uid: "uid-1",
   email: "user@example.com",
   email_verified: true,
-  auth_time: authTime,
+  ...(authTime === null ? {} : { auth_time: authTime }),
   internalId: "internal-1",
   firebase: { sign_in_provider: "google.com" },
 });
@@ -68,7 +69,7 @@ describe("sessionRejection", () => {
     expect(sessionRejection(decoded() as any, record({ disabled: true }) as any)).toBe("disabled");
   });
   it("fails closed when a revocation exists and the token carries no auth_time", () => {
-    expect(sessionRejection(decoded(undefined) as any, record({ tokensValidAfterTime: iso(NOW_S - 200) }) as any)).toBe(
+    expect(sessionRejection(decoded(null) as any, record({ tokensValidAfterTime: iso(NOW_S - 200) }) as any)).toBe(
       "revoked"
     );
   });
@@ -93,6 +94,17 @@ describe("getFirebaseUser", () => {
     fb.verifyIdToken.mockResolvedValue(decoded(NOW_S - 3600));
     fb.getUser.mockResolvedValue(record({ tokensValidAfterTime: iso(NOW_S - 600) }));
     expect(await getFirebaseUser(bearerRequest())).toBeUndefined();
+  });
+  it("treats a deleted account as signed out instead of failing the request", async () => {
+    // an unexpired cookie of a deleted account still passes signature verification; the user lookup then fails
+    fb.verifySessionCookie.mockResolvedValue(decoded());
+    fb.getUser.mockRejectedValue(Object.assign(new Error("There is no user record"), { code: "auth/user-not-found" }));
+    expect(await getFirebaseUser(cookieRequest())).toBeUndefined();
+  });
+  it("does not hide other failures of the user lookup", async () => {
+    fb.verifySessionCookie.mockResolvedValue(decoded());
+    fb.getUser.mockRejectedValue(Object.assign(new Error("backend unavailable"), { code: "auth/internal-error" }));
+    await expect(getFirebaseUser(cookieRequest())).rejects.toThrow("backend unavailable");
   });
   it("refuses a session of a disabled account", async () => {
     fb.verifySessionCookie.mockResolvedValue(decoded());

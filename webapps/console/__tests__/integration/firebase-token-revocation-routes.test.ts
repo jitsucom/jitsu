@@ -41,14 +41,36 @@ describe("create-session", () => {
     expect(verifyIdToken).toHaveBeenCalledWith("tok", true);
   });
 
-  it("mints no cookie for an ID token that was revoked at sign-out", async () => {
+  it("mints no cookie for an ID token that was revoked at sign-out, and answers 401 with a code the browser recognizes", async () => {
     verifyIdToken.mockRejectedValue(
       Object.assign(new Error("The Firebase ID token has been revoked."), { code: "auth/id-token-revoked" })
     );
     const r = await createSession();
     expect(r.error).toBeDefined();
+    // a 500 here left the browser on an error screen; 401 with this code lets it sign out and go to the sign-in page
+    expect(r.error.status).toBe(401);
+    expect(r.error.responseObject).toEqual({ code: "session_revoked" });
     expect(createSessionCookie).not.toHaveBeenCalled();
     expect(r.setCookie).toBeUndefined();
+  });
+
+  it("answers 401 with the same code for a disabled account", async () => {
+    verifyIdToken.mockRejectedValue(
+      Object.assign(new Error("The user record is disabled."), { code: "auth/user-disabled" })
+    );
+    const r = await createSession();
+    expect(r.error?.status).toBe(401);
+    expect(r.error?.responseObject).toEqual({ code: "session_revoked" });
+    expect(createSessionCookie).not.toHaveBeenCalled();
+  });
+
+  it("lets any other verification failure through unchanged", async () => {
+    verifyIdToken.mockRejectedValue(
+      Object.assign(new Error("Firebase ID token has expired."), { code: "auth/id-token-expired" })
+    );
+    const r = await createSession();
+    expect(r.error?.status).toBeUndefined();
+    expect(r.error?.code).toBe("auth/id-token-expired");
   });
 });
 

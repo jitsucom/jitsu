@@ -277,7 +277,18 @@ export async function getFirebaseUser(req: NextApiRequest): Promise<SessionUser 
     return undefined;
   }
 
-  const user = await firebase().auth().getUser(decodedIdToken.uid);
+  let user: admin.auth.UserRecord;
+  try {
+    user = await firebase().auth().getUser(decodedIdToken.uid);
+  } catch (e: any) {
+    // An unexpired cookie of a deleted account still verifies. It is a signed-out request, as /api/me answered before the
+    // lookup moved out of the SDK's own verification; any other failure of the lookup stays an error.
+    if (e?.code === "auth/user-not-found") {
+      log.atWarn().log(`Firebase account ${decodedIdToken.uid} not found, treating the session as signed out`);
+      return undefined;
+    }
+    throw e;
+  }
 
   // JITSU-297: signing out or disabling the account ends the session on every route, not only where the SDK flag was passed
   const rejection = sessionRejection(decodedIdToken, user);

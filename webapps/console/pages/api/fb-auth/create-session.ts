@@ -9,7 +9,7 @@ import {
   getAuthCookieDomain,
   isUnverifiedPasswordAccount,
 } from "../../../lib/server/firebase-server";
-import { ApiError } from "../../../lib/shared/errors";
+import { ApiError, SESSION_REVOKED } from "../../../lib/shared/errors";
 import { SerializeOptions, serialize } from "cookie";
 import { getAppEndpoint } from "../../../lib/domains";
 import { getServerLog } from "../../../lib/server/log";
@@ -43,8 +43,20 @@ export const api: Api = {
       }
       // JITSU-018: never mint a session cookie for an unverified email+password
       // account, even if the client-side gate was bypassed.
-      // a token that was revoked at sign-out must not mint a new 5-day session
-      const decodedIdToken = await firebase().auth().verifyIdToken(idToken, true);
+      // JITSU-297: a token that was revoked at sign-out, or of a disabled account, must not mint a new 5-day session. The
+      // browser gets a 401 with a code it recognizes, so that it signs out and shows the sign-in page, not an error screen.
+      const decodedIdToken = await firebase()
+        .auth()
+        .verifyIdToken(idToken, true)
+        .catch((e: any) => {
+          if (e?.code === "auth/id-token-revoked" || e?.code === "auth/user-disabled") {
+            throw new ApiError("The Firebase session was revoked, sign in again", {
+              status: 401,
+              responseObject: { code: SESSION_REVOKED },
+            });
+          }
+          throw e;
+        });
       if (isUnverifiedPasswordAccount(decodedIdToken)) {
         throw new ApiError("Email address is not verified", { status: 403 });
       }

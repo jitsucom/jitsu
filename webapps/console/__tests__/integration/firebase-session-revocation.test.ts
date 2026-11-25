@@ -17,6 +17,7 @@ vi.mock("firebase-admin", () => ({
 }));
 
 import workspaceRoute from "../../pages/api/workspace/index";
+import meRoute from "../../pages/api/me";
 
 const NOW_S = Math.floor(Date.now() / 1000);
 const iso = (seconds: number) => new Date(seconds * 1000).toUTCString();
@@ -91,6 +92,15 @@ describe("a Firebase session on an ordinary authenticated route", () => {
     const res = await call(workspaceRoute, "cookie");
     expect(res.statusCode).toBe(401);
     expect(JSON.stringify(res.body ?? "")).not.toContain(seeded.workspace.id);
+  });
+
+  it("answers /api/me with 'not signed in', not an error, for a cookie of a deleted account", async () => {
+    const seeded = await seedWorkspace();
+    await sessionOf(seeded, {});
+    fb.getUser.mockRejectedValue(Object.assign(new Error("There is no user record"), { code: "auth/user-not-found" }));
+    const res = await call(meRoute, "cookie");
+    expect(res.statusCode).toBe(200);
+    expect(res.body).toEqual({ auth: false });
   });
 
   it("is refused with 401 once the account is disabled", async () => {
