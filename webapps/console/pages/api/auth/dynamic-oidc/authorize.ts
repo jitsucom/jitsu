@@ -8,6 +8,7 @@ import { extractReturnUrl } from "../../../../lib/auth-redirect";
 import { getOidcProvider } from "../../../../lib/server/oidc-token-service";
 import { performAutoDiscovery } from "../../../../lib/server/oidc-discovery";
 import { getServerEnv } from "../../../../lib/server/serverEnv";
+import { loginBindingCookie, newLoginBinding } from "../../../../lib/server/oidc-login-state";
 
 const log = getServerLog("api/auth/dynamic-oidc/authorize");
 
@@ -46,12 +47,15 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
     // Extract return URL from request for post-auth redirect
     const returnUrl = extractReturnUrl(req);
 
+    // The state is only valid together with a cookie of this browser; the state holds just its hash
+    const binding = newLoginBinding();
+
     // Create state token with provider ID, PKCE verifier, return URL, and additional security data
     const state = jwt.sign(
       {
         providerId,
         timestamp: Date.now(),
-        csrfToken: crypto.randomBytes(16).toString("hex"),
+        bindingHash: binding.hash,
         codeVerifier: pkce.codeVerifier,
         nonce,
         returnUrl, // Include return URL in state
@@ -105,7 +109,8 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
 
     const authUrl = `${authorizationEndpoint}?${params.toString()}`;
 
-    // Redirect to OIDC provider
+    // Redirect to OIDC provider, remembering in this browser that it is the one that started the login
+    res.setHeader("Set-Cookie", loginBindingCookie(req, binding.value));
     res.redirect(authUrl);
   } catch (error: any) {
     log.atError().withCause(error).log("Error initiating OIDC authorization");

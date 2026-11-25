@@ -13,6 +13,11 @@ import { redirectWithOidcError, OidcErrors } from "../../../../lib/server/oidc-e
 import { getServerEnv } from "../../../../lib/server/serverEnv";
 import { authAuditLog } from "../../../../lib/server/audit-log";
 import { trackAuthEvent } from "../../../../lib/server/telemetry";
+import {
+  clearLoginBindingCookie,
+  loginBindingMatches,
+  OIDC_LOGIN_STATE_COOKIE,
+} from "../../../../lib/server/oidc-login-state";
 
 const log = getServerLog("api/auth/dynamic-oidc/callback");
 
@@ -43,6 +48,18 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
         error: OidcErrors.INVALID_STATE,
       });
     }
+
+    // The login must finish in the browser that started it. The state is signed, but it travels in this URL, so it
+    // alone does not tell who holds it: it must come with the cookie set by authorize. This runs before anything else is
+    // done with the state, and a refusal leaves the cookie alone, so a login of this browser's own is not spent by it.
+    if (!loginBindingMatches(req.cookies?.[OIDC_LOGIN_STATE_COOKIE], stateData.bindingHash)) {
+      log.atWarn().log("OIDC callback refused: the state is not bound to this browser");
+      return redirectWithOidcError(res, {
+        error: OidcErrors.INVALID_STATE,
+      });
+    }
+    // The binding is single use, whatever the login does next
+    res.setHeader("Set-Cookie", [clearLoginBindingCookie(req)]);
 
     // Check if state is not too old (10 minutes)
     if (Date.now() - stateData.timestamp > 10 * 60 * 1000) {
@@ -286,16 +303,16 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
     }
 
     // Set secure session cookie
-    res.setHeader(
-      "Set-Cookie",
+    res.setHeader("Set-Cookie", [
+      clearLoginBindingCookie(req),
       serialize("oidc-session", sessionToken, {
         httpOnly: true,
         secure: isSecure(req),
         sameSite: "strict",
         maxAge: 7 * 24 * 60 * 60, // 7 days`
         path: "/",
-      })
-    );
+      }),
+    ]);
 
     // Determine where to redirect after successful authentication
     let redirectUrl = stateData.returnUrl;
