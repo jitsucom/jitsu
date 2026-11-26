@@ -343,7 +343,14 @@ describe("the scheme of a request behind a proxy", () => {
     ["a list that starts with https", { "x-forwarded-proto": "https, http" }, "https"],
     ["a list that starts with http", { "x-forwarded-proto": "http, https" }, "http"],
     ["upper case", { "x-forwarded-proto": "HTTPS" }, "https"],
-    ["an odd value is not https", { "x-forwarded-proto": "gopher" }, "http"],
+    ["an odd value is no signal at all: the URL decides", { "x-forwarded-proto": "gopher" }, "http"],
+    ["a protocol version is no signal either", { "x-forwarded-proto": "HTTP/2" }, "http"],
+    [
+      "an odd value next to a real one: the real one decides",
+      { "x-forwarded-proto": "HTTP/2", "x-forwarded-protocol": "https" },
+      "https",
+    ],
+    ["an odd value next to a real http", { "x-forwarded-proto": "gopher", "x-forwarded-protocol": "http" }, "http"],
     ["nothing", {}, "http"],
   ])("%s", (_name, headers, expected) => {
     expect(requestScheme(request(headers))).toBe(expected);
@@ -367,5 +374,34 @@ describe("the scheme of a request behind a proxy", () => {
     const req = request({ host: "console.example", "x-forwarded-proto": "http", "x-forwarded-protocol": "https" });
     expect(oidcBaseUrl(req)).toBe("https://console.example");
     expect(loginBindingCookie(req, "attempt12345", "v").toLowerCase()).toContain("secure");
+  });
+});
+
+describe("only an explicit http or https counts as a scheme", () => {
+  it.each(["HTTP/2", "HTTP/1.1", "gopher", "ws", "h2c", "off", "true", "1", "https:", "httpss", "http s"])(
+    "an https public URL is not asked to move for the forwarded value %j",
+    value => {
+      configure("https://console.example");
+      expect(
+        canonicalAuthorizeLocation(request({ host: "console.example", "x-forwarded-proto": value }))
+      ).toBeUndefined();
+      expect(
+        canonicalAuthorizeLocation(request({ host: "console.example", "x-forwarded-protocol": value }))
+      ).toBeUndefined();
+    }
+  );
+
+  it("still moves a request that is explicitly http, in any case and from a list", () => {
+    configure("https://console.example");
+    for (const value of ["http", "HTTP", " Http ", "http, https"]) {
+      expect(
+        canonicalAuthorizeLocation(request({ host: "console.example", "x-forwarded-proto": value })),
+        value
+      ).toBeDefined();
+    }
+  });
+
+  it("uses the URL of the request when the only forwarded values are odd ones", () => {
+    expect(requestScheme(request({ "x-forwarded-proto": "HTTP/2" }, "https://x.example/a"))).toBe("https");
   });
 });

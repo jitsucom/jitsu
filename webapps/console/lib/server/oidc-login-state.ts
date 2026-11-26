@@ -34,20 +34,34 @@ const firstOf = (value: string | string[] | undefined): string | undefined =>
 /**
  * Whether the request came in over https, as far as the proxy in front of it says. Two headers carry it, and Next.js fills in
  * `x-forwarded-proto` from its own socket (so "http") when the proxy sent only `x-forwarded-protocol: https`: a request is
- * https if either of them says so, and the first value of each list is the one of the client. Without either, the URL of the
- * request decides.
+ * https if either of them says so, and the first value of each list is the one of the client. A value that is not exactly
+ * http or https is ignored. Without a usable value, the URL of the request decides.
  */
 export function requestScheme(req: NextApiRequest): "http" | "https" {
-  const schemes = [firstOf(req.headers["x-forwarded-proto"]), firstOf(req.headers["x-forwarded-protocol"])].map(v =>
-    (v || "").toLowerCase()
-  );
+  const schemes = forwardedSchemes(req);
   if (schemes.includes("https")) {
     return "https";
   }
-  if (schemes.some(v => v !== "")) {
+  if (schemes.includes("http")) {
     return "http";
   }
   return req.url?.startsWith("https") ? "https" : "http";
+}
+
+/**
+ * What the proxy says about the scheme: the first value of each of the two headers, and only when it is exactly `http` or
+ * `https` (in any case). Any other value (`HTTP/2`, `ws`, an empty string) is not a statement about the scheme and is no
+ * signal at all, so it can neither start a redirect nor count as https.
+ */
+function forwardedSchemes(req: NextApiRequest): ("http" | "https")[] {
+  const out: ("http" | "https")[] = [];
+  for (const header of ["x-forwarded-proto", "x-forwarded-protocol"]) {
+    const value = (firstOf(req.headers[header]) || "").toLowerCase();
+    if (value === "http" || value === "https") {
+      out.push(value);
+    }
+  }
+  return out;
 }
 
 /**
@@ -86,8 +100,8 @@ export function canonicalAuthorizeLocation(req: NextApiRequest): string | undefi
   // The request is on the right host but the proxy says it came in over plain http while the public URL is https: a Secure
   // cookie set on this response would be dropped by the browser, and the https callback would find none. Only an explicit
   // "http" counts: a proxy that says nothing is taken at its word that the public URL is right.
-  const forwarded = [req.headers["x-forwarded-proto"], req.headers["x-forwarded-protocol"]].some(v => firstOf(v));
-  const wrongScheme = base.protocol === "https:" && forwarded && requestScheme(req) === "http";
+  const schemes = forwardedSchemes(req);
+  const wrongScheme = base.protocol === "https:" && schemes.includes("http") && !schemes.includes("https");
   if (requestHost === base.host.toLowerCase() && !wrongScheme) {
     return undefined;
   }

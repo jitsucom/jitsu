@@ -530,6 +530,19 @@ describe("a request over plain http to the host of an https public URL", () => {
     expect(t.tokenRedirectUris).toEqual([sent]);
   });
 
+  it("is not sent anywhere for a forwarded value that is not a scheme, such as HTTP/2", async () => {
+    vi.stubEnv("NEXTAUTH_URL", SECURE_BASE);
+    const t = await setup();
+    for (const value of ["HTTP/2", "gopher"]) {
+      const r = await call(authorizeRoute, { providerId: t.provider.id }, new Jar(), {
+        "x-test-path": AUTHORIZE_PATH,
+        "x-forwarded-proto": value,
+      });
+      expect(new URL(r.location!).origin, value).not.toBe(SECURE_BASE);
+      expect(r.setCookie.filter(isBinding), value).toHaveLength(1);
+    }
+  });
+
   it("is left alone when the proxy says https, or says nothing", async () => {
     vi.stubEnv("NEXTAUTH_URL", SECURE_BASE);
     const t = await setup();
