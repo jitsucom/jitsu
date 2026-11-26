@@ -93,6 +93,19 @@ export function findSecretsInLogCalls(source: string, fileName = "file.ts", extr
       out.push(n.name.text);
       return;
     }
+    if (ts.isElementAccessExpression(n)) {
+      const index = n.argumentExpression;
+      if (ts.isStringLiteralLike(index)) {
+        // a literal index is a property name, like the name after a dot: `req.headers["authorization"]` is the
+        // Authorization header and `tokens["expires_in"]` is a number
+        out.push(index.text);
+        return;
+      }
+      // a computed index: the object may be the secret (`cookies[name]`), and so may the index
+      inspect(n.expression, out);
+      inspect(index, out);
+      return;
+    }
     if (ts.isShorthandPropertyAssignment(n)) {
       out.push(n.name.text);
       return;
@@ -110,10 +123,25 @@ export function findSecretsInLogCalls(source: string, fileName = "file.ts", extr
     ts.forEachChild(n, c => inspect(c, out));
   };
 
+  // the arguments of every withCause(...) in the chain before the final .log(...): the logger prints the cause with its stack,
+  // so `log.atError().withCause(new Error(token)).log("x")` logs the token
+  const causeArguments = (e: ts.Expression): ts.Expression[] => {
+    const out: ts.Expression[] = [];
+    let current: ts.Expression = e;
+    while (ts.isCallExpression(current) && ts.isPropertyAccessExpression(current.expression)) {
+      if (current.expression.name.text === "withCause") out.push(...current.arguments);
+      current = current.expression.expression;
+    }
+    return out;
+  };
+
   const visit = (node: ts.Node) => {
     if (ts.isCallExpression(node) && isLogCall(node)) {
       const names: string[] = [];
       node.arguments.forEach(a => inspect(a, names));
+      if (ts.isPropertyAccessExpression(node.expression)) {
+        causeArguments(node.expression.expression).forEach(a => inspect(a, names));
+      }
       for (const name of names) {
         if (denied.has(norm(name))) {
           findings.push({

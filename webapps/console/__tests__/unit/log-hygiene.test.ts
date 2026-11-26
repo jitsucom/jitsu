@@ -20,6 +20,16 @@ describe("the checker finds a credential in the arguments of a log call", () => 
     ['logger.atInfo().log("x", ...[csrfToken])', "csrfToken"],
     ['log.atInfo().log("x", ok ? token : "none")', "token"],
     ["log.atInfo().log(`Query: ${query}${processedParams}`)", "processedParams"],
+    // the cause of a chained withCause is printed with its stack, so its arguments are looked at like the arguments of log
+    ['log.atError().withCause(new Error(token)).log("request failed")', "token"],
+    ['log.atError().withCause(new Error(`bad ${password}`)).log("request failed")', "password"],
+    ['log.atWarn().withCause(wrap(refreshToken)).log("x")', "refreshToken"],
+    // a literal index is a property name: req.headers["authorization"] is the Authorization header
+    ['console.error(req.headers["authorization"])', "authorization"],
+    ["console.error(req.headers['authorization'])", "authorization"],
+    ['log.atInfo().log("x", user["password"])', "password"],
+    ["log.atInfo().log(`got ${body[`token`]}`)", "token"],
+    ['log.atInfo().log("x", cookies[name])', "cookies"],
   ])("%s", (code, name) => {
     expect(names(code)).toContain(name);
   });
@@ -80,6 +90,13 @@ describe("the checker leaves alone what cannot carry a secret", () => {
     "notALogger.push(token)",
     "something.log(token)",
     "console.log(`${a} ${b}`)",
+    // a cause that is a plain error variable, a message about a token, and indexes that are not credential names
+    'log.atError().withCause(err).log("request failed")',
+    'log.atError().withCause(new Error("token expired")).log("x")',
+    'log.atError().withCause(new Error(`failed for ${workspaceId}`)).log("x")',
+    'console.error(req.headers["x-request-id"])',
+    'log.atInfo().log("x", { n: tokens["expires_in"] })',
+    'log.atInfo().log("x", !!user["password"])',
   ])("%s", code => {
     expect(names(code)).toEqual([]);
   });
