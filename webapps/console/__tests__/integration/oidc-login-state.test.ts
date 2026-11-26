@@ -88,7 +88,7 @@ async function call(handler: NextApiHandler, query: Record<string, string>, jar:
       ...extraHeaders,
     },
     cookies,
-    socket: { remoteAddress: "127.0.0.1" },
+    socket: { remoteAddress: "127.0.0.1", encrypted: (extraHeaders as any)["x-test-tls"] === "1" },
   } as unknown as NextApiRequest;
   await handler(req, res as unknown as NextApiResponse);
   out.setCookie = parseSetCookie(headers["set-cookie"]);
@@ -556,6 +556,18 @@ describe("a request over plain http to the host of an https public URL", () => {
       expect(new URL(r.location!).origin, value).toBe(SECURE_BASE);
       expect(r.setCookie.filter(isBinding), value).toEqual([]);
     }
+  });
+
+  it("is sent once to the https address when the proxy says http, even if it connects over TLS", async () => {
+    vi.stubEnv("NEXTAUTH_URL", SECURE_BASE);
+    const t = await setup();
+    const r = await call(authorizeRoute, { providerId: t.provider.id }, new Jar(), {
+      "x-test-path": AUTHORIZE_PATH,
+      "x-forwarded-proto": "http",
+      "x-test-tls": "1",
+    });
+    expect(new URL(r.location!).origin).toBe(SECURE_BASE);
+    expect(r.setCookie.filter(isBinding)).toEqual([]);
   });
 
   it("is sent once to the https address when the proxy says nothing about the scheme", async () => {

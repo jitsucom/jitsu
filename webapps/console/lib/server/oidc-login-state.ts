@@ -92,8 +92,8 @@ const isHttps = (baseUrl: string) => /^https:\/\//i.test(baseUrl);
  *  - arrived on another host name than the configured one (the cookie would not be sent back), or
  *  - is not positively https while the public URL is https: a Secure cookie set over plain http is dropped by the browser,
  *    and the https callback would find none.
- * "Positively https" is a TLS connection of the server itself, or a forwarded scheme that says https and is not contradicted
- * by another one. A missing, odd or contradicting scheme is doubt, and doubt is resolved by the redirect: one extra hop that
+ * "Positively https" is a TLS connection of the server itself or a forwarded scheme that says https, and in both cases no
+ * forwarded scheme says http: an explicit http outranks everything else. A missing, odd or contradicting scheme is doubt, and doubt is resolved by the redirect: one extra hop that
  * is bounded by the marker and costs no login budget (it is made before the rate limit), instead of a login that breaks.
  * The target is built from the configured origin and the path and query of the request, never from a host the request names.
  * Without a configured public URL the base is the request itself and there is nothing to move to.
@@ -114,7 +114,8 @@ export function canonicalAuthorizeLocation(req: NextApiRequest): string | undefi
   }
   const schemes = forwardedSchemes(req);
   const tls = (req.socket as { encrypted?: boolean } | undefined)?.encrypted === true;
-  const positivelyHttps = tls || (schemes.includes("https") && !schemes.includes("http"));
+  // an explicit http outranks everything: a proxy may take the browser's request over plain http and still connect over TLS
+  const positivelyHttps = !schemes.includes("http") && (tls || schemes.includes("https"));
   const doubtful = base.protocol === "https:" && !positivelyHttps;
   if (requestHost === base.host.toLowerCase() && !doubtful) {
     return undefined;

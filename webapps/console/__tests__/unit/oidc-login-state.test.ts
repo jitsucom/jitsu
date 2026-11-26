@@ -254,6 +254,31 @@ describe("the scheme a login starts on", () => {
     expect(new URL(to!).searchParams.get("_canonical")).toBe("1");
   });
 
+  it.each([
+    ["x-forwarded-proto: http", { "x-forwarded-proto": "http" }],
+    ["x-forwarded-protocol: http", { "x-forwarded-protocol": "http" }],
+    ["a list that starts with http", { "x-forwarded-proto": "HTTP, https" }],
+    ["http next to https", { "x-forwarded-proto": "http", "x-forwarded-protocol": "https" }],
+  ])(
+    "an explicit http outranks a TLS connection of the server itself (a proxy that terminates nothing): %s",
+    (_name, headers) => {
+      configure("https://console.example");
+      const req = request({ host: "console.example", ...headers });
+      (req as any).socket = { encrypted: true };
+      expect(canonicalAuthorizeLocation(req)).toBeDefined();
+    }
+  );
+
+  it.each([
+    ["nothing forwarded", {}],
+    ["an odd value", { "x-forwarded-proto": "HTTP/1.1" }],
+  ])("a TLS connection of the server counts as https when no header says http: %s", (_name, headers) => {
+    configure("https://console.example");
+    const req = request({ host: "console.example", ...headers });
+    (req as any).socket = { encrypted: true };
+    expect(canonicalAuthorizeLocation(req)).toBeUndefined();
+  });
+
   it("counts a TLS connection of the server itself as https", () => {
     configure("https://console.example");
     const req = request({ host: "console.example" });
