@@ -58,7 +58,7 @@ ON CONFLICT ON CONSTRAINT source_task_pkey DO UPDATE SET updated_at=$6, status =
 
 	updateRunningTaskMetricsSQL = `UPDATE source_task SET updated_at=$2, metrics=$3 where task_id=$1 and status = 'RUNNING'`
 
-	updateRunningTaskStatusSQL = `UPDATE source_task SET status=$2 where task_id=$1 and status = 'RUNNING'`
+	updateRunningTaskStatusSQL = `UPDATE source_task SET status=$2 where task_id=$1 and sync_id=$3 and status = 'RUNNING'`
 
 	upsertCheckSQL = `INSERT INTO source_check (package, version, key, status, description, timestamp) VALUES ($1, $2, $3, $4, $5, $6)
 ON CONFLICT ON CONSTRAINT source_check_pkey DO UPDATE SET status = $4, description=$5, timestamp=$6`
@@ -162,8 +162,10 @@ func UpdateRunningTaskMetrics(dbpool *pgxpool.Pool, taskId string, metrics map[s
 	return execTimeout(dbpool, updateRunningTaskMetricsSQL, taskId, time.Now(), metrics)
 }
 
-func UpdateRunningTaskStatus(dbpool *pgxpool.Pool, taskId, status string) error {
-	return execTimeout(dbpool, updateRunningTaskStatusSQL, taskId, status)
+// UpdateRunningTaskStatus changes the status of a RUNNING task of the given sync. The sync is part of the condition: a caller
+// that has proved access to a sync must not be able to change the task of another sync (and so of another workspace) by naming it.
+func UpdateRunningTaskStatus(dbpool *pgxpool.Pool, syncId, taskId, status string) error {
+	return execTimeout(dbpool, updateRunningTaskStatusSQL, taskId, status, syncId)
 }
 
 func UpsertCheck(dbpool *pgxpool.Pool, packageName, packageVersion, storageKey, status, description string, timestamp time.Time) error {
