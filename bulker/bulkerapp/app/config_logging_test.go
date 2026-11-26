@@ -70,3 +70,43 @@ func TestEnvConfigurationSourceViperKeysDoNotLogACredential(t *testing.T) {
 		t.Errorf("the valid destination should still load")
 	}
 }
+
+// A syntax error close to a credential: the HJSON error quotes a window of text around the position of the error.
+func TestEnvConfigurationSourceDoesNotQuoteTheTextAroundASyntaxError(t *testing.T) {
+	buf := captureLogs(t)
+	t.Setenv("LOGHJ_DESTINATION_NEARBY", `{ "id": "x",, "p": "HJSON-NEAR-SECRET-5521" }`)
+	viper.Set("loghjviper_nearby", `{ "id": "y",, "p": "HJSON-VIPER-SECRET-5522" }`)
+
+	NewEnvConfigurationSource("LOGHJ_", "LOGHJVIPER")
+	NewEnvConfigurationSource("LOGHJ_", "DESTINATION")
+
+	logged := buf.String()
+	for _, secret := range []string{"HJSON-NEAR", "HJSON-VIPER", "SECRET-552"} {
+		if strings.Contains(logged, secret) {
+			t.Errorf("the text around a syntax error reached the logs: %q\n%s", secret, logged)
+		}
+	}
+	if !strings.Contains(logged, "Failed to parse destination config") {
+		t.Errorf("the parse failure should still be logged:\n%s", logged)
+	}
+	// what is logged is the position of the error and not the text of the parser
+	if strings.Count(logged, "syntax error at line 1, column") != 2 || strings.Contains(logged, ">>>") {
+		t.Errorf("the failure should be described by its position only:\n%s", logged)
+	}
+}
+
+// The YAML source logged the whole destination on a failure, and the decoder's error names the value that did not fit.
+func TestYamlConfigurationSourceDoesNotLogACredential(t *testing.T) {
+	buf := captureLogs(t)
+	_, err := NewYamlConfigurationSource([]byte("destinations:\n  mine:\n    usesBulker: YAML-SOURCE-SECRET-6613\n    credentials:\n      password: YAML-PASSWORD-SECRET-6614\n"))
+	if err != nil {
+		t.Logf("source creation: %v", err)
+	}
+	logged := buf.String()
+	if strings.Contains(logged, "YAML-SOURCE-SECRET") || strings.Contains(logged, "YAML-PASSWORD-SECRET") {
+		t.Errorf("a configuration value reached the logs:\n%s", logged)
+	}
+	if !strings.Contains(logged, "Failed to parse destination config mine") {
+		t.Errorf("the failure should still be logged with the destination id:\n%s", logged)
+	}
+}

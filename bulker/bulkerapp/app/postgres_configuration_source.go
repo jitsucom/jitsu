@@ -11,6 +11,7 @@ import (
 	"github.com/jitsucom/bulker/jitsubase/jsoniter"
 	"github.com/jitsucom/bulker/jitsubase/pg"
 	"github.com/jitsucom/bulker/jitsubase/safego"
+	"github.com/jitsucom/bulker/jitsubase/utils"
 	"io"
 	"os"
 	"path"
@@ -175,7 +176,7 @@ func (r *PostgresConfigurationSource) refresh(notify bool) {
 		err = jsoniter.UnmarshalFromString(connectionConfig, &c)
 		if err != nil {
 			metrics.ConfigurationSourceError("parse_error").Inc()
-			r.Errorf("failed to parse config for destination %s: %s: %v", connectionId, connectionConfig, err)
+			r.Errorf("failed to parse config for destination %s: %s (%d bytes, not logged)", connectionId, utils.DescribeConfigError(err), len(connectionConfig))
 		}
 		if c.UsesBulker || tp == "sync" {
 			connections[connectionId] = &c

@@ -6,6 +6,7 @@ import (
 	bulker "github.com/jitsucom/bulker/bulkerlib"
 	"github.com/jitsucom/bulker/jitsubase/appbase"
 	"github.com/jitsucom/bulker/jitsubase/logging"
+	"github.com/jitsucom/bulker/jitsubase/utils"
 	"github.com/mitchellh/mapstructure"
 	"github.com/spf13/viper"
 	"gopkg.in/yaml.v3"
@@ -135,7 +136,7 @@ func (ycp *YamlConfigurationSource) init() error {
 		cfg := &DestinationConfig{}
 		err := mapstructure.Decode(destination, cfg)
 		if err != nil {
-			ycp.Errorf("Failed to parse destination config %s: %v:\n%s", id, err, destination)
+			ycp.Errorf("Failed to parse destination config %s: %s", id, utils.DescribeConfigError(err))
 			continue
 		}
 		cfg.Config.Id = id
@@ -209,7 +210,7 @@ func NewEnvConfigurationSource(envPrefix, prefix string) *EnvConfigurationSource
 		err := hjson.Unmarshal([]byte(value), &cfg)
 		if err != nil {
 			// the config text holds the destination's credentials: its size is enough to tell it was not empty
-			base.Errorf("Failed to parse destination config %s: %v (%d bytes, not logged)", id, err, len(value))
+			base.Errorf("Failed to parse destination config %s: %s (%d bytes, not logged)", id, utils.DescribeConfigError(err), len(value))
 			continue
 		}
 		if len(cfg.Config.Id) > 0 {
@@ -230,7 +231,7 @@ func NewEnvConfigurationSource(envPrefix, prefix string) *EnvConfigurationSource
 		cfg := &DestinationConfig{}
 		err := hjson.Unmarshal([]byte(value), &cfg)
 		if err != nil {
-			base.Errorf("Failed to parse destination config %s: %v (%d bytes, not logged)", id, err, len(value))
+			base.Errorf("Failed to parse destination config %s: %s (%d bytes, not logged)", id, utils.DescribeConfigError(err), len(value))
 			continue
 		}
 		if len(cfg.Config.Id) > 0 {
