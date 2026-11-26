@@ -99,6 +99,14 @@ export function findSecretsInLogCalls(source: string, fileName = "file.ts", extr
         // a literal index is a property name, like the name after a dot: `req.headers["authorization"]` is the
         // Authorization header and `tokens["expires_in"]` is a number
         out.push(index.text);
+        // except on a cookie jar: there the key is just the name of one cookie, and what is read is the cookie
+        // (`req.cookies?.["oidc-session"]` is a signed session token)
+        const jar = ts.isPropertyAccessExpression(n.expression)
+          ? n.expression.name.text
+          : ts.isIdentifier(n.expression)
+          ? n.expression.text
+          : "";
+        if (norm(jar) === "cookies" || norm(jar) === "cookie") out.push(jar);
         return;
       }
       // a computed index: the object may be the secret (`cookies[name]`), and so may the index

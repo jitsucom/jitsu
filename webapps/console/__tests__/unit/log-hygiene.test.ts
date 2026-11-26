@@ -27,6 +27,10 @@ describe("the checker finds a credential in the arguments of a log call", () => 
     // a literal index is a property name: req.headers["authorization"] is the Authorization header
     ['console.error(req.headers["authorization"])', "authorization"],
     ["console.error(req.headers['authorization'])", "authorization"],
+    // a literal key on a cookie jar: the key is the name of the cookie, which can be anything, and the jar is what is read
+    ['console.error(req.cookies?.["oidc-session"])', "cookies"],
+    ['log.atInfo().log("x", req.cookies["session"])', "cookies"],
+    ["console.error(cookie['anything'])", "cookie"],
     ['log.atInfo().log("x", user["password"])', "password"],
     ["log.atInfo().log(`got ${body[`token`]}`)", "token"],
     ['log.atInfo().log("x", cookies[name])', "cookies"],
@@ -96,6 +100,8 @@ describe("the checker leaves alone what cannot carry a secret", () => {
     'log.atError().withCause(new Error(`failed for ${workspaceId}`)).log("x")',
     'console.error(req.headers["x-request-id"])',
     'log.atInfo().log("x", { n: tokens["expires_in"] })',
+    'log.atInfo().log("x", { n: stats["cookies_total"] })',
+    'log.atInfo().log("x", { n: req.headers["user-agent"] })',
     'log.atInfo().log("x", !!user["password"])',
   ])("%s", code => {
     expect(names(code)).toEqual([]);
