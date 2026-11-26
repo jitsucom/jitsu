@@ -21,6 +21,12 @@ export const CANONICAL_HOST_MARKER = "_canonical";
 // Over plain http (local development) only the OIDC routes need the cookie
 const NARROW_PATH = "/api/auth/dynamic-oidc";
 const ATTEMPT_PATTERN = /^[A-Za-z0-9_-]{8,32}$/;
+/**
+ * How many binding cookies one browser keeps. Over https they travel with every request to the console, and every abandoned
+ * attempt or provider error leaves one for ten minutes: without a bound they could add up to more than the header limit of a
+ * proxy and make unrelated requests fail. When a login starts, the oldest ones beyond the bound are cleared.
+ */
+export const MAX_PENDING_LOGIN_BINDINGS = 5;
 
 const firstOf = (value: string | string[] | undefined): string | undefined =>
   (Array.isArray(value) ? value[0] : value)?.split(",")[0].trim() || undefined;
@@ -59,7 +65,19 @@ export function canonicalAuthorizeLocation(req: NextApiRequest): string | undefi
     return undefined;
   }
   const requestHost = (firstOf(req.headers["x-forwarded-host"]) || req.headers.host || "").toLowerCase();
-  if (!requestHost || requestHost === base.host.toLowerCase()) {
+  if (!requestHost) {
+    return undefined;
+  }
+  // The request is on the right host but the proxy says it came in over plain http while the public URL is https: a Secure
+  // cookie set on this response would be dropped by the browser, and the https callback would find none. Only an explicit
+  // "http" counts: a proxy that says nothing is taken at its word that the public URL is right.
+  const forwardedScheme = (
+    firstOf(req.headers["x-forwarded-proto"]) ||
+    firstOf(req.headers["x-forwarded-protocol"]) ||
+    ""
+  ).toLowerCase();
+  const wrongScheme = base.protocol === "https:" && forwardedScheme === "http";
+  if (requestHost === base.host.toLowerCase() && !wrongScheme) {
     return undefined;
   }
   if (req.query?.[CANONICAL_HOST_MARKER]) {
@@ -71,10 +89,17 @@ export function canonicalAuthorizeLocation(req: NextApiRequest): string | undefi
   return `${base.origin}${incoming.pathname}${incoming.search}`;
 }
 
-/** A fresh secret for one login attempt: the id of the attempt, the value for the cookie and the hash for the state. */
-export function newLoginBinding(): { attempt: string; value: string; hash: string } {
+const ATTEMPT_TIME_DIGITS = 9;
+
+/**
+ * A fresh secret for one login attempt: the id of the attempt, the value for the cookie and the hash for the state. The id
+ * starts with the time of the attempt (nine base-36 digits, sortable as text), so that the oldest cookies of a browser can be
+ * told from the newest without a lookup. The time is not a secret and adds nothing to what the cookie value protects.
+ */
+export function newLoginBinding(now: number = Date.now()): { attempt: string; value: string; hash: string } {
   const value = randomBytes(32).toString("base64url");
-  return { attempt: randomBytes(12).toString("base64url"), value, hash: hashLoginBinding(value) };
+  const attempt = now.toString(36).padStart(ATTEMPT_TIME_DIGITS, "0") + randomBytes(12).toString("base64url");
+  return { attempt, value, hash: hashLoginBinding(value) };
 }
 
 export function hashLoginBinding(value: string): string {
@@ -120,4 +145,21 @@ export function loginBindingCookie(req: NextApiRequest, attempt: string, value: 
 
 export function clearLoginBindingCookie(req: NextApiRequest, attempt: string): string {
   return serialize(loginBindingCookieName(req, attempt), "", { ...cookieOptions(req), maxAge: 0 });
+}
+
+/**
+ * The Set-Cookie values that clear the oldest binding cookies of this browser, so that after the cookie of a new attempt is
+ * set no more than MAX_PENDING_LOGIN_BINDINGS remain. Only cookies named as this server names them are looked at.
+ */
+export function clearStaleLoginBindingCookies(req: NextApiRequest): string[] {
+  const attempts: string[] = [];
+  for (const name of Object.keys(req.cookies || {})) {
+    const m = /^(?:__Host-)?oidc-login-state-(.+)$/.exec(name);
+    if (m && isValidLoginAttempt(m[1]) && loginBindingCookieName(req, m[1]) === name) {
+      attempts.push(m[1]);
+    }
+  }
+  // newest first: the id starts with the time, in digits of fixed length
+  attempts.sort().reverse();
+  return attempts.slice(MAX_PENDING_LOGIN_BINDINGS - 1).map(attempt => clearLoginBindingCookie(req, attempt));
 }

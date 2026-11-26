@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { NextApiHandler, NextApiRequest, NextApiResponse } from "next";
 import jwt from "jsonwebtoken";
 import { http, HttpResponse } from "msw";
@@ -315,6 +315,9 @@ describe("the OIDC login finishes only in the browser that started it", () => {
 
 // JITSU-302, review follow-ups: the binding cookie must survive two logins of one browser, belong to the host the identity
 // provider returns to, be Secure by the public URL and not be suppliable by a sibling host.
+// the harness sets JITSU_PUBLIC_URL to the fixture origin but would inherit NEXTAUTH_URL from the environment of a developer
+// (.env.local), which comes first and would send every request of these tests to another host
+beforeEach(() => vi.stubEnv("NEXTAUTH_URL", "http://console.test.local"));
 afterEach(() => vi.unstubAllEnvs());
 const isBinding = (c: Cookie) => c.name.includes("oidc-login-state");
 const bindingNames = (jar: Jar) => [...jar.cookies.keys()].filter(n => n.includes("oidc-login-state"));
@@ -463,5 +466,77 @@ describe("the binding cookie follows the public URL", () => {
     jar.apply(flow.started.setCookie);
     const done = await t.finishLogin(jar, flow);
     expect(done.location).toBe(`/${t.workspace.slug || t.workspace.id}`);
+  });
+});
+
+describe("a request over plain http to the host of an https public URL", () => {
+  const SECURE_BASE = "https://console.test.local";
+
+  it("is sent once to the https address before a binding cookie is set, because a Secure cookie set over http is dropped", async () => {
+    vi.stubEnv("NEXTAUTH_URL", SECURE_BASE);
+    const t = await setup();
+    const r = await call(authorizeRoute, { providerId: t.provider.id }, new Jar(), {
+      "x-test-path": AUTHORIZE_PATH,
+      "x-forwarded-proto": "http",
+    });
+    expect(r.status).toBe(302);
+    expect(new URL(r.location!).origin).toBe(SECURE_BASE);
+    expect(new URL(r.location!).searchParams.get("_canonical")).toBe("1");
+    expect(r.setCookie.filter(isBinding)).toEqual([]);
+  });
+
+  it("is not sent again once it carries the marker, so a proxy that hides https cannot make it loop", async () => {
+    vi.stubEnv("NEXTAUTH_URL", SECURE_BASE);
+    const t = await setup();
+    const r = await call(authorizeRoute, { providerId: t.provider.id, _canonical: "1" }, new Jar(), {
+      "x-test-path": AUTHORIZE_PATH,
+      "x-forwarded-proto": "http",
+    });
+    expect(new URL(r.location!).origin).not.toBe(SECURE_BASE);
+    expect(r.setCookie.filter(isBinding)).toHaveLength(1);
+  });
+
+  it("is left alone when the proxy says https, or says nothing", async () => {
+    vi.stubEnv("NEXTAUTH_URL", SECURE_BASE);
+    const t = await setup();
+    for (const headers of [{ "x-forwarded-proto": "https" }, { "x-forwarded-protocol": "https" }, {}]) {
+      const r = await call(authorizeRoute, { providerId: t.provider.id }, new Jar(), {
+        "x-test-path": AUTHORIZE_PATH,
+        ...headers,
+      });
+      expect(r.setCookie.filter(isBinding), JSON.stringify(headers)).toHaveLength(1);
+      expect(new URL(r.location!).origin).not.toBe(SECURE_BASE);
+    }
+  });
+});
+
+describe("abandoned logins", () => {
+  it("never leave more than a handful of binding cookies in one browser: the oldest ones are cleared when a new login starts", async () => {
+    const t = await setup();
+    const jar = new Jar();
+    const flows: { state: string; code: string }[] = [];
+    for (let i = 0; i < 12; i++) {
+      flows.push(
+        await t.startLogin(jar, { sub: `s${i}-${randomId(5)}`, email: `p${i}-${randomId(5)}@login-state.test` })
+      );
+      expect(bindingNames(jar).length).toBeLessThanOrEqual(5);
+    }
+    expect(bindingNames(jar)).toHaveLength(5);
+    // the newest logins still work, each with its own cookie
+    for (const flow of flows.slice(-5)) {
+      const done = await t.finishLogin(jar, flow);
+      expect(done.setCookie.map(c => c.name)).toContain("oidc-session");
+    }
+    expect(bindingNames(jar)).toHaveLength(0);
+  });
+
+  it("do not make a login fail that the browser started later than the abandoned ones", async () => {
+    const t = await setup();
+    const jar = new Jar();
+    for (let i = 0; i < 8; i++) {
+      await t.startLogin(jar, { sub: `x${i}-${randomId(5)}`, email: `x${i}-${randomId(5)}@login-state.test` });
+    }
+    const last = await t.startLogin(jar, { sub: `last-${randomId(5)}`, email: `last-${randomId(5)}@login-state.test` });
+    expect((await t.finishLogin(jar, last)).setCookie.map(c => c.name)).toContain("oidc-session");
   });
 });

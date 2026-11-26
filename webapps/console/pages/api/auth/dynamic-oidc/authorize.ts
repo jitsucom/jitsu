@@ -9,6 +9,7 @@ import { getOidcProvider } from "../../../../lib/server/oidc-token-service";
 import { performAutoDiscovery } from "../../../../lib/server/oidc-discovery";
 import {
   canonicalAuthorizeLocation,
+  clearStaleLoginBindingCookies,
   loginBindingCookie,
   newLoginBinding,
   oidcBaseUrl,
@@ -116,7 +117,11 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
     const authUrl = `${authorizationEndpoint}?${params.toString()}`;
 
     // Redirect to OIDC provider, remembering in this browser that it is the one that started the login
-    res.setHeader("Set-Cookie", loginBindingCookie(req, binding.attempt, binding.value));
+    // the cookies of abandoned attempts beyond the bound are cleared in the same response
+    res.setHeader("Set-Cookie", [
+      ...clearStaleLoginBindingCookies(req),
+      loginBindingCookie(req, binding.attempt, binding.value),
+    ]);
     res.redirect(authUrl);
   } catch (error: any) {
     log.atError().withCause(error).log("Error initiating OIDC authorization");

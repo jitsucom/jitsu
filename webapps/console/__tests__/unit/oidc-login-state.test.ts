@@ -3,6 +3,8 @@ import type { NextApiRequest } from "next";
 import {
   canonicalAuthorizeLocation,
   clearLoginBindingCookie,
+  clearStaleLoginBindingCookies,
+  MAX_PENDING_LOGIN_BINDINGS,
   hashLoginBinding,
   isValidLoginAttempt,
   loginBindingCookie,
@@ -205,5 +207,117 @@ describe("the host the login starts on", () => {
     expect(canonicalAuthorizeLocation(request({ host: "alias.example" }))).toBeUndefined();
     configure("https://console.example");
     expect(canonicalAuthorizeLocation(request({}))).toBeUndefined();
+  });
+});
+
+describe("the scheme a login starts on", () => {
+  it("sends a request that came in over plain http to the https public URL, once", () => {
+    configure("https://console.example");
+    const to = canonicalAuthorizeLocation(request({ host: "console.example", "x-forwarded-proto": "http" }));
+    expect(new URL(to!).origin).toBe("https://console.example");
+    expect(new URL(to!).searchParams.get("_canonical")).toBe("1");
+    expect(
+      canonicalAuthorizeLocation(
+        request({ host: "console.example", "x-forwarded-proto": "http" }, "/x?_canonical=1", { _canonical: "1" })
+      )
+    ).toBeUndefined();
+  });
+
+  it.each([
+    ["https from x-forwarded-proto", { "x-forwarded-proto": "https" }],
+    ["https from x-forwarded-protocol", { "x-forwarded-protocol": "https" }],
+    ["a list that starts with https", { "x-forwarded-proto": "https, http" }],
+    ["nothing forwarded", {}],
+  ])("leaves a request alone on the right host: %s", (_name, headers) => {
+    configure("https://console.example");
+    expect(canonicalAuthorizeLocation(request({ host: "console.example", ...headers }))).toBeUndefined();
+  });
+
+  it("does not ask an http public URL to move to https", () => {
+    configure("http://localhost:3000");
+    expect(
+      canonicalAuthorizeLocation(request({ host: "localhost:3000", "x-forwarded-proto": "http" }))
+    ).toBeUndefined();
+  });
+});
+
+describe("the attempt id carries the time of the attempt", () => {
+  it("sorts as text in the order of the attempts, and still passes the check on cookie names", () => {
+    const ids = [1_000_000_000_000, 1_700_000_000_000, 1_700_000_000_001, 2_500_000_000_000].map(
+      t => newLoginBinding(t).attempt
+    );
+    expect([...ids].sort()).toEqual(ids);
+    for (const id of ids) {
+      expect(isValidLoginAttempt(id)).toBe(true);
+    }
+    expect(newLoginBinding(1_700_000_000_000).attempt.slice(0, 9)).toBe(
+      (1_700_000_000_000).toString(36).padStart(9, "0")
+    );
+  });
+});
+
+describe("clearing the oldest binding cookies of a browser", () => {
+  const withCookies = (names: string[], headers: Record<string, string> = { host: "console.example" }) =>
+    ({
+      headers,
+      url: "/",
+      query: {},
+      cookies: Object.fromEntries(names.map(n => [n, "v"])),
+    } as unknown as NextApiRequest);
+  const attemptsAt = (n: number) =>
+    Array.from({ length: n }, (_v, i) => newLoginBinding(1_700_000_000_000 + i * 1000).attempt);
+  const clearedNames = (set: string[]) => set.map(c => c.split("=")[0]);
+
+  it("clears nothing while there is room for the new one", () => {
+    configure("https://console.example");
+    const ids = attemptsAt(MAX_PENDING_LOGIN_BINDINGS - 1);
+    const req = withCookies(ids.map(i => `__Host-oidc-login-state-${i}`));
+    expect(clearStaleLoginBindingCookies(req)).toEqual([]);
+  });
+
+  it("clears the oldest ones, so that the bound holds once the new cookie is set", () => {
+    configure("https://console.example");
+    const ids = attemptsAt(9);
+    const req = withCookies([...ids].reverse().map(i => `__Host-oidc-login-state-${i}`));
+    const cleared = clearedNames(clearStaleLoginBindingCookies(req));
+    // 9 present, the new one makes 10: keep the newest MAX - 1 of the present ones
+    expect(cleared).toHaveLength(9 - (MAX_PENDING_LOGIN_BINDINGS - 1));
+    expect(cleared.sort()).toEqual(
+      ids
+        .slice(0, 9 - (MAX_PENDING_LOGIN_BINDINGS - 1))
+        .map(i => `__Host-oidc-login-state-${i}`)
+        .sort()
+    );
+    for (const c of clearStaleLoginBindingCookies(req)) {
+      expect(c.toLowerCase()).toContain("max-age=0");
+    }
+  });
+
+  it("leaves alone cookies that are not binding cookies as this server names them", () => {
+    configure("https://console.example");
+    const ids = attemptsAt(9);
+    const req = withCookies([
+      "oidc-session",
+      "next-auth.session-token",
+      "oidc-login-state-" + ids[0], // the plain name, which this server does not use over https
+      "__Host-oidc-login-state-x", // not an attempt id
+      "__Host-oidc-login-state-a;b=cdefghijk",
+      ...ids.map(i => `__Host-oidc-login-state-${i}`),
+    ]);
+    const cleared = clearedNames(clearStaleLoginBindingCookies(req));
+    // exactly the oldest ones of the nine real attempts, each once: the odd names are not counted and not touched
+    expect(cleared.sort()).toEqual(
+      ids
+        .slice(0, 9 - (MAX_PENDING_LOGIN_BINDINGS - 1))
+        .map(i => `__Host-oidc-login-state-${i}`)
+        .sort()
+    );
+  });
+
+  it("copes with a request that has no cookies at all", () => {
+    configure("https://console.example");
+    expect(
+      clearStaleLoginBindingCookies({ headers: { host: "console.example" } } as unknown as NextApiRequest)
+    ).toEqual([]);
   });
 });
