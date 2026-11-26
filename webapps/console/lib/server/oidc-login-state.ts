@@ -137,8 +137,9 @@ const ATTEMPT_TIME_DIGITS = 9;
  * told from the newest without a lookup. The time is not a secret and adds nothing to what the cookie value protects.
  */
 export function newLoginBinding(now: number = Date.now()): { attempt: string; value: string; hash: string } {
-  const value = randomBytes(32).toString("base64url");
-  const attempt = now.toString(36).padStart(ATTEMPT_TIME_DIGITS, "0") + randomBytes(12).toString("base64url");
+  // 128 bits are plenty for a secret that is compared by its hash, and a cookie that travels with every request stays small
+  const value = randomBytes(16).toString("base64url");
+  const attempt = now.toString(36).padStart(ATTEMPT_TIME_DIGITS, "0") + randomBytes(8).toString("base64url");
   return { attempt, value, hash: hashLoginBinding(value) };
 }
 
@@ -188,18 +189,27 @@ export function clearLoginBindingCookie(req: NextApiRequest, attempt: string): s
 }
 
 /**
- * The Set-Cookie values that clear the oldest binding cookies of this browser, so that after the cookie of a new attempt is
- * set no more than MAX_PENDING_LOGIN_BINDINGS remain. Only cookies named as this server names them are looked at.
+ * The Set-Cookie values that clear the oldest binding cookies of this browser, so that no more than MAX_PENDING_LOGIN_BINDINGS
+ * remain once the response has been sent. Only cookies named as this server names them are looked at.
+ *  - `room` is how many new cookies the response is about to add: 1 when a login starts (the default), 0 when one finishes.
+ *  - `ignore` is an attempt that is not counted and not cleared here, because the caller clears it itself.
+ * The server keeps no state about a browser, so this only sees the cookies of the request it answers: requests that are in
+ * flight at the same moment can leave more behind, and the next request that reaches this function clears the surplus.
  */
-export function clearStaleLoginBindingCookies(req: NextApiRequest): string[] {
+export function clearStaleLoginBindingCookies(
+  req: NextApiRequest,
+  { room = 1, ignore }: { room?: number; ignore?: string } = {}
+): string[] {
   const attempts: string[] = [];
   for (const name of Object.keys(req.cookies || {})) {
     const m = /^(?:__Host-)?oidc-login-state-(.+)$/.exec(name);
-    if (m && isValidLoginAttempt(m[1]) && loginBindingCookieName(req, m[1]) === name) {
+    if (m && m[1] !== ignore && isValidLoginAttempt(m[1]) && loginBindingCookieName(req, m[1]) === name) {
       attempts.push(m[1]);
     }
   }
   // newest first: the id starts with the time, in digits of fixed length
   attempts.sort().reverse();
-  return attempts.slice(MAX_PENDING_LOGIN_BINDINGS - 1).map(attempt => clearLoginBindingCookie(req, attempt));
+  return attempts
+    .slice(Math.max(0, MAX_PENDING_LOGIN_BINDINGS - room))
+    .map(attempt => clearLoginBindingCookie(req, attempt));
 }

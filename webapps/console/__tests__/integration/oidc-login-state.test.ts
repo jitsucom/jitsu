@@ -616,6 +616,34 @@ describe("a request over plain http to the host of an https public URL", () => {
 });
 
 describe("abandoned logins", () => {
+  it("a finished login also clears the oldest abandoned ones, so a burst of overlapping starts is healed by the next login", async () => {
+    const t = await setup();
+    const jar = new Jar();
+    const flows: { state: string; code: string }[] = [];
+    for (let i = 0; i < 5; i++) {
+      flows.push(
+        await t.startLogin(jar, { sub: `h${i}-${randomId(5)}`, email: `h${i}-${randomId(5)}@login-state.test` })
+      );
+    }
+    // what overlapping starts can leave behind: more cookies than the bound, older than the real logins
+    for (let i = 0; i < 4; i++) {
+      jar.cookies.set(`oidc-login-state-00000000${i}${randomId(11)}`, `stale-${randomId(10)}`);
+    }
+    expect(bindingNames(jar)).toHaveLength(9);
+    const done = await t.finishLogin(jar, flows[4]);
+    expect(done.setCookie.map(c => c.name)).toContain("oidc-session");
+    // the finished login's own cookie is gone, and no more than the bound remain, none of them the oldest
+    expect(bindingNames(jar)).toHaveLength(5);
+    // the four real ones and the newest abandoned one stay; the three oldest abandoned ones are gone
+    for (const i of [0, 1, 2])
+      expect(bindingNames(jar).some(n => n.includes(`oidc-login-state-00000000${i}`))).toBe(false);
+    expect(bindingNames(jar).some(n => n.includes("oidc-login-state-000000003"))).toBe(true);
+    // the other real logins still work
+    for (const flow of flows.slice(0, 4)) {
+      expect((await t.finishLogin(jar, flow)).setCookie.map(c => c.name)).toContain("oidc-session");
+    }
+  });
+
   it("never leave more than a handful of binding cookies in one browser: the oldest ones are cleared when a new login starts", async () => {
     const t = await setup();
     const jar = new Jar();

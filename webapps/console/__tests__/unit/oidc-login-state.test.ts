@@ -39,7 +39,8 @@ describe("oidc login binding", () => {
     const a = newLoginBinding();
     const b = newLoginBinding();
     expect(a.value).not.toBe(b.value);
-    expect(a.value.length).toBeGreaterThanOrEqual(43);
+    // 128 bits of randomness: enough for a secret that is only ever compared by its hash, and half the size of 256 bits
+    expect(Buffer.from(a.value, "base64url")).toHaveLength(16);
     expect(a.hash).not.toContain(a.value);
     expect(loginBindingMatches(a.value, b.hash)).toBe(false);
   });
@@ -463,5 +464,67 @@ describe("only an exact http or https is a statement about the scheme", () => {
 
   it("uses the URL of the request when the only forwarded values are odd ones", () => {
     expect(requestScheme(request({ "x-forwarded-proto": "HTTP/2" }, "https://x.example/a"))).toBe("https");
+  });
+});
+
+describe("the size of a binding cookie", () => {
+  it("is small, because over https it travels with every request of the console while it lives", () => {
+    configure("https://console.example");
+    const req = request({ host: "console.example" });
+    const b = newLoginBinding();
+    const pair = loginBindingCookie(req, b.attempt, b.value).split(";")[0];
+    // a guard against growing it: it was 95 bytes in a Cookie header before it was made smaller
+    expect(pair.length + 2).toBeLessThanOrEqual(70);
+    expect(b.attempt).toHaveLength(20);
+    expect(isValidLoginAttempt(b.attempt)).toBe(true);
+  });
+
+  it("keeps ids unique and sorted by time", () => {
+    const ids = Array.from({ length: 2000 }, () => newLoginBinding(1_700_000_000_000).attempt);
+    expect(new Set(ids).size).toBe(ids.length);
+  });
+});
+
+describe("clearing cookies when a login finishes", () => {
+  const withCookies = (names: string[]) =>
+    ({
+      headers: { host: "console.example" },
+      url: "/",
+      query: {},
+      cookies: Object.fromEntries(names.map(n => [n, "v"])),
+    } as unknown as NextApiRequest);
+  const ids = (n: number) =>
+    Array.from({ length: n }, (_v, i) => newLoginBinding(1_700_000_000_000 + i * 1000).attempt);
+  const names = (set: string[]) => set.map(c => c.split("=")[0]);
+  const full = (id: string) => `__Host-oidc-login-state-${id}`;
+
+  it("leaves room for none: the oldest beyond the bound go, and the one of the finished login is not counted or cleared here", () => {
+    configure("https://console.example");
+    const all = ids(9);
+    const own = all[8];
+    const req = withCookies(all.map(full));
+    const cleared = names(clearStaleLoginBindingCookies(req, { room: 0, ignore: own }));
+    // the other 8: keep the newest MAX, clear the 3 oldest
+    expect(cleared.sort()).toEqual(
+      all
+        .slice(0, 8 - MAX_PENDING_LOGIN_BINDINGS)
+        .map(full)
+        .sort()
+    );
+    expect(cleared).not.toContain(full(own));
+  });
+
+  it("clears nothing while the others fit", () => {
+    configure("https://console.example");
+    const all = ids(MAX_PENDING_LOGIN_BINDINGS + 1);
+    expect(clearStaleLoginBindingCookies(withCookies(all.map(full)), { room: 0, ignore: all[all.length - 1] })).toEqual(
+      []
+    );
+  });
+
+  it("keeps the default of leaving room for the new cookie of a starting login", () => {
+    configure("https://console.example");
+    const all = ids(MAX_PENDING_LOGIN_BINDINGS);
+    expect(clearStaleLoginBindingCookies(withCookies(all.map(full)))).toHaveLength(1);
   });
 });

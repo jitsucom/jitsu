@@ -15,6 +15,7 @@ import { authAuditLog } from "../../../../lib/server/audit-log";
 import { trackAuthEvent } from "../../../../lib/server/telemetry";
 import {
   clearLoginBindingCookie,
+  clearStaleLoginBindingCookies,
   isValidLoginAttempt,
   loginBindingCookieName,
   loginBindingMatches,
@@ -66,7 +67,10 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
     }
     // The binding is single use, whatever the login does next. Only this attempt's cookie: another login of this browser
     // (another tab) keeps its own
-    res.setHeader("Set-Cookie", [clearLoginBindingCookie(req, attempt)]);
+    res.setHeader("Set-Cookie", [
+      clearLoginBindingCookie(req, attempt),
+      ...clearStaleLoginBindingCookies(req, { room: 0, ignore: attempt }),
+    ]);
 
     // Check if state is not too old (10 minutes)
     if (Date.now() - stateData.timestamp > 10 * 60 * 1000) {
@@ -309,6 +313,7 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
     // Set secure session cookie
     res.setHeader("Set-Cookie", [
       clearLoginBindingCookie(req, attempt),
+      ...clearStaleLoginBindingCookies(req, { room: 0, ignore: attempt }),
       serialize("oidc-session", sessionToken, {
         httpOnly: true,
         secure: isSecure(req),
