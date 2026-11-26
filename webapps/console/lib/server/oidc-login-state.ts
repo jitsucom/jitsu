@@ -27,6 +27,12 @@ const ATTEMPT_PATTERN = /^[A-Za-z0-9_-]{8,32}$/;
  * proxy and make unrelated requests fail. When a login starts, the oldest ones beyond the bound are cleared.
  */
 export const MAX_PENDING_LOGIN_BINDINGS = 5;
+/**
+ * How many surplus binding cookies one response clears, oldest first. Each deletion is a Set-Cookie header of about 110 bytes,
+ * and the callback sends them next to the session cookie after the authorization code has been used: a big surplus must not
+ * make that response bigger than a proxy accepts. A surplus is cleared in small steps, by this many with every response.
+ */
+export const MAX_CLEARS_PER_RESPONSE = 3;
 
 const firstOf = (value: string | string[] | undefined): string | undefined =>
   (Array.isArray(value) ? value[0] : value)?.split(",")[0].trim() || undefined;
@@ -194,11 +200,12 @@ export function clearLoginBindingCookie(req: NextApiRequest, attempt: string): s
  *  - `room` is how many new cookies the response is about to add: 1 when a login starts (the default), 0 when one finishes.
  *  - `ignore` is an attempt that is not counted and not cleared here, because the caller clears it itself.
  * The server keeps no state about a browser, so this only sees the cookies of the request it answers: requests that are in
- * flight at the same moment can leave more behind, and the next request that reaches this function clears the surplus.
+ * flight at the same moment can leave more behind, and the next requests that reach this function clear the surplus, at most
+ * `limit` (MAX_CLEARS_PER_RESPONSE) cookies per response and the oldest first.
  */
 export function clearStaleLoginBindingCookies(
   req: NextApiRequest,
-  { room = 1, ignore }: { room?: number; ignore?: string } = {}
+  { room = 1, ignore, limit = MAX_CLEARS_PER_RESPONSE }: { room?: number; ignore?: string; limit?: number } = {}
 ): string[] {
   const attempts: string[] = [];
   for (const name of Object.keys(req.cookies || {})) {
@@ -209,7 +216,10 @@ export function clearStaleLoginBindingCookies(
   }
   // newest first: the id starts with the time, in digits of fixed length
   attempts.sort().reverse();
-  return attempts
-    .slice(Math.max(0, MAX_PENDING_LOGIN_BINDINGS - room))
+  const surplus = attempts.slice(Math.max(0, MAX_PENDING_LOGIN_BINDINGS - room));
+  // the oldest first, and no more than the limit
+  return surplus
+    .reverse()
+    .slice(0, Math.max(0, limit))
     .map(attempt => clearLoginBindingCookie(req, attempt));
 }

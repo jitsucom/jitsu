@@ -616,6 +616,39 @@ describe("a request over plain http to the host of an https public URL", () => {
 });
 
 describe("abandoned logins", () => {
+  it("a finished login clears at most three surplus cookies, and a few logins bring a big surplus down to the bound", async () => {
+    const t = await setup();
+    const jar = new Jar();
+    // the surplus appears after the login started, as when overlapping starts land together: the callback faces all of it
+    const flow = await t.startLogin(jar, { sub: `c0-${randomId(5)}`, email: `c0-${randomId(5)}@login-state.test` });
+    for (let i = 0; i < 20; i++) {
+      jar.cookies.set(
+        `oidc-login-state-00000000${String.fromCharCode(97 + i)}${randomId(10)}`,
+        `stale-${randomId(10)}`
+      );
+    }
+    expect(bindingNames(jar)).toHaveLength(21);
+    const done = await t.finishLogin(jar, flow);
+    expect(done.setCookie.map(c => c.name)).toContain("oidc-session");
+    // its own cookie and exactly three of the surplus: never a header per surplus cookie
+    expect(done.setCookie.filter(isBinding)).toHaveLength(4);
+    expect(bindingNames(jar)).toHaveLength(17);
+    // later logins clear more, three at the start and three at the end of each, until the bound holds
+    let cycles = 0;
+    while (bindingNames(jar).length > 5 && cycles < 12) {
+      const next = await t.startLogin(jar, {
+        sub: `c${cycles + 1}-${randomId(5)}`,
+        email: `c${cycles + 1}-${randomId(5)}@login-state.test`,
+      });
+      const finished = await t.finishLogin(jar, next);
+      expect(finished.setCookie.map(c => c.name)).toContain("oidc-session");
+      expect(finished.setCookie.filter(isBinding).length).toBeLessThanOrEqual(4);
+      cycles++;
+    }
+    expect(bindingNames(jar).length).toBeLessThanOrEqual(5);
+    expect(cycles).toBeLessThanOrEqual(3);
+  });
+
   it("a finished login also clears the oldest abandoned ones, so a burst of overlapping starts is healed by the next login", async () => {
     const t = await setup();
     const jar = new Jar();

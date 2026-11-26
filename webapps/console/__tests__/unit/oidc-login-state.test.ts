@@ -4,6 +4,7 @@ import {
   canonicalAuthorizeLocation,
   clearLoginBindingCookie,
   clearStaleLoginBindingCookies,
+  MAX_CLEARS_PER_RESPONSE,
   MAX_PENDING_LOGIN_BINDINGS,
   hashLoginBinding,
   isValidLoginAttempt,
@@ -341,7 +342,7 @@ describe("clearing the oldest binding cookies of a browser", () => {
     configure("https://console.example");
     const ids = attemptsAt(9);
     const req = withCookies([...ids].reverse().map(i => `__Host-oidc-login-state-${i}`));
-    const cleared = clearedNames(clearStaleLoginBindingCookies(req));
+    const cleared = clearedNames(clearStaleLoginBindingCookies(req, { limit: Infinity }));
     // 9 present, the new one makes 10: keep the newest MAX - 1 of the present ones
     expect(cleared).toHaveLength(9 - (MAX_PENDING_LOGIN_BINDINGS - 1));
     expect(cleared.sort()).toEqual(
@@ -350,7 +351,7 @@ describe("clearing the oldest binding cookies of a browser", () => {
         .map(i => `__Host-oidc-login-state-${i}`)
         .sort()
     );
-    for (const c of clearStaleLoginBindingCookies(req)) {
+    for (const c of clearStaleLoginBindingCookies(req, { limit: Infinity })) {
       expect(c.toLowerCase()).toContain("max-age=0");
     }
   });
@@ -366,7 +367,7 @@ describe("clearing the oldest binding cookies of a browser", () => {
       "__Host-oidc-login-state-a;b=cdefghijk",
       ...ids.map(i => `__Host-oidc-login-state-${i}`),
     ]);
-    const cleared = clearedNames(clearStaleLoginBindingCookies(req));
+    const cleared = clearedNames(clearStaleLoginBindingCookies(req, { limit: Infinity }));
     // exactly the oldest ones of the nine real attempts, each once: the odd names are not counted and not touched
     expect(cleared.sort()).toEqual(
       ids
@@ -526,5 +527,60 @@ describe("clearing cookies when a login finishes", () => {
     configure("https://console.example");
     const all = ids(MAX_PENDING_LOGIN_BINDINGS);
     expect(clearStaleLoginBindingCookies(withCookies(all.map(full)))).toHaveLength(1);
+  });
+});
+
+describe("how many cookies one response clears", () => {
+  const withCookies = (names: string[]) =>
+    ({
+      headers: { host: "console.example" },
+      url: "/",
+      query: {},
+      cookies: Object.fromEntries(names.map(n => [n, "v"])),
+    } as unknown as NextApiRequest);
+  const ids = (n: number) =>
+    Array.from({ length: n }, (_v, i) => newLoginBinding(1_700_000_000_000 + i * 1000).attempt);
+  const full = (id: string) => `__Host-oidc-login-state-${id}`;
+  const names = (set: string[]) => set.map(c => c.split("=")[0]);
+
+  it("is at most three by default, so the headers of one response stay small however big the surplus", () => {
+    expect(MAX_CLEARS_PER_RESPONSE).toBe(3);
+    configure("https://console.example");
+    const all = ids(40);
+    for (const options of [undefined, { room: 0 }, { room: 1 }]) {
+      const set = clearStaleLoginBindingCookies(withCookies(all.map(full)), options);
+      expect(set).toHaveLength(MAX_CLEARS_PER_RESPONSE);
+      // together they are a few hundred bytes, not kilobytes
+      expect(set.join("").length).toBeLessThan(400);
+    }
+  });
+
+  it("clears the oldest first", () => {
+    configure("https://console.example");
+    const all = ids(40);
+    const cleared = names(clearStaleLoginBindingCookies(withCookies([...all].reverse().map(full))));
+    expect(cleared).toEqual(all.slice(0, 3).map(full));
+  });
+
+  it("clears fewer when fewer are in surplus, and a smaller limit is honoured", () => {
+    configure("https://console.example");
+    const all = ids(MAX_PENDING_LOGIN_BINDINGS + 1); // 6 present, the new one makes 7: 2 in surplus
+    expect(clearStaleLoginBindingCookies(withCookies(all.map(full)))).toHaveLength(2);
+    expect(clearStaleLoginBindingCookies(withCookies(ids(40).map(full)), { limit: 1 })).toHaveLength(1);
+    expect(clearStaleLoginBindingCookies(withCookies(ids(40).map(full)), { limit: 0 })).toEqual([]);
+  });
+
+  it("converges: repeated responses bring any number of cookies down to the bound", () => {
+    configure("https://console.example");
+    let present = ids(60).map(full);
+    let rounds = 0;
+    while (present.length > MAX_PENDING_LOGIN_BINDINGS - 1 && rounds < 50) {
+      const gone = new Set(names(clearStaleLoginBindingCookies(withCookies(present))));
+      expect(gone.size).toBeGreaterThan(0);
+      present = present.filter(n => !gone.has(n));
+      rounds++;
+    }
+    expect(present.length).toBeLessThanOrEqual(MAX_PENDING_LOGIN_BINDINGS - 1);
+    expect(rounds).toBeLessThanOrEqual(Math.ceil((60 - (MAX_PENDING_LOGIN_BINDINGS - 1)) / MAX_CLEARS_PER_RESPONSE));
   });
 });
