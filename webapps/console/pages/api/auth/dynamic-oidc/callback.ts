@@ -18,6 +18,7 @@ import {
   isValidLoginAttempt,
   loginBindingCookieName,
   loginBindingMatches,
+  requestScheme,
 } from "../../../../lib/server/oidc-login-state";
 
 const log = getServerLog("api/auth/dynamic-oidc/callback");
@@ -87,10 +88,7 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
 
     // Exchange code for tokens
     const tokenEndpoint = oidcProvider.tokenEndpoint || `${oidcProvider.issuer}/token`;
-    const protocol =
-      req.headers["x-forwarded-proto"] ||
-      req.headers["x-forwarded-protocol"] ||
-      (req.url?.startsWith("https") ? "https" : "http");
+    const protocol = requestScheme(req);
     const serverEnv = getServerEnv();
     const baseUrl = serverEnv.NEXTAUTH_URL || serverEnv.JITSU_PUBLIC || `${protocol}://${req.headers.host}`;
     const redirectUri = `${baseUrl}/api/auth/dynamic-oidc/callback`;

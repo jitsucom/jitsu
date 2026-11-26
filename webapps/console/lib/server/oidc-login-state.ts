@@ -32,6 +32,25 @@ const firstOf = (value: string | string[] | undefined): string | undefined =>
   (Array.isArray(value) ? value[0] : value)?.split(",")[0].trim() || undefined;
 
 /**
+ * Whether the request came in over https, as far as the proxy in front of it says. Two headers carry it, and Next.js fills in
+ * `x-forwarded-proto` from its own socket (so "http") when the proxy sent only `x-forwarded-protocol: https`: a request is
+ * https if either of them says so, and the first value of each list is the one of the client. Without either, the URL of the
+ * request decides.
+ */
+export function requestScheme(req: NextApiRequest): "http" | "https" {
+  const schemes = [firstOf(req.headers["x-forwarded-proto"]), firstOf(req.headers["x-forwarded-protocol"])].map(v =>
+    (v || "").toLowerCase()
+  );
+  if (schemes.includes("https")) {
+    return "https";
+  }
+  if (schemes.some(v => v !== "")) {
+    return "http";
+  }
+  return req.url?.startsWith("https") ? "https" : "http";
+}
+
+/**
  * The base URL the identity provider sends the browser back to: the one `authorize` builds the redirect URI from. The cookie
  * belongs to this host, and its Secure flag and its name follow this URL, not what the request looks like to the process:
  * a proxy that terminates TLS may forward only `X-Forwarded-Protocol`, or nothing.
@@ -42,11 +61,7 @@ export function oidcBaseUrl(req: NextApiRequest): string {
   if (configured) {
     return configured;
   }
-  const protocol =
-    firstOf(req.headers["x-forwarded-proto"]) ||
-    firstOf(req.headers["x-forwarded-protocol"]) ||
-    (req.url?.startsWith("https") ? "https" : "http");
-  return `${protocol}://${req.headers.host}`;
+  return `${requestScheme(req)}://${req.headers.host}`;
 }
 
 const isHttps = (baseUrl: string) => /^https:\/\//i.test(baseUrl);
@@ -71,12 +86,8 @@ export function canonicalAuthorizeLocation(req: NextApiRequest): string | undefi
   // The request is on the right host but the proxy says it came in over plain http while the public URL is https: a Secure
   // cookie set on this response would be dropped by the browser, and the https callback would find none. Only an explicit
   // "http" counts: a proxy that says nothing is taken at its word that the public URL is right.
-  const forwardedScheme = (
-    firstOf(req.headers["x-forwarded-proto"]) ||
-    firstOf(req.headers["x-forwarded-protocol"]) ||
-    ""
-  ).toLowerCase();
-  const wrongScheme = base.protocol === "https:" && forwardedScheme === "http";
+  const forwarded = [req.headers["x-forwarded-proto"], req.headers["x-forwarded-protocol"]].some(v => firstOf(v));
+  const wrongScheme = base.protocol === "https:" && forwarded && requestScheme(req) === "http";
   if (requestHost === base.host.toLowerCase() && !wrongScheme) {
     return undefined;
   }

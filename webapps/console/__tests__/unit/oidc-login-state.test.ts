@@ -12,6 +12,7 @@ import {
   loginBindingMatches,
   newLoginBinding,
   oidcBaseUrl,
+  requestScheme,
 } from "../../lib/server/oidc-login-state";
 
 afterEach(() => vi.unstubAllEnvs());
@@ -319,5 +320,52 @@ describe("clearing the oldest binding cookies of a browser", () => {
     expect(
       clearStaleLoginBindingCookies({ headers: { host: "console.example" } } as unknown as NextApiRequest)
     ).toEqual([]);
+  });
+});
+
+describe("the scheme of a request behind a proxy", () => {
+  // Next.js fills in x-forwarded-proto from its own socket when the proxy did not send it, so with a proxy that sends only
+  // x-forwarded-protocol: https the request carries "http" in the first header and "https" in the second
+  it.each([
+    ["only x-forwarded-proto: https", { "x-forwarded-proto": "https" }, "https"],
+    ["only x-forwarded-proto: http", { "x-forwarded-proto": "http" }, "http"],
+    ["only x-forwarded-protocol: https", { "x-forwarded-protocol": "https" }, "https"],
+    [
+      "a synthesized http next to a real https protocol header",
+      { "x-forwarded-proto": "http", "x-forwarded-protocol": "https" },
+      "https",
+    ],
+    [
+      "https next to an http protocol header",
+      { "x-forwarded-proto": "https", "x-forwarded-protocol": "http" },
+      "https",
+    ],
+    ["a list that starts with https", { "x-forwarded-proto": "https, http" }, "https"],
+    ["a list that starts with http", { "x-forwarded-proto": "http, https" }, "http"],
+    ["upper case", { "x-forwarded-proto": "HTTPS" }, "https"],
+    ["an odd value is not https", { "x-forwarded-proto": "gopher" }, "http"],
+    ["nothing", {}, "http"],
+  ])("%s", (_name, headers, expected) => {
+    expect(requestScheme(request(headers))).toBe(expected);
+  });
+
+  it("falls back to the URL of the request, as the callback always did", () => {
+    expect(requestScheme(request({}, "https://x.example/a"))).toBe("https");
+  });
+
+  it("does not send an https request to the https address because Next.js filled in http", () => {
+    configure("https://console.example");
+    expect(
+      canonicalAuthorizeLocation(
+        request({ host: "console.example", "x-forwarded-proto": "http", "x-forwarded-protocol": "https" })
+      )
+    ).toBeUndefined();
+  });
+
+  it("marks the cookie Secure and uses an https base when the only https signal is x-forwarded-protocol", () => {
+    configure("");
+    const req = request({ host: "console.example", "x-forwarded-proto": "http", "x-forwarded-protocol": "https" });
+    expect(oidcBaseUrl(req)).toBe("https://console.example");
+    expect(loginBindingCookie(req, "attempt12345", "v").toLowerCase()).toContain("secure");
   });
 });

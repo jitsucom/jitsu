@@ -116,11 +116,13 @@ async function setup() {
   });
   const issued = new Map<string, { nonce: string; sub: string; email: string }>();
   const tokenCalls: string[] = [];
+  const tokenRedirectUris: (string | null)[] = [];
   server.use(
     http.post(`${IDP}/token`, async ({ request }) => {
       const body = new URLSearchParams(await request.text());
       const code = body.get("code") ?? "";
       tokenCalls.push(code);
+      tokenRedirectUris.push(body.get("redirect_uri"));
       const user = issued.get(code);
       if (!user) return HttpResponse.json({ error: "invalid_grant" }, { status: 400 });
       const id_token = jwt.sign(
@@ -142,11 +144,11 @@ async function setup() {
     issued.set(code, { nonce: url.searchParams.get("nonce")!, ...who });
     return { state, code, started };
   };
-  const finishLogin = (jar: Jar, flow: { state: string; code: string }) =>
-    call(callbackRoute, { code: flow.code, state: flow.state }, jar);
+  const finishLogin = (jar: Jar, flow: { state: string; code: string }, headers = {}) =>
+    call(callbackRoute, { code: flow.code, state: flow.state }, jar, headers);
   // the callback stores emails in lower case, and the test emails carry random ids: compare in lower case on purpose
   const userCount = (email: string) => deps().prisma.userProfile.count({ where: { email: email.toLowerCase() } });
-  return { workspace, provider, startLogin, finishLogin, tokenCalls, userCount };
+  return { workspace, provider, startLogin, finishLogin, tokenCalls, tokenRedirectUris, userCount };
 }
 
 const refusedAsInvalidState = (r: { location?: string }) => {
@@ -494,6 +496,38 @@ describe("a request over plain http to the host of an https public URL", () => {
     });
     expect(new URL(r.location!).origin).not.toBe(SECURE_BASE);
     expect(r.setCookie.filter(isBinding)).toHaveLength(1);
+  });
+
+  it("is not sent anywhere when Next.js filled in http next to the https the proxy sent, and costs no extra request", async () => {
+    vi.stubEnv("NEXTAUTH_URL", SECURE_BASE);
+    const t = await setup();
+    const r = await call(authorizeRoute, { providerId: t.provider.id }, new Jar(), {
+      "x-test-path": AUTHORIZE_PATH,
+      "x-forwarded-proto": "http",
+      "x-forwarded-protocol": "https",
+    });
+    expect(new URL(r.location!).origin).not.toBe(SECURE_BASE);
+    expect(r.setCookie.filter(isBinding)).toHaveLength(1);
+  });
+
+  it("exchanges the code with the same redirect URI that the login started with, behind a proxy that sends only x-forwarded-protocol", async () => {
+    // nothing configured: the base is built from the request, so authorize and callback must read the scheme the same way
+    vi.stubEnv("NEXTAUTH_URL", "");
+    vi.stubEnv("JITSU_PUBLIC_URL", "");
+    vi.stubEnv("JITSU_PUBLIC", "");
+    const t = await setup();
+    const proxy = { "x-forwarded-proto": "http", "x-forwarded-protocol": "https" };
+    const jar = new Jar();
+    const flow = await t.startLogin(
+      jar,
+      { sub: `s-${randomId(6)}`, email: `r-${randomId(6)}@login-state.test` },
+      proxy
+    );
+    const sent = new URL(flow.started.location!).searchParams.get("redirect_uri");
+    expect(sent).toBe("https://console.test.local/api/auth/dynamic-oidc/callback");
+    const done = await t.finishLogin(jar, flow, proxy);
+    expect(done.setCookie.map(c => c.name)).toContain("oidc-session");
+    expect(t.tokenRedirectUris).toEqual([sent]);
   });
 
   it("is left alone when the proxy says https, or says nothing", async () => {
