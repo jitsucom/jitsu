@@ -32,15 +32,61 @@ var deniedNames = map[string]bool{
 	"authorization": true, "authtoken": true, "sasl": true,
 }
 
-// where a call deliberately names one of the above, with the reason; empty on purpose
-var allowed = map[string]string{
-	"jitsubase/utils/objects.go:cfg": "%T prints the type of the value, not the value",
+// where a call deliberately names one of the above, with the reason. `verb` is the format verb the argument must have:
+// "T" prints the type of a value and never the value, so an exemption for a configuration is only valid with it. An empty
+// verb allows any, for a name that is not a credential at all.
+type allowance struct{ reason, verb string }
+
+var allowed = map[string]allowance{
+	"jitsubase/utils/objects.go:cfg":       {"%T prints the type of the value, not the value", "T"},
+	"operator/operator.go:tscConfig":       {"pod topology spread constraints: scheduling settings, no credentials", ""},
+	"operator/operator.go:resourcesConfig": {"pod resource requests and limits: no credentials", ""},
+}
+
+func isAllowed(rel string, f finding) bool {
+	a, ok := allowed[rel+":"+f.name]
+	return ok && (a.verb == "" || a.verb == f.verb)
+}
+
+// formatVerbs lists the verb of every argument that a printf-style format consumes, in order ("%+v" is "v", "%%" consumes
+// none, "%*d" consumes two). It gives up (nil) on explicit argument indexes, which the exemptions cannot rely on.
+func formatVerbs(format string) []string {
+	var verbs []string
+	for i := 0; i < len(format); i++ {
+		if format[i] != '%' {
+			continue
+		}
+		i++
+		if i < len(format) && format[i] == '%' {
+			continue
+		}
+		for i < len(format) && strings.IndexByte("+-# 0123456789.*[", format[i]) >= 0 {
+			switch format[i] {
+			case '[':
+				return nil
+			case '*':
+				verbs = append(verbs, "*")
+			}
+			i++
+		}
+		if i < len(format) {
+			verbs = append(verbs, string(format[i]))
+		}
+	}
+	return verbs
+}
+
+// isDeniedName: the exact names above, and any name that ends in config or cfg (connectionConfig, serviceCfg, rawConfig)
+func isDeniedName(name string) bool {
+	lower := strings.ToLower(name)
+	return deniedNames[lower] || strings.HasSuffix(lower, "config") || strings.HasSuffix(lower, "cfg")
 }
 
 type finding struct {
 	file string
 	line int
 	name string
+	verb string // the format verb of the argument, when the call is printf-style with a literal format
 }
 
 func inspectArgs(e ast.Expr, names *[]string) {
@@ -101,13 +147,26 @@ func findSecretsInLogCalls(fileName, src string) ([]finding, error) {
 		if !ok || !loggingCalls[sel.Sel.Name] {
 			return true
 		}
-		var names []string
-		for _, a := range call.Args {
-			inspectArgs(a, &names)
+		var verbs []string
+		printf := strings.HasSuffix(sel.Sel.Name, "f") || sel.Sel.Name == "NewError"
+		if printf && len(call.Args) > 0 {
+			if lit, ok := call.Args[0].(*ast.BasicLit); ok && lit.Kind == token.STRING {
+				if format, uerr := strconv.Unquote(lit.Value); uerr == nil {
+					verbs = formatVerbs(format)
+				}
+			}
 		}
-		for _, name := range names {
-			if deniedNames[strings.ToLower(name)] {
-				out = append(out, finding{fileName, fset.Position(call.Pos()).Line, name})
+		for i, a := range call.Args {
+			var names []string
+			inspectArgs(a, &names)
+			verb := ""
+			if printf && i >= 1 && i-1 < len(verbs) {
+				verb = verbs[i-1]
+			}
+			for _, name := range names {
+				if isDeniedName(name) {
+					out = append(out, finding{fileName, fset.Position(call.Pos()).Line, name, verb})
+				}
 			}
 		}
 		return true
@@ -127,6 +186,21 @@ func TestCheckerFindsAConfigInALogCall(t *testing.T) {
 		{`func f(){ log.Infof("x %v", maps.Values(cfg)) }`, "cfg"},
 		{`func f(){ log.Infof("x %v", utils.MapNVL(destinationConfig, "credentials", "")) }`, "destinationConfig"},
 		{`func f(){ log.Infof("x %v", utils.MapNVL(destinationConfig, key, "")) }`, "destinationConfig"},
+	} {
+		got, err := findSecretsInLogCalls("x.go", "package p\n"+tc.code)
+		if err != nil || len(got) == 0 || got[0].name != tc.name {
+			t.Errorf("%s: expected to find %q, got %v (err %v)", tc.code, tc.name, got, err)
+		}
+	}
+}
+
+// a name that ends in config or cfg stands for a configuration, whatever comes before it: the first list had only the exact names
+func TestCheckerFindsAnyNameThatEndsInConfig(t *testing.T) {
+	for _, tc := range []struct{ code, name string }{
+		{`func f(){ r.Errorf("failed to parse config for %s: %s: %v", id, connectionConfig, err) }`, "connectionConfig"},
+		{`func f(){ log.Infof("x %v", appConfig) }`, "appConfig"},
+		{`func f(){ log.Infof("x %v", s.serviceCfg) }`, "serviceCfg"},
+		{`func f(){ log.Infof("x %v", rawConfig) }`, "rawConfig"},
 	} {
 		got, err := findSecretsInLogCalls("x.go", "package p\n"+tc.code)
 		if err != nil || len(got) == 0 || got[0].name != tc.name {
@@ -176,7 +250,7 @@ func TestNoLogCallIsHandedAConfigOrACredential(t *testing.T) {
 			return nil
 		}
 		for _, f := range found {
-			if allowed[rel+":"+f.name] != "" {
+			if isAllowed(rel, f) {
 				continue
 			}
 			problems = append(problems, rel+":"+strconv.Itoa(f.line)+" passes \""+f.name+"\" to a log or error call")
@@ -189,5 +263,61 @@ func TestNoLogCallIsHandedAConfigOrACredential(t *testing.T) {
 	sort.Strings(problems)
 	for _, p := range problems {
 		t.Error(p)
+	}
+}
+
+func TestFormatVerbs(t *testing.T) {
+	for format, want := range map[string]string{
+		"a %T b %+v c %s": "T v s",
+		"100%% of %d":     "d",
+		"%5.2f and %-8s":  "f s",
+		"%*d":             "* d",
+		"no verbs":        "",
+		"%[2]d %[1]d":     "(gave up)",
+	} {
+		got := strings.Join(formatVerbs(format), " ")
+		if want == "(gave up)" {
+			if formatVerbs(format) != nil {
+				t.Errorf("%q: expected to give up, got %v", format, got)
+			}
+			continue
+		}
+		if got != want {
+			t.Errorf("%q: expected %q, got %q", format, want, got)
+		}
+	}
+}
+
+// the exemption of `cfg` in utils/objects.go is for the type only: formatting the value there would log the configuration
+func TestAnExemptionForAConfigHoldsOnlyForTheTypeVerb(t *testing.T) {
+	verbOf := func(code string) string {
+		got, err := findSecretsInLogCalls("jitsubase/utils/objects.go", "package p\n"+code)
+		if err != nil || len(got) != 1 {
+			t.Fatalf("%s: expected one finding, got %v (err %v)", code, got, err)
+		}
+		return got[0].verb
+	}
+	if v := verbOf(`func f(){ _ = fmt.Errorf("can't parse object from type: %T", cfg) }`); v != "T" {
+		t.Errorf("expected verb T, got %q", v)
+	}
+	allowedAsIs := func(code string) bool {
+		got, _ := findSecretsInLogCalls("jitsubase/utils/objects.go", "package p\n"+code)
+		return len(got) == 1 && isAllowed("jitsubase/utils/objects.go", got[0])
+	}
+	if !allowedAsIs(`func f(){ _ = fmt.Errorf("can't parse object from type: %T", cfg) }`) {
+		t.Errorf("%%T must stay allowed")
+	}
+	for _, code := range []string{
+		`func f(){ _ = fmt.Errorf("can't parse object from type: %+v", cfg) }`,
+		`func f(){ _ = fmt.Errorf("can't parse object from type: %v", cfg) }`,
+		`func f(){ _ = fmt.Errorf("can't parse %s: %T", cfg, x) }`, // the %T belongs to x, cfg is formatted with %s
+		`func f(){ log.Error(cfg) }`,                               // no format at all
+	} {
+		if allowedAsIs(code) {
+			t.Errorf("%s must NOT be allowed", code)
+		}
+	}
+	if isAllowed("other/file.go", finding{name: "cfg", verb: "T"}) {
+		t.Errorf("the exemption is for one file only")
 	}
 }
