@@ -11,7 +11,7 @@ export const route = createRoute()
       .object({
         destinationId: z.string().min(1),
         stream: z.enum(["audience", "conversions"]),
-        streamOptions: z.record(z.unknown()),
+        streamOptions: z.record(z.string(), z.unknown()),
       })
       .strict(),
     result: z.object({ name: z.string(), message: z.string() }),

@@ -12,10 +12,10 @@ import type {
 
 const id = z.string().min(1).max(512);
 const jsonValue: z.ZodType<Json> = z.lazy(() =>
-  z.union([z.null(), z.boolean(), z.number().finite(), z.string(), z.array(jsonValue), z.record(jsonValue)])
+  z.union([z.null(), z.boolean(), z.number().finite(), z.string(), z.array(jsonValue), z.record(z.string(), jsonValue)])
 );
 const jsonObject = z
-  .record(jsonValue)
+  .record(z.string(), jsonValue)
   .refine(
     value => new TextEncoder().encode(JSON.stringify(value)).length <= 65536,
     "Provider checkpoint exceeds its byte limit"
@@ -153,8 +153,11 @@ export function validateReverseEtlConfig<Row, Options>(
   if (!fields.size || mappedColumns(input).some(column => !input.columns.includes(column))) {
     throw new ReverseEtlProtocolError("Mappings must reference projected model columns");
   }
-  let schema: z.ZodTypeAny = stream.rowType;
-  while (schema instanceof z.ZodEffects) schema = schema.innerType();
+  let schema: z.ZodType = stream.rowType;
+  // zod 3 wrapped refine/transform/preprocess in ZodEffects. In zod 4 refine keeps the same schema, while transform and
+  // preprocess become a pipe whose non-transform side is the schema to inspect.
+  while (schema instanceof z.ZodPipe)
+    schema = (schema.in instanceof z.ZodTransform ? schema.out : schema.in) as z.ZodType;
   if (schema instanceof z.ZodObject) {
     const shape = schema.shape;
     if (

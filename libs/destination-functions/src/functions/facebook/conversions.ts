@@ -9,7 +9,7 @@ import { metaPrivacy } from "./audience";
 import { MetaApiError, metaLog, metaRequest } from "./client";
 import { accepted, assertContext, Context, MetaUncertainDelivery, rejected, savedReceipt } from "./delivery";
 
-const wire = z.object({ key: z.string().regex(/^[a-f0-9]{64}$/), payload: z.record(z.unknown()) }).strict();
+const wire = z.object({ key: z.string().regex(/^[a-f0-9]{64}$/), payload: z.record(z.string(), z.unknown()) }).strict();
 const isoEventTime = z.string().datetime({ offset: true });
 function eventTime(value: unknown) {
   if (value == null) return Math.floor(Date.now() / 1000);

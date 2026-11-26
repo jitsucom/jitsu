@@ -48,7 +48,7 @@ export function microsoftReadClient(
           `Microsoft lookup/report request failed (HTTP ${response.status}). Check OAuth, developer token and account permissions.`
         );
       }
-      const data = z.record(z.unknown()).parse(await response.json());
+      const data = z.record(z.string(), z.unknown()).parse(await response.json());
       for (const field of ["Errors", "OperationErrors", "PartialErrors"]) {
         if (data[field] != null && (!Array.isArray(data[field]) || (data[field] as unknown[]).length))
           throw new MicrosoftReadError(

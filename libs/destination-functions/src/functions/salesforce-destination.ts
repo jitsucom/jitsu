@@ -47,8 +47,8 @@ const SalesforceEnvelope = z.object({
   SALESFORCE_OPERATION: z.enum(["insert", "update", "upsert", "delete"]).default("insert"), // Default to "insert" if not specified
   SALESFORCE_SOBJECT: z.string().optional(),
   SALESFORCE_MATCHERS_OPERATOR: z.enum(["or", "and", "OR", "AND"]).default("OR"), // Optional, defaults to "OR"
-  SALESFORCE_MATCHERS: z.record(z.any()).optional(),
-  SALESFORCE_PAYLOAD: z.record(z.any()).optional(),
+  SALESFORCE_MATCHERS: z.record(z.string(), z.any()).optional(),
+  SALESFORCE_PAYLOAD: z.record(z.string(), z.any()).optional(),
 });
 
 type SalesforceEnvelope = z.infer<typeof SalesforceEnvelope>;

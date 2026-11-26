@@ -8,7 +8,7 @@ import { db } from "../../../../lib/server/db";
 
 const log = getServerLog("sql-schema");
 
-const resultType = z.record(z.array(columnType));
+const resultType = z.record(z.string(), z.array(columnType));
 
 export type SQLSchemaType = z.infer<typeof resultType>;
 

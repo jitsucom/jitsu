@@ -15,9 +15,9 @@ const Answer = z.object({
   type: z.literal("choice"),
   choice: z.string(),
   confidence: z.number().min(0).max(1),
-  probabilities: z.record(z.number().min(0).max(1)),
+  probabilities: z.record(z.string(), z.number().min(0).max(1)),
 });
-const Response = z.object({ answers: z.record(Answer) });
+const Response = z.object({ answers: z.record(z.string(), Answer) });
 const instructions = [
   "Select the source column and, when offered, its input format that supply this destination field's intended meaning.",
   "You are mapping a Reverse ETL model into the destination and stream named in these instructions.",

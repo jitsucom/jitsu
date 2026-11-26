@@ -1,6 +1,6 @@
 import { expect, test } from "vitest";
 import { SegmentCredentials } from "@jitsu/destination-functions/src/meta";
-import zodToJsonSchema from "zod-to-json-schema";
+import { zodToJsonSchema } from "../../lib/schema/zod-json-schema";
 
 test("Segment API Base is exposed as a dropdown with regional and legacy options", () => {
   const schema = zodToJsonSchema(SegmentCredentials) as {

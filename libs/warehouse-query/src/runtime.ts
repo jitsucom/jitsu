@@ -15,8 +15,8 @@ export const ReverseRunConfig = z
     schedule: z.string().optional(),
     timezone: z.string().default("Etc/UTC"),
     model: ModelDefinition,
-    warehouse: z.record(z.unknown()),
-    destination: z.record(z.unknown()),
+    warehouse: z.record(z.string(), z.unknown()),
+    destination: z.record(z.string(), z.unknown()),
     options: ReverseSyncOptions,
     /**
      * Bucket for the stored batch data (the only artifact that carries full rows), whose lifecycle rule enforces the

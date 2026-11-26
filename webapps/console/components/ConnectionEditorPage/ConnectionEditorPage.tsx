@@ -4,7 +4,8 @@ import { useEntitlements } from "../../lib/entitlements";
 import { get } from "../../lib/useApi";
 import { DestinationConfig, FunctionConfig, StreamConfig } from "../../lib/schema";
 import React, { useEffect, useState } from "react";
-import { SomeZodObject, z } from "zod";
+import { z } from "zod";
+import type { AnyZodObject } from "../../lib/schema/destinations";
 import { ConfigurationObjectLinkDbModel } from "../../prisma/schema";
 import { useRouter } from "next/router";
 import { assertTrue, getLog, requireDefined } from "juava";
@@ -207,7 +208,7 @@ export const SwitchComponent: SwitchComponentType = ({ value, disabled, onChange
   );
 };
 
-function hasZodFields(zod: SomeZodObject, ...fields: (keyof ConnectionOptionsType)[]) {
+function hasZodFields(zod: AnyZodObject, ...fields: (keyof ConnectionOptionsType)[]) {
   for (const f of fields) {
     if (!zod.shape.hasOwnProperty(f)) {
       return false;

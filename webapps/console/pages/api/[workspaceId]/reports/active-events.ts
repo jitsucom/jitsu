@@ -27,7 +27,7 @@ export default createRoute()
       granularity: z.enum(["day", "hour"]).optional().default("day"),
     }),
     //result: z.any()
-    result: ActiveEventsReport.and(z.object({ queryMeta: z.any() })),
+    result: ActiveEventsReport.and(z.object({ queryMeta: z.any().optional() })),
   })
   .handler(async ({ user, query }) => {
     const { workspaceId } = query;

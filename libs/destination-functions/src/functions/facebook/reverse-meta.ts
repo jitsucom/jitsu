@@ -33,7 +33,7 @@ const hash = z
   .trim()
   .regex(/^[a-fA-F0-9]{64}$/)
   .nullish();
-const number = z.union([z.number(), z.string().trim().min(1)]).pipe(z.coerce.number().finite());
+const number = z.union([z.number(), z.string().trim().min(1)]).pipe(z.coerce.number<string | number>().finite());
 export const MetaJsonObject = z.preprocess(value => {
   if (typeof value !== "string") return value;
   try {
@@ -41,7 +41,7 @@ export const MetaJsonObject = z.preprocess(value => {
   } catch {
     return value;
   }
-}, z.record(z.unknown()));
+}, z.record(z.string(), z.unknown()));
 export const MetaStringArray = z.preprocess(value => {
   if (typeof value !== "string") return value;
   try {
@@ -137,7 +137,7 @@ export const MetaConversionRow = z
     hashedExternalId: multiHash,
     dateOfBirth: multiText,
     hashedDateOfBirth: multiHash,
-    clientIpAddress: z.string().ip().nullish(),
+    clientIpAddress: z.union([z.ipv4(), z.ipv6()]).nullish(),
     clientUserAgent: text,
     fbc: text,
     fbp: text,
@@ -171,7 +171,7 @@ export const MetaConversionRow = z
         } catch {
           return value;
         }
-      }, z.array(z.record(z.unknown())).max(1000))
+      }, z.array(z.record(z.string(), z.unknown())).max(1000))
       .nullish(),
     numItems: number.pipe(z.number().int().nonnegative()).nullish(),
     predictedLtv: number.nullish(),

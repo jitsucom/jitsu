@@ -1,4 +1,4 @@
-import { SafeParseError, z } from "zod";
+import { ZodSafeParseError, z } from "zod";
 
 /**
  * Client-side environment variables schema.
@@ -23,17 +23,19 @@ export function isBuilding() {
   return process.env.NEXT_PHASE && process.env.NEXT_PHASE.includes("build");
 }
 
-export function wrapZodError(result: SafeParseError<any>) {
+/** `input` is what was parsed: zod 4 issues no longer say what was received, so it is read from there. */
+export function wrapZodError(result: ZodSafeParseError<any>, input: Record<string, unknown>) {
   const errors: string[] = [];
 
   for (const issue of result.error.issues) {
     const field = issue.path.join(".");
 
     if (issue.code === "invalid_type") {
-      if (issue.received === "undefined") {
+      const received = input[String(issue.path[0])];
+      if (received === undefined) {
         errors.push(`${field} - missing`);
       } else {
-        errors.push(`${field} - expected ${issue.expected}, received ${issue.received}`);
+        errors.push(`${field} - expected ${issue.expected}, received ${typeof received}`);
       }
     } else {
       errors.push(`${field} - invalid format: ${issue.code} ${issue.message}`);
@@ -67,7 +69,7 @@ export function getClientEnv(): ClientEnv {
   const result = ClientEnvSchema.safeParse(env);
 
   if (!result.success) {
-    throw wrapZodError(result);
+    throw wrapZodError(result, env);
   }
 
   return result.data;

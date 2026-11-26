@@ -132,7 +132,9 @@ const parseJson = (value: unknown) => {
   }
 };
 /** Whole numbers. Strings from SQL numerics and warehouse readers (BigQuery returns INTEGER as a string) are accepted; fractions are not (that would be a silent rounding). */
-const wholeNumber = z.union([z.number(), z.string().trim().min(1)]).pipe(z.coerce.number().int().safe());
+const wholeNumber = z
+  .union([z.number(), z.string().trim().min(1)])
+  .pipe(z.coerce.number<string | number>().int().safe());
 const minorUnits = wholeNumber.nullish();
 const currency = z
   .string()
@@ -151,7 +153,7 @@ export const OpenAiContent = z
       .string()
       .regex(/^[A-Za-z]{3}$/)
       .optional(),
-    variant_dict: z.record(z.string()).optional(),
+    variant_dict: z.record(z.string(), z.string()).optional(),
   })
   .strict();
 
@@ -191,7 +193,7 @@ export const OpenAiConversionRow = z
     country: multiText,
     androidAdvertisingId: text,
     obref: text,
-    ipAddress: z.string().ip().nullish(),
+    ipAddress: z.union([z.ipv4(), z.ipv6()]).nullish(),
     userAgent: text,
   })
   .strict();

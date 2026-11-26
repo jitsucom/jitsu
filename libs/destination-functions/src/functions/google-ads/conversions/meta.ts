@@ -43,7 +43,7 @@ const common = {
   currency: text,
   adUserData: consent,
   adPersonalization: consent,
-  customVariables: json(z.record(z.union([z.string(), z.number(), z.boolean()]))),
+  customVariables: json(z.record(z.string(), z.union([z.string(), z.number(), z.boolean()]))),
 };
 export const GoogleClickRow = z
   .object({

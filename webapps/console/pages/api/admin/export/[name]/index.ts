@@ -88,7 +88,7 @@ const stableHashValue = stableHash as unknown as (value: unknown) => string;
 // a junk field must not fail the export (see logExportEntityError), so
 // field-level `catch` drops only the offending field and object-level `catch`
 // normalizes a non-object root to {}.
-const JsonRecord = z.record(z.unknown());
+const JsonRecord = z.record(z.string(), z.unknown());
 function asRecord(v: unknown): Record<string, unknown> {
   const parsed = JsonRecord.safeParse(v);
   return parsed.success ? parsed.data : {};
@@ -99,7 +99,7 @@ const LinkData = z
   .object({
     disabled: z.unknown().optional(),
     clickhouseSettings: z.unknown().optional(),
-    functionsEnv: z.record(z.unknown()).optional().catch(undefined),
+    functionsEnv: z.record(z.string(), z.unknown()).optional().catch(undefined),
   })
   .passthrough()
   .catch({});
@@ -117,24 +117,26 @@ type LinkDataParsed = z.infer<typeof LinkData>;
 // inside nested declared objects (e.g. an `enabled` flag on a functions[]
 // entry) would still be stripped. Rebuild the schema with passthrough at
 // every object level so stored fields are never silently dropped.
-function deepPassthrough(schema: z.ZodTypeAny): z.ZodTypeAny {
+function deepPassthrough(schema: z.ZodType): z.ZodType {
   if (schema instanceof z.ZodObject) {
     const shape = Object.fromEntries(
-      Object.entries(schema.shape as z.ZodRawShape).map(([k, v]) => [k, deepPassthrough(v)])
+      Object.entries(schema.shape as Record<string, z.ZodType>).map(([k, v]) => [k, deepPassthrough(v)])
     );
-    return z.object(shape).passthrough();
+    return z.looseObject(shape);
   }
   if (schema instanceof z.ZodArray) {
-    return new z.ZodArray({ ...schema._def, type: deepPassthrough(schema._def.type as z.ZodTypeAny) });
+    return new z.ZodArray({ ...schema.def, element: deepPassthrough(schema.def.element as z.ZodType) });
   }
   if (schema instanceof z.ZodOptional) {
-    return new z.ZodOptional({ ...schema._def, innerType: deepPassthrough(schema._def.innerType as z.ZodTypeAny) });
+    return new z.ZodOptional({ ...schema.def, innerType: deepPassthrough(schema.def.innerType as z.ZodType) });
   }
   if (schema instanceof z.ZodNullable) {
-    return new z.ZodNullable({ ...schema._def, innerType: deepPassthrough(schema._def.innerType as z.ZodTypeAny) });
+    return new z.ZodNullable({ ...schema.def, innerType: deepPassthrough(schema.def.innerType as z.ZodType) });
   }
   if (schema instanceof z.ZodDefault) {
-    return new z.ZodDefault({ ...schema._def, innerType: deepPassthrough(schema._def.innerType as z.ZodTypeAny) });
+    // def.defaultValue is a getter that clones on every read; going through .default() keeps it that way
+    // instead of freezing one shared object into the spread copy.
+    return deepPassthrough(schema.def.innerType as z.ZodType).default(schema.def.defaultValue as never);
   }
   return schema;
 }

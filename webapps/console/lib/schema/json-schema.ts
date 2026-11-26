@@ -1,5 +1,5 @@
 import { z } from "zod";
-import zodToJsonSchema from "zod-to-json-schema";
+import { zodToJsonSchema } from "./zod-json-schema";
 import { getConfigObjectType, getConfigObjectTypeNonStrict } from "./config-objects";
 import { getCoreDestinationTypeNonStrict } from "./destinations";
 import { ApiError } from "../shared/errors";

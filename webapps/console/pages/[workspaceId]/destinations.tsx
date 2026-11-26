@@ -24,6 +24,7 @@ import TextArea from "antd/lib/input/TextArea";
 import { get, getConfigApi, useApi } from "../../lib/useApi";
 import { EmbeddedErrorMessage, ErrorCard } from "../../components/GlobalError/GlobalError";
 import { branding } from "../../lib/branding";
+import { getZodDescription } from "../../lib/zod";
 import styles from "../../components/ConfigObjectEditor/ConfigEditor.module.css";
 import { DeleteOutlined } from "@ant-design/icons";
 import { SnippedEditor } from "../../components/CodeEditor/SnippedEditor";
@@ -107,8 +108,9 @@ function getAllDestinationFields(type?: string): Record<string, PropertyUI> {
   const res: Record<string, PropertyUI> = {};
   const fillFields = (destination: DestinationType<any>) => {
     for (const [key, value] of Object.entries(destination.credentials.shape || [])) {
-      if (value._def.description) {
-        const meta = (value._def.description as string).split("::");
+      const description = getZodDescription(value);
+      if (description) {
+        const meta = description.split("::");
         const ui: PropertyUI = {};
         if (meta.length >= 2) {
           ui.displayName = meta[0];

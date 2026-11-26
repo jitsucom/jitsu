@@ -32,7 +32,7 @@ const identifier = z
  * of an existing audience may carry several.
  */
 export const openAiAudienceWire = z
-  .object({ identifiers: z.array(identifier).min(1).max(3), identity: z.record(z.string()) })
+  .object({ identifiers: z.array(identifier).min(1).max(3), identity: z.record(z.string(), z.string()) })
   .strict();
 
 /** At most 3 identifiers per member, so 3,000 members stay within OpenAI's 10,000-identifier small-update path. */

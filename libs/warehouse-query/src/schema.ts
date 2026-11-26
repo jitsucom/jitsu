@@ -37,7 +37,7 @@ const objectProperty = z
       value === value.trim() && !["__proto__", "prototype", "constructor"].includes(value) && !value.includes("\0"),
     "Invalid object property name"
   );
-export const ObjectMappings = z
+const ComposedObjects = z
   .record(
     objectProperty,
     z
@@ -46,15 +46,28 @@ export const ObjectMappings = z
   )
   .refine(value => Object.keys(value).length <= 32, "Too many composed objects");
 
+const ownsProtoKey = (value: unknown) => !!value && typeof value === "object" && Object.hasOwn(value, "__proto__");
+
+// zod 4's z.record skips an own `__proto__` key before the key schema runs (zod 3 passed it to `objectProperty`, which
+// rejects it), so a mapping with that key would be accepted with part of it silently missing. Reject it explicitly,
+// both as an object name and as a property name.
+export const ObjectMappings = z
+  .unknown()
+  .refine(
+    value => !ownsProtoKey(value) && !(value && typeof value === "object" && Object.values(value).some(ownsProtoKey)),
+    "Invalid object property name"
+  )
+  .pipe(ComposedObjects);
+
 export const ReverseSyncOptions = z
   .object({
     version: z.literal(2).default(2),
     name: z.string().trim().min(1).max(200).optional(),
     stream: z.string().min(1),
     mode: z.enum(["upsert", "mirror"]),
-    mapping: z.record(z.string().min(1)),
+    mapping: z.record(z.string(), z.string().min(1)),
     objectMappings: ObjectMappings.optional(),
-    streamOptions: z.record(z.unknown()).default({}),
+    streamOptions: z.record(z.string(), z.unknown()).default({}),
     schedule: z.string().optional(),
     timezone: z.string().optional(),
     checkpointEvery: z.number().int().min(1).max(1_000_000).default(50_000),
@@ -81,7 +94,7 @@ export const PreviewResult = z.object({
   columns: z.array(WarehouseColumn),
   // SQL projection, before payload transformations: only these can be keys/cursors/delete columns.
   sourceColumns: z.array(WarehouseColumn).optional(),
-  rows: z.array(z.record(z.unknown())),
+  rows: z.array(z.record(z.string(), z.unknown())),
   truncated: z.boolean(),
 });
 export type PreviewResult = z.infer<typeof PreviewResult>;

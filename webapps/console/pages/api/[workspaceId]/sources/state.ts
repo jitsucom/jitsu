@@ -4,7 +4,7 @@ import { syncService } from "../../../../lib/server/route-services";
 
 const resultType = z.object({
   ok: z.boolean(),
-  state: z.record(z.string()).optional(),
+  state: z.record(z.string(), z.string()).optional(),
   error: z.string().optional(),
 });
 

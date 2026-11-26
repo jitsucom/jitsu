@@ -16,7 +16,7 @@ const resultType = z.object({
     .optional(),
   dropped: z.boolean().optional(),
   result: z.any().nullish(),
-  store: z.record(z.any()),
+  store: z.record(z.string(), z.any()),
   logs: z.array(z.any()),
   meta: z.any().nullish(),
   backend: z.string().optional(),

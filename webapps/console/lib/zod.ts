@@ -1,4 +1,25 @@
-import { SafeParseReturnType, ZodSchema } from "zod";
+import { z, ZodSafeParseResult, ZodSchema } from "zod";
+
+/**
+ * The `.describe()` text of a schema, found through optional / nullable / default / transform wrappers.
+ *
+ * zod 3 copied a description onto every wrapper (`z.string().describe("x").optional().description === "x"`). zod 4 keeps
+ * it on the schema that was described, so the outer schema of `credentials.partial({ a: true })` reports none and
+ * labels and hints taken from it disappear.
+ */
+export function getZodDescription(schema: z.ZodType): string | undefined {
+  for (let cur: z.ZodType | undefined = schema; cur; ) {
+    if (cur.description) {
+      return cur.description;
+    }
+    if (cur instanceof z.ZodPipe) {
+      cur = (cur.in instanceof z.ZodTransform ? cur.out : cur.in) as z.ZodType;
+    } else {
+      cur = (cur.def as { innerType?: z.ZodType }).innerType;
+    }
+  }
+  return undefined;
+}
 
 const isoRegex = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2}(?:\.\d*)?)((-(\d{2}):(\d{2})|Z)?)$/;
 
@@ -13,7 +34,7 @@ function tryParseISO8601(date: any): Date | undefined {
   return d;
 }
 
-export function safeParseWithDate<T>(schema: ZodSchema<T>, input: any): SafeParseReturnType<any, T> {
+export function safeParseWithDate<T>(schema: ZodSchema<T>, input: any): ZodSafeParseResult<T> {
   return schema.safeParse(
     transformObjectLeaves(input, (kev, val) => {
       const date = tryParseISO8601(val);

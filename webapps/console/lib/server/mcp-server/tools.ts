@@ -252,7 +252,7 @@ export function registerTools(sdkServer: SdkMcpServer, deps: ToolDeps) {
       inputSchema: {
         workspaceId: z.string(),
         type: z.string().describe(`Resource type: one of ${typeList}`),
-        data: z.record(z.any()).describe("Resource payload (see get_resource_schema)"),
+        data: z.record(z.string(), z.any()).describe("Resource payload (see get_resource_schema)"),
       },
     },
     async ({ workspaceId, type, data }, ctx) =>
@@ -278,7 +278,7 @@ export function registerTools(sdkServer: SdkMcpServer, deps: ToolDeps) {
         workspaceId: z.string(),
         type: z.string().describe(`Resource type: one of ${typeList}`),
         id: z.string().describe("Resource id"),
-        data: z.record(z.any()).describe("Fields to update (see get_resource_schema)"),
+        data: z.record(z.string(), z.any()).describe("Fields to update (see get_resource_schema)"),
       },
     },
     async ({ workspaceId, type, id, data }, ctx) =>
@@ -636,7 +636,7 @@ export function registerTools(sdkServer: SdkMcpServer, deps: ToolDeps) {
         workspaceId: z.string(),
         type: z.string().optional().describe('Resource type, default "destination"'),
         id: z.string().optional().describe("Existing object id (used when `config` is omitted)"),
-        config: z.record(z.any()).optional().describe("Full config to test (alternative to `id`)"),
+        config: z.record(z.string(), z.any()).optional().describe("Full config to test (alternative to `id`)"),
       },
     },
     async ({ workspaceId, type, id, config }, ctx) =>
@@ -657,10 +657,10 @@ export function registerTools(sdkServer: SdkMcpServer, deps: ToolDeps) {
       inputSchema: {
         workspaceId: z.string(),
         functionId: z.string().describe('Function id (see list_resources with type "function")'),
-        event: z.record(z.any()).describe("Sample event to run the function against"),
+        event: z.record(z.string(), z.any()).describe("Sample event to run the function against"),
         code: z.string().optional().describe("Override the function code; omit to run the stored draft/code"),
-        variables: z.record(z.any()).optional().describe("Environment variables visible to the function"),
-        store: z.record(z.any()).optional().describe("Initial persistent-store contents"),
+        variables: z.record(z.string(), z.any()).optional().describe("Environment variables visible to the function"),
+        store: z.record(z.string(), z.any()).optional().describe("Initial persistent-store contents"),
       },
     },
     async ({ workspaceId, functionId, event, code, variables, store }, ctx) =>
@@ -680,11 +680,11 @@ export function registerTools(sdkServer: SdkMcpServer, deps: ToolDeps) {
       inputSchema: {
         workspaceId: z.string(),
         profileBuilderId: z.string(),
-        events: z.array(z.record(z.any())).describe("Sample events of one user to aggregate"),
+        events: z.array(z.record(z.string(), z.any())).describe("Sample events of one user to aggregate"),
         code: z.string().optional().describe("Override the profile function code"),
-        settings: z.record(z.any()).optional().describe("Override the profile-builder settings"),
+        settings: z.record(z.string(), z.any()).optional().describe("Override the profile-builder settings"),
         version: z.number().int().optional().describe("Profile-builder version to run; omit for the current one"),
-        store: z.record(z.any()).optional().describe("Initial persistent-store contents"),
+        store: z.record(z.string(), z.any()).optional().describe("Initial persistent-store contents"),
       },
     },
     async ({ workspaceId, profileBuilderId, events, code, settings, version, store }, ctx) =>

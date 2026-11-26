@@ -23,7 +23,7 @@ export function extractPathParams(path: string): string[] {
 }
 
 function isZodObject(schema: ZodTypeAny | undefined): schema is ZodObject<any> {
-  return !!schema && (schema as any)._def?.typeName === "ZodObject";
+  return !!schema && schema.def?.type === "object";
 }
 
 function pickFromObject(schema: ZodObject<any>, keys: string[]): ZodObject<any> | undefined {
