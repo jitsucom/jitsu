@@ -29,12 +29,6 @@ function generatePKCE() {
 }
 
 async function handler(req: NextApiRequest, res: NextApiResponse) {
-  // The binding cookie is host-only and the identity provider returns to the configured host: start there
-  const canonical = canonicalAuthorizeLocation(req);
-  if (canonical) {
-    return res.redirect(canonical);
-  }
-
   const { providerId, loginHint } = req.query;
 
   if (!providerId || typeof providerId !== "string") {
@@ -129,4 +123,14 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
   }
 }
 
-export default withAuthRateLimit(handler, { bucket: "login" });
+const limitedHandler = withAuthRateLimit(handler, { bucket: "login" });
+
+// The binding cookie is host-only and the identity provider returns to the configured address: a request that is not on it,
+// or that is not positively https, is sent there first. That hop is made before the rate limit, so it costs no login budget.
+export default function authorize(req: NextApiRequest, res: NextApiResponse) {
+  const canonical = canonicalAuthorizeLocation(req);
+  if (canonical) {
+    return res.redirect(canonical);
+  }
+  return limitedHandler(req, res);
+}

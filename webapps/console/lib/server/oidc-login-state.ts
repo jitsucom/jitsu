@@ -64,14 +64,19 @@ function forwardedSchemes(req: NextApiRequest): ("http" | "https")[] {
   return out;
 }
 
+/** The public URL of the console as it is configured, which is where the identity provider sends the browser back to. */
+function configuredPublicUrl(): string | undefined {
+  const serverEnv = getServerEnv();
+  return serverEnv.NEXTAUTH_URL || serverEnv.JITSU_PUBLIC_URL || undefined;
+}
+
 /**
  * The base URL the identity provider sends the browser back to: the one `authorize` builds the redirect URI from. The cookie
  * belongs to this host, and its Secure flag and its name follow this URL, not what the request looks like to the process:
  * a proxy that terminates TLS may forward only `X-Forwarded-Protocol`, or nothing.
  */
 export function oidcBaseUrl(req: NextApiRequest): string {
-  const serverEnv = getServerEnv();
-  const configured = serverEnv.NEXTAUTH_URL || serverEnv.JITSU_PUBLIC_URL;
+  const configured = configuredPublicUrl();
   if (configured) {
     return configured;
   }
@@ -81,12 +86,22 @@ export function oidcBaseUrl(req: NextApiRequest): string {
 const isHttps = (baseUrl: string) => /^https:\/\//i.test(baseUrl);
 
 /**
- * Where a request that arrived on another host than the configured one must go before a binding cookie is set, or undefined
- * when it is on the right host (or has been sent there once already). A host-only cookie set on an alias is not sent to the
- * configured host that the callback returns to, so the login would end in `invalid_state`. The target is built from the
- * configured origin and the path and query of the request, never from a host the request names.
+ * Where a request must go before a binding cookie is set, or undefined when it can be served as it is. The cookie is host-only
+ * and Secure over an https public URL, and the identity provider returns to the configured address, so a request is sent
+ * there once when it
+ *  - arrived on another host name than the configured one (the cookie would not be sent back), or
+ *  - is not positively https while the public URL is https: a Secure cookie set over plain http is dropped by the browser,
+ *    and the https callback would find none.
+ * "Positively https" is a TLS connection of the server itself, or a forwarded scheme that says https and is not contradicted
+ * by another one. A missing, odd or contradicting scheme is doubt, and doubt is resolved by the redirect: one extra hop that
+ * is bounded by the marker and costs no login budget (it is made before the rate limit), instead of a login that breaks.
+ * The target is built from the configured origin and the path and query of the request, never from a host the request names.
+ * Without a configured public URL the base is the request itself and there is nothing to move to.
  */
 export function canonicalAuthorizeLocation(req: NextApiRequest): string | undefined {
+  if (!configuredPublicUrl()) {
+    return undefined;
+  }
   let base: URL;
   try {
     base = new URL(oidcBaseUrl(req));
@@ -97,12 +112,11 @@ export function canonicalAuthorizeLocation(req: NextApiRequest): string | undefi
   if (!requestHost) {
     return undefined;
   }
-  // The request is on the right host but the proxy says it came in over plain http while the public URL is https: a Secure
-  // cookie set on this response would be dropped by the browser, and the https callback would find none. Only an explicit
-  // "http" counts: a proxy that says nothing is taken at its word that the public URL is right.
   const schemes = forwardedSchemes(req);
-  const wrongScheme = base.protocol === "https:" && schemes.includes("http") && !schemes.includes("https");
-  if (requestHost === base.host.toLowerCase() && !wrongScheme) {
+  const tls = (req.socket as { encrypted?: boolean } | undefined)?.encrypted === true;
+  const positivelyHttps = tls || (schemes.includes("https") && !schemes.includes("http"));
+  const doubtful = base.protocol === "https:" && !positivelyHttps;
+  if (requestHost === base.host.toLowerCase() && !doubtful) {
     return undefined;
   }
   if (req.query?.[CANONICAL_HOST_MARKER]) {

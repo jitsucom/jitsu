@@ -365,6 +365,7 @@ describe("the login starts on the host the identity provider returns to", () => 
   const CANONICAL = "https://console.canonical.test";
   const onHost = (host: string, extra: Record<string, string> = {}) => ({
     host,
+    "x-forwarded-proto": "https", // as a TLS proxy sends it: the request is on the right host AND positively https
     "x-test-path": AUTHORIZE_PATH,
     ...extra,
   });
@@ -433,7 +434,10 @@ describe("the binding cookie follows the public URL", () => {
   };
 
   it("on https the cookie is a __Host- cookie: Secure, Path=/, no Domain, so a sibling host cannot supply it", async () => {
-    const { cookie } = await start("https://console.canonical.test", { host: "console.canonical.test" });
+    const { cookie } = await start("https://console.canonical.test", {
+      host: "console.canonical.test",
+      "x-forwarded-proto": "https",
+    });
     expect(cookie.name.startsWith("__Host-")).toBe(true);
     expect(cookie.attrs["secure"]).toBe(true);
     expect(cookie.attrs["path"]).toBe("/");
@@ -449,9 +453,17 @@ describe("the binding cookie follows the public URL", () => {
     expect(cookie.attrs["path"]).toBe("/api/auth/dynamic-oidc");
   });
 
-  it("is Secure when the configured URL is https even though the request itself looks like plain http", async () => {
-    const { cookie } = await start("https://console.canonical.test", { host: "console.canonical.test" });
+  it("is Secure when the configured URL is https even on the request that was already sent once and still looks like plain http", async () => {
+    vi.stubEnv("NEXTAUTH_URL", "https://console.canonical.test");
+    const t = await setup();
+    const r = await call(authorizeRoute, { providerId: t.provider.id, _canonical: "1" }, new Jar(), {
+      host: "console.canonical.test",
+      "x-forwarded-proto": "http",
+      "x-test-path": AUTHORIZE_PATH,
+    });
+    const cookie = r.setCookie.find(isBinding)!;
     expect(cookie.attrs["secure"]).toBe(true);
+    expect(cookie.name.startsWith("__Host-")).toBe(true);
   });
 
   it("is Secure when a TLS proxy forwards only x-forwarded-protocol and nothing is configured", async () => {
@@ -463,7 +475,10 @@ describe("the binding cookie follows the public URL", () => {
   });
 
   it("the callback finds that cookie again: a login over https completes", async () => {
-    const { flow, t } = await start("https://console.canonical.test", { host: "console.canonical.test" });
+    const { flow, t } = await start("https://console.canonical.test", {
+      host: "console.canonical.test",
+      "x-forwarded-proto": "https",
+    });
     const jar = new Jar();
     jar.apply(flow.started.setCookie);
     const done = await t.finishLogin(jar, flow);
@@ -498,7 +513,7 @@ describe("a request over plain http to the host of an https public URL", () => {
     expect(r.setCookie.filter(isBinding)).toHaveLength(1);
   });
 
-  it("is not sent anywhere when Next.js filled in http next to the https the proxy sent, and costs no extra request", async () => {
+  it("is sent once to the https address when http comes next to https, because that is doubt", async () => {
     vi.stubEnv("NEXTAUTH_URL", SECURE_BASE);
     const t = await setup();
     const r = await call(authorizeRoute, { providerId: t.provider.id }, new Jar(), {
@@ -506,8 +521,8 @@ describe("a request over plain http to the host of an https public URL", () => {
       "x-forwarded-proto": "http",
       "x-forwarded-protocol": "https",
     });
-    expect(new URL(r.location!).origin).not.toBe(SECURE_BASE);
-    expect(r.setCookie.filter(isBinding)).toHaveLength(1);
+    expect(new URL(r.location!).origin).toBe(SECURE_BASE);
+    expect(r.setCookie.filter(isBinding)).toEqual([]);
   });
 
   it("exchanges the code with the same redirect URI that the login started with, behind a proxy that sends only x-forwarded-protocol", async () => {
@@ -530,23 +545,54 @@ describe("a request over plain http to the host of an https public URL", () => {
     expect(t.tokenRedirectUris).toEqual([sent]);
   });
 
-  it("is not sent anywhere for a forwarded value that is not a scheme, such as HTTP/2", async () => {
+  it("is sent once to the https address for a forwarded value that is not a scheme, such as HTTP/1.1", async () => {
     vi.stubEnv("NEXTAUTH_URL", SECURE_BASE);
     const t = await setup();
-    for (const value of ["HTTP/2", "gopher"]) {
+    for (const value of ["HTTP/1.1", "gopher"]) {
       const r = await call(authorizeRoute, { providerId: t.provider.id }, new Jar(), {
         "x-test-path": AUTHORIZE_PATH,
         "x-forwarded-proto": value,
       });
-      expect(new URL(r.location!).origin, value).not.toBe(SECURE_BASE);
-      expect(r.setCookie.filter(isBinding), value).toHaveLength(1);
+      expect(new URL(r.location!).origin, value).toBe(SECURE_BASE);
+      expect(r.setCookie.filter(isBinding), value).toEqual([]);
     }
   });
 
-  it("is left alone when the proxy says https, or says nothing", async () => {
+  it("is sent once to the https address when the proxy says nothing about the scheme", async () => {
     vi.stubEnv("NEXTAUTH_URL", SECURE_BASE);
     const t = await setup();
-    for (const headers of [{ "x-forwarded-proto": "https" }, { "x-forwarded-protocol": "https" }, {}]) {
+    const r = await call(authorizeRoute, { providerId: t.provider.id }, new Jar(), { "x-test-path": AUTHORIZE_PATH });
+    expect(new URL(r.location!).origin).toBe(SECURE_BASE);
+  });
+
+  it("costs no login budget: any number of such redirects leaves the whole limit to the real requests", async () => {
+    vi.stubEnv("NEXTAUTH_URL", SECURE_BASE);
+    vi.stubEnv("MINUTE_RATE_LIMIT_ENABLED", "true");
+    vi.stubEnv("AUTH_ATTEMPT_RATE_LIMIT", "2");
+    const t = await setup();
+    const ip = { "x-real-ip": `198.51.100.${1 + Math.floor(Math.random() * 250)}` };
+    for (let i = 0; i < 6; i++) {
+      const r = await call(authorizeRoute, { providerId: t.provider.id }, new Jar(), {
+        "x-test-path": AUTHORIZE_PATH,
+        ...ip,
+      });
+      expect(r.status, `redirect ${i}`).toBe(302);
+      expect(new URL(r.location!).origin).toBe(SECURE_BASE);
+    }
+    const real = { "x-test-path": AUTHORIZE_PATH, "x-forwarded-proto": "https", ...ip };
+    for (let i = 0; i < 2; i++) {
+      const r = await call(authorizeRoute, { providerId: t.provider.id }, new Jar(), real);
+      expect(r.status, `real request ${i}`).toBe(302);
+      expect(new URL(r.location!).origin).not.toBe(SECURE_BASE);
+    }
+    // control: the limiter is live, so the third real request is refused
+    expect((await call(authorizeRoute, { providerId: t.provider.id }, new Jar(), real)).status).toBe(429);
+  });
+
+  it("is left alone when the proxy positively says https", async () => {
+    vi.stubEnv("NEXTAUTH_URL", SECURE_BASE);
+    const t = await setup();
+    for (const headers of [{ "x-forwarded-proto": "https" }, { "x-forwarded-protocol": "https" }]) {
       const r = await call(authorizeRoute, { providerId: t.provider.id }, new Jar(), {
         "x-test-path": AUTHORIZE_PATH,
         ...headers,

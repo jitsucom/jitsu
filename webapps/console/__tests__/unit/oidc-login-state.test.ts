@@ -164,9 +164,12 @@ describe("the binding cookie", () => {
 describe("the host the login starts on", () => {
   it("is left alone when the request is on the configured host, whatever the case or the list", () => {
     configure("https://Console.Example");
-    expect(canonicalAuthorizeLocation(request({ host: "console.example" }))).toBeUndefined();
+    const https = { "x-forwarded-proto": "https" };
+    expect(canonicalAuthorizeLocation(request({ host: "console.example", ...https }))).toBeUndefined();
     expect(
-      canonicalAuthorizeLocation(request({ host: "internal:3000", "x-forwarded-host": "console.example, proxy" }))
+      canonicalAuthorizeLocation(
+        request({ host: "internal:3000", "x-forwarded-host": "console.example, proxy", ...https })
+      )
     ).toBeUndefined();
   });
 
@@ -228,10 +231,42 @@ describe("the scheme a login starts on", () => {
     ["https from x-forwarded-proto", { "x-forwarded-proto": "https" }],
     ["https from x-forwarded-protocol", { "x-forwarded-protocol": "https" }],
     ["a list that starts with https", { "x-forwarded-proto": "https, http" }],
-    ["nothing forwarded", {}],
-  ])("leaves a request alone on the right host: %s", (_name, headers) => {
+    ["https twice", { "x-forwarded-proto": "https", "x-forwarded-protocol": "HTTPS" }],
+  ])("leaves a request alone on the right host when the proxy positively says https: %s", (_name, headers) => {
     configure("https://console.example");
     expect(canonicalAuthorizeLocation(request({ host: "console.example", ...headers }))).toBeUndefined();
+  });
+
+  it.each([
+    ["nothing forwarded", {}],
+    ["plain http", { "x-forwarded-proto": "http" }],
+    ["a protocol version", { "x-forwarded-proto": "HTTP/1.1" }],
+    [
+      "http next to https (Next.js fills in http, or an ingress says http)",
+      { "x-forwarded-proto": "http", "x-forwarded-protocol": "https" },
+    ],
+    ["https next to http", { "x-forwarded-proto": "https", "x-forwarded-protocol": "http" }],
+    ["a list that starts with http", { "x-forwarded-proto": "http, https" }],
+  ])("sends a request to the https address when it is not positively https: %s", (_name, headers) => {
+    configure("https://console.example");
+    const to = canonicalAuthorizeLocation(request({ host: "console.example", ...headers }));
+    expect(new URL(to!).origin).toBe("https://console.example");
+    expect(new URL(to!).searchParams.get("_canonical")).toBe("1");
+  });
+
+  it("counts a TLS connection of the server itself as https", () => {
+    configure("https://console.example");
+    const req = request({ host: "console.example" });
+    (req as any).socket = { encrypted: true };
+    expect(canonicalAuthorizeLocation(req)).toBeUndefined();
+  });
+
+  it("does not move anything when no public URL is configured: the base is then the request itself", () => {
+    configure("");
+    expect(
+      canonicalAuthorizeLocation(request({ host: "console.example", "x-forwarded-proto": "http" }))
+    ).toBeUndefined();
+    expect(canonicalAuthorizeLocation(request({ host: "console.example" }))).toBeUndefined();
   });
 
   it("does not ask an http public URL to move to https", () => {
@@ -360,13 +395,13 @@ describe("the scheme of a request behind a proxy", () => {
     expect(requestScheme(request({}, "https://x.example/a"))).toBe("https");
   });
 
-  it("does not send an https request to the https address because Next.js filled in http", () => {
+  it("treats http next to https as doubt, not as https: the request is sent once to the https address", () => {
     configure("https://console.example");
     expect(
       canonicalAuthorizeLocation(
         request({ host: "console.example", "x-forwarded-proto": "http", "x-forwarded-protocol": "https" })
       )
-    ).toBeUndefined();
+    ).toBeDefined();
   });
 
   it("marks the cookie Secure and uses an https base when the only https signal is x-forwarded-protocol", () => {
@@ -377,21 +412,21 @@ describe("the scheme of a request behind a proxy", () => {
   });
 });
 
-describe("only an explicit http or https counts as a scheme", () => {
+describe("only an exact http or https is a statement about the scheme", () => {
   it.each(["HTTP/2", "HTTP/1.1", "gopher", "ws", "h2c", "off", "true", "1", "https:", "httpss", "http s"])(
-    "an https public URL is not asked to move for the forwarded value %j",
+    "the forwarded value %j is doubt: an https public URL sends the request to the https address",
     value => {
       configure("https://console.example");
       expect(
         canonicalAuthorizeLocation(request({ host: "console.example", "x-forwarded-proto": value }))
-      ).toBeUndefined();
+      ).toBeDefined();
       expect(
         canonicalAuthorizeLocation(request({ host: "console.example", "x-forwarded-protocol": value }))
-      ).toBeUndefined();
+      ).toBeDefined();
     }
   );
 
-  it("still moves a request that is explicitly http, in any case and from a list", () => {
+  it("moves a request that is explicitly http, in any case and from a list", () => {
     configure("https://console.example");
     for (const value of ["http", "HTTP", " Http ", "http, https"]) {
       expect(
