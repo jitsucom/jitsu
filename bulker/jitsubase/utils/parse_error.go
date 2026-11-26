@@ -23,6 +23,7 @@ var (
 // Names of fields are NOT taken from the text of a decoding error: the rejected value sits in the same text, so a value that
 // is shaped like a field marker would be copied out as a "field name". The jsoniter byte number is not reported either: it
 // counts from the start of the quoted snippet, not of the document, so it would point to the wrong place.
+// jsoniter gives a syntax error and a value of the wrong type the same marker, so the phrase covers both.
 func DescribeConfigError(err error) string {
 	if err == nil {
 		return ""
@@ -40,7 +41,7 @@ func DescribeConfigError(err error) string {
 		m := hjsonPosition.FindStringSubmatch(msg)
 		return fmt.Sprintf("syntax error at line %s, column %s", m[1], m[2])
 	case jsonBytePosition.MatchString(msg):
-		return "invalid JSON syntax (position withheld)"
+		return "invalid JSON (a syntax error or a value of the wrong type; position withheld)"
 	case strings.HasPrefix(msg, "yaml:"):
 		if m := yamlLine.FindStringSubmatch(msg); m != nil {
 			return fmt.Sprintf("invalid YAML at line %s", m[1])

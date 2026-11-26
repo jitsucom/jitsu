@@ -57,7 +57,7 @@ func TestDescribeConfigErrorGivesPositionsAndFixedPhrasesOnly(t *testing.T) {
 		want string
 	}{
 		"hjson":                 {hjsonText, "syntax error at line 3, column 12"},
-		"json (jsoniter)":       {jsonErr, "invalid JSON syntax (position withheld)"},
+		"json (jsoniter)":       {jsonErr, "invalid JSON (a syntax error or a value of the wrong type; position withheld)"},
 		"struct (mapstructure)": {mapErr, "1 value(s) have an unexpected type (names and values withheld)"},
 		"yaml":                  {yamlErr, "invalid YAML"},
 		"end of input":          {errors.New("End of input while parsing an object (did you forget a closing '}'?)"), "unexpected end of input"},
@@ -118,5 +118,21 @@ func TestDescribeConfigErrorDoesNotReportASnippetOffsetAsDocumentOffset(t *testi
 	got := DescribeConfigError(jsoniter.Unmarshal(late, &out))
 	if strings.Contains(got, "byte") || strings.ContainsAny(got, "0123456789") {
 		t.Errorf("no number should be reported for a snippet-relative offset: %q", got)
+	}
+}
+
+// jsoniter gives valid JSON with a wrong-typed value the same byte marker as broken syntax, so the description must not say
+// that the syntax is wrong when the type is (review of 26 Nov 2026).
+func TestDescribeConfigErrorDoesNotCallAWrongTypeASyntaxError(t *testing.T) {
+	var out parseTarget
+	got := DescribeConfigError(jsoniter.Unmarshal([]byte(`{"usesBulker": "`+parseSecret+`"}`), &out))
+	if strings.Contains(got, "syntax") && !strings.Contains(got, "type") {
+		t.Errorf("a valid document with a wrong-typed value is called a syntax error: %q", got)
+	}
+	if !strings.Contains(got, "type") || !strings.Contains(got, "syntax") {
+		t.Errorf("the description should cover both a syntax error and a wrong type: %q", got)
+	}
+	if strings.Contains(got, parseSecret) {
+		t.Errorf("the description quotes the input: %q", got)
 	}
 }
