@@ -15,8 +15,9 @@ import { authAuditLog } from "../../../../lib/server/audit-log";
 import { trackAuthEvent } from "../../../../lib/server/telemetry";
 import {
   clearLoginBindingCookie,
+  isValidLoginAttempt,
+  loginBindingCookieName,
   loginBindingMatches,
-  OIDC_LOGIN_STATE_COOKIE,
 } from "../../../../lib/server/oidc-login-state";
 
 const log = getServerLog("api/auth/dynamic-oidc/callback");
@@ -52,14 +53,19 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
     // The login must finish in the browser that started it. The state is signed, but it travels in this URL, so it
     // alone does not tell who holds it: it must come with the cookie set by authorize. This runs before anything else is
     // done with the state, and a refusal leaves the cookie alone, so a login of this browser's own is not spent by it.
-    if (!loginBindingMatches(req.cookies?.[OIDC_LOGIN_STATE_COOKIE], stateData.bindingHash)) {
+    const attempt = stateData.attempt;
+    if (
+      !isValidLoginAttempt(attempt) ||
+      !loginBindingMatches(req.cookies?.[loginBindingCookieName(req, attempt)], stateData.bindingHash)
+    ) {
       log.atWarn().log("OIDC callback refused: the state is not bound to this browser");
       return redirectWithOidcError(res, {
         error: OidcErrors.INVALID_STATE,
       });
     }
-    // The binding is single use, whatever the login does next
-    res.setHeader("Set-Cookie", [clearLoginBindingCookie(req)]);
+    // The binding is single use, whatever the login does next. Only this attempt's cookie: another login of this browser
+    // (another tab) keeps its own
+    res.setHeader("Set-Cookie", [clearLoginBindingCookie(req, attempt)]);
 
     // Check if state is not too old (10 minutes)
     if (Date.now() - stateData.timestamp > 10 * 60 * 1000) {
@@ -304,7 +310,7 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
 
     // Set secure session cookie
     res.setHeader("Set-Cookie", [
-      clearLoginBindingCookie(req),
+      clearLoginBindingCookie(req, attempt),
       serialize("oidc-session", sessionToken, {
         httpOnly: true,
         secure: isSecure(req),

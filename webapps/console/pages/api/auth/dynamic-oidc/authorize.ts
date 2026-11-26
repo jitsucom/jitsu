@@ -7,8 +7,12 @@ import crypto from "crypto";
 import { extractReturnUrl } from "../../../../lib/auth-redirect";
 import { getOidcProvider } from "../../../../lib/server/oidc-token-service";
 import { performAutoDiscovery } from "../../../../lib/server/oidc-discovery";
-import { getServerEnv } from "../../../../lib/server/serverEnv";
-import { loginBindingCookie, newLoginBinding } from "../../../../lib/server/oidc-login-state";
+import {
+  canonicalAuthorizeLocation,
+  loginBindingCookie,
+  newLoginBinding,
+  oidcBaseUrl,
+} from "../../../../lib/server/oidc-login-state";
 
 const log = getServerLog("api/auth/dynamic-oidc/authorize");
 
@@ -24,6 +28,12 @@ function generatePKCE() {
 }
 
 async function handler(req: NextApiRequest, res: NextApiResponse) {
+  // The binding cookie is host-only and the identity provider returns to the configured host: start there
+  const canonical = canonicalAuthorizeLocation(req);
+  if (canonical) {
+    return res.redirect(canonical);
+  }
+
   const { providerId, loginHint } = req.query;
 
   if (!providerId || typeof providerId !== "string") {
@@ -55,6 +65,7 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
       {
         providerId,
         timestamp: Date.now(),
+        attempt: binding.attempt,
         bindingHash: binding.hash,
         codeVerifier: pkce.codeVerifier,
         nonce,
@@ -65,12 +76,7 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
     );
 
     // Construct redirect URI that includes provider ID
-    const protocol =
-      req.headers["x-forwarded-proto"] ||
-      req.headers["x-forwarded-protocol"] ||
-      (req.url?.startsWith("https") ? "https" : "http");
-    const serverEnv = getServerEnv();
-    const baseUrl = serverEnv.NEXTAUTH_URL || serverEnv.JITSU_PUBLIC_URL || `${protocol}://${req.headers.host}`;
+    const baseUrl = oidcBaseUrl(req);
     const redirectUri = `${baseUrl}/api/auth/dynamic-oidc/callback`;
 
     // Get authorization URL
@@ -110,7 +116,7 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
     const authUrl = `${authorizationEndpoint}?${params.toString()}`;
 
     // Redirect to OIDC provider, remembering in this browser that it is the one that started the login
-    res.setHeader("Set-Cookie", loginBindingCookie(req, binding.value));
+    res.setHeader("Set-Cookie", loginBindingCookie(req, binding.attempt, binding.value));
     res.redirect(authUrl);
   } catch (error: any) {
     log.atError().withCause(error).log("Error initiating OIDC authorization");
