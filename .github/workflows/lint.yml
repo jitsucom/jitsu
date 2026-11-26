@@ -411,7 +411,8 @@ jobs:
 
   notify:
     name: 📢 Notify
-    needs: [lint-and-format, bulker-test]
+    # bulker-test-result is the aggregate of the test shards and the log hygiene scan
+    needs: [lint-and-format, bulker-test-result]
     if: always() && github.ref == 'refs/heads/newjitsu'
     runs-on: ubuntu-latest
     permissions:
@@ -430,7 +431,7 @@ jobs:
       - name: 🔍 Check job statuses
         id: status
         run: |
-          if [[ "${{ needs.lint-and-format.result }}" == "success" && "${{ needs.bulker-test.result }}" == "success" ]]; then
+          if [[ "${{ needs.lint-and-format.result }}" == "success" && "${{ needs.bulker-test-result.result }}" == "success" ]]; then
             echo "success=true" >> $GITHUB_OUTPUT
             echo "color=#36a64f" >> $GITHUB_OUTPUT
             echo "header=✅ Lint & Test on branch \`${{ github.ref_name }}\` SUCCEEDED" >> $GITHUB_OUTPUT
@@ -439,7 +440,7 @@ jobs:
             echo "color=#ff0000" >> $GITHUB_OUTPUT
             FAILED_JOBS=""
             [[ "${{ needs.lint-and-format.result }}" != "success" ]] && FAILED_JOBS="lint-and-format"
-            [[ "${{ needs.bulker-test.result }}" != "success" ]] && FAILED_JOBS="$FAILED_JOBS bulker-test"
+            [[ "${{ needs.bulker-test-result.result }}" != "success" ]] && FAILED_JOBS="$FAILED_JOBS bulker-test-or-log-hygiene"
             echo "header=❌ Lint & Test on branch \`${{ github.ref_name }}\` FAILED ($FAILED_JOBS)" >> $GITHUB_OUTPUT
           fi
 
@@ -467,7 +468,7 @@ jobs:
     # Auto-publish only when an explicit version-bump landed on newjitsu and
     # lint+test passed. Every other commit goes unpublished — use the manual
     # publish.yml dispatch for canary/beta off-cycle builds.
-    needs: [lint-and-format, bulker-test]
+    needs: [lint-and-format, bulker-test-result]
     if: github.event_name == 'push' && github.ref == 'refs/heads/newjitsu'
     runs-on: ubuntu-latest
     permissions:

@@ -45,7 +45,7 @@ func TestParseObjectErrorsDoNotQuoteTheInput(t *testing.T) {
 	}
 }
 
-func TestDescribeConfigErrorGivesPositionsAndFieldNamesOnly(t *testing.T) {
+func TestDescribeConfigErrorGivesPositionsAndFixedPhrasesOnly(t *testing.T) {
 	// the raw errors of the libraries, not the sanitized ones ParseObject returns
 	var out parseTarget
 	jsonErr := jsoniter.Unmarshal([]byte(`{"credentials": {"password": "`+parseSecret+`" oops }}`), &out)
@@ -57,8 +57,8 @@ func TestDescribeConfigErrorGivesPositionsAndFieldNamesOnly(t *testing.T) {
 		want string
 	}{
 		"hjson":                 {hjsonText, "syntax error at line 3, column 12"},
-		"json (jsoniter)":       {jsonErr, "invalid JSON near byte "},
-		"struct (mapstructure)": {mapErr, "a value has an unexpected type (field usesBulker)"},
+		"json (jsoniter)":       {jsonErr, "invalid JSON syntax (position withheld)"},
+		"struct (mapstructure)": {mapErr, "1 value(s) have an unexpected type (names and values withheld)"},
 		"yaml":                  {yamlErr, "invalid YAML"},
 		"end of input":          {errors.New("End of input while parsing an object (did you forget a closing '}'?)"), "unexpected end of input"},
 		"anything else":         {errors.New("boom " + parseSecret), "details withheld"},
@@ -78,5 +78,45 @@ func TestDescribeConfigErrorGivesPositionsAndFieldNamesOnly(t *testing.T) {
 	}
 	if DescribeConfigError(nil) != "" {
 		t.Errorf("no error, no description")
+	}
+}
+
+// The rejected value sits in the same text as the names of the fields, so a value that looks like a field marker must not
+// come out as a "field name" (review of 26 Nov 2026).
+func TestDescribeConfigErrorDoesNotCopyFieldMarkersOutOfTheRejectedValue(t *testing.T) {
+	for name, value := range map[string]string{
+		"a marker on a new line":        "x\n* 'sk_live_" + parseSecret + "' expected type 'int'",
+		"a marker in the middle":        "abc * '" + parseSecret + "' def",
+		"several markers":               "* 'a" + parseSecret + "'\n* 'b" + parseSecret + "'",
+		"a marker that looks like a ok": "value: '* '" + parseSecret + "' expected type 'int''",
+	} {
+		t.Run(name, func(t *testing.T) {
+			var out parseTarget
+			err := mapstructure.Decode(map[string]any{"usesBulker": value}, &out)
+			if err == nil {
+				t.Fatalf("the input should fail to decode")
+			}
+			got := DescribeConfigError(err)
+			if strings.Contains(got, parseSecret) || strings.Contains(got, "sk_live") {
+				t.Errorf("the description copies the rejected value: %q", got)
+			}
+			if !strings.Contains(got, "unexpected type") {
+				t.Errorf("the description should still say what is wrong: %q", got)
+			}
+		})
+	}
+	// a text that merely contains the phrase, not at its start, gets no count either
+	if got := DescribeConfigError(errors.New("wrapped: 99 error(s) decoding: * 'x'")); strings.Contains(got, "99") || strings.Contains(got, "'x'") {
+		t.Errorf("only the opening phrase of the text is read: %q", got)
+	}
+}
+
+// The jsoniter byte number is relative to the quoted snippet, so it would point to the wrong place and is not reported.
+func TestDescribeConfigErrorDoesNotReportASnippetOffsetAsDocumentOffset(t *testing.T) {
+	var out parseTarget
+	late := []byte(`{"credentials": {"password": "` + parseSecret + `", "other": "` + strings.Repeat("a", 400) + `" oops }}`)
+	got := DescribeConfigError(jsoniter.Unmarshal(late, &out))
+	if strings.Contains(got, "byte") || strings.ContainsAny(got, "0123456789") {
+		t.Errorf("no number should be reported for a snippet-relative offset: %q", got)
 	}
 }
