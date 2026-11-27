@@ -22,11 +22,14 @@ import { getWildcardDomains } from "../../pages/api/[workspaceId]/domain-check";
 import { isSlackWebhookUrl } from "../shared/slack-webhook";
 import {
   assertSecretsStayWithTarget,
+  containsMaskedSecrets,
   getDestinationSecretPaths,
   getServiceSecretPaths,
   maskSecrets,
+  removeMaskedCredentials,
   removeMaskedValues,
 } from "./secrets";
+import { withServiceSpecDefaults } from "./service-defaults";
 import { db } from "../server/db";
 import { ConfigApiDeleteOptions } from "../useApi";
 import pick from "lodash/pick";
@@ -367,22 +370,24 @@ const configObjectTypes: Record<string, ConfigObjectType> = {
     schema: ServiceConfig,
     outputFilter: async (obj: ServiceConfig) => {
       // Mask secrets for services
-      const secretPaths = await getServiceSecretPaths(obj.package, obj.version);
+      const secretPaths = await getServiceSecretPaths(obj.package, obj.version, obj);
       return maskSecrets(obj, secretPaths);
     },
     merge: async (original: ServiceConfig, patch: Partial<ServiceConfig>): Promise<any> => {
       // Remove masked values before merge
-      const secretPaths = await getServiceSecretPaths(original.package, original.version);
-      const cleanedPatch = removeMaskedValues(patch, secretPaths);
-      const before = deepCopy(original);
+      const secretPaths = await getServiceSecretPaths(original.package, original.version, original);
+      const cleanedPatch = removeMaskedCredentials(patch, original);
+      // a JSON copy: `deepCopy` drops an own key named `__proto__`, and a credential under it would not be seen
+      const before = JSON.parse(JSON.stringify(original));
       const merged = deepMerge(original, cleanedPatch);
       assertSecretsStayWithTarget(withSchemaDefaults("service", before), patch, merged, secretPaths);
-      return merged;
+      // The editor checks credentials that hold a mask as a copy, so the spec's defaults are added here, once the
+      // stored values are back (a conditional schema then takes the branch of the real value)
+      return containsMaskedSecrets(patch) ? withServiceSpecDefaults(merged) : merged;
     },
     inputFilter: async (obj: ServiceConfig) => {
       // Remove masked values
-      const secretPaths = await getServiceSecretPaths(obj.package, obj.version);
-      return removeMaskedValues(obj, secretPaths);
+      return removeMaskedCredentials(obj);
     },
     onDelete: async (original: ServiceConfig, options) => {
       await handleLinkedConnections(original.workspaceId, original.id, "service", options);

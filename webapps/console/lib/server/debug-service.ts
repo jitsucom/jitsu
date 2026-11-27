@@ -7,6 +7,7 @@ import { verifyAccessWithRole } from "../api";
 import { ApiError } from "../shared/errors";
 import { getConfigObjectType, parseObject, withSchemaDefaults } from "../schema/config-objects";
 import { containsMaskedSecrets, unmaskSecretsFromOriginal } from "../schema/secrets";
+import { applyServiceSpecDefaults, serviceUnmaskOptions } from "../schema/service-defaults";
 import { httpAgent, httpsAgent } from "./http-agent";
 import { getServerEnv } from "./serverEnv";
 import { getServerLog } from "./log";
@@ -105,11 +106,14 @@ export class DebugService {
         : testedExisting;
       if (existingEntity?.config) {
         log.atInfo().log(`Unmasking secrets for ${type} test: ${body.id}`);
+        const comparedWith = withSchemaDefaults(type, existingEntity.config);
         object = unmaskSecretsFromOriginal(
           object,
           existingEntity.config as any,
-          withSchemaDefaults(type, existingEntity.config)
+          comparedWith,
+          await serviceUnmaskOptions(type, existingEntity.config)
         );
+        object = await applyServiceSpecDefaults(type, object, comparedWith);
       }
     }
     // Must run before inputFilter: a stream filter provisions submitted

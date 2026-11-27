@@ -8,9 +8,10 @@ import { hash as juavaHash, requireDefined, rpc } from "juava";
 import stableHash from "stable-hash";
 import { SessionUser } from "../schema";
 import { source_taskDbModel } from "../../prisma/schema";
-import { verifyAccess } from "../api";
+import { verifyAccess, verifyAccessWithRole } from "../api";
 import { ApiError } from "../shared/errors";
 import { containsMaskedSecrets, unmaskSecretsFromOriginal } from "../schema/secrets";
+import { applyServiceSpecDefaults, serviceUnmaskOptions } from "../schema/service-defaults";
 import { withSchemaDefaults } from "../schema/config-objects";
 import { scheduleSync, ScheduleSyncResult, syncError } from "./sync";
 import { getServerEnv } from "./serverEnv";
@@ -29,6 +30,24 @@ export interface SyncServiceDeps {
 const TASKS_LIMIT = 50;
 const LOGS_DEFAULT_LIMIT = 200;
 const LOGS_MAX_LIMIT = 5000;
+
+/**
+ * A refresh empties the spec row, which is shared by every workspace using that package and version, until the
+ * controller fills it again. Only a member who can edit may start one. The service editor asks for a refresh by itself
+ * whenever a connector tag is newer, whatever the viewer's role, so a member who cannot edit gets a normal read
+ * instead of an error. Any other failure of the role check is not hidden.
+ */
+async function canForceSpecRefresh(user: SessionUser, workspaceId: string): Promise<boolean> {
+  try {
+    await verifyAccessWithRole(user, workspaceId, "editEntities");
+    return true;
+  } catch (e) {
+    if (e instanceof ApiError && e.status === 403) {
+      return false;
+    }
+    throw e;
+  }
+}
 
 export type SyncOpResult = { ok: boolean; error?: string; pending?: boolean; [key: string]: any };
 
@@ -280,6 +299,7 @@ export class SyncService {
     opts: { package: string; version: string; force?: boolean }
   ): Promise<SyncOpResult> {
     await verifyAccess(user, workspaceId);
+    const force = opts.force && (await canForceSpecRefresh(user, workspaceId));
     const { url, authHeaders } = this.syncctl();
     try {
       const res = await this.pgPool.query(
@@ -289,7 +309,7 @@ export class SyncService {
       let error;
       // force=true must re-fetch from the controller even when a cached spec
       // row exists — otherwise a tag rebuilt in place keeps serving stale specs.
-      if (res.rowCount === 1 && !opts.force) {
+      if (res.rowCount === 1 && !force) {
         const specs = res.rows[0].specs;
         if (specs) {
           return { ok: true, specs };
@@ -299,7 +319,7 @@ export class SyncService {
           return { ok: false, pending: true };
         }
       }
-      if (!res.rowCount || opts.force) {
+      if (!res.rowCount || force) {
         const checkRes = await rpc(url + "/spec", {
           method: "GET",
           headers: { "Content-Type": "application/json", ...authHeaders },
@@ -417,11 +437,14 @@ export class SyncService {
       }
       if (existing && containsMaskedSecrets(source)) {
         log.atInfo().log(`Unmasking secrets for service check: ${source.id}`);
+        const comparedWith = withSchemaDefaults("service", existing.config);
         source = unmaskSecretsFromOriginal(
           source,
           existing.config as any,
-          withSchemaDefaults("service", existing.config)
+          comparedWith,
+          await serviceUnmaskOptions("service", existing.config)
         );
+        source = await applyServiceSpecDefaults("service", source, comparedWith);
       }
     } else {
       const serviceId = requireDefined(opts.serviceId, "either `config` or `serviceId` must be provided");
