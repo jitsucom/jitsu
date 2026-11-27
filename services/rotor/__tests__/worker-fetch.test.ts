@@ -1,0 +1,877 @@
+import { RetryError } from "@jitsu/functions-lib";
+import { describe, expect, it } from "vitest";
+import {
+  deserializeResponse,
+  hideSensitiveHeaders,
+  isFetchCallLogged,
+  isFetchLogEnabled,
+  parseLoggedResponse,
+  proxiedFetchTimeoutMs,
+  shouldLogFetchCall,
+  boundedFetchTimeoutMs,
+  errorCodesOf,
+  rebuildProxyError,
+  transferableFetchInit,
+  fetchUrlString,
+  responseBodyText,
+  serializeResponse,
+  trimLoggedResponse,
+} from "../src/lib/worker-fetch";
+
+describe("proxied fetch response", () => {
+  const original = () =>
+    new Response(new Uint8Array([0, 1, 2, 255]), {
+      status: 201,
+      statusText: "Created",
+      headers: { "Content-Type": "application/octet-stream", "X-One": "1" },
+    });
+
+  it("keeps the Response API: headers.get, arrayBuffer, text, json, clone", async () => {
+    const res = deserializeResponse(await serializeResponse(original()));
+    expect(res.headers.get("content-type")).toBe("application/octet-stream");
+    expect(res.status).toBe(201);
+    expect(res.ok).toBe(true);
+    expect(Array.from(new Uint8Array(await res.clone().arrayBuffer()))).toEqual([0, 1, 2, 255]);
+    // as in the previous worker response and the in-process buffered response; the body is still readable
+    expect(res.bodyUsed).toBe(true);
+  });
+
+  it("reads text and json", async () => {
+    const json = deserializeResponse(await serializeResponse(Response.json({ a: 1 })));
+    expect(await json.json()).toEqual({ a: 1 });
+    const text = deserializeResponse(await serializeResponse(new Response("héllo")));
+    expect(await text.text()).toBe("héllo");
+  });
+
+  it("can be read more than once, in any combination, like the in-process fetch", async () => {
+    const res = deserializeResponse(await serializeResponse(Response.json({ a: 1 })));
+    expect(await res.text()).toBe('{"a":1}');
+    expect(await res.json()).toEqual({ a: 1 });
+    expect(await res.text()).toBe('{"a":1}');
+    expect(new Uint8Array(await res.arrayBuffer())).toEqual(new Uint8Array(await res.arrayBuffer()));
+    expect(await (await res.blob()).text()).toBe('{"a":1}');
+    expect(await res.clone().json()).toEqual({ a: 1 });
+    expect(res).toBeInstanceOf(Response);
+    expect(res.headers.get("content-type")).toContain("application/json");
+  });
+
+  it("hands out a fresh buffer each time, so one caller cannot change what the next reads", async () => {
+    const res = deserializeResponse(await serializeResponse(new Response(new Uint8Array([1, 2, 3]))));
+    new Uint8Array(await res.arrayBuffer()).fill(9);
+    expect(Array.from(new Uint8Array(await res.arrayBuffer()))).toEqual([1, 2, 3]);
+  });
+
+  it("accepts the shape the Functions Debugger used to send: a decoded text body and a plain headers object", async () => {
+    const res = deserializeResponse({
+      status: 200,
+      statusText: "OK",
+      ok: true,
+      url: "https://example.com/",
+      type: "basic",
+      redirected: false,
+      headers: { "content-type": "application/json" } as any,
+      body: '{"a":1}',
+    });
+    expect(res.headers.get("content-type")).toBe("application/json");
+    expect(await res.text()).toBe('{"a":1}');
+    expect(await res.json()).toEqual({ a: 1 });
+  });
+
+  it("carries url, type and redirected, which the constructor cannot set", async () => {
+    const s = await serializeResponse(original());
+    const res = deserializeResponse({ ...s, url: "https://example.com/x", type: "basic", redirected: true });
+    expect([res.url, res.type, res.redirected]).toEqual(["https://example.com/x", "basic", true]);
+  });
+
+  it("builds responses with a null-body status", async () => {
+    const s = await serializeResponse(new Response(null, { status: 204 }));
+    expect(deserializeResponse(s).status).toBe(204);
+    expect(deserializeResponse({ ...s, status: 304 }).status).toBe(304);
+  });
+
+  // A server can answer with a status the Response constructor rejects (999 is a known anti-bot status, some APIs use
+  // 6xx); the previous plain-object response carried it, so the UDF must still get it instead of an exception
+  it.each([100, 199, 600, 999])("keeps a status the Response constructor rejects: %i", async status => {
+    const s = await serializeResponse(original());
+    const res = deserializeResponse({
+      ...s,
+      status,
+      statusText: "Odd",
+      ok: false,
+      body: new TextEncoder().encode("hi"),
+    });
+    expect(res.status).toBe(status);
+    expect(res.ok).toBe(false);
+    expect(res.statusText).toBe("Odd");
+    expect(await res.text()).toBe("hi");
+    expect(res.headers.get("x-one")).toBe("1");
+    expect(JSON.parse(JSON.stringify(res)).status).toBe(status);
+  });
+
+  it.each([200, 299, 599])("still builds the edges of the accepted range: %i", async status => {
+    const res = deserializeResponse({ ...(await serializeResponse(original())), status });
+    expect(res.status).toBe(status);
+  });
+});
+
+describe("isFetchLogEnabled", () => {
+  const now = Date.UTC(2026, 9, 27);
+  it.each([undefined, "info", "error"])("logs when the level is %s", level => {
+    expect(isFetchLogEnabled(level, undefined, now)).toBe(true);
+  });
+  it("with level debug (nofetchlogs) logs only while debugging is active", () => {
+    expect(isFetchLogEnabled("debug", undefined, now)).toBe(false);
+    expect(isFetchLogEnabled("debug", new Date(now - 1), now)).toBe(false);
+    expect(isFetchLogEnabled("debug", new Date(now + 1000), now)).toBe(true);
+  });
+});
+
+describe("proxiedFetchTimeoutMs", () => {
+  it("uses the requested timeout over the default", () => {
+    expect(proxiedFetchTimeoutMs(20000, 2000)).toBe(20000);
+  });
+  it.each([undefined, null, "5000", 0, -1, NaN, Infinity])("falls back to the default for %s", v => {
+    expect(proxiedFetchTimeoutMs(v, 2000)).toBe(2000);
+  });
+});
+
+describe("isFetchCallLogged", () => {
+  it("follows the connection rule when the call says nothing", () => {
+    expect(isFetchCallLogged(true)).toBe(true);
+    expect(isFetchCallLogged(true, {})).toBe(true);
+    expect(isFetchCallLogged(false)).toBe(false);
+  });
+
+  it("a call with log:false is not logged, and log:true cannot override a disabled connection", () => {
+    expect(isFetchCallLogged(true, { log: false })).toBe(false);
+    expect(isFetchCallLogged(true, { log: true })).toBe(true);
+    expect(isFetchCallLogged(false, { log: true })).toBe(false);
+  });
+});
+
+// The http-request log entry of a paid function's fetch carries the same details as the in-process fetch's.
+describe("fetch log details", () => {
+  it("hides the sensitive request headers and keeps the rest", () => {
+    expect(
+      hideSensitiveHeaders({
+        Authorization: "Bearer a",
+        "Proxy-Authorization": "Basic b",
+        "X-Auth-Token": "c",
+        "X-Trace": "t1",
+        "Content-Type": "application/json",
+      })
+    ).toEqual({
+      Authorization: "*****",
+      "Proxy-Authorization": "*****",
+      "X-Auth-Token": "*****",
+      "X-Trace": "t1",
+      "Content-Type": "application/json",
+    });
+  });
+
+  // fetch accepts the headers as an object, a Headers or Map, or an array of [name, value] pairs. Object.entries of an array
+  // gives the keys "0", "1" and misses the name, so the bearer token was logged as it was.
+  it("hides the sensitive headers whatever form the UDF passed them in", () => {
+    const expected = { Authorization: "*****", "X-Api-Token": "*****", "X-Trace": "t1" };
+    const pairs = [
+      ["Authorization", "Bearer secret"],
+      ["X-Api-Token", "secret-2"],
+      ["X-Trace", "t1"],
+    ];
+    expect(hideSensitiveHeaders(pairs)).toEqual(expected);
+    expect(hideSensitiveHeaders(new Map(pairs as [string, string][]))).toEqual(expected);
+    // Headers lower-cases the names; the rule is case-insensitive.
+    expect(hideSensitiveHeaders(new Headers(pairs as [string, string][]))).toEqual({
+      authorization: "*****",
+      "x-api-token": "*****",
+      "x-trace": "t1",
+    });
+    expect(hideSensitiveHeaders(Object.fromEntries(pairs))).toEqual(expected);
+    expect(JSON.stringify(hideSensitiveHeaders(pairs))).not.toContain("secret");
+  });
+
+  // Set.prototype.forEach calls back with (value, value): a Set of pairs gave the whole pair as the name, so the logged key
+  // held the token.
+  // a generator of header pairs can be read once: the log entry must not use it up before the request is sent
+  it("hands the main process the header pairs of a one-shot iterable, so they can be logged and sent", () => {
+    const gen = (function* () {
+      yield ["Authorization", "Bearer secret"];
+      yield ["X-Trace", "t1"];
+    })();
+    const init = transferableFetchInit({ method: "POST", headers: gen });
+    expect(init.method).toBe("POST");
+    expect(init.headers).toEqual([
+      ["Authorization", "Bearer secret"],
+      ["X-Trace", "t1"],
+    ]);
+    // the pairs are an array: reading them for the log leaves them whole for the request
+    expect(hideSensitiveHeaders(init.headers)).toEqual({ Authorization: "*****", "X-Trace": "t1" });
+    expect(init.headers).toHaveLength(2);
+    // objects and arrays are left as they are
+    const plain = { headers: { a: "b" } };
+    expect(transferableFetchInit(plain)).toBe(plain);
+  });
+
+  it("hides API keys, secrets and passwords by name", () => {
+    expect(
+      hideSensitiveHeaders(
+        new Headers({
+          "X-API-Key": "k",
+          "X-Api_Key": "k2",
+          apikey: "k3",
+          "X-Client-Secret": "s",
+          Password: "p",
+          "X-Trace": "t1",
+        })
+      )
+    ).toEqual({
+      "x-api-key": "*****",
+      "x-api_key": "*****",
+      apikey: "*****",
+      "x-client-secret": "*****",
+      password: "*****",
+      "x-trace": "t1",
+    });
+  });
+
+  // an array of pairs that are generators: reading the pairs for the log used them up before the request was sent
+  it("sends on header pairs that are one-shot iterators, in an array, a Set or a Map entry list", () => {
+    const pair = () =>
+      (function* () {
+        yield "Authorization";
+        yield "Bearer secret";
+      })();
+    for (const headers of [[pair()], new Set([pair()])]) {
+      const init = transferableFetchInit({ headers });
+      expect(init.headers).toEqual([["Authorization", "Bearer secret"]]);
+      expect(hideSensitiveHeaders(init.headers)).toEqual({ Authorization: "*****" });
+    }
+    // arrays of arrays and Maps already clone and read again: left as they are
+    const plain = { headers: [["a", "b"]] };
+    expect(transferableFetchInit(plain)).toBe(plain);
+    const map = { headers: new Map([["a", "b"]]) };
+    expect(transferableFetchInit(map)).toBe(map);
+  });
+
+  it("hides a header that carries registry or other auth material, in every form", () => {
+    const pairs: [string, string][] = [
+      ["X-Registry-Auth", "eyJ1c2VyIjoic2VjcmV0In0="],
+      ["X-Auth", "secret"],
+      ["X-Amz-Credential", "secret/20260101"],
+      ["X-Trace", "t1"],
+    ];
+    const expected = { "X-Registry-Auth": "*****", "X-Auth": "*****", "X-Amz-Credential": "*****", "X-Trace": "t1" };
+    expect(hideSensitiveHeaders(Object.fromEntries(pairs))).toEqual(expected);
+    expect(hideSensitiveHeaders(pairs)).toEqual(expected);
+    expect(hideSensitiveHeaders(new Map(pairs))).toEqual(expected);
+    expect(JSON.stringify(hideSensitiveHeaders(new Headers(pairs)))).not.toContain("secret");
+    expect(JSON.stringify(hideSensitiveHeaders(new Headers(pairs)))).not.toContain("eyJ1c2Vy");
+  });
+
+  it("hides cookies, in a Headers as in an object", () => {
+    expect(hideSensitiveHeaders(new Headers({ Cookie: "sid=secret", "X-Trace": "t1" }))).toEqual({
+      cookie: "*****",
+      "x-trace": "t1",
+    });
+    expect(hideSensitiveHeaders({ Cookie: "sid=secret", "Set-Cookie": "a=b", "X-Trace": "t1" })).toEqual({
+      Cookie: "*****",
+      "Set-Cookie": "*****",
+      "X-Trace": "t1",
+    });
+  });
+
+  it("reads pairs that are not arrays, and sends them on as arrays", () => {
+    const pairs = [new Set(["Authorization", "Bearer secret"]), new Set(["X-Trace", "t1"])];
+    expect(hideSensitiveHeaders(pairs)).toEqual({ Authorization: "*****", "X-Trace": "t1" });
+    const gen = (function* () {
+      yield new Set(["Authorization", "Bearer secret"]);
+    })();
+    expect(transferableFetchInit({ headers: gen }).headers).toEqual([["Authorization", "Bearer secret"]]);
+  });
+
+  it("hides the sensitive headers of a Set of pairs, and any other iterable of pairs", () => {
+    const pairs = [
+      ["Authorization", "Bearer secret"],
+      ["X-Trace", "t1"],
+    ];
+    const expected = { Authorization: "*****", "X-Trace": "t1" };
+    expect(hideSensitiveHeaders(new Set(pairs))).toEqual(expected);
+    expect(hideSensitiveHeaders(pairs.values())).toEqual(expected);
+    expect(JSON.stringify(hideSensitiveHeaders(new Set(pairs)))).not.toContain("secret");
+  });
+
+  it("tolerates missing and malformed headers", () => {
+    expect(hideSensitiveHeaders(undefined)).toEqual({});
+    expect(hideSensitiveHeaders(null)).toEqual({});
+    expect(hideSensitiveHeaders([["only-a-name"], "junk", null])).toEqual({});
+  });
+
+  it("cuts a long response at 1000 characters and says how long it was", () => {
+    expect(trimLoggedResponse("short")).toBe("short");
+    expect(trimLoggedResponse("a".repeat(1000))).toBe("a".repeat(1000));
+    expect(trimLoggedResponse("a".repeat(1500))).toBe(`${"a".repeat(1000)} ... [truncated, length: 1500]`);
+  });
+
+  it("logs a JSON response as an object and anything else as text", () => {
+    expect(parseLoggedResponse('{"message":"ok"}')).toEqual({ message: "ok" });
+    expect(parseLoggedResponse("plain text")).toBe("plain text");
+    expect(parseLoggedResponse("")).toBe("");
+  });
+
+  it("reads the body text from the proxied bytes, or from a text body", () => {
+    const base = { status: 200, statusText: "OK", ok: true, url: "", type: "basic", redirected: false, headers: [] };
+    expect(responseBodyText({ ...base, body: new TextEncoder().encode('{"a":1}') })).toBe('{"a":1}');
+    expect(responseBodyText({ ...base, body: "text body" })).toBe("text body");
+  });
+});
+
+// The free class and the Functions Debugger used to get a plain headers object, so `res.headers["x-next-page"]`
+// returned the value. The rebuilt Response keeps `.get()` and that access, so existing UDFs keep working.
+describe("legacy header access on the rebuilt Response", () => {
+  const response = () =>
+    deserializeResponse({
+      status: 200,
+      statusText: "OK",
+      ok: true,
+      url: "https://example.com/",
+      type: "basic",
+      redirected: false,
+      headers: [
+        ["x-next-page", "3"],
+        ["content-type", "application/json"],
+      ],
+      body: new Uint8Array(0),
+    });
+
+  it("reads a header by name like a plain object, and with .get()", () => {
+    const { headers } = response();
+    expect(headers["x-next-page"]).toBe("3");
+    expect(headers["content-type"]).toBe("application/json");
+    expect(headers.get("x-next-page")).toBe("3");
+    expect(headers.get("X-Next-Page")).toBe("3");
+    expect(headers["x-missing"]).toBeUndefined();
+    expect(headers.get("x-missing")).toBeNull();
+  });
+
+  it("keeps the Headers methods: has, keys, forEach, iteration", () => {
+    const { headers } = response();
+    expect(headers.has("x-next-page")).toBe(true);
+    expect([...headers.keys()].sort()).toEqual(["content-type", "x-next-page"]);
+    const seen: string[] = [];
+    headers.forEach((v, k) => seen.push(`${k}=${v}`));
+    expect(seen.sort()).toEqual(["content-type=application/json", "x-next-page=3"]);
+    expect(Object.fromEntries(headers)).toEqual({ "content-type": "application/json", "x-next-page": "3" });
+  });
+
+  it("lists, spreads and serializes like the plain object did", () => {
+    const { headers } = response();
+    expect(Object.keys(headers).sort()).toEqual(["content-type", "x-next-page"]);
+    expect({ ...headers }).toEqual({ "content-type": "application/json", "x-next-page": "3" });
+    expect(JSON.parse(JSON.stringify(headers))).toEqual({ "content-type": "application/json", "x-next-page": "3" });
+    expect("x-next-page" in headers).toBe(true);
+    expect("x-missing" in headers).toBe(false);
+  });
+
+  it("keeps the same headers on a clone and for blob()", async () => {
+    const res = response();
+    expect(res.clone().headers["x-next-page"]).toBe("3");
+    expect((await res.blob()).type).toBe("application/json");
+  });
+});
+
+// Both the previous worker response and the in-process buffered response expose `.body` as the decoded text (and
+// bodyUsed as true), so a UDF can `JSON.parse(res.body)`. A native Response has a stream there, which that UDF cannot
+// parse, and which cannot be returned inside an event either.
+describe("plain body access on the rebuilt Response", () => {
+  const response = (body: Uint8Array | string, status = 200) =>
+    deserializeResponse({
+      status,
+      statusText: "OK",
+      ok: status >= 200 && status < 300,
+      url: "https://example.com/",
+      type: "basic",
+      redirected: false,
+      headers: [["content-type", "application/json"]],
+      body,
+    });
+
+  it("exposes the decoded text as .body, so JSON.parse(res.body) works", () => {
+    const res = response(new TextEncoder().encode('{"message":"ok","n":"é"}'));
+    expect(typeof res.body).toBe("string");
+    expect(res.body).toBe('{"message":"ok","n":"é"}');
+    expect(JSON.parse(res.body as any)).toEqual({ message: "ok", n: "é" });
+  });
+
+  it("is the same text before and after text(), json() and arrayBuffer()", async () => {
+    const res = response(new TextEncoder().encode('{"a":1}'));
+    expect(await res.text()).toBe('{"a":1}');
+    expect(res.body).toBe('{"a":1}');
+    expect(await res.json()).toEqual({ a: 1 });
+    expect(res.body).toBe('{"a":1}');
+    expect((await res.arrayBuffer()).byteLength).toBe(7);
+  });
+
+  it("can be returned inside an event: it clones, as a stream would not", () => {
+    const res = response(new TextEncoder().encode('{"a":1}'));
+    expect(() => structuredClone({ response: res.body })).not.toThrow();
+    expect(structuredClone({ response: res.body })).toEqual({ response: '{"a":1}' });
+  });
+
+  it("reports bodyUsed as true, as both previous responses did, and reads a text body and an empty one", () => {
+    expect(response(new TextEncoder().encode("x")).bodyUsed).toBe(true);
+    expect(response("text body").body).toBe("text body");
+    expect(response(new Uint8Array(0), 204).body).toBe("");
+  });
+
+  it("keeps the body on a clone", () => {
+    expect(response(new TextEncoder().encode('{"a":1}')).clone().body).toBe('{"a":1}');
+  });
+});
+
+// A worker answers its caller with postMessage, which structured-clones the result: whatever a UDF puts in an event or
+// logs has to be plain data. The previous worker response had a plain headers object, so `event.h = res.headers` and
+// `log.info("h", res.headers)` worked; a function or a Proxy in there makes postMessage throw, and the worker then
+// replaces the whole result with no events and no logs.
+describe("response headers cross a worker message", () => {
+  const response = () =>
+    deserializeResponse({
+      status: 200,
+      statusText: "OK",
+      ok: true,
+      url: "https://example.com/",
+      type: "basic",
+      redirected: false,
+      headers: [
+        ["x-next-page", "3"],
+        ["content-type", "application/json"],
+      ],
+      body: new Uint8Array(0),
+    });
+
+  it("can be structured-cloned, alone and inside an event or a log", () => {
+    const { headers } = response();
+    expect(() => structuredClone(headers)).not.toThrow();
+    expect(structuredClone(headers)).toEqual({ "x-next-page": "3", "content-type": "application/json" });
+    const message = {
+      events: [{ type: "track", properties: { upstream: headers } }],
+      logs: [{ args: ["h", headers] }],
+    };
+    expect(() => structuredClone(message)).not.toThrow();
+    expect(structuredClone(message).events[0].properties.upstream["x-next-page"]).toBe("3");
+  });
+
+  it("is plain enough for JSON and for new Headers(...)", () => {
+    const { headers } = response();
+    expect(JSON.parse(JSON.stringify(headers))).toEqual({ "x-next-page": "3", "content-type": "application/json" });
+    const copy = new Headers(headers as any);
+    expect(copy.get("x-next-page")).toBe("3");
+    expect(copy.get("Content-Type")).toBe("application/json");
+  });
+});
+
+// The previous worker response was a plain object: its data fields were own enumerable properties, so a UDF could
+// JSON.stringify(res), spread it or list its keys. The rebuilt Response lists the same data (its methods stay hidden).
+describe("the rebuilt Response lists its data like the previous worker response", () => {
+  const response = () =>
+    deserializeResponse({
+      status: 404,
+      statusText: "Not Found",
+      ok: false,
+      url: "https://example.com/missing",
+      type: "basic",
+      redirected: true,
+      headers: [["content-type", "application/json"]],
+      body: new TextEncoder().encode('{"a":1}'),
+    });
+  const previousShape = {
+    status: 404,
+    statusText: "Not Found",
+    ok: false,
+    url: "https://example.com/missing",
+    type: "basic",
+    redirected: true,
+    headers: { "content-type": "application/json" },
+    bodyUsed: true,
+    body: '{"a":1}',
+  };
+
+  it("serializes to the fields of the previous response", () => {
+    expect(JSON.parse(JSON.stringify(response()))).toEqual(previousShape);
+  });
+
+  it("lists, spreads and destructures them", () => {
+    const res = response();
+    expect(Object.keys(res).sort()).toEqual(Object.keys(previousShape).sort());
+    expect(JSON.parse(JSON.stringify({ ...res }))).toEqual(previousShape);
+    const { status, ok, redirected, url } = res;
+    expect([status, ok, redirected, url]).toEqual([404, false, true, "https://example.com/missing"]);
+  });
+
+  it("still reads the body and clones with its fields", async () => {
+    const res = response();
+    expect(await res.json()).toEqual({ a: 1 });
+    expect(JSON.parse(JSON.stringify(res.clone()))).toEqual(previousShape);
+  });
+});
+
+describe("the init of a proxied fetch crosses the worker boundary", () => {
+  // A worker hands the call to the main process with postMessage, which structured-clones its arguments. A Headers
+  // in `init.headers` is not plain data: Node refuses to clone it, and Deno clones it to an empty object, so the
+  // request leaves without its Authorization header.
+  it("sends a Headers instance as name/value pairs that survive a structured clone", () => {
+    const init = {
+      method: "POST",
+      headers: new Headers({ Authorization: "Bearer secret", "X-Trace": "t1" }),
+      body: "{}",
+    };
+    const sent = structuredClone(transferableFetchInit(init));
+    expect(sent).toEqual({
+      method: "POST",
+      headers: [
+        ["authorization", "Bearer secret"],
+        ["x-trace", "t1"],
+      ],
+      body: "{}",
+    });
+    // and the pairs are what fetch understands
+    expect([...new Headers(sent.headers).entries()]).toEqual([...init.headers.entries()]);
+  });
+
+  it("leaves a Map as it is: it clones, and fetch reads it", () => {
+    const map = new Map([["Authorization", "Bearer m"]]);
+    const sent = structuredClone(transferableFetchInit({ headers: map }));
+    expect(sent.headers).toEqual(map);
+  });
+
+  it("leaves object and tuple headers, and calls without headers, as they are", () => {
+    const object = { headers: { Authorization: "Bearer o" } };
+    const tuples = { headers: [["Authorization", "Bearer t"]] };
+    expect(transferableFetchInit(object)).toBe(object);
+    expect(transferableFetchInit(tuples)).toBe(tuples);
+    expect(transferableFetchInit({ method: "GET" })).toEqual({ method: "GET" });
+    expect(transferableFetchInit(undefined)).toBeUndefined();
+    expect(transferableFetchInit(null)).toBeNull();
+  });
+
+  // fetch follows the iterator of an object that has one, as it does for an array of pairs; structured clone drops a symbol
+  // property, so such an object has to become pairs before it is sent
+  it("turns an object with its own iterator of [name, value] pairs into pairs", () => {
+    const headers = {
+      *[Symbol.iterator]() {
+        yield ["Authorization", "Bearer secret"];
+        yield ["X-Trace", "t1"];
+      },
+    };
+    const sent = transferableFetchInit({ headers });
+    expect(sent.headers).toEqual([
+      ["Authorization", "Bearer secret"],
+      ["X-Trace", "t1"],
+    ]);
+    expect(hideSensitiveHeaders(sent.headers)).toEqual({ Authorization: "*****", "X-Trace": "t1" });
+    // and it survives the clone a worker message makes
+    expect(structuredClone(sent).headers).toEqual(sent.headers);
+  });
+
+  it("keeps reading the headers of a rebuilt response by their own entries, edits included", () => {
+    const res = deserializeResponse({
+      status: 200,
+      statusText: "OK",
+      headers: [["x-one", "1"]],
+      body: "",
+    } as any);
+    const headers: any = res.headers;
+    headers["x-one"] = "edited";
+    headers["x-added"] = "2";
+    const init = { headers };
+    expect(transferableFetchInit(init)).toBe(init);
+    expect(hideSensitiveHeaders(headers)).toEqual({ "x-one": "edited", "x-added": "2" });
+  });
+
+  it("does not change the init the UDF passed", () => {
+    const headers = new Headers({ Authorization: "Bearer secret" });
+    const init = { headers };
+    transferableFetchInit(init);
+    expect(init.headers).toBe(headers);
+  });
+
+  it("is what the request log shows too: the sensitive header is hidden in the pair form", () => {
+    const sent = transferableFetchInit({ headers: new Headers({ Authorization: "Bearer secret", "X-Trace": "t1" }) });
+    expect(hideSensitiveHeaders(sent.headers)).toEqual({ authorization: "*****", "x-trace": "t1" });
+  });
+});
+
+describe("the timeout a worker may ask for", () => {
+  // The worker is sandboxed tenant code and can post any message, so the number in its fetch request is a request only:
+  // it cannot raise the timeout above what the main process gave the executions that are running in that worker.
+  it("uses the granted timeout of the running execution", () => {
+    expect(boundedFetchTimeoutMs(5000, [5000], 2000)).toBe(5000);
+  });
+
+  it("does not let the worker ask for more than any running execution was given", () => {
+    expect(boundedFetchTimeoutMs(600000, [5000], 2000)).toBe(5000);
+    expect(boundedFetchTimeoutMs(600000, [3000, 8000], 2000)).toBe(8000);
+  });
+
+  it("falls back to the server default when nothing runs, or the number is not usable", () => {
+    expect(boundedFetchTimeoutMs(600000, [], 2000)).toBe(2000);
+    expect(boundedFetchTimeoutMs(undefined, [], 2000)).toBe(2000);
+    expect(boundedFetchTimeoutMs("x", [9000], 2000)).toBe(2000);
+    expect(boundedFetchTimeoutMs(-5, [9000], 2000)).toBe(2000);
+  });
+
+  it("never gives more than the default plus what was granted, for a request below the grant", () => {
+    expect(boundedFetchTimeoutMs(1000, [5000], 2000)).toBe(1000);
+  });
+});
+
+describe("a fetch error crossing the worker proxy", () => {
+  // In process a UDF sees `err.code` (EBLOCKED from the host check) or `err.cause.code` (the guarded agent's), as thrown
+  it("reads the code and the cause's code, when they are strings", () => {
+    expect(errorCodesOf(Object.assign(new Error("fetch failed"), { code: "EBLOCKED" }))).toEqual({ code: "EBLOCKED" });
+    expect(errorCodesOf(new Error("fetch failed", { cause: { code: "EBLOCKED" } }))).toEqual({ causeCode: "EBLOCKED" });
+    expect(errorCodesOf(Object.assign(new Error("x", { cause: { code: "ECONNRESET" } }), { code: "E1" }))).toEqual({
+      code: "E1",
+      causeCode: "ECONNRESET",
+    });
+    expect(errorCodesOf(new Error("plain"))).toEqual({});
+  });
+
+  // A body that stalls after the headers rejects with a DOMException (TimeoutError, legacy code 23); an abort is code 20. A
+  // UDF that picks its fallback by `err.code === 23` or `instanceof DOMException` has to see the same in a worker.
+  it("rebuilds a timeout or an abort as the DOMException it was, with its numeric code", () => {
+    const timeout: any = rebuildProxyError("The operation was aborted due to timeout", { name: "TimeoutError" });
+    expect(timeout).toBeInstanceOf(DOMException);
+    expect(timeout).toBeInstanceOf(Error);
+    expect(timeout.name).toBe("TimeoutError");
+    expect(timeout.code).toBe(23);
+    expect(timeout.message).toBe("The operation was aborted due to timeout");
+    const aborted: any = rebuildProxyError("aborted", { name: "AbortError" });
+    expect(aborted).toBeInstanceOf(DOMException);
+    expect(aborted.code).toBe(20);
+    // a TypeError stays a TypeError
+    expect(rebuildProxyError("fetch failed", { name: "TypeError" })).not.toBeInstanceOf(DOMException);
+    expect(errorCodesOf(Object.assign(new Error("x"), { code: 42 }))).toEqual({});
+    expect(errorCodesOf(undefined)).toEqual({});
+  });
+
+  it("is rebuilt with the same fields, so a UDF checks the code the way it does in process", () => {
+    const own: any = rebuildProxyError("fetch failed", { code: "EBLOCKED" });
+    expect(own).toBeInstanceOf(Error);
+    expect(own.message).toBe("fetch failed");
+    expect(own.code).toBe("EBLOCKED");
+    expect(own.cause).toBeUndefined();
+    const wrapped: any = rebuildProxyError("fetch failed", { causeCode: "EBLOCKED" });
+    expect(wrapped.code).toBeUndefined();
+    expect(wrapped.cause?.code).toBe("EBLOCKED");
+    const plain: any = rebuildProxyError("plain");
+    expect(plain.code).toBeUndefined();
+    expect(plain.cause).toBeUndefined();
+  });
+
+  // The MongoDB store wraps its transient failures in a RetryError (storeErr); the proxy carries them back, so the event is
+  // retried as it is in process, and not delivered without the enrichment that failed.
+  it("rebuilds a RetryError of a store call as a real RetryError, dropping or not", () => {
+    const retry: any = rebuildProxyError("Error getting key k from mongo store ns: Timed out.", { name: "RetryError" });
+    expect(retry).toBeInstanceOf(RetryError);
+    expect(retry.name).toBe("RetryError");
+    expect(retry.message).toBe("Error getting key k from mongo store ns: Timed out.");
+    const drop: any = rebuildProxyError("x", { name: "Drop & RetryError" });
+    expect(drop).toBeInstanceOf(RetryError);
+    expect(drop.name).toBe("Drop & RetryError");
+    expect(errorCodesOf(new RetryError("store down"))).toEqual({ name: "RetryError" });
+    expect(errorCodesOf(new RetryError("store down", { drop: true }))).toEqual({ name: "Drop & RetryError" });
+  });
+
+  // undici rejects a failed fetch with a TypeError; a UDF that checks `err instanceof TypeError` or `err.name` must see the
+  // same in a worker.
+  it("keeps the standard error type, so instanceof and name checks give the same answer as in process", () => {
+    const typeError: any = rebuildProxyError("fetch failed", { name: "TypeError", causeCode: "ECONNREFUSED" });
+    expect(typeError).toBeInstanceOf(TypeError);
+    expect(typeError.name).toBe("TypeError");
+    expect(typeError.cause?.code).toBe("ECONNREFUSED");
+    const aborted: any = rebuildProxyError("The operation was aborted", { name: "AbortError" });
+    expect(aborted).toBeInstanceOf(Error);
+    expect(aborted.name).toBe("AbortError");
+    // a name the worker was not meant to take (the message is tenant-visible, the name must be one of the known ones)
+    expect(rebuildProxyError("x", { name: "SomethingElseError" }).name).toBe("Error");
+    expect(errorCodesOf(Object.assign(new TypeError("fetch failed"), { cause: { code: "ECONNREFUSED" } }))).toEqual({
+      name: "TypeError",
+      causeCode: "ECONNREFUSED",
+    });
+    expect(errorCodesOf(new Error("plain"))).toEqual({});
+  });
+});
+
+describe("whether a fetch call is logged is decided when the call starts", () => {
+  // connection with fetchLogLevel "debug" (nofetchlogs): logged only while the debug window is open
+  const debugTill = new Date(10_000);
+
+  it("logs a call that starts inside the debug window, and not one that starts after it", () => {
+    expect(shouldLogFetchCall("debug", debugTill, undefined, 9_000)).toBe(true);
+    expect(shouldLogFetchCall("debug", debugTill, undefined, 11_000)).toBe(false);
+  });
+
+  it("does not log without a debug window, and always logs at the info level", () => {
+    expect(shouldLogFetchCall("debug", undefined, undefined, 1)).toBe(false);
+    expect(shouldLogFetchCall("info", undefined, undefined, 1)).toBe(true);
+    expect(shouldLogFetchCall(undefined, undefined, undefined, 1)).toBe(true);
+  });
+
+  it("still lets a call opt out, and cannot override the connection rule", () => {
+    expect(shouldLogFetchCall("info", undefined, { log: false })).toBe(false);
+    expect(shouldLogFetchCall("debug", debugTill, { log: true }, 11_000)).toBe(false);
+  });
+});
+
+// A body goes to the main process with postMessage. In Deno a URLSearchParams arrives as a plain object, and fetch sends
+// "[object Object]" as text/plain (an OAuth token request is the usual case). It is encoded in the worker, with the content
+// type it would have sent. (A FormData is not handled: in the functions server it is not sent as a form in process either.)
+describe("a URLSearchParams body", () => {
+  const typeOf = (init: any) =>
+    Object.fromEntries((init.headers as [string, string][]).map(([k, v]) => [k.toLowerCase(), v]))["content-type"];
+
+  it("is encoded as the form text, with the form content type", () => {
+    const original = { method: "POST", body: new URLSearchParams({ a: "1 2", b: "x" }) };
+    const init = transferableFetchInit(original);
+    expect(init.method).toBe("POST");
+    expect(init.body).toBe("a=1+2&b=x");
+    expect(typeOf(init)).toBe("application/x-www-form-urlencoded;charset=UTF-8");
+    // the init the UDF passed is not changed
+    expect(original.body).toBeInstanceOf(URLSearchParams);
+  });
+
+  it("keeps the content type the caller set, and the other headers", () => {
+    const init = transferableFetchInit({
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded; charset=utf-8", "X-Trace": "t1" },
+      body: new URLSearchParams({ a: "1" }),
+    });
+    expect(init.headers).toEqual([
+      ["Content-Type", "application/x-www-form-urlencoded; charset=utf-8"],
+      ["X-Trace", "t1"],
+    ]);
+    expect(init.body).toBe("a=1");
+  });
+
+  it("leaves every other init alone", () => {
+    for (const init of [undefined, {}, { method: "POST", body: "text" }, { body: new Uint8Array([1, 2]) }]) {
+      expect(transferableFetchInit(init)).toBe(init);
+    }
+  });
+});
+
+// fetch rejects a header pair whose length is not two. The tolerant formatter of the log (it skips short pairs and cuts long
+// ones) must not decide what goes on the wire: a header must not vanish, the call has to fail as it does in process.
+describe("header pairs on the wire", () => {
+  it("rejects a pair that does not have exactly two items, as fetch does", () => {
+    const one = (function* () {
+      yield ["Authorization"];
+    })();
+    expect(() => transferableFetchInit({ headers: one })).toThrow(TypeError);
+    expect(() => transferableFetchInit({ headers: [new Set(["a"])] })).toThrow(TypeError);
+    expect(() => transferableFetchInit({ headers: [new Set(["a", "b", "c"])] })).toThrow(TypeError);
+    // a URLSearchParams body rewrites the headers too
+    expect(() => transferableFetchInit({ body: new URLSearchParams({ a: "1" }), headers: [["only-a-name"]] })).toThrow(
+      TypeError
+    );
+    expect(() => transferableFetchInit({ body: new URLSearchParams({ a: "1" }), headers: [["a", "b", "c"]] })).toThrow(
+      TypeError
+    );
+  });
+
+  it("still accepts the valid forms", () => {
+    expect(transferableFetchInit({ headers: new Set([new Set(["a", "b"])]) }).headers).toEqual([["a", "b"]]);
+    expect(
+      transferableFetchInit({ body: new URLSearchParams({ a: "1" }), headers: { "X-Trace": "t1" } }).headers
+    ).toEqual([
+      ["X-Trace", "t1"],
+      ["content-type", "application/x-www-form-urlencoded;charset=UTF-8"],
+    ]);
+    expect(
+      transferableFetchInit({ body: new URLSearchParams({ a: "1" }), headers: new Map([["a", "b"]]) }).headers
+    ).toEqual([
+      ["a", "b"],
+      ["content-type", "application/x-www-form-urlencoded;charset=UTF-8"],
+    ]);
+  });
+});
+
+// Azure API Management and Azure Functions name their credentials Ocp-Apim-Subscription-Key and X-Functions-Key. Names
+// listed one by one are never complete: every header name that has "key" as a word is hidden.
+describe("headers that hold a key", () => {
+  it("hides any header name with key as a word, and leaves the others", () => {
+    const logged = hideSensitiveHeaders(
+      new Headers({
+        "Ocp-Apim-Subscription-Key": "k1",
+        "X-Functions-Key": "k2",
+        "X-API-Key": "k3",
+        apikey: "k4",
+        "Idempotency-Key": "k5",
+        "X-Trace": "t1",
+        "Content-Type": "application/json",
+        "Keep-Alive": "timeout=5",
+        Accept: "*/*",
+      })
+    );
+    expect(logged).toEqual({
+      "ocp-apim-subscription-key": "*****",
+      "x-functions-key": "*****",
+      "x-api-key": "*****",
+      apikey: "*****",
+      "idempotency-key": "*****",
+      "x-trace": "t1",
+      "content-type": "application/json",
+      "keep-alive": "timeout=5",
+      accept: "*/*",
+    });
+  });
+});
+
+// The response a UDF got is rebuilt with a plain headers object, so that the UDF can read and edit it as before. The object
+// has the Headers methods (get, iteration...) as hidden properties. When the UDF uses it as the headers of a request, its
+// own entries, with the edits, are the headers: the iterator reads the backing snapshot and would send the original ones.
+describe("headers of a rebuilt response, used in a request", () => {
+  const response = () =>
+    deserializeResponse({
+      status: 200,
+      statusText: "OK",
+      ok: true,
+      url: "http://x/",
+      type: "basic",
+      redirected: false,
+      headers: [
+        ["content-type", "application/json"],
+        ["content-length", "17"],
+        ["x-next-page", "2"],
+      ],
+      body: '{"a":"b"}',
+    } as any);
+
+  it("are sent as the UDF edited them", () => {
+    const res: any = response();
+    delete res.headers["content-length"];
+    res.headers["content-type"] = "text/plain";
+    res.headers["x-added"] = "1";
+    // the headers go as the object (its own entries) or as pairs; either way they are the edited ones
+    const out = transferableFetchInit({ method: "POST", headers: res.headers, body: "x" }).headers;
+    const sent = Object.fromEntries(Array.isArray(out) ? out : Object.entries(out));
+    expect(sent).toEqual({ "content-type": "text/plain", "x-next-page": "2", "x-added": "1" });
+  });
+
+  it("are logged as the UDF edited them", () => {
+    const res: any = response();
+    delete res.headers["content-length"];
+    expect(hideSensitiveHeaders(res.headers)).toEqual({ "content-type": "application/json", "x-next-page": "2" });
+  });
+});
+
+// A URL object does not survive postMessage (in Deno it arrives as {}), and the main process rejects it as an invalid URL.
+describe("the URL of a fetch call", () => {
+  it("is a string whatever the UDF passed", () => {
+    const u = new URL("https://example.com/path?a=1");
+    u.searchParams.set("b", "2");
+    expect(fetchUrlString(u)).toBe("https://example.com/path?a=1&b=2");
+    expect(fetchUrlString("https://example.com/x")).toBe("https://example.com/x");
+    expect(fetchUrlString(undefined)).toBeUndefined();
+  });
+});

@@ -581,9 +581,10 @@ export const makeFetch = (
 
   return async (
     url: string,
-    init?: FetchOpts,
+    initArg?: FetchOpts,
     extra?: { log?: boolean; ctx?: FunctionContext; event?: AnyEvent }
   ): Promise<Response> => {
+    const init = reusableHeadersInit(initArg);
     //capture execution time
     const sw = stopwatch();
     const ctx = extra?.ctx?.function;
@@ -700,10 +701,53 @@ export const makeFetch = (
   };
 };
 
-function hideSensitiveHeaders(headers: Record<string, string>): Record<string, string> {
+/**
+ * The init to log and to send. Headers given as a generator (or any one-shot iterable) of [name, value] pairs, or pairs that are
+ * themselves generators, can be read once: logging them with their sensitive values hidden used them up, and the request left without headers. They become an
+ * array of pairs here, which can be read any number of times. A Headers, an object or an array is left as it is.
+ */
+export function reusableHeadersInit<T extends { headers?: any } | undefined>(init: T): T {
+  const h: any = init?.headers;
+  if (
+    h &&
+    typeof h === "object" &&
+    !(typeof Headers !== "undefined" && h instanceof Headers) &&
+    typeof h[Symbol.iterator] === "function"
+  ) {
+    // the outer iterable and each pair are read here, once: either may be a generator
+    const pairs = [...h].map((p: any) =>
+      p && typeof p === "object" && !Array.isArray(p) && typeof p[Symbol.iterator] === "function" ? [...p] : p
+    );
+    return { ...init, headers: pairs } as T;
+  }
+  return init;
+}
+
+/** The [name, value] pairs of request headers in any form fetch accepts: an object, a Headers or Map, or an array, Set or other iterable of pairs. */
+function headerPairs(headers: any): Array<[string, any]> {
+  // An array, a Set, a Map, a Headers or a generator all iterate as [name, value] pairs. forEach does not: a Set calls back
+  // with (value, value), which made the whole pair the name.
+  if (headers && typeof headers !== "string" && typeof headers[Symbol.iterator] === "function") {
+    // each pair is itself an iterable of at least two items: an array, or for fetch also a Set or a generator
+    return [...headers].flatMap((p): Array<[string, any]> => {
+      const pair = p && typeof p === "object" && typeof p[Symbol.iterator] === "function" ? [...p] : undefined;
+      return pair && pair.length >= 2 ? [[String(pair[0]), pair[1]]] : [];
+    });
+  }
+  return Object.entries(headers ?? {});
+}
+
+const SENSITIVE_HEADER = /auth|token|cookie|secret|password|credential|key(?![a-z])/i;
+
+/**
+ * A header whose name contains "auth" (authorization, x-registry-auth...), "token", "cookie", "secret", "password" or "credential", or has "key" as a word (api-key, subscription-key...) is hidden in the logged request. The headers may be an object, a
+ * Headers or Map, or an array of [name, value] pairs: Object.entries of an array would give the keys "0", "1" and miss the
+ * name. The same rule is in services/rotor/src/lib/worker-fetch.ts, which cannot import this library into the workers.
+ */
+export function hideSensitiveHeaders(headers: any): Record<string, string> {
   const result: Record<string, string> = {};
-  for (const [k, v] of Object.entries(headers)) {
-    result[k] = k.toLowerCase().includes("authorization") || k.toLowerCase().includes("token") ? "*****" : v;
+  for (const [k, v] of headerPairs(headers)) {
+    result[k] = SENSITIVE_HEADER.test(k) ? "*****" : v;
   }
   return result;
 }

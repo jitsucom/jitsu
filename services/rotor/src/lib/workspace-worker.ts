@@ -17,6 +17,21 @@ import type {
 import type { AnyEvent, EventContext, FullContext } from "@jitsu/protocols/functions";
 import type { FunctionExecLog } from "@jitsu/core-functions-lib";
 import { runFunctionChain, type ChainFunction } from "./udf-chain";
+import { retryErrorOf, errorMessageOf } from "./udf-placeholder";
+import { evaluateUdfIife, makeUdfRequire } from "./udf-require";
+import { jsonEventsOf } from "./worker-result";
+import {
+  deserializeResponse,
+  hideSensitiveHeaders,
+  shouldLogFetchCall,
+  parseLoggedResponse,
+  rebuildProxyError,
+  responseBodyText,
+  transferableFetchInit,
+  fetchUrlString,
+  trimLoggedResponse,
+  type SerializedResponse,
+} from "./worker-fetch";
 
 import * as functionsLib from "@jitsu/functions-lib";
 
@@ -34,11 +49,11 @@ function nextCallId(): string {
   return String(++callIdCounter);
 }
 
-function callMain(method: ProxyMethod, args: any[]): Promise<any> {
+function callMain(method: ProxyMethod, args: any[], connectionId?: string): Promise<any> {
   return new Promise((resolve, reject) => {
     const callId = nextCallId();
     pending.set(callId, { resolve, reject });
-    self.postMessage({ type: "proxyRequest", callId, method, args });
+    self.postMessage({ type: "proxyRequest", callId, method, args, connectionId });
   });
 }
 
@@ -60,11 +75,13 @@ const chains = new Map<string, ConnectionChain>();
 
 // ── UDF instantiation from IIFE code ────────────────────────────────
 
+// the `require` handed to every UDF of this worker, set when the worker is initialised
+let udfRequire: (name: string) => any = makeUdfRequire({});
+
 function instantiateUdf(funcInit: WorkerFunctionInit): LoadedFunc {
   // The IIFE code defines `var __udf = (()=>{ ... })();`
   // We wrap it in a Function that returns __udf.
-  const factory = new Function(funcInit.iifeCode + "\nreturn __udf;");
-  const mod = factory();
+  const mod = evaluateUdfIife(funcInit.iifeCode, udfRequire);
   const func = mod.default;
   if (typeof func !== "function") {
     throw new Error(`UDF ${funcInit.id}: default export is not a function (got ${typeof func})`);
@@ -83,18 +100,20 @@ function buildContext(
   eventContext: EventContext,
   functionId: string,
   functionType: string,
-  logs: SerializedLogEntry[]
+  logs: SerializedLogEntry[],
+  fetchTimeoutMs: number
 ): FullContext {
   const debugTill = chain.debugTill ? new Date(chain.debugTill) : undefined;
 
   // Proxied store
   const store = {
-    get: (key: string) => callMain("store.get", [key]),
-    set: (key: string, obj: any, opts?: any) => callMain("store.set", [key, obj, opts]),
-    del: (key: string) => callMain("store.del", [key]),
-    ttl: (key: string) => callMain("store.ttl", [key]),
-    getOrSet: (key: string, value: any, opts?: any) => callMain("store.getOrSet", [key, value, opts]),
-    getWithTTL: (key: string) => callMain("store.getWithTTL", [key]),
+    get: (key: string) => callMain("store.get", [key], chain.connection.id),
+    set: (key: string, obj: any, opts?: any) => callMain("store.set", [key, obj, opts], chain.connection.id),
+    del: (key: string) => callMain("store.del", [key], chain.connection.id),
+    ttl: (key: string) => callMain("store.ttl", [key], chain.connection.id),
+    getOrSet: (key: string, value: any, opts?: any) =>
+      callMain("store.getOrSet", [key, value, opts], chain.connection.id),
+    getWithTTL: (key: string) => callMain("store.getWithTTL", [key], chain.connection.id),
   };
 
   // Collecting logger (fire-and-forget via postMessage)
@@ -121,25 +140,39 @@ function buildContext(
     error: (message: string, ...args: any[]) => addLogEntry("error", message, args),
   };
 
-  // Proxied fetch – delegates to main process, logs request/response like makeFetch
-  const proxiedFetch = async (url: string, init?: any) => {
-    const startTime = Date.now();
+  // A paid class that runs in a worker (FUNCTIONS_ISOLATE_UDFS) logs the same details as the in-process fetch. The free
+  // class, which has always run in a worker, keeps its shorter entries.
+  const detailedFetchLogs = chain.functionsClass !== "free";
 
+  // Proxied fetch – delegates to main process, logs request/response like makeFetch
+  const proxiedFetch = async (url: string, init?: any, extra?: { log?: boolean }) => {
+    const startTime = Date.now();
+    // decided now: debugTill can pass while the UDF is running
+    const logThisCall = shouldLogFetchCall(chain.fetchLogLevel, debugTill, extra);
+
+    // the init as the main process gets it: headers given as a generator are read here, once, for the log and the request
+    const sendInit = transferableFetchInit(init);
     const baseInfo = {
       functionId,
       functionType,
       type: "http-request" as const,
-      url,
+      url: fetchUrlString(url),
       method: init?.method || "GET",
       body: init?.body,
+      ...(detailedFetchLogs && sendInit?.headers ? { headers: hideSensitiveHeaders(sendInit.headers) } : {}),
       event: {},
     };
 
     try {
-      const serialized = await callMain("fetch", [chain.connection.id, url, init]);
+      const serialized: SerializedResponse = await callMain("fetch", [
+        chain.connection.id,
+        fetchUrlString(url),
+        sendInit,
+        fetchTimeoutMs,
+      ]);
       const elapsedMs = Date.now() - startTime;
 
-      if (baseInfo) {
+      if (logThisCall) {
         logs.push({
           level: "info",
           functionId,
@@ -149,27 +182,18 @@ function buildContext(
             status: serialized.status,
             statusText: serialized.statusText,
             elapsedMs,
+            ...(detailedFetchLogs
+              ? { response: parseLoggedResponse(trimLoggedResponse(responseBodyText(serialized))) }
+              : {}),
           },
           timestamp: new Date().toISOString(),
         });
       }
 
-      return {
-        status: serialized.status,
-        statusText: serialized.statusText,
-        ok: serialized.ok,
-        url: serialized.url,
-        type: serialized.type,
-        redirected: serialized.redirected,
-        headers: serialized.headers,
-        bodyUsed: true,
-        body: serialized.body,
-        text: () => Promise.resolve(serialized.body),
-        json: () => Promise.resolve(JSON.parse(serialized.body)),
-      };
+      return deserializeResponse(serialized);
     } catch (err: any) {
       const elapsedMs = Date.now() - startTime;
-      if (baseInfo) {
+      if (logThisCall) {
         logs.push({
           level: "error",
           functionId,
@@ -229,7 +253,7 @@ async function runChainInWorker(
   fetchTimeoutMs: number
 ): Promise<{ events: AnyEvent[]; execLog: FunctionExecLog; logs: SerializedLogEntry[] }> {
   return runFunctionChain<SerializedLogEntry>(chain.functions, event, eventContext, (functionId, functionType, logs) =>
-    buildContext(chain, eventContext, functionId, functionType, logs)
+    buildContext(chain, eventContext, functionId, functionType, logs, fetchTimeoutMs)
   );
 }
 
@@ -244,7 +268,7 @@ self.onmessage = async (e: MessageEvent<MainToWorkerMessage>) => {
     if (p) {
       pending.delete(msg.callId);
       if (msg.error) {
-        p.reject(new Error(msg.error));
+        p.reject(rebuildProxyError(msg.error, msg.errorCodes));
       } else {
         p.resolve(msg.result);
       }
@@ -271,8 +295,9 @@ self.onmessage = async (e: MessageEvent<MainToWorkerMessage>) => {
 
   // Handle init
   if (msg.type === "init") {
-    // Pre-import Node built-ins so UDF require() calls work
-    // await preloadNodeBuiltins();
+    // Pre-import the Node built-ins a UDF may import (NODE_BUILTINS), so that its static `import` of one works: esbuild
+    // turns it into a `require`, which a worker does not have (see udf-require.ts)
+    udfRequire = makeUdfRequire({ crypto: await import("node:crypto") });
 
     for (const conn of msg.connections) {
       const funcs: LoadedFunc[] = [];
@@ -281,11 +306,11 @@ self.onmessage = async (e: MessageEvent<MainToWorkerMessage>) => {
           funcs.push(instantiateUdf(funcInit));
         } catch (err: any) {
           // Create error-throwing placeholder
-          const errorMessage = err.message;
+          const errorMessage = errorMessageOf(err);
           funcs.push({
             id: funcInit.id,
             exec: async () => {
-              throw new Error(errorMessage);
+              throw retryErrorOf(errorMessage);
             },
           });
         }
@@ -337,13 +362,16 @@ self.onmessage = async (e: MessageEvent<MainToWorkerMessage>) => {
 
     try {
       const { events, execLog, logs } = await runChainInWorker(chain, msg.event, msg.eventContext, msg.fetchTimeoutMs);
+      // as the in-process response sends them: a URL or an object with toJSON would otherwise be cloned into `{}`
+      const json = jsonEventsOf(events);
       const result: ResultMessage = {
         type: "result",
         requestId: msg.requestId,
         connectionId: msg.connectionId,
-        events,
+        events: "events" in json ? json.events : [],
         execLog,
         logs,
+        ...("error" in json ? { serializationError: json.error } : {}),
       };
       self.postMessage(result);
     } catch (err: any) {

@@ -20,6 +20,12 @@ import {
 } from "@jitsu/core-functions-lib";
 import { getServerEnv } from "./serverEnv";
 import { createMongoStore, mongodb } from "./lib/mongodb";
+import {
+  createSweptMemoryStore,
+  memoizedPerConnection,
+  memoizedPerWorkspace,
+  storeForProxyCall,
+} from "./lib/worker-store";
 import { warehouseQuery } from "./lib/warehouse-store";
 import { parse as semverParse } from "semver";
 import * as jsondiffpatch from "jsondiffpatch";
@@ -27,6 +33,7 @@ import isEqual from "lodash/isEqual";
 import { IngestMessage } from "@jitsu/protocols/async-request";
 import type { MongoClient } from "mongodb";
 import { compileUdfFunction, compileUdfToIIFE } from "./lib/udf-shared";
+import { compileFailureIife, invalidFunctionsReason } from "./lib/udf-placeholder";
 import { runFunctionChain, type ChainFunction } from "./lib/udf-chain";
 import type {
   ExecMessage,
@@ -39,6 +46,7 @@ import type {
   WorkerToMainMessage,
 } from "./lib/worker-protocol";
 import { runUdfInWorker } from "./lib/worker-udf-runner";
+import { boundedFetchTimeoutMs, errorCodesOf, serializeResponse } from "./lib/worker-fetch";
 import {
   loadProfileBuilders,
   initProfileBuilderRuntimes,
@@ -664,6 +672,12 @@ class WorkerRuntime implements FunctionRuntime {
   ): Promise<Required<FuncChainResultWithLogs>> {
     const ws = await this.workerPool.getOrCreate(this.workspaceId);
     const resultMsg = await execInWorker(ws, connectionId, event, eventContext, fetchTimeoutMs);
+    if (resultMsg.serializationError) {
+      // the in-process response fails when it writes such events, and the whole call answers HTTP 500, which rotor retries
+      throw workerFailedError(
+        `The events of connection '${connectionId}' cannot be serialized: ${resultMsg.serializationError.message}`
+      );
+    }
     return {
       connectionId: resultMsg.connectionId,
       events: resultMsg.events,
@@ -681,6 +695,14 @@ class WorkerRuntime implements FunctionRuntime {
 
 const WORKER_TTL_MS = parseNumber(env.WORKER_TTL_MS, 600_000);
 const WORKER_TTL_CHECK_MS = 60000;
+
+// What a caller waiting for a worker is told when the worker itself is gone (it died, or it was evicted under the call). It
+// is not an error of the UDF chain: /multi lets it fail the whole call instead of recording it as the chain's result.
+const WORKER_FAILED_ERROR = "WorkerFailedError";
+
+function workerFailedError(message: string): Error {
+  return Object.assign(new Error(message), { name: WORKER_FAILED_ERROR });
+}
 
 type LazyWorkerEntry = {
   ws: WorkspaceWorker;
@@ -731,13 +753,26 @@ class LazyWorkerPool {
 
     log.atInfo().log(`Spawning worker for workspace ${workspaceId} (${conns.length} connections)`);
     const store = this.storeFactory(workspaceId);
-    const ws = createWorkspaceWorker(workspaceId, conns, store, this.conEntityStore);
+    const ws = createWorkspaceWorker(workspaceId, conns, store, this.conEntityStore, failed =>
+      this.drop(workspaceId, failed)
+    );
     await ws.ready;
 
     this.workers.set(workspaceId, { ws, lastUsedAt: Date.now() });
     promActiveWorkers.labels(deploymentId).set(this.workers.size);
     log.atInfo().log(`Worker ready for workspace ${workspaceId} (${this.workers.size} active)`);
     return ws;
+  }
+
+  /** Forgets a worker that has died, unless the workspace already has a newer one. */
+  private drop(workspaceId: string, ws: WorkspaceWorker) {
+    const entry = this.workers.get(workspaceId);
+    if (!entry || entry.ws !== ws) return;
+    this.workers.delete(workspaceId);
+    promWorkerHeapUsed.remove(deploymentId, workspaceId);
+    promWorkerHeapTotal.remove(deploymentId, workspaceId);
+    promActiveWorkers.labels(deploymentId).set(this.workers.size);
+    log.atWarn().log(`Dropped the failed worker of workspace ${workspaceId} (${this.workers.size} active)`);
   }
 
   private evict() {
@@ -753,6 +788,11 @@ class LazyWorkerPool {
         try {
           entry.ws.worker.terminate();
         } catch (_) {}
+        // a terminated worker answers nothing: settle what was waiting for it, so a caller does not wait for a result
+        // that cannot come (it gets an error at once instead of at its own timeout)
+        for (const p of [...entry.ws.pending.values()]) {
+          p.reject(workerFailedError(`Worker of workspace ${wsId} was evicted before the execution finished`));
+        }
       }
     }
     promActiveWorkers.labels(deploymentId).set(this.workers.size);
@@ -856,6 +896,8 @@ type WorkspaceWorker = {
   workspaceId: string;
   worker: Worker;
   pending: Map<string, { resolve: (v: any) => void; reject: (e: Error) => void }>;
+  /** requestId -> the fetch timeout given to that running execution */
+  execTimeouts: Map<string, number>;
   ready: Promise<void>;
 };
 
@@ -863,11 +905,16 @@ function getWorkerUrl(): string {
   return new URL("./workspace-worker.mjs", import.meta.url).href;
 }
 
+// Without MongoDB a paid connection run in a worker keeps its own in-memory store, as it does in process (see storeForProxyCall)
+const connectionFallbackStoreFor = memoizedPerConnection(() => createSweptMemoryStore(createMemoryStore));
+
 function createWorkspaceWorker(
   workspaceId: string,
   connections: WorkerConnectionInit[],
   store: TTLStore,
-  conEntityStore: EntityStore<EnrichedConnectionConfig>
+  conEntityStore: EntityStore<EnrichedConnectionConfig>,
+  // called once when the worker has died, so the pool can stop handing it out
+  onFailed?: (ws: WorkspaceWorker) => void
 ): WorkspaceWorker {
   const worker = new Worker(getWorkerUrl(), {
     type: "module",
@@ -876,10 +923,16 @@ function createWorkspaceWorker(
   });
 
   const pendingExec = new Map<string, { resolve: (v: any) => void; reject: (e: Error) => void }>();
+  // the fetch timeout given to each execution that is running in this worker (see boundedFetchTimeoutMs)
+  const execTimeouts = new Map<string, number>();
+  const connectionIds = new Set(connections.map(c => c.connectionId));
   let readyResolve: () => void;
-  const readyPromise = new Promise<void>(resolve => {
+  let readyReject: (e: Error) => void;
+  const readyPromise = new Promise<void>((resolve, reject) => {
     readyResolve = resolve;
+    readyReject = reject;
   });
+  const ws: WorkspaceWorker = { workspaceId, worker, pending: pendingExec, execTimeouts, ready: readyPromise };
 
   worker.onmessage = async (e: MessageEvent<WorkerToMainMessage>) => {
     const msg = e.data;
@@ -919,30 +972,25 @@ function createWorkspaceWorker(
         let result: any;
         if (method.startsWith("store.")) {
           const op = method.split(".")[1];
-          result = await (store as any)[op](...args);
+          const target = storeForProxyCall({
+            mongo: !!env.MONGODB_URL,
+            freeClass: env.FUNCTIONS_CLASS === "free",
+            workspaceStore: store,
+            connectionStore: connectionFallbackStoreFor,
+            workspaceId,
+            connectionId: msg.connectionId,
+            connectionIds,
+          });
+          result = await (target as any)[op](...args);
         } else if (method === "fetch") {
-          const [connectionId, url, init] = args;
+          const [connectionId, url, init, requestedTimeoutMs] = args;
           const fetchImpl = makeFetch(
             connectionId,
             { log() {}, close() {}, deadLetter() {} },
             "debug",
-            parseNumber(env.FETCH_TIMEOUT_MS, 2000)
+            boundedFetchTimeoutMs(requestedTimeoutMs, execTimeouts.values(), parseNumber(env.FETCH_TIMEOUT_MS, 2000))
           );
-          const res = await fetchImpl(url, init);
-          const headers: Record<string, string> = {};
-          res.headers.forEach((v: string, k: string) => {
-            headers[k] = v;
-          });
-          result = {
-            status: res.status,
-            statusText: res.statusText,
-            ok: res.ok,
-            url: res.url,
-            type: res.type,
-            redirected: res.redirected,
-            headers,
-            body: await res.text(),
-          };
+          result = await serializeResponse(await fetchImpl(url, init));
         } else if (method === "warehouse.query") {
           const [destinationId, sql, params] = args;
           const storeMetrics: StoreMetrics = {
@@ -955,21 +1003,43 @@ function createWorkspaceWorker(
         const response: ProxyResponseMessage = { type: "proxyResponse", callId, result };
         worker.postMessage(response);
       } catch (err: any) {
-        const response: ProxyResponseMessage = { type: "proxyResponse", callId, error: err.message };
+        const response: ProxyResponseMessage = {
+          type: "proxyResponse",
+          callId,
+          error: err.message,
+          errorCodes: errorCodesOf(err),
+        };
         worker.postMessage(response);
       }
     }
   };
 
+  let failed = false;
   worker.onerror = e => {
+    // Deno passes an error the worker did not handle on to the main thread, where it ends the whole server and every other
+    // workspace with it. The error is logged here and stays with the worker.
+    e.preventDefault?.();
     log.atError().log(`Worker error for workspace ${workspaceId}: ${e.message}`);
+    // An uncaught exception (in a timer callback, say) ends the worker, and a dead worker answers nothing: what was
+    // waiting for it fails now, and the pool stops handing it out, so the next request spawns a new one.
+    if (failed) return;
+    failed = true;
+    try {
+      worker.terminate();
+    } catch (_) {}
+    const reason = workerFailedError(`Worker of workspace ${workspaceId} failed: ${e.message}`);
+    for (const p of [...pendingExec.values()]) {
+      p.reject(reason);
+    }
+    readyReject!(reason);
+    onFailed?.(ws);
   };
 
   // Send init message
   const initMsg: InitMessage = { type: "init", connections };
   worker.postMessage(initMsg);
 
-  return { workspaceId, worker, pending: pendingExec, ready: readyPromise };
+  return ws;
 }
 
 async function execInWorker(
@@ -981,7 +1051,8 @@ async function execInWorker(
 ): Promise<ResultMessage> {
   await ws.ready;
   const requestId = crypto.randomUUID();
-  return new Promise((resolve, reject) => {
+  ws.execTimeouts.set(requestId, fetchTimeoutMs);
+  return new Promise<ResultMessage>((resolve, reject) => {
     ws.pending.set(requestId, { resolve, reject });
     const execMsg: ExecMessage = {
       type: "exec",
@@ -992,6 +1063,9 @@ async function execInWorker(
       fetchTimeoutMs,
     };
     ws.worker.postMessage(execMsg);
+  }).finally(() => {
+    ws.execTimeouts.delete(requestId);
+    ws.pending.delete(requestId);
   });
 }
 
@@ -1026,14 +1100,22 @@ async function main() {
 
   const runtimes = new Map<string, FunctionRuntime>();
   const isFreeClass = env.FUNCTIONS_CLASS === "free";
+  const isolateUdfs = isFreeClass || isTruish(env.FUNCTIONS_ISOLATE_UDFS);
   let workerPool: LazyWorkerPool | undefined;
 
-  if (isFreeClass) {
-    // Free tier: pre-compile UDFs to IIFE strings, but spawn workers lazily on first request.
+  if (isolateUdfs) {
+    // Free tier (or FUNCTIONS_ISOLATE_UDFS): pre-compile UDFs to IIFE strings, but spawn workers lazily on first request.
     // Workers are evicted after WORKER_TTL_MS of inactivity.
     const workspaceConnections = new Map<string, WorkerConnectionInit[]>();
 
     for (const [connectionId, connection] of connections) {
+      // as in process, where the chain of a connection is built inside its own try/catch: a malformed option fails that
+      // connection alone and does not stop the server before it listens
+      const invalidReason = invalidFunctionsReason(connection.options);
+      if (invalidReason) {
+        log.atError().log(`✗ Skipping connection ${connectionId}: ${invalidReason}`);
+        continue;
+      }
       const wsId = connection.workspaceId;
       if (!workspaceConnections.has(wsId)) {
         workspaceConnections.set(wsId, []);
@@ -1053,10 +1135,8 @@ async function main() {
             log.atDebug().log(`  ✓ Compiled UDF to IIFE: ${functionId}`);
           } catch (e: any) {
             log.atError().log(`  ✗ Failed to compile UDF ${functionId}: ${e.message}`);
-            const errorIife = `var __udf = { default: async function() { throw new Error(${JSON.stringify(
-              e.message
-            )}); } };`;
-            workerFuncs.push({ id: f.functionId, iifeCode: errorIife });
+            // a RetryError, as the in-process placeholder throws
+            workerFuncs.push({ id: f.functionId, iifeCode: compileFailureIife(e.message) });
           }
         } else {
           const msg = `Function ${functionId} not found or has no code`;
@@ -1070,13 +1150,16 @@ async function main() {
         connectionId,
         connection: stripConnection(connection),
         functions: workerFuncs,
-        warehouseEnabled: false,
-        functionsClass: "free",
+        warehouseEnabled: !isFreeClass,
+        functionsClass: isFreeClass ? "free" : env.FUNCTIONS_CLASS,
         debugTill: connectionData?.debugTill,
         fetchLogLevel: connectionData?.fetchLogLevel,
         props: connectionData?.functionsEnv || {},
       });
     }
+
+    // The in-memory fallback must outlive a worker: the pool asks for a store again when it respawns an evicted worker
+    const fallbackStoreFor = memoizedPerWorkspace(() => createSweptMemoryStore(createMemoryStore));
 
     // Build store factory for lazy worker creation
     const storeFactory = (wsId: string): TTLStore => {
@@ -1087,7 +1170,7 @@ async function main() {
       };
       return env.MONGODB_URL
         ? createMongoStore(wsId, mongodb, false, isTruish(env.FAST_STORE), storeMetrics)
-        : createMemoryStore({});
+        : fallbackStoreFor(wsId);
     };
 
     workerPool = new LazyWorkerPool(workspaceConnections, storeFactory, conEntityStore);
@@ -1241,6 +1324,9 @@ async function main() {
         const eventContext = createEventContextFromMessage(message, runtime.getConnection());
         return await runtime.runChain(connectionId, event, eventContext, functionsFetchTimeout);
       } catch (e: any) {
+        // a worker that is gone fails the call: the ingest then sees a service failure (as when the call timed out), and does
+        // not take the empty result of the chain for a processed event
+        if (e?.name === WORKER_FAILED_ERROR) throw e;
         const errorMessage = `${e.name}: ${e.message}`;
         log.atError().log(`[multi] Error processing connection ${connectionId}: ${errorMessage}`);
         return {
@@ -1505,7 +1591,7 @@ async function main() {
   );
 
   log.atInfo().log(`Server running at http://localhost:${port}`);
-  log.atInfo().log(`Runtimes: ${runtimes.size} (mode: ${isFreeClass ? "worker" : "in-process"})`);
+  log.atInfo().log(`Runtimes: ${runtimes.size} (mode: ${isolateUdfs ? "worker" : "in-process"})`);
 
   // Metrics HTTP server (separate port, same as rotor)
   // @ts-ignore

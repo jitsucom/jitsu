@@ -88,6 +88,54 @@ export default async function(event, { log, fetch, store, retries, props: config
      throw new NoRetryError("Invalid data format - permanent failure")
 }`,
   },
+  functionUrlField: {
+    id: "functionUrlField",
+    workspaceId: "workspace1",
+    name: "Function Url Field",
+    codeHash: "functionUrlField-hash",
+    code: `export default async function(event, { log, fetch, store, props: config }) {
+  // the last function of the chain assigns a value with its own JSON form (a URL): the in-process response sends it as
+  // a string, and a worker must send the same
+  event.properties.link = new URL("https://example.com/a?b=1")
+  event.properties.counter = (event.properties.counter || 0) + 1
+  return event
+}`,
+  },
+  functionBigInt: {
+    id: "functionBigInt",
+    workspaceId: "workspace1",
+    name: "Function BigInt",
+    codeHash: "functionBigInt-hash",
+    code: `export default async function(event, { log, fetch, store, props: config }) {
+  // JSON cannot hold a BigInt: writing the response fails
+  event.properties.big = BigInt(10)
+  return event
+}`,
+  },
+  functionThrowingToJson: {
+    id: "functionThrowingToJson",
+    workspaceId: "workspace1",
+    name: "Function Throwing ToJson",
+    codeHash: "functionThrowingToJson-hash",
+    code: `class Throwing { constructor() { this.value = 1 } toJSON() { throw new Error("toJSON failed") } }
+export default async function(event, { log, fetch, store, props: config }) {
+  // writing the response calls toJSON, which throws: a clone would strip the class and deliver {value: 1}
+  event.properties.field = new Throwing()
+  return event
+}`,
+  },
+  functionThrowsUnformattable: {
+    id: "functionThrowsUnformattable",
+    workspaceId: "workspace1",
+    name: "Function Throws Unformattable",
+    codeHash: "functionThrowsUnformattable-hash",
+    code: `export default async function(event, { log, fetch, store, props: config }) {
+  // a toJSON that throws an object String() cannot format, next to a BigInt: building the error must not fail itself
+  event.properties.field = { toJSON() { throw Object.create(null) } }
+  event.properties.big = BigInt(10)
+  return event
+}`,
+  },
   function3: {
     id: "function3",
     workspaceId: "workspace1",
@@ -155,16 +203,94 @@ export default async function(event, { log, fetch, store, retries, props: config
   return event
 }`,
   },
+  // reads the key the functionStore function of another connection wrote
+  functionStoreOther: {
+    id: "functionStoreOther",
+    workspaceId: "workspace1",
+    name: "Function Store Other",
+    codeHash: "functionStoreOther-hash",
+    code: `export default async function(event, { store }) {
+  const val = await store.get("store-test-key")
+  event.properties.otherSees = val ? val.marker : "nothing"
+  event.properties.counter = (event.properties.counter || 0) + 1
+  return event
+}`,
+  },
   functionFetch: {
     id: "functionFetch",
     workspaceId: "workspace1",
     name: "Function Fetch",
     codeHash: "functionFetch-hash",
-    code: `export default async function(event, { fetch, props: config }) {
-  const res = await fetch(config.FETCH_URL)
+    code: `import { createHash } from "crypto"
+export default async function(event, { fetch, log, props: config }) {
+  // a static import of a Node built-in works in every runtime, also in a worker
+  log.info("crypto-hash=" + createHash("sha256").update("abc").digest("hex").slice(0, 8))
+  const res = await fetch(config.FETCH_URL, { headers: { Authorization: "Bearer secret-value", "X-Trace": "trace-1" } })
+  event.properties.contentType = res.headers.get("content-type")
+  // request headers given as a Headers instance have to reach the server in every runtime, also through a worker
+  const echo = await fetch(config.FETCH_URL + "?echo=1", { headers: new Headers({ Authorization: "Bearer headers-object" }) })
+  log.info("headers-object-auth=" + (await echo.json()).receivedAuthorization)
+  // headers given as a generator of pairs can be read once: logging them must not use them up before the request is sent
+  const gen = await fetch(config.FETCH_URL + "?echo=1", { headers: (function* () { yield ["Authorization", "Bearer from-generator"] })() })
+  log.info("generator-auth=" + (await gen.json()).receivedAuthorization)
+  // a URLSearchParams body (an OAuth token request) has to arrive as the form it is, also from a worker (postMessage)
+  const form = await fetch(config.FETCH_URL + "?echo=2", { method: "POST", body: new URLSearchParams({ grant_type: "client_credentials", note: "a b" }) })
+  const formJson = await form.json()
+  log.info("form-body=" + formJson.received + "|" + formJson.contentType)
+  // a URL object as the address: it does not survive postMessage, so a worker has to send its text
+  const urlObject = new URL(config.FETCH_URL)
+  urlObject.searchParams.set("echo", "1")
+  const viaUrl = await fetch(urlObject, { headers: { Authorization: "Bearer via-url" } })
+  log.info("url-object-auth=" + (await viaUrl.json()).receivedAuthorization)
+  // a pair that is a Set (any iterable of two items) is a valid pair for fetch
+  const setPair = await fetch(config.FETCH_URL + "?echo=1", { headers: (function* () { yield new Set(["Authorization", "Bearer from-set-pair"]) })() })
+  log.info("set-pair-auth=" + (await setPair.json()).receivedAuthorization)
+  // an address the guard refuses (FETCH_FORBID_LOCAL) has the same code in every runtime: EBLOCKED tells a refusal from a failure
+  try {
+    await fetch("http://10.255.255.1/refused")
+  } catch (e) {
+    log.info("fetch-error-codes=" + e.code + "|" + (e.cause && e.cause.code))
+  }
+  // a failed request (nothing listens on the port) is a TypeError in every runtime, so an instanceof check in a UDF agrees
+  try {
+    await fetch("http://127.0.0.1:1/closed")
+  } catch (e) {
+    log.info("fetch-error-type=" + (e instanceof TypeError) + "|" + e.name)
+  }
+  log.info("legacy-headers=" + res.headers["content-type"] + "|" + Object.keys(res.headers).includes("content-type"))
+  log.info("legacy-body=" + JSON.parse(res.body).message)
+  log.info("headers-in-log", res.headers)
+  // a whole response in a log call: a worker clones its result with postMessage, which a Response does not survive
+  log.info("response-in-log", res)
+  const text = await res.text()
   const body = await res.json()
+  event.properties.reread = JSON.parse(text).message
+  event.properties.bytes = (await res.arrayBuffer()).byteLength > 0
   event.properties.fetched = body.message
   event.properties.counter = (event.properties.counter || 0) + 1
+  return event
+}`,
+  },
+  // an initializer that throws something without a message: it must not stop the other connections of the workspace
+  functionThrowsNull: {
+    id: "functionThrowsNull",
+    workspaceId: "workspace1",
+    name: "Function Throws Null",
+    codeHash: "functionThrowsNull-hash",
+    code: `throw null
+export default async function(event) {
+  return event
+}`,
+  },
+  // an uncaught exception in a timer callback ends the worker that runs it
+  functionTimerThrow: {
+    id: "functionTimerThrow",
+    workspaceId: "workspace1",
+    name: "Function Timer Throw",
+    codeHash: "functionTimerThrow-hash",
+    code: `export default async function(event) {
+  setTimeout(() => { throw new Error("timer boom") }, 10)
+  await new Promise(resolve => setTimeout(resolve, 1500))
   return event
 }`,
   },
@@ -187,6 +313,33 @@ export default async function(event, { log, fetch, store, retries, props: config
 };
 
 export const connections = {
+  worker_crash: {
+    id: "worker_crash",
+    workspaceId: "workspace1",
+    updatedAt: new Date(),
+    destinationId: "destination1",
+    streamId: "stream1",
+    usesBulker: false,
+    type: "webhook",
+    options: {
+      functions: [{ functionId: "udf.functionTimerThrow" }],
+    },
+    credentials: { url: "http://localhost:3089/worker_crash", method: "POST", headers: [] },
+  },
+  // same chain as "simple", in the same workspace as worker_crash: it is served by the same worker
+  worker_after_crash: {
+    id: "worker_after_crash",
+    workspaceId: "workspace1",
+    updatedAt: new Date(),
+    destinationId: "destination1",
+    streamId: "stream1",
+    usesBulker: false,
+    type: "webhook",
+    options: {
+      functions: [{ functionId: "udf.function1" }, { functionId: "udf.function2" }, { functionId: "udf.function3" }],
+    },
+    credentials: { url: "http://localhost:3089/worker_after_crash", method: "POST", headers: [] },
+  },
   simple: {
     id: "simple",
     workspaceId: "workspace1",
@@ -535,6 +688,61 @@ export const connections = {
       headers: [],
     },
   },
+  // writes the key that store_other reads, so that test does not depend on any other one having run
+  store_seed: {
+    id: "store_seed",
+    workspaceId: "workspace1",
+    updatedAt: new Date(),
+    destinationId: "destination1",
+    streamId: "stream1",
+    usesBulker: false,
+    type: "webhook",
+    options: {
+      functions: [
+        {
+          functionId: "udf.function1",
+        },
+        {
+          functionId: "udf.functionStore",
+        },
+        {
+          functionId: "udf.function3",
+        },
+      ],
+    },
+    credentials: {
+      url: "http://localhost:3089/store_seed",
+      method: "POST",
+      headers: [],
+    },
+  },
+  store_other: {
+    id: "store_other",
+    workspaceId: "workspace1",
+    updatedAt: new Date(),
+    destinationId: "destination1",
+    streamId: "stream1",
+    usesBulker: false,
+    type: "webhook",
+    options: {
+      functions: [
+        {
+          functionId: "udf.function1",
+        },
+        {
+          functionId: "udf.functionStoreOther",
+        },
+        {
+          functionId: "udf.function3",
+        },
+      ],
+    },
+    credentials: {
+      url: "http://localhost:3089/store_other",
+      method: "POST",
+      headers: [],
+    },
+  },
   fetch: {
     id: "fetch",
     workspaceId: "workspace1",
@@ -588,6 +796,105 @@ export const connections = {
     },
     credentials: {
       url: "http://localhost:3089/warehouse_real",
+      method: "POST",
+      headers: [],
+    },
+  },
+  url_field: {
+    id: "url_field",
+    workspaceId: "workspace1",
+    updatedAt: new Date(),
+    destinationId: "destination1",
+    streamId: "stream1",
+    usesBulker: false,
+    type: "webhook",
+    options: {
+      functions: [
+        {
+          functionId: "udf.function1",
+        },
+        {
+          functionId: "udf.function3",
+        },
+        {
+          functionId: "udf.functionUrlField",
+        },
+      ],
+    },
+    credentials: {
+      url: "http://localhost:3089/url_field",
+      method: "POST",
+      headers: [],
+    },
+  },
+  unserializable_event: {
+    id: "unserializable_event",
+    workspaceId: "workspace1",
+    updatedAt: new Date(),
+    destinationId: "destination1",
+    streamId: "stream1",
+    usesBulker: false,
+    type: "webhook",
+    options: {
+      functions: [
+        {
+          functionId: "udf.function1",
+        },
+        {
+          functionId: "udf.functionBigInt",
+        },
+      ],
+    },
+    credentials: {
+      url: "http://localhost:3089/unserializable_event",
+      method: "POST",
+      headers: [],
+    },
+  },
+  throwing_tojson: {
+    id: "throwing_tojson",
+    workspaceId: "workspace1",
+    updatedAt: new Date(),
+    destinationId: "destination1",
+    streamId: "stream1",
+    usesBulker: false,
+    type: "webhook",
+    options: {
+      functions: [
+        {
+          functionId: "udf.function1",
+        },
+        {
+          functionId: "udf.functionThrowingToJson",
+        },
+      ],
+    },
+    credentials: {
+      url: "http://localhost:3089/throwing_tojson",
+      method: "POST",
+      headers: [],
+    },
+  },
+  throwing_unformattable: {
+    id: "throwing_unformattable",
+    workspaceId: "workspace1",
+    updatedAt: new Date(),
+    destinationId: "destination1",
+    streamId: "stream1",
+    usesBulker: false,
+    type: "webhook",
+    options: {
+      functions: [
+        {
+          functionId: "udf.function1",
+        },
+        {
+          functionId: "udf.functionThrowsUnformattable",
+        },
+      ],
+    },
+    credentials: {
+      url: "http://localhost:3089/throwing_unformattable",
       method: "POST",
       headers: [],
     },

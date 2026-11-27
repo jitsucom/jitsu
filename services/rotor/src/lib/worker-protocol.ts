@@ -62,6 +62,8 @@ export type ProxyResponseMessage = {
   callId: string;
   result?: any;
   error?: string;
+  /** the `code` and `cause.code` of the error (EBLOCKED for a refused address...), so the worker can rebuild it */
+  errorCodes?: { code?: string; causeCode?: string; name?: string };
 };
 
 export type MainToWorkerMessage = InitMessage | ExecMessage | CancelMessage | MemoryQueryMessage | ProxyResponseMessage;
@@ -86,6 +88,9 @@ export type ResultMessage = {
   events: AnyEvent[];
   execLog: FunctionExecLog;
   logs: SerializedLogEntry[];
+  // The events could not be turned into JSON (a BigInt, a cycle, a toJSON that throws): `events` is empty, and the call has to
+  // fail as the in-process response does when it is written
+  serializationError?: { message: string; name: string };
 };
 
 /** Proxy request for I/O that the sandboxed worker cannot perform */
@@ -94,6 +99,8 @@ export type ProxyRequestMessage = {
   callId: string;
   method: ProxyMethod;
   args: any[];
+  /** the connection the call is made for; names the in-memory store of a paid connection */
+  connectionId?: string;
 };
 
 export type ProxyMethod =

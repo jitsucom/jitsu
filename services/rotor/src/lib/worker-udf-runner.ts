@@ -5,6 +5,7 @@ import { LogLevel, parseNumber } from "juava";
 import { compileUdfToIIFE } from "./udf-shared";
 import type { ExecMessage, InitMessage, ProxyResponseMessage, WorkerConnectionInit } from "./worker-protocol";
 import { warehouseQuery } from "./warehouse-store";
+import { errorCodesOf, serializeResponse } from "./worker-fetch";
 import { getServerEnv } from "../serverEnv";
 
 const env = getServerEnv();
@@ -149,7 +150,17 @@ export async function runUdfInWorker(
           clearTimeout(timer);
           worker.terminate();
           const hasError = msg.execLog?.some((e: any) => e.error);
-          if (hasError) {
+          if (msg.serializationError) {
+            resolve({
+              error: {
+                message: `The result cannot be serialized: ${msg.serializationError.message}`,
+                name: msg.serializationError.name,
+              },
+              result: {},
+              store: dumpStore(),
+              logs: msg.logs,
+            });
+          } else if (hasError) {
             const err = msg.execLog.find((e: any) => e.error)?.error;
             resolve({
               error: { message: err.message, stack: err.stack, name: err.name, retryPolicy: err.retryPolicy },
@@ -180,27 +191,19 @@ export async function runUdfInWorker(
               // Worker sends [connectionId, url, init] — connectionId is unused here (single-connection runner)
               const [, url, init] = args;
               const res = await fetchImpl(url, init);
-              const responseHeaders: Record<string, string> = {};
-              res.headers.forEach((v: string, k: string) => {
-                responseHeaders[k] = v;
-              });
-              result = {
-                status: res.status,
-                statusText: res.statusText,
-                ok: res.ok,
-                url: res.url,
-                type: res.type,
-                redirected: res.redirected,
-                headers: responseHeaders,
-                body: await res.text(),
-              };
+              result = await serializeResponse(res);
             } else if (method === "warehouse.query") {
               const [destinationId, sql, params] = args;
               result = await warehouseQuery(request.workspaceId, conEntityStore, destinationId, sql, params);
             }
             worker.postMessage({ type: "proxyResponse", callId, result } as ProxyResponseMessage);
           } catch (err: any) {
-            worker.postMessage({ type: "proxyResponse", callId, error: err.message } as ProxyResponseMessage);
+            worker.postMessage({
+              type: "proxyResponse",
+              callId,
+              error: err.message,
+              errorCodes: errorCodesOf(err),
+            } as ProxyResponseMessage);
           }
           return;
         }

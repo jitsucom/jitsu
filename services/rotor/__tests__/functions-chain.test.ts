@@ -1,3 +1,4 @@
+import { signFunctionsRequest } from "juava/src/functions-auth";
 import { getLog } from "juava";
 import { createServer, SimpleSyrup } from "./simple-syrup";
 import { functionFilter, rotorMessageHandler } from "../src/lib/message-handler";
@@ -129,6 +130,29 @@ const incomingEvent = {
 
 const expectedEvents = {
   simple_0: {
+    type: "track",
+    properties: {
+      retries: 0,
+      first: "1st",
+      counter: 3,
+      second: "2nd",
+      third: "3rd",
+    },
+    context,
+  },
+  // the URL a function put into the event reaches the destination as the string the in-process response makes of it
+  url_field_0: {
+    type: "track",
+    properties: {
+      first: "1st",
+      retries: 0,
+      counter: 3,
+      link: "https://example.com/a?b=1",
+      third: "3rd",
+    },
+    context,
+  },
+  worker_after_crash_0: {
     type: "track",
     properties: {
       retries: 0,
@@ -333,6 +357,42 @@ const expectedEvents = {
     },
     context,
   },
+  // another connection does not see what the store connection wrote, except in the free class, which has one store per
+  // workspace
+  store_seed_0: {
+    type: "track",
+    properties: {
+      first: "1st",
+      retries: 0,
+      counter: 3,
+      storeMarker: "stored-value",
+      storeN: 42,
+      third: "3rd",
+    },
+    context,
+  },
+  store_other_0: {
+    type: "track",
+    properties: {
+      first: "1st",
+      retries: 0,
+      counter: 3,
+      otherSees: "nothing",
+      third: "3rd",
+    },
+    context,
+  },
+  store_other_free_0: {
+    type: "track",
+    properties: {
+      first: "1st",
+      retries: 0,
+      counter: 3,
+      otherSees: "stored-value",
+      third: "3rd",
+    },
+    context,
+  },
   fetch_0: {
     type: "track",
     properties: {
@@ -340,6 +400,9 @@ const expectedEvents = {
       retries: 0,
       counter: 3,
       fetched: "fetched-value",
+      contentType: "application/json; charset=utf-8",
+      reread: "fetched-value",
+      bytes: true,
       third: "3rd",
     },
     context,
@@ -407,6 +470,15 @@ const streamsStore: EntityStore<StreamWithDestinations> = {
   lastModified: new Date(),
 };
 
+// Every entry the chain writes to the events log, so a test can look at what a function's fetch recorded.
+const loggedEntries: Array<{ connectionId: string; level: string; msg: Record<string, any> }> = [];
+const capturingEventsStore = {
+  ...DummyEventsStore,
+  log(connectionId: string, level: any, msg: Record<string, any>) {
+    loggedEntries.push({ connectionId, level, msg });
+  },
+};
+
 function rotorContext(
   connStore: EntityStore<EnrichedConnectionConfig>,
   funcStore: EntityStore<FunctionConfig>,
@@ -416,7 +488,7 @@ function rotorContext(
     connectionStore: connStore,
     functionsStore: funcStore,
     streamsStore: streamsStore,
-    eventsLogger: DummyEventsStore,
+    eventsLogger: capturingEventsStore,
     dummyPersistentStore: createMemoryStore({}),
     geoResolver: {
       resolve: async (ip: string): Promise<Geo> => {
@@ -445,12 +517,14 @@ function ingestMessage(connectionId: string, messageId: string, event: any): Ing
 const messageId = "message1";
 
 // Test modes to run
-const testModes: Array<{ name: string; functionsClass: string }> = [
+const testModes: Array<{ name: string; functionsClass: string; isolate?: boolean }> = [
   { name: "free", functionsClass: "free" },
   { name: "dedicated", functionsClass: "dedicated" },
+  // JITSU-263: a paid class whose UDFs run in the sandboxed workers (FUNCTIONS_ISOLATE_UDFS), warehouse queries included
+  { name: "dedicated-isolated", functionsClass: "dedicated", isolate: true },
 ];
 
-describe.each(testModes)("Test Functions Chain ($name mode)", ({ name: modeName, functionsClass }) => {
+describe.each(testModes)("Test Functions Chain ($name mode)", ({ name: modeName, functionsClass, isolate }) => {
   let webhookServer: SimpleSyrup;
   let functionsServer: TestFunctionsServer | null = null;
   let lastError: any;
@@ -478,17 +552,37 @@ describe.each(testModes)("Test Functions Chain ($name mode)", ({ name: modeName,
       const connectionsForServer = {
         ...(connections as unknown as Record<string, EnrichedConnectionConfig>),
         clickhouseWarehouse: clickhouseWarehouseConnection(),
+        // a connection whose functions option is malformed fails alone; the server still starts and serves the others
+        throwsNull: {
+          ...(connections.simple as unknown as EnrichedConnectionConfig),
+          id: "throwsNull",
+          options: { functions: [{ functionId: "udf.functionThrowsNull" }] },
+        } as unknown as EnrichedConnectionConfig,
+        malformedOptions: {
+          ...(connections.simple as unknown as EnrichedConnectionConfig),
+          id: "malformedOptions",
+          options: { functions: "udf.functionFetch" },
+        } as unknown as EnrichedConnectionConfig,
       };
 
       // Write test configs
       await writeTestConfigs(configDir, connectionsForServer, functions as unknown as Record<string, FunctionConfig>);
 
       process.env.FUNCTIONS_CLASS = functionsClass;
+      // the functions server runs with the SSRF guard on (the test's own webhook server is on the whitelist), so a UDF's
+      // fetch of a private address is refused with the EBLOCKED code
+      process.env.FETCH_FORBID_LOCAL = "true";
+      process.env.FETCH_LOCAL_WHITELIST = "localhost,127.0.0.1";
 
       // Start functions server on a deterministic, per-mode port so free- and
       // dedicated-mode servers never collide (SIGTERM + immediate respawn on the
       // same port lets waitForServer latch onto the old process before it exits).
-      const fsPort = functionsClass === "free" ? 3457 : 3557;
+      const fsPort = isolate ? 3657 : functionsClass === "free" ? 3457 : 3557;
+      if (isolate) {
+        process.env.FUNCTIONS_ISOLATE_UDFS = "true";
+      } else {
+        delete process.env.FUNCTIONS_ISOLATE_UDFS;
+      }
       functionsServer = await startTestFunctionsServer(configDir, fsPort);
 
       // Configure rotor to use the test functions server
@@ -530,8 +624,31 @@ describe.each(testModes)("Test Functions Chain ($name mode)", ({ name: modeName,
 
     // Endpoint used by the functionFetch test — returns a fixed JSON payload
     const fetchSourceHandler = (req, res) => {
-      res.setHeader("Content-Type", "application/json");
-      res.send({ message: "fetched-value" });
+      // the call that checks which request headers arrive answers at once, with the Authorization header it received
+      if (String(req.url).includes("echo=1")) {
+        res.setHeader("Content-Type", "application/json");
+        res.send({ receivedAuthorization: req.headers.authorization ?? null });
+        return;
+      }
+      // echoes the raw body and content type of a form request
+      if (String(req.url).includes("echo=2")) {
+        const chunks: Buffer[] = [];
+        req.on("data", (c: Buffer) => chunks.push(c));
+        req.on("end", () => {
+          res.setHeader("Content-Type", "application/json");
+          res.send({
+            received: Buffer.concat(chunks).toString("utf8"),
+            contentType: req.headers["content-type"] ?? null,
+          });
+        });
+        return;
+      }
+      // Answers after 3 s: longer than the 2 s FETCH_TIMEOUT_MS default and shorter than the 5 s request timeout the
+      // test passes, so it only succeeds when the requested timeout reaches the fetch (also through the worker proxy).
+      setTimeout(() => {
+        res.setHeader("Content-Type", "application/json");
+        res.send({ message: "fetched-value" });
+      }, 3000);
     };
 
     webhookServer = await createServer({
@@ -551,7 +668,15 @@ describe.each(testModes)("Test Functions Chain ($name mode)", ({ name: modeName,
         "/multi_retry": handlerF("multi_retry"),
         "/ua_geo": handlerF("ua_geo"),
         "/store": handlerF("store"),
+        "/store_seed": handlerF("store_seed"),
+        "/store_other": handlerF("store_other"),
         "/fetch": handlerF("fetch"),
+        "/url_field": handlerF("url_field"),
+        "/unserializable_event": handlerF("unserializable_event"),
+        "/throwing_tojson": handlerF("throwing_tojson"),
+        "/throwing_unformattable": handlerF("throwing_unformattable"),
+        "/worker_crash": handlerF("worker_crash"),
+        "/worker_after_crash": handlerF("worker_after_crash"),
         "/warehouse_real": handlerF("warehouse_real"),
         "/fetch-source": fetchSourceHandler,
       },
@@ -569,6 +694,10 @@ describe.each(testModes)("Test Functions Chain ($name mode)", ({ name: modeName,
     delete process.env.FUNCTIONS_CLASS;
     // Reset cache so original env value is restored
     resetServerEnvCache();
+
+    delete process.env.FUNCTIONS_ISOLATE_UDFS;
+    delete process.env.FETCH_FORBID_LOCAL;
+    delete process.env.FETCH_LOCAL_WHITELIST;
 
     // Stop functions server if running
     if (functionsServer) {
@@ -673,6 +802,53 @@ describe.each(testModes)("Test Functions Chain ($name mode)", ({ name: modeName,
     }
   });
 
+  test("url_field", async () => {
+    const currentTestName = testName();
+    const connStore = getConnectionStoreForMode();
+    await rotorMessageHandler(
+      ingestMessage(currentTestName, messageId, incomingEvent),
+      rotorContext(connStore, funcStore, streamsStore),
+      "all",
+      { [CONNECTION_IDS_HEADER]: currentTestName },
+      true,
+      0,
+      5000
+    );
+    expect(lastError).toBeUndefined();
+    expect(counters[currentTestName]).toEqual(1);
+  });
+
+  // An event JSON cannot hold (a BigInt, an object whose toJSON throws) fails the whole call with HTTP 500 when the response is
+  // written: rotor sees a service failure and retries. A worker must fail it the same way: not answer HTTP 200 with an error
+  // entry, which the ingest drops without a retry, and not deliver the fields a clone leaves of an object whose class is gone.
+  // Failing the whole /multi call, with the other connections of it, is what the in-process response does as well.
+  test("unserializable_event", async () => {
+    const callMulti = async (ids: string) => {
+      const url = `${functionsServer!.baseUrl}/multi?ids=${ids}&fullEvents=true`;
+      const body = JSON.stringify(ingestMessage(ids.split(",")[0], messageId, incomingEvent));
+      return fetch(url, {
+        method: "POST",
+        body,
+        headers: {
+          "content-type": "application/json",
+          ...signFunctionsRequest(process.env.FUNCTIONS_SERVER_PRIVATE_KEY!, functionsClass, url, body),
+        },
+      });
+    };
+    for (const ids of [
+      "unserializable_event",
+      "throwing_tojson",
+      "throwing_unformattable",
+      "unserializable_event,simple",
+    ]) {
+      const res = await callMulti(ids);
+      expect(res.status, ids).toBe(500);
+    }
+    expect(counters["unserializable_event"]).toBeUndefined();
+    expect(counters["throwing_tojson"]).toBeUndefined();
+    expect(counters["throwing_unformattable"]).toBeUndefined();
+  }, 60000);
+
   test("noreturn", async () => {
     const currentTestName = testName();
     const connStore = getConnectionStoreForMode();
@@ -756,6 +932,71 @@ describe.each(testModes)("Test Functions Chain ($name mode)", ({ name: modeName,
       throw e;
     }
   });
+
+  // An uncaught exception in a timer callback ends the worker. The pool has to drop it, so that the next request of the
+  // workspace gets a new worker, and what was running in it has to fail at once: a dead worker answers nothing. Only a
+  // worker mode has workers.
+  test("worker_crash", async () => {
+    if (functionsClass !== "free" && !isolate) {
+      return;
+    }
+    const connStore = getConnectionStoreForMode();
+    const crashStarted = Date.now();
+    let crashError: any;
+    try {
+      await rotorMessageHandler(
+        ingestMessage("worker_crash", messageId, incomingEvent),
+        rotorContext(connStore, funcStore, streamsStore),
+        "all",
+        { [CONNECTION_IDS_HEADER]: "worker_crash" },
+        true,
+        0,
+        5000
+      );
+    } catch (e: any) {
+      crashError = e;
+    }
+    // the execution of the crashed worker fails when the worker dies (well before its 1.5 s of waiting is over or its
+    // timeout), and the webhook is never reached
+    expect(crashError).toBeDefined();
+    expect(Date.now() - crashStarted).toBeLessThan(1200);
+    expect(counters["worker_crash"]).toBeUndefined();
+    // another connection of the same workspace runs in a new worker
+    lastError = undefined;
+    await rotorMessageHandler(
+      ingestMessage("worker_after_crash", messageId, incomingEvent),
+      rotorContext(connStore, funcStore, streamsStore),
+      "all",
+      { [CONNECTION_IDS_HEADER]: "worker_after_crash" },
+      true,
+      0,
+      5000
+    );
+    expect(lastError).toBeUndefined();
+    expect(counters["worker_after_crash"]).toEqual(1);
+  }, 60000);
+
+  // The functions server answers a /multi call with HTTP 200 and an error entry per connection when a chain throws, and the
+  // ingest drops the events of those connections. A worker that died is not a failure of the chain: the call has to fail as
+  // a whole (the ingest then sees a service failure, as it did when the dead worker made the call time out).
+  test("worker_crash_multi", async () => {
+    if (functionsClass !== "free" && !isolate) {
+      return;
+    }
+    const url = `${functionsServer!.baseUrl}/multi?ids=worker_crash,worker_after_crash&fullEvents=true`;
+    const body = JSON.stringify(ingestMessage("worker_crash", messageId, incomingEvent));
+    const started = Date.now();
+    const res = await fetch(url, {
+      method: "POST",
+      body,
+      headers: {
+        "content-type": "application/json",
+        ...signFunctionsRequest(process.env.FUNCTIONS_SERVER_PRIVATE_KEY!, functionsClass, url, body),
+      },
+    });
+    expect(Date.now() - started).toBeLessThan(5000);
+    expect(res.status).toBe(500);
+  }, 60000);
 
   test("drop_retry", async () => {
     const currentTestName = testName();
@@ -998,9 +1239,34 @@ describe.each(testModes)("Test Functions Chain ($name mode)", ({ name: modeName,
     }
   });
 
+  // Writes a key through one connection and reads it through another, on its own (it needs no other test to have run).
+  // Without MongoDB a paid connection has its own in-memory store, in process and in an isolated worker alike, so the
+  // second one finds nothing; the free class has one store per workspace.
+  test("store_other", async () => {
+    const currentTestName = testName();
+    const connStore = getConnectionStoreForMode();
+    const send = (connectionId: string) =>
+      rotorMessageHandler(
+        ingestMessage(connectionId, messageId, incomingEvent),
+        rotorContext(connStore, funcStore, streamsStore),
+        "all",
+        { [CONNECTION_IDS_HEADER]: connectionId },
+        true,
+        0,
+        5000
+      );
+    await send("store_seed");
+    expect(lastError).toBeUndefined();
+    expect(counters["store_seed"]).toEqual(1);
+    await send(currentTestName);
+    expect(lastError).toBeUndefined();
+    expect(counters[currentTestName]).toEqual(1);
+  });
+
   test("fetch", async () => {
     const currentTestName = testName();
     const connStore = getConnectionStoreForMode();
+    loggedEntries.length = 0;
     try {
       await rotorMessageHandler(
         ingestMessage(currentTestName, messageId, incomingEvent),
@@ -1013,6 +1279,81 @@ describe.each(testModes)("Test Functions Chain ($name mode)", ({ name: modeName,
       );
       expect(lastError).toBeUndefined();
       expect(counters[currentTestName]).toEqual(1);
+      // What the fetch recorded in the events log. A paid function logs the same details whether it runs in process or
+      // in an isolated worker: the request headers with the sensitive ones hidden, and the response body (parsed as
+      // JSON when it is). The free class has always run in a worker and keeps its shorter entry.
+      const httpLogs = loggedEntries
+        .filter(
+          e =>
+            e.msg.type === "http-request" &&
+            String(e.msg.url).includes("/fetch-source") &&
+            !String(e.msg.url).includes("echo=")
+        )
+        .map(e => e.msg);
+      expect(httpLogs).toHaveLength(1);
+      expect(httpLogs[0]).toMatchObject({ type: "http-request", method: "GET", status: 200, statusText: "OK" });
+      // A Headers instance in the request init reaches the server in every runtime. In a worker it has to cross
+      // postMessage, which clones a Headers to an empty object in Deno and refuses it in Node.
+      const sentAuth = loggedEntries
+        .map(e => e.msg)
+        .find(m => String(m?.message?.text).startsWith("headers-object-auth="));
+      expect(sentAuth?.message.text).toBe("headers-object-auth=Bearer headers-object");
+      // A static import of a Node built-in (crypto) works in a worker as it does in process
+      const hashLog = loggedEntries.map(e => e.msg).find(m => String(m?.message?.text).startsWith("crypto-hash="));
+      expect(hashLog?.message.text).toBe("crypto-hash=ba7816bf");
+      // A fetch the guard refuses exposes the same code (`err.code`) in process and through a worker
+      const errorCodes = loggedEntries
+        .map(e => e.msg)
+        .find(m => String(m?.message?.text).startsWith("fetch-error-codes="));
+      expect(errorCodes?.message.text).toBe("fetch-error-codes=EBLOCKED|undefined");
+      // the event arrives (the checks above), and the response is logged as its data in every runtime that is a worker
+      if (functionsClass === "free" || isolate) {
+        const responseLog = loggedEntries.map(e => e.msg).find(m => m?.message?.text === "response-in-log");
+        expect(responseLog?.message.args?.[0]?.status).toBe(200);
+      }
+      // a URLSearchParams body reaches the server as the form it is (a worker sends it through postMessage)
+      const formBody = loggedEntries.map(e => e.msg).find(m => String(m?.message?.text).startsWith("form-body="));
+      expect(formBody?.message.text).toBe(
+        "form-body=grant_type=client_credentials&note=a+b|application/x-www-form-urlencoded;charset=UTF-8"
+      );
+      const urlObjectAuth = loggedEntries
+        .map(e => e.msg)
+        .find(m => String(m?.message?.text).startsWith("url-object-auth="));
+      expect(urlObjectAuth?.message.text).toBe("url-object-auth=Bearer via-url");
+      const generatorAuth = loggedEntries
+        .map(e => e.msg)
+        .find(m => String(m?.message?.text).startsWith("generator-auth="));
+      expect(generatorAuth?.message.text).toBe("generator-auth=Bearer from-generator");
+      const setPairAuth = loggedEntries
+        .map(e => e.msg)
+        .find(m => String(m?.message?.text).startsWith("set-pair-auth="));
+      expect(setPairAuth?.message.text).toBe("set-pair-auth=Bearer from-set-pair");
+      const errorType = loggedEntries
+        .map(e => e.msg)
+        .find(m => String(m?.message?.text).startsWith("fetch-error-type="));
+      expect(errorType?.message.text).toBe("fetch-error-type=true|TypeError");
+      // The free class and the Functions Debugger always had a plain headers object (`res.headers["content-type"]`); the
+      // rebuilt Response in a worker keeps that access next to `.get()`.
+      if (functionsClass === "free" || isolate) {
+        const legacy = loggedEntries.map(e => e.msg).find(m => String(m?.message?.text).startsWith("legacy-headers="));
+        expect(legacy?.message.text).toBe("legacy-headers=application/json; charset=utf-8|true");
+      }
+      // Whatever a UDF logs or returns has to survive the worker's postMessage. Headers that are not plain data make it
+      // throw, and the worker then drops the whole result (no events, no logs), so the event below never arrives.
+      if (functionsClass === "free" || isolate) {
+        const headersLog = loggedEntries.map(e => e.msg).find(m => m?.message?.text === "headers-in-log");
+        expect(headersLog?.message.args?.[0]?.["content-type"]).toBe("application/json; charset=utf-8");
+      }
+      // `res.body` is the decoded text in every runtime (the in-process buffered response and the previous worker
+      // response), so `JSON.parse(res.body)` works in every mode.
+      const legacyBody = loggedEntries.map(e => e.msg).find(m => String(m?.message?.text).startsWith("legacy-body="));
+      expect(legacyBody?.message.text).toBe("legacy-body=fetched-value");
+      if (functionsClass !== "free") {
+        expect(httpLogs[0]).toMatchObject({
+          headers: { Authorization: "*****", "X-Trace": "trace-1" },
+          response: { message: "fetched-value" },
+        });
+      }
     } catch (e: any) {
       throw e;
     }
