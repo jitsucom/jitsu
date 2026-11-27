@@ -2,107 +2,181 @@ package main
 
 import (
 	"context"
+	"fmt"
+	"maps"
+	"sync"
+	"time"
+
 	"github.com/confluentinc/confluent-kafka-go/v2/kafka"
 	"github.com/jitsucom/bulker/jitsubase/appbase"
 	"github.com/jitsucom/bulker/jitsubase/safego"
 	"github.com/mroth/weightedrand/v2"
-	"sync"
-	"time"
 )
 
 type ConsumerMonitor struct {
 	sync.RWMutex
 	appbase.Service
-	adminClient       *kafka.AdminClient
-	topic             string
-	consumerGroupName string
-	threshold         int64
-	weightedRandom    *weightedrand.Chooser[int32, int64]
-	closed            chan struct{}
+	adminClient    *kafka.AdminClient
+	offsets        *kafka.Consumer
+	topic          string
+	threshold      int64
+	weightedRandom *weightedrand.Chooser[int32, int64]
+	cancel         context.CancelFunc
+	done           chan struct{}
 }
 
 func NewConsumerMonitor(appContext *Context, topic, consumerGroupName string) (*ConsumerMonitor, error) {
-	base := appbase.NewServiceBase("topic-monitor")
-
-	adminClient, err := kafka.NewAdminClient(appContext.kafkaConfig)
+	adminClient, err := appContext.producer.NewAdminClient()
 	if err != nil {
 		return nil, err
 	}
-	c := &ConsumerMonitor{
-		Service:           base,
-		adminClient:       adminClient,
-		topic:             topic,
-		threshold:         appContext.config.WeightedPartitionSelectorLagThreshold,
-		consumerGroupName: consumerGroupName,
-		closed:            make(chan struct{}),
+	// Use a consumer handle for OffsetFetch: librdkafka's producer-side admin
+	// request can stall when Kafka first initializes its group coordinator.
+	// This client never subscribes or commits, so Rotor's assignments stay intact.
+	cfg := maps.Clone(*appContext.kafkaConfig)
+	cfg["group.id"] = consumerGroupName
+	cfg["enable.auto.commit"] = false
+	offsets, err := kafka.NewConsumer(&cfg)
+	if err != nil {
+		adminClient.Close()
+		return nil, err
 	}
-	c.Start()
-	return c, nil
-}
-
-func (tm *ConsumerMonitor) Start() {
+	ctx, cancel := context.WithCancel(context.Background())
+	tm := &ConsumerMonitor{
+		Service:     appbase.NewServiceBase("topic-monitor"),
+		adminClient: adminClient,
+		topic:       topic,
+		offsets:     offsets,
+		threshold:   appContext.config.WeightedPartitionSelectorLagThreshold,
+		cancel:      cancel,
+		done:        make(chan struct{}),
+	}
 	safego.RunWithRestart(func() {
-		ticker := time.NewTicker(1 * time.Second)
+		ticker := time.NewTicker(time.Second)
 		defer ticker.Stop()
 		for {
 			select {
-			case <-tm.closed:
+			case <-ctx.Done():
+				close(tm.done)
 				return
 			case <-ticker.C:
-				res, err := tm.adminClient.ListConsumerGroupOffsets(context.Background(),
-					[]kafka.ConsumerGroupTopicPartitions{{Group: tm.consumerGroupName}})
-				if err != nil {
-					tm.Errorf("Error getting consumer group offsets: %v", err)
-					continue
+				chooser, err := tm.partitionWeights(ctx)
+				if err != nil && ctx.Err() == nil {
+					tm.Errorf("Error refreshing partition weights for %s: %v", tm.topic, err)
 				}
-				topicPartitionOffsets := make(map[kafka.TopicPartition]kafka.OffsetSpec)
-				lags := make(map[int32]int64)
-				for _, group := range res.ConsumerGroupsTopicPartitions {
-					for _, partition := range group.Partitions {
-						lags[partition.Partition] = int64(partition.Offset)
-						topicPartitionOffsets[kafka.TopicPartition{Topic: partition.Topic, Partition: partition.Partition}] = kafka.LatestOffsetSpec
-					}
+				tm.Lock()
+				if (tm.weightedRandom == nil) != (chooser == nil) {
+					tm.Debugf("Weighted partition selection for %s enabled: %t", tm.topic, chooser != nil)
 				}
-				latestOffsets, err := tm.adminClient.ListOffsets(context.Background(), topicPartitionOffsets)
-				if err != nil {
-					tm.Errorf("Error getting latest offsets: %v", err)
-					continue
-				}
-				var maxLag int64
-				for tp, offset := range latestOffsets.ResultInfos {
-					lag := int64(offset.Offset) - lags[tp.Partition]
-					if lag > maxLag {
-						maxLag = lag
-					}
-					lags[tp.Partition] = lag
-				}
-				if maxLag > tm.threshold {
-					choices := make([]weightedrand.Choice[int32, int64], 0, len(lags))
-					for part, lag := range lags {
-						choices = append(choices, weightedrand.NewChoice(part, maxLag-lag+1))
-					}
-					chooser, err := weightedrand.NewChooser(choices...)
-					if err != nil {
-						tm.Errorf("Error getting latest offsets: %v", err)
-						continue
-					}
-					tm.Lock()
-					if tm.weightedRandom == nil {
-						tm.Debugf("Enabling weighed random partition selector. Lags: %v", lags)
-					}
-					tm.weightedRandom = chooser
-					tm.Unlock()
-				} else {
-					tm.Lock()
-					if tm.weightedRandom != nil {
-						tm.weightedRandom = nil
-						tm.Debugf("Disabling weighed random partition selector. Max lag is low: %d", maxLag)
-					}
-					tm.Unlock()
-				}
+				tm.weightedRandom = chooser
+				tm.Unlock()
 			}
 		}
 	})
+	return tm, nil
+}
+
+func (tm *ConsumerMonitor) partitionWeights(ctx context.Context) (*weightedrand.Chooser[int32, int64], error) {
+	// A producer metadata request may auto-create a missing topic with broker
+	// defaults. Topic provisioning and retention belong to the topic manager.
+	timeout := kafka.SetAdminRequestTimeout(10 * time.Second)
+	metadata, err := tm.adminClient.DescribeTopics(ctx, kafka.NewTopicCollectionOfTopicNames([]string{tm.topic}), timeout)
+	if err != nil {
+		return nil, fmt.Errorf("describe topic: %w", err)
+	}
+	if len(metadata.TopicDescriptions) != 1 || metadata.TopicDescriptions[0].Name != tm.topic {
+		return nil, fmt.Errorf("missing metadata for %s", tm.topic)
+	}
+	topic := metadata.TopicDescriptions[0]
+	if topic.Error.Code() != kafka.ErrNoError {
+		return nil, topic.Error
+	}
+
+	var partitions []kafka.TopicPartition
+	latest := make(map[kafka.TopicPartition]kafka.OffsetSpec)
+	for _, p := range topic.Partitions {
+		if p.Leader == nil || p.Leader.ID < 0 {
+			continue
+		}
+		tp := kafka.TopicPartition{Topic: &tm.topic, Partition: int32(p.Partition)}
+		partitions = append(partitions, tp)
+		latest[tp] = kafka.LatestOffsetSpec
+	}
+	if len(partitions) == 0 {
+		return nil, nil
+	}
+
+	commits, err := tm.offsets.Committed(partitions, 5000)
+	if err != nil {
+		return nil, fmt.Errorf("read consumer group offsets: %w", err)
+	}
+	ends, err := tm.adminClient.ListOffsets(ctx, latest, timeout)
+	if err != nil {
+		return nil, fmt.Errorf("read latest offsets: %w", err)
+	}
+
+	starts, uncommitted := committedStarts(tm.topic, commits)
+	if len(uncommitted) > 0 {
+		// Rotor starts at the earliest retained offset when there is no commit.
+		// It can be nonzero if a group's offsets expired after log retention.
+		earliest, err := tm.adminClient.ListOffsets(ctx, uncommitted, timeout)
+		if err != nil {
+			return nil, fmt.Errorf("read earliest offsets: %w", err)
+		}
+		for id, offset := range validOffsets(tm.topic, earliest) {
+			starts[id] = offset
+		}
+	}
+	lags := partitionLags(starts, validOffsets(tm.topic, ends))
+	var maxLag int64
+	for _, lag := range lags {
+		maxLag = max(maxLag, lag)
+	}
+	if maxLag <= tm.threshold {
+		return nil, nil
+	}
+	choices := make([]weightedrand.Choice[int32, int64], 0, len(lags))
+	for id, lag := range lags {
+		choices = append(choices, weightedrand.NewChoice(id, maxLag-lag+1))
+	}
+	return weightedrand.NewChooser(choices...)
+}
+
+func committedStarts(topic string, commits []kafka.TopicPartition) (map[int32]int64, map[kafka.TopicPartition]kafka.OffsetSpec) {
+	missing := make(map[kafka.TopicPartition]kafka.OffsetSpec)
+	offsets := make(map[int32]int64)
+	for _, p := range commits {
+		if p.Topic == nil || *p.Topic != topic || p.Error != nil {
+			continue
+		}
+		switch {
+		case p.Offset >= 0:
+			offsets[p.Partition] = int64(p.Offset)
+		case p.Offset == kafka.OffsetInvalid:
+			missing[kafka.TopicPartition{Topic: p.Topic, Partition: p.Partition}] = kafka.EarliestOffsetSpec
+		}
+	}
+	return offsets, missing
+}
+
+func validOffsets(topic string, result kafka.ListOffsetsResult) map[int32]int64 {
+	offsets := make(map[int32]int64)
+	for p, info := range result.ResultInfos {
+		if p.Topic != nil && *p.Topic == topic && info.Error.Code() == kafka.ErrNoError && info.Offset >= 0 {
+			offsets[p.Partition] = int64(info.Offset)
+		}
+	}
+	return offsets
+}
+
+func partitionLags(starts, ends map[int32]int64) map[int32]int64 {
+	lags := make(map[int32]int64)
+	for id, end := range ends {
+		if start, ok := starts[id]; ok {
+			lags[id] = max(0, end-start)
+		}
+	}
+	return lags
 }
 
 func (tm *ConsumerMonitor) SelectPartition() int32 {
@@ -114,7 +188,9 @@ func (tm *ConsumerMonitor) SelectPartition() int32 {
 	return tm.weightedRandom.Pick()
 }
 
-func (tm *ConsumerMonitor) Close() error {
+func (tm *ConsumerMonitor) Close() {
+	tm.cancel()
+	<-tm.done
 	tm.adminClient.Close()
-	return nil
+	_ = tm.offsets.Close()
 }

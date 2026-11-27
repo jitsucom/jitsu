@@ -156,6 +156,12 @@ func NewNamedProducer(name string, config *KafkaConfig, kafkaConfig *kafka.Confi
 	}, nil
 }
 
+// NewAdminClient shares the producer's connections and metadata. Close the
+// derived client before closing the producer.
+func (p *Producer) NewAdminClient() (*kafka.AdminClient, error) {
+	return kafka.NewAdminClientFromProducer(p.producer)
+}
+
 func (p *Producer) Start() {
 	// Start failover logger if configured
 	if p.failoverLogger != nil {
@@ -265,6 +271,16 @@ func (p *Producer) ProduceSync(topic string, event kafka.Message) error {
 // latency-sensitive paths (ingest HTTP handlers) should pass 0; bulkerapp HTTP
 // handlers ~5s; backend services / consumers / maintenance tasks ~30s.
 func (p *Producer) ProduceAsync(topic string, messageKey string, event []byte, headers map[string]string, partition int32, messageId string, failover bool, backpressureMaxWait time.Duration) error {
+	return p.produceAsync(topic, messageKey, event, headers, partition, messageId, failover, backpressureMaxWait, false)
+}
+
+// ProduceWithPartitionHint enqueues without blocking. If librdkafka locally
+// rejects a stale partition hint, let its partitioner select a known partition.
+func (p *Producer) ProduceWithPartitionHint(topic, messageKey string, event []byte, headers map[string]string, partition int32, messageId string, failover bool) error {
+	return p.produceAsync(topic, messageKey, event, headers, partition, messageId, failover, 0, true)
+}
+
+func (p *Producer) produceAsync(topic, messageKey string, event []byte, headers map[string]string, partition int32, messageId string, failover bool, backpressureMaxWait time.Duration, partitionHint bool) error {
 	if p.isClosed() {
 		return p.NewError("producer is closed")
 	}
@@ -290,6 +306,13 @@ func (p *Producer) ProduceAsync(topic string, messageKey string, event []byte, h
 		err = ProduceWithBackpressure(p.producer, msg, p.config.ProducerLingerMs/2, backpressureMaxWait)
 	} else {
 		err = p.producer.Produce(msg, nil)
+		if partitionHint && partition >= 0 && err != nil {
+			var ke kafka.Error
+			if errors.As(err, &ke) && ke.Code() == kafka.ErrUnknownPartition {
+				msg.TopicPartition.Partition = kafka.PartitionAny
+				err = p.producer.Produce(msg, nil)
+			}
+		}
 	}
 	if err != nil {
 		p.metrics.messages(p.metricsLabelFunc(topic, "error", KafkaErrorCode(err))).Inc()
