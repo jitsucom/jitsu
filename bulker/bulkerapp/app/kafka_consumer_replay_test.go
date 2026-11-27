@@ -3,6 +3,7 @@ package app
 import (
 	"errors"
 	"fmt"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -229,6 +230,66 @@ func TestConsumerRuntimeRecreatesAfterRewindFailure(t *testing.T) {
 			}))
 			_, err = runtime.commitMessage(&kafka.Message{}, epoch)
 			require.ErrorIs(t, err, errConsumerAssignmentChanged)
+		})
+	}
+}
+
+// Delay coordinator responses past the session timeout while continuing to
+// poll. This exercises librdkafka's actual lost-revoke/rejoin state machine,
+// rather than manufacturing a broker UNKNOWN_MEMBER_ID in the application.
+func TestConsumerRuntimeRejoinsAfterCoordinatorTimeout(t *testing.T) {
+	for _, strategy := range []string{"cooperative-sticky", "range"} {
+		t.Run(strategy, func(t *testing.T) {
+			cluster, err := kafka.NewMockCluster(1)
+			require.NoError(t, err)
+			defer cluster.Close()
+			topic := "coordinator-timeout"
+			require.NoError(t, cluster.CreateTopic(topic, 1, 1))
+			cfg := kafka.ConfigMap{"bootstrap.servers": cluster.BootstrapServers(), "group.id": topic, "group.instance.id": "bulker-0", "auto.offset.reset": "earliest", "enable.auto.commit": false, "session.timeout.ms": 6000, "heartbeat.interval.ms": 500, "partition.assignment.strategy": strategy}
+			var calls, losses atomic.Int64
+			noop := func(string, ...any) {}
+			runtime := newConsumerRuntimeWithFactory(cfg, topic, consumerRuntimeHooks{
+				debugf: noop, infof: noop, errorf: noop, onKafkaError: func(kafka.Error) {},
+				onAssignmentLost: func() { losses.Add(1) },
+			}, func(config *kafka.ConfigMap) (groupConsumer, error) {
+				calls.Add(1)
+				return kafka.NewConsumer(config)
+			}, 20*time.Millisecond)
+			defer runtime.close()
+			_, err = runtime.init()
+			require.NoError(t, err)
+			assigned, epoch, err := runtime.assignment(15 * time.Second)
+			require.NoError(t, err)
+			require.Len(t, assigned, 1)
+			producer, err := kafka.NewProducer(&kafka.ConfigMap{"bootstrap.servers": cluster.BootstrapServers()})
+			require.NoError(t, err)
+			defer producer.Close()
+			delivery := make(chan kafka.Event, 1)
+			require.NoError(t, producer.Produce(&kafka.Message{TopicPartition: kafka.TopicPartition{Topic: &topic, Partition: 0}, Value: []byte("uncommitted")}, delivery))
+			select {
+			case event := <-delivery:
+				require.NoError(t, event.(*kafka.Message).TopicPartition.Error)
+			case <-time.After(5 * time.Second):
+				t.Fatal("produce timeout")
+			}
+			message, err := runtime.readMessage(5*time.Second, epoch)
+			require.NoError(t, err)
+			require.NoError(t, runtime.pause())
+			require.NoError(t, cluster.SetRoundtripDuration(1, 8*time.Second))
+			require.Eventually(t, func() bool { return losses.Load() > 0 }, 15*time.Second, 50*time.Millisecond)
+			require.NoError(t, cluster.SetRoundtripDuration(1, 0))
+			_, err = runtime.commitMessage(message, epoch)
+			require.ErrorIs(t, err, errConsumerAssignmentChanged)
+			assigned, newEpoch, err := runtime.assignment(20 * time.Second)
+			require.NoError(t, err)
+			require.Len(t, assigned, 1)
+			require.NoError(t, runtime.resume())
+			replay, err := runtime.readMessage(5*time.Second, newEpoch)
+			require.NoError(t, err)
+			require.Equal(t, message.TopicPartition.Offset, replay.TopicPartition.Offset)
+			_, err = runtime.commitMessage(replay, newEpoch)
+			require.NoError(t, err)
+			require.Equal(t, int64(1), calls.Load(), "librdkafka must rejoin with the existing consumer")
 		})
 	}
 }
