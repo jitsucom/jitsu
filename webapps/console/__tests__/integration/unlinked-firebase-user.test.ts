@@ -65,13 +65,17 @@ describe("a verified Firebase account that is not linked yet (no internalId)", (
     try {
       const foreign = [admin.workspace.id, member.workspace.id, admin.workspace.slug!, member.workspace.slug!];
 
-      // the real handlers must refuse, and in any case must not return another account's workspaces
+      // The real handlers refuse for the one reason that matters: the principal has no internalId (JITSU-288 tightened
+      // this from "any error status", which a different failure would also satisfy). /api/workspace answers 500 with that
+      // message, /api/me throws it; neither returns another account's workspaces.
       const ws = await call(workspaceRoute, "GET");
-      expect(ws.res.statusCode).toBeGreaterThanOrEqual(400);
+      expect(ws.res.statusCode).toBe(500);
+      expect(ws.text).toContain("internalId is not defined");
       for (const id of foreign) expect(ws.text).not.toContain(id);
 
       const me = await call(meRoute, "GET", { workspaces: "true" });
-      expect(me.threw ?? me.res.statusCode >= 400).toBeTruthy();
+      expect(me.threw).toBeDefined();
+      expect(String(me.threw?.message)).toContain("internalId is not defined");
       for (const id of foreign) expect(me.text).not.toContain(id);
     } finally {
       firebase.user = undefined;
