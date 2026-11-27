@@ -20,6 +20,7 @@ import {
 } from "./profiles-functions";
 import { mongodb } from "./mongodb";
 import { Profile } from "./pb-server-runtime";
+import { describeProfileResult } from "./profile-log";
 import { undiciAgent } from "./functions-server-client";
 import { workspacesStore } from "./repositories";
 
@@ -454,7 +455,7 @@ async function processProfile(
     const result = fsResult.result;
     if (result) {
       await sendToBulker(profileBuilder, result);
-      log.atInfo().log(`User ${profileId} processed in ${ms.elapsedMs()}ms. Result: ${JSON.stringify(result)}`);
+      log.atInfo().log(`User ${profileId} processed in ${ms.elapsedMs()}ms. Result: ${describeProfileResult(result)}`);
     } else {
       log.atWarn().log(`No profile result for user ${profileId}. processed in ${ms.elapsedMs()}ms`);
     }

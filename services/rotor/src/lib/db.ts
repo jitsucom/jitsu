@@ -47,6 +47,22 @@ type PgHelper = {
   streamQuery(query: string, values?: ParamValues | Handler, handler?: Handler | undefined): Promise<{ rows: number }>;
 };
 
+/**
+ * The fields of a database error that say what went wrong without quoting a value. The error's own message and detail are left
+ * out on purpose: Postgres puts the offending value in them (`invalid input syntax for type integer: "…"`, `Key (…)=(…) already
+ * exists`), and query parameters can be secrets or personal data.
+ */
+function safeDbErrorFields(e: any) {
+  return {
+    code: e?.code,
+    severity: e?.severity,
+    constraint: e?.constraint,
+    table: e?.table,
+    column: e?.column,
+    position: e?.position,
+  };
+}
+
 const pgHelper: PgHelper = {
   async getProfileBuilder(workspaceId: string, profileBuilderId: string): Promise<ProfileBuilder | undefined> {
     let rows = await db.pgPool().query(
@@ -134,10 +150,13 @@ const pgHelper: PgHelper = {
 
       queryResult = await db.pgPool().query(processedQuery, processedParams);
     } catch (e) {
+      // the parameter values can be secrets or personal data: log how many, not what, and no message that may quote them
       log
         .atError()
-        .withCause(e)
-        .log("Error executing query: \n" + processedQuery + "\n with params: " + JSON.stringify(processedParams));
+        .log(
+          `Error executing query: \n${processedQuery}\n with ${processedParams.length} parameter(s) (values are not logged)`,
+          safeDbErrorFields(e)
+        );
       throw newError("Error executing the query. See query in logs", e);
     } finally {
       if (cursor) {
@@ -149,7 +168,10 @@ const pgHelper: PgHelper = {
       }
     }
 
-    log.atDebug().log(`Query executed in ${sw.elapsedMs()}ms: ${processedQuery}${processedParams}`);
+    // the parameter values can be secrets or personal data: how many, not what
+    log
+      .atDebug()
+      .log(`Query executed in ${sw.elapsedMs()}ms (${processedParams.length} parameter(s)): ${processedQuery}`);
 
     return { rows: totalRows };
   },

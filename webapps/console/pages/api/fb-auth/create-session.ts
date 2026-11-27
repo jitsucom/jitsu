@@ -36,9 +36,8 @@ export const api: Api = {
       const secure = getAppEndpoint(req).protocol === "https";
       const csrfCookie = req.cookies["fb-csrfToken"];
       if (csrfToken !== csrfCookie) {
-        log
-          .atError()
-          .log(`CSRF cookie (${csrfCookie}) doesn't match provided token ${csrfToken}`, JSON.stringify(req.cookies));
+        // The cookie jar holds the session cookies and the tokens are credentials: log neither, only whether the cookie existed.
+        log.atError().log(`CSRF token does not match the CSRF cookie (cookie ${csrfCookie ? "present" : "missing"})`);
         throw new ApiError("CSRF error", { status: 401 });
       }
       // JITSU-018: never mint a session cookie for an unverified email+password

@@ -192,9 +192,10 @@ async function getUserFromFirebase(currentUser: auth.User): Promise<PassiveFireb
     }
     const newToken = await currentUser.getIdTokenResult(true);
     internalId = newToken.claims.internalId as string;
-    log.atDebug().log(`Refreshed firebase token`, newToken);
+    // not the token result or the user object: they hold the ID token and the refresh token
+    log.atDebug().log(`Refreshed firebase token`, { expiresAt: newToken.expirationTime });
     currentUser = auth.getAuth().currentUser!;
-    log.atDebug().log(`Refreshed firebase user`, currentUser);
+    log.atDebug().log(`Refreshed firebase user`, { uid: currentUser.uid });
     shouldRefreshToken = true;
   }
   const idToken = await currentUser.getIdToken(shouldRefreshToken);
@@ -397,7 +398,7 @@ export function useFirebaseSession(): FirebaseSession {
         let unregister = auth.onAuthStateChanged(
           auth.getAuth(),
           async user => {
-            log.atDebug().log(`Firebase auth result`, user);
+            log.atDebug().log(`Firebase auth result`, { signedIn: !!user, uid: user?.uid });
             try {
               // An expired "become" session is refused by create-session; sign out so the user lands on
               // the sign-in page instead of an error screen that reloads into the same 401.

@@ -46,7 +46,8 @@ export function checkRawToken(hashOrPlain: string, secret: string): boolean {
 
 export function checkHash(hash: string, secret: string): boolean {
   if (hash.indexOf(".") < 0) {
-    console.error(`Invalid auth token: ${hash} Should be in format \$\{salt\}.\$\{hash\}`);
+    // the value is a configured credential (a raw token where a salted hash was expected): never print it
+    console.error("Invalid auth token: it should be in the format ${salt}.${hash}. The value is not logged");
     return false;
   }
   const [randomSeed] = hash.split(".");
