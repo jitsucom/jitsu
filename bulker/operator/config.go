@@ -3,6 +3,7 @@ package main
 import (
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"os"
 
@@ -78,6 +79,9 @@ type Config struct {
 	HPAEnabled bool `mapstructure:"HPA_ENABLED" default:"false"`
 	// Maximum number of replicas
 	HPAMaxReplicas int32 `mapstructure:"HPA_MAX_REPLICAS" default:"16"`
+	// JSON object keyed by deployment ID. Overrides below the deployment class minimum use the global maximum.
+	HPAMaxReplicasByDeployment string `mapstructure:"HPA_MAX_REPLICAS_BY_DEPLOYMENT"`
+	maxReplicasByDeployment    map[string]int32
 	// Target CPU utilization percentage
 	HPATargetCPUUtilization int32 `mapstructure:"HPA_TARGET_CPU_UTILIZATION" default:"100"`
 	// Scale down stabilization window in seconds
@@ -93,6 +97,16 @@ func init() {
 func (c *Config) PostInit(settings *appbase.AppSettings) error {
 	if c.RepositoryBaseURL == "" {
 		return fmt.Errorf("REPOSITORY_URL is required")
+	}
+	if c.HPAMaxReplicasByDeployment != "" {
+		if err := json.Unmarshal([]byte(c.HPAMaxReplicasByDeployment), &c.maxReplicasByDeployment); err != nil || c.maxReplicasByDeployment == nil {
+			return fmt.Errorf("HPA_MAX_REPLICAS_BY_DEPLOYMENT must be a JSON object mapping deployment IDs to replica counts")
+		}
+		for id, limit := range c.maxReplicasByDeployment {
+			if id == "" || limit < 1 {
+				return fmt.Errorf("HPA_MAX_REPLICAS_BY_DEPLOYMENT requires a deployment ID and a positive limit, got %q: %d", id, limit)
+			}
+		}
 	}
 	return c.Config.PostInit(settings)
 }
