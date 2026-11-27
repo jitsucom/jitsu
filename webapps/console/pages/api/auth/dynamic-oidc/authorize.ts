@@ -7,7 +7,13 @@ import crypto from "crypto";
 import { extractReturnUrl } from "../../../../lib/auth-redirect";
 import { getOidcProvider } from "../../../../lib/server/oidc-token-service";
 import { performAutoDiscovery } from "../../../../lib/server/oidc-discovery";
-import { getServerEnv } from "../../../../lib/server/serverEnv";
+import {
+  canonicalAuthorizeLocation,
+  clearStaleLoginBindingCookies,
+  loginBindingCookie,
+  newLoginBinding,
+  oidcBaseUrl,
+} from "../../../../lib/server/oidc-login-state";
 
 const log = getServerLog("api/auth/dynamic-oidc/authorize");
 
@@ -46,12 +52,16 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
     // Extract return URL from request for post-auth redirect
     const returnUrl = extractReturnUrl(req);
 
+    // The state is only valid together with a cookie of this browser; the state holds just its hash
+    const binding = newLoginBinding();
+
     // Create state token with provider ID, PKCE verifier, return URL, and additional security data
     const state = jwt.sign(
       {
         providerId,
         timestamp: Date.now(),
-        csrfToken: crypto.randomBytes(16).toString("hex"),
+        attempt: binding.attempt,
+        bindingHash: binding.hash,
         codeVerifier: pkce.codeVerifier,
         nonce,
         returnUrl, // Include return URL in state
@@ -61,12 +71,7 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
     );
 
     // Construct redirect URI that includes provider ID
-    const protocol =
-      req.headers["x-forwarded-proto"] ||
-      req.headers["x-forwarded-protocol"] ||
-      (req.url?.startsWith("https") ? "https" : "http");
-    const serverEnv = getServerEnv();
-    const baseUrl = serverEnv.NEXTAUTH_URL || serverEnv.JITSU_PUBLIC_URL || `${protocol}://${req.headers.host}`;
+    const baseUrl = oidcBaseUrl(req);
     const redirectUri = `${baseUrl}/api/auth/dynamic-oidc/callback`;
 
     // Get authorization URL
@@ -105,7 +110,12 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
 
     const authUrl = `${authorizationEndpoint}?${params.toString()}`;
 
-    // Redirect to OIDC provider
+    // Redirect to OIDC provider, remembering in this browser that it is the one that started the login
+    // the cookies of abandoned attempts beyond the bound are cleared in the same response
+    res.setHeader("Set-Cookie", [
+      ...clearStaleLoginBindingCookies(req),
+      loginBindingCookie(req, binding.attempt, binding.value),
+    ]);
     res.redirect(authUrl);
   } catch (error: any) {
     log.atError().withCause(error).log("Error initiating OIDC authorization");
@@ -113,4 +123,14 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
   }
 }
 
-export default withAuthRateLimit(handler, { bucket: "login" });
+const limitedHandler = withAuthRateLimit(handler, { bucket: "login" });
+
+// The binding cookie is host-only and the identity provider returns to the configured address: a request that is not on it,
+// or that is not positively https, is sent there first. That hop is made before the rate limit, so it costs no login budget.
+export default function authorize(req: NextApiRequest, res: NextApiResponse) {
+  const canonical = canonicalAuthorizeLocation(req);
+  if (canonical) {
+    return res.redirect(canonical);
+  }
+  return limitedHandler(req, res);
+}

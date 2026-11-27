@@ -13,6 +13,14 @@ import { redirectWithOidcError, OidcErrors } from "../../../../lib/server/oidc-e
 import { getServerEnv } from "../../../../lib/server/serverEnv";
 import { authAuditLog } from "../../../../lib/server/audit-log";
 import { trackAuthEvent } from "../../../../lib/server/telemetry";
+import {
+  clearLoginBindingCookie,
+  clearStaleLoginBindingCookies,
+  isValidLoginAttempt,
+  loginBindingCookieName,
+  loginBindingMatches,
+  requestScheme,
+} from "../../../../lib/server/oidc-login-state";
 
 const log = getServerLog("api/auth/dynamic-oidc/callback");
 
@@ -44,6 +52,26 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
       });
     }
 
+    // The login must finish in the browser that started it. The state is signed, but it travels in this URL, so it
+    // alone does not tell who holds it: it must come with the cookie set by authorize. This runs before anything else is
+    // done with the state, and a refusal leaves the cookie alone, so a login of this browser's own is not spent by it.
+    const attempt = stateData.attempt;
+    if (
+      !isValidLoginAttempt(attempt) ||
+      !loginBindingMatches(req.cookies?.[loginBindingCookieName(req, attempt)], stateData.bindingHash)
+    ) {
+      log.atWarn().log("OIDC callback refused: the state is not bound to this browser");
+      return redirectWithOidcError(res, {
+        error: OidcErrors.INVALID_STATE,
+      });
+    }
+    // The binding is single use, whatever the login does next. Only this attempt's cookie: another login of this browser
+    // (another tab) keeps its own
+    res.setHeader("Set-Cookie", [
+      clearLoginBindingCookie(req, attempt),
+      ...clearStaleLoginBindingCookies(req, { room: 0, ignore: attempt }),
+    ]);
+
     // Check if state is not too old (10 minutes)
     if (Date.now() - stateData.timestamp > 10 * 60 * 1000) {
       return redirectWithOidcError(res, {
@@ -64,10 +92,7 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
 
     // Exchange code for tokens
     const tokenEndpoint = oidcProvider.tokenEndpoint || `${oidcProvider.issuer}/token`;
-    const protocol =
-      req.headers["x-forwarded-proto"] ||
-      req.headers["x-forwarded-protocol"] ||
-      (req.url?.startsWith("https") ? "https" : "http");
+    const protocol = requestScheme(req);
     const serverEnv = getServerEnv();
     const baseUrl = serverEnv.NEXTAUTH_URL || serverEnv.JITSU_PUBLIC || `${protocol}://${req.headers.host}`;
     const redirectUri = `${baseUrl}/api/auth/dynamic-oidc/callback`;
@@ -286,16 +311,17 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
     }
 
     // Set secure session cookie
-    res.setHeader(
-      "Set-Cookie",
+    res.setHeader("Set-Cookie", [
+      clearLoginBindingCookie(req, attempt),
+      ...clearStaleLoginBindingCookies(req, { room: 0, ignore: attempt }),
       serialize("oidc-session", sessionToken, {
         httpOnly: true,
         secure: isSecure(req),
         sameSite: "strict",
         maxAge: 7 * 24 * 60 * 60, // 7 days`
         path: "/",
-      })
-    );
+      }),
+    ]);
 
     // Determine where to redirect after successful authentication
     let redirectUrl = stateData.returnUrl;
