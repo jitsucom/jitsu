@@ -18,6 +18,7 @@ import mongodbIcon from "./icons/mongodb";
 import resendIcon from "./icons/resend";
 import salesforceIcon from "./icons/salesforce";
 import sendgridIcon from "./icons/sendgrid";
+import customerIoIcon from "./icons/customerio";
 import statsigIcon from "./icons/statsig";
 
 import * as meta from "@jitsu/destination-functions/src/meta";
@@ -1203,6 +1204,22 @@ export const coreDestinations: DestinationType<any>[] = [
       <>
         Jitsu syncs users to SendGrid as marketing contacts. Each <code>.identify()</code> upserts a contact and adds it
         to a list. Other events update the contact&apos;s fields. Contacts are matched by email.
+      </>
+    ),
+  },
+  {
+    id: "customer-io",
+    icon: customerIoIcon,
+    title: "Customer.io",
+    tags: "Email",
+    connectionOptions: CloudDestinationsConnectionOptions,
+    credentials: meta.CustomerIoCredentials,
+    credentialsUi: meta.CustomerIoCredentialsUi,
+    description: (
+      <>
+        Jitsu sends events to Customer.io through its Data Pipelines API. <code>identify</code>, <code>track</code>,{" "}
+        <code>page</code>, <code>screen</code>, <code>group</code> and <code>alias</code> events are forwarded as they
+        are.
       </>
     ),
   },

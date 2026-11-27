@@ -358,6 +358,38 @@ export const SegmentCredentials = z.object({
 });
 export type SegmentCredentials = z.infer<typeof SegmentCredentials>;
 
+/**
+ * Customer.io Data Pipelines API hosts. The region is fixed per Customer.io account,
+ * and a private key only works on the host of its own region.
+ */
+export const CUSTOMER_IO_HOSTS = {
+  US: "https://cdp.customer.io",
+  EU: "https://cdp-eu.customer.io",
+} as const;
+
+export const CustomerIoCredentials = z.object({
+  apiKey: z
+    .string()
+    .describe(
+      `API Key::Customer.io private API key (starts with <code>sk_</code>). Create it in Customer.io under <b>Account Settings &gt; API Credentials &gt; Create API key</b>: choose <b>Private API key</b> and set <b>Used in</b> to <b>Customer.io API</b>. The key is shown only once. Track API credentials (Site ID + API Key) do not work here.`
+    ),
+  region: z
+    .enum(["US", "EU"])
+    .default("US")
+    .describe(
+      `Region::The data center of your Customer.io account. It must match the region the account was created in.`
+    ),
+});
+export type CustomerIoCredentials = z.infer<typeof CustomerIoCredentials>;
+
+export const CustomerIoCredentialsUi: Partial<
+  Record<keyof CustomerIoCredentials, { documentation?: string; password?: boolean; hidden?: boolean }>
+> = {
+  apiKey: {
+    password: true,
+  },
+};
+
 export const POSTHOG_DEFAULT_HOST = "https://app.posthog.com";
 
 export const PosthogDestinationConfig = z.object({

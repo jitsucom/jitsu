@@ -25,6 +25,7 @@ import SalesforceDestination from "./functions/salesforce-destination";
 import StatsigDestination from "./functions/statsig-destination";
 import ResendDestination from "./functions/resend-destination";
 import SendgridDestination from "./functions/sendgrid-destination";
+import CustomerIoDestination from "./functions/customer-io-destination";
 
 const builtinDestinations: Record<BuiltinDestinationFunctionName, JitsuFunction> = {
   "builtin.destination.bulker": BulkerDestination as JitsuFunction,
@@ -46,6 +47,7 @@ const builtinDestinations: Record<BuiltinDestinationFunctionName, JitsuFunction>
   "builtin.destination.statsig": StatsigDestination as JitsuFunction,
   "builtin.destination.resend": ResendDestination as JitsuFunction,
   "builtin.destination.sendgrid": SendgridDestination as JitsuFunction,
+  "builtin.destination.customer-io": CustomerIoDestination as JitsuFunction,
   "builtin.destination.devnull": () => undefined,
   "builtin.destination.tag": () => undefined,
   "builtin.destination.gtm": () => undefined,
