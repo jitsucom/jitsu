@@ -28,8 +28,6 @@ const zod3: [string, boolean, boolean][] = [
   ["2026-11-27T14:30+0000", false, true],
   ["2026-11-27T14:30+01:00", false, true],
   ["2026-11-27T14:30:00.123+05:30", false, true],
-  ["2026-11-27T14:30:00+24:00", false, true],
-  ["2026-11-27T14:30:00+99:99", false, true],
   ["2024-02-29T10:00:00Z", true, true],
   ["2023-02-29T10:00:00Z", false, false],
   ["2026-02-30T10:00:00Z", false, false],
@@ -52,6 +50,19 @@ const zod3: [string, boolean, boolean][] = [
   ["26-11-27T07:30:00Z", false, false],
   ["+2026-11-27T07:30:00Z", false, false],
 ];
+
+// Deliberately tighter than zod 3 (which took these and let `new Date()` throw later): out-of-range offsets.
+describe("isoDateTime rejects offsets that are not a real timezone", () => {
+  it.each(["+24:00", "+99:99", "+2400", "+00:60", "-23:99", "+0099"])("rejects %s", offset => {
+    const value = `2026-11-27T14:30:00${offset}`;
+    expect(isoDateTime({ offset: true }).safeParse(value).success).toBe(false);
+  });
+  it.each(["+23:59", "-23:59", "+0000", "-1200", "+14:00", "+05:30"])("accepts %s and Date can parse it", offset => {
+    const value = `2026-11-27T14:30:00${offset}`;
+    expect(isoDateTime({ offset: true }).safeParse(value).success).toBe(true);
+    expect(Number.isFinite(Date.parse(value))).toBe(true);
+  });
+});
 
 describe("isoDateTime keeps zod 3 datetime behaviour", () => {
   it.each(zod3)("%j", (input, utc, offset) => {

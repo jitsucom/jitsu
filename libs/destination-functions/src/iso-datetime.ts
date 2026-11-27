@@ -8,7 +8,8 @@ import { z } from "zod";
  * colon (`+0000`, `-0530`). A source row with such a value would have started to fail a Reverse ETL run, and an MCP
  * client sending one would have started to get an error. This is zod 3's own regex, copied from its source.
  *
- * `offset: true` also allows a `+hh:mm` / `+hhmm` offset; without it only `Z` is accepted. The result carries
+ * `offset: true` also allows a `+hh:mm` / `+hhmm` offset (hours 00-23, minutes 00-59, which is tighter than zod 3: an
+ * offset such as `+24:00` made `new Date()` throw further on); without it only `Z` is accepted. The result carries
  * `format: "date-time"` so generated JSON schemas keep describing it as a date-time.
  */
 export function isoDateTime(options: { offset?: boolean } = {}) {
@@ -22,4 +23,4 @@ export function isoDateTime(options: { offset?: boolean } = {}) {
 const dateSource = `((\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-((0[13578]|1[02])-(0[1-9]|[12]\\d|3[01])|(0[469]|11)-(0[1-9]|[12]\\d|30)|(02)-(0[1-9]|1\\d|2[0-8])))`;
 const timeSource = `([01]\\d|2[0-3]):[0-5]\\d(:[0-5]\\d(\\.\\d+)?)?`;
 const datetimeUtc = new RegExp(`^${dateSource}T${timeSource}(Z)$`);
-const datetimeWithOffset = new RegExp(`^${dateSource}T${timeSource}(Z|([+-]\\d{2}:?\\d{2}))$`);
+const datetimeWithOffset = new RegExp(`^${dateSource}T${timeSource}(Z|([+-]([01]\\d|2[0-3]):?[0-5]\\d))$`);
