@@ -326,6 +326,44 @@ jobs:
             bulker/test_report.html
             bulker/test_report.json
 
+  bulker-log-hygiene:
+    # JITSU-302: no log call or error may be handed a configuration or a credential. The scan reads every Go file under
+    # bulker/, so it runs for a change anywhere there: the shards of bulker-test run only for the packages they test, and a
+    # change that touches only the sync sidecar, the sync controller, the admin or the operator skips them. It also has to
+    # run uncached: go caches a test by the files it opens inside its own package directory, and this one reads the rest of
+    # bulker/, so a cached pass could be replayed after a change elsewhere.
+    name: 🔒 Bulker log hygiene
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          submodules: true
+
+      - name: 🔍 Check changed files
+        id: changes
+        uses: dorny/paths-filter@v4
+        with:
+          filters: |
+            bulker:
+              - 'bulker/**'
+
+      - name: Set up Go
+        if: steps.changes.outputs.bulker == 'true'
+        uses: actions/setup-go@v6
+        with:
+          go-version: '1.26'
+          check-latest: true
+          cache: false
+
+      - name: 🔒 Scan the log calls
+        if: steps.changes.outputs.bulker == 'true'
+        working-directory: ./bulker
+        run: go test -count=1 ./jitsubase/logging/
+
   bulker-test-result:
     # The `default-branch-protection` ruleset requires a check called exactly
     # "🧪 Bulker Test". Sharding renamed that check to "🧪 Bulker Test (app)",
@@ -336,7 +374,7 @@ jobs:
     # Adding a shard to the matrix therefore does not require touching the
     # ruleset either — this job keeps covering it.
     name: 🧪 Bulker Test
-    needs: [bulker-test]
+    needs: [bulker-test, bulker-log-hygiene]
     # Not the default (which skips when a dependency fails, leaving the required
     # check pending forever rather than red), and not always() either: with
     # cancel-in-progress above, every re-push cancels a run, and always() would
@@ -350,6 +388,7 @@ jobs:
       - name: 🔍 Check shard results
         env:
           RESULT: ${{ needs.bulker-test.result }}
+          HYGIENE: ${{ needs.bulker-log-hygiene.result }}
         run: |
           # A matrix job's result is success only when every shard succeeded.
           # On a PR that touches no bulker code the paths filter skips every
@@ -362,10 +401,18 @@ jobs:
             echo "::error::Bulker test shards did not pass (result: $RESULT). See the per-shard jobs for detail."
             exit 1
           fi
+          # The log hygiene scan is part of the same required check, with the same two accepted results.
+          if [ "$HYGIENE" = "success" ] || [ "$HYGIENE" = "skipped" ]; then
+            echo "The bulker log hygiene scan passed (result: $HYGIENE)."
+          else
+            echo "::error::The bulker log hygiene scan did not pass (result: $HYGIENE). Run: cd bulker && go test -count=1 ./jitsubase/logging/"
+            exit 1
+          fi
 
   notify:
     name: 📢 Notify
-    needs: [lint-and-format, bulker-test]
+    # bulker-test-result is the aggregate of the test shards and the log hygiene scan
+    needs: [lint-and-format, bulker-test-result]
     if: always() && github.ref == 'refs/heads/newjitsu'
     runs-on: ubuntu-latest
     permissions:
@@ -384,7 +431,7 @@ jobs:
       - name: 🔍 Check job statuses
         id: status
         run: |
-          if [[ "${{ needs.lint-and-format.result }}" == "success" && "${{ needs.bulker-test.result }}" == "success" ]]; then
+          if [[ "${{ needs.lint-and-format.result }}" == "success" && "${{ needs.bulker-test-result.result }}" == "success" ]]; then
             echo "success=true" >> $GITHUB_OUTPUT
             echo "color=#36a64f" >> $GITHUB_OUTPUT
             echo "header=✅ Lint & Test on branch \`${{ github.ref_name }}\` SUCCEEDED" >> $GITHUB_OUTPUT
@@ -393,7 +440,7 @@ jobs:
             echo "color=#ff0000" >> $GITHUB_OUTPUT
             FAILED_JOBS=""
             [[ "${{ needs.lint-and-format.result }}" != "success" ]] && FAILED_JOBS="lint-and-format"
-            [[ "${{ needs.bulker-test.result }}" != "success" ]] && FAILED_JOBS="$FAILED_JOBS bulker-test"
+            [[ "${{ needs.bulker-test-result.result }}" != "success" ]] && FAILED_JOBS="$FAILED_JOBS bulker-test-or-log-hygiene"
             echo "header=❌ Lint & Test on branch \`${{ github.ref_name }}\` FAILED ($FAILED_JOBS)" >> $GITHUB_OUTPUT
           fi
 
@@ -421,7 +468,7 @@ jobs:
     # Auto-publish only when an explicit version-bump landed on newjitsu and
     # lint+test passed. Every other commit goes unpublished — use the manual
     # publish.yml dispatch for canary/beta off-cycle builds.
-    needs: [lint-and-format, bulker-test]
+    needs: [lint-and-format, bulker-test-result]
     if: github.event_name == 'push' && github.ref == 'refs/heads/newjitsu'
     runs-on: ubuntu-latest
     permissions:

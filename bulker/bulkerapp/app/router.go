@@ -461,7 +461,8 @@ func (r *Router) TestConnectionHandler(c *gin.Context) {
 		_ = r.ResponseError(c, http.StatusUnprocessableEntity, "parse failed", false, err, true, true, false)
 		return
 	} else {
-		r.Debugf("[test] parsed config for destination %s: %+v", utils.MapNVL(destinationConfig, "id", ""), destinationConfig)
+		// the config holds the destination's credentials: the id and the type are enough
+		r.Debugf("[test] parsed config for destination %s (type %v)", utils.MapNVL(destinationConfig, "id", ""), utils.MapNVL(destinationConfig, "destinationType", ""))
 	}
 	bulkerCfg.DestinationConfig = destinationConfig
 	bulkerCfg.Id = utils.MapNVL(destinationConfig, "id", "").(string)

@@ -4,8 +4,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"maps"
 	"net/http"
 	"os"
+	"slices"
+	"strings"
 	"time"
 
 	"github.com/jitsucom/bulker/jitsubase/logging"
@@ -261,7 +264,8 @@ func manageStr(original any, provided string) string {
 func mergeOAuthCreds(pkg string, cfg map[string]any, integ *nangoIntegration, conn *nangoConnection) (map[string]any, error) {
 	credentials, ok := cfg["credentials"].(map[string]any)
 	if !ok {
-		return nil, fmt.Errorf("no credentials found in %+v", cfg)
+		// the config holds the source's credentials and this error is logged: name its keys, never its values
+		return nil, fmt.Errorf("no credentials found in the source config (keys: %s)", strings.Join(slices.Sorted(maps.Keys(cfg)), ", "))
 	}
 	out := deepCopyMap(credentials)
 	switch pkg {

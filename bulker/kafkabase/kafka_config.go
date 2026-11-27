@@ -5,6 +5,7 @@ import (
 
 	"github.com/confluentinc/confluent-kafka-go/v2/kafka"
 	"github.com/hjson/hjson-go/v4"
+	"github.com/jitsucom/bulker/jitsubase/utils"
 	"github.com/jitsucom/bulker/jitsubase/appbase"
 )
 
@@ -87,7 +88,7 @@ func (ac *KafkaConfig) GetKafkaConfig() *kafka.ConfigMap {
 		sasl := map[string]interface{}{}
 		err := hjson.Unmarshal([]byte(ac.KafkaSASL), &sasl)
 		if err != nil {
-			panic(fmt.Errorf("error parsing Kafka SASL config: %v", err))
+			panic(fmt.Errorf("error parsing Kafka SASL config: %s", utils.DescribeConfigError(err)))
 		}
 		for k, v := range sasl {
 			_ = kafkaConfig.SetKey("sasl."+k, v)
