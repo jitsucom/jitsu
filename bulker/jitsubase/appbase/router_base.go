@@ -1,7 +1,9 @@
 package appbase
 
 import (
+	"crypto/sha256"
 	"crypto/sha512"
+	"crypto/subtle"
 	"encoding/base64"
 	"errors"
 	"fmt"
@@ -53,8 +55,10 @@ type Router struct {
 	engine        *gin.Engine
 	authTokens    []string
 	rawAuthTokens []string
-	tokenSecrets  []string
-	noAuthPaths   types.Set[string]
+	// rawAuthTokenDigests are the digests of rawAuthTokens, computed once so that a request does not hash the configured tokens
+	rawAuthTokenDigests [][sha256.Size]byte
+	tokenSecrets        []string
+	noAuthPaths         types.Set[string]
 }
 
 // beforeAuth middleware also runs when authentication rejects a request.
@@ -84,6 +88,9 @@ func NewRouterBase(config Config, noAuthPaths []string, beforeAuth ...gin.Handle
 		rawAuthTokens: rawAuthTokens,
 		tokenSecrets:  tokenSecrets,
 		noAuthPaths:   types.NewSet(noAuthPaths...),
+	}
+	for _, rawAuthToken := range rawAuthTokens {
+		router.rawAuthTokenDigests = append(router.rawAuthTokenDigests, digestOf(rawAuthToken))
 	}
 	gin.SetMode(gin.ReleaseMode)
 	engine := gin.New()
@@ -121,18 +128,22 @@ func (r *Router) authMiddleware(c *gin.Context) {
 		hex := IsHexRegex.MatchString(hash)
 		for _, secret := range r.tokenSecrets {
 			if hex {
-				if HashTokenHex(token, salt, utils.Nvl(secret, DefaultSeed)) == hash {
+				if SecureEqual(HashTokenHex(token, salt, utils.Nvl(secret, DefaultSeed)), hash) {
 					return
 				}
-			} else if HashTokenBase64(token, salt, secret) == hash {
+			} else if SecureEqual(HashTokenBase64(token, salt, secret), hash) {
 				//logging.Debugf("Token %s is valid", token)
 				return
 			}
 		}
 	}
-	for _, rawAuthToken := range r.rawAuthTokens {
-		if token == rawAuthToken {
-			return
+	if len(r.rawAuthTokenDigests) > 0 {
+		// the presented token is hashed once, the configured ones were hashed at start
+		tokenDigest := digestOf(token)
+		for i := range r.rawAuthTokenDigests {
+			if constantTimeEquals(tokenDigest[:], r.rawAuthTokenDigests[i][:]) == 1 {
+				return
+			}
 		}
 	}
 	c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Invalid token"})
@@ -227,4 +238,21 @@ type RouterError struct {
 	Error       error
 	PublicError error
 	ErrorType   string
+}
+
+// digestOf is the SHA-256 digest of a string. A variable so that a test can count how often a request hashes.
+var digestOf = func(s string) [sha256.Size]byte { return sha256.Sum256([]byte(s)) }
+
+// constantTimeEquals compares two byte slices of the same length in constant time. A variable so that a test can see that the
+// token checks go through it.
+var constantTimeEquals = subtle.ConstantTimeCompare
+
+// SecureEqual reports whether two strings are equal, in a time that does not depend on how much of them matches. A compare
+// with == stops at the first different byte, and the time it takes tells a caller how many leading bytes of a token were
+// right. Both strings are hashed first: the digests have the same length whatever the strings are, so the length of a token
+// does not show either.
+func SecureEqual(a, b string) bool {
+	da := digestOf(a)
+	db := digestOf(b)
+	return constantTimeEquals(da[:], db[:]) == 1
 }

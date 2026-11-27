@@ -1138,7 +1138,7 @@ func (r *Router) checkHash(hash string, secret string) bool {
 	salt := pk[0]
 	hashPart := pk[1]
 	for _, globalSecret := range r.config.GlobalHashSecrets {
-		if hashPart == hashApiKey(secret, salt, globalSecret) {
+		if appbase.SecureEqual(hashPart, hashApiKey(secret, salt, globalSecret)) {
 			return true
 		}
 	}
