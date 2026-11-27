@@ -6,6 +6,7 @@ import { useRouter } from "next/router";
 import { useBilling } from "./BillingProvider";
 import { useWorkspace } from "../../lib/context";
 import { useApi } from "../../lib/useApi";
+import { isLocalPath } from "../../lib/auth-redirect";
 import { WJitsuButton } from "../JitsuButton/JitsuButton";
 import { BillingBanner } from "../../lib/schema";
 
@@ -55,7 +56,7 @@ const safeStorageSet = (key: string, value: string): void => {
  * `/${workspace}` prefix WJitsuButton prepends or go off-origin.
  */
 const isSafeLocation = (location: string): boolean => {
-  if (!location.startsWith("/") || location.startsWith("//")) {
+  if (!isLocalPath(location)) {
     return false;
   }
   let decoded: string;

@@ -2,6 +2,7 @@
  * Pre-existing implicit-`any` debt, exempted when the unsafe-any gate was
  * introduced for pages/api/admin (JITSU-158 action item 3). Fix the `any`
  * flows in this file, then remove this header - do not add new ones. */
+import { safeEqual } from "juava";
 import { z } from "zod";
 import { createRoute } from "../../../lib/api";
 import { getServerEnv } from "../../../lib/server/serverEnv";
@@ -40,7 +41,7 @@ export default createRoute()
   .handler(async ({ req, res, query }) => {
     const syncAuthKey = serverEnv.SYNCCTL_AUTH_KEY ?? "";
     const token = (req.headers.authorization ?? "").replace("Bearer ", "");
-    if (!syncAuthKey || !token || token !== syncAuthKey) {
+    if (!syncAuthKey || !token || !safeEqual(token, syncAuthKey)) {
       res.status(401).send({ ok: false, error: "Authorization Required" });
       return;
     }

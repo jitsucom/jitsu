@@ -36,6 +36,26 @@ export function extractReturnUrl(req: any): string | null {
 }
 
 /**
+ * True for a path on this origin: it starts with a single "/" and cannot be read as another host.
+ */
+export function isLocalPath(url: string): boolean {
+  if (!url.startsWith("/") || url.startsWith("//")) {
+    return false;
+  }
+  // A browser reads a backslash as a slash, and drops tabs and newlines from a URL: "/\evil.example" and
+  // "/<tab>/evil.example" both mean "//evil.example", another host. No path of ours has either.
+  if (/[\\\u0000-\u001f\u007f]/.test(url)) {
+    return false;
+  }
+  // and whatever it is, it has to resolve to this origin
+  try {
+    return new URL(url, "http://local.invalid").origin === "http://local.invalid";
+  } catch {
+    return false;
+  }
+}
+
+/**
  * Validates and sanitizes a return URL
  * we do not allow absolute URLs to prevent open redirects
  * @param returnUrl URL to validate
@@ -47,7 +67,7 @@ export function validateReturnUrl(returnUrl: string): string | undefined {
   }
 
   // Allow relative URLs
-  if (returnUrl.startsWith("/") && !returnUrl.startsWith("//")) {
+  if (isLocalPath(returnUrl)) {
     // Ensure it's not an auth page
     const authPaths = ["/signin", "/signup", "/reset-password"];
     if (authPaths.some(path => returnUrl.startsWith(path))) {

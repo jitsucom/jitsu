@@ -5,7 +5,7 @@ import { ApiError } from "../../../../lib/shared/errors";
 import { getServerLog } from "../../../../lib/server/log";
 
 import { syncService } from "../../../../lib/server/route-services";
-import { isTruish } from "juava";
+import { isTruish, safeEqual } from "juava";
 import { getServerEnv } from "../../../../lib/server/serverEnv";
 
 const log = getServerLog("sync-run");
@@ -60,7 +60,8 @@ export const route = createRoute()
     const token = req.headers.authorization ?? "";
     let user: SessionUser | undefined;
     let trigger: "scheduled" | "manual" = "scheduled";
-    if (token.replace("Bearer ", "") !== syncAuthKey || !token || !syncAuthKey) {
+    // constant-time compare: a compare with !== tells, by its time, how many leading characters of the key were right
+    if (!token || !syncAuthKey || !safeEqual(token.replace("Bearer ", ""), syncAuthKey)) {
       //not a call from scheduler, check ordinary auth
       trigger = "manual";
       user = await getUser(res, req);

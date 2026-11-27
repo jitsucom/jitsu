@@ -40,8 +40,21 @@ export function createHash(secret: string): string {
   return hashInternal(secret, randomSeed, globalSeed[0]);
 }
 
+/**
+ * True when both strings are equal, in a time that does not depend on how much of them matches. A compare with === stops at
+ * the first different character, and the time it takes tells a caller how many leading characters of a token were right.
+ * Both strings are hashed first: the digests have the same length whatever the strings are, so the length of a token does not
+ * show either.
+ */
+export function safeEqual(a: string, b: string): boolean {
+  // utf16le keeps every code unit: the default UTF-8 turns a lone surrogate into U+FFFD, and two different strings would
+  // get the same digest
+  const digest = (value: string) => crypto.createHash("sha256").update(value, "utf16le").digest();
+  return crypto.timingSafeEqual(digest(a), digest(b));
+}
+
 export function checkRawToken(hashOrPlain: string, secret: string): boolean {
-  return secret === hashOrPlain;
+  return safeEqual(secret, hashOrPlain);
 }
 
 export function checkHash(hash: string, secret: string): boolean {
@@ -50,7 +63,7 @@ export function checkHash(hash: string, secret: string): boolean {
     return false;
   }
   const [randomSeed] = hash.split(".");
-  return globalSeed.find(seed => hash === hashInternal(secret, randomSeed, seed)) !== undefined;
+  return globalSeed.find(seed => safeEqual(hash, hashInternal(secret, randomSeed, seed))) !== undefined;
 }
 
 export function isValidSecret(secret: string): boolean {
