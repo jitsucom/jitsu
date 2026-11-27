@@ -49,6 +49,10 @@ type Config struct {
 
 	// See AuthTokens
 	TokenSecrets string `mapstructure:"TOKEN_SECRET"`
+	// AuthDisabled must be set to `true` to run the HTTP interface without any auth tokens, for local development and tests.
+	// Without it the service refuses to start when neither AuthTokens nor RawAuthTokens is set. It has no effect when tokens
+	// are configured: they are always enforced.
+	AuthDisabled bool `mapstructure:"AUTH_DISABLED"`
 
 	// # LOGGING
 

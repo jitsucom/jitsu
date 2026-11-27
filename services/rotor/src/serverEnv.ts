@@ -86,6 +86,8 @@ const ServerEnvSchema = z.object({
   // Authentication Configuration
   ROTOR_AUTH_TOKENS: z.string().optional(),
   ROTOR_RAW_AUTH_TOKENS: z.string().optional(),
+  // Must be "true" to run without any auth tokens (local development). Rotor refuses to start without tokens otherwise.
+  ROTOR_AUTH_DISABLED: z.string().optional(),
 
   // Shutdown Configuration
   SHUTDOWN_EXTRA_DELAY_SEC: z.string().optional().default("5"),

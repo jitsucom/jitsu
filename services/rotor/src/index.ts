@@ -1,4 +1,5 @@
-import { checkHash, checkRawToken, disableService, getLog, setServerJsonFormat, isTruish } from "juava";
+import { disableService, getLog, setServerJsonFormat, isTruish } from "juava";
+import { authConfigError, createTokenChecker, tokenList } from "./lib/http-auth";
 import { destinationMessagesTopic, getCredentialsFromEnv, rotorConsumerGroupId } from "./lib/kafka-config";
 import { kafkaRotor } from "./lib/rotor";
 import { DummyEventsStore, EventsStore, MultiEventsStore } from "@jitsu/destination-functions";
@@ -60,6 +61,14 @@ async function main() {
   process.on("exit", code => {
     log.atInfo().log(`Process exited with code ${code}`);
   });
+
+  // Before anything connects to Kafka, MongoDB or Redis: a replica without auth must not join the consumer group
+  // just to exit afterwards.
+  const authError = authConfigError(serverEnv);
+  if (authError) {
+    log.atError().log(authError);
+    process.exit(1);
+  }
 
   let httpServer: Server;
   let metricsServer: Server | undefined;
@@ -208,6 +217,9 @@ async function main() {
 }
 
 function initHTTP(rotorContext: Omit<MessageHandlerContext, "connectionStore" | "functionsStore" | "streamsStore">) {
+  if (tokenList(serverEnv.ROTOR_AUTH_TOKENS).length === 0 && tokenList(serverEnv.ROTOR_RAW_AUTH_TOKENS).length === 0) {
+    log.atWarn().log("ROTOR_AUTH_DISABLED is set and no auth tokens are provided. Rotor is open for everyone.");
+  }
   http.use((req, res, next) => {
     if (req.path === "/health" || req.path === "/version") {
       return next();
@@ -334,28 +346,7 @@ async function pingMongo() {
   await mongodb.waitInit().then(c => c.connect().then(c => c.db().admin().ping()));
 }
 
-function checkAuth(token: string): boolean {
-  let tokens: string[] = [];
-  let checkFunction: (token: string, secret: string) => boolean = () => false;
-  if (serverEnv.ROTOR_AUTH_TOKENS) {
-    tokens = serverEnv.ROTOR_AUTH_TOKENS.split(",");
-    checkFunction = checkHash;
-  } else if (serverEnv.ROTOR_RAW_AUTH_TOKENS) {
-    tokens = serverEnv.ROTOR_RAW_AUTH_TOKENS.split(",");
-    checkFunction = checkRawToken;
-  } else {
-    log.atWarn().log("No auth tokens are configured. Rotor is open for everyone.");
-    return true;
-  }
-  if (tokens.length > 0) {
-    for (const tokenHashOrPlain of tokens) {
-      if (checkFunction(tokenHashOrPlain, token)) {
-        return true;
-      }
-    }
-  }
-  return false;
-}
+const checkAuth = createTokenChecker(serverEnv);
 
 function refreshLoop(eventsLogger: EventsStore) {
   (async () => {

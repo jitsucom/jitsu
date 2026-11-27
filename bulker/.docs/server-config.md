@@ -69,6 +69,12 @@ Can be used instead of `BULKER_AUTH_TOKENS`,`BULKER_TOKEN_SECRET` pair. It offer
 
 Not recommended for production.
 
+### `BULKER_AUTH_DISABLED`
+
+*Optional, default value: `false`*
+
+Without `BULKER_AUTH_TOKENS` or `BULKER_RAW_AUTH_TOKENS` the service refuses to start. Set `BULKER_AUTH_DISABLED=true` to run without authentication (local development only). It has no effect when tokens are configured: they are always enforced.
+
 
 
 ## Connection to Kafka

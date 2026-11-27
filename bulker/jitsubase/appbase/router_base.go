@@ -57,6 +57,16 @@ type Router struct {
 	noAuthPaths   types.Set[string]
 }
 
+// checkAuthConfig returns an error when the HTTP interface would be open to everyone by accident: no auth tokens are
+// configured and AUTH_DISABLED is not set. An empty token variable (a lost secret key, a typo in a variable name) used to
+// switch authentication off silently.
+func checkAuthConfig(config Config) error {
+	if config.AuthTokens == "" && config.RawAuthTokens == "" && !config.AuthDisabled {
+		return fmt.Errorf("no auth tokens provided: set AUTH_TOKENS or RAW_AUTH_TOKENS, or set AUTH_DISABLED=true to run without authentication (local development only)")
+	}
+	return nil
+}
+
 // beforeAuth middleware also runs when authentication rejects a request.
 func NewRouterBase(config Config, noAuthPaths []string, beforeAuth ...gin.HandlerFunc) *Router {
 	authTokens := strings.Split(config.AuthTokens, ",")
@@ -69,8 +79,11 @@ func NewRouterBase(config Config, noAuthPaths []string, beforeAuth ...gin.Handle
 	if config.RawAuthTokens == "" {
 		rawAuthTokens = nil
 	}
+	if err := checkAuthConfig(config); err != nil {
+		base.Fatalf("%s", err)
+	}
 	if authTokens == nil && rawAuthTokens == nil {
-		base.Warnf("⚠️ No auth tokens provided. All requests will be allowed")
+		base.Warnf("⚠️ AUTH_DISABLED is set and no auth tokens are provided. All requests will be allowed")
 	}
 	for _, authToken := range authTokens {
 		if !strings.Contains(authToken, ".") {
