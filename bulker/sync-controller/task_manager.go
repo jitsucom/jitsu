@@ -259,7 +259,7 @@ func (t *TaskManager) CancelHandler(c *gin.Context) {
 	syncId := c.Query("syncId")
 	taskId := c.Query("taskId")
 	t.Infof("Canceling read and discover tasks for syncId: %s, taskId: %s, package: %s", syncId, taskId, pkg)
-	_ = db.UpdateRunningTaskStatus(t.dbpool, taskId, "CANCELLED")
+	_ = db.UpdateRunningTaskStatus(t.dbpool, syncId, taskId, "CANCELLED")
 	// Terminate by sync-id label rather than reconstructed pod name: cron-fired
 	// pods have K8s-generated names that PodName() can't reproduce, so a
 	// name-based delete only ever reached manual pods. taskId keeps it

@@ -382,6 +382,7 @@ function SyncsTable({ links, services, destinations }: RemoteEntitiesProps) {
               }
             },
             label: "Full Sync",
+            requiredPermission: "editEntities",
             collapsed: true,
           },
           {

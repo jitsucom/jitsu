@@ -596,6 +596,7 @@ function TasksTable({ tasks, loading, linksMap, servicesMap, destinationsMap, re
             },
             danger: true,
             label: "Cancel",
+            requiredPermission: "editEntities",
             collapsed: true,
           });
         } else {
