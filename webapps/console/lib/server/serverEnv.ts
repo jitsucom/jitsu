@@ -409,6 +409,10 @@ const ServerEnvSchema = ClientEnvSchema.extend({
   MINUTE_RATE_LIMIT_ENABLED: z.string().default("true").transform(isTruish),
   AUTH_ATTEMPT_RATE_LIMIT: z.coerce.number().int().positive().default(60),
   AUTH_SESSION_RATE_LIMIT: z.coerce.number().int().positive().default(300),
+  // The per-address limits of the authentication endpoints charge the address in X-Real-IP, which the production ingress sets.
+  // A console that callers reach directly (the stock Docker Compose setup) must set this to false, or callers pick the
+  // address they are charged to; the address of the connection is used instead.
+  AUTH_TRUST_X_REAL_IP: z.string().default("true").transform(isTruish),
 
   // Base per-minute budget. All (auth class × HTTP method) limits derive
   // from this number via fixed multipliers (see MULTIPLIERS in

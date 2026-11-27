@@ -1,0 +1,150 @@
+import { describe, expect, it } from "vitest";
+import { peekResult, peekResultAfterRead } from "../../lib/server/rate-limit/peek";
+
+const W = 60_000;
+const opts = (limit: number) => ({
+  authClass: "ip" as const,
+  principal: "p",
+  method: "POST" as const,
+  bucket: "b",
+  limit,
+  windowMs: W,
+});
+
+// the weighted sliding window, written out: one more failure fits when the weighted count with it is within the limit
+function fitsAt(limit: number, current: number, previous: number, pending: number, now: number, at: number) {
+  const base = Math.floor(now / W) * W;
+  const start = Math.floor(at / W) * W;
+  const ahead = (start - base) / W;
+  const c = ahead === 0 ? current + pending : 0;
+  const p = ahead === 0 ? previous : ahead === 1 ? current : 0;
+  return p * (W - (at - start)) + (c + 1) * W <= limit * W;
+}
+
+describe("peekResult", () => {
+  const start = 1_800_000_000_000 - (1_800_000_000_000 % W);
+
+  it("admits while one more failure fits and refuses when it does not", () => {
+    expect(peekResult(opts(3), 0, 0, 0, start).allowed).toBe(true);
+    expect(peekResult(opts(3), 2, 0, 0, start).allowed).toBe(true);
+    expect(peekResult(opts(3), 3, 0, 0, start).allowed).toBe(false);
+  });
+
+  it("says whether the recorded failures alone leave no room", () => {
+    // 3 recorded in a budget of 3: they block the address by themselves, whatever is in flight
+    expect(peekResult(opts(3), 3, 0, 0, start).blockedByRecorded).toBe(true);
+    expect(peekResult(opts(3), 3, 0, 2, start).blockedByRecorded).toBe(true);
+    // nothing recorded, 3 in flight: only the checks in flight refuse, and they are over in moments
+    const inFlight = peekResult(opts(3), 0, 0, 3, start);
+    expect(inFlight.allowed).toBe(false);
+    expect(inFlight.blockedByRecorded).toBe(false);
+    expect(peekResult(opts(3), 0, 0, 0, start).blockedByRecorded).toBe(false);
+  });
+
+  describe("when the counter was read some time before the answer is given", () => {
+    it("decides at the time the read returned, not at the time it started", () => {
+      // limit 3, 1 failure now and 2 in the previous minute: one more fits from 30 s on. The read starts at 29.990 s and returns at
+      // 30.010 s, with one check in flight
+      const readAt = start + 29_990;
+      const doneAt = start + 30_010;
+      // decided at the start, the recorded failures block the address
+      expect(peekResult(opts(3), 1, 2, 0, readAt).allowed).toBe(false);
+      // decided when the read returned, they no longer do: only the check in flight refuses, and a read again admits
+      const result = peekResultAfterRead(opts(3), 1, 2, 1, readAt, doneAt);
+      expect(result.allowed).toBe(false);
+      expect(result.blockedByRecorded).toBe(false);
+      expect(peekResultAfterRead(opts(3), 1, 2, 0, readAt, doneAt).allowed).toBe(true);
+    });
+
+    it("moves the counts of the minute that ended during the read to the minute before", () => {
+      // 5 failures in the minute the read happened in, a budget of 5, the answer comes 10 ms into the next minute
+      const readAt = start + 59_995;
+      const doneAt = start + 60_010;
+      const result = peekResultAfterRead(opts(5), 5, 0, 0, readAt, doneAt);
+      expect(result.allowed).toBe(false);
+      expect(result.blockedByRecorded).toBe(true);
+      // two minutes later they are gone
+      expect(peekResultAfterRead(opts(5), 5, 0, 0, readAt, start + 120_010).allowed).toBe(true);
+    });
+
+    it("is the same as peekResult when the read and the answer are in the same moment", () => {
+      expect(peekResultAfterRead(opts(3), 2, 1, 1, start + 10_000, start + 10_000)).toEqual(
+        peekResult(opts(3), 2, 1, 1, start + 10_000)
+      );
+    });
+  });
+
+  it("counts the checks in flight", () => {
+    expect(peekResult(opts(3), 1, 0, 1, start).allowed).toBe(true);
+    expect(peekResult(opts(3), 1, 0, 2, start).allowed).toBe(false);
+  });
+
+  it("asks for a short wait when only the checks in flight use the budget up", () => {
+    // 60 valid requests are being checked, 5 s into the minute, and none has failed: they are over in moments, not at the
+    // end of the minute
+    const result = peekResult(opts(60), 0, 0, 60, start + 5_000);
+    expect(result.allowed).toBe(false);
+    expect(result.retryAfterSec).toBe(1);
+    // recorded failures that use the budget up by themselves still wait for the window
+    expect(peekResult(opts(60), 60, 0, 0, start + 5_000).retryAfterSec).toBeGreaterThan(1);
+    // and so do failures that use it up together with the checks in flight
+    expect(peekResult(opts(60), 60, 0, 5, start + 5_000).retryAfterSec).toBeGreaterThan(1);
+  });
+
+  it("forecasts the recovery of the recorded failures without the checks in flight", () => {
+    // 58 failures now, 2 in the previous minute, 25 s in, one check in flight that records no failure: the recorded failures
+    // alone allow the next one after 5 s (2 * 35/60 + 59 <= 60 from 30 s on), not at the end of the minute
+    const result = peekResult(opts(60), 58, 2, 1, start + 25_000);
+    expect(result.allowed).toBe(false);
+    expect(result.retryAfterSec).toBe(5);
+    expect(fitsAt(60, 58, 2, 0, start + 25_000, start + 30_000)).toBe(true);
+    expect(fitsAt(60, 58, 2, 0, start + 25_000, start + 29_000)).toBe(false);
+  });
+
+  it("gives the Retry-After of the reviewed case: 59 failures, 2 in the previous minute, 10 s in", () => {
+    const result = peekResult(opts(60), 59, 2, 0, start + 10_000);
+    expect(result.allowed).toBe(false);
+    expect(result.retryAfterSec).toBe(50);
+    // and the address is really admitted at that moment, not before
+    expect(fitsAt(60, 59, 2, 0, start + 10_000, start + 10_000 + 49_000)).toBe(false);
+    expect(fitsAt(60, 59, 2, 0, start + 10_000, start + 10_000 + 50_000)).toBe(true);
+  });
+
+  // the Retry-After follows the recorded failures alone: the checks in flight end in moments and are not part of the forecast
+  it("admits again exactly at its Retry-After, over a grid of counts and moments", () => {
+    let refused = 0;
+    for (const limit of [1, 2, 3, 10, 60]) {
+      for (const current of [0, 1, 2, limit - 1, limit, limit + 1, limit + 5]) {
+        for (const previous of [0, 1, limit, limit + 3]) {
+          for (const pending of [0, 1, 4]) {
+            for (const elapsed of [0, 1_000, 15_500, 30_000, 59_999]) {
+              if (current < 0) continue;
+              const now = start + elapsed;
+              const result = peekResult(opts(limit), current, previous, pending, now);
+              expect(result.allowed).toBe(fitsAt(limit, current, previous, pending, now, now));
+              if (result.allowed) {
+                expect(result.retryAfterSec).toBe(0);
+                continue;
+              }
+              refused++;
+              const wait = result.retryAfterSec;
+              expect(wait).toBeGreaterThan(0);
+              expect(
+                fitsAt(limit, current, previous, 0, now, now + wait * 1000),
+                `limit ${limit} c${current} p${previous} f${pending} e${elapsed}: at ${wait}s`
+              ).toBe(true);
+              if (wait > 1) {
+                expect(
+                  fitsAt(limit, current, previous, 0, now, now + (wait - 1) * 1000),
+                  `limit ${limit} c${current} p${previous} f${pending} e${elapsed}: at ${wait - 1}s`
+                ).toBe(false);
+              }
+              expect(result.resetAt.getTime()).toBe(now + wait * 1000);
+            }
+          }
+        }
+      }
+    }
+    expect(refused).toBeGreaterThan(100);
+  });
+});

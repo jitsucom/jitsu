@@ -4,7 +4,11 @@ The guard runs before validation and authentication, so failed and malformed
 attempts count. Counters use the existing PostgreSQL rate limiter and are shared
 across console replicas. No migration is required. IP addresses are hashed in
 counter keys. The gateway must overwrite `X-Real-IP`; direct deployments must
-strip it or set it from a trusted proxy. Client-supplied X-Forwarded-For is ignored.
+set `AUTH_TRUST_X_REAL_IP=false` (the stock Docker Compose file does), which charges
+the address of the connection instead. Set it to `true` only when every request reaches the
+console through a proxy that sets `X-Real-IP`, and the console port cannot be reached any
+other way: the Compose file publishes it on every interface, so bind it to `127.0.0.1`
+first. Client-supplied X-Forwarded-For is ignored.
 
 | Bucket | Default per IP/minute | Routes |
 | --- | --- | --- |
@@ -17,6 +21,12 @@ providers share their bucket; query parameters cannot allocate new buckets.
 NextAuth session polling, CSRF/provider discovery, logout, and authenticated OIDC
 session renewal keep their existing behavior. Firebase's client-side password
 login goes directly to Firebase and remains subject to Firebase's own controls.
+
+The MCP routes (JITSU-295) use the same budget, per address: `/api/mcp/oauth/token` counts
+every attempt in its own `token` bucket, and `/api/mcp/[transport]` counts only failed
+authentications (`auth-failed-mcp`), so valid tool calls are never counted. A deployment
+pinned read-only (`JITSU_CONSOLE_READ_ONLY=true`, or an active maintenance window) skips
+both: a canary that shares the production database neither limits nor writes counters.
 
 Configure `AUTH_ATTEMPT_RATE_LIMIT` (lookup/login) and `AUTH_SESSION_RATE_LIMIT`
 as positive integers. The existing `MINUTE_RATE_LIMIT_ENABLED=false` switch also
