@@ -1,5 +1,6 @@
 // Browser-safe metadata shared by the console and Reverse ETL runtime.
 import { z } from "zod";
+import { ipAddress } from "../../ip-address";
 
 export const MetaId = z
   .string()
@@ -137,7 +138,7 @@ export const MetaConversionRow = z
     hashedExternalId: multiHash,
     dateOfBirth: multiText,
     hashedDateOfBirth: multiHash,
-    clientIpAddress: z.union([z.ipv4(), z.ipv6()]).nullish(),
+    clientIpAddress: ipAddress().nullish(),
     clientUserAgent: text,
     fbc: text,
     fbp: text,

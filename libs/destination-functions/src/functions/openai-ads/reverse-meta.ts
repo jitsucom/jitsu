@@ -2,6 +2,7 @@
 import { z } from "zod";
 import { eventsParamDescription } from "../lib/metadata";
 import { openAiMirrorOneIdentifierType } from "./validation-errors";
+import { ipAddress } from "../../ip-address";
 
 export const openAiAdsDestinationId = "openai-ads";
 export const openAiAdsDestinationTitle = "OpenAI Ads (ChatGPT)";
@@ -193,7 +194,7 @@ export const OpenAiConversionRow = z
     country: multiText,
     androidAdvertisingId: text,
     obref: text,
-    ipAddress: z.union([z.ipv4(), z.ipv6()]).nullish(),
+    ipAddress: ipAddress().nullish(),
     userAgent: text,
   })
   .strict();
