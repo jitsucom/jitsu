@@ -13,6 +13,7 @@ import { useBilling } from "../Billing/BillingProvider";
 import { EditorField } from "../ConfigObjectEditor/EditorField";
 import { EditorButtons } from "../ConfigObjectEditor/EditorButtons";
 import { EditorTitle } from "../ConfigObjectEditor/EditorTitle";
+import { withoutRequest } from "./error-details";
 import { ConfigTestResult } from "../ConfigObjectEditor/ConfigEditor";
 import { useRouter } from "next/router";
 import Link from "next/link";
@@ -177,7 +178,7 @@ export const ObservabilityExportsEditor: React.FC<{ obj: ObservabilityExportsSet
       setShowErrors(false);
       feedbackSuccess("Observability exports settings saved");
     } catch (e: any) {
-      feedbackError("Failed to save observability exports settings", { error: e });
+      feedbackError("Failed to save observability exports settings", { error: withoutRequest(e) });
     } finally {
       setSaving(false);
     }

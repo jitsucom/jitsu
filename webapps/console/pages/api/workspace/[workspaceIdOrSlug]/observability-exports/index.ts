@@ -3,6 +3,7 @@ import { z } from "zod";
 import { db } from "../../../../../lib/server/db";
 import { requireDefined } from "juava";
 import {
+  containsMaskedHeaderValues,
   defaultObservabilityExportsSettings,
   maskObservabilityExportsSettings,
   observabilityExportsNamespace,
@@ -10,6 +11,7 @@ import {
   unmaskObservabilityExportsSettings,
 } from "../../../../../lib/shared/observability-exports";
 import { workspaceAuditLog } from "../../../../../lib/server/audit-log";
+import { ApiError } from "../../../../../lib/shared/errors";
 
 async function getWorkspace(workspaceIdOrSlug: string) {
   return requireDefined(
@@ -57,7 +59,18 @@ export default createRoute()
     const workspace = await getWorkspace(workspaceIdOrSlug);
     await verifyAccessWithRole(user, workspace.id, "editEntities");
     const { row, staleRows, settings: stored } = await getStoredSettings(workspace.id);
-    const newSettings = unmaskObservabilityExportsSettings(ObservabilityExportsSettings.parse(body), stored);
+    const requested = ObservabilityExportsSettings.parse(body);
+    // Masked header values resolve to the stored secrets, and stored secrets may only travel to the stored endpoint
+    // (the test route applies the same rule): an editor must not be able to point them at an endpoint of their own
+    if (containsMaskedHeaderValues(requested) && requested.endpoint !== stored.endpoint) {
+      throw new ApiError(
+        "The endpoint differs from the saved one. Enter the header values again to save a new endpoint.",
+        {
+          status: 400,
+        }
+      );
+    }
+    const newSettings = unmaskObservabilityExportsSettings(requested, stored);
     if (row) {
       await db.prisma().workspaceOptions.update({ where: { id: row.id }, data: { value: newSettings } });
     } else {
