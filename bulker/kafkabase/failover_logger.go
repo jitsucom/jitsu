@@ -3,6 +3,7 @@ package kafkabase
 import (
 	"compress/gzip"
 	"context"
+	"crypto/rand"
 	"fmt"
 	"io"
 	"os"
@@ -447,10 +448,12 @@ func (f *FailoverLogger) compressFile(src, dst string) error {
 
 func (f *FailoverLogger) openNewFile() error {
 	timestamp := time.Now().UTC().Format("2006_01_02T15_04_05")
-	filename := fmt.Sprintf("kafka_failover_%s.ndjson.tmp", timestamp)
+	// The basename also becomes the archive key. Several rotations (or processes)
+	// can share a second, even after the previous .tmp file has been moved.
+	filename := fmt.Sprintf("kafka_failover_%s_%s.ndjson.tmp", timestamp, rand.Text())
 	filepath := filepath.Join(f.config.BasePath, filename)
 
-	file, err := os.OpenFile(filepath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
+	file, err := os.OpenFile(filepath, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0644)
 	if err != nil {
 		return fmt.Errorf("failed to open new file: %w", err)
 	}
