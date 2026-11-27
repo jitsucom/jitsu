@@ -44,7 +44,7 @@ function isTrueish(v: any) {
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   try {
-    const user = requireDefined(await getUser(res, req, true), `User is not authenticated`);
+    const user = requireDefined(await getUser(res, req), `User is not authenticated`);
     await check(user);
     const { externalId, extended, format } = req.query;
     const users: any[] = [];

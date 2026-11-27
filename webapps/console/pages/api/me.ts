@@ -85,7 +85,7 @@ async function getLastWorkspace(user: SessionUser) {
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   const [hostname] = getRequestHost(req).split(":");
   handleCors(hostname, req.headers.origin, res);
-  const user = await getUser(res, req, true);
+  const user = await getUser(res, req);
   if (!user) {
     res.send({ auth: false });
   } else {

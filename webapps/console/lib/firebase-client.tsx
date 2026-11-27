@@ -3,6 +3,7 @@ import { getApps, initializeApp } from "firebase/app";
 import * as auth from "firebase/auth";
 import { AppConfig, ContextApiResponse, CreateUserResult } from "./schema";
 import { getLog, randomId, requireDefined, rpc } from "juava";
+import { isSessionRevokedError } from "./shared/errors";
 import { useJitsu } from "@jitsu/jitsu-react";
 import { impersonationState } from "./shared/impersonation";
 
@@ -242,6 +243,18 @@ async function recordFirebaseLogin(user: auth.User | null) {
   }
 }
 
+/**
+ * Ends only this browser's Firebase sign-in. For a session the server has already revoked: /api/fb-auth/revoke-session
+ * would revoke every session of the account, including a sign-in another tab has just made.
+ */
+async function firebaseLocalSignOut() {
+  try {
+    await auth.signOut(auth.getAuth());
+  } catch (e) {
+    log.atWarn().withCause(e).log(`Can't sign out locally`);
+  }
+}
+
 export async function firebaseSignOut() {
   try {
     await auth.signOut(auth.getAuth());
@@ -407,7 +420,21 @@ export function useFirebaseSession(): FirebaseSession {
                 resolve(null);
                 return;
               }
-              const result = user ? await getUserFromFirebase(user) : null;
+              let result: PassiveFirebaseAuthResult | null;
+              try {
+                result = user ? await getUserFromFirebase(user) : null;
+              } catch (e) {
+                // JITSU-297: the session was revoked elsewhere (sign-out on another device, a disabled account). Sign out of
+                // this browser only, and land on the sign-in page, not on an error screen whose Logout button has no session
+                // to end. The server has revoked it already, so no revoke-session call: it would end every session of the
+                // account, also one that another tab has just started.
+                if (isSessionRevokedError(e)) {
+                  await firebaseLocalSignOut();
+                  resolve(null);
+                  return;
+                }
+                throw e;
+              }
               // Record the login only for an explicit sign-in (recordLogin) and only after
               // getUserFromFirebase has minted/linked internalId — otherwise a first-time
               // verified password user's login hits /api/fb-auth/audit-login before the
