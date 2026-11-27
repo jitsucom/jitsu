@@ -272,6 +272,72 @@ describe("Test Jitsu NodeJS client", () => {
     expect(requestLog[2].body.context.awesome.nestedKey).toBe("awesome-key");
   });
 
+  test("timestamp option", async () => {
+    const config = {
+      host: server.baseUrl,
+      writeKey: "key:secret",
+      debug: true,
+    };
+
+    const date = new Date("2000-01-01");
+
+    console.log("[JITSU TEST] Initializing Jitsu");
+    const client = jitsuAnalytics(config);
+    console.log("[JITSU TEST] Jitsu instance", client);
+
+    expect(requestLog.length).toBe(0);
+    console.log("[JITSU TEST] Sending event EVENT_1");
+    await client.track("EVENT_1", undefined, { timestamp: date });
+    console.log("[JITSU TEST] Sending event EVENT_2");
+    await client.track("EVENT_2", undefined, { timestamp: date.toISOString() });
+    console.log("[JITSU TEST] Sending event EVENT_3");
+    await client.track("EVENT_3", undefined, {});
+    console.log("[JITSU TEST] Sending event EVENT_4");
+    await client.track("EVENT_4", undefined, {
+      // @ts-expect-error
+      timestamp: date.getTime(),
+    });
+    console.log("[JITSU TEST] Sending event EVENT_5");
+    await client.track("EVENT_5", undefined, {
+      // @ts-expect-error
+      timestamp: 0,
+    });
+    console.log("[JITSU TEST] Sending event EVENT_6");
+    await client.track("EVENT_6", undefined, { timestamp: "2000-01-01T01:00:00+01:00" });
+
+    await new Promise(resolve => setTimeout(resolve, 1000));
+
+    expect(requestLog.length).toBe(6);
+    expect(requestLog[0].body.timestamp).toBe(date.toISOString());
+    expect(requestLog[1].body.timestamp).toBe(date.toISOString());
+    expect(requestLog[2].body.timestamp).not.toBe(date.toISOString());
+    expect(requestLog[3].body.timestamp).toBe(date.toISOString());
+    expect(requestLog[4].body.timestamp).toBe(new Date(0).toISOString());
+    expect(requestLog[5].body.timestamp).toBe(date.toISOString());
+  });
+
+  test.each([new Date(NaN), "not-a-date", NaN, Infinity, 8640000000000001])(
+    "invalid timestamp option %s falls back to the current time",
+    async timestamp => {
+      const client = jitsuAnalytics({
+        host: server.baseUrl,
+        writeKey: "key:secret",
+      });
+      const before = Date.now();
+
+      await client.track("EVENT_1", undefined, { timestamp });
+
+      await new Promise(resolve => setTimeout(resolve, 1000));
+
+      expect(requestLog.length).toBe(1);
+      const actualTimestamp = requestLog[0].body.timestamp;
+      const parsedTimestamp = new Date(actualTimestamp);
+      expect(actualTimestamp).toBe(parsedTimestamp.toISOString());
+      expect(parsedTimestamp.getTime()).toBeGreaterThanOrEqual(before);
+      expect(parsedTimestamp.getTime()).toBeLessThanOrEqual(Date.now());
+    }
+  );
+
   test("node-js", async () => {
     const jitsu: AnalyticsInterface = jitsuAnalytics({
       writeKey: "key:secret",
