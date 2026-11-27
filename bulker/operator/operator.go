@@ -74,6 +74,8 @@ type Operator struct {
 	functionsServerDB *FunctionsServerDB
 
 	fastStoreWorkspaceIDs map[string]struct{}
+	// workspaces whose functions-server runs UDFs in sandboxed workers (FUNCTIONS_ISOLATE_UDFS)
+	isolateUdfsWorkspaceIDs map[string]struct{}
 
 	closed chan struct{}
 }
@@ -125,8 +127,30 @@ func NewOperator(ctx *Context) (*Operator, error) {
 	for _, id := range strings.Split(ctx.config.FastStoreWorkspaceIDs, ",") {
 		op.fastStoreWorkspaceIDs[strings.TrimSpace(id)] = struct{}{}
 	}
+	op.isolateUdfsWorkspaceIDs = parseIDSet(ctx.config.IsolateUdfsWorkspaceIDs)
 
 	return op, nil
+}
+
+// operatorConfigHashFor returns the operator config hash a deployment carries in its pod template. A deployment on the
+// isolate-UDFs list gets a suffix, so adding it to the list (or removing it) changes only that deployment's pod template
+// and restarts only its pods. Every other deployment keeps the base hash, so setting the list restarts nothing else.
+func (o *Operator) operatorConfigHashFor(deploymentID, base string) string {
+	if _, isolate := o.isolateUdfsWorkspaceIDs[deploymentID]; isolate {
+		return base + "-isolate"
+	}
+	return base
+}
+
+// parseIDSet turns "a, b,,c" into {a, b, c}. Blank entries are dropped, so an empty setting yields an empty set.
+func parseIDSet(list string) map[string]struct{} {
+	set := make(map[string]struct{})
+	for _, id := range strings.Split(list, ",") {
+		if id = strings.TrimSpace(id); id != "" {
+			set[id] = struct{}{}
+		}
+	}
+	return set
 }
 
 func (o *Operator) Start() {
@@ -266,7 +290,7 @@ func (o *Operator) reconcile() {
 			Functions:          wsData.Functions,
 			ProfileBuilders:    wsData.ProfileBuilders,
 			ConfigHash:         wsData.ConfigHash,
-			OperatorConfigHash: operatorConfigHash,
+			OperatorConfigHash: o.operatorConfigHashFor(workspaceID, operatorConfigHash),
 		}
 	}
 
@@ -274,7 +298,7 @@ func (o *Operator) reconcile() {
 	if len(freeWorkspaces) > 0 {
 		shardedFree := o.buildFreeShardedDeployments(freeWorkspaces)
 		for shardID, data := range shardedFree {
-			data.OperatorConfigHash = operatorConfigHash
+			data.OperatorConfigHash = o.operatorConfigHashFor(shardID, operatorConfigHash)
 			desiredDeployments[shardID] = data
 		}
 	}
@@ -1592,6 +1616,12 @@ func (o *Operator) buildDeploymentFromData(data *DeploymentData) *appsv1.Deploym
 			Name:  "PB_UDF_TIMEOUT_MS",
 			Value: fmt.Sprint(o.config.PBUdfTimeoutMs),
 		},
+	}
+
+	// Only a listed deployment gets the variable. Adding it (even as "false") to every deployment would change every
+	// pod spec and restart all function servers at once when this operator starts.
+	if _, isolate := o.isolateUdfsWorkspaceIDs[data.DeploymentID]; isolate {
+		envVars = append(envVars, corev1.EnvVar{Name: "FUNCTIONS_ISOLATE_UDFS", Value: "true"})
 	}
 
 	// Build containers list

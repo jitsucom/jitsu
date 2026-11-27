@@ -60,6 +60,10 @@ type Config struct {
 
 	FastStoreWorkspaceIDs string `mapstructure:"FAST_STORE_WORKSPACE_IDS"` // comma-separated list of workspace IDs that should use mongobetween sidecar
 
+	// Comma-separated list of workspace IDs whose dedicated or premium functions-server runs UDFs in sandboxed workers
+	// (functions-server FUNCTIONS_ISOLATE_UDFS=true). Empty means none. The free class is always isolated.
+	IsolateUdfsWorkspaceIDs string `mapstructure:"ISOLATE_UDFS_WORKSPACE_IDS"`
+
 	// Profile builder timeout overrides (passed to functions-server as PB_* env vars)
 	PBMongoDBTimeoutMs   int `mapstructure:"PB_MONGODB_TIMEOUT_MS" default:"120000"`
 	PBWarehouseTimeoutMs int `mapstructure:"PB_WAREHOUSE_TIMEOUT_MS" default:"5000"`
@@ -122,6 +126,8 @@ func (c *Config) CalculateOperatorConfigHash() string {
 	h.Write([]byte(fmt.Sprintf("%d", c.MongoDBMaxPoolSize)))
 	h.Write([]byte(fmt.Sprintf("%d", c.MongoDBMaxPoolSizePremium)))
 	h.Write([]byte(c.FastStoreWorkspaceIDs))
+	// IsolateUdfsWorkspaceIDs is deliberately not part of this hash. The hash goes into every pod template, so a change
+	// here restarts every function server. The list is applied per deployment instead (see operatorConfigHashFor).
 
 	// Profile builder timeouts
 	h.Write([]byte(fmt.Sprintf("%d", c.PBMongoDBTimeoutMs)))
