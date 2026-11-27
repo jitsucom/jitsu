@@ -24,6 +24,13 @@ export async function resolveKeyWorkspace(
   user: SessionUser,
   workspace: string | null | undefined
 ): Promise<string | undefined> {
+  // A missing workspace (undefined or null) is an unscoped key. An empty string is not "no workspace": a script with an empty
+  // variable would otherwise get a key for every workspace, so it is refused.
+  if (workspace !== undefined && workspace !== null && workspace.trim() === "") {
+    throw new ApiError("workspaceId must not be empty: leave it out for a key that works in every workspace", {
+      status: 400,
+    });
+  }
   if (!workspace) {
     return undefined;
   }

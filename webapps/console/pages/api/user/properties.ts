@@ -1,4 +1,4 @@
-import { createRoute } from "../../../lib/api";
+import { createRoute, isPlatformAdmin } from "../../../lib/api";
 import { z } from "zod";
 import { requireDefined } from "juava";
 import { db } from "../../../lib/server/db";
@@ -10,8 +10,9 @@ export default createRoute()
       await db.prisma().userProfile.findUnique({ where: { id: user.internalId } }),
       `User ${user.internalId} does not exist`
     );
+    // a limited key of an admin is not a platform admin here, as in /api/me
     return {
-      admin: !!userModel.admin,
+      admin: await isPlatformAdmin(user),
     };
   })
   .toNextApiHandler();

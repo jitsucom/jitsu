@@ -125,6 +125,8 @@ const api: Api = {
         type: updated.type,
         name: updated.name,
         expiresAt: updated.expiresAt,
+        workspaceId: updated.workspaceId,
+        role: updated.role,
         mcpClientName: updated.oauthClient?.name ?? null,
       };
     },

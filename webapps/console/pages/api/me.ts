@@ -1,5 +1,5 @@
 import { NextApiRequest, NextApiResponse } from "next";
-import { getUser, isPlatformAdmin } from "../../lib/api";
+import { getUser, hasAdminProfile, isPlatformAdmin, keyWorkspaceScope } from "../../lib/api";
 import { getRequestHost, getTopLevelDomain } from "../../lib/server/origin";
 import { db } from "../../lib/server/db";
 import { getServerLog } from "../../lib/server/log";
@@ -58,7 +58,23 @@ function handleCors(requestDomain: string, origin: string | undefined, res: Next
 
 async function getWorkspaces(user: SessionUser) {
   const internalUserId = user.internalId;
-  // a key limited to one workspace or a role is not a platform admin here
+  // A key limited to one workspace lists that one only. A member gets it through the membership, in the query that fetches
+  // it, so a member removed meanwhile gets nothing; a platform admin who has not joined it gets it by the admin flag.
+  const scope = keyWorkspaceScope(user);
+  if (scope) {
+    // one statement on Workspace carries both predicates; an `include` through the membership would load the row in a second one
+    const member = await db.prisma().workspace.findFirst({
+      where: { id: scope, deleted: false, workspaceAccess: { some: { userId: internalUserId } } },
+    });
+    if (member) {
+      return [member];
+    }
+    const workspace = (await hasAdminProfile(user))
+      ? await db.prisma().workspace.findFirst({ where: { id: scope, deleted: false } })
+      : null;
+    return workspace ? [workspace] : [];
+  }
+  // a key limited to a role is not a platform admin here
   if (await isPlatformAdmin(user)) {
     return await db.prisma().workspace.findMany({ where: { deleted: false } });
   }
@@ -71,7 +87,9 @@ async function getWorkspaces(user: SessionUser) {
 
 async function getLastWorkspace(user: SessionUser) {
   const pref = await getUserPreferenceService(db.prisma()).getPreferences({ userId: user.internalId });
-  if (pref?.lastUsedWorkspaceId) {
+  // a key limited to one workspace is not shown another one, such as the one the user last opened in the browser
+  const scope = keyWorkspaceScope(user);
+  if (pref?.lastUsedWorkspaceId && (!scope || pref.lastUsedWorkspaceId === scope)) {
     return {
       id: pref.lastUsedWorkspaceId,
       slug:

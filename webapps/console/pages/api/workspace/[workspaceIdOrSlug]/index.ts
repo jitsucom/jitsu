@@ -1,4 +1,4 @@
-import { createRoute, verifyAccess, verifyAccessWithRole } from "../../../../lib/api";
+import { createRoute, isLimitedKey, verifyAccess, verifyAccessWithRole } from "../../../../lib/api";
 import { z } from "zod";
 import { db } from "../../../../lib/server/db";
 import { ApiError } from "../../../../lib/shared/errors";
@@ -128,8 +128,11 @@ export const route = createRoute()
       withProductAnalytics(callback => callback.track("workspace_access"), { user, workspace, req });
     }
 
+    // Reading a workspace with a key limited to a workspace or a role must not change which workspace the user last used
     try {
-      await savePreferences(user, workspace);
+      if (!isLimitedKey(user)) {
+        await savePreferences(user, workspace);
+      }
     } catch (e) {
       log
         .atWarn()
