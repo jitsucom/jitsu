@@ -18,6 +18,9 @@ const log = getServerLog("custom-domains");
 export default createRoute()
   .GET({
     auth: true,
+    // A new domain is provisioned at the ingress, so a link on another site must not be able to trigger it. Not
+    // `mutates`: the editor re-checks configured domains on mount, which must keep working during maintenance.
+    rejectCrossSite: true,
     query: z.object({
       workspaceId: z.string(),
       domain: z.string(),

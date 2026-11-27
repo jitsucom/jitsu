@@ -27,6 +27,7 @@ import {
 } from "./server/oidc-token-service";
 import { OidcSessionData } from "./server/oidc-types";
 import { isSecure } from "./server/origin";
+import { hasBearerAuthorizationHeader, shouldRefuseCrossSite } from "./server/cross-site";
 import {
   WorkspaceRoleType,
   hasPermission,
@@ -83,6 +84,10 @@ export type ApiMethod<RequireAuth extends boolean = boolean, Res = any, Body = a
   // a `lastUsed` timestamp) — those should remain non-mutating from the gate's
   // perspective, with the write itself wrapped in try/catch by the caller.
   mutates?: boolean;
+  // Refuse a cross-site GET or HEAD that carries no bearer credential (see `shouldRefuseCrossSite`). Applies to
+  // every route with `mutates: true`; set it on a GET that changes state but must not be blocked by the
+  // maintenance gate (logout, domain re-check).
+  rejectCrossSite?: boolean;
   handle: (ctx: HandlerOpts<Body, Query, RequireAuth>) => Promise<Res>;
 };
 
@@ -353,6 +358,14 @@ export function nextJsApiHandler(api: Api): NextApiHandler {
     const handler = api[method];
     if (!handler) {
       res.status(405).json({ error: `${method} method not supported` });
+      return;
+    }
+    // A GET that changes state is refused when another site sent the browser to it (the session cookies are
+    // SameSite=Lax, which still travel on a cross-site navigation). Clients with a bearer header and schedulers are
+    // not affected; a token in the query is not enough (a link can set it, see `shouldRefuseCrossSite`).
+    if (shouldRefuseCrossSite(req, handler, hasBearerAuthorizationHeader(req.headers))) {
+      log.atWarn().log(`Refused a cross-site ${method} of ${(req.url ?? "").split(/[?#]/)[0]}`);
+      res.status(403).json({ error: "Cross-site request refused" });
       return;
     }
     // Real read-only during maintenance: reject mutating requests at the API
@@ -813,6 +826,7 @@ export type RouteMethodSpec<
   rateLimit?: RouteRateLimitSpec;
   allowDuringMaintenance?: boolean;
   mutates?: boolean;
+  rejectCrossSite?: boolean;
 };
 
 export type RouteBuilderBase = {
@@ -858,6 +872,7 @@ export function createRoute(): RouteBuilder {
             rateLimit: spec.rateLimit,
             allowDuringMaintenance: spec.allowDuringMaintenance,
             mutates: spec.mutates,
+            rejectCrossSite: spec.rejectCrossSite,
           };
           specByMethod[method] = {
             query: spec.query,
