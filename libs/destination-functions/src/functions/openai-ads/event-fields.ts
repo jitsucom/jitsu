@@ -1,10 +1,11 @@
 import { z } from "zod";
 import { openAiHashes } from "./identifiers";
 import { invalidOpenAiConversion } from "./validation-errors";
+import { isoDateTime } from "../../iso-datetime";
 
 // Event-time and customer-object mapping shared by Reverse ETL rows and event-stream events.
 const dayMs = 24 * 60 * 60 * 1000;
-const isoEventTime = z.string().datetime({ offset: true });
+const isoEventTime = isoDateTime({ offset: true });
 // Warehouse readers keep timestamps as text: PostgreSQL and Redshift `2026-10-21 16:30:00.123456+05:30` (offset may be
 // `+00` or `+0530`), Snowflake `2026-10-21 11:00:00.123456789 +00:00`. Only a text with an explicit offset is taken.
 const zonedEventTime = /^(\d{4}-\d{2}-\d{2})[ T](\d{2}:\d{2}:\d{2}(?:\.\d{1,9})?) ?(Z|[+-]\d{2}(?::?\d{2})?)$/;

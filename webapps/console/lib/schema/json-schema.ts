@@ -37,7 +37,7 @@ export function getResourceJsonSchema(type: string, subType?: string): any {
         BaseLinkType.merge(z.object({ type: z.literal("push"), data: destinationType.connectionOptions }))
       );
     }
-    return zodToJsonSchema(BaseLinkType.merge(z.object({ data: z.any() })));
+    return zodToJsonSchema(BaseLinkType.merge(z.object({ data: z.any().optional() })));
   }
   if (!getConfigObjectTypeNonStrict(type)) {
     throw new ApiError(`Unknown resource type '${type}'`, { status: 404 });

@@ -19,8 +19,8 @@ export async function readMicrosoftAudience(
           Description: z.string().nullish(),
           Scope: z.string().optional(),
           MembershipDuration: z.number().optional(),
-          SearchSize: z.unknown(),
-          AudienceNetworkSize: z.unknown(),
+          SearchSize: z.unknown().optional(),
+          AudienceNetworkSize: z.unknown().optional(),
         })
         .nullable()
     )

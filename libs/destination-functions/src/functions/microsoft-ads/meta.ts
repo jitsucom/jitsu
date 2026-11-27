@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { isoDateTime } from "../../iso-datetime";
 
 export const microsoftOAuthIntegration = "jitsu-cloud-dst-microsoft-ads";
 export const microsoftAudienceState = "__jitsu_microsoft_audience_v1";
@@ -54,7 +55,7 @@ export const MicrosoftConversionRow = z
       .string()
       .regex(/^[a-f0-9]{64}$/)
       .optional(),
-    conversionTime: z.string().datetime({ offset: true }),
+    conversionTime: isoDateTime({ offset: true }),
     // MSCLKID is opaque: bound input size without changing its format or case.
     microsoftClickId: z
       .string()

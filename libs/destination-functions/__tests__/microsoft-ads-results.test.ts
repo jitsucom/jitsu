@@ -72,6 +72,13 @@ it("preserves missing audience size separately from reported zero and verifies o
   );
   await expect(readMicrosoftAudience(read, "2")).rejects.toThrow("does not match");
 });
+it("treats audience sizes Microsoft leaves out of the response as unknown, not as an error", async () => {
+  // zod 4 rejects an absent key declared z.unknown(); zod 3 accepted it and this returned null for the size
+  const read = vi.fn<MicrosoftReader>().mockResolvedValue({
+    Audiences: [{ Id: "1", Name: "Customers", Type: "CustomerList" }],
+  });
+  expect(await readMicrosoftAudience(read, "1")).toMatchObject({ searchSize: null, audienceNetworkSize: null });
+});
 it.each([
   "http://example.com/report",
   "https://user:pass@example.com/report",
