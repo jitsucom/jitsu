@@ -264,6 +264,9 @@ func (p *Producer) ProduceSync(topic string, event kafka.Message) error {
 // producer drains rather than returning ErrQueueFull immediately. Callers on
 // latency-sensitive paths (ingest HTTP handlers) should pass 0; bulkerapp HTTP
 // handlers ~5s; backend services / consumers / maintenance tasks ~30s.
+// With failover enabled, a successful local failover write also counts as
+// acceptance. Kafka error metrics still record the failed enqueue; replay of
+// the saved event is handled separately.
 func (p *Producer) ProduceAsync(topic string, messageKey string, event []byte, headers map[string]string, partition int32, messageId string, failover bool, backpressureMaxWait time.Duration) error {
 	if p.isClosed() {
 		return p.NewError("producer is closed")
@@ -299,6 +302,9 @@ func (p *Producer) ProduceAsync(topic string, messageKey string, event []byte, h
 		if failover && p.failoverLogger != nil && p.failoverLogger.ShouldLog(err) {
 			if err := p.failoverLogger.LogPayload(event); err != nil {
 				p.Errorf("Failed to log message to failover logger: %v", err)
+				errs.Errors = append(errs.Errors, fmt.Errorf("failover write failed: %w", err))
+			} else {
+				return nil
 			}
 		}
 	} else {
