@@ -15,6 +15,32 @@ vi.mock("../../lib/api", async importOriginal => {
   return { ...actual, getUser: async (res: any, req: any) => session.user ?? actual.getUser(res, req) };
 });
 
+// The log of the tools is captured, to check that a refused call leaves a line an operator can see. Everything the logger
+// receives is kept: the message, the extra arguments of log() (the real logger serializes them into the same line) and the
+// arguments of every other call on the chain (withCause and the like).
+const logged = vi.hoisted(() => ({
+  lines: [] as { level: string; message: string; args: any[]; chainArgs: any[][] }[],
+}));
+vi.mock("../../lib/server/log", async importOriginal => {
+  const actual = await importOriginal<typeof import("../../lib/server/log")>();
+  const chain = (level: string, chainArgs: any[][] = []): any =>
+    new Proxy(() => {}, {
+      get: (_t, prop) =>
+        prop === "log"
+          ? (message: string, ...args: any[]) => logged.lines.push({ level, message, args, chainArgs })
+          : (...a: any[]) => chain(level, [...chainArgs, a]),
+    });
+  return {
+    ...actual,
+    getServerLog: () => ({
+      atDebug: () => chain("debug"),
+      atInfo: () => chain("info"),
+      atWarn: () => chain("warn"),
+      atError: () => chain("error"),
+    }),
+  };
+});
+
 // JITSU-265: an MCP client got the full account. Read-only approval gives its tokens the analyst role.
 
 function memoryKv(): any {
@@ -130,6 +156,127 @@ function registeredTools(syncs: Record<string, any>) {
   } as any);
   return handlers;
 }
+
+// Every tool as the SDK would receive it: its name and annotations. Tool bodies are not run here.
+function registeredConfigs() {
+  const configs = new Map<string, any>();
+  const sdkServer: any = { registerTool: (name: string, config: any) => configs.set(name, config) };
+  registerTools(sdkServer, {
+    syncs: {},
+    service: { resourceTypes: () => [] },
+    eventsLog: {},
+    debug: {},
+    reports: {},
+    auditLog: {},
+    req: {},
+  } as any);
+  return configs;
+}
+
+// A dependency that records every method called on it: a refused tool must touch none of them.
+function recording(calls: string[], label: string, extra: Record<string, any> = {}): any {
+  return new Proxy(extra, {
+    get: (target, prop: string) =>
+      prop in target
+        ? target[prop]
+        : (...args: any[]) => {
+            calls.push(`${label}.${prop}`);
+            return undefined;
+          },
+  });
+}
+
+describe("MCP tool split between read-only and the rest", () => {
+  // The line a read-only grant draws. Adding a tool makes this fail until the new tool is put on one side on purpose.
+  const READ_ONLY_TOOLS = [
+    "get_audit_log",
+    "get_event_stat",
+    "get_profile_builder_stats",
+    "get_resource",
+    "get_resource_schema",
+    "get_source_check_result",
+    "get_sync_logs",
+    "get_sync_state",
+    "get_sync_stat",
+    "list_event_sources",
+    "list_resources",
+    "list_sync_tasks",
+    "list_workspaces",
+    "query_events",
+  ];
+  const OTHER_TOOLS = [
+    "cancel_sync",
+    "check_source_credentials",
+    "create_resource",
+    "delete_resource",
+    "discover_streams",
+    "get_connector_spec",
+    "reset_sync_state",
+    "run_function",
+    "run_profile_builder",
+    "run_sync",
+    "test_connection",
+    "update_resource",
+  ];
+
+  it("pins the 14 read-only tools and the 12 others by name", () => {
+    const configs = registeredConfigs();
+    const readOnly = [...configs].filter(([, c]) => c.annotations?.readOnlyHint === true).map(([n]) => n);
+    const other = [...configs].filter(([, c]) => c.annotations?.readOnlyHint !== true).map(([n]) => n);
+    expect(readOnly.sort()).toEqual([...READ_ONLY_TOOLS].sort());
+    expect(other.sort()).toEqual([...OTHER_TOOLS].sort());
+  });
+
+  it.each(OTHER_TOOLS)("refuses %s to a read-only token before any service is reached", async name => {
+    const calls: string[] = [];
+    const handlers = new Map<string, (args: any, extra: any) => Promise<any>>();
+    const sdkServer: any = { registerTool: (n: string, _c: any, cb: any) => handlers.set(n, cb) };
+    registerTools(sdkServer, {
+      syncs: recording(calls, "syncs"),
+      service: recording(calls, "service", { resourceTypes: () => [] }),
+      eventsLog: recording(calls, "eventsLog"),
+      debug: recording(calls, "debug"),
+      reports: recording(calls, "reports"),
+      auditLog: recording(calls, "auditLog"),
+      req: {},
+    } as any);
+    const args = { workspaceId: "w1", syncId: "s1", type: "function", id: "x", code: "x", debug: {} };
+    const result = await handlers.get(name)!(args, { authInfo: { extra: { userId: "u1", role: "analyst" } } });
+    expect(result.isError).toBe(true);
+    expect(result.content[0].text).toMatch(/^Error \(403\): /);
+    expect(calls).toEqual([]);
+  });
+});
+
+describe("a refused call is logged and says whose role refused it", () => {
+  it("names the tool and the role in the answer and in a log line, without the arguments", async () => {
+    logged.lines.length = 0;
+    const result = await registeredTools({}).get("run_sync")!(
+      { workspaceId: "w1", syncId: "secret-sync-id" },
+      { authInfo: { extra: { userId: "u1", role: "analyst" } } }
+    );
+    const text = result.content[0].text;
+    expect(text).toContain("'run_sync'");
+    expect(text).toMatch(/role of this connection \(analyst\)/);
+    expect(text).not.toMatch(/this connection is read-only/);
+    const refusals = logged.lines.filter(l => /run_sync/.test(l.message) && /refus/i.test(l.message));
+    expect(refusals).toHaveLength(1);
+    expect(refusals[0].message).toContain("analyst");
+    // nothing else reaches the log: no extra argument to log(), no cause or other call on the chain, the payload nowhere
+    expect(refusals[0].args).toEqual([]);
+    expect(refusals[0].chainArgs).toEqual([]);
+    expect(JSON.stringify(refusals[0])).not.toContain("secret-sync-id");
+  });
+
+  it("logs nothing for an allowed call", async () => {
+    logged.lines.length = 0;
+    await registeredTools({ getSyncState: vi.fn(async () => ({ state: {} })) }).get("get_sync_state")!(
+      { workspaceId: "w1", syncId: "s1" },
+      { authInfo: { extra: { userId: "u1", role: "analyst" } } }
+    );
+    expect(logged.lines.filter(l => /refus/i.test(l.message))).toEqual([]);
+  });
+});
 
 describe("MCP read-only tools", () => {
   const ctx = (role: string | null) => ({

@@ -137,9 +137,14 @@ export function registerTools(sdkServer: SdkMcpServer, deps: ToolDeps) {
     sdkServer.registerTool(name, config, (async (args: any, extra: any) => {
       const tokenRole = extra?.authInfo?.extra?.role as WorkspaceRoleType | null | undefined;
       if (!config.annotations?.readOnlyHint && tokenRole && !hasPermission(tokenRole, "editEntities")) {
+        // the role is the same whether it comes from the consent page or from an API key; the arguments are not logged
+        log.atInfo().log(`Tool ${name} refused: the role of this connection (${tokenRole}) cannot make changes`);
         return {
           content: [
-            { type: "text", text: `Error (403): this connection is read-only, so '${name}' is not available to it.` },
+            {
+              type: "text",
+              text: `Error (403): '${name}' is not available because the role of this connection (${tokenRole}) is read-only.`,
+            },
           ],
           isError: true,
         };
