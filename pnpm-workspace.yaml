@@ -140,3 +140,4 @@ overrides:
   "baseline-browser-mapping@<2.11.0": "^2.11.0"
   "@vitest/mocker@<4.1.12": "^4.1.12"
   "websocket-driver@<0.7.5": "^0.7.5"
+  "effect@<3.22.1": "^3.22.1"
