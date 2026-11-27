@@ -257,16 +257,19 @@ export class ConfigObjectsService {
     if (incoming.cloneId) {
       log.atInfo().log(`Unmasking secrets for ${type} clone: ${incoming.id}`);
       if (containsMaskedSecrets(object)) {
+        // JITSU-281: the original must be a live object of the same type. Without that, a type that takes any field (a
+        // stream) could name a destination or a service and get its stored secrets restored into itself and read back.
         const clonesOriginal = await this.prisma.configurationObject.findFirst({
-          where: { id: incoming.cloneId, workspaceId },
+          where: { id: incoming.cloneId, workspaceId, type, deleted: false },
         });
-        if (clonesOriginal?.config) {
-          object = unmaskSecretsFromOriginal(
-            object,
-            clonesOriginal.config as any,
-            withSchemaDefaults(type, clonesOriginal.config)
-          );
+        if (!clonesOriginal?.config) {
+          throw new ApiError(`${type} with id ${incoming.cloneId} does not exist`, { status: 404 });
         }
+        object = unmaskSecretsFromOriginal(
+          object,
+          clonesOriginal.config as any,
+          withSchemaDefaults(type, clonesOriginal.config)
+        );
       }
     }
     // JITSU-228: *before* inputFilter, not after. The stream filter calls
