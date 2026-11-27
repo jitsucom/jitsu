@@ -1,10 +1,16 @@
 // Content-Security-Policy of the console. Plain CommonJS so next.config.js can require it and the code editor can
 // import the same Monaco URL.
 //
-// There is no nonce: the console's pages (static and server rendered alike) contain no executable inline script, only
+// There is no nonce: the console's own pages (static and server rendered alike) contain no executable inline script, only
 // `<script src>` of its own files and the non-executable `__NEXT_DATA__` JSON block. Without 'unsafe-inline' in
 // script-src an injected <script> or event handler does not run, which is what a nonce would add. A per-request nonce
 // would also mean rendering every page on request instead of serving static HTML.
+//
+// BUT (read on the live use.jitsu.com page, 25 Nov 2026): the console's own Jitsu tracker adds third-party tags at runtime,
+// and they bring 8 executable inline scripts (GTM data layer, Meta and Twitter pixels) and scripts from
+// www.googletagmanager.com, connect.facebook.net, static.ads-twitter.com, cdn.lr-ingest.io (LogRocket) and
+// www.datadoghq-browser-agent.com. strictPolicy blocks all of them, so it cannot be enforced as it is: that is why only
+// the directives that do not touch them (see enforcedPolicy) are enforced.
 
 /**
  * @monaco-editor/react loads the editor from this path at runtime. It is pinned in CodeEditor so the policy and the
@@ -19,8 +25,19 @@ const CALENDLY = "https://assets.calendly.com"; // import wizard booking widget
 const FONT_STYLES = "https://fonts.googleapis.com"; // Inter
 const FONT_FILES = "https://fonts.gstatic.com";
 
-/** Enforced: costs nothing, the console uses no plugins or <base> and is never framed. */
-const enforcedPolicy = ["object-src 'none'", "base-uri 'self'", "frame-ancestors 'none'"].join("; ");
+/**
+ * Enforced: costs nothing, the console uses no plugins or <base>, is never framed, and renders no inline event-handler
+ * attribute. `script-src-attr 'none'` blocks onerror=, onclick= and the like, the usual shape of an injected XSS payload
+ * (<img src=x onerror=...>); React attaches its handlers with addEventListener, so nothing the console does depends on
+ * them. The same page load that showed the analytics tags below had no such attribute at all. script-src itself is not
+ * enforced yet: see strictPolicy.
+ */
+const enforcedPolicy = [
+  "object-src 'none'",
+  "base-uri 'self'",
+  "frame-ancestors 'none'",
+  "script-src-attr 'none'",
+].join("; ");
 
 /**
  * Report-only: the policy meant to be enforced once the browser console of a real deployment shows no violations.

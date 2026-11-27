@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { createRequire } from "node:module";
 import { enforcedPolicy, MONACO_VS_URL, strictPolicy } from "../../lib/shared/content-security-policy";
 
 // JITSU-268: script-src without 'unsafe-inline', so injected markup cannot run script
@@ -47,11 +48,36 @@ describe("strictPolicy", () => {
 });
 
 describe("enforcedPolicy", () => {
-  it("is only the three directives that cost nothing", () => {
+  // Changed from "only the three directives" (JITSU-268, script-src-attr): the enforced policy now has a fourth one. It
+  // blocks inline event-handler attributes (onerror=, onclick=), the usual shape of an injected XSS payload, and costs
+  // nothing: the console renders no inline handler attributes (checked on the live page: none), and React's own handlers
+  // are not attributes. script-src itself stays report-only, because the console's analytics tags need inline scripts.
+  it("is only the four directives that cost nothing", () => {
     expect(directives(enforcedPolicy)).toEqual({
       "object-src": ["'none'"],
       "base-uri": ["'self'"],
       "frame-ancestors": ["'none'"],
+      "script-src-attr": ["'none'"],
     });
+  });
+
+  it("blocks inline event-handler attributes but says nothing about script elements", () => {
+    const d = directives(enforcedPolicy);
+    expect(d["script-src-attr"]).toEqual(["'none'"]);
+    // script-src and default-src are not enforced yet: GTM, the Meta and Twitter pixels, LogRocket and Datadog would break
+    expect(d["script-src"]).toBeUndefined();
+    expect(d["default-src"]).toBeUndefined();
+  });
+});
+
+describe("the headers the console sends", () => {
+  it("enforce enforcedPolicy and only report strictPolicy", async () => {
+    const config = createRequire(import.meta.url)("../../next.config.js");
+    const rules = await config.headers();
+    const all = rules.flatMap((rule: { headers: { key: string; value: string }[] }) => rule.headers);
+    const value = (key: string) => all.find((h: { key: string }) => h.key === key)?.value;
+    expect(value("Content-Security-Policy")).toBe(enforcedPolicy);
+    expect(value("Content-Security-Policy")).toContain("script-src-attr 'none'");
+    expect(value("Content-Security-Policy-Report-Only")).toBe(strictPolicy);
   });
 });
