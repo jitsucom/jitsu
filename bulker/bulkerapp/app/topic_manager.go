@@ -162,7 +162,9 @@ func (tm *TopicManager) LoadMetadata() {
 				for tp, offset := range res.ResultInfos {
 					if offset.Offset >= 0 && offset.Timestamp > 0 {
 						lastMessageDate := time.UnixMilli(offset.Timestamp)
-						topicsLastMessageDates[*tp.Topic] = &lastMessageDate
+						if previous := topicsLastMessageDates[*tp.Topic]; previous == nil || lastMessageDate.After(*previous) {
+							topicsLastMessageDates[*tp.Topic] = &lastMessageDate
+						}
 					}
 				}
 				tm.Debugf("Got topic offsets for %d topics in %v", len(topicsLastMessageDates), time.Since(start))
@@ -209,6 +211,15 @@ func (tm *TopicManager) processMetadata(metadata *kafka.Metadata, nonEmptyTopics
 			otherTopicsCount++
 			continue
 		}
+		if mode == "batch" && tm.config.KafkaBatchTopicPartitionExpansion && topicMetadata.Error.Code() == kafka.ErrNoError {
+			owner, _ := tm.startConsumerOnThisShard(topic, mode, destinationId, tableName, len(topicMetadata.Partitions))
+			if desired := tm.config.destinationTopicPartitions(topic); owner && tm.repository.GetDestination(destinationId) != nil && desired > len(topicMetadata.Partitions) {
+				if err := tm.expandBatchTopic(topic, desired); err != nil {
+					metrics.TopicManagerError("expand_batch_topic_error").Inc()
+					tm.Errorf("Failed to expand batch topic %s: %v", topic, err)
+				}
+			}
+		}
 		var dstTopics types.Set[string]
 		if dstTopics, ok = tm.destinationTopics[destinationId]; !ok {
 			dstTopics = types.NewSet[string]()
@@ -240,16 +251,7 @@ func (tm *TopicManager) processMetadata(metadata *kafka.Metadata, nonEmptyTopics
 					tm.streamConsumers[destinationId] = append(tm.streamConsumers[destinationId], streamConsumer)
 				case "batch":
 					batchPeriodSec := utils.Nvl(int(bulker.BatchFrequencyOption.Get(destination.streamOptions)*60), tm.config.BatchRunnerPeriodSec)
-					// check topic partitions count
-					var err error
-					if len(topicMetadata.Partitions) > 1 {
-						metrics.ConsumerErrors(topic, mode, destinationId, tableName, "invalid_partitions_count").Inc()
-						err = fmt.Errorf("Topic has more than 1 partition. Batch Consumer supports only topics with a single partition")
-					}
-					var batchConsumer *BatchConsumerImpl
-					if err == nil {
-						batchConsumer, err = NewBatchConsumer(tm.repository, destinationId, batchPeriodSec, topic, tm.config, tm.kafkaConfig, tm.batchProducer, tm.eventsLogService, tm)
-					}
+					batchConsumer, err := NewBatchConsumer(tm.repository, destinationId, batchPeriodSec, topic, tm.config, tm.kafkaConfig, tm.batchProducer, tm.eventsLogService, tm)
 					if err != nil {
 						topicsErrorsByMode[mode]++
 						tm.Errorf("Failed to create batch consumer for destination topic: %s: %v", topic, err)
@@ -346,7 +348,7 @@ func (tm *TopicManager) processMetadata(metadata *kafka.Metadata, nonEmptyTopics
 	}
 	tm.allTopics = allTopics
 	tm.staleTopics = staleTopics
-	err := tm.ensureTopic(tm.config.KafkaDestinationsTopicName, tm.config.KafkaDestinationsTopicPartitions,
+	err := tm.ensureTopicLocked(tm.config.KafkaDestinationsTopicName, tm.config.KafkaDestinationsTopicPartitions,
 		map[string]string{
 			"retention.ms": fmt.Sprint(tm.config.KafkaTopicRetentionHours * 60 * 60 * 1000),
 			"segment.ms":   fmt.Sprint(tm.config.KafkaTopicSegmentHours * 60 * 60 * 1000),
@@ -359,7 +361,7 @@ func (tm *TopicManager) processMetadata(metadata *kafka.Metadata, nonEmptyTopics
 		metrics.TopicManagerError("destination-topic_error").Inc()
 		tm.SystemErrorf("Failed to create multi-threaded destination topic [%s]: %v", tm.config.KafkaDestinationsTopicName, err)
 	}
-	err = tm.ensureTopic(tm.config.KafkaDestinationsDeadLetterTopicName, 1, map[string]string{
+	err = tm.ensureTopicLocked(tm.config.KafkaDestinationsDeadLetterTopicName, 1, map[string]string{
 		"cleanup.policy": "delete,compact",
 		"retention.ms":   fmt.Sprint(tm.config.KafkaDeadTopicRetentionHours * 60 * 60 * 1000),
 		"segment.ms":     fmt.Sprint(tm.config.KafkaTopicSegmentHours * 60 * 60 * 1000),
@@ -369,7 +371,7 @@ func (tm *TopicManager) processMetadata(metadata *kafka.Metadata, nonEmptyTopics
 		tm.SystemErrorf("Failed to create destination dead letter topic [%s]: %v", tm.config.KafkaDestinationsDeadLetterTopicName, err)
 	}
 	destinationsRetryTopicName := tm.config.KafkaDestinationsRetryTopicName
-	err = tm.ensureTopic(destinationsRetryTopicName, 1, map[string]string{
+	err = tm.ensureTopicLocked(destinationsRetryTopicName, 1, map[string]string{
 		"cleanup.policy": "delete,compact",
 		"segment.bytes":  fmt.Sprint(tm.config.KafkaRetryTopicSegmentBytes),
 		"retention.ms":   fmt.Sprint(tm.config.KafkaRetryTopicRetentionHours * 60 * 60 * 1000),
@@ -422,11 +424,7 @@ func (tm *TopicManager) startConsumerOnThisShard(topic, mode, destinationId, tab
 	shardsCount := uint64(tm.config.ShardsCount)
 	if mode == retryTopicMode {
 		partitionsCount = uint64(max(partitions, 1))
-		if partitionsCount > shardsCount {
-			metrics.ConsumerErrors(topic, mode, destinationId, tableName, "invalid_partitions_count").Inc()
-			tm.SystemErrorf("Topic %s has %d partitions - more than shards count: %d. Some partitions may not be consumed", topic, partitionsCount, shardsCount)
-			return false, true
-		}
+		partitionsCount = min(partitionsCount, shardsCount)
 	}
 	if !tm.enableConsumers {
 		return false, false
@@ -570,6 +568,7 @@ func (tm *TopicManager) EnsureDestinationTopic(topicId string) error {
 		meta, err := tm.kaftaAdminClient.GetMetadata(&topicId, false, tm.config.KafkaAdminMetadataTimeoutMs)
 		if err != nil {
 			tm.SystemErrorf("Error getting metadata for topic %s: %v", topicId, err)
+			return err
 		}
 		m, ok := meta.Topics[topicId]
 		if ok && len(m.Partitions) > 0 && m.Error.Code() == kafka.ErrNoError {
@@ -599,6 +598,13 @@ func (tm *TopicManager) EnsureDestinationTopic(topicId string) error {
 
 // ensureTopic creates topic if it doesn't exist
 func (tm *TopicManager) ensureTopic(topicId string, partitions int, config map[string]string) error {
+	tm.Lock()
+	defer tm.Unlock()
+	return tm.ensureTopicLocked(topicId, partitions, config)
+}
+
+// ensureTopicLocked requires tm.Mutex, including calls from processMetadata.
+func (tm *TopicManager) ensureTopicLocked(topicId string, partitions int, config map[string]string) error {
 	if !tm.allTopics.Contains(topicId) {
 		return tm.createTopic(topicId, partitions, config)
 	} else if !tm.ready && partitions > 1 {
@@ -606,6 +612,7 @@ func (tm *TopicManager) ensureTopic(topicId string, partitions int, config map[s
 		meta, err := tm.kaftaAdminClient.GetMetadata(&topicId, false, tm.config.KafkaAdminMetadataTimeoutMs)
 		if err != nil {
 			tm.SystemErrorf("Error getting metadata for topic %s: %v", topicId, err)
+			return err
 		}
 		m, ok := meta.Topics[topicId]
 		if ok {
@@ -673,7 +680,7 @@ func (tm *TopicManager) createDestinationTopic(topic string, config map[string]s
 	topicRes, err := tm.kaftaAdminClient.CreateTopics(context.Background(), []kafka.TopicSpecification{
 		{
 			Topic:         topic,
-			NumPartitions: 1,
+			NumPartitions: tm.config.destinationTopicPartitions(topic),
 			//TODO  get broker count from admin
 			ReplicationFactor: tm.config.KafkaTopicReplicationFactor,
 			Config:            topicConfig,

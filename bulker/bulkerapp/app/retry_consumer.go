@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"strconv"
 	"strings"
 	"time"
@@ -32,52 +33,35 @@ func NewRetryConsumer(repository *Repository, destinationId string, batchPeriodS
 	return &rc, nil
 }
 
-func (rc *RetryConsumer) shouldConsumeFuncImpl(partitionId int32, committedOffset, highOffset int64, consumerEpoch uint64) bool {
-	var firstPosition *kafka.TopicPartition
+func (rc *RetryConsumer) shouldConsumeFuncImpl(window *batchWindow, consumerEpoch uint64) (consume bool, err error) {
+	scan := newBatchWindow(window.next, window.end)
+	first := make(partitionOffsets)
 	defer func() {
-		//recover
-		if r := recover(); r != nil {
-			rc.SystemErrorf("Recovered from panic: %v", r)
-		}
-		if firstPosition != nil {
-			_, err := rc.consumer.seekPartitions([]kafka.TopicPartition{*firstPosition}, consumerEpoch)
-			if err != nil {
-				rc.SystemErrorf("Failed to seek to first position: %v", err)
-				//rc.restartConsumer()
+		if len(first) > 0 {
+			if _, seekErr := rc.consumer.seekPartitions(first.slice(), consumerEpoch); seekErr != nil {
+				err = seekErr
+				consume = false
 			}
 		}
 	}()
-	currentOffset := committedOffset
-	for currentOffset < highOffset {
-		message, err := rc.consumer.readMessage(rc.waitForMessages, consumerEpoch)
-		if err != nil {
-			var kafkaErr kafka.Error
-			if errors.As(err, &kafkaErr) && kafkaErr.Code() == kafka.ErrTimedOut {
-				rc.Debugf("Timeout. No messages to retry. %d-%d", committedOffset, highOffset)
-				return false
-			}
-			rc.Infof("Failed to check shouldConsume. %d-%d. Error: %v", committedOffset, highOffset, err)
-			// we don't handle errors here. allow consuming to handle error properly
-			return true
-		}
-		if firstPosition == nil {
-			firstPosition = &message.TopicPartition
-		}
-		if message.TopicPartition.Partition != partitionId {
-			rc.Debugf("Message partition %d is not equal to consumer partition %d. Skipping", message.TopicPartition.Partition, partitionId)
-			// we are not interested in messages from other partitions
-			return false
-		}
-		currentOffset = int64(message.TopicPartition.Offset)
-		if rc.isTimeToRetry(message) {
-			rc.Debugf("Found message to retry: %d of %d-%d", currentOffset, committedOffset, highOffset)
-			//at least one message is ready to retry. we should consume
-			return true
-		}
-
+	if err = scan.resume(rc.consumer, consumerEpoch); err != nil {
+		return
 	}
-	rc.Debugf("No messages to retry. %d-%d", committedOffset, highOffset)
-	return false
+	for scan.remaining() > 0 {
+		var message *kafka.Message
+		message, err = scan.read(rc.consumer, rc.waitForMessages, consumerEpoch)
+		if errors.Is(err, io.EOF) || isKafkaTimeout(err) {
+			return false, nil
+		}
+		if err != nil {
+			return false, err
+		}
+		first.first(message.TopicPartition)
+		if rc.isTimeToRetry(message) {
+			return true, nil
+		}
+	}
+	return false, nil
 }
 
 func (rc *RetryConsumer) batchSizes(_ *bulker.StreamOptions) (_, _, retryBatchSize int) {
@@ -85,11 +69,9 @@ func (rc *RetryConsumer) batchSizes(_ *bulker.StreamOptions) (_, _, retryBatchSi
 
 }
 
-func (rc *RetryConsumer) processBatchImpl(_ *Destination, _, _, _, retryBatchSize int, highOffset int64, updatedHighOffset int, consumerEpoch uint64) (counters BatchCounters, state bulker.State, nextBatch bool, err error) {
-	counters.firstOffset = int64(kafka.OffsetBeginning)
+func (rc *RetryConsumer) processBatchImpl(_ *Destination, _, _, _, retryBatchSize int, window *batchWindow, consumerEpoch uint64) (counters BatchCounters, state bulker.State, nextBatch bool, err error) {
 
-	var firstPosition *kafka.TopicPartition
-	var lastPosition *kafka.TopicPartition
+	firstPositions, nextPositions := make(partitionOffsets), make(partitionOffsets)
 
 	txOpened := false
 	var producer *kafka.Producer
@@ -104,8 +86,8 @@ func (rc *RetryConsumer) processBatchImpl(_ *Destination, _, _, _, retryBatchSiz
 			counters.notReadyReadded = 0
 			counters.retryScheduled = 0
 			//cleanup
-			if firstPosition != nil {
-				_, err2 := rc.consumer.seekPartitions([]kafka.TopicPartition{*firstPosition}, consumerEpoch)
+			if len(firstPositions) > 0 {
+				_, err2 := rc.consumer.seekPartitions(firstPositions.slice(), consumerEpoch)
 				if err2 != nil {
 					rc.SystemErrorf("Failed to seek to first position: %v", err2)
 					//rc.restartConsumer()
@@ -124,42 +106,26 @@ func (rc *RetryConsumer) processBatchImpl(_ *Destination, _, _, _, retryBatchSiz
 	nextBatch = true
 	for i := 0; i < retryBatchSize; i++ {
 		if rc.retired.Load() {
-			return
+			return counters, state, false, errConsumerRuntimeClosed
 		}
-		if lastPosition != nil && int64(lastPosition.Offset) >= highOffset-1 {
+		if window.remaining() == 0 {
 			nextBatch = false
-			rc.Debugf("Reached watermark offset %d. Stopping batch", highOffset-1)
-			// we reached the end of the topic
 			break
 		}
-		message, err := rc.consumer.readMessage(rc.waitForMessages, consumerEpoch)
+		message, err := window.read(rc.consumer, rc.waitForMessages, consumerEpoch)
 		if err != nil {
 			var kafkaErr kafka.Error
-			if errors.As(err, &kafkaErr) && kafkaErr.Code() == kafka.ErrTimedOut {
+			if errors.Is(err, io.EOF) || errors.As(err, &kafkaErr) && kafkaErr.Code() == kafka.ErrTimedOut {
 				nextBatch = false
 				// waitForMessages period is over. it's ok. considering batch as full
 				break
 			}
 			return counters, state, false, rc.NewError("Failed to consume event from topic: %v", err)
 		}
-		if firstPosition != nil && message.TopicPartition.Partition != firstPosition.Partition {
-			// partition assignment may change in the middle of consumption (rebalance)
-			// all messages in the batch must belong to a single partition to commit their offsets atomically.
-			// seek the foreign message back so it is re-read later and commit what was already consumed
-			rc.Infof("Got message from partition %d while consuming partition %d. Stopping batch", message.TopicPartition.Partition, firstPosition.Partition)
-			_, seekErr := rc.consumer.seekPartitions([]kafka.TopicPartition{message.TopicPartition}, consumerEpoch)
-			if seekErr != nil {
-				rc.SystemErrorf("Failed to seek back message from partition %d: %v", message.TopicPartition.Partition, seekErr)
-			}
-			// end the run: highOffset of the current run belongs to another partition. next run will query correct offsets
-			nextBatch = false
-			break
-		}
 		counters.consumed++
-		lastPosition = &message.TopicPartition
+		firstPositions.first(message.TopicPartition)
+		nextPositions.observe(message.TopicPartition)
 		if counters.consumed == 1 {
-			counters.firstOffset = int64(message.TopicPartition.Offset)
-			firstPosition = &message.TopicPartition
 			producer, err = rc.initTransactionalProducer()
 			if err != nil {
 				return counters, state, false, err
@@ -221,10 +187,8 @@ func (rc *RetryConsumer) processBatchImpl(_ *Destination, _, _, _, retryBatchSiz
 	if err != nil {
 		return counters, state, false, fmt.Errorf("failed to get consumer group metadata: %v", err)
 	}
-	offset := *lastPosition
-	offset.Offset++
 	//set consumer offset to the next message after failure. that happens atomically with whole producer transaction
-	err = producer.SendOffsetsToTransaction(context.Background(), []kafka.TopicPartition{offset}, groupMetadata)
+	err = producer.SendOffsetsToTransaction(context.Background(), nextPositions.slice(), groupMetadata)
 	if err != nil {
 		return counters, state, false, fmt.Errorf("failed to send consumer offset to producer transaction: %v", err)
 	}
