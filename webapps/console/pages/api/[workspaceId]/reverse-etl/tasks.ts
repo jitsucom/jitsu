@@ -1,8 +1,8 @@
 import { z } from "zod";
-import { createRoute, verifyAccessWithRole } from "../../../../lib/api";
+import { createRoute } from "../../../../lib/api";
 import { db } from "../../../../lib/server/db";
 import { ReverseTask } from "../../../../lib/reverse-etl";
-import { reverseLogs, reverseTasks } from "../../../../lib/server/reverse-syncs";
+import { ReverseEtlService } from "../../../../lib/server/reverse-etl-service";
 
 export const route = createRoute()
   .GET({
@@ -30,11 +30,11 @@ export const route = createRoute()
     }),
   })
   .handler(async ({ user, query: { workspaceId, ...filter }, res }) => {
-    await verifyAccessWithRole(user, workspaceId, "readEntities");
+    const service = new ReverseEtlService(db.prisma());
     res.setHeader("Cache-Control", "no-store");
     const { taskId } = filter;
-    const tasks = await reverseTasks(db.prisma(), workspaceId, filter);
-    const logs = taskId && tasks.length ? await reverseLogs(db.prisma(), workspaceId, tasks[0].sync_id, taskId) : [];
+    const tasks = await service.tasks(user, workspaceId, filter);
+    const logs = taskId && tasks.length ? await service.logs(user, workspaceId, tasks[0].sync_id, taskId) : [];
     return { tasks, logs };
   });
 export default route.toNextApiHandler();

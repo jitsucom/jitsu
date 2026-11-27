@@ -1,8 +1,8 @@
 import { z } from "zod";
 import { WarehouseColumn } from "@jitsu/warehouse-query/src/schema";
-import { createRoute, verifyAccessWithRole } from "../../../../lib/api";
+import { createRoute } from "../../../../lib/api";
 import { db } from "../../../../lib/server/db";
-import { modelColumns } from "../../../../lib/server/reverse-etl-models";
+import { ReverseEtlService } from "../../../../lib/server/reverse-etl-service";
 
 export const route = createRoute()
   .GET({
@@ -13,7 +13,6 @@ export const route = createRoute()
     tags: ["model"],
   })
   .handler(async ({ user, query: { workspaceId, modelId }, res }) => {
-    await verifyAccessWithRole(user, workspaceId, "editEntities");
     res.setHeader("Cache-Control", "no-store");
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 30_000);
@@ -22,7 +21,7 @@ export const route = createRoute()
     };
     res.on("close", cancel);
     try {
-      return await modelColumns(db.prisma(), workspaceId, modelId, controller.signal);
+      return await new ReverseEtlService(db.prisma()).columns(user, workspaceId, modelId, controller.signal);
     } finally {
       clearTimeout(timeout);
       res.off("close", cancel);

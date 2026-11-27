@@ -13,6 +13,7 @@ import { OAuthHandlers } from "./oauth";
 import { registerTools } from "./tools";
 import { ConfigObjectsService } from "../config-objects-service";
 import { EventsLogService } from "../events-log-service";
+import { ReverseEtlService } from "../reverse-etl-service";
 import { SyncService } from "../sync-service";
 import { DebugService } from "../debug-service";
 import { ReportsService } from "../reports-service";
@@ -96,6 +97,7 @@ export class McpServer {
       service: this.configObjects,
       eventsLog: this.eventsLog,
       syncs: this.syncs,
+      reverseEtl: new ReverseEtlService(this.deps.prisma),
       debug: this.debug,
       reports: this.reports,
       auditLog: this.auditLog,
