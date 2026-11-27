@@ -434,6 +434,7 @@ type QueryPayload struct {
 	TableTo        string
 	TableFrom      string
 	DedupTable     string
+	DedupOrderBy   string
 	JoinConditions string
 	SourceColumns  string
 }
