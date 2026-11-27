@@ -1,5 +1,5 @@
 import { z } from "zod";
-import zodToJsonSchema from "zod-to-json-schema";
+import { zodToJsonSchema } from "./zod-json-schema";
 import { getConfigObjectType, getConfigObjectTypeNonStrict } from "./config-objects";
 import { getCoreDestinationTypeNonStrict } from "./destinations";
 import { ApiError } from "../shared/errors";
@@ -37,7 +37,7 @@ export function getResourceJsonSchema(type: string, subType?: string): any {
         BaseLinkType.merge(z.object({ type: z.literal("push"), data: destinationType.connectionOptions }))
       );
     }
-    return zodToJsonSchema(BaseLinkType.merge(z.object({ data: z.any() })));
+    return zodToJsonSchema(BaseLinkType.merge(z.object({ data: z.any().optional() })));
   }
   if (!getConfigObjectTypeNonStrict(type)) {
     throw new ApiError(`Unknown resource type '${type}'`, { status: 404 });

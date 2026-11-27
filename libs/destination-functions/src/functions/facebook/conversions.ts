@@ -8,9 +8,10 @@ import { invalidMetaConversion } from "./validation-errors";
 import { metaPrivacy } from "./audience";
 import { MetaApiError, metaLog, metaRequest } from "./client";
 import { accepted, assertContext, Context, MetaUncertainDelivery, rejected, savedReceipt } from "./delivery";
+import { isoDateTime } from "../../iso-datetime";
 
-const wire = z.object({ key: z.string().regex(/^[a-f0-9]{64}$/), payload: z.record(z.unknown()) }).strict();
-const isoEventTime = z.string().datetime({ offset: true });
+const wire = z.object({ key: z.string().regex(/^[a-f0-9]{64}$/), payload: z.record(z.string(), z.unknown()) }).strict();
+const isoEventTime = isoDateTime({ offset: true });
 function eventTime(value: unknown) {
   if (value == null) return Math.floor(Date.now() / 1000);
   if (typeof value === "number" && Number.isSafeInteger(value) && value > 0 && value < 1e11) return value;

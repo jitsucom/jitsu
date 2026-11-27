@@ -104,7 +104,10 @@ export default createRoute()
       workspaceId: z.string(),
       destinationId: z.string().optional(),
     }),
-    result: z.record(z.object({ destinationId: z.string(), name: z.string(), supportQueries: z.boolean() })),
+    result: z.record(
+      z.string(),
+      z.object({ destinationId: z.string(), name: z.string(), supportQueries: z.boolean() })
+    ),
   })
   .handler(async ({ user, query, body }) => {
     const { workspaceId, destinationId } = query;

@@ -29,7 +29,7 @@
   },
   "dependencies": {
     "@ant-design/cssinjs": "^1.21.1",
-    "@asteasolutions/zod-to-openapi": "^7.3.0",
+    "@asteasolutions/zod-to-openapi": "^9.1.0",
     "@clickhouse/client": "^1.18.3",
     "@dnd-kit/core": "^6.0.8",
     "@dnd-kit/modifiers": "^6.0.1",
@@ -106,8 +106,7 @@
     "timezones-list": "^3.0.2",
     "tslib": "catalog:",
     "use-debounce": "^10.0.4",
-    "zod": "^3.23.8",
-    "zod-to-json-schema": "^3.23.2"
+    "zod": "^4.6.6"
   },
   "devDependencies": {
     "@ant-design/icons": "^5.5.1",

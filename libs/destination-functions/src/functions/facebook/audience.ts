@@ -16,8 +16,8 @@ import {
 } from "./delivery";
 
 const cell = z.union([z.string(), z.number().finite(), z.array(z.string())]);
-const memberSchema = z.record(cell);
-export const metaAudienceWire = z.object({ member: memberSchema, identity: z.record(z.string()) }).strict();
+const memberSchema = z.record(z.string(), cell);
+export const metaAudienceWire = z.object({ member: memberSchema, identity: z.record(z.string(), z.string()) }).strict();
 const extras = [
   ["firstInitial", "hashedFirstInitial", "FI"],
   ["birthYear", "hashedBirthYear", "DOBY"],

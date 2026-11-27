@@ -177,10 +177,12 @@ export function getServerEnv(): ServerEnv {
       const field = issue.path.join(".");
 
       if (issue.code === "invalid_type") {
-        if (issue.received === "undefined") {
+        // zod 4 issues no longer carry `received`; the input is process.env, so read the value directly
+        const received = process.env[String(issue.path[0])];
+        if (received === undefined) {
           errors.push(`${field} - missing`);
         } else {
-          errors.push(`${field} - expected ${issue.expected}, received ${issue.received}`);
+          errors.push(`${field} - expected ${issue.expected}, received ${typeof received}`);
         }
       } else {
         errors.push(`${field} - invalid format: ${issue.code} ${issue.message}`);

@@ -10,10 +10,10 @@ export const api: Api = {
     allowDuringMaintenance: true,
     types: {
       body: z.object({
-        props: z.any(),
+        props: z.any().optional(),
       }),
       query: z.object({
-        template: z.any(),
+        template: z.any().optional(),
       }),
     },
     auth: true,

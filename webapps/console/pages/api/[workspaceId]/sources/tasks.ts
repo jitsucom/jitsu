@@ -8,7 +8,7 @@ const aggregatedResultType = z.object({
   ok: z.boolean(),
   error: z.string().optional(),
   // value shape is owned by the service (latestSyncTaskSchema) so it can't drift from the query
-  tasks: z.record(latestSyncTaskSchema).optional(),
+  tasks: z.record(z.string(), latestSyncTaskSchema).optional(),
 });
 
 //fix the type of started_by and metrics from weird prism type to any

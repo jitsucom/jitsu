@@ -74,7 +74,7 @@ export const ActiveEventsReport = z.object({
 export type ActiveEventsReport = z.infer<typeof ActiveEventsReport>;
 
 const ConnectionStat = z
-  .record(KnownEventStatus, z.number())
+  .partialRecord(KnownEventStatus, z.number())
   .transform(x => x as typeof x extends Partial<infer T> ? T : never);
 export type ConnectionStat = z.infer<typeof ConnectionStat>;
 

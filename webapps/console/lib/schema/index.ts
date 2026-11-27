@@ -79,23 +79,25 @@ export const BillingBanner = z.object({
 
 export type BillingBanner = z.infer<typeof BillingBanner>;
 
-//Default values are for "free" (default) plan
+//Default values are for "free" (default) plan.
+//Optional flags carry no `.default()` on purpose: a missing key must stay missing. With zod 3 an outer `.optional()`
+//made a `.default()` inside it dead code; zod 4 applies it, which would fill in every absent flag and limit.
 const BillingSettingsShape = z.object({
   planId: z.string().default("free"),
   //if plan has a custom pricing prepared for a particular workspace
-  customBilling: z.boolean().default(false).optional(),
-  pastDue: z.boolean().default(false).optional(),
+  customBilling: z.boolean().optional(),
+  pastDue: z.boolean().optional(),
   //Can be "self-service" or "enterprise". Enterprise plans doesn't block workspace on overage, but requires manual billing.
-  planKind: z.string().default("self-service").optional(),
+  planKind: z.string().optional(),
   //similar to customBilling, but indicates that plan is custom. custom flag comes from stripe plan metadata
-  custom: z.boolean().default(false).optional(),
-  dailyActiveSyncs: z.number().default(1).optional(),
-  dailyActiveSyncsOverage: z.number().default(20).optional(),
+  custom: z.boolean().optional(),
+  dailyActiveSyncs: z.number().optional(),
+  dailyActiveSyncsOverage: z.number().optional(),
   maximumSyncFrequency: z.number().optional(), //minutes
   planName: z.string().optional(), //if not set - will be taken from planId
   overagePricePer100k: z.number().optional(),
   canShowProvisionDbCredentials: z.boolean().default(false),
-  dataRetentionEditorEnabled: z.boolean().default(false).optional(),
+  dataRetentionEditorEnabled: z.boolean().optional(),
   /**
    * Monthly destination-events quota. The key is misspelt for historical
    * reasons and stays the one every reader uses: `BillingSettings` resolves
@@ -145,13 +147,13 @@ const BillingSettingsShape = z.object({
       start: z.string(),
     })
     .optional(),
-  renewAfterExpiration: z.boolean().default(false).optional(),
+  renewAfterExpiration: z.boolean().optional(),
   //if subscription starts some time in the future, for enterprise plans only
   futureSubscriptionDate: z.string().optional(),
-  profileBuilderEnabled: z.boolean().default(false).optional(),
+  profileBuilderEnabled: z.boolean().optional(),
   /** Live Events observability export (JITSU-138); comes from stripe plan
    * metadata via billing/settings, like the other per-feature flags */
-  observabilityExportsEnabled: z.boolean().default(false).optional(),
+  observabilityExportsEnabled: z.boolean().optional(),
   /**
    * Custom domains on sites (JITSU-228) — Business and Enterprise. Absent on a
    * plan that predates the flag, so the resolver in lib/shared/plan-features.ts
@@ -164,7 +166,7 @@ const BillingSettingsShape = z.object({
    * are a separate product surface that happens to share the docs term.
    */
   identityStitchingEnabled: z.boolean().optional(),
-  isLegacyPlan: z.boolean().default(false).optional(),
+  isLegacyPlan: z.boolean().optional(),
   /**
    * Longest event-backup window (days) a member may select in the console
    * (JITSU-202). Optional on purpose: when absent, free plans get the free cap
@@ -292,7 +294,7 @@ export const AppConfig = z.object({
   }),
   auth: z
     .object({
-      firebasePublic: z.any(),
+      firebasePublic: z.any().optional(),
       nextauth: z
         .object({
           github: z.boolean().optional(),
@@ -580,8 +582,8 @@ export const SelectedStreamSettings = z.object({
 export type SelectedStreamSettings = z.infer<typeof SelectedStreamSettings>;
 
 export const SyncOptionsType = z.object({
-  streams: z.record(SelectedStreamSettings),
-  disabledStreams: z.record(SelectedStreamSettings).optional(),
+  streams: z.record(z.string(), SelectedStreamSettings),
+  disabledStreams: z.record(z.string(), SelectedStreamSettings).optional(),
   namespace: z.string().optional(),
   tableNamePrefix: z.string().optional(),
   toSameCase: z.boolean().optional(),

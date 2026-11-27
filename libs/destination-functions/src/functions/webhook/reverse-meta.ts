@@ -39,9 +39,12 @@ export function normalizeRowValue(value: unknown): unknown {
 }
 
 const jsonValue: z.ZodType<Json> = z.lazy(() =>
-  z.union([z.null(), z.boolean(), z.number().finite(), z.string(), z.array(jsonValue), z.record(jsonValue)])
+  z.union([z.null(), z.boolean(), z.number().finite(), z.string(), z.array(jsonValue), z.record(z.string(), jsonValue)])
 );
-export const WebhookRow = z.preprocess(normalizeRowValue, z.record(jsonValue)) as unknown as z.ZodType<JsonObject>;
+export const WebhookRow = z.preprocess(
+  normalizeRowValue,
+  z.record(z.string(), jsonValue)
+) as unknown as z.ZodType<JsonObject>;
 
 export const WebhookRowsOptions = z
   .object({

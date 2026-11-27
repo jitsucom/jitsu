@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { microsoftOAuthIntegration } from "@jitsu/destination-functions/src/functions/microsoft-ads/meta";
 import type { NangoConfig } from "./oauth/nango-config";
+import { isoDateTime } from "@jitsu/destination-functions/src/iso-datetime";
 
 /** The caller derives connectionId from an admitted, workspace-scoped destination. */
 export async function readMicrosoftAdsToken(
@@ -26,7 +27,7 @@ export async function readMicrosoftAdsToken(
         provider_config_key: z.literal(microsoftOAuthIntegration),
         credentials: z.object({
           access_token: z.string().min(1).max(16384),
-          expires_at: z.string().datetime({ offset: true }),
+          expires_at: isoDateTime({ offset: true }),
         }),
       })
       .parse(await response.json());

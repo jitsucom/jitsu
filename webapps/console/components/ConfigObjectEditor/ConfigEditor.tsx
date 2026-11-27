@@ -6,7 +6,7 @@ import { ConfigApiDeleteOptions, getConfigApi } from "../../lib/useApi";
 import { useRouter } from "next/router";
 import { asFunction, FunctionLike, getErrorMessage, getLog, requireDefined, rpc } from "juava";
 
-import zodToJsonSchema from "zod-to-json-schema";
+import { zodToJsonSchema } from "../../lib/schema/zod-json-schema";
 
 import styles from "./ConfigEditor.module.css";
 

@@ -61,7 +61,7 @@ async function updateFunctionCode(user: any, workspaceId: string, pbId: string, 
 }
 
 const upsertBody = z.object({
-  profileBuilder: z.any(),
+  profileBuilder: z.any().optional(),
   code: z.string(),
 });
 

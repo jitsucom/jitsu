@@ -14,7 +14,7 @@ import { invalidOpenAiConversion } from "./validation-errors";
 import { OpenAiApiError, OpenAiTransportError, openAiLog, openAiSendEvents } from "./client";
 import { accepted, assertContext, Context, OpenAiUncertainDelivery, rejected, savedReceipt } from "./delivery";
 
-const wire = z.object({ key: z.string().regex(/^[a-f0-9]{64}$/), payload: z.record(z.unknown()) }).strict();
+const wire = z.object({ key: z.string().regex(/^[a-f0-9]{64}$/), payload: z.record(z.string(), z.unknown()) }).strict();
 
 export function normalizeOpenAiConversion(
   input: unknown,

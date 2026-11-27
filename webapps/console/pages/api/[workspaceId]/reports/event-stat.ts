@@ -12,7 +12,7 @@ export default createRoute()
       end: z.any().optional(),
       granularity: z.enum(["day", "hour"]).optional().default("day"),
     }),
-    result: Report.and(z.object({ queryMeta: z.any() })),
+    result: Report.and(z.object({ queryMeta: z.any().optional() })),
   })
   .handler(async ({ user, query }) => {
     // getWorkspace resolves slugs too — the UI calls this route by workspace slug.

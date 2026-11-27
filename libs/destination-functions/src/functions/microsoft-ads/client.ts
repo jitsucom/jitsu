@@ -63,7 +63,7 @@ export function microsoftClient(
     });
     let data: Record<string, any>;
     try {
-      data = z.record(z.any()).parse(await response.json());
+      data = z.record(z.string(), z.any()).parse(await response.json());
     } catch {
       throw new MicrosoftUncertainDelivery();
     }

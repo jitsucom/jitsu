@@ -25,7 +25,7 @@ const credentials = z.object({
   warehouse: z.string().min(1),
   database: z.string().min(1),
   defaultSchema: z.string().default("PUBLIC"),
-  parameters: z.record(z.string()).optional(),
+  parameters: z.record(z.string(), z.string()).optional(),
 });
 const scalar = /^(?:NUMBER\(\d+,\d+\)|REAL|TEXT|BOOLEAN|DATE|TIME|TIMESTAMP_NTZ|TIMESTAMP_LTZ|TIMESTAMP_TZ)$/;
 // Use the same formats for output and checkpoint parsing, independent of inherited input settings.

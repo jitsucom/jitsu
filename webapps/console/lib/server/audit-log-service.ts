@@ -235,7 +235,7 @@ export const AuditLogItemSchema = z.object({
   authType: z.string().nullable().optional(),
   tokenId: z.string().nullable().optional(),
   ip: z.string().nullable().optional(),
-  requestHeaders: z.record(z.string()).nullable().optional(),
+  requestHeaders: z.record(z.string(), z.string()).nullable().optional(),
   token: z
     .object({
       id: z.string(),

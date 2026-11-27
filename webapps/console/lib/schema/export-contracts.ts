@@ -10,7 +10,7 @@ import { z } from "zod";
 // everywhere: the contract must never strip a field a consumer may understand.
 
 const DateIsh = z.union([z.date(), z.string().min(1)]);
-const AnyRecord = z.record(z.unknown());
+const AnyRecord = z.record(z.string(), z.unknown());
 
 // Post-jitsu#1441 a link row of a known destination type always materializes
 // the destination schema's defaults, and corrupt (non-object) stored roots are

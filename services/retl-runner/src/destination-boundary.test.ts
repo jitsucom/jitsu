@@ -62,7 +62,9 @@ describe("destination package boundaries", () => {
         for (const field of stream.fields(options)) {
           const keys =
             field.editor === "identifier" ? [field.raw, field.hashed] : field.editor === "mapping" ? [field.field] : [];
-          const shape = (schema instanceof z.ZodEffects ? schema.innerType() : schema).shape;
+          const row: z.ZodType = schema;
+          const base = row instanceof z.ZodPipe ? (row.in instanceof z.ZodTransform ? row.out : row.in) : row;
+          const shape = (base as z.ZodObject).shape;
           for (const key of keys) expect(key in shape, stream.id + "." + key).toBe(true);
           expect(field.name || field.key).toBeTruthy();
         }

@@ -1,5 +1,8 @@
 patchedDependencies:
   "@clickhouse/client@1.18.3": patches/@clickhouse__client@1.18.3.patch
+  # zod-prisma 0.5.4 (unmaintained since 2023) writes `z.record(jsonSchema)` and `z.ZodSchema<Json>` into every
+  # generated model; both are invalid in zod 4. See the patch for the two-line change.
+  "zod-prisma@0.5.4": patches/zod-prisma@0.5.4.patch
 
 packages:
   - e2e
@@ -123,8 +126,6 @@ overrides:
   "@hono/node-server@<2.1.3": "^2.1.3"
   "@azure/identity@<4.14.1": "^4.14.1"
   "@azure/msal-node@<7.1.0": "^7.1.0"
-  # Keep Zod 3 consumers compatible with their schema adapters. CVE-2023-54404
-  # was rejected on 2026-10-28: https://www.cve.org/CVERecord?id=CVE-2023-54404
   "@humanfs/node@<0.16.8": "^0.16.8"
   "browserslist@<4.28.7": "^4.28.7"
   "fflate@<0.8.3": "^0.8.3"

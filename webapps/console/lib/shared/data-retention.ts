@@ -9,7 +9,7 @@ export const DataRetentionSettings = z.object({
     maxHours: z.coerce.number(),
   }),
   customMongoDb: z.string().optional(),
-  disableS3Archive: z.coerce.boolean().default(false).optional(),
+  disableS3Archive: z.coerce.boolean().optional(),
   /**
    * Event-archive retention in hours; 0 means "no archive at all" (the
    * existing archive drains). Absent falls back to `nobackup` (= 0) and then
@@ -20,7 +20,7 @@ export const DataRetentionSettings = z.object({
    * directly. See resolveBackupMode().
    */
   backupRetentionHours: z.coerce.number().min(0).optional(),
-  pendingUpdate: z.coerce.boolean().default(false).optional(),
+  pendingUpdate: z.coerce.boolean().optional(),
 });
 
 // Example of type derived from Zod schema

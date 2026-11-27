@@ -482,7 +482,7 @@ export function getServerEnv(): ServerEnv {
   const result = ServerEnvSchema.safeParse(process.env);
 
   if (!result.success) {
-    throw wrapZodError(result);
+    throw wrapZodError(result, process.env);
   }
 
   if (!result.data.BULKER_URL && result.data.BULKER_PORT && result.data.BULKER_SERVICE_HOST) {

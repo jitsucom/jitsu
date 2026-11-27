@@ -15,6 +15,7 @@ import { type SyncService } from "../sync-service";
 import { type DebugService } from "../debug-service";
 import { type ReportsService } from "../reports-service";
 import { AUDIT_LOG_MAX_LIMIT, AUDIT_LOG_ORIGINS, type AuditLogService } from "../audit-log-service";
+import { isoDateTime } from "@jitsu/destination-functions/src/iso-datetime";
 
 const log = getServerLog("mcp-tools");
 
@@ -252,7 +253,7 @@ export function registerTools(sdkServer: SdkMcpServer, deps: ToolDeps) {
       inputSchema: {
         workspaceId: z.string(),
         type: z.string().describe(`Resource type: one of ${typeList}`),
-        data: z.record(z.any()).describe("Resource payload (see get_resource_schema)"),
+        data: z.record(z.string(), z.any()).describe("Resource payload (see get_resource_schema)"),
       },
     },
     async ({ workspaceId, type, data }, ctx) =>
@@ -278,7 +279,7 @@ export function registerTools(sdkServer: SdkMcpServer, deps: ToolDeps) {
         workspaceId: z.string(),
         type: z.string().describe(`Resource type: one of ${typeList}`),
         id: z.string().describe("Resource id"),
-        data: z.record(z.any()).describe("Fields to update (see get_resource_schema)"),
+        data: z.record(z.string(), z.any()).describe("Fields to update (see get_resource_schema)"),
       },
     },
     async ({ workspaceId, type, id, data }, ctx) =>
@@ -351,8 +352,8 @@ export function registerTools(sdkServer: SdkMcpServer, deps: ToolDeps) {
         source: z.string().optional().describe('Source/actor id, or "all"/omitted for all sources'),
         limit: z.number().optional().describe("Max records (default 50, max 1000)"),
         levels: z.string().optional().describe('Comma-separated log levels, e.g. "error,warn" (events_log types only)'),
-        start: z.string().datetime({ offset: true }).optional().describe("ISO timestamp — only records at/after this"),
-        end: z.string().datetime({ offset: true }).optional().describe("ISO timestamp — only records before this"),
+        start: isoDateTime({ offset: true }).optional().describe("ISO timestamp — only records at/after this"),
+        end: isoDateTime({ offset: true }).optional().describe("ISO timestamp — only records before this"),
         search: z.string().optional().describe("Substring match on the record body"),
       },
     },
@@ -423,8 +424,8 @@ export function registerTools(sdkServer: SdkMcpServer, deps: ToolDeps) {
         syncId: z.string().optional(),
         taskId: z.string().optional(),
         status: z.string().optional(),
-        from: z.string().datetime({ offset: true }).optional().describe("ISO timestamp — tasks started at/after"),
-        to: z.string().datetime({ offset: true }).optional().describe("ISO timestamp — tasks started before"),
+        from: isoDateTime({ offset: true }).optional().describe("ISO timestamp — tasks started at/after"),
+        to: isoDateTime({ offset: true }).optional().describe("ISO timestamp — tasks started before"),
       },
     },
     async ({ workspaceId, syncId, taskId, status, from, to }, ctx) =>
@@ -454,8 +455,8 @@ export function registerTools(sdkServer: SdkMcpServer, deps: ToolDeps) {
           .string()
           .optional()
           .describe(`Comma-separated subset of ${AUDIT_LOG_ORIGINS.join(", ")}`),
-        from: z.string().datetime({ offset: true }).optional().describe("ISO timestamp — entries at/after"),
-        to: z.string().datetime({ offset: true }).optional().describe("ISO timestamp — entries at/before"),
+        from: isoDateTime({ offset: true }).optional().describe("ISO timestamp — entries at/after"),
+        to: isoDateTime({ offset: true }).optional().describe("ISO timestamp — entries at/before"),
         cursor: z.string().optional().describe("`nextCursor` from the previous page"),
         limit: z
           .number()
@@ -636,7 +637,7 @@ export function registerTools(sdkServer: SdkMcpServer, deps: ToolDeps) {
         workspaceId: z.string(),
         type: z.string().optional().describe('Resource type, default "destination"'),
         id: z.string().optional().describe("Existing object id (used when `config` is omitted)"),
-        config: z.record(z.any()).optional().describe("Full config to test (alternative to `id`)"),
+        config: z.record(z.string(), z.any()).optional().describe("Full config to test (alternative to `id`)"),
       },
     },
     async ({ workspaceId, type, id, config }, ctx) =>
@@ -657,10 +658,10 @@ export function registerTools(sdkServer: SdkMcpServer, deps: ToolDeps) {
       inputSchema: {
         workspaceId: z.string(),
         functionId: z.string().describe('Function id (see list_resources with type "function")'),
-        event: z.record(z.any()).describe("Sample event to run the function against"),
+        event: z.record(z.string(), z.any()).describe("Sample event to run the function against"),
         code: z.string().optional().describe("Override the function code; omit to run the stored draft/code"),
-        variables: z.record(z.any()).optional().describe("Environment variables visible to the function"),
-        store: z.record(z.any()).optional().describe("Initial persistent-store contents"),
+        variables: z.record(z.string(), z.any()).optional().describe("Environment variables visible to the function"),
+        store: z.record(z.string(), z.any()).optional().describe("Initial persistent-store contents"),
       },
     },
     async ({ workspaceId, functionId, event, code, variables, store }, ctx) =>
@@ -680,11 +681,11 @@ export function registerTools(sdkServer: SdkMcpServer, deps: ToolDeps) {
       inputSchema: {
         workspaceId: z.string(),
         profileBuilderId: z.string(),
-        events: z.array(z.record(z.any())).describe("Sample events of one user to aggregate"),
+        events: z.array(z.record(z.string(), z.any())).describe("Sample events of one user to aggregate"),
         code: z.string().optional().describe("Override the profile function code"),
-        settings: z.record(z.any()).optional().describe("Override the profile-builder settings"),
+        settings: z.record(z.string(), z.any()).optional().describe("Override the profile-builder settings"),
         version: z.number().int().optional().describe("Profile-builder version to run; omit for the current one"),
-        store: z.record(z.any()).optional().describe("Initial persistent-store contents"),
+        store: z.record(z.string(), z.any()).optional().describe("Initial persistent-store contents"),
       },
     },
     async ({ workspaceId, profileBuilderId, events, code, settings, version, store }, ctx) =>
@@ -712,8 +713,8 @@ export function registerTools(sdkServer: SdkMcpServer, deps: ToolDeps) {
         "workspace. Defaults to the last month with day granularity.",
       inputSchema: {
         workspaceId: z.string(),
-        start: z.string().datetime({ offset: true }).optional(),
-        end: z.string().datetime({ offset: true }).optional(),
+        start: isoDateTime({ offset: true }).optional(),
+        end: isoDateTime({ offset: true }).optional(),
         granularity: z.enum(["day", "hour"]).optional(),
       },
     },
@@ -733,8 +734,8 @@ export function registerTools(sdkServer: SdkMcpServer, deps: ToolDeps) {
         "(defaults to the last month).",
       inputSchema: {
         workspaceId: z.string(),
-        start: z.string().datetime({ offset: true }).optional(),
-        end: z.string().datetime({ offset: true }).optional(),
+        start: isoDateTime({ offset: true }).optional(),
+        end: isoDateTime({ offset: true }).optional(),
       },
     },
     async ({ workspaceId, start, end }, ctx) =>

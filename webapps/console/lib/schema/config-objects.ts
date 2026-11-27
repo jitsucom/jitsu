@@ -16,7 +16,7 @@ import {
 } from "./index";
 import { assertDefined, createHash, deepCopy, deepMerge, requireDefined } from "juava";
 import { checkDomain, checkOrAddToIngress, isDomainAvailable } from "../server/custom-domains";
-import { ZodType, ZodTypeDef } from "zod";
+import { ZodType } from "zod";
 import { getServerLog } from "../server/log";
 import { getWildcardDomains } from "../../pages/api/[workspaceId]/domain-check";
 import { isSlackWebhookUrl } from "../shared/slack-webhook";
@@ -156,7 +156,7 @@ export const getConfigObjectType: (type: string) => Required<ConfigObjectType> =
   assertDefined(configType, `Unknown config object type ${type}`);
   //This crazy type really means "give me all optional properties, for which we need provide a default values"
   const defaults: Required<Pick<ConfigObjectType, OptionalKeys<ConfigObjectType>>> = {
-    narrowSchema: function (obj, originalSchema): ZodType<any, ZodTypeDef, any> {
+    narrowSchema: function (obj, originalSchema): ZodType<any> {
       return originalSchema;
     },
     inputFilter: async function (val: any) {

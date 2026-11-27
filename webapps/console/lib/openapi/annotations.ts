@@ -14,50 +14,57 @@ import {
 import { coreDestinations } from "../schema/destinations";
 import { WorkspaceDbModel } from "../../prisma/schema/workspace";
 
+// zod 4 attaches `.openapi()` to each schema when it is constructed (zod 3 patched a shared prototype), so a schema
+// built before `extendZodWithOpenApi()` ran - lib/schema is loaded by client code and by routes in no fixed order -
+// has no `.openapi()`. Cloning builds the schema again, after setup, so annotating works whatever the load order.
+function fresh<T extends z.ZodType>(schema: T): T {
+  return schema.clone() as T;
+}
+
 // `.openapi(refId)` returns a NEW schema instance with metadata attached — it does NOT mutate.
 // Capture and re-export so consumers reference the annotated versions and the generator emits $refs.
-export const ConfigEntityBaseSchema = ConfigEntityBaseOriginal.openapi("ConfigEntityBase", {
+export const ConfigEntityBaseSchema = fresh(ConfigEntityBaseOriginal).openapi("ConfigEntityBase", {
   title: "Config entity base",
   description: "Base fields shared by every workspace configuration object.",
 });
-export const ApiKeySchema = ApiKeyOriginal.openapi("ApiKey", {
+export const ApiKeySchema = fresh(ApiKeyOriginal).openapi("ApiKey", {
   title: "API key",
   description:
     "An API key associated with a stream. Use the `plaintext` field on creation; afterwards only `hash`/`hint` are returned.",
 });
-export const StreamConfigSchema = StreamConfigOriginal.openapi("StreamConfig", {
+export const StreamConfigSchema = fresh(StreamConfigOriginal).openapi("StreamConfig", {
   title: "Stream",
   description:
     "An incoming-events stream (formerly known as a source). Holds public/private write keys and the domains allowed to send events.",
 });
-export const DestinationConfigSchema = DestinationConfigOriginal.openapi("DestinationConfig", {
+export const DestinationConfigSchema = fresh(DestinationConfigOriginal).openapi("DestinationConfig", {
   title: "Destination (base)",
   description:
     "Base shape shared by every destination type. Concrete subtypes (DestinationPostgres, DestinationClickhouse, etc.) extend this with type-specific credentials.",
 });
-export const FunctionConfigSchema = FunctionConfigOriginal.openapi("FunctionConfig", {
+export const FunctionConfigSchema = fresh(FunctionConfigOriginal).openapi("FunctionConfig", {
   title: "Function",
   description: "A user-defined function (UDF). `code` is the published version; `draft` is the in-progress edit.",
 });
-export const ServiceConfigSchema = ServiceConfigOriginal.openapi("ServiceConfig", {
+export const ServiceConfigSchema = fresh(ServiceConfigOriginal).openapi("ServiceConfig", {
   title: "Service (connector)",
   description:
     "An external service polled by a connector (Airbyte protocol). The `package` and `version` reference a connector image.",
 });
-export const WorkspaceDomainSchema = WorkspaceDomainOriginal.openapi("WorkspaceDomain", {
+export const WorkspaceDomainSchema = fresh(WorkspaceDomainOriginal).openapi("WorkspaceDomain", {
   title: "Workspace domain",
   description: "A custom domain registered in the workspace (used for ingestion endpoints).",
 });
-export const MiscEntitySchema = MiscEntityOriginal.openapi("MiscEntity", {
+export const MiscEntitySchema = fresh(MiscEntityOriginal).openapi("MiscEntity", {
   title: "Miscellaneous entity",
   description: "Catch-all configuration object with a free-form `value`. Used for things like classic event mappings.",
 });
-export const NotificationChannelSchema = NotificationChannelOriginal.openapi("NotificationChannel", {
+export const NotificationChannelSchema = fresh(NotificationChannelOriginal).openapi("NotificationChannel", {
   title: "Notification channel",
   description:
     "Subscription that delivers workspace alerts (sync failures, batch failures, dead-letter events) to email or Slack.",
 });
-export const WorkspaceSchema = WorkspaceDbModel.openapi("Workspace", {
+export const WorkspaceSchema = fresh(WorkspaceDbModel).openapi("Workspace", {
   title: "Workspace",
   description:
     "A Jitsu workspace. Workspaces own all configuration objects (streams, destinations, functions, etc.). The workspace `id` is the value used as the `workspaceId` path parameter on most other endpoints.",

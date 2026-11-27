@@ -1,13 +1,14 @@
 import { z } from "zod";
 import { googleDataManagerOAuthIntegration } from "@jitsu/destination-functions/src/functions/google-ads/audience/meta";
 import type { NangoConfig } from "./oauth/nango-config";
+import { isoDateTime } from "@jitsu/destination-functions/src/iso-datetime";
 
 const connection = z.object({
   connection_id: z.string(),
   provider_config_key: z.literal(googleDataManagerOAuthIntegration),
   credentials: z.object({
     access_token: z.string().min(1).max(16384),
-    expires_at: z.string().datetime({ offset: true }),
+    expires_at: isoDateTime({ offset: true }),
   }),
 });
 

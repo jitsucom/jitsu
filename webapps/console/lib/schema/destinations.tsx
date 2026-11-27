@@ -1,5 +1,8 @@
 import { ReactNode } from "react";
-import { SomeZodObject, z } from "zod";
+import { ZodObject, ZodType, z } from "zod";
+
+/** Any object schema (what zod 3 called SomeZodObject): values of `.shape` stay typed and `parse()` returns a loose object. */
+export type AnyZodObject = ZodObject<Record<string, ZodType<any>>>;
 
 import amplitudeIcon from "./icons/amplitude";
 import bigqueryIcon from "./icons/bigquery";
@@ -144,7 +147,7 @@ export type SchemaUI = Record<string, PropertyUI>;
 
 export const FunctionsConnectionOptions = z.object({
   functions: z.array(z.object({ functionId: z.string(), functionOptions: z.any().optional() })).optional(),
-  functionsEnv: z.record(z.string()).optional(),
+  functionsEnv: z.record(z.string(), z.string()).optional(),
   debugTill: z.string().optional(),
 });
 
@@ -243,8 +246,8 @@ export type DestinationType<T = any> = {
   // destinations that relies on both rotor for flexible logic in typescript and bulker for batching
   hybrid?: boolean;
   tags: string | string[];
-  credentials: SomeZodObject;
-  connectionOptions: SomeZodObject;
+  credentials: AnyZodObject;
+  connectionOptions: AnyZodObject;
   credentialsUi?: SchemaUI;
   comingSoon?: boolean;
   icon?: ReactNode;
@@ -262,7 +265,7 @@ export type DestinationType<T = any> = {
    */
   syncs?: {
     [key: string]: {
-      syncOptions: SomeZodObject;
+      syncOptions: AnyZodObject;
       description: ReactNode;
     };
   };
@@ -794,7 +797,7 @@ export const coreDestinations: DestinationType<any>[] = [
         .describe(
           "Authentication Method::Redshift authentication method: <a target='_blank' rel='noopener noreferrer' href='https://docs.jitsu.com/destinations/warehouse/redshift#advanced-iam-role-for-jitsu'>IAM Role based</a> or database username/password"
         ),
-      serverless: z.boolean().default(false).optional().describe("Redshift Serverless::"),
+      serverless: z.boolean().optional().describe("Redshift Serverless::"),
       region: z.enum(s3Regions).describe("Region::Aws Region"),
       clusterIdentifier: z.string().optional().describe("Cluster Identifier::Redshift cluster identifier"),
       workgroupName: z.string().optional().describe("Workgroup name::Redshift Serverless workgroup name"),

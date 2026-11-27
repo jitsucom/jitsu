@@ -21,7 +21,7 @@ import type { GoogleAccessToken } from "../audience/runtime";
 import { GoogleRequestError, googleRequestError } from "../clients/errors";
 
 type Context = ReverseEtlContext<JsonObject, JsonObject>;
-const wire = z.object({ key: hex, payload: z.record(z.unknown()) }).strict();
+const wire = z.object({ key: hex, payload: z.record(z.string(), z.unknown()) }).strict();
 const compact = (value: Record<string, any>): any =>
   Object.fromEntries(Object.entries(value).filter(([, v]) => v !== undefined && v !== null && v !== ""));
 function timestamp(value: unknown): string {
@@ -87,7 +87,7 @@ function target(
 export function googleAdsOutcomes(batch: WriteBatch<JsonObject>, value: unknown): BatchResult {
   const response = z
     .object({
-      results: z.array(z.record(z.unknown())).optional(),
+      results: z.array(z.record(z.string(), z.unknown())).optional(),
       partialFailureError: z
         .object({
           code: z.number().optional(),
@@ -97,7 +97,7 @@ export function googleAdsOutcomes(batch: WriteBatch<JsonObject>, value: unknown)
                 errors: z
                   .array(
                     z.object({
-                      errorCode: z.record(z.string()),
+                      errorCode: z.record(z.string(), z.string()),
                       location: z.object({
                         fieldPathElements: z.array(
                           z.object({ fieldName: z.string(), index: z.number().int().optional() })

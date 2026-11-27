@@ -3,6 +3,7 @@ import { createRoute, verifyAccessWithRole } from "../../../../lib/api";
 import { db } from "../../../../lib/server/db";
 import { ReverseTask } from "../../../../lib/reverse-etl";
 import { reverseLogs, reverseTasks } from "../../../../lib/server/reverse-syncs";
+import { isoDateTime } from "@jitsu/destination-functions/src/iso-datetime";
 
 export const route = createRoute()
   .GET({
@@ -14,8 +15,8 @@ export const route = createRoute()
       status: z
         .enum(["COMPLETE", "PENDING", "SUCCESS", "FAILED", "RUNNING", "WAITING", "RESUMED", "CANCELLED", "SKIPPED"])
         .optional(),
-      from: z.string().datetime().optional(),
-      to: z.string().datetime().optional(),
+      from: isoDateTime().optional(),
+      to: isoDateTime().optional(),
     }),
     result: z.object({
       tasks: z.array(ReverseTask),

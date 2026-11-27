@@ -9,9 +9,9 @@ export const MappingSuggestionRequest = z
     destinationId: z.string().min(1),
     stream: z.string().min(1),
     mode: z.enum(["upsert", "mirror"]),
-    mapping: z.record(z.string()),
+    mapping: z.record(z.string(), z.string()),
     objectMappings: ObjectMappings.optional(),
-    streamOptions: z.record(z.unknown()),
+    streamOptions: z.record(z.string(), z.unknown()),
   })
   .strict();
 
