@@ -7,6 +7,7 @@ import { getErrorMessage, getSingleton, requireDefined, Singleton } from "juava"
 import { getServerLog } from "./log";
 import { getServerEnv } from "./serverEnv";
 import { getRequestHost } from "./origin";
+import { loggableUrl } from "./loggable-url";
 import { serialize } from "cookie";
 
 const log = getServerLog("firebase-server");
@@ -179,10 +180,12 @@ export function countAuthCookies(req: NextApiRequest): number {
 /**
  * Request context for auth-failure logs — enough to correlate a 401 with the
  * request without cross-referencing the gateway access logs, plus the
- * duplicate-cookie signal. Contains no secrets.
+ * duplicate-cookie signal. Contains no secrets: the path is logged without its query string.
  */
 function authLogContext(req: NextApiRequest): string {
-  return `method=${req.method} path=${req.url} host=${getRequestHost(req)} jitsuAuthCookies=${countAuthCookies(req)}`;
+  return `method=${req.method} path=${loggableUrl(req.url)} host=${getRequestHost(
+    req
+  )} jitsuAuthCookies=${countAuthCookies(req)}`;
 }
 
 export async function linkFirebaseUser(firebaseId: string, internalId: string) {
